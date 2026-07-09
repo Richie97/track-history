@@ -366,6 +366,12 @@ async function viewEvent(eventId) {
     </div>
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
+    <div class="btn-row" style="margin:14px 0">
+      <button class="btn" id="pdr-import">📼 Import PDR video…</button>
+      <input type="file" id="pdr-files" accept="video/mp4,.mp4" multiple hidden>
+      <span class="hint" style="font-size:12px;color:var(--muted)">Reads lap times from Corvette PDR telemetry — the video never leaves your computer</span>
+    </div>
+    <div id="pdr-review"></div>
     <form class="panel" id="add-session">
       <div class="form-grid">
         <div class="field"><label>Session label</label><input name="label" placeholder="Day 1 — Session 2"></div>
@@ -416,6 +422,89 @@ async function viewEvent(eventId) {
       route();
     };
   });
+
+  // --- PDR video import ---
+  const fileInput = view.querySelector("#pdr-files");
+  view.querySelector("#pdr-import").onclick = () => fileInput.click();
+  fileInput.onchange = async () => {
+    const files = [...fileInput.files];
+    if (!files.length) return;
+    const box = view.querySelector("#pdr-review");
+    box.innerHTML = `<div class="panel">Reading telemetry from ${files.length} file${files.length === 1 ? "" : "s"}…</div>`;
+    const results = [];
+    for (const f of files) {
+      try {
+        results.push({ file: f.name, parsed: await window.parsePdrFile(f) });
+      } catch (err) {
+        results.push({ file: f.name, error: err.message });
+      }
+    }
+    results.sort((a, b) => ((a.parsed?.time ?? "") < (b.parsed?.time ?? "") ? -1 : 1));
+    renderPdrReview(box, e, results);
+  };
+}
+
+function renderPdrReview(box, event, results) {
+  const blocks = results
+    .map((r, i) => {
+      if (r.error) {
+        return `<div style="margin-bottom:12px"><strong>${esc(r.file)}</strong><div class="error-banner">${esc(r.error)}</div></div>`;
+      }
+      const p = r.parsed;
+      const dateWarn =
+        p.date && p.date !== event.start_date &&
+        Math.abs(new Date(p.date) - new Date(event.start_date)) > (event.days || 1) * 86400000
+          ? `<div class="error-banner">Video is dated ${esc(p.date)} but this event is ${esc(event.start_date)}</div>`
+          : "";
+      const lapChips = p.laps
+        .map((l) => `<span class="lap">${l.estimated ? "~" : ""}${fmtMs(l.timeMs)}</span>`)
+        .join("");
+      const estCount = p.laps.filter((l) => l.estimated).length;
+      return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--grid)">
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" data-pdr-include="${i}" ${p.laps.length ? "checked" : "disabled"}>
+          <strong>${esc(r.file)}</strong>
+          <span style="color:var(--muted);font-size:13px">${esc(p.date ?? "")} ${esc(p.time ?? "")} · ${(p.durationS / 60).toFixed(0)} min · ${p.laps.length} lap${p.laps.length === 1 ? "" : "s"}</span>
+        </label>
+        ${dateWarn}
+        <div class="laps" style="margin-top:8px">${lapChips || `<span class="hint" style="color:var(--muted);font-size:13px">No complete laps found (no start/finish crossings in telemetry)</span>`}</div>
+        ${estCount ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">~ = recovered from distance telemetry (±0.1–0.3s); unmarked laps are beacon-exact</div>` : ""}
+        <div class="field" style="margin:8px 0 0"><input data-pdr-label="${i}" value="${esc(`PDR ${p.time ?? r.file.replace(/\.mp4$/i, "")}`)}" placeholder="Session label"></div>
+      </div>`;
+    })
+    .join("");
+  box.innerHTML = `<div class="panel">
+    <strong>PDR import preview</strong>
+    <div style="margin-top:10px">${blocks}</div>
+    <div class="btn-row">
+      <button class="btn primary" id="pdr-confirm">Add as sessions</button>
+      <button class="btn" id="pdr-cancel">Cancel</button>
+    </div>
+  </div>`;
+  box.querySelector("#pdr-cancel").onclick = () => (box.innerHTML = "");
+  box.querySelector("#pdr-confirm").onclick = async () => {
+    let added = 0;
+    for (let i = 0; i < results.length; i++) {
+      const inc = box.querySelector(`[data-pdr-include="${i}"]`);
+      if (!inc || !inc.checked) continue;
+      const r = results[i];
+      const estCount = r.parsed.laps.filter((l) => l.estimated).length;
+      const notes =
+        `Imported from ${r.file}` +
+        (estCount ? ` — ${estCount} of ${r.parsed.laps.length} laps distance-estimated (~), rest beacon-exact` : "");
+      await api(`/events/${event.id}/sessions`, {
+        method: "POST",
+        body: {
+          label: box.querySelector(`[data-pdr-label="${i}"]`).value.trim() || r.file,
+          notes,
+          laps: r.parsed.laps.map((l) => l.timeMs),
+        },
+      });
+      added++;
+    }
+    if (added) route();
+    else box.innerHTML = "";
+  };
 }
 
 // --- event form (new / edit) ---

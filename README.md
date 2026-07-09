@@ -81,6 +81,25 @@ Sign in with the Google account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other Google accounts get a fresh,
 empty logbook.
 
+## PDR video import
+
+On any event page, **Import PDR video…** reads lap times straight out of
+Corvette PDR (Cosworth) MP4 recordings — select one or more videos and each
+becomes a session with its laps. Parsing happens entirely in the browser via
+byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
+**the video is never uploaded**.
+
+How lap times are derived (reverse-engineered from the `ctbx`/`marl` telemetry
+track and validated against Cosworth Toolbox lap times):
+
+- PDR "Beacon" events mark start/finish crossings to the millisecond, but the
+  recorder drops some crossings.
+- The cumulative odometer channel recovers the missing ones: beacon-to-beacon
+  distance ÷ crossing count gives the lap length, and a missing crossing is the
+  moment distance passes `D0 + k × lapLength` (accurate to ~0.05–0.3s, shown
+  with `~`). Crossings beyond the first/last beacon are extrapolated the same
+  way and sanity-checked against GPS latitude.
+
 ## Notes on the data model
 
 - An event's **best time** is `MIN(best logged lap, manual best)` — the manual

@@ -10,6 +10,10 @@
 <body>
   <div id="app"></div>
   <div id="tooltip" class="tooltip" hidden></div>
+  <script type="module">
+    import { parsePdrFile } from "/pdr.js";
+    window.parsePdrFile = parsePdrFile;
+  </script>
   <script src="/app.js"></script>
 </body>
 </html>
