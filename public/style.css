@@ -197,3 +197,15 @@ form.panel, .panel {
 .tip-btn:hover { border-color: #e79f02; color: #e79f02; text-decoration: none; }
 .tip-blank { display: inline-block; transition: opacity 0.2s ease; }
 .error-banner { background: var(--danger); color: #fff; border-radius: 8px; padding: 8px 12px; margin: 12px 0; }
+
+/* share link */
+.share-badge {
+  font-size: 12px; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px;
+  white-space: nowrap;
+}
+.share-panel .share-prefix { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.share-panel input {
+  width: 170px; padding: 6px 10px; border: 1px solid var(--baseline); border-radius: 8px;
+  background: var(--page); color: var(--ink); font: inherit; font-size: 14px;
+}
