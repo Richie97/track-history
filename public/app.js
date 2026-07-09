@@ -180,9 +180,45 @@ const SS_LOGO = `<svg class="ss-logo" viewBox="0 0 429 629" fill="none" xmlns="h
   <rect x="311.969" y="198.246" width="163" height="442.765" transform="rotate(44.5184 311.969 198.246)" fill="#E79F02"/>
 </svg>`;
 
+// Small portions of track- and AI-inspired things to buy the maker.
+const TIP_ITEMS = [
+  "a coffee ☕",
+  "a beer 🍺",
+  "some tires 🛞",
+  "a set of brake pads 🛑",
+  "a tank of race fuel ⛽",
+  "a set of spark plugs ⚡",
+  "some Claude tokens 🤖",
+  "some Codex time 💻",
+  "some track time 🏁",
+  "an oil change 🛢️",
+  "some GPU hours 🔥",
+];
+const TIP_URL = "https://buymeacoffee.com/speedshift";
+
+let tipIdx = 0;
+let tipTimer = null;
+function startTipRotator() {
+  if (tipTimer) return; // singleton — footer re-renders shouldn't stack intervals
+  tipTimer = setInterval(() => {
+    const el = document.querySelector(".tip-blank");
+    if (!el) return;
+    tipIdx = (tipIdx + 1) % TIP_ITEMS.length;
+    el.style.opacity = "0";
+    setTimeout(() => {
+      el.textContent = TIP_ITEMS[tipIdx];
+      el.style.opacity = "1";
+    }, 220);
+  }, 2600);
+}
+
 function footerHtml() {
+  startTipRotator();
   return `<footer class="site-footer">
     <span>© ${new Date().getFullYear()} Speedshift LLC · Track History</span>
+    <a class="tip-btn" href="${TIP_URL}" target="_blank" rel="noopener">
+      Buy me <span class="tip-blank">${TIP_ITEMS[tipIdx]}</span>
+    </a>
     <a class="ss-credit" href="https://speedshift.io" target="_blank" rel="noopener">
       <span class="muted-part">Built by</span> ${SS_LOGO} <span class="ss-wordmark">Speedshift</span>
     </a>

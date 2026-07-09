@@ -176,4 +176,13 @@ form.panel, .panel {
 .ss-credit .muted-part { color: var(--muted); font-weight: 400; }
 .ss-wordmark { font-weight: 600; letter-spacing: -0.02em; }
 .ss-logo { height: 15px; width: auto; display: inline-block; }
+.tip-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--ink); font-size: 13px; font-weight: 500; white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.tip-btn:hover { border-color: #e79f02; color: #e79f02; text-decoration: none; }
+.tip-blank { display: inline-block; transition: opacity 0.2s ease; }
 .error-banner { background: var(--danger); color: #fff; border-radius: 8px; padding: 8px 12px; margin: 12px 0; }
