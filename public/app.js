@@ -93,7 +93,8 @@ function lineChart(points, { width = 900, height = 300, sparkline = false } = {}
   const ypad = Math.max((y1 - y0) * 0.12, 500);
   y0 -= ypad; y1 += ypad;
   const X = (v) => pad.l + ((v - x0) / (x1 - x0)) * (width - pad.l - pad.r);
-  const Y = (v) => pad.t + ((v - y0) / (y1 - y0)) * (height - pad.t - pad.b);
+  // Invert: faster (smaller) lap times sit lower on the chart, so improvement trends downward.
+  const Y = (v) => pad.t + ((y1 - v) / (y1 - y0)) * (height - pad.t - pad.b);
 
   const pts = points.map((p) => ({ ...p, px: X(p.x), py: Y(p.y) }));
   const path = pts.map((p, i) => `${i ? "L" : "M"}${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
