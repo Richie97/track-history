@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+.claude/
+
+# Personal data stays out of the repo
+seed/data.personal.mjs
+seed/seed.sql

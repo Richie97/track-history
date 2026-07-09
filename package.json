@@ -1,0 +1,22 @@
+{
+  "name": "track-history",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "seed:generate": "node seed/generate.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply track-history --local",
+    "db:migrate:remote": "wrangler d1 migrations apply track-history --remote",
+    "db:seed:local": "wrangler d1 execute track-history --local --file seed/seed.sql",
+    "db:seed:remote": "wrangler d1 execute track-history --remote --file seed/seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  // Cloudflare Workers config — https://developers.cloudflare.com/workers/wrangler/configuration/
+  "name": "track-history",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-01",
+  "assets": {
+    "directory": "public",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/auth/*"],
+  },
+  "d1_databases": [
+    {
+      // Must match what the Worker code reads (c.env.DB in src/*.ts)
+      "binding": "DB",
+      "database_name": "track-history",
+      "database_id": "f29ad240-bee3-438f-bef9-ddd8681a9f5b",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}
