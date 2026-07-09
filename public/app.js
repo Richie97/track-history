@@ -321,6 +321,7 @@ async function viewDashboard() {
     )
     .join("");
 
+  const slug = state.me.share_slug || "";
   const view = shell(`
     <div class="btn-row" style="margin-top:20px">
       <a class="btn primary" href="#/new">+ Add event</a>
@@ -335,8 +336,48 @@ async function viewDashboard() {
     ${recent.length ? `<h2>Recent events</h2>
     <table><thead><tr><th>Date</th><th>Track</th><th>Club</th><th class="num">Best</th></tr></thead>
     <tbody>${recentRows}</tbody></table>` : ""}
+    <h2>Share your history</h2>
+    <div class="panel share-panel">
+      <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
+      <div class="btn-row">
+        <span class="share-prefix">${esc(location.origin)}/share/</span>
+        <input id="share-slug" placeholder="your-name" maxlength="32" value="${esc(slug)}">
+        <button class="btn small primary" id="share-save">${slug ? "Update path" : "Create link"}</button>
+        ${slug ? `<button class="btn small" id="share-copy">Copy link</button>
+        <a class="btn small" href="/share/${esc(slug)}" target="_blank" rel="noopener">Open ↗</a>
+        <button class="btn small danger" id="share-disable">Disable</button>` : ""}
+      </div>
+      <div id="share-msg" class="hint" style="margin-top:6px"></div>
+    </div>
   `);
   wireRowLinks(view);
+
+  const shareMsg = view.querySelector("#share-msg");
+  const shareInput = view.querySelector("#share-slug");
+  view.querySelector("#share-save").onclick = async () => {
+    try {
+      const saved = await api("/share", { method: "PUT", body: { slug: shareInput.value } });
+      state.me.share_slug = saved.slug;
+      route();
+    } catch (err) {
+      shareMsg.textContent = err.message;
+    }
+  };
+  shareInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") view.querySelector("#share-save").click();
+  });
+  if (slug) {
+    view.querySelector("#share-copy").onclick = async () => {
+      await navigator.clipboard.writeText(`${location.origin}/share/${slug}`);
+      shareMsg.textContent = "Link copied.";
+    };
+    view.querySelector("#share-disable").onclick = async () => {
+      if (!confirm("Disable your public share link? The URL will stop working.")) return;
+      await api("/share", { method: "DELETE" });
+      state.me.share_slug = null;
+      route();
+    };
+  }
 }
 
 // --- track detail ---
@@ -702,6 +743,137 @@ function wireRowLinks(view) {
   });
 }
 
+// ---------- public share mode ------------------------------------------------
+// Served at /share/<slug> via the SPA fallback: a read-only view of one user's
+// history for anyone with the link (no sign-in). Hash-routes within the page.
+
+const SHARE_SLUG = (location.pathname.match(/^\/share\/([^/]+)\/?$/) || [])[1];
+let shareData = null;
+
+function shareShell(content) {
+  $app.innerHTML = `
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="#/">🏁 Track History</a>
+        <span class="share-badge">Read-only shared view</span>
+        <span class="spacer"></span>
+        <a class="btn small" href="/">Track your own laps</a>
+      </header>
+      <div id="view">${content}</div>
+      ${footerHtml()}
+    </div>`;
+  return document.getElementById("view");
+}
+
+function shareEventRows(events, { withTrack = false } = {}) {
+  return events
+    .map(
+      (e) => `<tr${withTrack ? ` class="rowlink" data-href="#/track/${e.track_id}"` : ""}>
+        <td>${fmtDate(e.start_date)}</td>
+        ${withTrack ? `<td>${esc(e.track_name)}</td>` : ""}
+        <td>${e.days}</td>
+        <td>${esc(e.club ?? "")}</td>
+        <td>${esc(e.run_group ?? "")}</td>
+        <td>${esc(e.car ?? "")}</td>
+        <td class="num">${fmtMs(e.best_ms)}</td>
+        <td class="num">${fmtConsistency(e.consistency)}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+function shareDashboard() {
+  const { name, totals, tracks, events } = shareData;
+  const withData = tracks
+    .filter((t) => t.event_count > 0)
+    .sort((a, b) => (b.last_date || "").localeCompare(a.last_date || ""));
+
+  const cards = withData
+    .map((t) => {
+      const spark =
+        t.series.length >= 2
+          ? lineChart(t.series.map((p, i) => ({ x: i, y: p.best_ms })), { width: 220, height: 44, sparkline: true }).svg
+          : "";
+      return `<a class="card" href="#/track/${t.id}">
+        <div class="name">${esc(t.name)}</div>
+        <div class="best">${fmtMs(t.best_ms)}</div>
+        <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · last ${fmtDate(t.last_date)}</div>
+        ${spark}
+      </a>`;
+    })
+    .join("");
+
+  const view = shareShell(`
+    <h1>${esc(name || "Driver")} — Track History</h1>
+    <p class="sub">Track-day and HPDE history, shared read-only.</p>
+    <div class="tiles">
+      <div class="tile"><div class="label">Events</div><div class="value">${totals.events}</div></div>
+      <div class="tile"><div class="label">Track days</div><div class="value">${totals.track_days}</div></div>
+      <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
+    </div>
+    <h2>Tracks</h2>
+    ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events shared yet.</div>`}
+    ${events.length ? `<h2>All events</h2>
+    <table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
+    <tbody>${shareEventRows(events, { withTrack: true })}</tbody></table>` : ""}
+  `);
+  wireRowLinks(view);
+}
+
+function shareTrack(trackId) {
+  const track = shareData.tracks.find((t) => String(t.id) === String(trackId));
+  if (!track) {
+    shareShell(`<div class="empty">Not found. <a href="#/">Back</a></div>`);
+    return;
+  }
+  const events = shareData.events.filter((e) => String(e.track_id) === String(trackId));
+  const chrono = [...events].reverse().filter((e) => e.best_ms != null);
+  const points = chrono.map((e) => ({
+    x: new Date(e.start_date).getTime(),
+    y: e.best_ms,
+    xlabel: fmtDate(e.start_date),
+    tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}`,
+  }));
+  const chart = points.length >= 2 ? lineChart(points, { goal: track.goal_ms }) : null;
+  const bests = events.map((e) => e.best_ms).filter((v) => v != null);
+  const pb = bests.length ? Math.min(...bests) : null;
+
+  const view = shareShell(`
+    <p class="sub" style="margin:16px 0 0"><a href="#/">← All tracks</a></p>
+    <h1>${esc(track.name)}</h1>
+    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — lower is faster</div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
+    <h2>Events</h2>
+    <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
+    <tbody>${shareEventRows(events)}</tbody></table>
+  `);
+  if (chart) chart.bind(view.querySelector("#chart"));
+}
+
+async function shareRoute() {
+  if (!shareData) {
+    const res = await fetch(`/api/share/${encodeURIComponent(SHARE_SLUG)}`);
+    if (!res.ok) {
+      $app.innerHTML = `
+        <div class="login-wrap">
+          <div class="login-card">
+            <div class="flag">🏁</div>
+            <h1>Link not found</h1>
+            <p>This share link doesn't exist or has been disabled.</p>
+            <a class="btn primary" href="/">Go to Track History</a>
+            ${footerHtml()}
+          </div>
+        </div>`;
+      return;
+    }
+    shareData = await res.json();
+    document.title = `${shareData.name || "Driver"} — Track History`;
+  }
+  const parts = (location.hash || "#/").slice(1).split("/").filter(Boolean);
+  if (parts[0] === "track" && parts[1]) return shareTrack(parts[1]);
+  shareDashboard();
+}
+
 // ---------- router ----------------------------------------------------------
 
 async function route() {
@@ -728,5 +900,10 @@ async function route() {
   }
 }
 
-window.addEventListener("hashchange", route);
-route();
+if (SHARE_SLUG) {
+  window.addEventListener("hashchange", shareRoute);
+  shareRoute();
+} else {
+  window.addEventListener("hashchange", route);
+  route();
+}

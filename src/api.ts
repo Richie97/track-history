@@ -111,32 +111,26 @@ async function resolveTrack(
   return created!.id;
 }
 
-// --- me --------------------------------------------------------------------
-
-api.get("/me", async (c) => {
-  const userId = c.get("userId");
-  const user = await c.env.DB.prepare("SELECT id, email, name, picture FROM users WHERE id = ?")
+async function userTotals(db: D1Database, userId: number) {
+  return db
+    .prepare(
+      "SELECT COUNT(*) AS events, COALESCE(SUM(days), 0) AS track_days FROM events WHERE user_id = ?"
+    )
     .bind(userId)
     .first();
-  const totals = await c.env.DB.prepare(
-    "SELECT COUNT(*) AS events, COALESCE(SUM(days), 0) AS track_days FROM events WHERE user_id = ?"
-  )
-    .bind(userId)
-    .first();
-  return c.json({ user, totals });
-});
+}
 
-// --- tracks ----------------------------------------------------------------
-
-api.get("/tracks", async (c) => {
-  const userId = c.get("userId");
+// Tracks with per-track aggregates and a best-per-event sparkline series.
+async function tracksSummary(db: D1Database, userId: number) {
   const tracks = (
-    await c.env.DB.prepare("SELECT id, name, goal_ms FROM tracks WHERE user_id = ? ORDER BY name")
+    await db
+      .prepare("SELECT id, name, goal_ms FROM tracks WHERE user_id = ? ORDER BY name")
       .bind(userId)
       .all<{ id: number; name: string; goal_ms: number | null }>()
   ).results;
   const events = (
-    await c.env.DB.prepare(`${EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.start_date ASC`)
+    await db
+      .prepare(`${EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.start_date ASC`)
       .bind(userId)
       .all<EventRow>()
   ).results.map(withComputed);
@@ -146,7 +140,7 @@ api.get("/tracks", async (c) => {
     if (!byTrack.has(ev.track_id)) byTrack.set(ev.track_id, []);
     byTrack.get(ev.track_id)!.push(ev);
   }
-  const result = tracks.map((t) => {
+  return tracks.map((t) => {
     const evs = byTrack.get(t.id) ?? [];
     const bests = evs.map((e) => e.best_ms).filter((v): v is number => v != null);
     return {
@@ -161,7 +155,56 @@ api.get("/tracks", async (c) => {
         .map((e) => ({ date: e.start_date, best_ms: e.best_ms })),
     };
   });
-  return c.json(result);
+}
+
+// --- me --------------------------------------------------------------------
+
+api.get("/me", async (c) => {
+  const userId = c.get("userId");
+  const user = await c.env.DB.prepare(
+    "SELECT id, email, name, picture, share_slug FROM users WHERE id = ?"
+  )
+    .bind(userId)
+    .first();
+  const totals = await userTotals(c.env.DB, userId);
+  return c.json({ user, totals });
+});
+
+// --- share link --------------------------------------------------------------
+
+// 3-32 chars, lowercase letters/digits/hyphens, no leading/trailing hyphen.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+
+api.put("/share", async (c) => {
+  const body = await c.req.json<{ slug?: string }>();
+  const slug = (body.slug ?? "").trim().toLowerCase();
+  if (!SLUG_RE.test(slug)) {
+    return c.json(
+      { error: "path must be 3-32 letters, numbers or hyphens (can't start or end with a hyphen)" },
+      400
+    );
+  }
+  try {
+    await c.env.DB.prepare("UPDATE users SET share_slug = ? WHERE id = ?")
+      .bind(slug, c.get("userId"))
+      .run();
+  } catch {
+    return c.json({ error: "that path is already taken" }, 409);
+  }
+  return c.json({ slug });
+});
+
+api.delete("/share", async (c) => {
+  await c.env.DB.prepare("UPDATE users SET share_slug = NULL WHERE id = ?")
+    .bind(c.get("userId"))
+    .run();
+  return c.json({ ok: true });
+});
+
+// --- tracks ----------------------------------------------------------------
+
+api.get("/tracks", async (c) => {
+  return c.json(await tracksSummary(c.env.DB, c.get("userId")));
 });
 
 api.post("/tracks", async (c) => {
@@ -406,4 +449,29 @@ api.delete("/laps/:id", async (c) => {
     .run();
   if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
+});
+
+// --- public share ------------------------------------------------------------
+// Mounted at /api/share WITHOUT the auth middleware (see index.ts). Backs the
+// read-only /share/<slug> pages: stats, times and event metadata only — notes,
+// email and per-lap data stay private.
+
+export const publicShare = new Hono<AppContext>();
+
+publicShare.get("/:slug", async (c) => {
+  const slug = c.req.param("slug").toLowerCase();
+  const owner = await c.env.DB.prepare("SELECT id, name FROM users WHERE share_slug = ?")
+    .bind(slug)
+    .first<{ id: number; name: string | null }>();
+  if (!owner) return c.json({ error: "not found" }, 404);
+
+  const [totals, tracks, eventRows] = await Promise.all([
+    userTotals(c.env.DB, owner.id),
+    tracksSummary(c.env.DB, owner.id),
+    c.env.DB.prepare(`${EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.start_date DESC`)
+      .bind(owner.id)
+      .all<EventRow>(),
+  ]);
+  const events = eventRows.results.map(withComputed).map(({ notes, ...pub }) => pub);
+  return c.json({ name: owner.name, totals, tracks, events });
 });
