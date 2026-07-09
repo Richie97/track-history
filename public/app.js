@@ -117,7 +117,7 @@ function lineChart(points, { width = 900, height = 300, sparkline = false, goal 
     const idxs = [...new Set([0, Math.floor((n - 1) / 3), Math.floor(((n - 1) * 2) / 3), n - 1])];
     for (const i of idxs) {
       const p = pts[i];
-      const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+      const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
       labels += `<text x="${p.px.toFixed(1)}" y="${height - 8}" text-anchor="${anchor}" fill="var(--muted)" font-size="11">${esc(p.xlabel ?? "")}</text>`;
     }
     grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--baseline)" stroke-width="1"/>`;
@@ -395,7 +395,7 @@ async function viewTrack(trackId) {
     tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}`,
     href: `#/event/${e.id}`,
   }));
-  const chart = points.length >= 2 ? lineChart(points, { goal: track.goal_ms }) : null;
+  const chart = points.length ? lineChart(points, { goal: track.goal_ms }) : null;
 
   const rows = events
     .map(
@@ -834,7 +834,7 @@ function shareTrack(trackId) {
     xlabel: fmtDate(e.start_date),
     tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}`,
   }));
-  const chart = points.length >= 2 ? lineChart(points, { goal: track.goal_ms }) : null;
+  const chart = points.length ? lineChart(points, { goal: track.goal_ms }) : null;
   const bests = events.map((e) => e.best_ms).filter((v) => v != null);
   const pb = bests.length ? Math.min(...bests) : null;
 
