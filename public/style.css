@@ -102,6 +102,17 @@ tr.rowlink:hover { background: var(--accent-soft); }
 .chart-card .chart-title { font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
 .chart-wrap { position: relative; }
 .chart-wrap svg { display: block; width: 100%; height: auto; }
+.goal-control { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.goal-control .goal-label { font-size: 13px; color: var(--ink-2); }
+.goal-control input {
+  width: 110px; padding: 4px 10px; border: 1px solid var(--baseline); border-radius: 8px;
+  background: var(--page); color: var(--ink); font: inherit; font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.goal-control .goal-status { font-size: 12px; font-weight: 600; }
+.goal-control .goal-status.met { color: var(--good); }
+.goal-control .goal-status.unmet { color: var(--danger); }
+.goal-control .goal-msg { font-size: 12px; color: var(--danger); }
 .tooltip {
   position: fixed; z-index: 10; pointer-events: none;
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px;

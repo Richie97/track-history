@@ -131,9 +131,9 @@ api.get("/me", async (c) => {
 api.get("/tracks", async (c) => {
   const userId = c.get("userId");
   const tracks = (
-    await c.env.DB.prepare("SELECT id, name FROM tracks WHERE user_id = ? ORDER BY name")
+    await c.env.DB.prepare("SELECT id, name, goal_ms FROM tracks WHERE user_id = ? ORDER BY name")
       .bind(userId)
-      .all<{ id: number; name: string }>()
+      .all<{ id: number; name: string; goal_ms: number | null }>()
   ).results;
   const events = (
     await c.env.DB.prepare(`${EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.start_date ASC`)
@@ -181,11 +181,29 @@ api.post("/tracks", async (c) => {
 });
 
 api.put("/tracks/:id", async (c) => {
-  const body = await c.req.json<{ name?: string }>();
-  const name = body.name?.trim();
-  if (!name) return c.json({ error: "name required" }, 400);
-  const res = await c.env.DB.prepare("UPDATE tracks SET name = ? WHERE id = ? AND user_id = ?")
-    .bind(name, c.req.param("id"), c.get("userId"))
+  const body = await c.req.json<{ name?: string; goal_ms?: number | null }>();
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (body.name !== undefined) {
+    const name = body.name.trim();
+    if (!name) return c.json({ error: "name required" }, 400);
+    sets.push("name = ?");
+    binds.push(name);
+  }
+  if ("goal_ms" in body) {
+    const g = body.goal_ms;
+    if (g != null && (typeof g !== "number" || !Number.isFinite(g) || g <= 0)) {
+      return c.json({ error: "invalid goal" }, 400);
+    }
+    sets.push("goal_ms = ?");
+    binds.push(g ?? null);
+  }
+  if (!sets.length) return c.json({ error: "nothing to update" }, 400);
+  binds.push(c.req.param("id"), c.get("userId"));
+  const res = await c.env.DB.prepare(
+    `UPDATE tracks SET ${sets.join(", ")} WHERE id = ? AND user_id = ?`
+  )
+    .bind(...binds)
     .run();
   if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });

@@ -80,8 +80,12 @@ function niceTimeTicks(min, max, count = 4) {
 }
 
 // points: [{x: epochMs, y: lapMs, ...meta}]
-function lineChart(points, { width = 900, height = 300, sparkline = false } = {}) {
+// goal: optional target lap time (ms) drawn as a horizontal reference line —
+// red while unbeaten, green once a point meets or beats it.
+function lineChart(points, { width = 900, height = 300, sparkline = false, goal = null } = {}) {
   if (!points.length) return { svg: "", bind: () => {} };
+  const hasGoal = !sparkline && typeof goal === "number" && Number.isFinite(goal);
+  const goalMet = hasGoal && Math.min(...points.map((p) => p.y)) <= goal;
   const pad = sparkline
     ? { l: 2, r: 6, t: 4, b: 4 }
     : { l: 64, r: 20, t: 12, b: 28 };
@@ -89,6 +93,8 @@ function lineChart(points, { width = 900, height = 300, sparkline = false } = {}
   const ys = points.map((p) => p.y);
   let x0 = Math.min(...xs), x1 = Math.max(...xs);
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
+  // Keep the goal line inside the plotted range so it's always visible.
+  if (hasGoal) { y0 = Math.min(y0, goal); y1 = Math.max(y1, goal); }
   if (x0 === x1) { x0 -= 1; x1 += 1; }
   const ypad = Math.max((y1 - y0) * 0.12, 500);
   y0 -= ypad; y1 += ypad;
@@ -126,9 +132,17 @@ function lineChart(points, { width = 900, height = 300, sparkline = false } = {}
     dots = `<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="3" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`;
   }
 
+  let goalLayer = "";
+  if (hasGoal) {
+    const gy = Y(goal).toFixed(1);
+    const col = goalMet ? "var(--good)" : "var(--danger)";
+    goalLayer = `<line x1="${pad.l}" x2="${width - pad.r}" y1="${gy}" y2="${gy}" stroke="${col}" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="${width - pad.r}" y="${(Number(gy) - 6).toFixed(1)}" text-anchor="end" fill="${col}" font-size="11" font-weight="600">Goal ${fmtMs(goal)}${goalMet ? " ✓" : ""}</text>`;
+  }
+
   const strokeCol = sparkline ? "var(--baseline)" : "var(--accent)";
   const svg = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lap time trend">
-    ${grid}${labels}
+    ${grid}${labels}${goalLayer}
     <path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
   </svg>`;
@@ -340,7 +354,7 @@ async function viewTrack(trackId) {
     tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}`,
     href: `#/event/${e.id}`,
   }));
-  const chart = points.length >= 2 ? lineChart(points) : null;
+  const chart = points.length >= 2 ? lineChart(points, { goal: track.goal_ms }) : null;
 
   const rows = events
     .map(
@@ -358,17 +372,55 @@ async function viewTrack(trackId) {
 
   const bests = events.map((e) => e.best_ms).filter((v) => v != null);
   const pb = bests.length ? Math.min(...bests) : null;
+  const goal = track.goal_ms;
+  const goalMet = goal != null && pb != null && pb <= goal;
+
+  const goalControl = `<div class="goal-control">
+    <span class="goal-label">Goal lap</span>
+    <input id="goal-input" type="text" inputmode="decimal" placeholder="e.g. 1:59.0" value="${goal != null ? esc(fmtMs(goal)) : ""}">
+    <button class="btn small" id="goal-save">Save</button>
+    ${goal != null ? `<button class="btn small" id="goal-clear">Clear</button>` : ""}
+    ${goal != null ? `<span class="goal-status ${goalMet ? "met" : "unmet"}">${goalMet ? "Goal beaten ✓" : "Not yet beaten"}</span>` : ""}
+    <span id="goal-msg" class="goal-msg"></span>
+  </div>`;
 
   const view = shell(`
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — lower is faster</div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — lower is faster</div><div class="chart-wrap" id="chart">${chart.svg}</div>${goalControl}</div>` : `<div class="chart-card">${goalControl}</div>`}
     <div class="btn-row"><a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a></div>
     <h2>Events</h2>
     <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody></table>
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
+
+  const goalInput = view.querySelector("#goal-input");
+  const goalMsg = view.querySelector("#goal-msg");
+  const saveGoal = async (value) => {
+    try {
+      await api(`/tracks/${trackId}`, { method: "PUT", body: { goal_ms: value } });
+      route();
+    } catch (err) {
+      goalMsg.textContent = err.message;
+    }
+  };
+  view.querySelector("#goal-save").onclick = () => {
+    const raw = goalInput.value.trim();
+    if (!raw) return saveGoal(null);
+    const ms = parseTime(raw);
+    if (ms == null || ms <= 0) {
+      goalMsg.textContent = `Couldn't parse "${raw}" — use 1:59.0`;
+      return;
+    }
+    saveGoal(ms);
+  };
+  goalInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") view.querySelector("#goal-save").click();
+  });
+  const goalClear = view.querySelector("#goal-clear");
+  if (goalClear) goalClear.onclick = () => saveGoal(null);
+
   wireRowLinks(view);
 }
 
