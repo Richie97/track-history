@@ -173,6 +173,21 @@ function lineChart(points, { width = 900, height = 300, sparkline = false } = {}
 
 // ---------- views -----------------------------------------------------------
 
+// Speedshift.io mark: two amber diagonal bars (inlined from speedshift.io/logo.svg)
+const SS_LOGO = `<svg class="ss-logo" viewBox="0 0 429 629" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect x="0.589722" y="115.848" width="163" height="442.765" transform="rotate(-44.9265 0.589722 115.848)" fill="#E79F02"/>
+  <rect x="311.969" y="198.246" width="163" height="442.765" transform="rotate(44.5184 311.969 198.246)" fill="#E79F02"/>
+</svg>`;
+
+function footerHtml() {
+  return `<footer class="site-footer">
+    <span>© ${new Date().getFullYear()} Speedshift LLC · Track History</span>
+    <a class="ss-credit" href="https://speedshift.io" target="_blank" rel="noopener">
+      <span class="muted-part">Built by</span> ${SS_LOGO} <span class="ss-wordmark">Speedshift</span>
+    </a>
+  </footer>`;
+}
+
 function renderLogin() {
   document.querySelector(".shell")?.remove();
   $app.innerHTML = `
@@ -182,6 +197,7 @@ function renderLogin() {
         <h1>Track History</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
         <a class="btn primary" href="/auth/login">Sign in with Google</a>
+        ${footerHtml()}
       </div>
     </div>`;
 }
@@ -198,6 +214,7 @@ function shell(content) {
         <button class="btn small" id="logout">Sign out</button>
       </header>
       <div id="view">${content}</div>
+      ${footerHtml()}
     </div>`;
   document.getElementById("logout").onclick = async () => {
     await fetch("/auth/logout", { method: "POST" });

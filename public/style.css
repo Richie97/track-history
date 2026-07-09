@@ -158,4 +158,22 @@ form.panel, .panel {
 .login-card .flag { font-size: 40px; }
 
 .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+
+/* footer */
+.site-footer {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 48px; padding: 18px 0 4px; border-top: 1px solid var(--border);
+  font-size: 13px; color: var(--muted);
+}
+.login-card .site-footer { margin-top: 28px; justify-content: center; border-top: none; padding-top: 0; }
+.ss-credit {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--ink); text-decoration: none;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.ss-credit:hover { text-decoration: none; }
+.ss-credit:hover .ss-wordmark { color: #e79f02; }
+.ss-credit .muted-part { color: var(--muted); font-weight: 400; }
+.ss-wordmark { font-weight: 600; letter-spacing: -0.02em; }
+.ss-logo { height: 15px; width: auto; display: inline-block; }
 .error-banner { background: var(--danger); color: #fff; border-radius: 8px; padding: 8px 12px; margin: 12px 0; }
