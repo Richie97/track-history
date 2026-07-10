@@ -753,9 +753,76 @@ function renderPdrReview(box, event, results) {
 
 // --- event form (new / edit) ---
 
+// Common US road courses offered in the track dropdown. Free text is still
+// allowed — the backend find-or-creates tracks by name.
+const US_TRACKS = [
+  "Atlanta Motorsports Park",
+  "Autobahn Country Club",
+  "Barber Motorsports Park",
+  "Blackhawk Farms Raceway",
+  "Brainerd International Raceway",
+  "Buttonwillow Raceway Park",
+  "Carolina Motorsports Park",
+  "Charlotte Motor Speedway (Roval)",
+  "Chuckwalla Valley Raceway",
+  "Circuit of the Americas",
+  "Daytona International Speedway (Road Course)",
+  "Dominion Raceway",
+  "Eagles Canyon Raceway",
+  "Gingerman Raceway",
+  "Grattan Raceway",
+  "Hallett Motor Racing Circuit",
+  "Harris Hill Raceway",
+  "High Plains Raceway",
+  "Homestead-Miami Speedway (Road Course)",
+  "Indianapolis Motor Speedway (Road Course)",
+  "Inde Motorsports Ranch",
+  "Laguna Seca (WeatherTech Raceway)",
+  "Lime Rock Park",
+  "M1 Concourse",
+  "Mid-Ohio Sports Car Course",
+  "MotorSport Ranch (Cresson)",
+  "MSR Houston",
+  "NCM Motorsports Park",
+  "Nelson Ledges Road Course",
+  "New Jersey Motorsports Park (Lightning)",
+  "New Jersey Motorsports Park (Thunderbolt)",
+  "NOLA Motorsports Park",
+  "Oregon Raceway Park",
+  "Ozarks International Raceway",
+  "Pacific Raceways",
+  "Palmer Motorsports Park",
+  "Pittsburgh International Race Complex",
+  "Pocono Raceway",
+  "Portland International Raceway",
+  "Putnam Park Road Course",
+  "Road America",
+  "Road Atlanta",
+  "Roebling Road Raceway",
+  "Sebring International Raceway",
+  "Sonoma Raceway",
+  "Streets of Willow",
+  "Summit Point (Jefferson Circuit)",
+  "Summit Point (Main Circuit)",
+  "Summit Point (Shenandoah Circuit)",
+  "The Ridge Motorsports Park",
+  "Thompson Speedway Motorsports Park",
+  "Thunderhill Raceway (2-Mile)",
+  "Thunderhill Raceway (3-Mile)",
+  "Utah Motorsports Campus",
+  "VIR Full",
+  "VIR North",
+  "VIR South",
+  "Watkins Glen International",
+  "Willow Springs (Big Willow)",
+];
+
 async function viewEventForm(eventId, presetTrack) {
   const tracks = await api("/tracks");
   const existing = eventId ? await api(`/events/${eventId}`) : null;
+  // User's own tracks first, then common US tracks they haven't used yet.
+  const seen = new Set(tracks.map((t) => t.name.toLowerCase()));
+  const trackOpts = [...tracks.map((t) => t.name), ...US_TRACKS.filter((n) => !seen.has(n.toLowerCase()))];
 
   const view = shell(`
     <h1>${existing ? "Edit event" : "New event"}</h1>
@@ -763,8 +830,8 @@ async function viewEventForm(eventId, presetTrack) {
       <div class="form-grid">
         <div class="field"><label>Track</label>
           <input name="track" list="track-list" required value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="VIR Full">
-          <datalist id="track-list">${tracks.map((t) => `<option value="${esc(t.name)}">`).join("")}</datalist>
-          <div class="hint">Pick an existing track or type a new name</div>
+          <datalist id="track-list">${trackOpts.map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
+          <div class="hint">Pick from your tracks and common US tracks, or type a new name</div>
         </div>
         <div class="field"><label>Start date</label>
           <input name="start_date" type="date" required value="${esc(existing?.start_date ?? new Date().toISOString().slice(0, 10))}">
