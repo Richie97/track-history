@@ -7,3 +7,6 @@ dist/
 # Personal data stays out of the repo
 seed/data.personal.mjs
 seed/seed.sql
+
+# Local design system reference (not part of the app)
+Track History design system/

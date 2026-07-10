@@ -109,8 +109,8 @@ function lineChart(points, { width = 900, height = 300, sparkline = false, goal 
   if (!sparkline) {
     for (const tv of niceTimeTicks(y0, y1)) {
       const y = Y(tv).toFixed(1);
-      grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/>`;
-      labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--muted)" font-size="11" style="font-variant-numeric:tabular-nums">${fmtMs(tv)}</text>`;
+      grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
+      labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${fmtMs(tv)}</text>`;
     }
     // x labels: first, last, and up to 2 between
     const n = pts.length;
@@ -118,32 +118,32 @@ function lineChart(points, { width = 900, height = 300, sparkline = false, goal 
     for (const i of idxs) {
       const p = pts[i];
       const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
-      labels += `<text x="${p.px.toFixed(1)}" y="${height - 8}" text-anchor="${anchor}" fill="var(--muted)" font-size="11">${esc(p.xlabel ?? "")}</text>`;
+      labels += `<text x="${p.px.toFixed(1)}" y="${height - 8}" text-anchor="${anchor}" fill="var(--text-faint)" font-size="11">${esc(p.xlabel ?? "")}</text>`;
     }
-    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--baseline)" stroke-width="1"/>`;
+    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
     dots = pts
       .map(
         (p, i) =>
-          `<circle data-i="${i}" cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" style="cursor:${p.href ? "pointer" : "default"}"/>`
+          `<circle data-i="${i}" cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="4.5" fill="var(--chart-line)" stroke="var(--surface-card)" stroke-width="2" style="cursor:${p.href ? "pointer" : "default"}"/>`
       )
       .join("");
   } else {
     const last = pts[pts.length - 1];
-    dots = `<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="3" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`;
+    dots = `<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="3" fill="var(--accent)" stroke="var(--surface-card)" stroke-width="2"/>`;
   }
 
   let goalLayer = "";
   if (hasGoal) {
     const gy = Y(goal).toFixed(1);
-    const col = goalMet ? "var(--good)" : "var(--danger)";
-    goalLayer = `<line x1="${pad.l}" x2="${width - pad.r}" y1="${gy}" y2="${gy}" stroke="${col}" stroke-width="2" stroke-dasharray="6 4"/>
+    const col = goalMet ? "var(--positive)" : "var(--danger)";
+    goalLayer = `<line x1="${pad.l}" x2="${width - pad.r}" y1="${gy}" y2="${gy}" stroke="${col}" stroke-width="1.5" stroke-dasharray="6 5"/>
       <text x="${width - pad.r}" y="${(Number(gy) - 6).toFixed(1)}" text-anchor="end" fill="${col}" font-size="11" font-weight="600">Goal ${fmtMs(goal)}${goalMet ? " ✓" : ""}</text>`;
   }
 
-  const strokeCol = sparkline ? "var(--baseline)" : "var(--accent)";
+  const strokeCol = sparkline ? "var(--text-faint)" : "var(--chart-line)";
   const svg = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lap time trend">
     ${grid}${labels}${goalLayer}
-    <path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="${sparkline ? 1.5 : 2.25}" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
   </svg>`;
 
@@ -188,11 +188,61 @@ function lineChart(points, { width = 900, height = 300, sparkline = false, goal 
 
 // ---------- views -----------------------------------------------------------
 
-// Speedshift.io mark: two amber diagonal bars (inlined from speedshift.io/logo.svg)
-const SS_LOGO = `<svg class="ss-logo" viewBox="0 0 429 629" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <rect x="0.589722" y="115.848" width="163" height="442.765" transform="rotate(-44.9265 0.589722 115.848)" fill="#E79F02"/>
-  <rect x="311.969" y="198.246" width="163" height="442.765" transform="rotate(44.5184 311.969 198.246)" fill="#E79F02"/>
+// Speedshift.io mark: two diagonal bars (inlined from speedshift.io/logo.svg),
+// tinted via CSS variable instead of brand amber.
+const ssBars = (cls, fill) => `<svg class="${cls}" viewBox="0 0 429 629" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect x="0.589722" y="115.848" width="163" height="442.765" transform="rotate(-44.9265 0.589722 115.848)" fill="${fill}"/>
+  <rect x="311.969" y="198.246" width="163" height="442.765" transform="rotate(44.5184 311.969 198.246)" fill="${fill}"/>
 </svg>`;
+const SS_LOGO = ssBars("ss-logo", "var(--accent-ink)");
+// App mark: the bars on a lime circle (dark text always sits on the lime fill).
+const appLogoHtml = (cls = "") => `<span class="app-logo${cls ? " " + cls : ""}">${ssBars("", "var(--accent-contrast)")}</span>`;
+
+// ---------- theme (Auto / Light / Dark) --------------------------------------
+// Writes the choice to <html data-theme> (removed for Auto so the device
+// preference wins) and persists to localStorage.
+
+const THEME_KEY = "th-theme";
+const THEME_OPTS = [
+  ["auto", "◐", "Auto"],
+  ["light", "☀", "Light"],
+  ["dark", "☾", "Dark"],
+];
+
+function currentTheme() {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    if (t === "light" || t === "dark") return t;
+  } catch {}
+  return "auto";
+}
+
+function themeToggleHtml() {
+  const mode = currentTheme();
+  return `<div class="theme-toggle" role="group" aria-label="Theme">
+    ${THEME_OPTS.map(
+      ([id, glyph, label]) =>
+        `<button data-theme-opt="${id}" title="${label}" aria-label="${label}" aria-pressed="${mode === id}" class="${mode === id ? "active" : ""}">${glyph}</button>`
+    ).join("")}
+  </div>`;
+}
+
+function wireThemeToggle(container = document) {
+  container.querySelectorAll("[data-theme-opt]").forEach((btn) => {
+    btn.onclick = () => {
+      const mode = btn.dataset.themeOpt;
+      const root = document.documentElement;
+      if (mode === "auto") root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", mode);
+      try { localStorage.setItem(THEME_KEY, mode); } catch {}
+      btn.closest(".theme-toggle").querySelectorAll("button").forEach((b) => {
+        const active = b === btn;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-pressed", String(active));
+      });
+    };
+  });
+}
 
 // Small portions of track- and AI-inspired things to buy the maker.
 const TIP_ITEMS = [
@@ -224,22 +274,24 @@ function startTipRotator() {
       el.textContent = TIP_ITEMS[tipIdx];
       el.style.opacity = "1";
     }, 220);
-  }, 2600);
+  }, 4000);
 }
 
 function footerHtml() {
   startTipRotator();
   return `<footer class="site-footer">
-    <span>© ${new Date().getFullYear()} Speedshift LLC · Track History</span>
-    <a class="contribute-link" href="${REPO_URL}" target="_blank" rel="noopener"
-       data-tip="Fix my bugs — or add your own 🐛">
-      🛠️ Contribute
-    </a>
+    <span class="footer-left">
+      <span>© ${new Date().getFullYear()} Speedshift LLC</span>
+      <a class="contribute-link" href="${REPO_URL}" target="_blank" rel="noopener"
+         data-tip="Fix my bugs — or add your own 🐛">
+        Contribute ↗
+      </a>
+    </span>
     <a class="tip-btn" href="${TIP_URL}" target="_blank" rel="noopener">
       Buy me <span class="tip-blank">${TIP_ITEMS[tipIdx]}</span>
     </a>
     <a class="ss-credit" href="https://speedshift.io" target="_blank" rel="noopener">
-      <span class="muted-part">Built by</span> ${SS_LOGO} <span class="ss-wordmark">Speedshift</span>
+      Built by <span class="ss-mark">${SS_LOGO} <span class="ss-wordmark">Speedshift</span></span>
     </a>
   </footer>`;
 }
@@ -248,14 +300,16 @@ function renderLogin() {
   document.querySelector(".shell")?.remove();
   $app.innerHTML = `
     <div class="login-wrap">
+      <span class="login-toggle">${themeToggleHtml()}</span>
       <div class="login-card">
-        <div class="flag">🏁</div>
+        <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Track History</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
         <a class="btn primary" href="/auth/login">Sign in with Google</a>
         ${footerHtml()}
       </div>
     </div>`;
+  wireThemeToggle();
 }
 
 function shell(content) {
@@ -263,15 +317,35 @@ function shell(content) {
   $app.innerHTML = `
     <div class="shell">
       <header class="topbar">
-        <a class="brand" href="#/">🏁 Track History</a>
+        <a class="brand" href="#/">${appLogoHtml()} Track History</a>
         <span class="spacer"></span>
-        ${me?.picture ? `<img class="avatar" src="${esc(me.picture)}" alt="">` : ""}
-        <span class="who">${esc(me?.name || me?.email || "")}</span>
-        <button class="btn small" id="logout">Sign out</button>
+        <div class="user-menu">
+          <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false">
+            ${me?.picture ? `<img class="avatar" src="${esc(me.picture)}" alt="">` : ""}
+            <span class="who">${esc(me?.name || me?.email || "")}</span>
+            <span class="caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="menu" id="user-dropdown" hidden>
+            <div class="menu-row">
+              <span class="menu-label">Theme</span>
+              ${themeToggleHtml()}
+            </div>
+            <div class="menu-sep"></div>
+            <button class="menu-item" id="logout">Sign out</button>
+          </div>
+        </div>
       </header>
       <div id="view">${content}</div>
       ${footerHtml()}
     </div>`;
+  wireThemeToggle();
+  const trigger = document.getElementById("user-trigger");
+  const dropdown = document.getElementById("user-dropdown");
+  trigger.onclick = () => {
+    const open = dropdown.hidden;
+    dropdown.hidden = !open;
+    trigger.setAttribute("aria-expanded", String(open));
+  };
   document.getElementById("logout").onclick = async () => {
     await fetch("/auth/logout", { method: "POST" });
     renderLogin();
@@ -280,6 +354,22 @@ function shell(content) {
 }
 
 const state = { me: null };
+
+// Close the user dropdown on outside click or Escape (module-level: shell()
+// re-renders per route, so per-render listeners would accumulate).
+function closeUserMenu() {
+  const dropdown = document.getElementById("user-dropdown");
+  if (dropdown && !dropdown.hidden) {
+    dropdown.hidden = true;
+    document.getElementById("user-trigger")?.setAttribute("aria-expanded", "false");
+  }
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".user-menu")) closeUserMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeUserMenu();
+});
 
 async function ensureMe() {
   if (!state.me) {
@@ -345,11 +435,13 @@ async function viewDashboard() {
     <div class="panel share-panel">
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
       <div class="btn-row">
-        <span class="share-prefix">${esc(location.origin)}/share/</span>
-        <input id="share-slug" placeholder="your-name" maxlength="32" value="${esc(slug)}">
+        <span class="share-url">
+          <span class="share-prefix">${esc(location.host)}/share/</span>
+          <input id="share-slug" placeholder="your-name" maxlength="32" value="${esc(slug)}" spellcheck="false">
+        </span>
         <button class="btn small primary" id="share-save">${slug ? "Update path" : "Create link"}</button>
         ${slug ? `<button class="btn small" id="share-copy">Copy link</button>
-        <a class="btn small" href="/share/${esc(slug)}" target="_blank" rel="noopener">Open ↗</a>
+        <a class="btn small ghost" href="/share/${esc(slug)}" target="_blank" rel="noopener">Open ↗</a>
         <button class="btn small danger" id="share-disable">Disable</button>` : ""}
       </div>
       <div id="share-msg" class="hint" style="margin-top:6px"></div>
@@ -433,7 +525,7 @@ async function viewTrack(trackId) {
   const view = shell(`
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — lower is faster</div><div class="chart-wrap" id="chart">${chart.svg}</div>${goalControl}</div>` : `<div class="chart-card">${goalControl}</div>`}
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${goalControl}</div>` : `<div class="chart-card">${goalControl}</div>`}
     <div class="btn-row"><a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a></div>
     <h2>Events</h2>
     <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
@@ -488,14 +580,14 @@ async function viewEvent(eventId) {
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
-          <span class="s-best">${best != null ? `best ${fmtMs(best)} · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "no laps"}</span>
+          <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "no laps"}</span>
           <span class="grow"></span>
           <button class="btn small danger" data-del-session="${s.id}">Delete</button>
         </div>
-        ${s.notes ? `<div class="notes-block" style="font-size:13px;color:var(--ink-2);margin-top:6px">${esc(s.notes)}</div>` : ""}
+        ${s.notes ? `<div class="notes-block">${esc(s.notes)}</div>` : ""}
         <div class="laps">${laps}</div>
-        <div class="btn-row" style="margin-top:10px">
-          <input data-add-laps-input="${s.id}" placeholder="Add laps: 2:01.24, 2:03.1 …" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--baseline);border-radius:8px;background:var(--page);color:var(--ink);font:inherit;font-size:13px">
+        <div class="btn-row" style="margin-top:16px">
+          <input class="add-laps-input" data-add-laps-input="${s.id}" placeholder="Add laps: 2:01.24, 2:03.1 …">
           <button class="btn small" data-add-laps="${s.id}">Add</button>
         </div>
       </div>`;
@@ -521,7 +613,7 @@ async function viewEvent(eventId) {
     <div class="btn-row" style="margin:14px 0">
       <button class="btn" id="pdr-import">📼 Import PDR video…</button>
       <input type="file" id="pdr-files" accept="video/mp4,.mp4" multiple hidden>
-      <span class="hint" style="font-size:12px;color:var(--muted)">Reads lap times from Corvette PDR telemetry — the video never leaves your computer</span>
+      <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR telemetry — the video never leaves your computer</span>
     </div>
     <div id="pdr-review"></div>
     <form class="panel" id="add-session">
@@ -612,15 +704,15 @@ function renderPdrReview(box, event, results) {
         .map((l) => `<span class="lap">${l.estimated ? "~" : ""}${fmtMs(l.timeMs)}</span>`)
         .join("");
       const estCount = p.laps.filter((l) => l.estimated).length;
-      return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--grid)">
+      return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border-hairline)">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
           <input type="checkbox" data-pdr-include="${i}" ${p.laps.length ? "checked" : "disabled"}>
           <strong>${esc(r.file)}</strong>
-          <span style="color:var(--muted);font-size:13px">${esc(p.date ?? "")} ${esc(p.time ?? "")} · ${(p.durationS / 60).toFixed(0)} min · ${p.laps.length} lap${p.laps.length === 1 ? "" : "s"}</span>
+          <span style="color:var(--text-muted);font-size:13px">${esc(p.date ?? "")} ${esc(p.time ?? "")} · ${(p.durationS / 60).toFixed(0)} min · ${p.laps.length} lap${p.laps.length === 1 ? "" : "s"}</span>
         </label>
         ${dateWarn}
-        <div class="laps" style="margin-top:8px">${lapChips || `<span class="hint" style="color:var(--muted);font-size:13px">No complete laps found (no start/finish crossings in telemetry)</span>`}</div>
-        ${estCount ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">~ = recovered from distance telemetry (±0.1–0.3s); unmarked laps are beacon-exact</div>` : ""}
+        <div class="laps" style="margin-top:8px">${lapChips || `<span class="hint" style="color:var(--text-muted);font-size:13px">No complete laps found (no start/finish crossings in telemetry)</span>`}</div>
+        ${estCount ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">~ = recovered from distance telemetry (±0.1–0.3s); unmarked laps are beacon-exact</div>` : ""}
         <div class="field" style="margin:8px 0 0"><input data-pdr-label="${i}" value="${esc(`PDR ${p.time ?? r.file.replace(/\.mp4$/i, "")}`)}" placeholder="Session label"></div>
       </div>`;
     })
@@ -759,14 +851,16 @@ function shareShell(content) {
   $app.innerHTML = `
     <div class="shell">
       <header class="topbar">
-        <a class="brand" href="#/">🏁 Track History</a>
+        <a class="brand" href="#/">${appLogoHtml()} Track History</a>
         <span class="share-badge">Read-only shared view</span>
         <span class="spacer"></span>
+        ${themeToggleHtml()}
         <a class="btn small" href="/">Track your own laps</a>
       </header>
       <div id="view">${content}</div>
       ${footerHtml()}
     </div>`;
+  wireThemeToggle();
   return document.getElementById("view");
 }
 
@@ -844,10 +938,10 @@ function shareTrack(trackId) {
   const pb = bests.length ? Math.min(...bests) : null;
 
   const view = shareShell(`
-    <p class="sub" style="margin:16px 0 0"><a href="#/">← All tracks</a></p>
+    <p style="margin:22px 0 0"><a class="backlink" href="#/">← All tracks</a></p>
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — lower is faster</div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
     <h2>Events</h2>
     <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
     <tbody>${shareEventRows(events)}</tbody></table>
@@ -862,7 +956,7 @@ async function shareRoute() {
       $app.innerHTML = `
         <div class="login-wrap">
           <div class="login-card">
-            <div class="flag">🏁</div>
+            <div class="flag">${appLogoHtml("lg")}</div>
             <h1>Link not found</h1>
             <p>This share link doesn't exist or has been disabled.</p>
             <a class="btn primary" href="/">Go to Track History</a>
