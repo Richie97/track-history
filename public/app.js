@@ -189,11 +189,14 @@ function lineChart(points, { width = 900, height = 300, sparkline = false, goal 
 // ---------- views -----------------------------------------------------------
 
 // Speedshift.io mark: two diagonal bars (inlined from speedshift.io/logo.svg),
-// tinted with the accent ink instead of brand amber.
-const SS_LOGO = `<svg class="ss-logo" viewBox="0 0 429 629" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <rect x="0.589722" y="115.848" width="163" height="442.765" transform="rotate(-44.9265 0.589722 115.848)" fill="var(--accent-ink)"/>
-  <rect x="311.969" y="198.246" width="163" height="442.765" transform="rotate(44.5184 311.969 198.246)" fill="var(--accent-ink)"/>
+// tinted via CSS variable instead of brand amber.
+const ssBars = (cls, fill) => `<svg class="${cls}" viewBox="0 0 429 629" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect x="0.589722" y="115.848" width="163" height="442.765" transform="rotate(-44.9265 0.589722 115.848)" fill="${fill}"/>
+  <rect x="311.969" y="198.246" width="163" height="442.765" transform="rotate(44.5184 311.969 198.246)" fill="${fill}"/>
 </svg>`;
+const SS_LOGO = ssBars("ss-logo", "var(--accent-ink)");
+// App mark: the bars on a lime circle (dark text always sits on the lime fill).
+const appLogoHtml = (cls = "") => `<span class="app-logo${cls ? " " + cls : ""}">${ssBars("", "var(--accent-contrast)")}</span>`;
 
 // ---------- theme (Auto / Light / Dark) --------------------------------------
 // Writes the choice to <html data-theme> (removed for Auto so the device
@@ -299,7 +302,7 @@ function renderLogin() {
     <div class="login-wrap">
       <span class="login-toggle">${themeToggleHtml()}</span>
       <div class="login-card">
-        <div class="flag">🏁</div>
+        <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Track History</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
         <a class="btn primary" href="/auth/login">Sign in with Google</a>
@@ -314,7 +317,7 @@ function shell(content) {
   $app.innerHTML = `
     <div class="shell">
       <header class="topbar">
-        <a class="brand" href="#/">🏁 Track History</a>
+        <a class="brand" href="#/">${appLogoHtml()} Track History</a>
         <span class="spacer"></span>
         <div class="user-menu">
           <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false">
@@ -848,7 +851,7 @@ function shareShell(content) {
   $app.innerHTML = `
     <div class="shell">
       <header class="topbar">
-        <a class="brand" href="#/">🏁 Track History</a>
+        <a class="brand" href="#/">${appLogoHtml()} Track History</a>
         <span class="share-badge">Read-only shared view</span>
         <span class="spacer"></span>
         ${themeToggleHtml()}
@@ -953,7 +956,7 @@ async function shareRoute() {
       $app.innerHTML = `
         <div class="login-wrap">
           <div class="login-card">
-            <div class="flag">🏁</div>
+            <div class="flag">${appLogoHtml("lg")}</div>
             <h1>Link not found</h1>
             <p>This share link doesn't exist or has been disabled.</p>
             <a class="btn primary" href="/">Go to Track History</a>

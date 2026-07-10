@@ -195,6 +195,15 @@ header.topbar {
   font-weight: var(--weight-semibold); font-size: 17px; letter-spacing: var(--tracking-snug);
   color: var(--text-strong);
 }
+
+/* App mark: Speedshift bars on a lime circle */
+.app-logo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; flex: none;
+  background: var(--accent); border-radius: var(--radius-pill);
+}
+.app-logo svg { height: 54%; width: auto; display: block; }
+.app-logo.lg { width: 56px; height: 56px; }
 .topbar .brand:hover { opacity: 1; }
 .topbar .spacer { flex: 1; }
 .topbar img.avatar {
@@ -447,7 +456,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .login-card h1 { margin: 16px 0 10px; font-size: 24px; }
 .login-card p { color: var(--text-muted); font-size: 15px; margin: 0 auto 26px; max-width: 260px; }
-.login-card .flag { font-size: var(--fs-hero); }
+.login-card .flag { display: flex; justify-content: center; }
 
 .empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
 
