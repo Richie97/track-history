@@ -209,6 +209,7 @@ const TIP_ITEMS = [
   "some GPU hours 🔥",
 ];
 const TIP_URL = "https://buymeacoffee.com/speedshift";
+const REPO_URL = "https://github.com/Richie97/track-history";
 
 let tipIdx = 0;
 let tipTimer = null;
@@ -230,6 +231,10 @@ function footerHtml() {
   startTipRotator();
   return `<footer class="site-footer">
     <span>© ${new Date().getFullYear()} Speedshift LLC · Track History</span>
+    <a class="contribute-link" href="${REPO_URL}" target="_blank" rel="noopener"
+       data-tip="Fix my bugs — or add your own 🐛">
+      🛠️ Contribute
+    </a>
     <a class="tip-btn" href="${TIP_URL}" target="_blank" rel="noopener">
       Buy me <span class="tip-blank">${TIP_ITEMS[tipIdx]}</span>
     </a>

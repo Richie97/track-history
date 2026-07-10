@@ -193,14 +193,30 @@ form.panel, .panel {
 .ss-wordmark { font-weight: 600; letter-spacing: -0.02em; }
 .ss-logo { height: 15px; width: auto; display: inline-block; }
 .tip-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 12px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  min-width: 225px; padding: 5px 12px; border-radius: 999px;
   border: 1px solid var(--border); background: var(--surface);
   color: var(--ink); font-size: 13px; font-weight: 500; white-space: nowrap;
   transition: border-color 0.15s, color 0.15s;
 }
 .tip-btn:hover { border-color: #e79f02; color: #e79f02; text-decoration: none; }
 .tip-blank { display: inline-block; transition: opacity 0.2s ease; }
+.contribute-link {
+  position: relative;
+  color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap;
+  text-decoration: none; transition: color 0.15s;
+}
+.contribute-link:hover { color: #e79f02; text-decoration: none; }
+.contribute-link::after {
+  content: attr(data-tip);
+  position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px);
+  padding: 6px 10px; border-radius: 8px;
+  background: var(--ink); color: var(--page);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.contribute-link:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 .error-banner { background: var(--danger); color: #fff; border-radius: 8px; padding: 8px 12px; margin: 12px 0; }
 
 /* share link */
