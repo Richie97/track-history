@@ -314,15 +314,33 @@ function shell(content) {
       <header class="topbar">
         <a class="brand" href="#/">🏁 Track History</a>
         <span class="spacer"></span>
-        ${themeToggleHtml()}
-        ${me?.picture ? `<img class="avatar" src="${esc(me.picture)}" alt="">` : ""}
-        <span class="who">${esc(me?.name || me?.email || "")}</span>
-        <button class="btn small ghost" id="logout">Sign out</button>
+        <div class="user-menu">
+          <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false">
+            ${me?.picture ? `<img class="avatar" src="${esc(me.picture)}" alt="">` : ""}
+            <span class="who">${esc(me?.name || me?.email || "")}</span>
+            <span class="caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="menu" id="user-dropdown" hidden>
+            <div class="menu-row">
+              <span class="menu-label">Theme</span>
+              ${themeToggleHtml()}
+            </div>
+            <div class="menu-sep"></div>
+            <button class="menu-item" id="logout">Sign out</button>
+          </div>
+        </div>
       </header>
       <div id="view">${content}</div>
       ${footerHtml()}
     </div>`;
   wireThemeToggle();
+  const trigger = document.getElementById("user-trigger");
+  const dropdown = document.getElementById("user-dropdown");
+  trigger.onclick = () => {
+    const open = dropdown.hidden;
+    dropdown.hidden = !open;
+    trigger.setAttribute("aria-expanded", String(open));
+  };
   document.getElementById("logout").onclick = async () => {
     await fetch("/auth/logout", { method: "POST" });
     renderLogin();
@@ -331,6 +349,22 @@ function shell(content) {
 }
 
 const state = { me: null };
+
+// Close the user dropdown on outside click or Escape (module-level: shell()
+// re-renders per route, so per-render listeners would accumulate).
+function closeUserMenu() {
+  const dropdown = document.getElementById("user-dropdown");
+  if (dropdown && !dropdown.hidden) {
+    dropdown.hidden = true;
+    document.getElementById("user-trigger")?.setAttribute("aria-expanded", "false");
+  }
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".user-menu")) closeUserMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeUserMenu();
+});
 
 async function ensureMe() {
   if (!state.me) {

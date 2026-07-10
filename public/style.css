@@ -203,6 +203,40 @@ header.topbar {
 }
 .topbar .who { color: var(--text-body); font-size: var(--fs-sm); }
 
+/* User menu (avatar + name → theme & sign out) */
+.user-menu { position: relative; }
+.user-trigger {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 5px 10px 5px 6px; border: 1px solid transparent;
+  border-radius: var(--radius-pill); background: transparent;
+  font: inherit; cursor: pointer; transition: var(--transition);
+}
+.user-trigger:hover, .user-trigger[aria-expanded="true"] {
+  background: var(--surface-raised); border-color: var(--border-hairline);
+}
+.user-trigger .caret { color: var(--text-faint); font-size: 10px; }
+.menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 20;
+  min-width: 210px; padding: 6px;
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-pop);
+}
+.menu-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 7px 10px;
+}
+.menu-row .theme-toggle { background: var(--surface-card); }
+.menu-label { font-size: var(--fs-xs); color: var(--text-muted); }
+.menu-sep { height: 1px; margin: 6px 4px; background: var(--border-hairline); }
+.menu-item {
+  display: block; width: 100%; text-align: left;
+  padding: 9px 10px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-body);
+  font: inherit; font-size: var(--fs-sm); cursor: pointer;
+  transition: var(--transition);
+}
+.menu-item:hover { background: var(--surface-hover); color: var(--text-strong); }
+
 /* Auto / Light / Dark segmented control */
 .theme-toggle {
   display: inline-flex; padding: 3px; gap: 2px;
