@@ -188,9 +188,11 @@ function lineChart(points, { width = 900, height = 300, sparkline = false, goal 
 
 // ---------- views -----------------------------------------------------------
 
-// Speedshift maker mark: small monochrome chevron (design system: no amber)
-const SS_CHEVRON = `<svg class="ss-chevron" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
-  <path d="M2 1 L9 7 L2 13" fill="none" stroke="var(--text-strong)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+// Speedshift.io mark: two diagonal bars (inlined from speedshift.io/logo.svg),
+// tinted with the accent ink instead of brand amber.
+const SS_LOGO = `<svg class="ss-logo" viewBox="0 0 429 629" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect x="0.589722" y="115.848" width="163" height="442.765" transform="rotate(-44.9265 0.589722 115.848)" fill="var(--accent-ink)"/>
+  <rect x="311.969" y="198.246" width="163" height="442.765" transform="rotate(44.5184 311.969 198.246)" fill="var(--accent-ink)"/>
 </svg>`;
 
 // ---------- theme (Auto / Light / Dark) --------------------------------------
@@ -286,7 +288,7 @@ function footerHtml() {
       Buy me <span class="tip-blank">${TIP_ITEMS[tipIdx]}</span>
     </a>
     <a class="ss-credit" href="https://speedshift.io" target="_blank" rel="noopener">
-      Built by <span class="ss-mark">${SS_CHEVRON} <span class="ss-wordmark">Speedshift</span></span>
+      Built by <span class="ss-mark">${SS_LOGO} <span class="ss-wordmark">Speedshift</span></span>
     </a>
   </footer>`;
 }

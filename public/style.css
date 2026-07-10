@@ -464,7 +464,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .ss-credit:hover .ss-wordmark { color: var(--accent-ink); }
 .ss-mark { display: inline-flex; align-items: center; gap: 5px; }
 .ss-wordmark { color: var(--text-strong); font-weight: var(--weight-semibold); transition: var(--transition); }
-.ss-chevron { display: inline-block; }
+.ss-logo { height: 14px; width: auto; display: inline-block; }
 .tip-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-width: 225px; padding: 8px 15px; border-radius: var(--radius-pill);
