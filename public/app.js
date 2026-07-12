@@ -610,10 +610,16 @@ async function viewEvent(eventId) {
     </div>
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
-    <div class="btn-row" style="margin:14px 0">
-      <button class="btn" id="pdr-import">📼 Import PDR video…</button>
+    <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,.mp4" multiple hidden>
-      <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR telemetry — the video never leaves your computer</span>
+      <div class="pdr-dropzone-inner">
+        <span class="pdr-dropzone-icon">📼</span>
+        <div>
+          <button class="btn" id="pdr-import" type="button">Import PDR video…</button>
+          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> files here</span>
+        </div>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR telemetry — the video never leaves your computer</span>
+      </div>
     </div>
     <div id="pdr-review"></div>
     <form class="panel" id="add-session">
@@ -669,9 +675,11 @@ async function viewEvent(eventId) {
 
   // --- PDR video import ---
   const fileInput = view.querySelector("#pdr-files");
+  const dropzone = view.querySelector("#pdr-dropzone");
   view.querySelector("#pdr-import").onclick = () => fileInput.click();
-  fileInput.onchange = async () => {
-    const files = [...fileInput.files];
+
+  async function importPdrFiles(fileList) {
+    const files = [...fileList].filter((f) => /\.mp4$/i.test(f.name) || f.type === "video/mp4");
     if (!files.length) return;
     const box = view.querySelector("#pdr-review");
     box.innerHTML = `<div class="panel">Reading telemetry from ${files.length} file${files.length === 1 ? "" : "s"}…</div>`;
@@ -685,7 +693,34 @@ async function viewEvent(eventId) {
     }
     results.sort((a, b) => ((a.parsed?.time ?? "") < (b.parsed?.time ?? "") ? -1 : 1));
     renderPdrReview(box, e, results);
-  };
+  }
+
+  fileInput.onchange = () => importPdrFiles(fileInput.files);
+
+  // Drag & drop onto the dropzone. dragenter/leave can fire on child
+  // elements, so count depth to avoid flicker.
+  let dragDepth = 0;
+  dropzone.addEventListener("dragenter", (ev) => {
+    ev.preventDefault();
+    if (dragDepth++ === 0) dropzone.classList.add("dragover");
+  });
+  dropzone.addEventListener("dragover", (ev) => {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = "copy";
+  });
+  dropzone.addEventListener("dragleave", (ev) => {
+    ev.preventDefault();
+    if (--dragDepth <= 0) {
+      dragDepth = 0;
+      dropzone.classList.remove("dragover");
+    }
+  });
+  dropzone.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    dragDepth = 0;
+    dropzone.classList.remove("dragover");
+    if (ev.dataTransfer.files.length) importPdrFiles(ev.dataTransfer.files);
+  });
 }
 
 function renderPdrReview(box, event, results) {
