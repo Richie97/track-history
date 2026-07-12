@@ -298,6 +298,35 @@ h2 {
 .btn.small { padding: 6px 12px; border-radius: var(--radius-sm); }
 .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
+.pdr-dropzone {
+  margin: 14px 0;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  transition: border-color .15s ease, background .15s ease;
+}
+.pdr-dropzone.dragover {
+  border-color: var(--accent-ring);
+  background: var(--accent-tint);
+}
+.pdr-dropzone-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+.pdr-dropzone-inner > * { pointer-events: auto; }
+.pdr-dropzone-icon { font-size: 22px; line-height: 1; }
+.pdr-dropzone-hint { font-size: 13px; color: var(--text-muted); margin-left: 8px; }
+.pdr-dropzone-hint code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-raised);
+}
+
 /* ---------- Stat tiles ---------- */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--grid-gap); margin: 22px 0; }
 .tile {
