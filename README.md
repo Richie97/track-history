@@ -81,16 +81,30 @@ Sign in with the Google account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other Google accounts get a fresh,
 empty logbook.
 
-## PDR video import
+## Video / telemetry import
 
-On any event page, **Import PDR video…** reads lap times straight out of
-Corvette PDR (Cosworth) MP4 recordings — select one or more videos and each
-becomes a session with its laps. Parsing happens entirely in the browser via
-byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
-**the video is never uploaded**.
+On any event page, **Import video / telemetry…** turns recordings into sessions
+with laps. Parsing happens entirely in the browser — for videos, via byte-range
+reads of the embedded telemetry track (a few MB of a multi-GB file); **files
+never leave your computer**. Supported sources:
 
-How lap times are derived (reverse-engineered from the `ctbx`/`marl` telemetry
-track and validated against Cosworth Toolbox lap times):
+- **Corvette PDR (Cosworth) MP4** — lap times from beacon/odometer telemetry
+  (details below).
+- **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
+- **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer
+  exports) — laps from the file's `[laptiming]` start line when present,
+  otherwise from the GPS trace.
+- **Garmin FIT** (Catalyst session exports) — the device's own lap messages,
+  or the GPS trace if a file has none.
+
+GPS-only sources have no lap markers, so the import preview shows the driven
+track map: **click where the start/finish line is** and laps are timed each
+pass across it (interpolated between 10–18 Hz fixes — accurate to roughly
+±0.1–0.3s, shown with `~`). One picked line applies to every file in the
+batch.
+
+How PDR lap times are derived (reverse-engineered from the `ctbx`/`marl`
+telemetry track and validated against Cosworth Toolbox lap times):
 
 - PDR "Beacon" events mark start/finish crossings to the millisecond, but the
   recorder drops some crossings.
