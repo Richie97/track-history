@@ -1,192 +1,29 @@
-"use strict";
+// SPA entry: shell, hash router and views. Pure helpers live in js/*.js so
+// they can be unit-tested; this module owns the DOM and app state.
+
+import { esc, fmtMs, parseTime, parseLapList, fmtDate, fmtConsistency } from "./js/format.js";
+import { lineChart } from "./js/chart.js";
+import { api as apiFetch, ApiError } from "./js/api.js";
+import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
+import { US_TRACKS } from "./js/us-tracks.js";
+import { bindPdrImport } from "./js/pdr-import.js";
 
 const $app = document.getElementById("app");
-const $tooltip = document.getElementById("tooltip");
 
-// ---------- utilities -------------------------------------------------------
-
-const esc = (s) =>
-  String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-
-// ms -> "2:01.24" (trailing zeros trimmed, at least one decimal)
-function fmtMs(ms) {
-  if (ms == null) return "—";
-  const total = Math.round(ms);
-  const m = Math.floor(total / 60000);
-  const s = Math.floor((total % 60000) / 1000);
-  let frac = String(total % 1000).padStart(3, "0").replace(/0+$/, "");
-  if (!frac) frac = "0";
-  return `${m}:${String(s).padStart(2, "0")}.${frac}`;
-}
-
-// "2:01.24" | "121.24" | "2:01" -> ms (null if unparseable)
-function parseTime(text) {
-  const t = String(text ?? "").trim();
-  if (!t) return null;
-  let m = /^(\d+):(\d{1,2})(?:[.,](\d{1,3}))?$/.exec(t);
-  if (m) {
-    const frac = m[3] ? Number(m[3].padEnd(3, "0")) : 0;
-    return (Number(m[1]) * 60 + Number(m[2])) * 1000 + frac;
-  }
-  m = /^(\d+)(?:[.,](\d{1,3}))?$/.exec(t);
-  if (m) return Number(m[1]) * 1000 + (m[2] ? Number(m[2].padEnd(3, "0")) : 0);
-  return null;
-}
-
-function parseLapList(text) {
-  return String(text ?? "")
-    .split(/[\s,;]+/)
-    .map(parseTime)
-    .filter((ms) => ms != null && ms > 0);
-}
-
-const fmtDate = (iso) => {
-  if (!iso) return "—";
-  const [y, mo, d] = iso.split("-").map(Number);
-  return new Date(y, mo - 1, d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-};
-
-const fmtConsistency = (cv) => (cv == null ? "—" : `${(cv * 100).toFixed(1)}%`);
-
-async function api(path, opts = {}) {
-  const res = await fetch(`/api${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  if (res.status === 401) {
-    renderLogin();
-    throw new Error("unauthorized");
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Request failed (${res.status})`);
-  }
-  return res.json();
-}
-
-// ---------- charts ----------------------------------------------------------
-// Single-series lap-time line charts: 2px line, >=8px markers with a 2px
-// surface ring, hairline gridlines, hover tooltip. Lower = faster.
-
-function niceTimeTicks(min, max, count = 4) {
-  const span = Math.max(1, max - min);
-  const rawStep = span / count;
-  const steps = [100, 200, 250, 500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000];
-  const step = steps.find((s) => s >= rawStep) ?? 300000;
-  const ticks = [];
-  for (let v = Math.ceil(min / step) * step; v <= max; v += step) ticks.push(v);
-  return ticks;
-}
-
-// points: [{x: epochMs, y: lapMs, ...meta}]
-// goal: optional target lap time (ms) drawn as a horizontal reference line —
-// red while unbeaten, green once a point meets or beats it.
-function lineChart(points, { width = 900, height = 300, sparkline = false, goal = null } = {}) {
-  if (!points.length) return { svg: "", bind: () => {} };
-  const hasGoal = !sparkline && typeof goal === "number" && Number.isFinite(goal);
-  const goalMet = hasGoal && Math.min(...points.map((p) => p.y)) <= goal;
-  const pad = sparkline
-    ? { l: 2, r: 6, t: 4, b: 4 }
-    : { l: 64, r: 20, t: 12, b: 28 };
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  let x0 = Math.min(...xs), x1 = Math.max(...xs);
-  let y0 = Math.min(...ys), y1 = Math.max(...ys);
-  // Keep the goal line inside the plotted range so it's always visible.
-  if (hasGoal) { y0 = Math.min(y0, goal); y1 = Math.max(y1, goal); }
-  if (x0 === x1) { x0 -= 1; x1 += 1; }
-  const ypad = Math.max((y1 - y0) * 0.12, 500);
-  y0 -= ypad; y1 += ypad;
-  const X = (v) => pad.l + ((v - x0) / (x1 - x0)) * (width - pad.l - pad.r);
-  // Invert: faster (smaller) lap times sit lower on the chart, so improvement trends downward.
-  const Y = (v) => pad.t + ((y1 - v) / (y1 - y0)) * (height - pad.t - pad.b);
-
-  const pts = points.map((p) => ({ ...p, px: X(p.x), py: Y(p.y) }));
-  const path = pts.map((p, i) => `${i ? "L" : "M"}${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
-
-  let grid = "", labels = "", dots = "";
-  if (!sparkline) {
-    for (const tv of niceTimeTicks(y0, y1)) {
-      const y = Y(tv).toFixed(1);
-      grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
-      labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${fmtMs(tv)}</text>`;
+// API wrapper: a 401 anywhere means the session is gone — show the login view.
+async function api(path, opts) {
+  try {
+    return await apiFetch(path, opts);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) {
+      renderLogin();
+      throw new Error("unauthorized");
     }
-    // x labels: first, last, and up to 2 between
-    const n = pts.length;
-    const idxs = [...new Set([0, Math.floor((n - 1) / 3), Math.floor(((n - 1) * 2) / 3), n - 1])];
-    for (const i of idxs) {
-      const p = pts[i];
-      const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
-      labels += `<text x="${p.px.toFixed(1)}" y="${height - 8}" text-anchor="${anchor}" fill="var(--text-faint)" font-size="11">${esc(p.xlabel ?? "")}</text>`;
-    }
-    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
-    dots = pts
-      .map(
-        (p, i) =>
-          `<circle data-i="${i}" cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="4.5" fill="var(--chart-line)" stroke="var(--surface-card)" stroke-width="2" style="cursor:${p.href ? "pointer" : "default"}"/>`
-      )
-      .join("");
-  } else {
-    const last = pts[pts.length - 1];
-    dots = `<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="3" fill="var(--accent)" stroke="var(--surface-card)" stroke-width="2"/>`;
+    throw err;
   }
-
-  let goalLayer = "";
-  if (hasGoal) {
-    const gy = Y(goal).toFixed(1);
-    const col = goalMet ? "var(--positive)" : "var(--danger)";
-    goalLayer = `<line x1="${pad.l}" x2="${width - pad.r}" y1="${gy}" y2="${gy}" stroke="${col}" stroke-width="1.5" stroke-dasharray="6 5"/>
-      <text x="${width - pad.r}" y="${(Number(gy) - 6).toFixed(1)}" text-anchor="end" fill="${col}" font-size="11" font-weight="600">Goal ${fmtMs(goal)}${goalMet ? " ✓" : ""}</text>`;
-  }
-
-  const strokeCol = sparkline ? "var(--text-faint)" : "var(--chart-line)";
-  const svg = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lap time trend">
-    ${grid}${labels}${goalLayer}
-    <path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="${sparkline ? 1.5 : 2.25}" stroke-linejoin="round" stroke-linecap="round"/>
-    ${dots}
-  </svg>`;
-
-  // Hover/click wiring for the full chart (nearest point by x).
-  const bind = (container) => {
-    if (sparkline) return;
-    const svgEl = container.querySelector("svg");
-    const circles = [...svgEl.querySelectorAll("circle[data-i]")];
-    const nearest = (evt) => {
-      const rect = svgEl.getBoundingClientRect();
-      const mx = ((evt.clientX - rect.left) / rect.width) * width;
-      let best = 0, bestD = Infinity;
-      pts.forEach((p, i) => {
-        const d = Math.abs(p.px - mx);
-        if (d < bestD) { bestD = d; best = i; }
-      });
-      return best;
-    };
-    svgEl.addEventListener("mousemove", (evt) => {
-      const i = nearest(evt);
-      const p = pts[i];
-      circles.forEach((el, j) => el.setAttribute("r", j === i ? "6" : "4.5"));
-      $tooltip.innerHTML = `<div class="t-val">${fmtMs(p.y)}</div><div class="t-sub">${esc(p.tip ?? "")}</div>`;
-      $tooltip.hidden = false;
-      const tw = $tooltip.offsetWidth;
-      let left = evt.clientX + 14;
-      if (left + tw > window.innerWidth - 8) left = evt.clientX - tw - 14;
-      $tooltip.style.left = `${left}px`;
-      $tooltip.style.top = `${evt.clientY - 12}px`;
-    });
-    svgEl.addEventListener("mouseleave", () => {
-      $tooltip.hidden = true;
-      circles.forEach((el) => el.setAttribute("r", "4.5"));
-    });
-    svgEl.addEventListener("click", (evt) => {
-      const p = pts[nearest(evt)];
-      if (p.href) location.hash = p.href;
-    });
-  };
-  return { svg, bind };
 }
 
-// ---------- views -----------------------------------------------------------
+// ---------- branding & footer ------------------------------------------------
 
 // Speedshift.io mark: two diagonal bars (inlined from speedshift.io/logo.svg),
 // tinted via CSS variable instead of brand amber.
@@ -197,52 +34,6 @@ const ssBars = (cls, fill) => `<svg class="${cls}" viewBox="0 0 429 629" fill="n
 const SS_LOGO = ssBars("ss-logo", "var(--accent-ink)");
 // App mark: the bars on a lime circle (dark text always sits on the lime fill).
 const appLogoHtml = (cls = "") => `<span class="app-logo${cls ? " " + cls : ""}">${ssBars("", "var(--accent-contrast)")}</span>`;
-
-// ---------- theme (Auto / Light / Dark) --------------------------------------
-// Writes the choice to <html data-theme> (removed for Auto so the device
-// preference wins) and persists to localStorage.
-
-const THEME_KEY = "th-theme";
-const THEME_OPTS = [
-  ["auto", "◐", "Auto"],
-  ["light", "☀", "Light"],
-  ["dark", "☾", "Dark"],
-];
-
-function currentTheme() {
-  try {
-    const t = localStorage.getItem(THEME_KEY);
-    if (t === "light" || t === "dark") return t;
-  } catch {}
-  return "auto";
-}
-
-function themeToggleHtml() {
-  const mode = currentTheme();
-  return `<div class="theme-toggle" role="group" aria-label="Theme">
-    ${THEME_OPTS.map(
-      ([id, glyph, label]) =>
-        `<button data-theme-opt="${id}" title="${label}" aria-label="${label}" aria-pressed="${mode === id}" class="${mode === id ? "active" : ""}">${glyph}</button>`
-    ).join("")}
-  </div>`;
-}
-
-function wireThemeToggle(container = document) {
-  container.querySelectorAll("[data-theme-opt]").forEach((btn) => {
-    btn.onclick = () => {
-      const mode = btn.dataset.themeOpt;
-      const root = document.documentElement;
-      if (mode === "auto") root.removeAttribute("data-theme");
-      else root.setAttribute("data-theme", mode);
-      try { localStorage.setItem(THEME_KEY, mode); } catch {}
-      btn.closest(".theme-toggle").querySelectorAll("button").forEach((b) => {
-        const active = b === btn;
-        b.classList.toggle("active", active);
-        b.setAttribute("aria-pressed", String(active));
-      });
-    };
-  });
-}
 
 // Small portions of track- and AI-inspired things to buy the maker.
 const TIP_ITEMS = [
@@ -295,6 +86,8 @@ function footerHtml() {
     </a>
   </footer>`;
 }
+
+// ---------- shell & login ----------------------------------------------------
 
 function renderLogin() {
   document.querySelector(".shell")?.remove();
@@ -353,7 +146,7 @@ function shell(content) {
   return document.getElementById("view");
 }
 
-const state = { me: null };
+const state = { me: null, totals: null };
 
 // Close the user dropdown on outside click or Escape (module-level: shell()
 // re-renders per route, so per-render listeners would accumulate).
@@ -372,15 +165,9 @@ document.addEventListener("keydown", (e) => {
 });
 
 async function ensureMe() {
-  if (!state.me) {
-    const data = await api("/me");
-    state.me = data.user;
-    state.totals = data.totals;
-  } else {
-    const data = await api("/me");
-    state.me = data.user;
-    state.totals = data.totals;
-  }
+  const data = await api("/me");
+  state.me = data.user;
+  state.totals = data.totals;
 }
 
 // --- dashboard ---
@@ -673,184 +460,10 @@ async function viewEvent(eventId) {
     };
   });
 
-  // --- PDR video import ---
-  const fileInput = view.querySelector("#pdr-files");
-  const dropzone = view.querySelector("#pdr-dropzone");
-  view.querySelector("#pdr-import").onclick = () => fileInput.click();
-
-  async function importPdrFiles(fileList) {
-    const files = [...fileList].filter((f) => /\.mp4$/i.test(f.name) || f.type === "video/mp4");
-    if (!files.length) return;
-    const box = view.querySelector("#pdr-review");
-    box.innerHTML = `<div class="panel">Reading telemetry from ${files.length} file${files.length === 1 ? "" : "s"}…</div>`;
-    const results = [];
-    for (const f of files) {
-      try {
-        results.push({ file: f.name, parsed: await window.parsePdrFile(f) });
-      } catch (err) {
-        results.push({ file: f.name, error: err.message });
-      }
-    }
-    results.sort((a, b) => ((a.parsed?.time ?? "") < (b.parsed?.time ?? "") ? -1 : 1));
-    renderPdrReview(box, e, results);
-  }
-
-  fileInput.onchange = () => importPdrFiles(fileInput.files);
-
-  // Drag & drop onto the dropzone. dragenter/leave can fire on child
-  // elements, so count depth to avoid flicker.
-  let dragDepth = 0;
-  dropzone.addEventListener("dragenter", (ev) => {
-    ev.preventDefault();
-    if (dragDepth++ === 0) dropzone.classList.add("dragover");
-  });
-  dropzone.addEventListener("dragover", (ev) => {
-    ev.preventDefault();
-    ev.dataTransfer.dropEffect = "copy";
-  });
-  dropzone.addEventListener("dragleave", (ev) => {
-    ev.preventDefault();
-    if (--dragDepth <= 0) {
-      dragDepth = 0;
-      dropzone.classList.remove("dragover");
-    }
-  });
-  dropzone.addEventListener("drop", (ev) => {
-    ev.preventDefault();
-    dragDepth = 0;
-    dropzone.classList.remove("dragover");
-    if (ev.dataTransfer.files.length) importPdrFiles(ev.dataTransfer.files);
-  });
-}
-
-function renderPdrReview(box, event, results) {
-  const blocks = results
-    .map((r, i) => {
-      if (r.error) {
-        return `<div style="margin-bottom:12px"><strong>${esc(r.file)}</strong><div class="error-banner">${esc(r.error)}</div></div>`;
-      }
-      const p = r.parsed;
-      const dateWarn =
-        p.date && p.date !== event.start_date &&
-        Math.abs(new Date(p.date) - new Date(event.start_date)) > (event.days || 1) * 86400000
-          ? `<div class="error-banner">Video is dated ${esc(p.date)} but this event is ${esc(event.start_date)}</div>`
-          : "";
-      const lapChips = p.laps
-        .map((l) => `<span class="lap">${l.estimated ? "~" : ""}${fmtMs(l.timeMs)}</span>`)
-        .join("");
-      const estCount = p.laps.filter((l) => l.estimated).length;
-      return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border-hairline)">
-        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
-          <input type="checkbox" data-pdr-include="${i}" ${p.laps.length ? "checked" : "disabled"}>
-          <strong>${esc(r.file)}</strong>
-          <span style="color:var(--text-muted);font-size:13px">${esc(p.date ?? "")} ${esc(p.time ?? "")} · ${(p.durationS / 60).toFixed(0)} min · ${p.laps.length} lap${p.laps.length === 1 ? "" : "s"}</span>
-        </label>
-        ${dateWarn}
-        <div class="laps" style="margin-top:8px">${lapChips || `<span class="hint" style="color:var(--text-muted);font-size:13px">No complete laps found (no start/finish crossings in telemetry)</span>`}</div>
-        ${estCount ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">~ = recovered from distance telemetry (±0.1–0.3s); unmarked laps are beacon-exact</div>` : ""}
-        <div class="field" style="margin:8px 0 0"><input data-pdr-label="${i}" value="${esc(`PDR ${p.time ?? r.file.replace(/\.mp4$/i, "")}`)}" placeholder="Session label"></div>
-      </div>`;
-    })
-    .join("");
-  box.innerHTML = `<div class="panel">
-    <strong>PDR import preview</strong>
-    <div style="margin-top:10px">${blocks}</div>
-    <div class="btn-row">
-      <button class="btn primary" id="pdr-confirm">Add as sessions</button>
-      <button class="btn" id="pdr-cancel">Cancel</button>
-    </div>
-  </div>`;
-  box.querySelector("#pdr-cancel").onclick = () => (box.innerHTML = "");
-  box.querySelector("#pdr-confirm").onclick = async () => {
-    let added = 0;
-    for (let i = 0; i < results.length; i++) {
-      const inc = box.querySelector(`[data-pdr-include="${i}"]`);
-      if (!inc || !inc.checked) continue;
-      const r = results[i];
-      const estCount = r.parsed.laps.filter((l) => l.estimated).length;
-      const notes =
-        `Imported from ${r.file}` +
-        (estCount ? ` — ${estCount} of ${r.parsed.laps.length} laps distance-estimated (~), rest beacon-exact` : "");
-      await api(`/events/${event.id}/sessions`, {
-        method: "POST",
-        body: {
-          label: box.querySelector(`[data-pdr-label="${i}"]`).value.trim() || r.file,
-          notes,
-          laps: r.parsed.laps.map((l) => l.timeMs),
-        },
-      });
-      added++;
-    }
-    if (added) route();
-    else box.innerHTML = "";
-  };
+  bindPdrImport(view, e, route);
 }
 
 // --- event form (new / edit) ---
-
-// Common US road courses offered in the track dropdown. Free text is still
-// allowed — the backend find-or-creates tracks by name.
-const US_TRACKS = [
-  "Atlanta Motorsports Park",
-  "Autobahn Country Club",
-  "Barber Motorsports Park",
-  "Blackhawk Farms Raceway",
-  "Brainerd International Raceway",
-  "Buttonwillow Raceway Park",
-  "Carolina Motorsports Park",
-  "Charlotte Motor Speedway (Roval)",
-  "Chuckwalla Valley Raceway",
-  "Circuit of the Americas",
-  "Daytona International Speedway (Road Course)",
-  "Dominion Raceway",
-  "Eagles Canyon Raceway",
-  "Gingerman Raceway",
-  "Grattan Raceway",
-  "Hallett Motor Racing Circuit",
-  "Harris Hill Raceway",
-  "High Plains Raceway",
-  "Homestead-Miami Speedway (Road Course)",
-  "Indianapolis Motor Speedway (Road Course)",
-  "Inde Motorsports Ranch",
-  "Laguna Seca (WeatherTech Raceway)",
-  "Lime Rock Park",
-  "M1 Concourse",
-  "Mid-Ohio Sports Car Course",
-  "MotorSport Ranch (Cresson)",
-  "MSR Houston",
-  "NCM Motorsports Park",
-  "Nelson Ledges Road Course",
-  "New Jersey Motorsports Park (Lightning)",
-  "New Jersey Motorsports Park (Thunderbolt)",
-  "NOLA Motorsports Park",
-  "Oregon Raceway Park",
-  "Ozarks International Raceway",
-  "Pacific Raceways",
-  "Palmer Motorsports Park",
-  "Pittsburgh International Race Complex",
-  "Pocono Raceway",
-  "Portland International Raceway",
-  "Putnam Park Road Course",
-  "Road America",
-  "Road Atlanta",
-  "Roebling Road Raceway",
-  "Sebring International Raceway",
-  "Sonoma Raceway",
-  "Streets of Willow",
-  "Summit Point (Jefferson Circuit)",
-  "Summit Point (Main Circuit)",
-  "Summit Point (Shenandoah Circuit)",
-  "The Ridge Motorsports Park",
-  "Thompson Speedway Motorsports Park",
-  "Thunderhill Raceway (2-Mile)",
-  "Thunderhill Raceway (3-Mile)",
-  "Utah Motorsports Campus",
-  "VIR Full",
-  "VIR North",
-  "VIR South",
-  "Watkins Glen International",
-  "Willow Springs (Big Willow)",
-];
 
 // Custom combobox for the track field. A native <datalist> would be simpler,
 // but iOS Safari never shows datalist suggestions and Android only surfaces a

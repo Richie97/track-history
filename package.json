@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit && tsc -p test --noEmit",
     "seed:generate": "node seed/generate.mjs",
     "db:migrate:local": "wrangler d1 migrations apply track-history --local",
     "db:migrate:remote": "wrangler d1 migrations apply track-history --remote",
@@ -15,8 +18,10 @@
     "hono": "^4.6.0"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.4",
     "@cloudflare/workers-types": "^4.20250101.0",
     "typescript": "^5.7.0",
+    "vitest": "^4.1.10",
     "wrangler": "^4.0.0"
   }
 }

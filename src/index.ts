@@ -1,17 +1,21 @@
 import { Hono } from "hono";
-import { auth } from "./auth";
-import { api, publicShare } from "./api";
+import type { AppContext } from "./types";
+import { requireSession } from "./middleware";
+import { auth } from "./routes/auth";
+import { me } from "./routes/me";
+import { tracks } from "./routes/tracks";
+import { events } from "./routes/events";
+import { sessions } from "./routes/sessions";
+import { share, publicShare } from "./routes/share";
 
-export type Env = {
-  DB: D1Database;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
-  DEV_MODE?: string;
-  DEV_USER_EMAIL?: string;
-  DEV_USER_NAME?: string;
-};
+export type { Env, AppContext } from "./types";
 
-export type AppContext = { Bindings: Env; Variables: { userId: number } };
+// Everything under /api requires a session cookie.
+const api = new Hono<AppContext>();
+api.use("*", requireSession);
+for (const routes of [me, tracks, events, sessions, share]) {
+  api.route("/", routes);
+}
 
 const app = new Hono<AppContext>();
 
