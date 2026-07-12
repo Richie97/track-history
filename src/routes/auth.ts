@@ -1,35 +1,47 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import type { AppContext } from "./index";
-
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-function randomToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function createSession(db: D1Database, userId: number): Promise<string> {
-  const token = randomToken();
-  await db
-    .prepare("INSERT INTO auth_sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
-    .bind(token, userId, Date.now() + SESSION_TTL_MS)
-    .run();
-  return token;
-}
-
-function sessionCookieOptions(url: string) {
-  return {
-    httpOnly: true,
-    secure: new URL(url).protocol === "https:",
-    sameSite: "Lax" as const,
-    path: "/",
-    maxAge: SESSION_TTL_MS / 1000,
-  };
-}
+import type { AppContext } from "../types";
+import { decodeIdTokenPayload, type IdTokenPayload } from "../lib/oidc";
+import {
+  SESSION_COOKIE,
+  createSession,
+  randomToken,
+  sessionCookieOptions,
+} from "../lib/session";
 
 export const auth = new Hono<AppContext>();
+
+// Find the user for a Google identity: an existing google_sub match, a
+// pre-seeded account claimed by email, or a freshly created account.
+async function upsertGoogleUser(db: D1Database, payload: IdTokenPayload): Promise<number> {
+  const existing = await db
+    .prepare("SELECT id FROM users WHERE google_sub = ?")
+    .bind(payload.sub)
+    .first<{ id: number }>();
+  if (existing) {
+    await db
+      .prepare("UPDATE users SET name = ?, picture = ?, email = ? WHERE id = ?")
+      .bind(payload.name ?? null, payload.picture ?? null, payload.email, existing.id)
+      .run();
+    return existing.id;
+  }
+  const preseeded = await db
+    .prepare("SELECT id FROM users WHERE email = ? AND google_sub IS NULL")
+    .bind(payload.email)
+    .first<{ id: number }>();
+  if (preseeded) {
+    await db
+      .prepare("UPDATE users SET google_sub = ?, name = ?, picture = ? WHERE id = ?")
+      .bind(payload.sub, payload.name ?? null, payload.picture ?? null, preseeded.id)
+      .run();
+    return preseeded.id;
+  }
+  const created = await db
+    .prepare("INSERT INTO users (google_sub, email, name, picture) VALUES (?, ?, ?, ?) RETURNING id")
+    .bind(payload.sub, payload.email, payload.name ?? null, payload.picture ?? null)
+    .first<{ id: number }>();
+  return created!.id;
+}
 
 auth.get("/login", async (c) => {
   // Local development bypass: sign in as a fixed dev user without Google.
@@ -48,7 +60,7 @@ auth.get("/login", async (c) => {
       user = res!;
     }
     const token = await createSession(c.env.DB, user.id);
-    setCookie(c, "session", token, sessionCookieOptions(c.req.url));
+    setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
     return c.redirect("/");
   }
 
@@ -100,58 +112,19 @@ auth.get("/callback", async (c) => {
 
   // The id_token comes directly from Google's token endpoint over TLS,
   // so decoding its payload without signature verification is safe here (per OIDC spec 3.1.3.7).
-  const payloadB64 = tokens.id_token.split(".")[1];
-  const payload = JSON.parse(
-    new TextDecoder().decode(
-      Uint8Array.from(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")), (ch) =>
-        ch.charCodeAt(0)
-      )
-    )
-  ) as { sub: string; email: string; name?: string; picture?: string };
+  const payload = decodeIdTokenPayload(tokens.id_token);
+  const userId = await upsertGoogleUser(c.env.DB, payload);
 
-  const db = c.env.DB;
-  let user = await db
-    .prepare("SELECT id FROM users WHERE google_sub = ?")
-    .bind(payload.sub)
-    .first<{ id: number }>();
-
-  if (!user) {
-    // Claim a pre-seeded account (matched by email) or create a new one.
-    const preseeded = await db
-      .prepare("SELECT id FROM users WHERE email = ? AND google_sub IS NULL")
-      .bind(payload.email)
-      .first<{ id: number }>();
-    if (preseeded) {
-      await db
-        .prepare("UPDATE users SET google_sub = ?, name = ?, picture = ? WHERE id = ?")
-        .bind(payload.sub, payload.name ?? null, payload.picture ?? null, preseeded.id)
-        .run();
-      user = preseeded;
-    } else {
-      user = (await db
-        .prepare(
-          "INSERT INTO users (google_sub, email, name, picture) VALUES (?, ?, ?, ?) RETURNING id"
-        )
-        .bind(payload.sub, payload.email, payload.name ?? null, payload.picture ?? null)
-        .first<{ id: number }>())!;
-    }
-  } else {
-    await db
-      .prepare("UPDATE users SET name = ?, picture = ?, email = ? WHERE id = ?")
-      .bind(payload.name ?? null, payload.picture ?? null, payload.email, user.id)
-      .run();
-  }
-
-  const token = await createSession(db, user.id);
-  setCookie(c, "session", token, sessionCookieOptions(c.req.url));
+  const token = await createSession(c.env.DB, userId);
+  setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
   return c.redirect("/");
 });
 
 auth.post("/logout", async (c) => {
-  const token = getCookie(c, "session");
+  const token = getCookie(c, SESSION_COOKIE);
   if (token) {
     await c.env.DB.prepare("DELETE FROM auth_sessions WHERE token = ?").bind(token).run();
   }
-  deleteCookie(c, "session", { path: "/" });
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
   return c.json({ ok: true });
 });

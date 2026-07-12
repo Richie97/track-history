@@ -31,7 +31,8 @@ async function bufAt(blob, offset, length) {
 
 const fourcc = (dv, off) => td.decode(new Uint8Array(dv.buffer, dv.byteOffset + off, 4));
 
-function boxes(dv, start, end) {
+// Exported for unit tests.
+export function boxes(dv, start, end) {
   const out = [];
   let p = start;
   while (p + 8 <= end) {
@@ -52,8 +53,8 @@ function boxes(dv, start, end) {
 
 const child = (dv, box, type) => boxes(dv, box.body, box.start + box.size).find((b) => b.type === type);
 
-// Interpolating accessor over a sorted [{t, v}] series.
-function series(arr) {
+// Interpolating accessor over a sorted [{t, v}] series. Exported for unit tests.
+export function series(arr) {
   const idx = (key, get) => {
     let lo = 0, hi = arr.length - 1;
     while (lo < hi) {
