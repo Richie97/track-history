@@ -817,6 +817,62 @@ const US_TRACKS = [
   "Willow Springs (Big Willow)",
 ];
 
+// Custom combobox for the track field. A native <datalist> would be simpler,
+// but iOS Safari never shows datalist suggestions and Android only surfaces a
+// few after typing — so we render our own tappable option list.
+function bindTrackCombo(view, options) {
+  const input = view.querySelector('[name="track"]');
+  const list = view.querySelector("#track-combo-list");
+  let matches = [];
+  let active = -1;
+
+  const close = () => {
+    list.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+    active = -1;
+  };
+
+  const setActive = (i) => {
+    active = i;
+    list.querySelectorAll(".combo-item").forEach((el, j) => el.classList.toggle("active", j === i));
+    if (i >= 0) list.children[i].scrollIntoView({ block: "nearest" });
+  };
+
+  const open = () => {
+    const q = input.value.trim().toLowerCase();
+    matches = q ? options.filter((n) => n.toLowerCase().includes(q)) : options;
+    if (!matches.length || (matches.length === 1 && matches[0].toLowerCase() === q)) return close();
+    list.innerHTML = matches.map((n, i) => `<div class="combo-item" role="option" data-i="${i}">${esc(n)}</div>`).join("");
+    list.hidden = false;
+    list.scrollTop = 0;
+    input.setAttribute("aria-expanded", "true");
+    active = -1;
+  };
+
+  input.addEventListener("focus", open);
+  input.addEventListener("input", open);
+  input.addEventListener("keydown", (e) => {
+    if (list.hidden) {
+      if (e.key === "ArrowDown") { open(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === "ArrowDown") { setActive(Math.min(active + 1, matches.length - 1)); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { setActive(Math.max(active - 1, 0)); e.preventDefault(); }
+    else if (e.key === "Enter" && active >= 0) { input.value = matches[active]; close(); e.preventDefault(); }
+    else if (e.key === "Escape") close();
+  });
+  // pointerdown (not click) so selection wins the race against the input's blur,
+  // and preventDefault keeps focus in the field after tapping an option.
+  list.addEventListener("pointerdown", (e) => {
+    const item = e.target.closest(".combo-item");
+    if (!item) return;
+    e.preventDefault();
+    input.value = matches[Number(item.dataset.i)];
+    close();
+  });
+  input.addEventListener("blur", close);
+}
+
 async function viewEventForm(eventId, presetTrack) {
   const tracks = await api("/tracks");
   const existing = eventId ? await api(`/events/${eventId}`) : null;
@@ -829,8 +885,12 @@ async function viewEventForm(eventId, presetTrack) {
     <form class="panel" id="event-form">
       <div class="form-grid">
         <div class="field"><label>Track</label>
-          <input name="track" list="track-list" required value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="VIR Full">
-          <datalist id="track-list">${trackOpts.map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
+          <div class="combo">
+            <input name="track" required autocomplete="off" role="combobox" aria-expanded="false"
+              aria-autocomplete="list" aria-controls="track-combo-list"
+              value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="VIR Full">
+            <div class="combo-list" id="track-combo-list" role="listbox" hidden></div>
+          </div>
           <div class="hint">Pick from your tracks and common US tracks, or type a new name</div>
         </div>
         <div class="field"><label>Start date</label>
@@ -863,6 +923,8 @@ async function viewEventForm(eventId, presetTrack) {
       </div>
     </form>
   `);
+
+  bindTrackCombo(view, trackOpts);
 
   view.querySelector("#event-form").onsubmit = async (evt) => {
     evt.preventDefault();
