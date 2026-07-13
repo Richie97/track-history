@@ -149,3 +149,63 @@ describe("DELETE /api/events/:id", () => {
     expect((await a.api("GET", `/events/${eventId}`)).status).toBe(200);
   });
 });
+
+describe("event conditions & temperature", () => {
+  it("round-trips conditions and temp_f", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api, { conditions: "damp", temp_f: 58 });
+    const e = (await api("GET", `/events/${id}`)).body;
+    expect(e.conditions).toBe("damp");
+    expect(e.temp_f).toBe(58);
+  });
+
+  it("clears them via PUT null", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api, { conditions: "wet", temp_f: 45 });
+    await api("PUT", `/events/${id}`, { conditions: null, temp_f: null });
+    const e = (await api("GET", `/events/${id}`)).body;
+    expect(e.conditions).toBeNull();
+    expect(e.temp_f).toBeNull();
+  });
+
+  it("rejects invalid values on create and update", async () => {
+    const { api } = await signedInUser();
+    const base = { track_name: "T", start_date: "2026-05-01" };
+    expect((await api("POST", "/events", { ...base, conditions: "snow" })).status).toBe(400);
+    expect((await api("POST", "/events", { ...base, temp_f: 999 })).status).toBe(400);
+    const id = await createEvent(api);
+    expect((await api("PUT", `/events/${id}`, { conditions: "DRY" })).status).toBe(400);
+    expect((await api("PUT", `/events/${id}`, { temp_f: 72.5 })).status).toBe(400);
+  });
+});
+
+describe("event prep checklist", () => {
+  it("round-trips a checklist, normalizing items", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api, {
+      start_date: "2030-01-01",
+      checklist: [{ text: "  Tech inspection ", done: 1 }, { text: "Fuel" }],
+    });
+    const e = (await api("GET", `/events/${id}`)).body;
+    expect(e.checklist).toEqual([
+      { text: "Tech inspection", done: true },
+      { text: "Fuel", done: false },
+    ]);
+  });
+
+  it("updates and clears via PUT", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api, { checklist: [{ text: "Fuel", done: false }] });
+    await api("PUT", `/events/${id}`, { checklist: [{ text: "Fuel", done: true }] });
+    expect((await api("GET", `/events/${id}`)).body.checklist).toEqual([{ text: "Fuel", done: true }]);
+    await api("PUT", `/events/${id}`, { checklist: null });
+    expect((await api("GET", `/events/${id}`)).body.checklist).toBeNull();
+  });
+
+  it("rejects malformed checklists", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api);
+    expect((await api("PUT", `/events/${id}`, { checklist: "tech" })).status).toBe(400);
+    expect((await api("PUT", `/events/${id}`, { checklist: [{ done: true }] })).status).toBe(400);
+  });
+});

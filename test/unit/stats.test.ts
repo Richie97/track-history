@@ -5,12 +5,16 @@ const base: EventRow = {
   id: 1,
   track_id: 1,
   track_name: "Test Ring",
+  track_config: "",
   start_date: "2026-05-01",
   days: 1,
   club: null,
   run_group: null,
   car: null,
   notes: null,
+  conditions: null,
+  temp_f: null,
+  checklist: null,
   best_time_ms: null,
   lap_best_ms: null,
   lap_count: 0,
@@ -74,5 +78,18 @@ describe("withComputed shape", () => {
     expect(out).not.toHaveProperty("lap_avg");
     expect(out).not.toHaveProperty("lap_avg_sq");
     expect(out).toHaveProperty("lap_count", 3);
+  });
+});
+
+describe("withComputed checklist", () => {
+  it("parses stored JSON into items", () => {
+    const out = withComputed({ ...base, checklist: '[{"text":"Tech inspection","done":true}]' });
+    expect(out.checklist).toEqual([{ text: "Tech inspection", done: true }]);
+  });
+
+  it("degrades malformed or non-array JSON to null", () => {
+    expect(withComputed({ ...base, checklist: "{not json" }).checklist).toBeNull();
+    expect(withComputed({ ...base, checklist: '{"a":1}' }).checklist).toBeNull();
+    expect(withComputed(base).checklist).toBeNull();
   });
 });

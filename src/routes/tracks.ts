@@ -10,14 +10,15 @@ tracks.get("/tracks", async (c) => {
 });
 
 tracks.post("/tracks", async (c) => {
-  const body = await c.req.json<{ name?: string }>();
+  const body = await c.req.json<{ name?: string; config?: string }>();
   const name = body.name?.trim();
   if (!name) return c.json({ error: "name required" }, 400);
+  const config = (body.config ?? "").trim();
   try {
     const row = await c.env.DB.prepare(
-      "INSERT INTO tracks (user_id, name) VALUES (?, ?) RETURNING id, name"
+      "INSERT INTO tracks (user_id, name, config) VALUES (?, ?, ?) RETURNING id, name, config"
     )
-      .bind(c.get("userId"), name)
+      .bind(c.get("userId"), name, config)
       .first();
     return c.json(row, 201);
   } catch {
@@ -26,7 +27,12 @@ tracks.post("/tracks", async (c) => {
 });
 
 tracks.put("/tracks/:id", async (c) => {
-  const body = await c.req.json<{ name?: string; goal_ms?: number | null }>();
+  const body = await c.req.json<{
+    name?: string;
+    config?: string;
+    notes?: string | null;
+    goal_ms?: number | null;
+  }>();
   const sets: string[] = [];
   const binds: unknown[] = [];
   if (body.name !== undefined) {
@@ -35,6 +41,14 @@ tracks.put("/tracks/:id", async (c) => {
     sets.push("name = ?");
     binds.push(name);
   }
+  if (body.config !== undefined) {
+    sets.push("config = ?");
+    binds.push((body.config ?? "").trim());
+  }
+  if ("notes" in body) {
+    sets.push("notes = ?");
+    binds.push(typeof body.notes === "string" && body.notes.trim() ? body.notes : null);
+  }
   if ("goal_ms" in body) {
     if (!isValidGoal(body.goal_ms)) return c.json({ error: "invalid goal" }, 400);
     sets.push("goal_ms = ?");
@@ -42,12 +56,17 @@ tracks.put("/tracks/:id", async (c) => {
   }
   if (!sets.length) return c.json({ error: "nothing to update" }, 400);
   binds.push(c.req.param("id"), c.get("userId"));
-  const res = await c.env.DB.prepare(
-    `UPDATE tracks SET ${sets.join(", ")} WHERE id = ? AND user_id = ?`
-  )
-    .bind(...binds)
-    .run();
-  if (!res.meta.changes) return c.json({ error: "not found" }, 404);
+  try {
+    const res = await c.env.DB.prepare(
+      `UPDATE tracks SET ${sets.join(", ")} WHERE id = ? AND user_id = ?`
+    )
+      .bind(...binds)
+      .run();
+    if (!res.meta.changes) return c.json({ error: "not found" }, 404);
+  } catch {
+    // UNIQUE(user_id, name, config) — the new name/config collides with another track.
+    return c.json({ error: "a track with that name and configuration already exists" }, 409);
+  }
   return c.json({ ok: true });
 });
 

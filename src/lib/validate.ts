@@ -16,3 +16,30 @@ export function sanitizeLaps(laps: unknown): number[] {
 // A goal is either cleared (null/undefined) or a positive finite number of ms.
 export const isValidGoal = (g: unknown): g is number | null | undefined =>
   g == null || (typeof g === "number" && Number.isFinite(g) && g > 0);
+
+// Track conditions for an event: cleared, or one of the known values.
+export const CONDITIONS = ["dry", "damp", "wet", "mixed"] as const;
+export type Conditions = (typeof CONDITIONS)[number];
+export const isValidConditions = (v: unknown): v is Conditions | null | undefined =>
+  v == null || (typeof v === "string" && (CONDITIONS as readonly string[]).includes(v));
+
+// Ambient temperature in °F: cleared, or a plausible whole number.
+export const isValidTemp = (v: unknown): v is number | null | undefined =>
+  v == null || (typeof v === "number" && Number.isInteger(v) && v >= -40 && v <= 150);
+
+export type ChecklistItem = { text: string; done: boolean };
+
+// Normalize a prep checklist: null clears it, a valid array is trimmed and
+// coerced to {text, done}. Returns undefined when the input isn't a checklist.
+export function sanitizeChecklist(v: unknown): ChecklistItem[] | null | undefined {
+  if (v == null) return null;
+  if (!Array.isArray(v) || v.length > 100) return undefined;
+  const items: ChecklistItem[] = [];
+  for (const raw of v) {
+    if (typeof raw !== "object" || raw === null) return undefined;
+    const text = String((raw as Record<string, unknown>).text ?? "").trim();
+    if (!text || text.length > 200) return undefined;
+    items.push({ text, done: Boolean((raw as Record<string, unknown>).done) });
+  }
+  return items;
+}

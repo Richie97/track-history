@@ -1,15 +1,21 @@
 // Pure computation over event rows — no I/O, unit-testable.
 
+import type { ChecklistItem } from "./validate";
+
 export type EventRow = {
   id: number;
   track_id: number;
   track_name: string;
+  track_config: string;
   start_date: string;
   days: number;
   club: string | null;
   run_group: string | null;
   car: string | null;
   notes: string | null;
+  conditions: string | null;
+  temp_f: number | null;
+  checklist: string | null; // JSON [{text, done}] as stored
   best_time_ms: number | null;
   lap_best_ms: number | null;
   lap_count: number;
@@ -18,10 +24,22 @@ export type EventRow = {
   session_count: number;
 };
 
-export type ComputedEvent = Omit<EventRow, "lap_avg" | "lap_avg_sq"> & {
+export type ComputedEvent = Omit<EventRow, "lap_avg" | "lap_avg_sq" | "checklist"> & {
   best_ms: number | null;
   consistency: number | null;
+  checklist: ChecklistItem[] | null;
 };
+
+// Parse the stored checklist JSON; malformed data degrades to null rather than throwing.
+export function parseChecklist(raw: string | null): ChecklistItem[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 export function withComputed(e: EventRow): ComputedEvent {
   const bests = [e.best_time_ms, e.lap_best_ms].filter((v): v is number => v != null);
@@ -33,5 +51,5 @@ export function withComputed(e: EventRow): ComputedEvent {
     consistency = Math.sqrt(variance) / e.lap_avg;
   }
   const { lap_avg, lap_avg_sq, ...rest } = e;
-  return { ...rest, best_ms, consistency };
+  return { ...rest, best_ms, consistency, checklist: parseChecklist(e.checklist) };
 }
