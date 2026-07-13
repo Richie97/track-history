@@ -195,7 +195,7 @@ async function viewDashboard() {
   const recentRows = recent
     .map(
       (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         <td>${esc(e.track_name)}</td>
         <td>${esc(e.club ?? "")}</td>
         <td class="num">${fmtMs(e.best_ms)}</td>
@@ -284,7 +284,7 @@ async function viewTrack(trackId) {
   const rows = events
     .map(
       (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>
         <td>${esc(e.run_group ?? "")}</td>
@@ -645,7 +645,7 @@ function shareEventRows(events, { withTrack = false } = {}) {
   return events
     .map(
       (e) => `<tr${withTrack ? ` class="rowlink" data-href="#/track/${e.track_id}"` : ""}>
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         ${withTrack ? `<td>${esc(e.track_name)}</td>` : ""}
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>

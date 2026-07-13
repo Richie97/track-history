@@ -386,6 +386,7 @@ thead th {
   color: var(--text-faint);
 }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.date { white-space: nowrap; }
 tr.rowlink { cursor: pointer; }
 tr.rowlink:hover td { background: var(--surface-hover); }
 
