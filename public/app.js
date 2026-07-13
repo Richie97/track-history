@@ -8,7 +8,7 @@ import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { US_TRACKS } from "./js/us-tracks.js";
-import { bindPdrImport } from "./js/pdr-import.js";
+import { bindTelemetryImport } from "./js/import/ui.js";
 
 const $app = document.getElementById("app");
 
@@ -249,7 +249,7 @@ async function viewDashboard() {
   const recentRows = recent
     .map(
       (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         <td>${esc(trackLabel(e.track_name, e.track_config))}</td>
         <td>${esc(e.club ?? "")}</td>
         <td class="num">${fmtMs(e.best_ms)}</td>
@@ -272,8 +272,8 @@ async function viewDashboard() {
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events yet — add your first track day.</div>`}
     ${recent.length ? `<h2>Recent events</h2>
-    <table><thead><tr><th>Date</th><th>Track</th><th>Club</th><th class="num">Best</th></tr></thead>
-    <tbody>${recentRows}</tbody></table>` : ""}
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Club</th><th class="num">Best</th></tr></thead>
+    <tbody>${recentRows}</tbody></table></div>` : ""}
     <h2>Share your history</h2>
     <div class="panel share-panel">
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
@@ -347,7 +347,7 @@ async function viewTrack(trackId, params) {
   const rows = events
     .map(
       (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>
         <td>${esc(e.run_group ?? "")}</td>
@@ -431,8 +431,8 @@ async function viewTrack(trackId, params) {
       </div>
     </div>
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
-    <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
-    <tbody>${rows}</tbody></table>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
 
@@ -534,13 +534,13 @@ async function viewCompare(trackId, params) {
     </p>
     ${chart.svg ? `<div class="chart-card"><div class="chart-title">All laps in running order — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : `<div class="empty">One of these events has no recorded laps.</div>`}
     <h2>Head to head</h2>
-    <table><thead><tr><th></th><th class="num">${fmtDate(A.e.start_date)}</th><th class="num">${fmtDate(B.e.start_date)}</th><th class="num">Δ</th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th></th><th class="num">${fmtDate(A.e.start_date)}</th><th class="num">${fmtDate(B.e.start_date)}</th><th class="num">Δ</th></tr></thead>
     <tbody>
       ${statRow("Best lap", fmtMs, (s) => (s.laps.length ? Math.min(...s.laps) : s.e.best_ms))}
       ${statRow("Best 3 avg", fmtMs, (s) => bestNAvg(s.laps, 3))}
       ${statRow("Laps", (v) => v ?? "—", (s) => s.laps.length, plainDelta)}
       ${statRow("Consistency", fmtConsistency, (s) => s.e.consistency, ppDelta)}
-    </tbody></table>
+    </tbody></table></div>
   `);
   if (chart.svg) chart.bind(view.querySelector("#chart"));
 }
@@ -633,14 +633,14 @@ async function viewEvent(eventId) {
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
     <div class="pdr-dropzone" id="pdr-dropzone">
-      <input type="file" id="pdr-files" accept="video/mp4,.mp4" multiple hidden>
+      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo,.fit" multiple hidden>
       <div class="pdr-dropzone-inner">
         <span class="pdr-dropzone-icon">📼</span>
         <div>
-          <button class="btn" id="pdr-import" type="button">Import PDR video…</button>
-          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> files here</span>
+          <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
+          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> / <code>.fit</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR telemetry — the video never leaves your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video, Racelogic VBO and Garmin FIT telemetry — files never leave your computer</span>
       </div>
     </div>
     <div id="pdr-review"></div>
@@ -727,7 +727,7 @@ async function viewEvent(eventId) {
     };
   });
 
-  bindPdrImport(view, e, route);
+  bindTelemetryImport(view, e, route);
 }
 
 // --- event form (new / edit) ---
@@ -936,8 +936,8 @@ function yearReviewHtml(events, year, hashBase) {
     </div>
     ${r.new_tracks.length ? `<p class="sub">First time at ${r.new_tracks.map((t) => `<strong>${esc(trackLabel(t.track_name, t.track_config))}</strong>`).join(", ")} 🎉</p>` : ""}
     ${gainRows ? `<h2>Lap time progress</h2>
-    <table><thead><tr><th>Track</th><th class="num">Best before ${y}</th><th class="num">Best in ${y}</th><th></th></tr></thead>
-    <tbody>${gainRows}</tbody></table>` : `<div class="empty">No timed events in ${y}.</div>`}
+    <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best before ${y}</th><th class="num">Best in ${y}</th><th></th></tr></thead>
+    <tbody>${gainRows}</tbody></table></div>` : `<div class="empty">No timed events in ${y}.</div>`}
   `;
 }
 
@@ -988,7 +988,7 @@ function shareEventRows(events, { withTrack = false } = {}) {
   return events
     .map(
       (e) => `<tr${withTrack ? ` class="rowlink" data-href="#/track/${e.track_id}"` : ""}>
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         ${withTrack ? `<td>${esc(trackLabel(e.track_name, e.track_config))}</td>` : ""}
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>
@@ -1035,8 +1035,8 @@ function shareDashboard() {
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events shared yet.</div>`}
     ${events.length ? `<h2>All events</h2>
-    <table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
-    <tbody>${shareEventRows(events, { withTrack: true })}</tbody></table>` : ""}
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
+    <tbody>${shareEventRows(events, { withTrack: true })}</tbody></table></div>` : ""}
   `);
   wireRowLinks(view);
 }
@@ -1073,8 +1073,8 @@ function shareTrack(trackId) {
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
     <h2>Events</h2>
-    <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
-    <tbody>${shareEventRows(events)}</tbody></table>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
+    <tbody>${shareEventRows(events)}</tbody></table></div>
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
 }

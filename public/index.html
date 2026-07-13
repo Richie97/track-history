@@ -12,11 +12,22 @@
     } catch (e) {}
   </script>
   <link rel="stylesheet" href="/style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23c8f24e'/><g transform='translate(31.6 22.5) scale(0.0874)'><rect x='0.59' y='115.85' width='163' height='442.77' transform='rotate(-44.9265 0.59 115.85)' fill='%230c1400'/><rect x='311.97' y='198.25' width='163' height='442.77' transform='rotate(44.5184 311.97 198.25)' fill='%230c1400'/></g></svg>" />
+  <link rel="icon" href="/favicon.ico" sizes="48x48" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0b" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfbfa" />
 </head>
 <body>
   <div id="app"></div>
   <div id="tooltip" class="tooltip" hidden></div>
   <script type="module" src="/app.js"></script>
+  <script>
+    // PWA: offline app shell + last-known API data (see sw.js).
+    if ("serviceWorker" in navigator) {
+      addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+    }
+  </script>
 </body>
 </html>
