@@ -195,7 +195,7 @@ async function viewDashboard() {
   const recentRows = recent
     .map(
       (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         <td>${esc(e.track_name)}</td>
         <td>${esc(e.club ?? "")}</td>
         <td class="num">${fmtMs(e.best_ms)}</td>
@@ -216,8 +216,8 @@ async function viewDashboard() {
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events yet — add your first track day.</div>`}
     ${recent.length ? `<h2>Recent events</h2>
-    <table><thead><tr><th>Date</th><th>Track</th><th>Club</th><th class="num">Best</th></tr></thead>
-    <tbody>${recentRows}</tbody></table>` : ""}
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Club</th><th class="num">Best</th></tr></thead>
+    <tbody>${recentRows}</tbody></table></div>` : ""}
     <h2>Share your history</h2>
     <div class="panel share-panel">
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
@@ -284,7 +284,7 @@ async function viewTrack(trackId) {
   const rows = events
     .map(
       (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>
         <td>${esc(e.run_group ?? "")}</td>
@@ -315,8 +315,8 @@ async function viewTrack(trackId) {
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${goalControl}</div>` : `<div class="chart-card">${goalControl}</div>`}
     <div class="btn-row"><a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a></div>
     <h2>Events</h2>
-    <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
-    <tbody>${rows}</tbody></table>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
 
@@ -645,7 +645,7 @@ function shareEventRows(events, { withTrack = false } = {}) {
   return events
     .map(
       (e) => `<tr${withTrack ? ` class="rowlink" data-href="#/track/${e.track_id}"` : ""}>
-        <td>${fmtDate(e.start_date)}</td>
+        <td class="date">${fmtDate(e.start_date)}</td>
         ${withTrack ? `<td>${esc(e.track_name)}</td>` : ""}
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>
@@ -690,8 +690,8 @@ function shareDashboard() {
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events shared yet.</div>`}
     ${events.length ? `<h2>All events</h2>
-    <table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
-    <tbody>${shareEventRows(events, { withTrack: true })}</tbody></table>` : ""}
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
+    <tbody>${shareEventRows(events, { withTrack: true })}</tbody></table></div>` : ""}
   `);
   wireRowLinks(view);
 }
@@ -720,8 +720,8 @@ function shareTrack(trackId) {
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
     <h2>Events</h2>
-    <table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
-    <tbody>${shareEventRows(events)}</tbody></table>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
+    <tbody>${shareEventRows(events)}</tbody></table></div>
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
 }

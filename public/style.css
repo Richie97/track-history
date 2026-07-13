@@ -186,7 +186,7 @@ a:hover { opacity: 0.85; }
 
 /* ---------- Header ---------- */
 header.topbar {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 14px;
   padding: 18px 0;
   border-bottom: 1px solid var(--border-hairline);
 }
@@ -367,6 +367,11 @@ h2 {
 .card svg { display: block; margin-top: 14px; }
 
 /* ---------- Tables ---------- */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+}
 table {
   width: 100%; border-collapse: collapse;
   background: var(--surface-card);
@@ -381,6 +386,7 @@ thead th {
   color: var(--text-faint);
 }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.date { white-space: nowrap; }
 tr.rowlink { cursor: pointer; }
 tr.rowlink:hover td { background: var(--surface-hover); }
 
@@ -509,7 +515,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   margin-top: 40px; padding: 22px 0 4px; border-top: 1px solid var(--border-hairline);
   font-size: var(--fs-sm); color: var(--text-faint);
 }
-.footer-left { display: inline-flex; align-items: center; gap: 16px; }
+.footer-left { display: inline-flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .login-card .site-footer { margin-top: 28px; justify-content: center; border-top: none; padding-top: 0; }
 .ss-credit { display: inline-flex; align-items: center; gap: 7px; color: var(--text-faint); }
 .ss-credit:hover { opacity: 1; }
@@ -532,17 +538,21 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   white-space: nowrap;
 }
 .contribute-link:hover { color: var(--text-strong); opacity: 1; }
-.contribute-link::after {
-  content: attr(data-tip);
-  position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px);
-  padding: 6px 10px; border-radius: var(--radius-sm);
-  background: var(--surface-raised); color: var(--text-strong);
-  border: 1px solid var(--border-hairline); box-shadow: var(--shadow-pop);
-  font-size: var(--fs-xs); font-weight: var(--weight-medium); white-space: nowrap;
-  opacity: 0; pointer-events: none;
-  transition: opacity var(--dur-fast), transform var(--dur-fast);
+/* Hover-only tooltip: even at opacity 0 its nowrap box widens the page on
+   narrow screens, so it only exists on devices that can hover. */
+@media (hover: hover) {
+  .contribute-link::after {
+    content: attr(data-tip);
+    position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px);
+    padding: 6px 10px; border-radius: var(--radius-sm);
+    background: var(--surface-raised); color: var(--text-strong);
+    border: 1px solid var(--border-hairline); box-shadow: var(--shadow-pop);
+    font-size: var(--fs-xs); font-weight: var(--weight-medium); white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity var(--dur-fast), transform var(--dur-fast);
+  }
+  .contribute-link:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
-.contribute-link:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 .error-banner {
   background: var(--danger-tint); color: var(--danger-ink);
   border: 1px solid var(--danger-ink); border-radius: var(--radius-md);
@@ -556,7 +566,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   padding: 3px 11px; white-space: nowrap;
 }
 .share-url {
-  display: inline-flex; align-items: center;
+  display: inline-flex; align-items: center; max-width: 100%;
   background: var(--surface-input); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-md); overflow: hidden;
 }
@@ -566,7 +576,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   font-variant-numeric: tabular-nums;
 }
 .share-url input {
-  width: 150px; padding: 10px 13px 10px 0; border: none; outline: none;
+  width: 150px; flex: 1 1 auto; min-width: 0; padding: 10px 13px 10px 0; border: none; outline: none;
   background: transparent; color: var(--text-strong);
   font-family: var(--font-mono); font-size: var(--fs-sm);
 }
