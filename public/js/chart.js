@@ -121,3 +121,77 @@ export function lineChart(points, { width = 900, height = 300, sparkline = false
   };
   return { svg, bind };
 }
+
+// Overlay chart for comparing lap-time series (e.g. two events at one track).
+// series: [{label, color, points: [{x: lapNum, y: lapMs}]}] — shared axes,
+// same lower-is-faster inversion as lineChart.
+export function multiLineChart(series, { width = 900, height = 300 } = {}) {
+  const drawn = series.filter((s) => s.points.length);
+  if (!drawn.length) return { svg: "", bind: () => {} };
+  const pad = { l: 64, r: 20, t: 12, b: 28 };
+  const all = drawn.flatMap((s) => s.points);
+  let x0 = Math.min(...all.map((p) => p.x)), x1 = Math.max(...all.map((p) => p.x));
+  let y0 = Math.min(...all.map((p) => p.y)), y1 = Math.max(...all.map((p) => p.y));
+  if (x0 === x1) { x0 -= 1; x1 += 1; }
+  const ypad = Math.max((y1 - y0) * 0.12, 500);
+  y0 -= ypad; y1 += ypad;
+  const X = (v) => pad.l + ((v - x0) / (x1 - x0)) * (width - pad.l - pad.r);
+  const Y = (v) => pad.t + ((y1 - v) / (y1 - y0)) * (height - pad.t - pad.b);
+
+  let grid = "", labels = "";
+  for (const tv of niceTimeTicks(y0, y1)) {
+    const y = Y(tv).toFixed(1);
+    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
+    labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${fmtMs(tv)}</text>`;
+  }
+  grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  // x axis: whole lap numbers, at most ~8 labels
+  const step = Math.max(1, Math.ceil((x1 - x0) / 8));
+  for (let v = Math.ceil(x0); v <= x1; v += step) {
+    labels += `<text x="${X(v).toFixed(1)}" y="${height - 8}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${v}</text>`;
+  }
+
+  const layers = drawn
+    .map((s) => {
+      const pts = s.points.map((p) => ({ ...p, px: X(p.x), py: Y(p.y) }));
+      const path = pts.map((p, i) => `${i ? "L" : "M"}${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
+      const dots = pts
+        .map((p) => `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="3.5" fill="${s.color}" stroke="var(--surface-card)" stroke-width="1.5"/>`)
+        .join("");
+      return `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+    })
+    .join("");
+
+  const svg = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lap time comparison">
+    ${grid}${labels}${layers}
+  </svg>`;
+
+  // Tooltip: nearest lap number by x; lists each series' time at that lap.
+  const bind = (container) => {
+    const $tooltip = document.getElementById("tooltip");
+    const svgEl = container.querySelector("svg");
+    svgEl.addEventListener("mousemove", (evt) => {
+      const rect = svgEl.getBoundingClientRect();
+      const mx = ((evt.clientX - rect.left) / rect.width) * width;
+      const lap = Math.round(x0 + ((mx - pad.l) / (width - pad.l - pad.r)) * (x1 - x0));
+      const rows = drawn
+        .map((s) => {
+          const p = s.points.find((pt) => pt.x === lap);
+          return p ? `<div class="t-sub"><span style="color:${s.color}">●</span> ${esc(s.label)} — ${fmtMs(p.y)}</div>` : "";
+        })
+        .join("");
+      if (!rows) { $tooltip.hidden = true; return; }
+      $tooltip.innerHTML = `<div class="t-val">Lap ${lap}</div>${rows}`;
+      $tooltip.hidden = false;
+      const tw = $tooltip.offsetWidth;
+      let left = evt.clientX + 14;
+      if (left + tw > window.innerWidth - 8) left = evt.clientX - tw - 14;
+      $tooltip.style.left = `${left}px`;
+      $tooltip.style.top = `${evt.clientY - 12}px`;
+    });
+    svgEl.addEventListener("mouseleave", () => {
+      $tooltip.hidden = true;
+    });
+  };
+  return { svg, bind };
+}

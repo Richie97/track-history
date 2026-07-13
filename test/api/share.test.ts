@@ -92,3 +92,29 @@ describe("DELETE /api/share", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("GET /api/share/:slug privacy for new fields", () => {
+  it("shares conditions but strips course notes and checklists", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, {
+      track_name: "VIR",
+      track_config: "Full",
+      conditions: "dry",
+      temp_f: 72,
+      checklist: [{ text: "secret prep item", done: false }],
+    });
+    const track = (await api("GET", "/tracks")).body[0];
+    await api("PUT", `/tracks/${track.id}`, { notes: "secret course notes" });
+    await api("PUT", "/share", { slug: "fields-check" });
+
+    const { body } = await publicShare("fields-check");
+    expect(body.events[0].conditions).toBe("dry");
+    expect(body.events[0].track_config).toBe("Full");
+    expect(body.tracks[0].config).toBe("Full");
+    expect(body.events[0]).not.toHaveProperty("checklist");
+    expect(body.tracks[0]).not.toHaveProperty("notes");
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain("secret prep item");
+    expect(raw).not.toContain("secret course notes");
+  });
+});

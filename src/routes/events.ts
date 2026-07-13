@@ -2,8 +2,29 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { EVENT_SELECT, listEvents, ownedEvent, resolveTrack } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
+import { isValidConditions, isValidTemp, sanitizeChecklist } from "../lib/validate";
 
 export const events = new Hono<AppContext>();
+
+// Validate conditions/temp_f/checklist off `body`, returning either the
+// normalized values or an error message. checklist is stored as JSON text.
+function validateExtras(body: any): { error: string } | { values: Record<string, unknown> } {
+  const values: Record<string, unknown> = {};
+  if ("conditions" in body) {
+    if (!isValidConditions(body.conditions)) return { error: "invalid conditions" };
+    values.conditions = body.conditions ?? null;
+  }
+  if ("temp_f" in body) {
+    if (!isValidTemp(body.temp_f)) return { error: "invalid temp_f" };
+    values.temp_f = body.temp_f ?? null;
+  }
+  if ("checklist" in body) {
+    const checklist = sanitizeChecklist(body.checklist);
+    if (checklist === undefined) return { error: "invalid checklist" };
+    values.checklist = checklist ? JSON.stringify(checklist) : null;
+  }
+  return { values };
+}
 
 events.get("/events", async (c) => {
   return c.json(await listEvents(c.env.DB, c.get("userId"), c.req.query("track_id")));
@@ -14,9 +35,12 @@ events.post("/events", async (c) => {
   if (!body.start_date) return c.json({ error: "start_date required" }, 400);
   const trackId = await resolveTrack(c.env.DB, c.get("userId"), body);
   if (!trackId) return c.json({ error: "track required" }, 400);
+  const extras = validateExtras(body);
+  if ("error" in extras) return c.json({ error: extras.error }, 400);
   const row = await c.env.DB.prepare(
-    `INSERT INTO events (user_id, track_id, start_date, days, club, run_group, car, notes, best_time_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+    `INSERT INTO events (user_id, track_id, start_date, days, club, run_group, car, notes,
+                         conditions, temp_f, checklist, best_time_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
   )
     .bind(
       c.get("userId"),
@@ -27,6 +51,9 @@ events.post("/events", async (c) => {
       body.run_group ?? null,
       body.car ?? null,
       body.notes ?? null,
+      extras.values.conditions ?? null,
+      extras.values.temp_f ?? null,
+      extras.values.checklist ?? null,
       body.best_time_ms ?? null
     )
     .first<{ id: number }>();
@@ -82,6 +109,9 @@ events.put("/events/:id", async (c) => {
   for (const col of ["start_date", "days", "club", "run_group", "car", "notes", "best_time_ms"]) {
     if (col in body) set(col, body[col]);
   }
+  const extras = validateExtras(body);
+  if ("error" in extras) return c.json({ error: extras.error }, 400);
+  for (const [col, val] of Object.entries(extras.values)) set(col, val);
   if (!fields.length) return c.json({ ok: true });
   values.push(id);
   await c.env.DB.prepare(`UPDATE events SET ${fields.join(", ")} WHERE id = ?`)

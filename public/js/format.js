@@ -42,3 +42,11 @@ export const fmtDate = (iso) => {
 };
 
 export const fmtConsistency = (cv) => (cv == null ? "—" : `${(cv * 100).toFixed(1)}%`);
+
+// ms delta -> signed seconds, e.g. "+1.24s" / "-0.8s" / "0s"
+export function fmtDelta(ms) {
+  if (ms == null) return "—";
+  const s = ms / 1000;
+  const abs = Math.abs(s).toFixed(Math.abs(s) < 10 ? 2 : 1).replace(/\.?0+$/, "");
+  return `${s > 0 ? "+" : s < 0 ? "-" : ""}${abs || "0"}s`;
+}

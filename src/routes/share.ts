@@ -52,6 +52,8 @@ publicShare.get("/:slug", async (c) => {
       .bind(owner.id)
       .all<EventRow>(),
   ]);
-  const events = eventRows.results.map(withComputed).map(({ notes, ...pub }) => pub);
-  return c.json({ name: owner.name, totals, tracks, events });
+  // Strip private fields: event notes and prep checklists, per-track course notes.
+  const events = eventRows.results.map(withComputed).map(({ notes, checklist, ...pub }) => pub);
+  const publicTracks = tracks.map(({ notes, ...pub }) => pub);
+  return c.json({ name: owner.name, totals, tracks: publicTracks, events });
 });

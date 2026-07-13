@@ -115,3 +115,57 @@ describe("DELETE /api/tracks/:id", () => {
     expect((await b.api("DELETE", `/tracks/${track.id}`)).status).toBe(404);
   });
 });
+
+describe("track configurations", () => {
+  it("treats the same name with different configs as separate tracks", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "VIR", track_config: "Full", best_time_ms: 121000 });
+    await createEvent(api, { track_name: "VIR", track_config: "Patriot", best_time_ms: 80000 });
+
+    const tracks = (await api("GET", "/tracks")).body;
+    expect(tracks).toHaveLength(2);
+    expect(tracks.map((t: any) => t.config).sort()).toEqual(["Full", "Patriot"]);
+    // Bests must not bleed across configs
+    const full = tracks.find((t: any) => t.config === "Full");
+    expect(full.best_ms).toBe(121000);
+  });
+
+  it("find-or-create matches config case-insensitively", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "VIR", track_config: "Full" });
+    await createEvent(api, { track_name: "vir", track_config: "FULL" });
+    expect((await api("GET", "/tracks")).body).toHaveLength(1);
+  });
+
+  it("rejects duplicate (name, config) on create and update", async () => {
+    const { api } = await signedInUser();
+    expect((await api("POST", "/tracks", { name: "VIR", config: "Full" })).status).toBe(201);
+    expect((await api("POST", "/tracks", { name: "VIR", config: "Full" })).status).toBe(409);
+    const { body: patriot } = await api("POST", "/tracks", { name: "VIR", config: "Patriot" });
+    expect((await api("PUT", `/tracks/${patriot.id}`, { config: "Full" })).status).toBe(409);
+  });
+
+  it("updates config and course notes", async () => {
+    const { api } = await signedInUser();
+    const { body: track } = await api("POST", "/tracks", { name: "VIR" });
+    const res = await api("PUT", `/tracks/${track.id}`, { config: "Full", notes: "T1: brake at the 300 board" });
+    expect(res.status).toBe(200);
+    const t = (await api("GET", "/tracks")).body[0];
+    expect(t.config).toBe("Full");
+    expect(t.notes).toBe("T1: brake at the 300 board");
+  });
+
+  it("clears course notes with empty/null", async () => {
+    const { api } = await signedInUser();
+    const { body: track } = await api("POST", "/tracks", { name: "VIR" });
+    await api("PUT", `/tracks/${track.id}`, { notes: "something" });
+    await api("PUT", `/tracks/${track.id}`, { notes: null });
+    expect((await api("GET", "/tracks")).body[0].notes).toBeNull();
+  });
+
+  it("events expose the track config", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api, { track_name: "VIR", track_config: "Full" });
+    expect((await api("GET", `/events/${id}`)).body.track_config).toBe("Full");
+  });
+});
