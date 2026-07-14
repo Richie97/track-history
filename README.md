@@ -8,7 +8,8 @@ with Google, and fits comfortably in Cloudflare's free tier.
 site points users. (This README covers development and deploying an instance;
 the public docs site intentionally doesn't.)
 
-**Marketing & docs site:** https://richie97.github.io/track-history/ — static
+**Marketing & docs site:** https://docs.trackhistory.app (also served at
+https://richie97.github.io/track-history/) — static
 pages in [`site/`](site/), deployed to GitHub Pages by
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to
 `main` that touches `site/`. (One-time setup: repo *Settings → Pages → Source:
