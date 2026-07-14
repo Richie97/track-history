@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telemetry import — Track History docs</title>
+  <meta name="description" content="Import Corvette PDR, GoPro, Racelogic VBO and Garmin FIT recordings into Track History — parsed entirely in the browser.">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track History
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./telemetry-import.html" class="active">Telemetry import</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Telemetry import</h1>
+    <p class="lede">
+      On any event page, <strong>Import video / telemetry…</strong> turns
+      recordings into sessions with laps. Parsing happens entirely in the browser —
+      for videos, via byte-range reads of the embedded telemetry track (a few MB of
+      a multi-GB file). <strong>Files never leave your computer.</strong>
+    </p>
+
+    <h2 id="sources">Supported sources</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Source</th><th>What's read</th><th>Lap timing</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Corvette PDR (Cosworth) MP4</td>
+            <td>The <code>ctbx</code>/<code>marl</code> telemetry track, read by byte range</td>
+            <td>Beacon events + odometer recovery (see below)</td>
+          </tr>
+          <tr>
+            <td>GoPro MP4 (Hero 5+)</td>
+            <td>The GPS trace from the GPMF metadata track</td>
+            <td>Start/finish line picker</td>
+          </tr>
+          <tr>
+            <td>Racelogic VBO<br><small>(VBOX; RaceChrono / TrackAddict / Harry's LapTimer exports)</small></td>
+            <td>The GPS samples in the file</td>
+            <td>The file's <code>[laptiming]</code> start line when present, otherwise the line picker</td>
+          </tr>
+          <tr>
+            <td>Garmin FIT<br><small>(Catalyst session exports)</small></td>
+            <td>The device's lap messages and/or GPS trace</td>
+            <td>The device's own lap messages, or the line picker if a file has none</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="line-picker">The start/finish line picker</h2>
+    <p>
+      GPS-only sources have no lap markers, so the import preview shows the track
+      map you actually drove: <strong>click where the start/finish line is</strong>
+      and laps are timed on each pass across it. Crossings are interpolated between
+      10–18&nbsp;Hz GPS fixes, so times are accurate to roughly ±0.1–0.3&nbsp;s and
+      shown with a <code>~</code> prefix.
+    </p>
+    <p>
+      One picked line applies to every file in the batch, so a day's worth of
+      sessions needs a single click. Racelogic's west-positive longitude convention
+      is detected and mirrored automatically.
+    </p>
+
+    <h2 id="pdr">How PDR lap times are derived</h2>
+    <p>
+      The PDR logic is reverse-engineered from the recorder's telemetry track and
+      validated against Cosworth Toolbox lap times:
+    </p>
+    <ul>
+      <li>PDR <strong>Beacon</strong> events mark start/finish crossings to the
+        millisecond, but the recorder drops some crossings.</li>
+      <li>The cumulative <strong>odometer</strong> channel recovers the missing
+        ones: beacon-to-beacon distance ÷ crossing count gives the lap length, and
+        a missing crossing is the moment distance passes
+        <code>D0&nbsp;+&nbsp;k&nbsp;×&nbsp;lapLength</code> (accurate to
+        ~0.05–0.3&nbsp;s, shown with <code>~</code>).</li>
+      <li>Crossings beyond the first/last beacon are extrapolated the same way and
+        sanity-checked against GPS latitude.</li>
+    </ul>
+
+    <div class="callout plain">
+      Millisecond-exact times are shown as-is; anything derived by interpolation or
+      odometer recovery carries a <code>~</code> so you always know which laps are
+      measured and which are estimated.
+    </div>
+
+    <nav class="docs-pager">
+      <a href="./"><span class="label">Previous</span>← Getting started</a>
+      <a href="./data-model.html"><span class="label">Next</span>Data model &amp; stats →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Track History — a personal HPDE / track-day logbook.</span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

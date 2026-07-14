@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data model &amp; stats — Track History docs</title>
+  <meta name="description" content="How Track History models tracks, events, sessions and laps, and how best times, consistency and share pages work.">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track History
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./data-model.html" class="active">Data model &amp; stats</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Data model &amp; stats</h1>
+    <p class="lede">
+      The database mirrors the shape of a season:
+      <strong>tracks → events → sessions → laps</strong>. Everything below is
+      derived from that, with a couple of deliberate rules worth knowing.
+    </p>
+
+    <h2 id="model">The hierarchy</h2>
+    <ul>
+      <li><strong>Track</strong> — identified by name <em>and</em> configuration
+        (e.g. full course vs. short course), matched case-insensitively. A layout
+        change is a different track for record-keeping, so best times and goals
+        never mix across configurations.</li>
+      <li><strong>Event</strong> — a day (or weekend) at a track, with notes and an
+        optional manual best time.</li>
+      <li><strong>Session</strong> — one run group / stint within an event.</li>
+      <li><strong>Lap</strong> — an integer number of milliseconds. Lap times are
+        milliseconds everywhere in the system; the frontend formats and parses
+        <code>m:ss.fff</code>.</li>
+    </ul>
+
+    <h2 id="best">Best time</h2>
+    <p>
+      An event's best time is
+      <code>MIN(best logged lap, manual best)</code>. The manual field exists
+      because spreadsheet-era events often only recorded a single best time — you
+      can import those as-is and attach full lap data later, either via the seed
+      data or pasted into the UI. Imported per-session bests appear as one-lap
+      sessions.
+    </p>
+
+    <h2 id="consistency">Consistency</h2>
+    <p>
+      Consistency is the <strong>coefficient of variation</strong> (standard
+      deviation ÷ mean) of all laps in an event, shown once an event has 3+ laps.
+      Lower is more consistent. Per-session analysis also derives best-N averages,
+      a pace slope over the stint, and warmup-lap detection.
+    </p>
+
+    <h2 id="sharing">Share pages</h2>
+    <p>
+      You can publish your logbook read-only under a slug you choose
+      (<code>/share/&lt;slug&gt;</code>). The public endpoint returns stats and
+      times but <strong>strips notes, your email, and per-lap data</strong> — it's
+      the only route that skips authentication.
+    </p>
+
+    <h2 id="architecture">Architecture in one paragraph</h2>
+    <p>
+      One Cloudflare Worker serves both the JSON API (Hono) and the static
+      frontend. The frontend is dependency-free vanilla JS — native ES modules, a
+      hash router, template-string HTML and hand-rolled SVG charts, with no build
+      step. The database is D1 (SQLite) with ordered migrations. A service worker
+      makes the app installable and usable offline: static files are served
+      stale-while-revalidate, navigations and API <code>GET</code>s are
+      network-first with cache fallback.
+    </p>
+
+    <h2 id="privacy">Privacy posture</h2>
+    <ul>
+      <li>Self-hosted: your instance, your Cloudflare account, your data.</li>
+      <li>Multi-user with ownership scoping on every row; another Google account
+        signing in gets its own empty logbook.</li>
+      <li>Telemetry and video parsing is entirely client-side — recordings are
+        never uploaded.</li>
+      <li>Personal seed data (<code>seed/data.personal.mjs</code>) is gitignored so
+        your real history never lands in the repo.</li>
+    </ul>
+
+    <nav class="docs-pager">
+      <a href="./telemetry-import.html"><span class="label">Previous</span>← Telemetry import</a>
+      <span></span>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Track History — a personal HPDE / track-day logbook.</span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>
