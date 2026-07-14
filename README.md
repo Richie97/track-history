@@ -4,6 +4,12 @@ A personal HPDE/track-day logbook: events, sessions, lap times and notes per tra
 with progress charts over time. Runs on Cloudflare Workers + D1 (SQLite), signs in
 with Google, and fits comfortably in Cloudflare's free tier.
 
+**Marketing & docs site:** https://richie97.github.io/track-history/ — static
+pages in [`site/`](site/), deployed to GitHub Pages by
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to
+`main` that touches `site/`. (One-time setup: repo *Settings → Pages → Source:
+GitHub Actions*.)
+
 ## Stack
 
 - **Cloudflare Workers** — serves the API (Hono) and the static frontend

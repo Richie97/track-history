@@ -53,6 +53,8 @@ One Worker serves both the API and the static frontend (`wrangler.jsonc`: `publi
 
 **Seed** (`seed/generate.mjs`): reads `seed/data.personal.mjs` if present (gitignored — real personal data), else `seed/data.example.mjs`, and writes `seed/seed.sql`.
 
+**Marketing/docs site** (`site/`): dependency-free static HTML/CSS (no build step), deployed to GitHub Pages by `.github/workflows/pages.yml` on pushes to `main` touching `site/**`. `site/site.css` mirrors the design tokens in `public/style.css`; all links are relative so pages work under the `/track-history/` subpath. Docs content is hand-maintained — keep it in sync with README.md when features change.
+
 **Tests** (`test/`, Vitest with two projects — see `vitest.config.mts`):
 - `test/unit/` — pure-function tests running in Node: `src/lib/*` plus the frontend modules (`public/js/format.js`, `chart.js`) and `pdr.js` internals.
 - `test/api/` — the whole Worker under `@cloudflare/vitest-pool-workers`: real D1 with migrations applied per test (`setup.ts`), requests via `SELF.fetch`. `helpers.ts` creates users/sessions directly in D1 so multi-user ownership isolation is testable; DEV_MODE bindings live in `vitest.workers.config.mts`.

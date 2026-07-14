@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Track History — a self-hosted track-day logbook</title>
+  <meta name="description" content="Track History is a self-hosted HPDE / track-day logbook: events, sessions and lap times per track, progress charts, and in-browser telemetry import. Runs free on Cloudflare Workers + D1.">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="./favicon.svg" alt="" width="26" height="26">
+      Track History
+    </a>
+    <nav class="site-nav">
+      <a href="./" class="active">Home</a>
+      <a href="./docs/">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <div class="hero">
+    <div class="wrap">
+      <h1>Your track days, <span class="accent">remembered lap by lap</span>.</h1>
+      <p class="lede">
+        Track History is a self-hosted HPDE / track-day logbook: events, sessions,
+        lap times and notes per track, with progress charts that show you getting
+        faster season over season. It runs on Cloudflare's free tier and your data
+        stays yours.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="./docs/">Get started</a>
+        <a class="btn" href="https://github.com/richie97/track-history">View on GitHub</a>
+      </div>
+
+      <figure class="hero-chart" aria-label="Example lap-time progress chart">
+        <svg viewBox="0 0 680 240" role="img" aria-hidden="true">
+          <!-- grid -->
+          <g stroke="var(--chart-grid)" stroke-width="1">
+            <line x1="48" y1="30"  x2="660" y2="30"/>
+            <line x1="48" y1="75"  x2="660" y2="75"/>
+            <line x1="48" y1="120" x2="660" y2="120"/>
+            <line x1="48" y1="165" x2="660" y2="165"/>
+            <line x1="48" y1="210" x2="660" y2="210"/>
+          </g>
+          <!-- y labels: lower on the chart = faster lap -->
+          <g fill="var(--text-faint)" font-family="var(--font-mono)" font-size="11" text-anchor="end">
+            <text x="42" y="34">2:24</text>
+            <text x="42" y="79">2:18</text>
+            <text x="42" y="124">2:12</text>
+            <text x="42" y="169">2:06</text>
+            <text x="42" y="214">2:00</text>
+          </g>
+          <!-- best-lap trend, improving downward -->
+          <polyline
+            points="60,52 130,74 200,64 270,105 340,96 410,138 480,131 550,168 640,186"
+            fill="none" stroke="var(--chart-line)" stroke-width="2.5"
+            stroke-linejoin="round" stroke-linecap="round"/>
+          <g fill="var(--chart-line)">
+            <circle cx="60"  cy="52"  r="3.5"/>
+            <circle cx="130" cy="74"  r="3.5"/>
+            <circle cx="200" cy="64"  r="3.5"/>
+            <circle cx="270" cy="105" r="3.5"/>
+            <circle cx="340" cy="96"  r="3.5"/>
+            <circle cx="410" cy="138" r="3.5"/>
+            <circle cx="480" cy="131" r="3.5"/>
+            <circle cx="550" cy="168" r="3.5"/>
+            <circle cx="640" cy="186" r="4.5"/>
+          </g>
+          <text x="640" y="172" fill="var(--accent-ink)" font-family="var(--font-mono)" font-size="12" text-anchor="end">2:03.118 ★</text>
+        </svg>
+        <figcaption>Best lap per event — lower is faster, so improvement trends downward.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title">Built around how track days actually work</h2>
+      <p class="section-sub">
+        Tracks contain events, events contain sessions, sessions contain laps —
+        the same shape as your weekend.
+      </p>
+
+      <div class="features">
+        <div class="feature">
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5m0 14h16M8 15v-4m4 4V7m4 8v-6"/></svg>
+          </span>
+          <h3>Progress charts</h3>
+          <p>Hand-rolled SVG charts of best laps over time per track and layout, plus lap-by-lap overlays to compare sessions. No chart library, no build step.</p>
+        </div>
+
+        <div class="feature">
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v13m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+          </span>
+          <h3>Telemetry import</h3>
+          <p>Drop in Corvette PDR video, GoPro footage, Racelogic VBO or Garmin FIT files and get sessions with laps. Parsing happens entirely in your browser — videos are read by byte range and never uploaded.</p>
+        </div>
+
+        <div class="feature">
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          </span>
+          <h3>Lap stats that mean something</h3>
+          <p>Best time per event, consistency as coefficient of variation, best-N averages, pace trends and warmup analysis — computed from your actual laps.</p>
+        </div>
+
+        <div class="feature">
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 13a4 4 0 0 1 0-6l2-2a4 4 0 0 1 6 6l-1 1M15 11a4 4 0 0 1 0 6l-2 2a4 4 0 0 1-6-6l1-1"/></svg>
+          </span>
+          <h3>Share links</h3>
+          <p>Publish a read-only page of your stats and times under a slug you choose. Notes, email and per-lap details are stripped — share the pace, keep the diary private.</p>
+        </div>
+
+        <div class="feature">
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg>
+          </span>
+          <h3>Installable PWA</h3>
+          <p>Add it to your phone's home screen and browse your logbook in the paddock — static assets and recent API responses work offline.</p>
+        </div>
+
+        <div class="feature">
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3 4 7v6c0 4.4 3.4 7.4 8 8 4.6-.6 8-3.6 8-8V7l-8-4Z"/></svg>
+          </span>
+          <h3>Yours, for free</h3>
+          <p>One Cloudflare Worker plus a D1 SQLite database — comfortably inside the free tier. Google sign-in, and every row is scoped to your user. Multi-user out of the box.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap">
+      <h2 class="section-title">From memory card to logbook</h2>
+      <p class="section-sub">
+        GPS-only recordings have no lap markers — so the import preview draws the
+        track map you actually drove, and you click where the start/finish line is.
+        Laps are timed on every pass, and one picked line applies to the whole batch
+        of files.
+      </p>
+
+      <div class="features">
+        <div class="feature">
+          <h3>Corvette PDR (Cosworth) MP4</h3>
+          <p>Lap times recovered from beacon and odometer telemetry — reverse-engineered and validated against Cosworth Toolbox, including crossings the recorder dropped.</p>
+        </div>
+        <div class="feature">
+          <h3>GoPro MP4</h3>
+          <p>The GPS trace from the GPMF metadata track (Hero 5 and newer), timed with the start/finish line picker.</p>
+        </div>
+        <div class="feature">
+          <h3>Racelogic VBO</h3>
+          <p>VBOX files and RaceChrono / TrackAddict / Harry's LapTimer exports — laps from the file's own start line when present, otherwise from GPS.</p>
+        </div>
+        <div class="feature">
+          <h3>Garmin FIT</h3>
+          <p>Catalyst session exports — the device's own lap messages, or the GPS trace when a file has none.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title">Self-host it in an afternoon</h2>
+      <p class="section-sub">
+        No servers to run and nothing to pay for. Four steps and it's live on
+        <code>workers.dev</code> (or your own domain).
+      </p>
+
+      <div class="steps">
+        <div class="step">
+          <h3>Create the database</h3>
+          <p><code>wrangler d1 create track-history</code> and drop the database ID into <code>wrangler.jsonc</code>.</p>
+        </div>
+        <div class="step">
+          <h3>Migrate &amp; seed</h3>
+          <p>Apply the schema, then optionally import your spreadsheet-era history with the seed generator.</p>
+        </div>
+        <div class="step">
+          <h3>Add Google OAuth</h3>
+          <p>Create an OAuth client, point it at <code>/auth/callback</code>, and set the two secrets.</p>
+        </div>
+        <div class="step">
+          <h3>Deploy</h3>
+          <p><code>npm run deploy</code>. Sign in and your seeded history is claimed automatically.</p>
+        </div>
+      </div>
+
+      <p style="margin-top: 32px">
+        <a class="btn primary" href="./docs/">Read the full setup guide</a>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Track History — a personal HPDE / track-day logbook.</span>
+    <span>
+      <a href="./docs/">Docs</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>
