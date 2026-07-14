@@ -54,7 +54,7 @@
           <tr>
             <td>Corvette PDR (Cosworth) MP4</td>
             <td>The <code>ctbx</code>/<code>marl</code> telemetry track, read by byte range</td>
-            <td>Beacon events + odometer recovery (see below)</td>
+            <td>Beacon events + odometer recovery (see below), or the line picker when a recording has no beacons</td>
           </tr>
           <tr>
             <td>GoPro MP4 (Hero 5+)</td>
@@ -104,6 +104,11 @@
         ~0.05–0.3&nbsp;s, shown with <code>~</code>).</li>
       <li>Crossings beyond the first/last beacon are extrapolated the same way and
         sanity-checked against GPS latitude.</li>
+      <li>The <strong>Latitude/Longitude</strong> channels are also decoded into a
+        GPS trace. It draws the speed-painted racing line on the event page, and a
+        recording with no beacons at all (e.g. no start/finish set on the PDR)
+        falls back to the start/finish line picker above, timing laps from
+        crossings just like GPS-only sources.</li>
     </ul>
 
     <div class="callout plain">
