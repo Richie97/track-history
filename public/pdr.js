@@ -16,6 +16,11 @@
 //     distance and accepted only if GPS latitude matches the beacon-calibrated
 //     start/finish latitude.
 //
+// The Latitude/Longitude channels are also decoded into a GPS trace (degrees)
+// for the track map: it draws the speed-painted racing line, and when a
+// recording has no usable beacons it feeds the start/finish line picker so
+// laps can be derived from crossings like GPS-only sources (see geo.js).
+//
 // Record framing inside a telemetry sample:
 //   - 8-byte record:  [id:u8][payload:24][extra:u32]            (skipped)
 //   - 16-byte event:  [0xe0][tag:u24][value:s32][ts:u64 100ns]  (channel data)
@@ -52,6 +57,61 @@ export function boxes(dv, start, end) {
 }
 
 const child = (dv, box, type) => boxes(dv, box.body, box.start + box.size).find((b) => b.type === type);
+
+// Decode raw Latitude/Longitude channel samples ({t, v: s32}) into a GPS trace
+// in decimal degrees. Observed encoding is degrees * 1e7 in the s32; some
+// firmware could plausibly store IEEE float degrees in the same 4 bytes, so
+// both interpretations are tried — but only accepted when the result actually
+// looks like a car on a track (coordinates in range, extent between ~1 m and
+// ~1 degree). Returns [{t, lat, lon, v?}] or null; never garbage.
+// `odo` (optional odometer series) supplies speed in m/s for the racing line.
+// Exported for unit tests.
+export function gpsFromChannels(latPts, lonPts, odo = null) {
+  if (latPts.length < 10 || lonPts.length < 10) return null;
+
+  const f32 = new DataView(new ArrayBuffer(4));
+  const decoders = [
+    (v) => v / 1e7,
+    (v) => {
+      f32.setInt32(0, v);
+      return f32.getFloat32(0);
+    },
+  ];
+  const decode = (pts, conv, limit) => {
+    let min = Infinity, max = -Infinity;
+    const out = pts.map((p) => {
+      const deg = conv(p.v);
+      if (deg < min) min = deg;
+      if (deg > max) max = deg;
+      return { t: p.t, v: deg };
+    });
+    const span = max - min;
+    if (!Number.isFinite(span) || Math.max(Math.abs(min), Math.abs(max)) > limit) return null;
+    return span > 1e-5 && span < 1 ? out : null;
+  };
+
+  // Lat and lon must decode under the same interpretation — a device doesn't
+  // mix encodings, and float bits of one channel can masquerade as plausible
+  // scaled integers of the other.
+  for (const conv of decoders) {
+    const lat = decode(latPts, conv, 90);
+    const lon = decode(lonPts, conv, 180);
+    if (!lat || !lon) continue;
+    const lonS = series(lon);
+    const t0 = Math.max(lat[0].t, lon[0].t);
+    const t1 = Math.min(lat[lat.length - 1].t, lon[lon.length - 1].t);
+    const gps = lat
+      .filter((p) => p.t >= t0 && p.t <= t1)
+      .map((p) => ({
+        t: p.t,
+        lat: p.v,
+        lon: lonS.at(p.t),
+        v: odo ? Math.max(0, odo.rate(p.t)) : undefined,
+      }));
+    return gps.length >= 10 ? gps : null;
+  }
+  return null;
+}
 
 // Interpolating accessor over a sorted [{t, v}] series. Exported for unit tests.
 export function series(arr) {
@@ -133,7 +193,7 @@ export async function parsePdrFile(fileBlob) {
   const mrld = subs.find((b) => b.type === "mrld");
   const mrlv = subs.find((b) => b.type === "mrlv");
 
-  const tags = { beacon: 0x36, odometer: 0x42, latitude: 0x31 }; // observed defaults
+  const tags = { beacon: 0x36, odometer: 0x42, latitude: 0x31, longitude: 0x32 }; // observed defaults
   if (mrld) {
     const STRIDE = 448, NAME_OFF = 128;
     for (let e = mrld.body; e + STRIDE <= mrld.start + mrld.size; e += STRIDE) {
@@ -147,6 +207,7 @@ export async function parsePdrFile(fileBlob) {
       if (name === "Beacon") tags.beacon = tagId;
       else if (name === "Recording Event Odometer") tags.odometer = tagId;
       else if (name === "Latitude") tags.latitude = tagId;
+      else if (name === "Longitude") tags.longitude = tagId;
     }
   }
 
@@ -159,8 +220,8 @@ export async function parsePdrFile(fileBlob) {
     if (ltim) time = ltim[1].replace(/-/g, ":");
   }
 
-  // 4. Scan telemetry samples for beacon / odometer / latitude events.
-  const beacons = [], odoPts = [], latPts = [];
+  // 4. Scan telemetry samples for beacon / odometer / latitude / longitude events.
+  const beacons = [], odoPts = [], latPts = [], lonPts = [];
   let lastTicks = 0;
   for (let i = 0; i < nChunks; i++) {
     const s = await bufAt(fileBlob, offsets[i], sizeAt(i));
@@ -177,6 +238,7 @@ export async function parsePdrFile(fileBlob) {
         if (tag === tags.beacon) beacons.push({ v, t });
         else if (tag === tags.odometer) odoPts.push({ t, v });
         else if (tag === tags.latitude) latPts.push({ t, v });
+        else if (tag === tags.longitude) lonPts.push({ t, v });
         q += 16;
       } else {
         q += 8;
@@ -186,6 +248,9 @@ export async function parsePdrFile(fileBlob) {
   beacons.sort((a, b) => a.t - b.t);
   odoPts.sort((a, b) => a.t - b.t);
   latPts.sort((a, b) => a.t - b.t);
+  lonPts.sort((a, b) => a.t - b.t);
+
+  const gps = gpsFromChannels(latPts, lonPts, odoPts.length > 10 ? series(odoPts) : null);
 
   // 5. Build the full crossing list.
   const crossings = beacons.map((b) => ({ v: b.v, t: b.t, exact: true }));
@@ -236,13 +301,16 @@ export async function parsePdrFile(fileBlob) {
   }
   crossings.sort((a, b) => a.t - b.t);
 
-  // 6. Laps = deltas between consecutive crossings.
+  // 6. Laps = deltas between consecutive crossings. startT/endT are on the
+  // telemetry clock (seconds), same clock as the gps trace's t.
   const laps = [];
   for (let i = 1; i < crossings.length; i++) {
     laps.push({
       lapNumber: crossings[i].v,
       timeMs: Math.round((crossings[i].t - crossings[i - 1].t) * 1000),
       estimated: !(crossings[i].exact && crossings[i - 1].exact),
+      startT: crossings[i - 1].t,
+      endT: crossings[i].t,
     });
   }
 
@@ -251,6 +319,7 @@ export async function parsePdrFile(fileBlob) {
     time,                       // "09:23:26" (local) or null
     durationS: lastTicks / 1e7,
     beaconCount: beacons.length,
-    laps,                       // [{lapNumber, timeMs, estimated}]
+    laps,                       // [{lapNumber, timeMs, estimated, startT, endT}]
+    gps,                        // [{t, lat, lon, v?}] in degrees, or null
   };
 }

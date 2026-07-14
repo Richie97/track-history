@@ -3,12 +3,14 @@
 //   { kind, date, time, durationS, laps: [{timeMs, estimated}],
 //     gps: [{t, lat, lon, v?}] | null, needsLine }
 // gps + needsLine feed the start/finish line picker for sources without lap
-// markers (GoPro, VBO without [laptiming], FIT without lap messages).
+// markers (GoPro, VBO without [laptiming], FIT without lap messages, PDR
+// without usable beacons).
 
 import { parsePdrFile } from "../../pdr.js";
 import { parseGpmfFile } from "./gpmf.js";
 import { parseVboFile } from "./vbo.js";
 import { parseFitFile } from "./fit.js";
+import { lapTrace, projectTrace } from "./geo.js";
 
 export const SUPPORTED_EXT = /\.(mp4|vbo|fit)$/i;
 
@@ -19,13 +21,20 @@ export async function parseTelemetryFile(file) {
   if (name.endsWith(".vbo")) return parseVboFile(file);
   if (name.endsWith(".fit")) return parseFitFile(file);
 
-  // .mp4: Corvette PDR first (the original import path — unchanged), then
-  // GoPro GPMF. Both parsers throw a "No ... telemetry track" error when the
-  // file simply isn't theirs.
+  // .mp4: Corvette PDR first, then GoPro GPMF. Both parsers throw a
+  // "No ... telemetry track" error when the file simply isn't theirs.
   let pdrErr;
   try {
     const pdr = await parsePdrFile(file);
-    return { kind: "pdr", ...pdr, gps: null, needsLine: false };
+    // Beacon-timed laps share the telemetry clock with the GPS trace, so the
+    // fastest lap's window cuts straight out of it (like FIT). Without laps,
+    // the trace goes to the start/finish line picker instead.
+    let bestLapTrace = null;
+    if (pdr.gps && pdr.laps.length) {
+      const best = pdr.laps.reduce((a, b) => (b.timeMs < a.timeMs ? b : a));
+      bestLapTrace = lapTrace(projectTrace(pdr.gps), best.startT, best.endT);
+    }
+    return { kind: "pdr", ...pdr, bestLapTrace, needsLine: !pdr.laps.length && !!pdr.gps };
   } catch (err) {
     pdrErr = err;
   }
