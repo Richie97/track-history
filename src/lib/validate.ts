@@ -27,6 +27,25 @@ export const isValidConditions = (v: unknown): v is Conditions | null | undefine
 export const isValidTemp = (v: unknown): v is number | null | undefined =>
   v == null || (typeof v === "number" && Number.isInteger(v) && v >= -40 && v <= 150);
 
+// A best-lap GPS trace: array of [x, y, v] points (local meters + speed).
+// null clears it; a valid array is rounded to keep the stored JSON small.
+// Returns undefined when the input isn't a plausible trace.
+export function sanitizeTrace(v: unknown): [number, number, number][] | null | undefined {
+  if (v == null) return null;
+  if (!Array.isArray(v) || v.length < 10 || v.length > 600) return undefined;
+  const pts: [number, number, number][] = [];
+  for (const raw of v) {
+    if (!Array.isArray(raw) || raw.length < 2 || raw.length > 3) return undefined;
+    const [x, y, speed] = raw as unknown[];
+    if (typeof x !== "number" || !Number.isFinite(x) || Math.abs(x) > 1e6) return undefined;
+    if (typeof y !== "number" || !Number.isFinite(y) || Math.abs(y) > 1e6) return undefined;
+    const sv = speed == null ? 0 : speed;
+    if (typeof sv !== "number" || !Number.isFinite(sv) || Math.abs(sv) > 1e6) return undefined;
+    pts.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(sv * 100) / 100]);
+  }
+  return pts;
+}
+
 export type ChecklistItem = { text: string; done: boolean };
 
 // Normalize a prep checklist: null clears it, a valid array is trimmed and

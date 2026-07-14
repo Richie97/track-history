@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGate, deriveLaps, gateCrossings, gateFromSegment, lapsFromCrossings, projectTrace } from "../../public/js/import/geo.js";
+import { bestLapTrace, buildGate, deriveLaps, gateCrossings, gateFromSegment, lapTrace, lapsFromCrossings, projectTrace } from "../../public/js/import/geo.js";
 import { LAP_S, circleTrace } from "../fixtures/build.mjs";
 
 const LAP_MS = Math.round(LAP_S() * 1000); // 47124
@@ -79,5 +79,60 @@ describe("lapsFromCrossings", () => {
     // 10s (jitter), 47s (lap), 2h gap (parked), 47s (lap)
     const laps = lapsFromCrossings([0, 10, 57, 7257, 7304]);
     expect(laps.map((l) => l.timeMs)).toEqual([47000, 47000]);
+  });
+});
+
+describe("lapTrace", () => {
+  const trace = projectTrace(circleTrace()); // 10 Hz samples
+
+  it("slices the window and keeps [x, y, v] triples", () => {
+    const out = lapTrace(trace, 0, LAP_S());
+    expect(out.length).toBeGreaterThan(10);
+    expect(out.length).toBeLessThanOrEqual(301);
+    for (const p of out) {
+      expect(p).toHaveLength(3);
+      expect(p.every(Number.isFinite)).toBe(true);
+    }
+  });
+
+  it("downsamples long windows to roughly the point budget", () => {
+    const out = lapTrace(trace, 0, LAP_S(), 50);
+    expect(out.length).toBeLessThanOrEqual(51);
+    expect(out.length).toBeGreaterThan(25);
+  });
+
+  it("derives speed from the geometry when the source has none", () => {
+    // circleTrace has no v — the circle is driven at constant speed, so
+    // derived speeds should be nearly uniform and positive.
+    const out = lapTrace(trace, 0, LAP_S());
+    const speeds = out.map((p) => p[2]);
+    expect(Math.min(...speeds)).toBeGreaterThan(0);
+    expect(Math.max(...speeds) / Math.min(...speeds)).toBeLessThan(1.2);
+  });
+
+  it("returns null for windows with too few points", () => {
+    expect(lapTrace(trace, 0, 0.5)).toBeNull();
+  });
+});
+
+describe("bestLapTrace", () => {
+  it("extracts one lap's worth of points across the gate", () => {
+    const trace = projectTrace(circleTrace()); // 3.3 revolutions
+    const gate = buildGate(trace, Math.round(0.25 * LAP_S() * 10));
+    const out = bestLapTrace(trace, gate);
+    expect(out).not.toBeNull();
+    // one lap at 10 Hz ≈ 471 samples, downsampled to ≤ 300
+    expect(out.length).toBeGreaterThan(100);
+    expect(out.length).toBeLessThanOrEqual(301);
+    // the lap starts and ends at the gate: closed loop, ends near each other
+    const [first, last] = [out[0], out[out.length - 1]];
+    expect(Math.hypot(first[0] - last[0], first[1] - last[1])).toBeLessThan(20);
+  });
+
+  it("returns null when no valid lap crosses the gate", () => {
+    const straight = [];
+    for (let i = 0; i <= 100; i++) straight.push({ t: i, x: i * 10, y: 0 });
+    const gate = buildGate(straight, 50);
+    expect(bestLapTrace(straight, gate)).toBeNull();
   });
 });

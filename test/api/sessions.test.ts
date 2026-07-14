@@ -42,6 +42,26 @@ describe("POST /api/events/:id/sessions", () => {
     const res = await b.api("POST", `/events/${eventId}/sessions`, { laps: [121000] });
     expect(res.status).toBe(404);
   });
+
+  it("stores a best-lap trace and returns it with the event", async () => {
+    const { api } = await signedInUser();
+    const eventId = await createEvent(api);
+    const trace = Array.from({ length: 20 }, (_, i) => [i * 10.123, i * -5, 40 + i]);
+    await api("POST", `/events/${eventId}/sessions`, { label: "Imported", laps: [121000], trace });
+    const e = (await api("GET", `/events/${eventId}`)).body;
+    expect(e.sessions[0].trace).toHaveLength(20);
+    expect(e.sessions[0].trace[1]).toEqual([10.1, -5, 41]); // rounded for storage
+  });
+
+  it("leaves trace null when omitted and rejects invalid traces", async () => {
+    const { api } = await signedInUser();
+    const eventId = await createEvent(api);
+    await api("POST", `/events/${eventId}/sessions`, { laps: [121000] });
+    const e = (await api("GET", `/events/${eventId}`)).body;
+    expect(e.sessions[0].trace).toBeNull();
+    const bad = await api("POST", `/events/${eventId}/sessions`, { laps: [121000], trace: "nope" });
+    expect(bad.status).toBe(400);
+  });
 });
 
 describe("PUT /api/sessions/:id", () => {

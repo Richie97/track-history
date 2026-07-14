@@ -14,6 +14,44 @@ export function niceTimeTicks(min, max, count = 4) {
   return ticks;
 }
 
+// Entrance animation for a bound chart: the line sweeps in left-to-right,
+// markers fade in behind it, and the newest point gets a brief pulse ring.
+// Decorative only — skipped entirely under prefers-reduced-motion.
+function animateDraw(svgEl, pts) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const path = svgEl.querySelector("path"); // the data line; grid/goal are <line>s
+  if (!path || !path.getTotalLength) return;
+  const len = path.getTotalLength();
+  if (!len) return;
+  path.style.strokeDasharray = String(len);
+  path.style.strokeDashoffset = String(len);
+  const circles = [...svgEl.querySelectorAll("circle[data-i]")];
+  circles.forEach((c) => (c.style.opacity = "0"));
+
+  const last = pts[pts.length - 1];
+  const pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  pulse.setAttribute("cx", last.px.toFixed(1));
+  pulse.setAttribute("cy", last.py.toFixed(1));
+  pulse.setAttribute("r", "5");
+  pulse.setAttribute("fill", "none");
+  pulse.setAttribute("stroke", "var(--accent)");
+  pulse.setAttribute("stroke-width", "2");
+  pulse.setAttribute("class", "chart-pulse");
+  svgEl.appendChild(pulse);
+
+  // double rAF so the initial dashoffset paints before the transition starts
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      path.style.transition = "stroke-dashoffset 1000ms cubic-bezier(0.22, 1, 0.36, 1)";
+      path.style.strokeDashoffset = "0";
+      circles.forEach((c, i) => {
+        c.style.transition = `opacity 240ms ease ${120 + (i / Math.max(1, circles.length - 1)) * 800}ms`;
+        c.style.opacity = "1";
+      });
+    })
+  );
+}
+
 // points: [{x: epochMs, y: lapMs, ...meta}]
 // goal: optional target lap time (ms) drawn as a horizontal reference line —
 // red while unbeaten, green once a point meets or beats it.
@@ -87,6 +125,7 @@ export function lineChart(points, { width = 900, height = 300, sparkline = false
     if (sparkline) return;
     const $tooltip = document.getElementById("tooltip");
     const svgEl = container.querySelector("svg");
+    animateDraw(svgEl, pts);
     const circles = [...svgEl.querySelectorAll("circle[data-i]")];
     const nearest = (evt) => {
       const rect = svgEl.getBoundingClientRect();

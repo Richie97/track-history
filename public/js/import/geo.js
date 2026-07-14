@@ -100,3 +100,47 @@ export function lapsFromCrossings(crossings, { minLapS = 30, maxLapS = 3600 } = 
 export function deriveLaps(trace, gate, opts = {}) {
   return lapsFromCrossings(gateCrossings(trace, gate, opts), opts);
 }
+
+// --- best-lap trace extraction ------------------------------------------------
+// A downsampled [x, y, v] polyline of the fastest lap, stored with the session
+// and rendered as the speed-painted racing line on the event page.
+
+// Slice a projected trace to [t0, t1] and downsample to at most `max` points.
+// Speed comes from the source when present, else distance/time to the next
+// fix — the renderer only uses it relatively, so units don't matter.
+// Returns null when the window holds too few points to draw a line.
+export function lapTrace(trace, t0, t1, max = 300) {
+  const pts = trace.filter((p) => p.t >= t0 && p.t <= t1);
+  if (pts.length < 10) return null;
+  const speedAt = (i) => {
+    if (pts[i].v != null && Number.isFinite(pts[i].v)) return pts[i].v;
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const dt = b.t - a.t;
+    return dt > 0 ? Math.hypot(b.x - a.x, b.y - a.y) / dt : 0;
+  };
+  const step = Math.max(1, Math.ceil(pts.length / max));
+  const out = [];
+  for (let i = 0; i < pts.length; i += step) {
+    out.push([Math.round(pts[i].x * 10) / 10, Math.round(pts[i].y * 10) / 10, Math.round(speedAt(i) * 100) / 100]);
+  }
+  const lastIdx = pts.length - 1;
+  if ((lastIdx % step) !== 0) {
+    out.push([Math.round(pts[lastIdx].x * 10) / 10, Math.round(pts[lastIdx].y * 10) / 10, Math.round(speedAt(lastIdx) * 100) / 100]);
+  }
+  return out;
+}
+
+// The fastest valid lap's trace, from the same gate crossings that timed the
+// laps (same jitter/min/max filtering as lapsFromCrossings).
+export function bestLapTrace(trace, gate, opts = {}) {
+  const { minLapS = 30, maxLapS = 3600 } = opts;
+  const crossings = gateCrossings(trace, gate, opts);
+  let best = null;
+  for (let i = 1; i < crossings.length; i++) {
+    const s = crossings[i] - crossings[i - 1];
+    if (s < minLapS || s > maxLapS) continue;
+    if (!best || s < best.s) best = { s, t0: crossings[i - 1], t1: crossings[i] };
+  }
+  return best ? lapTrace(trace, best.t0, best.t1) : null;
+}

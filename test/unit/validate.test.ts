@@ -6,7 +6,38 @@ import {
   isValidTemp,
   sanitizeChecklist,
   sanitizeLaps,
+  sanitizeTrace,
 } from "../../src/lib/validate";
+
+describe("sanitizeTrace", () => {
+  const point = (i: number): [number, number, number] => [i * 1.5, i * -2.5, 30 + i];
+
+  it("clears with null/undefined", () => {
+    expect(sanitizeTrace(null)).toBeNull();
+    expect(sanitizeTrace(undefined)).toBeNull();
+  });
+
+  it("accepts [x, y, v] arrays and rounds for storage", () => {
+    const out = sanitizeTrace([[1.2345, -2.6789, 31.23456], ...Array.from({ length: 11 }, (_, i) => point(i))]);
+    expect(out).toHaveLength(12);
+    expect(out![0]).toEqual([1.2, -2.7, 31.23]);
+  });
+
+  it("defaults a missing speed to 0", () => {
+    const out = sanitizeTrace(Array.from({ length: 10 }, (_, i) => [i, i]));
+    expect(out![0]).toEqual([0, 0, 0]);
+  });
+
+  it("rejects implausible shapes and values", () => {
+    expect(sanitizeTrace("nope")).toBeUndefined();
+    expect(sanitizeTrace([[1, 2]])).toBeUndefined(); // too few points
+    expect(sanitizeTrace(Array.from({ length: 601 }, (_, i) => point(i)))).toBeUndefined();
+    expect(sanitizeTrace(Array.from({ length: 10 }, () => [1]))).toBeUndefined();
+    expect(sanitizeTrace(Array.from({ length: 10 }, () => [1, NaN, 3]))).toBeUndefined();
+    expect(sanitizeTrace(Array.from({ length: 10 }, () => [1e7, 0, 0]))).toBeUndefined();
+    expect(sanitizeTrace(Array.from({ length: 10 }, () => ["1", 2, 3]))).toBeUndefined();
+  });
+});
 
 describe("isValidSlug", () => {
   it("accepts 3-32 char lowercase slugs", () => {
