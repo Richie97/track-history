@@ -85,24 +85,22 @@
 
     <h2 id="architecture">Architecture in one paragraph</h2>
     <p>
-      One Cloudflare Worker serves both the JSON API (Hono) and the static
-      frontend. The frontend is dependency-free vanilla JS — native ES modules, a
-      hash router, template-string HTML and hand-rolled SVG charts, with no build
-      step. The database is D1 (SQLite) with ordered migrations. A service worker
-      makes the app installable and usable offline: static files are served
+      A single small service serves both the JSON API (Hono) and the static
+      frontend, backed by a SQLite database. The frontend is dependency-free
+      vanilla JS — native ES modules, a hash router, template-string HTML and
+      hand-rolled SVG charts, with no build step. A service worker makes the app
+      installable and usable offline: static files are served
       stale-while-revalidate, navigations and API <code>GET</code>s are
       network-first with cache fallback.
     </p>
 
     <h2 id="privacy">Privacy posture</h2>
     <ul>
-      <li>Self-hosted: your instance, your Cloudflare account, your data.</li>
-      <li>Multi-user with ownership scoping on every row; another Google account
-        signing in gets its own empty logbook.</li>
+      <li>Ownership scoping on every row — your logbook is private to your Google
+        account, and every other account gets its own empty logbook.</li>
       <li>Telemetry and video parsing is entirely client-side — recordings are
         never uploaded.</li>
-      <li>Personal seed data (<code>seed/data.personal.mjs</code>) is gitignored so
-        your real history never lands in the repo.</li>
+      <li>Share pages are opt-in and strip notes, your email, and per-lap data.</li>
     </ul>
 
     <nav class="docs-pager">

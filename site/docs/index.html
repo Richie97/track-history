@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Getting started — Track History docs</title>
-  <meta name="description" content="Run Track History locally and deploy your own instance to Cloudflare Workers + D1.">
+  <meta name="description" content="Start your Track History logbook at trackhistory.app — sign in, log events and laps, import telemetry, and share your progress.">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../site.css">
 </head>
@@ -38,93 +38,59 @@
   <article class="docs-content">
     <h1>Getting started</h1>
     <p class="lede">
-      Track History is a single Cloudflare Worker (Hono API + static frontend)
-      backed by a D1 SQLite database. This page covers running it locally and
-      deploying your own instance — both fit comfortably in Cloudflare's free tier.
+      Track History lives at <a href="https://trackhistory.app">trackhistory.app</a>.
+      Sign in with your Google account and you get your own logbook — this page
+      walks through logging your first event, importing telemetry, and sharing
+      your progress.
     </p>
 
-    <h2 id="local">Local development</h2>
-<pre><code>git clone https://github.com/richie97/track-history
-cd track-history
-npm install
-npm run seed:generate       # writes seed/seed.sql from your seed data (see below)
-npm run db:migrate:local    # creates the local SQLite schema
-npm run db:seed:local       # loads the seed data
-npm run dev                 # http://localhost:8787</code></pre>
-
-    <p>Create a <code>.dev.vars</code> file (gitignored) in the project root:</p>
-<pre><code>DEV_MODE=1
-DEV_USER_EMAIL=you@example.com   # match your seed data's USER_EMAIL
-DEV_USER_NAME=Your Name
-GOOGLE_CLIENT_ID=dev
-GOOGLE_CLIENT_SECRET=dev</code></pre>
-
+    <h2 id="sign-in">Sign in</h2>
     <p>
-      <code>DEV_MODE=1</code> replaces Google login with a fixed local dev user, so
-      you can develop without OAuth credentials — open <code>/auth/login</code> once
-      to get a session cookie.
-    </p>
-    <div class="callout">
-      <strong>Never set <code>DEV_MODE</code> in production.</strong> It bypasses
-      authentication entirely.
-    </div>
-
-    <h2 id="seeding">Seeding your own history</h2>
-    <p>
-      <code>seed/generate.mjs</code> reads <code>seed/data.personal.mjs</code> if it
-      exists (gitignored — your real name, email and lap history stay out of the
-      repo), otherwise <code>seed/data.example.mjs</code>. Copy the example file to
-      <code>data.personal.mjs</code>, fill in your events, and re-run
-      <code>npm run seed:generate</code>.
+      Open <a href="https://trackhistory.app">trackhistory.app</a> and sign in
+      with Google. There's no separate account to create — a fresh, empty logbook
+      is waiting on first sign-in, and everything you record is private to your
+      account.
     </p>
 
-    <h2 id="deploy">Deploying to Cloudflare</h2>
-
-    <h3>1. Log in &amp; create the database</h3>
-<pre><code>npx wrangler login
-npx wrangler d1 create track-history</code></pre>
+    <h2 id="first-event">Log your first event</h2>
     <p>
-      Copy the <code>database_id</code> it prints into <code>wrangler.jsonc</code>
-      (replacing the zeros).
+      An <strong>event</strong> is a day (or weekend) at a track. Create one, pick
+      the track and layout, and add the sessions you ran with their lap times.
+      Lap times are entered as <code>m:ss.fff</code> (e.g. <code>2:03.118</code>).
+    </p>
+    <p>
+      Only kept a best time? That's fine — every event takes an optional
+      <strong>manual best time</strong>, so spreadsheet-era history can go in
+      as-is and full lap data can be attached later. The track pages chart your
+      best lap per event over time, per track and layout, so improvement trends
+      downward.
     </p>
 
-    <h3>2. Apply the schema &amp; seed your history</h3>
-<pre><code>npm run db:migrate:remote
-npm run db:seed:remote      # imports your history (run once)</code></pre>
-
-    <h3>3. Create a Google OAuth client</h3>
-    <ul>
-      <li>Go to <a href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a> (any project).</li>
-      <li><em>Create credentials → OAuth client ID → Web application</em>.</li>
-      <li>Authorized redirect URI: <code>https://track-history.&lt;your-subdomain&gt;.workers.dev/auth/callback</code>.
-        Run <code>npx wrangler deploy</code> once first if you don't know your
-        <code>workers.dev</code> subdomain, and add your custom domain's
-        <code>/auth/callback</code> too if you attach one.</li>
-      <li>If prompted to configure the consent screen: External, add yourself as a
-        test user — or publish it, since only people you expect can do anything
-        anyway.</li>
-    </ul>
-
-    <h3>4. Set secrets &amp; deploy</h3>
-<pre><code>npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npm run deploy</code></pre>
-
+    <h2 id="import">Import telemetry</h2>
     <p>
-      Sign in with the Google account matching your seed data's
-      <code>USER_EMAIL</code> and it claims the imported history automatically.
-      Other Google accounts get a fresh, empty logbook — the instance is
-      multi-user, and every row is scoped to its owner.
+      On any event page, <strong>Import video / telemetry…</strong> turns
+      recordings into sessions with laps: Corvette PDR video, GoPro footage,
+      Racelogic VBO, and Garmin FIT files. Parsing happens entirely in your
+      browser — videos are read by byte range and <strong>never uploaded</strong>.
+      See <a href="./telemetry-import.html">Telemetry import</a> for the full
+      details, including the start/finish line picker.
     </p>
 
-    <h2 id="testing">Running the tests</h2>
-<pre><code>npm test              # vitest: unit tests + API tests against a real D1 (miniflare)
-npm run typecheck     # tsc over src/ and test/</code></pre>
+    <h2 id="install">Install it on your phone</h2>
     <p>
-      API tests run the whole Worker under
-      <code>@cloudflare/vitest-pool-workers</code> against a real D1 database with
-      migrations applied per test, so ownership isolation between users is tested
-      end to end.
+      Track History is an installable web app: use your browser's
+      <em>Add to Home Screen</em> / <em>Install</em> option and it opens like a
+      native app. Static pages and recently viewed data keep working offline, so
+      you can browse your logbook in the paddock.
+    </p>
+
+    <h2 id="share">Share your progress</h2>
+    <p>
+      You can publish a read-only page of your stats and best times under a slug
+      you choose (<code>trackhistory.app/share/&lt;your-slug&gt;</code>). Notes,
+      your email, and per-lap data are stripped — share the pace, keep the diary
+      private. See <a href="./data-model.html#sharing">share pages</a> for what's
+      included.
     </p>
 
     <nav class="docs-pager">

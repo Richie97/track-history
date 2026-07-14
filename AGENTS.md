@@ -6,7 +6,7 @@ not that one.
 
 ## What this is
 
-A personal HPDE/track-day logbook on Cloudflare Workers + D1 (SQLite): tracks → events → sessions → laps, with progress charts and Google OAuth sign-in. Multi-user — every domain row is scoped to a `user_id`.
+A personal HPDE/track-day logbook on Cloudflare Workers + D1 (SQLite): tracks → events → sessions → laps, with progress charts and Google OAuth sign-in. Multi-user — every domain row is scoped to a `user_id`. The hosted instance users are pointed to is https://trackhistory.app.
 
 ## Commands
 
@@ -46,10 +46,14 @@ not a follow-up:**
    at https://richie97.github.io/track-history/ by
    `.github/workflows/pages.yml` (on pushes to `main` touching `site/**`).
    - `site/index.html` — landing page. Update the features grid, telemetry
-     sources, or self-host steps if those change; don't let it advertise
+     sources, or getting-started steps if those change; don't let it advertise
      features that don't exist or miss ones that do.
-   - `site/docs/index.html` — getting started (local dev, seeding, Cloudflare
-     deploy). Mirrors README setup instructions — change both together.
+   - `site/docs/index.html` — getting started *using the hosted app* (sign-in,
+     first event, telemetry import, PWA install, sharing).
+   - **The site points users at the hosted app, https://trackhistory.app, and
+     deliberately never mentions Cloudflare, self-hosting, or deployment** —
+     developer setup and deploy instructions live in `README.md` only. Keep it
+     that way when editing `site/**`.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
    - `site/docs/data-model.html` — hierarchy, best-time rule, consistency,

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Track History — a self-hosted track-day logbook</title>
-  <meta name="description" content="Track History is a self-hosted HPDE / track-day logbook: events, sessions and lap times per track, progress charts, and in-browser telemetry import. Runs free on Cloudflare Workers + D1.">
+  <title>Track History — a track-day logbook</title>
+  <meta name="description" content="Track History is an HPDE / track-day logbook: events, sessions and lap times per track, progress charts, and in-browser telemetry import. Free at trackhistory.app.">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./site.css">
 </head>
@@ -30,14 +30,13 @@
     <div class="wrap">
       <h1>Your track days, <span class="accent">remembered lap by lap</span>.</h1>
       <p class="lede">
-        Track History is a self-hosted HPDE / track-day logbook: events, sessions,
+        Track History is an HPDE / track-day logbook: events, sessions,
         lap times and notes per track, with progress charts that show you getting
-        faster season over season. It runs on Cloudflare's free tier and your data
-        stays yours.
+        faster season over season. Free to use, and your data stays yours.
       </p>
       <div class="cta">
-        <a class="btn primary" href="./docs/">Get started</a>
-        <a class="btn" href="https://github.com/richie97/track-history">View on GitHub</a>
+        <a class="btn primary" href="https://trackhistory.app">Open the app</a>
+        <a class="btn" href="./docs/">Read the docs</a>
       </div>
 
       <figure class="hero-chart" aria-label="Example lap-time progress chart">
@@ -135,7 +134,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3 4 7v6c0 4.4 3.4 7.4 8 8 4.6-.6 8-3.6 8-8V7l-8-4Z"/></svg>
           </span>
           <h3>Yours, for free</h3>
-          <p>One Cloudflare Worker plus a D1 SQLite database — comfortably inside the free tier. Google sign-in, and every row is scoped to your user. Multi-user out of the box.</p>
+          <p>Sign in with Google and start logging — no account setup, nothing to pay for. Everything you record is private to you, and share pages only expose what you choose.</p>
         </div>
       </div>
     </div>
@@ -174,33 +173,33 @@
 
   <section>
     <div class="wrap">
-      <h2 class="section-title">Self-host it in an afternoon</h2>
+      <h2 class="section-title">Start your logbook in minutes</h2>
       <p class="section-sub">
-        No servers to run and nothing to pay for. Four steps and it's live on
-        <code>workers.dev</code> (or your own domain).
+        Nothing to install and nothing to pay for — sign in at
+        <a href="https://trackhistory.app">trackhistory.app</a> and log your first event.
       </p>
 
       <div class="steps">
         <div class="step">
-          <h3>Create the database</h3>
-          <p><code>wrangler d1 create track-history</code> and drop the database ID into <code>wrangler.jsonc</code>.</p>
+          <h3>Sign in</h3>
+          <p>Sign in with your Google account at <a href="https://trackhistory.app">trackhistory.app</a> — you get your own empty logbook.</p>
         </div>
         <div class="step">
-          <h3>Migrate &amp; seed</h3>
-          <p>Apply the schema, then optionally import your spreadsheet-era history with the seed generator.</p>
+          <h3>Log an event</h3>
+          <p>Pick the track and layout, add sessions and lap times — or just the day's best time if that's all you kept.</p>
         </div>
         <div class="step">
-          <h3>Add Google OAuth</h3>
-          <p>Create an OAuth client, point it at <code>/auth/callback</code>, and set the two secrets.</p>
+          <h3>Import telemetry</h3>
+          <p>Drop in PDR or GoPro footage, VBO or FIT files, and sessions with laps appear — parsed in your browser, never uploaded.</p>
         </div>
         <div class="step">
-          <h3>Deploy</h3>
-          <p><code>npm run deploy</code>. Sign in and your seeded history is claimed automatically.</p>
+          <h3>Watch the trend</h3>
+          <p>Best laps per track chart downward as you get faster — and a share link publishes the pace without the diary.</p>
         </div>
       </div>
 
       <p style="margin-top: 32px">
-        <a class="btn primary" href="./docs/">Read the full setup guide</a>
+        <a class="btn primary" href="https://trackhistory.app">Open the app</a>
       </p>
     </div>
   </section>
