@@ -6,6 +6,8 @@ import { lineChart, multiLineChart } from "./js/chart.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
+import { confettiBurst, detectPB } from "./js/celebrate.js";
+import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { US_TRACKS } from "./js/us-tracks.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
@@ -39,6 +41,43 @@ const CONDITIONS = [
 const condLabel = (c) => (CONDITIONS.find(([v]) => v === c) || [])[1] ?? "";
 const fmtConditions = (e) =>
   [condLabel(e.conditions), e.temp_f != null ? `${e.temp_f}°F` : ""].filter(Boolean).join(" · ");
+
+// Dashboard hero for the nearest upcoming event: countdown, checklist
+// progress ring, and the still-open items by name.
+function heroEventHtml(e) {
+  const cl = e.checklist || [];
+  const done = cl.filter((i) => i.done).length;
+  const open = cl.filter((i) => !i.done);
+  const R = 30;
+  const C = 2 * Math.PI * R;
+  const ring = cl.length
+    ? `<div class="hero-ring">
+        <div class="ring-box">
+          <svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true">
+            <circle cx="38" cy="38" r="${R}" fill="none" stroke="var(--surface-raised)" stroke-width="7"/>
+            <circle cx="38" cy="38" r="${R}" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round"
+              stroke-dasharray="${((done / cl.length) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 38 38)"/>
+          </svg>
+          <span class="ring-label">${done}/${cl.length}</span>
+        </div>
+        <div class="ring-cap"><b>Prep checklist</b><br>${
+          open.length
+            ? `Still open: ${esc(open.slice(0, 2).map((i) => i.text).join(", "))}${open.length > 2 ? ` +${open.length - 2} more` : ""}`
+            : "All done ✓"
+        }</div>
+      </div>`
+    : "";
+  return `<a class="hero-event" href="#/event/${e.id}">
+    <div class="hero-main">
+      <span class="hero-kicker">Next event</span>
+      <div class="hero-track">${esc(trackLabel(e.track_name, e.track_config))}</div>
+      <div class="hero-meta">${fmtDate(e.start_date)}${e.club ? " · " + esc(e.club) : ""}${e.run_group ? " · " + esc(e.run_group) : ""}</div>
+      <div class="hero-count">${fmtCountdown(e.start_date)}</div>
+    </div>
+    ${ring}
+    <span class="btn">${cl.length && open.length ? "Finish prep →" : "Open event →"}</span>
+  </a>`;
+}
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const isUpcoming = (e) => e.start_date > todayISO();
@@ -234,7 +273,11 @@ async function viewDashboard() {
     })
     .join("");
 
+  // The nearest upcoming event gets a hero slot above the tiles; any others
+  // stay as cards.
+  const heroEvent = upcoming[0] ?? null;
   const upcomingCards = upcoming
+    .slice(1)
     .map((e) => {
       const cl = e.checklist || [];
       const done = cl.filter((i) => i.done).length;
@@ -263,12 +306,13 @@ async function viewDashboard() {
       <a class="btn primary" href="#/new">+ Add event</a>
       <a class="btn" href="#/year">Year in review</a>
     </div>
+    ${heroEvent ? heroEventHtml(heroEvent) : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${state.totals.events}</div></div>
       <div class="tile"><div class="label">Track days</div><div class="value">${state.totals.track_days}</div></div>
       <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
     </div>
-    ${upcoming.length ? `<h2>Upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
+    ${upcomingCards ? `<h2>Also upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events yet — add your first track day.</div>`}
     ${recent.length ? `<h2>Recent events</h2>
@@ -547,8 +591,18 @@ async function viewCompare(trackId, params) {
 
 // --- event detail ---
 
+// Track best as of the previous render, so a re-render after adding laps /
+// importing telemetry can tell "new personal best" from "just another save".
+let pbWatch = null;
+
 async function viewEvent(eventId) {
-  const e = await api(`/events/${eventId}`);
+  const [e, tracks] = await Promise.all([api(`/events/${eventId}`), api("/tracks")]);
+  const track = tracks.find((t) => t.id === e.track_id);
+  const pb =
+    pbWatch && track && pbWatch.trackId === track.id
+      ? detectPB(pbWatch.best, track?.best_ms, track?.goal_ms)
+      : null;
+  if (track) pbWatch = { trackId: track.id, best: track.best_ms };
 
   const sessionsHtml = e.sessions
     .map((s) => {
@@ -591,6 +645,23 @@ async function viewEvent(eventId) {
     })
     .join("");
 
+  // Best-lap trace card: among imported sessions that stored a GPS trace,
+  // show the racing line of the one holding the fastest lap.
+  const traced = e.sessions.filter((s) => s.trace && s.trace.length >= 10 && s.laps.length);
+  const traceSession = traced.length
+    ? traced.reduce((a, b) =>
+        Math.min(...b.laps.map((l) => l.time_ms)) < Math.min(...a.laps.map((l) => l.time_ms)) ? b : a
+      )
+    : null;
+  const traceHtml = traceSession
+    ? `<div class="chart-card">
+        <div class="chart-title">Best lap trace — <span class="dir">brighter is faster</span>
+          <span class="trackmap-lap">${fmtMs(Math.min(...traceSession.laps.map((l) => l.time_ms)))}</span></div>
+        <div class="trackmap-wrap"><canvas id="trackmap" role="img" aria-label="Racing line of the best lap, colored by speed"></canvas></div>
+        <div class="trackmap-legend"><span>slow</span><span class="ramp" aria-hidden="true"></span><span>fast</span></div>
+      </div>`
+    : "";
+
   const upcoming = isUpcoming(e);
   const checklist = e.checklist;
   const showChecklist = upcoming || checklist != null;
@@ -614,9 +685,23 @@ async function viewEvent(eventId) {
         </div>
       </div>`;
 
+  const pbBanner = pb
+    ? `<div class="pb-banner" id="pb-banner">
+        <span class="pb-trophy" aria-hidden="true">🏆</span>
+        <span class="pb-kicker">New personal best${pb.goalBeaten ? " · goal beaten" : ""}</span>
+        <span class="pb-time">${fmtMs(pb.ms)}</span>
+        <span class="pb-sub"><b>${fmtDelta(pb.delta).replace("+", "")}</b> faster than your previous best at ${esc(trackLabel(e.track_name, e.track_config))}${pb.goalBeaten ? ` — and under your <b>${fmtMs(track.goal_ms)}</b> goal` : ""}.</span>
+        <div class="btn-row">
+          <a class="btn small primary" href="#/track/${e.track_id}">${pb.goalBeaten ? "Set a new goal" : "See your progress"}</a>
+          <button class="btn small ghost" id="pb-dismiss">Dismiss</button>
+        </div>
+      </div>`
+    : "";
+
   const view = shell(`
     <h1>${esc(trackLabel(e.track_name, e.track_config))} — ${fmtDate(e.start_date)}</h1>
     <p class="sub">${esc([e.club, e.run_group].filter(Boolean).join(" · ") || "")}${fmtConditions(e) ? `${e.club || e.run_group ? " · " : ""}${fmtConditions(e)}` : ""}</p>
+    ${pbBanner}
     ${upcoming ? `<div class="panel countdown-banner"><strong>${fmtCountdown(e.start_date)}</strong> — log sessions here once you're back from the track.</div>` : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Best time</div><div class="value">${fmtMs(e.best_ms)}</div></div>
@@ -630,6 +715,7 @@ async function viewEvent(eventId) {
       <button class="btn danger" id="del-event">Delete event</button>
     </div>
     ${checklistHtml}
+    ${traceHtml}
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
     <div class="pdr-dropzone" id="pdr-dropzone">
@@ -656,6 +742,15 @@ async function viewEvent(eventId) {
       <button class="btn primary">Add session</button>
     </form>
   `);
+
+  if (traceSession) renderTrackMap(view.querySelector("#trackmap"), traceSession.trace);
+
+  if (pb) {
+    const banner = view.querySelector("#pb-banner");
+    view.querySelector("#pb-dismiss").onclick = () => banner.remove();
+    const r = banner.getBoundingClientRect();
+    confettiBurst(r.left + r.width / 2, r.top + 40);
+  }
 
   view.querySelector("#del-event").onclick = async () => {
     if (!confirm("Delete this event and all its sessions/laps?")) return;
@@ -1108,6 +1203,21 @@ async function shareRoute() {
 
 // ---------- router ----------------------------------------------------------
 
+// Skeleton placeholder while the next route's data loads. Only rendered on
+// hash navigation (not in-place refreshes after edits, where a flash would be
+// worse than the wait), and only when a previous render left a #view to fill.
+function showSkeleton() {
+  const v = document.getElementById("view");
+  if (!v) return;
+  v.innerHTML = `
+    <div class="tiles skeleton" aria-hidden="true">
+      ${'<div class="tile"><div class="sk-line w40"></div><div class="sk-line big"></div></div>'.repeat(3)}
+    </div>
+    <div class="cards skeleton" aria-hidden="true">
+      ${'<div class="card"><div class="sk-line w40"></div><div class="sk-line big"></div><div class="sk-line w70"></div></div>'.repeat(3)}
+    </div>`;
+}
+
 async function route() {
   const hash = location.hash || "#/";
   try {
@@ -1138,6 +1248,9 @@ if (SHARE_SLUG) {
   window.addEventListener("hashchange", shareRoute);
   shareRoute();
 } else {
-  window.addEventListener("hashchange", route);
+  window.addEventListener("hashchange", () => {
+    showSkeleton();
+    route();
+  });
   route();
 }

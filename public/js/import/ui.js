@@ -8,7 +8,7 @@
 import { api } from "../api.js";
 import { esc, fmtMs } from "../format.js";
 import { KIND_LABELS, SUPPORTED_EXT, parseTelemetryFile } from "./parse.js";
-import { buildGate, deriveLaps, projectTrace } from "./geo.js";
+import { bestLapTrace, buildGate, deriveLaps, projectTrace } from "./geo.js";
 
 export function bindTelemetryImport(view, event, onDone) {
   const fileInput = view.querySelector("#pdr-files");
@@ -125,6 +125,7 @@ export function applyGate(state) {
     if (!p?.needsLine || !p.gps) continue;
     if (!state.gate) {
       p.laps = [];
+      p.bestLapTrace = null;
       continue;
     }
     let trace = projectTrace(p.gps, state.origin);
@@ -137,11 +138,13 @@ export function applyGate(state) {
       trace = projectTrace(p.gps.map((q) => ({ ...q, lon: -q.lon })), state.origin);
       if (traceDistanceTo(trace, gate) > 1000) {
         p.laps = [];
+        p.bestLapTrace = null;
         continue;
       }
       gate = { ...state.gate, hx: null, hy: null };
     }
     p.laps = deriveLaps(trace, gate);
+    p.bestLapTrace = p.laps.length ? bestLapTrace(trace, gate) : null;
   }
 }
 
@@ -277,6 +280,7 @@ function renderReview(box, event, state, onDone) {
           label: box.querySelector(`[data-import-label="${i}"]`).value.trim() || r.file,
           notes: `Imported from ${r.file}` + (note ? ` — ${note}` : ""),
           laps: r.parsed.laps.map((l) => l.timeMs),
+          trace: r.parsed.bestLapTrace ?? null,
         },
       });
       added++;

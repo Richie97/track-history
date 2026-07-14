@@ -7,7 +7,7 @@
 // west-positive but exporters vary — irrelevant here because lap derivation
 // is relative geometry within the file (see geo.js).
 
-import { deriveLaps, gateFromSegment, projectTrace } from "./geo.js";
+import { bestLapTrace, deriveLaps, gateFromSegment, projectTrace } from "./geo.js";
 
 // "095512.30" (UTC time-of-day) -> seconds
 function timeOfDayS(s) {
@@ -85,6 +85,7 @@ export function parseVboText(text) {
   // [laptiming]: "Start <lat1> <lon1> <lat2> <lon2>" (minutes, two endpoints
   // of the start/finish line). If present, laps come for free.
   let laps = [];
+  let lapTracePts = null;
   const startLine = (sections["laptiming"] ?? []).find((l) => /^start\s/i.test(l));
   if (startLine) {
     const n = startLine.split(/\s+/).slice(1).map(Number);
@@ -97,7 +98,10 @@ export function parseVboText(text) {
         ],
         origin
       );
-      laps = deriveLaps(projectTrace(points, origin), gateFromSegment(end1, end2));
+      const trace = projectTrace(points, origin);
+      const gate = gateFromSegment(end1, end2);
+      laps = deriveLaps(trace, gate);
+      if (laps.length) lapTracePts = bestLapTrace(trace, gate);
     }
   }
 
@@ -107,6 +111,7 @@ export function parseVboText(text) {
     time,
     durationS: points[points.length - 1].t,
     laps,
+    bestLapTrace: lapTracePts,
     gps: points,
     // A [laptiming] line that yields no laps (wrong circuit, odd layout)
     // falls back to manual line picking.

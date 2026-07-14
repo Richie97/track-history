@@ -10,6 +10,8 @@
 //   - session  (18): start_time (2) for the session date/time
 // CRCs are not validated — we only read.
 
+import { lapTrace, projectTrace } from "./geo.js";
+
 const FIT_EPOCH_S = 631065600; // 1989-12-31T00:00:00Z in Unix seconds
 const SEMI = 180 / 2 ** 31; // semicircles -> degrees
 
@@ -145,6 +147,17 @@ export function parseFitBuffer(buf) {
     ? gps[gps.length - 1].t
     : laps.reduce((s, l) => s + l.timeMs / 1000, 0);
 
+  // Best-lap trace: device lap start_times share the record timestamp clock,
+  // so the fastest lap's window can be cut straight out of the GPS trace.
+  let bestLapTrace = null;
+  if (gps.length >= 10 && t0 != null) {
+    const timed = laps.filter((l) => l.startS != null);
+    const best = timed.length ? timed.reduce((a, b) => (b.timeMs < a.timeMs ? b : a)) : null;
+    if (best) {
+      bestLapTrace = lapTrace(projectTrace(gps), best.startS - t0, best.startS - t0 + best.timeMs / 1000);
+    }
+  }
+
   return {
     kind: "fit",
     date,
@@ -152,6 +165,7 @@ export function parseFitBuffer(buf) {
     durationS,
     // Device-computed lap times are exact, not estimates.
     laps: laps.map((l) => ({ timeMs: l.timeMs, estimated: false })),
+    bestLapTrace,
     gps: gps.length >= 10 ? gps : null,
     needsLine: laps.length === 0 && gps.length >= 10,
   };

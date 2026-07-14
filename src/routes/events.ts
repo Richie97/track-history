@@ -70,11 +70,11 @@ events.get("/events/:id", async (c) => {
 
   const sessions = (
     await c.env.DB.prepare(
-      "SELECT id, label, notes, sort FROM sessions WHERE event_id = ? ORDER BY sort, id"
+      "SELECT id, label, notes, sort, trace FROM sessions WHERE event_id = ? ORDER BY sort, id"
     )
       .bind(id)
-      .all<{ id: number; label: string | null; notes: string | null; sort: number }>()
-  ).results;
+      .all<{ id: number; label: string | null; notes: string | null; sort: number; trace: string | null }>()
+  ).results.map((s) => ({ ...s, trace: s.trace ? JSON.parse(s.trace) : null }));
   const laps = (
     await c.env.DB.prepare(
       "SELECT l.id, l.session_id, l.lap_num, l.time_ms FROM laps l JOIN sessions s ON s.id = l.session_id WHERE s.event_id = ? ORDER BY l.session_id, l.lap_num"
