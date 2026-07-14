@@ -95,7 +95,8 @@ reads of the embedded telemetry track (a few MB of a multi-GB file); **files
 never leave your computer**. Supported sources:
 
 - **Corvette PDR (Cosworth) MP4** — lap times from beacon/odometer telemetry
-  (details below).
+  (details below); the GPS channels also draw the track map and racing line,
+  and a recording with no usable beacons falls back to the line picker.
 - **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer
   exports) — laps from the file's `[laptiming]` start line when present,
@@ -119,6 +120,11 @@ telemetry track and validated against Cosworth Toolbox lap times):
   moment distance passes `D0 + k × lapLength` (accurate to ~0.05–0.3s, shown
   with `~`). Crossings beyond the first/last beacon are extrapolated the same
   way and sanity-checked against GPS latitude.
+- The Latitude/Longitude channels are also decoded into a GPS trace (accepted
+  only if it plausibly looks like a car on a track). It draws the speed-painted
+  racing line, and when a recording has no beacons at all (e.g. no start/finish
+  set on the PDR) it feeds the start/finish line picker so laps are derived
+  from crossings just like GPS-only sources.
 
 For manual testing with real recordings, drop them in a `telemetry-samples/`
 directory at the repo root — it's gitignored, so large videos and personal

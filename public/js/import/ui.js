@@ -1,8 +1,9 @@
 // Telemetry import UI: file picker + drag & drop -> parse in the browser ->
 // review panel -> POST the accepted files as sessions. Sources with lap
 // markers (PDR beacons, VBO [laptiming], Garmin laps) show their laps
-// directly; GPS-only sources (GoPro, plain VBO/FIT) get a track map where the
-// user clicks the start/finish line and laps are derived from crossings.
+// directly; GPS-only sources (GoPro, plain VBO/FIT, PDR without beacons) get
+// a track map where the user clicks the start/finish line and laps are
+// derived from crossings.
 // Expects the event-detail markup: #pdr-files, #pdr-dropzone, #pdr-import, #pdr-review.
 
 import { api } from "../api.js";
@@ -156,7 +157,9 @@ function defaultLabel(r) {
 
 function estimatedNote(p, estCount) {
   if (!estCount) return "";
-  if (p.kind === "pdr") {
+  // A PDR file without usable beacons gets its laps from the line picker like
+  // any GPS source (needsLine), so the beacon wording only applies otherwise.
+  if (p.kind === "pdr" && !p.needsLine) {
     return `${estCount} of ${p.laps.length} laps distance-estimated (~), rest beacon-exact`;
   }
   return `lap times derived from GPS start/finish crossings (~±0.1–0.3s)`;

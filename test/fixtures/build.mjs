@@ -272,9 +272,29 @@ function pdrEvent(tag, value, tSeconds) {
   return out;
 }
 
-// Beacon-only PDR file (default tag ids, no mrld/mrlv): crossings at the given
-// times with sequential crossing numbers -> exact laps between them.
-export function buildPdrMp4({ beaconTimes = [100, 147.12, 194.24], firstCrossing = 5 } = {}) {
-  const payload = concat(beaconTimes.map((t, i) => pdrEvent(0x36, firstCrossing + i, t)));
-  return buildTelemetryMp4({ handler: "ctbx", sampleFormat: "marl", payloads: [payload] });
+// PDR file (default tag ids, no mrld/mrlv): beacon crossings at the given
+// times with sequential crossing numbers -> exact laps between them, plus
+// optional Latitude/Longitude channel events from a GPS trace. `gpsEncoding`
+// picks how degrees land in the event's s32: scaled integer (deg * 1e7,
+// the observed default) or IEEE float32 bits.
+export function buildPdrMp4({
+  beaconTimes = [100, 147.12, 194.24],
+  firstCrossing = 5,
+  gpsPoints = null,
+  gpsEncoding = "i32",
+} = {}) {
+  const events = beaconTimes.map((t, i) => pdrEvent(0x36, firstCrossing + i, t));
+  if (gpsPoints) {
+    const f32 = new DataView(new ArrayBuffer(4));
+    const raw = (deg) => {
+      if (gpsEncoding !== "f32") return Math.round(deg * 1e7);
+      f32.setFloat32(0, deg);
+      return f32.getInt32(0);
+    };
+    for (const p of gpsPoints) {
+      events.push(pdrEvent(0x31, raw(p.lat), p.t));
+      events.push(pdrEvent(0x32, raw(p.lon), p.t));
+    }
+  }
+  return buildTelemetryMp4({ handler: "ctbx", sampleFormat: "marl", payloads: [concat(events)] });
 }
