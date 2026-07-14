@@ -4,6 +4,16 @@ node_modules/
 dist/
 .claude/
 
+# OS cruft
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Local telemetry footage for testing imports (PDR MP4s, VBO, FIT, GoPro) —
+# real video files, never committed
+telemetry-samples/
+
 # Personal data stays out of the repo
 seed/data.personal.mjs
 seed/seed.sql
