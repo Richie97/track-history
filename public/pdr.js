@@ -16,10 +16,13 @@
 //     distance and accepted only if GPS latitude matches the beacon-calibrated
 //     start/finish latitude.
 //
-// The Latitude/Longitude channels are also decoded into a GPS trace (degrees)
-// for the track map: it draws the speed-painted racing line, and when a
-// recording has no usable beacons it feeds the start/finish line picker so
-// laps can be derived from crossings like GPS-only sources (see geo.js).
+// Real firmware ("Marlin PDR 1.0", verified against 2026 recordings) does NOT
+// stream GPS: longitude is written exactly once at recording start, latitude
+// at ~2Hz, and Altitude/Heading/GPS Fix never — so `gps` below is normally
+// null. `gpsFromChannels` is kept for firmware that does stream both channels
+// (it feeds the racing-line map and line picker when it fires). The raw
+// latitude/odometer channels are returned so beacon-less recordings can have
+// their laps recovered from lat-vs-distance periodicity (js/import/pdr-laps.js).
 //
 // Record framing inside a telemetry sample:
 //   - 8-byte record:  [id:u8][payload:24][extra:u32]            (skipped)
@@ -321,5 +324,6 @@ export async function parsePdrFile(fileBlob) {
     beaconCount: beacons.length,
     laps,                       // [{lapNumber, timeMs, estimated, startT, endT}]
     gps,                        // [{t, lat, lon, v?}] in degrees, or null
+    channels: { latPts, odoPts }, // raw series for lap recovery (pdr-laps.js)
   };
 }

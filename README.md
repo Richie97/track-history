@@ -94,9 +94,9 @@ with laps. Parsing happens entirely in the browser — for videos, via byte-rang
 reads of the embedded telemetry track (a few MB of a multi-GB file); **files
 never leave your computer**. Supported sources:
 
-- **Corvette PDR (Cosworth) MP4** — lap times from beacon/odometer telemetry
-  (details below); the GPS channels also draw the track map and racing line,
-  and a recording with no usable beacons falls back to the line picker.
+- **Corvette PDR (Cosworth) MP4** — lap times from beacon/odometer telemetry;
+  a recording with no beacons still gets lap times, recovered from the
+  latitude + odometer channels (details below).
 - **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer
   exports) — laps from the file's `[laptiming]` start line when present,
@@ -120,11 +120,22 @@ telemetry track and validated against Cosworth Toolbox lap times):
   moment distance passes `D0 + k × lapLength` (accurate to ~0.05–0.3s, shown
   with `~`). Crossings beyond the first/last beacon are extrapolated the same
   way and sanity-checked against GPS latitude.
-- The Latitude/Longitude channels are also decoded into a GPS trace (accepted
-  only if it plausibly looks like a car on a track). It draws the speed-painted
-  racing line, and when a recording has no beacons at all (e.g. no start/finish
-  set on the PDR) it feeds the start/finish line picker so laps are derived
-  from crossings just like GPS-only sources.
+- Real PDR firmware records **no usable GPS trace** — longitude is written
+  exactly once at recording start (latitude streams at ~2Hz; altitude, heading
+  and fix never), verified against real footage. So there's no track map or
+  line picker for PDR files. (If a firmware variant ever does stream both
+  channels, they still decode into a trace behind plausibility checks and feed
+  the map/picker.)
+- A recording with no beacons at all (e.g. no start/finish set on the PDR)
+  still gets lap times: latitude as a function of odometer distance repeats
+  every lap, so the **lap length is the autocorrelation peak** of that
+  profile, and lap times are cut every lap-length of distance (validated on
+  real footage: lap length within 2m and lap times within ±0.2s of
+  beacon-derived values). Start/finish alignment comes from a beacon-timed
+  recording of the same track in the same import batch (matched by lap
+  length, aligned by cross-correlating the latitude profiles); without one,
+  laps are cut from where the car first reaches pace — real laps of the full
+  track, just not aligned to the official line. All flagged `~`.
 
 For manual testing with real recordings, drop them in a `telemetry-samples/`
 directory at the repo root — it's gitignored, so large videos and personal

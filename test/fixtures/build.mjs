@@ -276,7 +276,9 @@ function pdrEvent(tag, value, tSeconds) {
 // times with sequential crossing numbers -> exact laps between them, plus
 // optional Latitude/Longitude channel events from a GPS trace. `gpsEncoding`
 // picks how degrees land in the event's s32: scaled integer (deg * 1e7,
-// the observed default) or IEEE float32 bits.
+// the observed default) or IEEE float32 bits. NOTE: a continuous longitude
+// stream is a hypothetical-firmware shape (kept to cover gpsFromChannels);
+// real firmware behaves like buildPdrRealMp4 below.
 export function buildPdrMp4({
   beaconTimes = [100, 147.12, 194.24],
   firstCrossing = 5,
@@ -295,6 +297,40 @@ export function buildPdrMp4({
       events.push(pdrEvent(0x31, raw(p.lat), p.t));
       events.push(pdrEvent(0x32, raw(p.lon), p.t));
     }
+  }
+  return buildTelemetryMp4({ handler: "ctbx", sampleFormat: "marl", payloads: [concat(events)] });
+}
+
+// PDR file matching the observed real firmware ("Marlin PDR 1.0"): a single
+// Longitude event at recording start, Latitude at ~2Hz, cumulative odometer
+// at ~7Hz — no decodable GPS trace. The car drives the reference circle
+// (counter-clockwise, constant speed), optionally starting at `startAngle`
+// so two fixtures of the same "track" can begin at different pit-out points.
+// `paddock: true` produces slow, non-lapping driving instead.
+export function buildPdrRealMp4({
+  beaconTimes = [],
+  firstCrossing = 5,
+  revolutions = 3.3,
+  radius = 300,
+  speed = 40,
+  startAngle = 0,
+  lat0 = 36.56,
+  lon0 = -79.2,
+  paddock = false,
+} = {}) {
+  const events = beaconTimes.map((t, i) => pdrEvent(0x36, firstCrossing + i, t));
+  const totalS = paddock ? 600 : (2 * Math.PI * radius * revolutions) / speed;
+  const ky = 110540;
+  events.push(pdrEvent(0x32, Math.round(lon0 * 1e7), 0.1)); // the one lon fix
+  for (let t = 0.1; t <= totalS; t += 0.5) {
+    const lat = paddock
+      ? lat0 + (8 * Math.sin(t / 45)) / ky // wandering the paddock
+      : lat0 + (radius * Math.sin(startAngle + (speed * t) / radius)) / ky;
+    events.push(pdrEvent(0x31, Math.round(lat * 1e7), t));
+  }
+  for (let t = 0; t <= totalS; t += 0.15) {
+    const d = paddock ? t * 1.2 : speed * t; // crawling vs at pace
+    events.push(pdrEvent(0x42, Math.round(d), t));
   }
   return buildTelemetryMp4({ handler: "ctbx", sampleFormat: "marl", payloads: [concat(events)] });
 }
