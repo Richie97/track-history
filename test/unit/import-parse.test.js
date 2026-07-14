@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseTelemetryFile } from "../../public/js/import/parse.js";
-import { buildFitLaps, buildGpmfMp4, buildPdrMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
+import { buildFitLaps, buildGpmfMp4, buildPdrMp4, buildPdrRealMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
 import { emptyMp4 } from "./gpmf.test.js";
 
 describe("parseTelemetryFile dispatch", () => {
@@ -35,6 +35,47 @@ describe("parseTelemetryFile dispatch", () => {
     await expect(parseTelemetryFile(new File([emptyMp4()], "dashcam.mp4"))).rejects.toThrow(
       /No PDR or GoPro telemetry/
     );
+  });
+});
+
+describe("real-firmware PDR (no GPS stream)", () => {
+  const LAP_MS = Math.round(((2 * Math.PI * 300) / 40) * 1000); // 47124
+
+  it("beacon-timed laps are untouched; no GPS trace decodes from one lon fix", async () => {
+    const b0 = 30, lapS = LAP_MS / 1000;
+    const file = new File([buildPdrRealMp4({ beaconTimes: [b0, b0 + lapS, b0 + 2 * lapS] })], "pdr-real.mp4");
+    const out = await parseTelemetryFile(file);
+    expect(out.kind).toBe("pdr");
+    expect(out.gps).toBeNull();
+    expect(out.needsLine).toBe(false);
+    expect(out.lapRecovery).toBeNull(); // beacons already produced laps
+    const exact = out.laps.filter((l) => !l.estimated);
+    expect(exact.length).toBeGreaterThanOrEqual(2);
+    for (const lap of exact) expect(Math.abs(lap.timeMs - LAP_MS)).toBeLessThan(50);
+  });
+
+  it("recovers laps from latitude + odometer when there are no beacons", async () => {
+    const file = new File([buildPdrRealMp4()], "pdr-nobeacon-real.mp4");
+    const out = await parseTelemetryFile(file);
+    expect(out.kind).toBe("pdr");
+    expect(out.gps).toBeNull();
+    expect(out.needsLine).toBe(false); // no GPS -> the line picker can't help
+    expect(out.lapRecovery).not.toBeNull();
+    expect(out.lapRecovery.anchored).toBe(false);
+    expect(out.laps).toHaveLength(3); // 3.3 revolutions
+    for (const lap of out.laps) {
+      expect(lap.estimated).toBe(true);
+      expect(Math.abs(lap.timeMs - LAP_MS)).toBeLessThan(300);
+    }
+  });
+
+  it("finds no laps in paddock footage instead of inventing them", async () => {
+    const file = new File([buildPdrRealMp4({ paddock: true })], "pdr-paddock.mp4");
+    const out = await parseTelemetryFile(file);
+    expect(out.kind).toBe("pdr");
+    expect(out.laps).toEqual([]);
+    expect(out.lapRecovery).toBeNull();
+    expect(out.needsLine).toBe(false);
   });
 });
 

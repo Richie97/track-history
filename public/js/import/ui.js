@@ -1,15 +1,17 @@
 // Telemetry import UI: file picker + drag & drop -> parse in the browser ->
 // review panel -> POST the accepted files as sessions. Sources with lap
 // markers (PDR beacons, VBO [laptiming], Garmin laps) show their laps
-// directly; GPS-only sources (GoPro, plain VBO/FIT, PDR without beacons) get
-// a track map where the user clicks the start/finish line and laps are
-// derived from crossings.
+// directly; GPS-only sources (GoPro, plain VBO/FIT) get a track map where the
+// user clicks the start/finish line and laps are derived from crossings.
+// Beacon-less PDR recordings have no GPS trace to click — their laps come
+// from lat+odometer recovery (pdr-laps.js), phase-anchored across the batch.
 // Expects the event-detail markup: #pdr-files, #pdr-dropzone, #pdr-import, #pdr-review.
 
 import { api } from "../api.js";
 import { esc, fmtMs } from "../format.js";
 import { KIND_LABELS, SUPPORTED_EXT, parseTelemetryFile } from "./parse.js";
 import { bestLapTrace, buildGate, deriveLaps, projectTrace } from "./geo.js";
+import { anchorPdrBatch } from "./pdr-laps.js";
 
 export function bindTelemetryImport(view, event, onDone) {
   const fileInput = view.querySelector("#pdr-files");
@@ -30,6 +32,10 @@ export function bindTelemetryImport(view, event, onDone) {
       }
     }
     results.sort((a, b) => ((a.parsed?.time ?? "") < (b.parsed?.time ?? "") ? -1 : 1));
+
+    // Beacon-less PDR laps start as rolling laps; a beacon-timed PDR session
+    // of the same track in this batch re-anchors them to the start/finish.
+    anchorPdrBatch(results);
 
     // Shared coordinate frame for all line-picking files (same track), so one
     // picked line applies to every trace in the batch.
@@ -157,8 +163,12 @@ function defaultLabel(r) {
 
 function estimatedNote(p, estCount) {
   if (!estCount) return "";
-  // A PDR file without usable beacons gets its laps from the line picker like
-  // any GPS source (needsLine), so the beacon wording only applies otherwise.
+  if (p.kind === "pdr" && p.lapRecovery) {
+    // No beacons in this recording: laps recovered from latitude + odometer.
+    return p.lapRecovery.anchored
+      ? `laps recovered from latitude + odometer, aligned to the beacon session's start/finish (~±0.2s)`
+      : `laps recovered from latitude + odometer (~±0.2s); boundaries are a fixed track point, not the official start/finish`;
+  }
   if (p.kind === "pdr" && !p.needsLine) {
     return `${estCount} of ${p.laps.length} laps distance-estimated (~), rest beacon-exact`;
   }
@@ -199,7 +209,9 @@ function renderReview(box, event, state, onDone) {
         ? state.gate
           ? `<span class="hint" style="color:var(--text-muted);font-size:13px">No laps cross the picked line — try clicking a different spot</span>`
           : `<span class="hint" style="color:var(--text-muted);font-size:13px">${p.gps.length} GPS points — set the start/finish line below to time laps</span>`
-        : `<span class="hint" style="color:var(--text-muted);font-size:13px">No complete laps found (no start/finish crossings in telemetry)</span>`;
+        : p.kind === "pdr" && !p.beaconCount
+          ? `<span class="hint" style="color:var(--text-muted);font-size:13px">No laps found — no beacons, and the telemetry shows no repeating lap pattern (pit/paddock footage?)</span>`
+          : `<span class="hint" style="color:var(--text-muted);font-size:13px">No complete laps found (no start/finish crossings in telemetry)</span>`;
       const checked = prevChecks.has(String(i)) ? prevChecks.get(String(i)) : !!p.laps.length;
       const label = prevLabels.get(String(i)) ?? defaultLabel(r);
       const note = estimatedNote(p, estCount);
