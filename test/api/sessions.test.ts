@@ -62,6 +62,49 @@ describe("POST /api/events/:id/sessions", () => {
     const bad = await api("POST", `/events/${eventId}/sessions`, { laps: [121000], trace: "nope" });
     expect(bad.status).toBe(400);
   });
+
+  it("stores per-lap channels, re-rounded, and returns them with the event", async () => {
+    const { api } = await signedInUser();
+    const eventId = await createEvent(api);
+    const arr = (v: number) => Array.from({ length: 12 }, (_, i) => v + i + 0.123);
+    const channels = {
+      v: 1,
+      dStepM: 20,
+      laps: [
+        { n: 1, timeMs: 121000, speed: arr(100), rpm: arr(4000), latG: arr(0.2).map((x) => x / 100) },
+        { n: 2, timeMs: 119500, speed: arr(105) },
+      ],
+    };
+    await api("POST", `/events/${eventId}/sessions`, { label: "Imported", laps: [121000, 119500], channels });
+    const e = (await api("GET", `/events/${eventId}`)).body;
+    const ch = e.sessions[0].channels;
+    expect(ch.dStepM).toBe(20);
+    expect(ch.laps).toHaveLength(2);
+    expect(ch.laps[0].speed[0]).toBe(100.1); // rounded to 0.1 km/h
+    expect(ch.laps[0].rpm[0]).toBe(4000); // rounded to whole rpm
+    expect(ch.laps[1].rpm).toBeUndefined();
+  });
+
+  it("leaves channels null when omitted and rejects implausible channel data", async () => {
+    const { api } = await signedInUser();
+    const eventId = await createEvent(api);
+    await api("POST", `/events/${eventId}/sessions`, { laps: [121000] });
+    const e = (await api("GET", `/events/${eventId}`)).body;
+    expect(e.sessions[0].channels).toBeNull();
+    const cases = [
+      "nope",
+      { v: 1, dStepM: 20, laps: [] },
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000 }] }, // no channel arrays
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, speed: [1, 2] }] }, // too short
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(9999) }] }, // implausible
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100), rpm: Array(13).fill(1) }] }, // grid mismatch
+      { v: 1, dStepM: 1000, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100) }] }, // bad grid step
+    ];
+    for (const channels of cases) {
+      const bad = await api("POST", `/events/${eventId}/sessions`, { laps: [121000], channels });
+      expect(bad.status, JSON.stringify(channels).slice(0, 60)).toBe(400);
+    }
+  });
 });
 
 describe("PUT /api/sessions/:id", () => {

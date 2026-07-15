@@ -46,6 +46,59 @@ export function sanitizeTrace(v: unknown): [number, number, number][] | null | u
   return pts;
 }
 
+// Per-lap channel data (see public/js/import/channels.js, which builds this
+// shape — keep the two in sync): channel arrays on a uniform driven-distance
+// grid, one entry per lap. null clears it; valid data is re-rounded so the
+// stored JSON stays small. Returns undefined when the input isn't plausible.
+export type LapChannelEntry = { n: number; timeMs: number; speed?: number[]; rpm?: number[]; latG?: number[] };
+export type LapChannels = { v: 1; dStepM: number; laps: LapChannelEntry[] };
+
+const CHANNEL_SPECS: ["speed" | "rpm" | "latG", number, number, number][] = [
+  // name, max plausible value, rounding factor, min plausible value
+  ["speed", 500, 10, 0],
+  ["rpm", 25000, 1, 0],
+  ["latG", 10, 1000, 0],
+];
+
+export function sanitizeChannels(v: unknown): LapChannels | null | undefined {
+  if (v == null) return null;
+  if (typeof v !== "object" || Array.isArray(v)) return undefined;
+  const o = v as Record<string, unknown>;
+  const dStepM = o.dStepM;
+  if (typeof dStepM !== "number" || !Number.isFinite(dStepM) || dStepM < 5 || dStepM > 200) return undefined;
+  if (!Array.isArray(o.laps) || o.laps.length < 1 || o.laps.length > 80) return undefined;
+  const laps: LapChannelEntry[] = [];
+  let points = 0;
+  for (const raw of o.laps) {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+    const l = raw as Record<string, unknown>;
+    if (typeof l.n !== "number" || !Number.isInteger(l.n) || l.n < 0 || l.n > 10000) return undefined;
+    if (typeof l.timeMs !== "number" || !Number.isFinite(l.timeMs) || l.timeMs <= 0) return undefined;
+    const entry: LapChannelEntry = { n: l.n, timeMs: Math.round(l.timeMs) };
+    let len = 0;
+    for (const [name, max, f, min] of CHANNEL_SPECS) {
+      const arr = l[name];
+      if (arr == null) continue;
+      if (!Array.isArray(arr) || arr.length < 10 || arr.length > 800) return undefined;
+      if (len && arr.length !== len) return undefined; // channels share the grid
+      len = arr.length;
+      const vals: number[] = [];
+      for (const x of arr) {
+        if (typeof x !== "number" || !Number.isFinite(x) || x < min || x > max) return undefined;
+        vals.push(Math.round(x * f) / f);
+      }
+      entry[name] = vals;
+      points += vals.length;
+    }
+    if (!len) return undefined; // a lap entry with no channels isn't data
+    laps.push(entry);
+  }
+  // Hard budget on stored size: 60k values is roughly 400KB of JSON; real
+  // sessions (25 laps × 3 channels × ~150 points) land far under it.
+  if (points > 60000) return undefined;
+  return { v: 1, dStepM, laps };
+}
+
 export type ChecklistItem = { text: string; done: boolean };
 
 // Normalize a prep checklist: null clears it, a valid array is trimmed and

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { insertLaps, ownedEvent, ownedSession } from "../db";
-import { sanitizeLaps, sanitizeTrace } from "../lib/validate";
+import { sanitizeChannels, sanitizeLaps, sanitizeTrace } from "../lib/validate";
 
 export const sessions = new Hono<AppContext>();
 
@@ -10,18 +10,27 @@ sessions.post("/events/:id/sessions", async (c) => {
   if (!(await ownedEvent(c.env.DB, c.get("userId"), eventId))) {
     return c.json({ error: "not found" }, 404);
   }
-  const body = await c.req.json<{ label?: string; notes?: string; laps?: number[]; trace?: unknown }>();
+  const body = await c.req.json<{ label?: string; notes?: string; laps?: number[]; trace?: unknown; channels?: unknown }>();
   const trace = sanitizeTrace(body.trace);
   if (trace === undefined) return c.json({ error: "invalid trace" }, 400);
+  const channels = sanitizeChannels(body.channels);
+  if (channels === undefined) return c.json({ error: "invalid channels" }, 400);
   const maxSort = await c.env.DB.prepare(
     "SELECT COALESCE(MAX(sort), 0) AS s FROM sessions WHERE event_id = ?"
   )
     .bind(eventId)
     .first<{ s: number }>();
   const session = await c.env.DB.prepare(
-    "INSERT INTO sessions (event_id, label, notes, sort, trace) VALUES (?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO sessions (event_id, label, notes, sort, trace, channels) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(eventId, body.label ?? null, body.notes ?? null, (maxSort?.s ?? 0) + 1, trace ? JSON.stringify(trace) : null)
+    .bind(
+      eventId,
+      body.label ?? null,
+      body.notes ?? null,
+      (maxSort?.s ?? 0) + 1,
+      trace ? JSON.stringify(trace) : null,
+      channels ? JSON.stringify(channels) : null
+    )
     .first<{ id: number }>();
   await insertLaps(c.env.DB, session!.id, sanitizeLaps(body.laps), 1);
   return c.json({ id: session!.id }, 201);

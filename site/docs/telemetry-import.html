@@ -125,6 +125,13 @@
         import preview also reads the car channels and shows each session's
         <strong>top speed, max RPM and max lateral&nbsp;G</strong>, saved into
         the session notes.</li>
+      <li>Each imported session also stores <strong>per-lap channel data</strong> —
+        speed for every source, plus RPM and lateral&nbsp;G for PDR — sampled
+        along the lap's driven distance. The event page shows them as
+        <strong>channel graphs</strong>: laps overlaid on a shared distance
+        axis, with lap chips to compare up to three laps side by side. (This
+        is derived at import time; the recording itself is never uploaded, so
+        re-import a file if you delete a session.)</li>
       <li>If a recording's GPS can't be decoded, a beacon-less file still gets
         lap times: latitude as a function of odometer distance repeats every
         lap, so the lap length is that profile's autocorrelation peak and laps

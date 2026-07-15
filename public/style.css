@@ -40,6 +40,8 @@
   --positive:    #c8f24e;       /* improvement / faster */
   --chart-line:  #c8f24e;
   --chart-line-b: #6ea8ff;   /* second series in overlay charts */
+  --chart-line-c: #f49ac0;   /* third series (lap highlight slot 3) */
+  --chart-dim:   rgba(255, 255, 255, 0.16); /* unselected laps in channel graphs */
   --chart-grid:  rgba(255, 255, 255, 0.07);
 
   /* GPS trace map: sequential speed ramp (one hue, dim -> bright) + tarmac */
@@ -82,6 +84,8 @@
   --positive:    #4c6a00;
   --chart-line:  #6f9c00;
   --chart-line-b: #2f6fd6;   /* second series in overlay charts */
+  --chart-line-c: #b0348f;   /* third series (lap highlight slot 3) */
+  --chart-dim:   rgba(0, 0, 0, 0.15); /* unselected laps in channel graphs */
   --chart-grid:  rgba(0, 0, 0, 0.08);
 
   --map-slow:   #dce8b4;
@@ -124,6 +128,8 @@
     --positive:    #4c6a00;
     --chart-line:  #6f9c00;
     --chart-line-b: #2f6fd6;   /* second series in overlay charts */
+    --chart-line-c: #b0348f;   /* third series (lap highlight slot 3) */
+    --chart-dim:   rgba(0, 0, 0, 0.15); /* unselected laps in channel graphs */
     --chart-grid:  rgba(0, 0, 0, 0.08);
 
     --map-slow:   #dce8b4;
@@ -500,6 +506,22 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .lap .x { cursor: pointer; color: var(--text-faint); font-size: 13px; line-height: 1; }
 .lap .x:hover { color: var(--danger-ink); }
+
+/* Per-lap channel graphs (imported sessions) */
+.ch-details { margin-top: 14px; }
+.ch-details summary {
+  cursor: pointer; color: var(--text-muted); font-size: var(--fs-sm);
+  font-weight: var(--weight-medium); user-select: none;
+}
+.ch-details summary .hint { color: var(--text-faint); font-weight: 400; margin-left: 6px; }
+.ch-details[open] summary { margin-bottom: 8px; }
+.ch-chips { margin-top: 4px; }
+button.ch-chip { cursor: pointer; font-family: inherit; }
+button.ch-chip:hover { background: var(--surface-hover); }
+button.ch-chip.on { background: var(--surface-raised); }
+.ch-chip .dot { width: 9px; height: 9px; border-radius: var(--radius-pill); flex: none; }
+.ch-chart { margin-top: 12px; }
+.ch-chart svg { display: block; width: 100%; height: auto; }
 .add-laps-input {
   flex: 1; min-width: 200px; padding: 10px 14px;
   border: 1px solid var(--border-hairline); border-radius: var(--radius-md);

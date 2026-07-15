@@ -87,12 +87,14 @@ export function gateCrossings(trace, gate, { minGapS = 5 } = {}) {
 // Laps between consecutive crossings. Deltas outside [minLapS, maxLapS] are
 // dropped (jitter double-counts and pit stops / sessions gaps aren't laps).
 // GPS-derived timing is interpolation between fixes, so laps are `estimated`.
+// startT/endT (trace clock) let per-lap channel data be cut from the same
+// telemetry (js/import/channels.js).
 export function lapsFromCrossings(crossings, { minLapS = 30, maxLapS = 3600 } = {}) {
   const laps = [];
   for (let i = 1; i < crossings.length; i++) {
     const s = crossings[i] - crossings[i - 1];
     if (s < minLapS || s > maxLapS) continue;
-    laps.push({ timeMs: Math.round(s * 1000), estimated: true });
+    laps.push({ timeMs: Math.round(s * 1000), estimated: true, startT: crossings[i - 1], endT: crossings[i] });
   }
   return laps;
 }
