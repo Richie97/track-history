@@ -13,6 +13,7 @@ import { esc, fmtMs } from "../format.js";
 import { KIND_LABELS, SUPPORTED_EXT, parseTelemetryFile } from "./parse.js";
 import { bestLapTrace, buildGate, deriveLaps, projectTrace } from "./geo.js";
 import { anchorPdrBatch } from "./pdr-laps.js";
+import { attachLapChannels } from "./channels.js";
 
 export function bindTelemetryImport(view, event, onDone) {
   const fileInput = view.querySelector("#pdr-files");
@@ -36,7 +37,11 @@ export function bindTelemetryImport(view, event, onDone) {
 
     // Beacon-less PDR laps start as rolling laps; a beacon-timed PDR session
     // of the same track in this batch re-anchors them to the start/finish.
+    // Anchoring re-cuts lap boundaries, so per-lap channels follow.
     anchorPdrBatch(results);
+    for (const r of results) {
+      if (r.parsed?.kind === "pdr" && r.parsed.lapRecovery) attachLapChannels(r.parsed);
+    }
 
     // Shared coordinate frame for all line-picking files (same track), so one
     // picked line applies to every trace in the batch.
@@ -134,6 +139,7 @@ export function applyGate(state) {
     if (!state.gate) {
       p.laps = [];
       p.bestLapTrace = null;
+      p.lapChannels = null;
       continue;
     }
     let trace = projectTrace(p.gps, state.origin);
@@ -147,12 +153,14 @@ export function applyGate(state) {
       if (traceDistanceTo(trace, gate) > 1000) {
         p.laps = [];
         p.bestLapTrace = null;
+        p.lapChannels = null;
         continue;
       }
       gate = { ...state.gate, hx: null, hy: null };
     }
     p.laps = deriveLaps(trace, gate);
     p.bestLapTrace = p.laps.length ? bestLapTrace(trace, gate) : null;
+    attachLapChannels(p);
   }
 }
 
@@ -312,6 +320,7 @@ function renderReview(box, event, state, onDone) {
           notes: `Imported from ${r.file}` + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
           laps: r.parsed.laps.map((l) => l.timeMs),
           trace: r.parsed.bestLapTrace ?? null,
+          channels: r.parsed.lapChannels ?? null,
         },
       });
       added++;

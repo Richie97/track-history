@@ -123,6 +123,16 @@ pass across it (interpolated between 10–18 Hz fixes — accurate to roughly
 ±0.1–0.3s, shown with `~`). One picked line applies to every file in the
 batch.
 
+Imported sessions also store **per-lap channel data** — speed for every
+source, plus RPM and lateral G for PDR — resampled onto a uniform
+driven-distance grid (20 m) so laps overlay corner-for-corner. The event page
+renders them as expandable **channel graphs** per session: all laps as a dim
+context envelope, up to three laps highlighted at a time via the lap chips
+(best lap pre-selected), with a shared distance axis and hover readouts.
+Everything is derived at import time in the browser (recordings are never
+uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
+the session row; the public share page never includes it.
+
 How PDR lap times are derived (reverse-engineered from the `ctbx`/`marl`
 telemetry track and validated against Cosworth Toolbox lap times):
 

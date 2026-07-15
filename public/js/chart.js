@@ -4,6 +4,18 @@
 
 import { esc, fmtMs } from "./format.js";
 
+// Nice ticks for plain numeric axes (speed, rpm, G, distance): 1/2/2.5/5×10^k
+// steps. Exported for the channel graphs and unit tests.
+export function niceNumTicks(min, max, count = 4) {
+  const span = Math.max(1e-9, max - min);
+  const raw = span / count;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw);
+  const ticks = [];
+  for (let v = Math.ceil(min / step - 1e-9) * step; v <= max + 1e-9; v += step) ticks.push(+v.toFixed(6));
+  return ticks;
+}
+
 export function niceTimeTicks(min, max, count = 4) {
   const span = Math.max(1, max - min);
   const rawStep = span / count;

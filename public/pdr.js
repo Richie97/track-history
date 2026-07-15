@@ -445,5 +445,12 @@ export async function parsePdrFile(fileBlob) {
     gps,                        // [{t, lat, lon, v?}] in degrees, or null
     metrics,                    // {topSpeedKph, maxRpm, maxLatG} — each null when unavailable
     channels: { latPts, odoPts }, // raw series for lap recovery (pdr-laps.js)
+    // scaled car channels ([{t, v}] in km/h / rpm / G) for per-lap channel
+    // graphs (js/import/channels.js); each null when the file lacks them
+    carChannels: {
+      speed: speed.length > 10 ? speed : null,
+      rpm: rpm.length > 10 ? rpm : null,
+      latG: latAcc.length > 10 ? latAcc.map((p) => ({ t: p.t, v: Math.abs(p.v) })) : null,
+    },
   };
 }
