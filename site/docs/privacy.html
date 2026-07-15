@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy policy — Track History docs</title>
+  <meta name="description" content="What Track History collects, what it never collects, and how your track-day logbook data is stored, shared and deleted.">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track History
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html" class="active">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Privacy policy</h1>
+    <p class="lede">
+      Track History (<a href="https://trackhistory.app">trackhistory.app</a>) is a
+      free personal track-day logbook operated by Speedshift LLC. This policy
+      explains, in plain language, what data the app collects and what happens
+      to it. <em>Effective July 15, 2026.</em>
+    </p>
+
+    <div class="callout">
+      The short version: your logbook is private to your account, there are no
+      ads, no third-party analytics, and your data is never sold. Video and
+      telemetry files are parsed in your browser and <strong>never
+      uploaded</strong>. The only thing ever made public is a share page you
+      explicitly turn on.
+    </div>
+
+    <h2 id="collect">What we collect</h2>
+    <ul>
+      <li><strong>Google sign-in details.</strong> Signing in with Google gives
+        us your Google account ID, email address, name, and profile-picture URL
+        — the standard <code>openid email profile</code> scopes and nothing
+        more. We never see your Google password and can't access anything else
+        in your Google account.</li>
+      <li><strong>What you log.</strong> The tracks, events, sessions, lap
+        times, notes, goals, car and conditions details you enter, and any
+        share slug you choose. This is stored so the app can show it back to
+        you.</li>
+      <li><strong>Cookies.</strong> A session cookie keeps you signed in, and a
+        short-lived cookie protects the sign-in flow itself. There are no
+        advertising or analytics cookies.</li>
+      <li><strong>On your device only.</strong> Your theme preference is kept
+        in browser storage, and if you install the app, pages and recently
+        viewed data are cached on your device so the logbook works offline.
+        That cache never leaves your device.</li>
+    </ul>
+
+    <h2 id="telemetry">Telemetry and video files</h2>
+    <p>
+      Telemetry import — Corvette PDR and GoPro video, Racelogic VBO, Garmin
+      FIT — runs <strong>entirely in your browser</strong>. Videos are read by
+      byte range and files are never uploaded to our servers. The only thing
+      stored is what you choose to save at the end of an import: the resulting
+      sessions and lap times, as ordinary logbook entries.
+    </p>
+
+    <h2 id="not">What we don't do</h2>
+    <ul>
+      <li>No advertising, and no third-party analytics or tracking scripts.</li>
+      <li>We never sell or rent your data.</li>
+      <li>We don't share your data with anyone, except the cloud hosting
+        provider that stores it so the service can run, or if the law requires
+        it.</li>
+    </ul>
+
+    <h2 id="visibility">Who can see your logbook</h2>
+    <p>
+      Your logbook is private to your account. The one exception is a
+      <a href="./data-model.html#sharing">share page</a>, which you create
+      yourself under a slug you choose: it shows stats and best times but
+      strips notes, your email, and per-lap data, and you can disable it at any
+      time.
+    </p>
+
+    <h2 id="storage">Where your data lives</h2>
+    <p>
+      Your logbook is stored in a database run by our cloud hosting provider
+      and is accessed only to operate the service.
+    </p>
+
+    <h2 id="deletion">Retention and deletion</h2>
+    <p>
+      Your data is kept for as long as you use the service. You can delete
+      individual tracks, events, sessions and laps in the app at any time. To
+      have your account and all of its data deleted, open an issue on
+      <a href="https://github.com/richie97/track-history/issues">GitHub</a> or
+      contact the maintainer. You can also revoke Track History's access to
+      your Google account from your
+      <a href="https://myaccount.google.com/connections">Google account
+      settings</a>.
+    </p>
+
+    <h2 id="children">Children</h2>
+    <p>
+      Track History is not directed at children under 13, and we don't
+      knowingly collect data from them.
+    </p>
+
+    <h2 id="changes">Changes to this policy</h2>
+    <p>
+      If this policy changes, the updated version is posted here with a new
+      effective date.
+    </p>
+
+    <h2 id="contact">Contact</h2>
+    <p>
+      Questions about privacy? Open an issue on
+      <a href="https://github.com/richie97/track-history/issues">GitHub</a>.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./data-model.html"><span class="label">Previous</span>← Data model &amp; stats</a>
+      <a href="./terms.html"><span class="label">Next</span>Terms of use →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Track History — a personal HPDE / track-day logbook.</span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

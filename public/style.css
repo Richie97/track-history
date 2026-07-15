@@ -548,12 +548,12 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .tip-btn:hover { background: var(--surface-hover); opacity: 1; }
 .tip-blank { display: inline-block; transition: opacity var(--dur-med) var(--ease-standard); }
-.contribute-link {
-  position: relative;
+.footer-link, .contribute-link {
   color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--weight-medium);
   white-space: nowrap;
 }
-.contribute-link:hover { color: var(--text-strong); opacity: 1; }
+.footer-link:hover, .contribute-link:hover { color: var(--text-strong); opacity: 1; }
+.contribute-link { position: relative; }
 /* Hover-only tooltip: even at opacity 0 its nowrap box widens the page on
    narrow screens, so it only exists on devices that can hover. */
 @media (hover: hover) {

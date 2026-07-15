@@ -131,6 +131,7 @@ const TIP_ITEMS = [
 ];
 const TIP_URL = "https://buymeacoffee.com/speedshift";
 const REPO_URL = "https://github.com/Richie97/track-history";
+const DOCS_URL = "https://docs.trackhistory.app";
 
 let tipIdx = 0;
 let tipTimer = null;
@@ -153,6 +154,8 @@ function footerHtml() {
   return `<footer class="site-footer">
     <span class="footer-left">
       <span>© ${new Date().getFullYear()} Speedshift LLC</span>
+      <a class="footer-link" href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy</a>
+      <a class="footer-link" href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms</a>
       <a class="contribute-link" href="${REPO_URL}" target="_blank" rel="noopener"
          data-tip="Fix my bugs — or add your own 🐛">
         Contribute ↗
