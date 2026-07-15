@@ -38,7 +38,7 @@
   <article class="docs-content">
     <h1>Data model &amp; stats</h1>
     <p class="lede">
-      The database mirrors the shape of a season:
+      Your logbook mirrors the shape of a season:
       <strong>tracks → events → sessions → laps</strong>. Everything below is
       derived from that, with a couple of deliberate rules worth knowing.
     </p>
@@ -52,9 +52,8 @@
       <li><strong>Event</strong> — a day (or weekend) at a track, with notes and an
         optional manual best time.</li>
       <li><strong>Session</strong> — one run group / stint within an event.</li>
-      <li><strong>Lap</strong> — an integer number of milliseconds. Lap times are
-        milliseconds everywhere in the system; the frontend formats and parses
-        <code>m:ss.fff</code>.</li>
+      <li><strong>Lap</strong> — a single lap time, entered and shown as
+        <code>m:ss.fff</code> and stored to the millisecond.</li>
     </ul>
 
     <h2 id="best">Best time</h2>
@@ -78,31 +77,19 @@
     <h2 id="sharing">Share pages</h2>
     <p>
       You can publish your logbook read-only under a slug you choose
-      (<code>/share/&lt;slug&gt;</code>). The public endpoint returns stats and
-      times but <strong>strips notes, your email, and per-lap data</strong> — it's
-      the only route that skips authentication.
-    </p>
-
-    <h2 id="architecture">Architecture in one paragraph</h2>
-    <p>
-      One Cloudflare Worker serves both the JSON API (Hono) and the static
-      frontend. The frontend is dependency-free vanilla JS — native ES modules, a
-      hash router, template-string HTML and hand-rolled SVG charts, with no build
-      step. The database is D1 (SQLite) with ordered migrations. A service worker
-      makes the app installable and usable offline: static files are served
-      stale-while-revalidate, navigations and API <code>GET</code>s are
-      network-first with cache fallback.
+      (<code>trackhistory.app/share/&lt;your-slug&gt;</code>). The share page
+      shows stats and times but <strong>strips notes, your email, and per-lap
+      data</strong> — it's the only part of your logbook visible without
+      signing in.
     </p>
 
     <h2 id="privacy">Privacy posture</h2>
     <ul>
-      <li>Self-hosted: your instance, your Cloudflare account, your data.</li>
-      <li>Multi-user with ownership scoping on every row; another Google account
-        signing in gets its own empty logbook.</li>
+      <li>Your logbook is private to your Google account — every account gets
+        its own separate, empty logbook.</li>
       <li>Telemetry and video parsing is entirely client-side — recordings are
         never uploaded.</li>
-      <li>Personal seed data (<code>seed/data.personal.mjs</code>) is gitignored so
-        your real history never lands in the repo.</li>
+      <li>Share pages are opt-in and strip notes, your email, and per-lap data.</li>
     </ul>
 
     <nav class="docs-pager">

@@ -6,7 +6,7 @@ not that one.
 
 ## What this is
 
-A personal HPDE/track-day logbook on Cloudflare Workers + D1 (SQLite): tracks → events → sessions → laps, with progress charts and Google OAuth sign-in. Multi-user — every domain row is scoped to a `user_id`.
+A personal HPDE/track-day logbook on Cloudflare Workers + D1 (SQLite): tracks → events → sessions → laps, with progress charts and Google OAuth sign-in. Multi-user — every domain row is scoped to a `user_id`. The hosted instance users are pointed to is https://trackhistory.app.
 
 ## Commands
 
@@ -43,25 +43,32 @@ not a follow-up:**
 1. **`README.md`** — setup, deployment, feature descriptions (it's also the
    reference the docs site was written from).
 2. **The marketing/docs site (`site/`)** — static HTML deployed to GitHub Pages
-   at https://richie97.github.io/track-history/ by
+   at https://docs.trackhistory.app (also served at
+   https://richie97.github.io/track-history/) by
    `.github/workflows/pages.yml` (on pushes to `main` touching `site/**`).
    - `site/index.html` — landing page. Update the features grid, telemetry
-     sources, or self-host steps if those change; don't let it advertise
+     sources, or getting-started steps if those change; don't let it advertise
      features that don't exist or miss ones that do.
-   - `site/docs/index.html` — getting started (local dev, seeding, Cloudflare
-     deploy). Mirrors README setup instructions — change both together.
+   - `site/docs/index.html` — getting started *using the hosted app* (sign-in,
+     first event, telemetry import, PWA install, sharing).
+   - **The site points users at the hosted app, https://trackhistory.app, and
+     deliberately never mentions Cloudflare, self-hosting, or deployment** —
+     developer setup and deploy instructions live in `README.md` only. Keep it
+     that way when editing `site/**`.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
    - `site/docs/data-model.html` — hierarchy, best-time rule, consistency,
-     share-page privacy, architecture summary. Update when the data model or
-     stats rules change.
+     share-page privacy. Update when the data model or stats rules change.
+   - **The site is written for users, not developers** — keep implementation
+     details (frameworks, chart internals, build tooling, service-worker
+     mechanics) out of it; that material belongs in `README.md`/this file.
    - If you add a docs page, add it to the sidebar of *every* docs page and
      wire the prev/next pager links.
    - The site is dependency-free static HTML/CSS with no build step.
      `site/site.css` mirrors the design tokens in `public/style.css` — if the
      app's design tokens change, re-mirror them. All links are relative so
-     pages work under the `/track-history/` GitHub Pages subpath; keep them
-     that way.
+     pages work both at docs.trackhistory.app and under the `/track-history/`
+     GitHub Pages subpath; keep them that way.
 3. **This file (`AGENTS.md`)** — commands, architecture notes, conventions.
    Update it when you add a directory, command, route, or convention that a
    future agent would need to know.
