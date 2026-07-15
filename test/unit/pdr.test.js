@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { boxes, gpsFromChannels, series } from "../../public/pdr.js";
+import { boxes, gpsFromChannels, parsePdrFile, series } from "../../public/pdr.js";
+import { LAP_S, buildPdrDeltaMp4 } from "../fixtures/build.mjs";
 
 describe("series", () => {
   const s = series([
@@ -75,6 +76,56 @@ describe("gpsFromChannels", () => {
     expect(gpsFromChannels(noise, noise)).toBeNull();
     // too few samples
     expect(gpsFromChannels([], [])).toBeNull();
+  });
+});
+
+describe("parsePdrFile with a delta-encoded stream (real firmware shape)", () => {
+  const lapS = LAP_S(); // 47.12s
+  const parse = (opts) => parsePdrFile(new Blob([buildPdrDeltaMp4(opts)]));
+
+  it("decodes the delta-encoded GPS channels into a dictionary-scaled trace", async () => {
+    const out = await parse();
+    expect(out.gps).not.toBeNull();
+    expect(out.gps.length).toBeGreaterThan(100);
+    // ~2Hz stream around the reference circle at lat0/lon0
+    const lats = out.gps.map((p) => p.lat);
+    const lons = out.gps.map((p) => p.lon);
+    expect(Math.min(...lats)).toBeGreaterThan(36.5545);
+    expect(Math.max(...lats)).toBeLessThan(36.5655);
+    expect((Math.min(...lons) + Math.max(...lons)) / 2).toBeCloseTo(-79.2, 2);
+    // racing-line speed comes from the Speed channel (m/s), modulated ±5% around 40
+    const vs = out.gps.map((p) => p.v);
+    expect(Math.max(...vs)).toBeGreaterThan(40);
+    expect(Math.max(...vs)).toBeLessThan(42.5);
+  });
+
+  it("keeps decoder state across sample boundaries", async () => {
+    // the fixture splits records into 250-record samples; a state reset would
+    // orphan every delta at a sample start and thin or corrupt the trace
+    const out = await parse();
+    const dt = out.gps.slice(1).map((p, i) => p.t - out.gps[i].t);
+    expect(Math.max(...dt)).toBeLessThan(1.5); // no holes
+    expect(out.durationS).toBeGreaterThan(150);
+  });
+
+  it("times laps from delta-stream beacons and reads mrlv date/time", async () => {
+    const out = await parse({ beaconTimes: [30, 30 + lapS, 30 + 2 * lapS] });
+    const ms = Math.round(lapS * 1000); // 47124
+    expect(out.laps.map((l) => l.timeMs)).toEqual([ms, ms]);
+    expect(out.laps.every((l) => !l.estimated)).toBe(true);
+    expect(out.date).toBe("2026-06-20");
+    expect(out.time).toBe("09:15:00");
+  });
+
+  it("reports top speed, max RPM and max lateral G from the car channels", async () => {
+    const out = await parse();
+    // speed peaks at 42 m/s = 151.2 km/h; rpm at 6000; latAcc at v²/r ≈ 0.6 G
+    expect(out.metrics.topSpeedKph).toBeGreaterThan(148);
+    expect(out.metrics.topSpeedKph).toBeLessThan(152);
+    expect(out.metrics.maxRpm).toBeGreaterThan(5900);
+    expect(out.metrics.maxRpm).toBeLessThanOrEqual(6000);
+    expect(out.metrics.maxLatG).toBeGreaterThan(0.5);
+    expect(out.metrics.maxLatG).toBeLessThan(0.65);
   });
 });
 

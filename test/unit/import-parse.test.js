@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseTelemetryFile } from "../../public/js/import/parse.js";
-import { buildFitLaps, buildGpmfMp4, buildPdrMp4, buildPdrRealMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
+import { buildFitLaps, buildGpmfMp4, buildPdrDeltaMp4, buildPdrMp4, buildPdrRealMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
 import { emptyMp4 } from "./gpmf.test.js";
 
 describe("parseTelemetryFile dispatch", () => {
@@ -35,6 +35,30 @@ describe("parseTelemetryFile dispatch", () => {
     await expect(parseTelemetryFile(new File([emptyMp4()], "dashcam.mp4"))).rejects.toThrow(
       /No PDR or GoPro telemetry/
     );
+  });
+});
+
+describe("delta-encoded PDR (real firmware shape)", () => {
+  it("beacon-timed laps cut a best-lap trace from the delta-decoded GPS", async () => {
+    const lapS = (2 * Math.PI * 300) / 40;
+    const file = new File([buildPdrDeltaMp4({ beaconTimes: [30, 30 + lapS, 30 + 2 * lapS] })], "pdr-c8.mp4");
+    const out = await parseTelemetryFile(file);
+    expect(out.kind).toBe("pdr");
+    expect(out.laps).toHaveLength(2);
+    expect(out.needsLine).toBe(false);
+    expect(out.gps.length).toBeGreaterThan(100);
+    expect(out.bestLapTrace.length).toBeGreaterThan(10);
+    expect(out.metrics.topSpeedKph).toBeGreaterThan(140);
+  });
+
+  it("sends a beacon-less recording to the line picker on its GPS trace", async () => {
+    const file = new File([buildPdrDeltaMp4()], "pdr-c8-nobeacon.mp4");
+    const out = await parseTelemetryFile(file);
+    expect(out.kind).toBe("pdr");
+    expect(out.laps).toEqual([]);
+    expect(out.needsLine).toBe(true); // GPS decoded -> picker, not lat+odo recovery
+    expect(out.lapRecovery).toBeNull();
+    expect(out.gps.length).toBeGreaterThan(100);
   });
 });
 

@@ -1,10 +1,11 @@
 // Telemetry import UI: file picker + drag & drop -> parse in the browser ->
 // review panel -> POST the accepted files as sessions. Sources with lap
 // markers (PDR beacons, VBO [laptiming], Garmin laps) show their laps
-// directly; GPS-only sources (GoPro, plain VBO/FIT) get a track map where the
-// user clicks the start/finish line and laps are derived from crossings.
-// Beacon-less PDR recordings have no GPS trace to click — their laps come
-// from lat+odometer recovery (pdr-laps.js), phase-anchored across the batch.
+// directly; GPS-only sources (GoPro, PDR without beacons, plain VBO/FIT) get
+// a track map where the user clicks the start/finish line and laps are
+// derived from crossings. Beacon-less PDR recordings whose GPS doesn't decode
+// have no trace to click — their laps come from lat+odometer recovery
+// (pdr-laps.js), phase-anchored across the batch.
 // Expects the event-detail markup: #pdr-files, #pdr-dropzone, #pdr-import, #pdr-review.
 
 import { api } from "../api.js";
@@ -161,6 +162,18 @@ function defaultLabel(r) {
   return `${prefix} ${p.time ?? r.file.replace(SUPPORTED_EXT, "")}`;
 }
 
+// "top speed 121 mph · max 6,703 rpm · 1.43 G lateral" from a PDR file's car
+// channels; "" when the source has none. Exported for unit tests.
+export function metricsSummary(p) {
+  const m = p.metrics;
+  if (!m) return "";
+  const parts = [];
+  if (m.topSpeedKph != null) parts.push(`top speed ${Math.round(m.topSpeedKph / 1.609344)} mph`);
+  if (m.maxRpm != null) parts.push(`max ${Math.round(m.maxRpm).toLocaleString()} rpm`);
+  if (m.maxLatG != null) parts.push(`${m.maxLatG.toFixed(2)} G lateral`);
+  return parts.join(" · ");
+}
+
 function estimatedNote(p, estCount) {
   if (!estCount) return "";
   if (p.kind === "pdr" && p.lapRecovery) {
@@ -215,6 +228,7 @@ function renderReview(box, event, state, onDone) {
       const checked = prevChecks.has(String(i)) ? prevChecks.get(String(i)) : !!p.laps.length;
       const label = prevLabels.get(String(i)) ?? defaultLabel(r);
       const note = estimatedNote(p, estCount);
+      const metrics = metricsSummary(p);
       return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border-hairline)">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
           <input type="checkbox" data-import-include="${i}" ${p.laps.length ? (checked ? "checked" : "") : "disabled"}>
@@ -223,6 +237,7 @@ function renderReview(box, event, state, onDone) {
         </label>
         ${dateWarn}
         <div class="laps" style="margin-top:8px">${lapChips || noLapsHint}</div>
+        ${metrics ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(metrics)}</div>` : ""}
         ${note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">~ = ${esc(note)}</div>` : ""}
         <div class="field" style="margin:8px 0 0"><input data-import-label="${i}" value="${esc(label)}" placeholder="Session label"></div>
       </div>`;
@@ -289,11 +304,12 @@ function renderReview(box, event, state, onDone) {
       const r = results[i];
       const estCount = r.parsed.laps.filter((l) => l.estimated).length;
       const note = estimatedNote(r.parsed, estCount);
+      const metrics = metricsSummary(r.parsed);
       await api(`/events/${event.id}/sessions`, {
         method: "POST",
         body: {
           label: box.querySelector(`[data-import-label="${i}"]`).value.trim() || r.file,
-          notes: `Imported from ${r.file}` + (note ? ` — ${note}` : ""),
+          notes: `Imported from ${r.file}` + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
           laps: r.parsed.laps.map((l) => l.timeMs),
           trace: r.parsed.bestLapTrace ?? null,
         },

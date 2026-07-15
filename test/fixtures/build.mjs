@@ -175,8 +175,10 @@ const u32 = (...vals) => {
 };
 
 // One telemetry-track MP4: ftyp + mdat(payloads) + moov(trak with the given
-// handler/sample-format and one sample per chunk).
-function buildTelemetryMp4({ handler, sampleFormat, payloads, timescale = 1000, sampleDelta = 1000 }) {
+// handler/sample-format and one sample per chunk). `sampleEntryChildren`
+// nests boxes (mrld/mrlv) inside the sample entry, after its standard 8-byte
+// reserved/data-reference-index fields.
+function buildTelemetryMp4({ handler, sampleFormat, payloads, timescale = 1000, sampleDelta = 1000, sampleEntryChildren = [] }) {
   const ftyp = box("ftyp", te.encode("mp42"), u32(0));
   const mdatBody = concat(payloads);
   const mdat = box("mdat", mdatBody);
@@ -188,10 +190,13 @@ function buildTelemetryMp4({ handler, sampleFormat, payloads, timescale = 1000, 
     off += p.length;
   }
 
+  const sampleEntry = sampleEntryChildren.length
+    ? box(sampleFormat, new Uint8Array(8), ...sampleEntryChildren)
+    : box(sampleFormat);
   const n = payloads.length;
   const stbl = box(
     "stbl",
-    box("stsd", u32(0, 1), box(sampleFormat)),
+    box("stsd", u32(0, 1), sampleEntry),
     box("stts", u32(0, 1, n, sampleDelta)),
     box("stsc", u32(0, 1, 1, 1, 1)),
     box("stsz", u32(0, 0, n, ...payloads.map((p) => p.length))),
@@ -260,7 +265,7 @@ export function buildGpmfMp4(points, { utc = "260620091500.000" } = {}) {
 
 // --- Corvette PDR fixture --------------------------------------------------------
 
-// 16-byte PDR event record: [0xe0|tag:u24][value:s32][ticks:u64 in 100ns].
+// 16-byte PDR full record: [0xe0|tag:u24][value:s32][ticks:u64 in 100ns].
 function pdrEvent(tag, value, tSeconds) {
   const out = new Uint8Array(16);
   const dv = new DataView(out.buffer);
@@ -272,13 +277,73 @@ function pdrEvent(tag, value, tSeconds) {
   return out;
 }
 
-// PDR file (default tag ids, no mrld/mrlv): beacon crossings at the given
-// times with sequential crossing numbers -> exact laps between them, plus
-// optional Latitude/Longitude channel events from a GPS trace. `gpsEncoding`
-// picks how degrees land in the event's s32: scaled integer (deg * 1e7,
-// the observed default) or IEEE float32 bits. NOTE: a continuous longitude
-// stream is a hypothetical-firmware shape (kept to cover gpsFromChannels);
-// real firmware behaves like buildPdrRealMp4 below.
+// 8-byte PDR delta record: [01|chanDiff:s6][valueDiff:s24][ticksDiff:u32],
+// applied to the decoder's running channel/value/timestamp state.
+function pdrDelta(chanDiff, valueDiff, ticksDiff) {
+  const out = new Uint8Array(8);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, ((0x40 | (chanDiff & 0x3f)) << 24) | (valueDiff & 0xffffff));
+  dv.setUint32(4, ticksDiff);
+  return out;
+}
+
+// Encode time-sorted {ch, v, t} events the way real firmware does: a full
+// record the first time a channel appears (or when a diff won't fit), delta
+// records for everything after.
+function pdrStream(events) {
+  const out = [];
+  const vals = new Map();
+  let chan = null, ticks = 0;
+  for (const e of events) {
+    const tk = Math.round(e.t * 1e7);
+    const vd = vals.has(e.ch) ? e.v - vals.get(e.ch) : null;
+    const cd = chan === null ? null : e.ch - chan;
+    if (cd !== null && cd >= -32 && cd <= 31 && vd !== null && vd >= -0x800000 && vd < 0x800000 && tk >= ticks) {
+      out.push(pdrDelta(cd, vd, tk - ticks));
+    } else {
+      out.push(pdrEvent(e.ch, e.v, e.t));
+    }
+    chan = e.ch;
+    ticks = tk;
+    vals.set(e.ch, e.v);
+  }
+  return out;
+}
+
+// 448-byte 'mrld' channel dictionary entry: id at +0, units at +12, min/max
+// s32 at +88/+92, multiplier/offset f64 at +112/+120, name at +128.
+function mrldEntry({ id, name, units = "", min = 0, max = 0, mult = 1, off = 0 }) {
+  const e = new Uint8Array(448);
+  const dv = new DataView(e.buffer);
+  dv.setUint32(0, id);
+  e.set(te.encode(units), 12);
+  dv.setInt32(88, min);
+  dv.setInt32(92, max);
+  dv.setFloat64(112, mult);
+  dv.setFloat64(120, off);
+  e.set(te.encode(name), 128);
+  return e;
+}
+
+// 'mrlv' metadata box carrying the session's local date/time.
+function mrlvBox(date = "2026-06-20", time = "09-15-00") {
+  const field = (tag, fmt, value, len) => {
+    const out = new Uint8Array(8 + len);
+    out.set(te.encode(tag), 0);
+    out.set(te.encode(fmt), 4);
+    out.set(te.encode(value), 8);
+    return out;
+  };
+  return box("mrlv", field("ldat", "date", date, 32), field("ltim", "time", time, 32));
+}
+
+// PDR file (default tag ids, no mrld/mrlv, full records only): beacon
+// crossings at the given times with sequential crossing numbers -> exact laps
+// between them, plus optional Latitude/Longitude channel events from a GPS
+// trace. `gpsEncoding` picks how degrees land in the event's s32: scaled
+// integer (deg * 1e7) or IEEE float32 bits — the heuristic decoders used when
+// a file carries no channel dictionary. Real firmware delta-encodes and
+// carries a dictionary: that shape is buildPdrDeltaMp4 below.
 export function buildPdrMp4({
   beaconTimes = [100, 147.12, 194.24],
   firstCrossing = 5,
@@ -301,12 +366,71 @@ export function buildPdrMp4({
   return buildTelemetryMp4({ handler: "ctbx", sampleFormat: "marl", payloads: [concat(events)] });
 }
 
-// PDR file matching the observed real firmware ("Marlin PDR 1.0"): a single
-// Longitude event at recording start, Latitude at ~2Hz, cumulative odometer
-// at ~7Hz — no decodable GPS trace. The car drives the reference circle
-// (counter-clockwise, constant speed), optionally starting at `startAngle`
-// so two fixtures of the same "track" can begin at different pit-out points.
-// `paddock: true` produces slow, non-lapping driving instead.
+// PDR file with a delta-encoded telemetry stream and a channel dictionary —
+// the shape of real firmware (each channel gets one full record, then streams
+// 8-byte diffs; lat/lon are stored as radians scaled by the dictionary
+// multiplier). The car drives the reference circle at `speed` m/s modulated
+// by ±5%, with RPM swinging 3000–6000. Events are split across several
+// samples so decoder state must persist between them.
+export function buildPdrDeltaMp4({
+  beaconTimes = [],
+  firstCrossing = 5,
+  revolutions = 3.3,
+  radius = 300,
+  speed = 40,
+  lat0 = 36.56,
+  lon0 = -79.2,
+} = {}) {
+  const CH = { speed: 40, rpm: 41, latAcc: 42, lat: 49, lon: 50, beacon: 54, odo: 66 };
+  const RAD = Math.PI / 180;
+  const kx = 111320 * Math.cos(lat0 * RAD);
+  const ky = 110540;
+  const totalS = (2 * Math.PI * radius * revolutions) / speed;
+  const events = beaconTimes.map((t, i) => ({ ch: CH.beacon, v: firstCrossing + i, t }));
+  for (let t = 0.1; t <= totalS; t += 0.5) {
+    const ang = (speed * t) / radius;
+    events.push({ ch: CH.lat, v: Math.round((lat0 + (radius * Math.sin(ang)) / ky) * RAD * 1e9), t });
+    events.push({ ch: CH.lon, v: Math.round((lon0 + (radius * Math.cos(ang)) / kx) * RAD * 1e9), t });
+    const v = speed * (1 + 0.05 * Math.sin(t / 20)); // m/s
+    events.push({ ch: CH.speed, v: Math.round(v * 100), t });
+    events.push({ ch: CH.rpm, v: Math.round(4500 + 1500 * Math.sin(t / 10)), t });
+    events.push({ ch: CH.latAcc, v: Math.round(((v * v) / radius) * 1000), t });
+  }
+  for (let t = 0; t <= totalS; t += 0.15) {
+    events.push({ ch: CH.odo, v: Math.round(speed * t), t });
+  }
+  events.sort((a, b) => a.t - b.t);
+
+  const records = pdrStream(events);
+  const payloads = [];
+  for (let i = 0; i < records.length; i += 250) payloads.push(concat(records.slice(i, i + 250)));
+
+  const mrld = box(
+    "mrld",
+    mrldEntry({ id: CH.speed, name: "Speed", units: "kph", mult: 0.01 }),
+    mrldEntry({ id: CH.rpm, name: "RPM", units: "rpm", mult: 0.1 }),
+    mrldEntry({ id: CH.latAcc, name: "Lateral Acceleration", units: "G", mult: 0.001 }),
+    mrldEntry({ id: CH.lat, name: "Latitude", units: "°", mult: 1e-9, min: -1571000000, max: 1571000000 }),
+    mrldEntry({ id: CH.lon, name: "Longitude", units: "°", mult: 1e-9, min: -2000000000, max: 2000000000 }),
+    mrldEntry({ id: CH.beacon, name: "Beacon" }),
+    mrldEntry({ id: CH.odo, name: "Recording Event Odometer", units: "km" })
+  );
+  return buildTelemetryMp4({
+    handler: "ctbx",
+    sampleFormat: "marl",
+    payloads,
+    sampleEntryChildren: [mrld, mrlvBox()],
+  });
+}
+
+// PDR file matching what full records alone show ("Marlin PDR 1.0" as seen
+// before delta decoding): a single Longitude event at recording start,
+// Latitude at ~2Hz, cumulative odometer at ~7Hz — no decodable GPS trace.
+// Still the shape of any recording whose GPS can't be decoded, and what
+// exercises the lat+odometer lap recovery. The car drives the reference
+// circle (counter-clockwise, constant speed), optionally starting at
+// `startAngle` so two fixtures of the same "track" can begin at different
+// pit-out points. `paddock: true` produces slow, non-lapping driving instead.
 export function buildPdrRealMp4({
   beaconTimes = [],
   firstCrossing = 5,

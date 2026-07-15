@@ -1,10 +1,8 @@
-// Lap recovery for PDR recordings without beacons.
-//
-// Real PDR firmware doesn't stream GPS (longitude is written once, at
-// recording start — see pdr.js), so the line picker can't help a beacon-less
-// PDR file. What the telemetry does give us is ~2Hz latitude and the ~7Hz
-// cumulative odometer, and latitude as a function of driven distance repeats
-// exactly once per lap:
+// Lap recovery for PDR recordings without beacons whose GPS also can't be
+// decoded (normally it can — the delta-encoded lat/lon channels feed the
+// line picker; see pdr.js). What any PDR telemetry gives us is latitude and
+// the cumulative odometer, and latitude as a function of driven distance
+// repeats exactly once per lap:
 //   - lap length  = the autocorrelation peak of lat(distance)
 //   - start/finish phase = cross-correlating lat(distance) against a one-lap
 //     template from a beacon-timed recording of the same track (same import

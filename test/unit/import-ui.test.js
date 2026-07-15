@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyGate } from "../../public/js/import/ui.js";
+import { applyGate, metricsSummary } from "../../public/js/import/ui.js";
 import { buildGate, projectTrace } from "../../public/js/import/geo.js";
 import { anchorPdrBatch } from "../../public/js/import/pdr-laps.js";
 import { parseVboText } from "../../public/js/import/vbo.js";
@@ -108,5 +108,21 @@ describe("applyGate across longitude sign conventions", () => {
     const parsed = { kind: "gopro", needsLine: true, gps: circleTrace(), laps: [{ timeMs: 1, estimated: true }] };
     applyGate({ results: [{ file: "x.mp4", parsed }], origin: parsed.gps[0], gate: null });
     expect(parsed.laps).toEqual([]);
+  });
+});
+
+describe("metricsSummary", () => {
+  it("formats the car channels and skips missing ones", () => {
+    expect(metricsSummary({ metrics: { topSpeedKph: 194.5, maxRpm: 6702.6, maxLatG: 1.432 } })).toBe(
+      "top speed 121 mph · max 6,703 rpm · 1.43 G lateral"
+    );
+    expect(metricsSummary({ metrics: { topSpeedKph: 150.1, maxRpm: null, maxLatG: null } })).toBe(
+      "top speed 93 mph"
+    );
+  });
+
+  it("is empty for sources without metrics", () => {
+    expect(metricsSummary({ kind: "gopro" })).toBe("");
+    expect(metricsSummary({ metrics: { topSpeedKph: null, maxRpm: null, maxLatG: null } })).toBe("");
   });
 });
