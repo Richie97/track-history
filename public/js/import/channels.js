@@ -16,6 +16,11 @@ import { projectTrace } from "./geo.js";
 
 export const D_STEP_M = 20;      // grid spacing: ~100-600 points for real laps
 export const MAX_LAP_POINTS = 700; // guards degenerate "laps" (also capped server-side)
+// Mirror sanitizeChannels' budget (src/lib/validate.ts): rather than have the
+// server reject a whole session over its optional graph data, an outsized
+// session (marathon enduro) simply stores no channels.
+export const MAX_LAPS = 80;
+export const MAX_TOTAL_VALUES = 60000;
 
 const round = (v, f) => Math.round(v * f) / f;
 
@@ -110,5 +115,10 @@ export function buildLapChannels(laps, dist, chans, dStepM = D_STEP_M) {
     }
     if (any) out.push(entry);
   }
-  return out.length ? { v: 1, dStepM, laps: out } : null;
+  if (!out.length || out.length > MAX_LAPS) return null;
+  const totalValues = out.reduce(
+    (s, e) => s + ["speed", "rpm", "latG"].reduce((c, k) => c + (e[k]?.length ?? 0), 0),
+    0
+  );
+  return totalValues <= MAX_TOTAL_VALUES ? { v: 1, dStepM, laps: out } : null;
 }

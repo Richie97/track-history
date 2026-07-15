@@ -54,6 +54,11 @@ export function parseVboText(text) {
   if (iTime < 0 || iLat < 0 || iLon < 0) {
     throw new Error("VBO file is missing time/lat/long columns");
   }
+  // gps.v is m/s across all parsers (channels.js depends on it). The [header]
+  // section names the velocity unit — "velocity kmh" in VBOX files and the
+  // common exporters; handle mph/knots variants, default km/h.
+  const velLine = (sections["header"] ?? []).find((l) => /^velocity\b/i.test(l)) ?? "";
+  const velToMs = /mph/i.test(velLine) ? 0.44704 : /kts|knots/i.test(velLine) ? 0.514444 : 1 / 3.6;
 
   // Data rows -> GPS points. VBO coordinates are minutes -> /60 to degrees.
   // The time column is UTC time-of-day; make t relative to the first sample
@@ -71,7 +76,7 @@ export function parseVboText(text) {
     if (t0 == null) t0 = tod;
     let t = tod - t0;
     if (t < 0) t += 86400;
-    points.push({ t, lat: lat / 60, lon: lon / 60, v: iVel >= 0 ? Number(f[iVel]) : undefined });
+    points.push({ t, lat: lat / 60, lon: lon / 60, v: iVel >= 0 ? Number(f[iVel]) * velToMs : undefined });
   }
   if (points.length < 10) throw new Error("VBO file contains no usable GPS data");
 

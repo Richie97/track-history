@@ -126,11 +126,12 @@ export function bindChannelGraphs(container, channels) {
       const def = CHANNEL_DEFS.find((d) => d.key === svgEl.dataset.channel);
       const x1 = Number(svgEl.dataset.x1);
       const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
+      const vbW = svgEl.viewBox.baseVal.width;
       svgEl.addEventListener("mousemove", (evt) => {
         const rect = svgEl.getBoundingClientRect();
-        const frac = (((evt.clientX - rect.left) / rect.width) * 900 - padL) / (900 - padL - padR);
-        const d = Math.round((Math.max(0, Math.min(1, frac)) * x1) / channels.dStepM) * channels.dStepM;
-        const k = d / channels.dStepM;
+        const frac = (((evt.clientX - rect.left) / rect.width) * vbW - padL) / (vbW - padL - padR);
+        const k = Math.round((Math.max(0, Math.min(1, frac)) * x1) / channels.dStepM);
+        const d = Math.round(k * channels.dStepM);
         const rows = state.lit
           .map((lapIdx, slot) => {
             const arr = laps[lapIdx]?.[def.key];

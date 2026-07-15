@@ -8,7 +8,7 @@ import {
 import { parseTelemetryFile } from "../../public/js/import/parse.js";
 import { applyGate } from "../../public/js/import/ui.js";
 import { buildGate, projectTrace } from "../../public/js/import/geo.js";
-import { LAP_S, buildPdrDeltaMp4, buildPdrMp4, circleTrace } from "../fixtures/build.mjs";
+import { LAP_S, buildPdrDeltaMp4, buildPdrMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
 
 // Constant 40 m/s: distance is 40t, one 47.12s lap covers 1884.8m.
 const dist = Array.from({ length: 400 }, (_, i) => ({ t: i * 0.5, v: i * 20 }));
@@ -88,6 +88,18 @@ describe("end-to-end lapChannels on parsed imports", () => {
     const gopro = { kind: "gopro", gps: circleTrace() };
     const data = channelDataFor(gopro);
     expect(data.dist.length).toBe(gopro.gps.length);
+  });
+
+  it("stores plausible km/h speeds for a VBO [laptiming] import", async () => {
+    // Regression: VBO's velocity column is km/h while every other source's
+    // gps.v is m/s — without normalization the stored speeds are 3.6x high
+    // and a fast lap trips sanitizeChannels' 500 km/h cap (whole POST 400s).
+    const file = new File([buildVboText(circleTrace(), { withLapTiming: true })], "session.vbo");
+    const out = await parseTelemetryFile(file);
+    expect(out.lapChannels.laps).toHaveLength(3);
+    const speeds = out.lapChannels.laps.flatMap((l) => l.speed);
+    expect(Math.max(...speeds)).toBeLessThan(150); // 40 m/s = 144 km/h
+    expect(Math.min(...speeds)).toBeGreaterThan(130);
   });
 
   it("line-picked laps get speed channels via applyGate", async () => {

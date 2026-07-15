@@ -19,6 +19,15 @@ describe("parseVboText", () => {
     expect(Math.abs(out.gps[0].lon)).toBeCloseTo(Math.abs(points[0].lon), 4);
   });
 
+  it("normalizes the km/h velocity column to m/s", () => {
+    // circleTrace speed is 40 m/s; the fixture writes it as 144 km/h with a
+    // "velocity kmh" header line. gps.v must come back in m/s — the per-lap
+    // channel data (channels.js) converts m/s -> km/h and would otherwise
+    // store speeds 3.6x too high.
+    const out = parseVboText(buildVboText(circleTrace()));
+    expect(out.gps[10].v).toBeCloseTo(40, 2);
+  });
+
   it("computes laps from a [laptiming] start line", () => {
     const out = parseVboText(buildVboText(circleTrace(), { withLapTiming: true }));
     expect(out.needsLine).toBe(false);
