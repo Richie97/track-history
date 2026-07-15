@@ -15,6 +15,12 @@ pages in [`site/`](site/), deployed to GitHub Pages by
 `main` that touches `site/`. (One-time setup: repo *Settings → Pages → Source:
 GitHub Actions*.)
 
+Both the site and the app carry Open Graph / Twitter-card tags for link
+previews; they share one social preview image, checked in as identical copies
+at `site/og-image.png` and `public/og-image.png` (1200×630 PNG, rendered from
+the site's design tokens — regenerate both together if the brand or tagline
+changes).
+
 ## Stack
 
 - **Cloudflare Workers** — serves the API (Hono) and the static frontend

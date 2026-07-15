@@ -69,6 +69,13 @@ not a follow-up:**
      mechanics) out of it; that material belongs in `README.md`/this file.
    - If you add a docs page, add it to the sidebar of *every* docs page and
      wire the prev/next pager links.
+   - Every page carries Open Graph/Twitter-card meta tags. The social preview
+     image is `site/og-image.png`, and `public/og-image.png` is an identical
+     copy used by the app — the two must stay in sync (regenerate both if the
+     brand mark, tagline, or design tokens change). `og:image`/`og:url` are
+     absolute canonical URLs (docs.trackhistory.app / trackhistory.app) — the
+     one exception to the relative-links rule, since social scrapers require
+     absolute URLs.
    - The site is dependency-free static HTML/CSS with no build step.
      `site/site.css` mirrors the design tokens in `public/style.css` — if the
      app's design tokens change, re-mirror them. All links are relative so
