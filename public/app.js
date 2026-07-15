@@ -221,6 +221,12 @@ function shell(content) {
   };
   document.getElementById("logout").onclick = async () => {
     await fetch("/auth/logout", { method: "POST" });
+    // Delete the service worker's cached API responses (named th-data-* in
+    // sw.js) so the logbook doesn't linger in Cache Storage on a shared device.
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k.startsWith("th-data")).map((k) => caches.delete(k)));
+    }
     renderLogin();
   };
   return document.getElementById("view");
