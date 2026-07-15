@@ -99,9 +99,11 @@ with laps. Parsing happens entirely in the browser — for videos, via byte-rang
 reads of the embedded telemetry track (a few MB of a multi-GB file); **files
 never leave your computer**. Supported sources:
 
-- **Corvette PDR (Cosworth) MP4** — lap times from beacon/odometer telemetry;
-  a recording with no beacons still gets lap times, recovered from the
-  latitude + odometer channels (details below).
+- **Corvette PDR (Cosworth) MP4** — lap times from beacon/odometer telemetry,
+  the GPS trace from the delta-encoded lat/lon channels, and car metrics (top
+  speed, max RPM, max lateral G) from the speed/engine channels; a recording
+  with no beacons still gets lap times, from the GPS line picker or recovered
+  from the latitude + odometer channels (details below).
 - **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer
   exports) — laps from the file's `[laptiming]` start line when present,
@@ -125,22 +127,29 @@ telemetry track and validated against Cosworth Toolbox lap times):
   moment distance passes `D0 + k × lapLength` (accurate to ~0.05–0.3s, shown
   with `~`). Crossings beyond the first/last beacon are extrapolated the same
   way and sanity-checked against GPS latitude.
-- Real PDR firmware records **no usable GPS trace** — longitude is written
-  exactly once at recording start (latitude streams at ~2Hz; altitude, heading
-  and fix never), verified against real footage. So there's no track map or
-  line picker for PDR files. (If a firmware variant ever does stream both
-  channels, they still decode into a trace behind plausibility checks and feed
-  the map/picker.)
-- A recording with no beacons at all (e.g. no start/finish set on the PDR)
-  still gets lap times: latitude as a function of odometer distance repeats
-  every lap, so the **lap length is the autocorrelation peak** of that
-  profile, and lap times are cut every lap-length of distance (validated on
-  real footage: lap length within 2m and lap times within ±0.2s of
-  beacon-derived values). Start/finish alignment comes from a beacon-timed
-  recording of the same track in the same import batch (matched by lap
-  length, aligned by cross-correlating the latitude profiles); without one,
-  laps are cut from where the car first reaches pace — real laps of the full
-  track, just not aligned to the official line. All flagged `~`.
+- The telemetry stream is **delta-encoded** (the framing matches ExifTool's
+  GM.pm, the reference decoder for the Marlin format): a channel gets one
+  16-byte full record — absolute channel/value/timestamp — and then streams
+  8-byte diff records against the decoder's running state. Decoding the
+  deltas is what yields the GPS trace (lat/lon at ~11Hz, stored as radians
+  scaled by the file's channel dictionary) plus the car channels — Speed,
+  RPM, accelerations — from which the import reports **top speed, max RPM
+  and max lateral G**. (An earlier parser version read only full records,
+  which made it look like PDR firmware recorded no GPS: longitude gets
+  exactly one full record, at recording start.) All decoded coordinates
+  still sit behind plausibility checks before they become a trace.
+- With a GPS trace, a beacon-less PDR recording uses the same start/finish
+  **line picker** as the other GPS sources. If the GPS channels don't decode,
+  a beacon-less recording still gets lap times: latitude as a function of
+  odometer distance repeats every lap, so the **lap length is the
+  autocorrelation peak** of that profile, and lap times are cut every
+  lap-length of distance (validated on real footage: lap length within 2m
+  and lap times within ±0.2s of beacon-derived values). Start/finish
+  alignment comes from a beacon-timed recording of the same track in the
+  same import batch (matched by lap length, aligned by cross-correlating the
+  latitude profiles); without one, laps are cut from where the car first
+  reaches pace — real laps of the full track, just not aligned to the
+  official line. All flagged `~`.
 
 For manual testing with real recordings, drop them in a `telemetry-samples/`
 directory at the repo root — it's gitignored, so large videos and personal

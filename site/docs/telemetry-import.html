@@ -109,16 +109,19 @@
         ~0.05–0.3&nbsp;s, shown with <code>~</code>).</li>
       <li>Crossings beyond the first/last beacon are extrapolated the same way and
         sanity-checked against GPS latitude.</li>
-      <li>PDR firmware records <strong>no usable GPS trace</strong> — longitude is
-        written exactly once, at recording start — so there's no track map or line
-        picker for PDR files. A recording with no beacons at all (e.g. no
-        start/finish set on the PDR) still gets lap times: latitude as a function
-        of odometer distance repeats every lap, so the lap length is that
-        profile's autocorrelation peak and laps are cut every lap-length of
-        distance. Start/finish alignment comes from a beacon-timed recording of
-        the same track imported in the same batch; without one, laps are still
-        full laps of the track, just cut from where the car first reaches pace
-        rather than at the official line.</li>
+      <li>The recording's <strong>GPS trace</strong> is decoded from the
+        telemetry stream too, so a PDR file with no beacons gets the same
+        track map and start/finish line picker as the other GPS sources. The
+        import preview also reads the car channels and shows each session's
+        <strong>top speed, max RPM and max lateral&nbsp;G</strong>, saved into
+        the session notes.</li>
+      <li>If a recording's GPS can't be decoded, a beacon-less file still gets
+        lap times: latitude as a function of odometer distance repeats every
+        lap, so the lap length is that profile's autocorrelation peak and laps
+        are cut every lap-length of distance. Start/finish alignment comes from
+        a beacon-timed recording of the same track imported in the same batch;
+        without one, laps are still full laps of the track, just cut from where
+        the car first reaches pace rather than at the official line.</li>
     </ul>
 
     <div class="callout plain">
