@@ -2,6 +2,7 @@
   "name": "track-history",
   "version": "1.0.0",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
