@@ -59,6 +59,11 @@ not a follow-up:**
      derivation. Update when parsers or import behavior change.
    - `site/docs/data-model.html` — hierarchy, best-time rule, consistency,
      share-page privacy. Update when the data model or stats rules change.
+   - `site/docs/privacy.html` and `site/docs/terms.html` — privacy policy and
+     terms of use (operator: Speedshift LLC). The app footer (`footerHtml()` in
+     `public/app.js`) links to them. Update the privacy policy when data
+     collection, storage, or sharing behavior changes, and bump the effective
+     date on any substantive edit.
    - **The site is written for users, not developers** — keep implementation
      details (frameworks, chart internals, build tooling, service-worker
      mechanics) out of it; that material belongs in `README.md`/this file.
