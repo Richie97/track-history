@@ -420,7 +420,7 @@ async function viewTrack(trackId, params) {
 
   const goalControl = `<div class="goal-control">
     <span class="goal-label">Goal lap</span>
-    <input id="goal-input" type="text" inputmode="decimal" placeholder="e.g. 1:59.0" value="${goal != null ? esc(fmtMs(goal)) : ""}">
+    <input id="goal-input" type="text" placeholder="e.g. 1:59.0" value="${goal != null ? esc(fmtMs(goal)) : ""}">
     <button class="btn small" id="goal-save">Save</button>
     ${goal != null ? `<button class="btn small" id="goal-clear">Clear</button>` : ""}
     ${goalStatus}
@@ -428,19 +428,12 @@ async function viewTrack(trackId, params) {
   </div>`;
 
   // Comparing two events lap-by-lap needs recorded laps on both sides.
-  const comparable = events.filter((e) => e.lap_count > 0);
-  const compareOpts = (sel) =>
-    comparable
-      .map((e, i) => `<option value="${e.id}" ${i === sel ? "selected" : ""}>${fmtDate(e.start_date)} — ${fmtMs(e.best_ms)}</option>`)
-      .join("");
+  // Event selection lives on the compare screen itself.
+  const comparable = allEvents.filter((e) => e.lap_count > 0);
   const compareControl =
     comparable.length >= 2
       ? `<div class="btn-row" style="margin-top:10px">
-          <span class="goal-label">Compare</span>
-          <select id="cmp-a">${compareOpts(1)}</select>
-          <span class="goal-label">vs</span>
-          <select id="cmp-b">${compareOpts(0)}</select>
-          <button class="btn small" id="cmp-go">Overlay laps</button>
+          <a class="btn small" href="#/track/${trackId}/compare">Compare two events</a>
         </div>`
       : "";
 
@@ -525,15 +518,6 @@ async function viewTrack(trackId, params) {
     }
   };
 
-  const cmpGo = view.querySelector("#cmp-go");
-  if (cmpGo)
-    cmpGo.onclick = () => {
-      const a = view.querySelector("#cmp-a").value;
-      const b = view.querySelector("#cmp-b").value;
-      if (a === b) return;
-      location.hash = `#/track/${trackId}/compare?a=${a}&b=${b}`;
-    };
-
   const shareTrack = view.querySelector("#share-track");
   if (shareTrack)
     shareTrack.onclick = async () => {
@@ -547,8 +531,21 @@ async function viewTrack(trackId, params) {
 // --- lap overlay: two events at one track, lap-by-lap ---
 
 async function viewCompare(trackId, params) {
-  const [idA, idB] = [params.get("a"), params.get("b")];
-  if (!idA || !idB) return viewNotFound();
+  const allEvents = await api(`/events?track_id=${trackId}`);
+  // Only events with recorded laps can be overlaid; list is most recent first.
+  const comparable = allEvents.filter((e) => e.lap_count > 0);
+  if (comparable.length < 2) {
+    shell(`
+      <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← Back to track</a></p>
+      <h1>Lap overlay</h1>
+      <div class="empty">Comparing needs two events with recorded laps at this track.</div>
+    `);
+    return;
+  }
+  const has = (id) => id != null && comparable.some((e) => String(e.id) === String(id));
+  // Default to the two most recent events with laps.
+  const idA = has(params.get("a")) ? params.get("a") : String(comparable[1].id);
+  const idB = has(params.get("b")) ? params.get("b") : String(comparable[0].id);
   const [ea, eb] = await Promise.all([api(`/events/${idA}`), api(`/events/${idB}`)]);
 
   const flatLaps = (e) => e.sessions.flatMap((s) => s.laps.map((l) => l.time_ms));
@@ -568,13 +565,21 @@ async function viewCompare(trackId, params) {
   const plainDelta = (d) => `${d > 0 ? "+" : ""}${d}`;
   const ppDelta = (d) => `${d > 0 ? "+" : ""}${(d * 100).toFixed(1)}pp`;
 
+  const pickerOpts = (sel) =>
+    comparable
+      .map(
+        (e) =>
+          `<option value="${e.id}" ${String(e.id) === String(sel) ? "selected" : ""}>${fmtDate(e.start_date)}${e.club ? " · " + esc(e.club) : ""} — ${fmtMs(e.best_ms)}</option>`
+      )
+      .join("");
+
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(trackLabel(ea.track_name, ea.track_config))}</a></p>
     <h1>Lap overlay</h1>
     <p class="sub">
-      <span class="swatch" style="background:var(--chart-line)"></span> ${fmtDate(A.e.start_date)}${A.e.club ? " · " + esc(A.e.club) : ""}
+      <span class="swatch" style="background:var(--chart-line)"></span> <select id="cmp-a">${pickerOpts(idA)}</select>
       &nbsp;vs&nbsp;
-      <span class="swatch" style="background:var(--chart-line-b)"></span> ${fmtDate(B.e.start_date)}${B.e.club ? " · " + esc(B.e.club) : ""}
+      <span class="swatch" style="background:var(--chart-line-b)"></span> <select id="cmp-b">${pickerOpts(idB)}</select>
     </p>
     ${chart.svg ? `<div class="chart-card"><div class="chart-title">All laps in running order — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : `<div class="empty">One of these events has no recorded laps.</div>`}
     <h2>Head to head</h2>
@@ -587,6 +592,20 @@ async function viewCompare(trackId, params) {
     </tbody></table></div>
   `);
   if (chart.svg) chart.bind(view.querySelector("#chart"));
+
+  const [selA, selB] = [view.querySelector("#cmp-a"), view.querySelector("#cmp-b")];
+  const go = () => {
+    location.hash = `#/track/${trackId}/compare?a=${selA.value}&b=${selB.value}`;
+  };
+  // Picking the same event on both sides swaps instead of comparing it to itself.
+  selA.onchange = () => {
+    if (selA.value === selB.value) selB.value = idA;
+    go();
+  };
+  selB.onchange = () => {
+    if (selA.value === selB.value) selA.value = idB;
+    go();
+  };
 }
 
 // --- event detail ---
