@@ -11,6 +11,8 @@
 
 const VERSION = "v1";
 const SHELL_CACHE = `th-shell-${VERSION}`;
+// app.js deletes caches matching the "th-data" prefix on sign-out — keep the
+// two in sync if this name ever changes.
 const DATA_CACHE = `th-data-${VERSION}`;
 
 const SHELL = [
