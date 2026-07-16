@@ -1,5 +1,5 @@
 // Synthetic telemetry fixtures for tests: a circular GPS trace and minimal
-// but structurally-valid VBO, FIT, GoPro-GPMF MP4 and Corvette-PDR MP4 files
+// but structurally-valid VBO, GoPro-GPMF MP4 and Corvette-PDR MP4 files
 // built from it. Used by unit tests and by the browser verification script.
 
 // --- reference trace ----------------------------------------------------------
@@ -75,37 +75,7 @@ ${rows.join("\n")}
 `;
 }
 
-// --- FIT -----------------------------------------------------------------------
-
-const FIT_EPOCH_S = 631065600;
-
-function fitFile(records) {
-  const body = concat(records);
-  const out = new Uint8Array(14 + body.length + 2);
-  const dv = new DataView(out.buffer);
-  dv.setUint8(0, 14); // header size
-  dv.setUint8(1, 0x20); // protocol version
-  dv.setUint16(2, 2100, true); // profile version
-  dv.setUint32(4, body.length, true);
-  out.set([0x2e, 0x46, 0x49, 0x54], 8); // ".FIT"
-  out.set(body, 14);
-  return out; // trailing CRC left as 0 (parsers that read-only don't validate)
-}
-
-function fitDef(local, global, fields) {
-  const out = new Uint8Array(6 + fields.length * 3);
-  const dv = new DataView(out.buffer);
-  dv.setUint8(0, 0x40 | local);
-  dv.setUint8(2, 0); // little-endian
-  dv.setUint16(3, global, true);
-  dv.setUint8(5, fields.length);
-  fields.forEach(([num, size, baseType], i) => {
-    dv.setUint8(6 + i * 3, num);
-    dv.setUint8(7 + i * 3, size);
-    dv.setUint8(8 + i * 3, baseType);
-  });
-  return out;
-}
+// --- shared helpers --------------------------------------------------------------
 
 function concat(arrays) {
   const len = arrays.reduce((s, a) => s + a.length, 0);
@@ -116,42 +86,6 @@ function concat(arrays) {
     p += a.length;
   }
   return out;
-}
-
-// A FIT session with explicit lap messages (the Garmin Catalyst shape).
-export function buildFitLaps({ lapMs = [47120, 46800, 47500], startUnix = Date.UTC(2026, 5, 20, 13, 15, 0) / 1000 } = {}) {
-  const startFit = startUnix - FIT_EPOCH_S;
-  const recs = [fitDef(0, 19, [[2, 4, 0x86], [7, 4, 0x86], [253, 4, 0x86]])];
-  let t = startFit;
-  for (const ms of lapMs) {
-    const d = new Uint8Array(13);
-    const dv = new DataView(d.buffer);
-    dv.setUint8(0, 0x00);
-    dv.setUint32(1, t, true); // start_time
-    dv.setUint32(5, ms, true); // total_elapsed_time (/1000 s)
-    dv.setUint32(9, Math.round(t + ms / 1000), true); // timestamp
-    t += Math.round(ms / 1000);
-    recs.push(d);
-  }
-  return fitFile(recs);
-}
-
-// A FIT file with only GPS record messages (no laps) -> needs line picking.
-export function buildFitRecords(points, { startUnix = Date.UTC(2026, 5, 20, 13, 15, 0) / 1000 } = {}) {
-  const startFit = startUnix - FIT_EPOCH_S;
-  const SEMI = 2 ** 31 / 180;
-  const recs = [fitDef(0, 20, [[0, 4, 0x85], [1, 4, 0x85], [6, 2, 0x84], [253, 4, 0x86]])];
-  for (const p of points) {
-    const d = new Uint8Array(15);
-    const dv = new DataView(d.buffer);
-    dv.setUint8(0, 0x00);
-    dv.setInt32(1, Math.round(p.lat * SEMI), true);
-    dv.setInt32(5, Math.round(p.lon * SEMI), true);
-    dv.setUint16(9, Math.round((p.v ?? 0) * 1000), true);
-    dv.setUint32(11, startFit + Math.round(p.t), true);
-    recs.push(d);
-  }
-  return fitFile(recs);
 }
 
 // --- MP4 (shared by GPMF and PDR fixtures) --------------------------------------

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseTelemetryFile } from "../../public/js/import/parse.js";
-import { buildFitLaps, buildGpmfMp4, buildPdrDeltaMp4, buildPdrMp4, buildPdrRealMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
+import { buildGpmfMp4, buildPdrDeltaMp4, buildPdrMp4, buildPdrRealMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
 import { emptyMp4 } from "./gpmf.test.js";
 
 describe("parseTelemetryFile dispatch", () => {
@@ -23,12 +23,9 @@ describe("parseTelemetryFile dispatch", () => {
     expect(out.gps.length).toBeGreaterThan(100);
   });
 
-  it("dispatches .vbo and .fit by extension", async () => {
+  it("dispatches .vbo by extension", async () => {
     const vbo = await parseTelemetryFile(new File([buildVboText(circleTrace())], "session.VBO"));
     expect(vbo.kind).toBe("vbo");
-    const fit = await parseTelemetryFile(new File([buildFitLaps()], "catalyst.fit"));
-    expect(fit.kind).toBe("fit");
-    expect(fit.laps).toHaveLength(3);
   });
 
   it("reports a combined error for MP4s with neither telemetry flavour", async () => {
