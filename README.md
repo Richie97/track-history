@@ -125,10 +125,11 @@ batch.
 
 Imported sessions also store **per-lap channel data** — speed for every
 source, plus RPM and lateral G for PDR — resampled onto a uniform
-driven-distance grid (20 m) so laps overlay corner-for-corner. The event page
-renders them as expandable **channel graphs** per session: all laps as a dim
-context envelope, up to three laps highlighted at a time via the lap chips
-(best lap pre-selected), with a shared distance axis and hover readouts.
+driven-distance grid (20 m) so laps overlay corner-for-corner. On the event
+page the session's lap list doubles as the chip picker for the expandable
+**channel graphs** below it: all laps as a dim context envelope, up to three
+laps highlighted at a time via the chips (best lap pre-selected), with a
+shared distance axis and hover readouts.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelChartSvg } from "../../public/js/channel-graphs.js";
+import { channelChartSvg, matchLapsToChannels } from "../../public/js/channel-graphs.js";
 import { niceNumTicks } from "../../public/js/chart.js";
 
 const mkChannels = () => ({
@@ -18,6 +18,37 @@ describe("niceNumTicks", () => {
     const g = niceNumTicks(0, 1.4, 3);
     expect(g[0]).toBe(0);
     expect(g[g.length - 1]).toBeLessThanOrEqual(1.4);
+  });
+});
+
+describe("matchLapsToChannels", () => {
+  it("pairs lap rows to channel entries by exact time, -1 for laps without channels", () => {
+    const chLaps = [
+      { n: 1, timeMs: 48000 },
+      { n: 2, timeMs: 47000 },
+    ];
+    const laps = [
+      { lap_num: 1, time_ms: 48000 },
+      { lap_num: 2, time_ms: 47000 },
+      { lap_num: 3, time_ms: 49000 }, // hand-added after import: no channel data
+    ];
+    expect(matchLapsToChannels(laps, chLaps)).toEqual([
+      { lap: laps[0], chIdx: 0 },
+      { lap: laps[1], chIdx: 1 },
+      { lap: laps[2], chIdx: -1 },
+    ]);
+  });
+
+  it("matches duplicate times one-to-one in order", () => {
+    const chLaps = [
+      { n: 1, timeMs: 47000 },
+      { n: 2, timeMs: 47000 },
+    ];
+    const laps = [
+      { lap_num: 1, time_ms: 47000 },
+      { lap_num: 2, time_ms: 47000 },
+    ];
+    expect(matchLapsToChannels(laps, chLaps).map((r) => r.chIdx)).toEqual([0, 1]);
   });
 });
 
