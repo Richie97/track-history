@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { tracksSummary } from "../db";
+import { catalogIdForName, tracksSummary } from "../db";
 import { isValidGoal } from "../lib/validate";
 
 export const tracks = new Hono<AppContext>();
@@ -16,9 +16,9 @@ tracks.post("/tracks", async (c) => {
   const config = (body.config ?? "").trim();
   try {
     const row = await c.env.DB.prepare(
-      "INSERT INTO tracks (user_id, name, config) VALUES (?, ?, ?) RETURNING id, name, config"
+      "INSERT INTO tracks (user_id, name, config, catalog_id) VALUES (?, ?, ?, ?) RETURNING id, name, config, catalog_id"
     )
-      .bind(c.get("userId"), name, config)
+      .bind(c.get("userId"), name, config, await catalogIdForName(c.env.DB, name))
       .first();
     return c.json(row, 201);
   } catch {
@@ -40,6 +40,9 @@ tracks.put("/tracks/:id", async (c) => {
     if (!name) return c.json({ error: "name required" }, 400);
     sets.push("name = ?");
     binds.push(name);
+    // Renaming can change which canonical track this is — re-match the catalog.
+    sets.push("catalog_id = ?");
+    binds.push(await catalogIdForName(c.env.DB, name));
   }
   if (body.config !== undefined) {
     sets.push("config = ?");
