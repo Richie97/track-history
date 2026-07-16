@@ -283,7 +283,7 @@ async function viewDashboard() {
       return `<a class="card" href="#/track/${t.id}">
         <div class="name">${esc(trackLabel(t.name, t.config))}</div>
         <div class="best">${fmtMs(t.best_ms)}</div>
-        <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · last ${fmtDate(t.last_date)}</div>
+        <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · ${fmtDate(t.last_date)}</div>
         ${spark}
       </a>`;
     })
@@ -1151,7 +1151,7 @@ function shareDashboard() {
       return `<a class="card" href="#/track/${t.id}">
         <div class="name">${esc(trackLabel(t.name, t.config))}</div>
         <div class="best">${fmtMs(t.best_ms)}</div>
-        <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · last ${fmtDate(t.last_date)}</div>
+        <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · ${fmtDate(t.last_date)}</div>
         ${spark}
       </a>`;
     })
