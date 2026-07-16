@@ -132,7 +132,7 @@ const TIP_ITEMS = [
 ];
 const TIP_URL = "https://buymeacoffee.com/speedshift";
 const REPO_URL = "https://github.com/Richie97/track-history";
-const DOCS_URL = "https://docs.trackhistory.app";
+const DOCS_URL = "https://docs.trackevolution.app";
 
 let tipIdx = 0;
 let tipTimer = null;
@@ -180,7 +180,7 @@ function renderLogin() {
       <span class="login-toggle">${themeToggleHtml()}</span>
       <div class="login-card">
         <div class="flag">${appLogoHtml("lg")}</div>
-        <h1>Track History</h1>
+        <h1>Track Evolution</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
         <a class="btn primary" href="/auth/login">Sign in with Google</a>
         ${footerHtml()}
@@ -194,7 +194,7 @@ function shell(content) {
   $app.innerHTML = `
     <div class="shell">
       <header class="topbar">
-        <a class="brand" href="#/">${appLogoHtml()} Track History</a>
+        <a class="brand" href="#/">${appLogoHtml()} Track Evolution</a>
         <span class="spacer"></span>
         <div class="user-menu">
           <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false">
@@ -1099,7 +1099,7 @@ function shareShell(content) {
   $app.innerHTML = `
     <div class="shell">
       <header class="topbar">
-        <a class="brand" href="#/">${appLogoHtml()} Track History</a>
+        <a class="brand" href="#/">${appLogoHtml()} Track Evolution</a>
         <span class="share-badge">Read-only shared view</span>
         <span class="spacer"></span>
         ${themeToggleHtml()}
@@ -1152,7 +1152,7 @@ function shareDashboard() {
     .join("");
 
   const view = shareShell(`
-    <h1>${esc(name || "Driver")} — Track History</h1>
+    <h1>${esc(name || "Driver")} — Track Evolution</h1>
     <p class="sub">Track-day and HPDE history, shared read-only.</p>
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${totals.events}</div></div>
@@ -1217,14 +1217,14 @@ async function shareRoute() {
             <div class="flag">${appLogoHtml("lg")}</div>
             <h1>Link not found</h1>
             <p>This share link doesn't exist or has been disabled.</p>
-            <a class="btn primary" href="/">Go to Track History</a>
+            <a class="btn primary" href="/">Go to Track Evolution</a>
             ${footerHtml()}
           </div>
         </div>`;
       return;
     }
     shareData = await res.json();
-    document.title = `${shareData.name || "Driver"} — Track History`;
+    document.title = `${shareData.name || "Driver"} — Track Evolution`;
   }
   const [sharePath, shareQuery] = (location.hash || "#/").slice(1).split("?");
   const shareParams = new URLSearchParams(shareQuery || "");

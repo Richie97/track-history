@@ -6,7 +6,7 @@ not that one.
 
 ## What this is
 
-A personal HPDE/track-day logbook on Cloudflare Workers + D1 (SQLite): tracks → events → sessions → laps, with progress charts and Google OAuth sign-in. Multi-user — every domain row is scoped to a `user_id`. The hosted instance users are pointed to is https://trackhistory.app.
+A personal HPDE/track-day logbook on Cloudflare Workers + D1 (SQLite): tracks → events → sessions → laps, with progress charts and Google OAuth sign-in. Multi-user — every domain row is scoped to a `user_id`. The hosted instance users are pointed to is https://trackevolution.app.
 
 ## Commands
 
@@ -43,7 +43,7 @@ not a follow-up:**
 1. **`README.md`** — setup, deployment, feature descriptions (it's also the
    reference the docs site was written from).
 2. **The marketing/docs site (`site/`)** — static HTML deployed to GitHub Pages
-   at https://docs.trackhistory.app (also served at
+   at https://docs.trackevolution.app (also served at
    https://richie97.github.io/track-history/) by
    `.github/workflows/pages.yml` (on pushes to `main` touching `site/**`).
    - `site/index.html` — landing page. Update the features grid, telemetry
@@ -51,7 +51,7 @@ not a follow-up:**
      features that don't exist or miss ones that do.
    - `site/docs/index.html` — getting started *using the hosted app* (sign-in,
      first event, telemetry import, PWA install, sharing).
-   - **The site points users at the hosted app, https://trackhistory.app, and
+   - **The site points users at the hosted app, https://trackevolution.app, and
      deliberately never mentions Cloudflare, self-hosting, or deployment** —
      developer setup and deploy instructions live in `README.md` only. Keep it
      that way when editing `site/**`.
@@ -73,13 +73,13 @@ not a follow-up:**
      image is `site/og-image.png`, and `public/og-image.png` is an identical
      copy used by the app — the two must stay in sync (regenerate both if the
      brand mark, tagline, or design tokens change). `og:image`/`og:url` are
-     absolute canonical URLs (docs.trackhistory.app / trackhistory.app) — the
+     absolute canonical URLs (docs.trackevolution.app / trackevolution.app) — the
      one exception to the relative-links rule, since social scrapers require
      absolute URLs.
    - The site is dependency-free static HTML/CSS with no build step.
      `site/site.css` mirrors the design tokens in `public/style.css` — if the
      app's design tokens change, re-mirror them. All links are relative so
-     pages work both at docs.trackhistory.app and under the `/track-history/`
+     pages work both at docs.trackevolution.app and under the `/track-history/`
      GitHub Pages subpath; keep them that way.
 3. **This file (`AGENTS.md`)** — commands, architecture notes, conventions.
    Update it when you add a directory, command, route, or convention that a

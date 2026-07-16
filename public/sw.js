@@ -1,4 +1,4 @@
-// Track History service worker: offline app shell + last-known API data.
+// Track Evolution service worker: offline app shell + last-known API data.
 //
 // Strategies:
 //  - App shell (same-origin static files): stale-while-revalidate, so there's
