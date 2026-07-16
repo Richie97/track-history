@@ -1,6 +1,6 @@
 {
-  "name": "Track History",
-  "short_name": "Track History",
+  "name": "Track Evolution",
+  "short_name": "Track Evolution",
   "description": "Personal HPDE / track-day logbook: events, sessions, laps, and progress.",
   "start_url": "/",
   "scope": "/",
