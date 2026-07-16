@@ -504,10 +504,8 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   background: var(--accent-tint); border-color: var(--accent-ring);
   color: var(--accent-ink); font-weight: var(--weight-semibold);
 }
-.lap .x { cursor: pointer; color: var(--text-faint); font-size: 13px; line-height: 1; }
-.lap .x:hover { color: var(--danger-ink); }
 
-/* Per-lap channel graphs (imported sessions) */
+/* Lap chips + per-lap channel graphs (imported sessions) */
 .ch-details { margin-top: 14px; }
 .ch-details summary {
   cursor: pointer; color: var(--text-muted); font-size: var(--fs-sm);
@@ -515,7 +513,6 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .ch-details summary .hint { color: var(--text-faint); font-weight: 400; margin-left: 6px; }
 .ch-details[open] summary { margin-bottom: 8px; }
-.ch-chips { margin-top: 4px; }
 button.ch-chip { cursor: pointer; font-family: inherit; }
 button.ch-chip:hover { background: var(--surface-hover); }
 button.ch-chip.on { background: var(--surface-raised); }

@@ -1,10 +1,12 @@
-// Per-lap channel graphs for an imported session: stacked small-multiple SVG
-// charts (speed / rpm / lateral G, whichever the session stored) with every
-// lap overlaid on a shared driven-distance axis, so laps line up
-// corner-for-corner. Unselected laps draw as a dim context envelope; up to
-// three laps at a time are highlighted in the chart series colors, picked via
-// the lap chips (which double as the legend — identity is never color-alone).
-// Data shape is sessions.channels (see js/import/channels.js).
+// Lap chips + per-lap channel graphs for an imported session. The chips are
+// the session's lap list (rendered from the stored lap rows), and stacked
+// small-multiple SVG charts (speed / rpm / lateral G, whichever the session
+// stored) sit under them in a collapsible <details>, every lap overlaid on a
+// shared driven-distance axis so laps line up corner-for-corner. Unselected
+// laps draw as a dim context envelope; up to three laps at a time are
+// highlighted in the chart series colors, picked via the lap chips (which
+// double as the legend — identity is never color-alone).
+// Channel data shape is sessions.channels (see js/import/channels.js).
 //
 // Same conventions as chart.js: pure string building for the SVG, one bind
 // step for hover; axes recessive, marks thin, one y-axis per chart.
@@ -81,33 +83,72 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190 
   </svg>`;
 }
 
-// Render + wire the whole panel into `container`. Chips toggle laps into the
-// highlight slots (max 3 at once; oldest is evicted). The fastest lap starts
-// highlighted.
-export function bindChannelGraphs(container, channels) {
-  const laps = channels.laps;
-  const bestIdx = laps.reduce((b, l, i) => (l.timeMs < laps[b].timeMs ? i : b), 0);
-  const state = { lit: [bestIdx] }; // lap indexes in slot order
+// Match the session's stored lap rows ({lap_num, time_ms}, chronological) to
+// the channel entries ({n, timeMs}, same order). Both come from the same
+// parsed laps at import time, but a lap can lack channel data (no distance
+// window) and laps hand-added later have none — an in-order greedy match on
+// the exact millisecond time pairs them up. Returns [{lap, chIdx}] with
+// chIdx -1 for laps without channel data. Exported for unit tests.
+export function matchLapsToChannels(sessionLaps, chLaps) {
+  let j = 0;
+  return sessionLaps.map((lap) => {
+    const k = chLaps.findIndex((cl, idx) => idx >= j && cl.timeMs === lap.time_ms);
+    if (k < 0) return { lap, chIdx: -1 };
+    j = k + 1;
+    return { lap, chIdx: k };
+  });
+}
+
+// Render + wire the whole panel into `container`: the lap chips (always
+// visible — they are the session's lap list) and the charts inside a
+// collapsible <details>, rendered lazily on first expand. Chips toggle laps
+// into the highlight slots (max 3 at once; oldest is evicted). The fastest
+// lap starts highlighted.
+export function bindChannelGraphs(container, channels, sessionLaps) {
+  const chLaps = channels.laps;
+  const rows = matchLapsToChannels(sessionLaps, chLaps);
+  const bestMs = Math.min(...sessionLaps.map((l) => l.time_ms));
+  // Chart tooltips label laps by the session's lap numbers, same as the chips.
+  const dispN = chLaps.map((cl) => cl.n);
+  for (const { lap, chIdx } of rows) if (chIdx >= 0) dispN[chIdx] = lap.lap_num;
+
+  const matched = rows.filter((r) => r.chIdx >= 0);
+  const bestRow = matched.length
+    ? matched.reduce((a, b) => (b.lap.time_ms < a.lap.time_ms ? b : a))
+    : null;
+  const state = { lit: bestRow ? [bestRow.chIdx] : [] }; // channel-lap indexes in slot order
 
   const litMap = () => new Map(state.lit.map((lapIdx, slot) => [lapIdx, SLOTS[slot]]));
 
-  const render = () => {
+  const chanNames = ["speed", chLaps.some((l) => l.rpm) && "rpm", chLaps.some((l) => l.latG) && "lateral G"]
+    .filter(Boolean)
+    .join(" · ");
+  container.innerHTML = `
+    <div class="laps ch-chips"></div>
+    <details class="ch-details">
+      <summary>Channel graphs <span class="hint">${chanNames} vs distance</span></summary>
+      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3)</div>
+      <div class="ch-graphs"></div>
+    </details>`;
+  const chipsEl = container.querySelector(".ch-chips");
+  const details = container.querySelector(".ch-details");
+  const chartsEl = container.querySelector(".ch-graphs");
+  let chartsDirty = true;
+
+  const renderChips = () => {
     const lit = litMap();
-    const chips = laps
-      .map((l, i) => {
-        const color = lit.get(i);
-        return `<button type="button" class="lap ch-chip${color ? " on" : ""}" data-ch-lap="${i}" ${color ? `style="border-color:${color}"` : ""}>
-          <span class="dot" style="background:${color ?? "var(--chart-dim)"}"></span>Lap ${l.n} · ${fmtMs(l.timeMs)}${i === bestIdx ? " ★" : ""}
+    chipsEl.innerHTML = rows
+      .map(({ lap, chIdx }) => {
+        const label = `Lap ${lap.lap_num} · ${fmtMs(lap.time_ms)}${lap.time_ms === bestMs ? " ★" : ""}`;
+        if (chIdx < 0) return `<span class="lap">${label}</span>`;
+        const color = lit.get(chIdx);
+        return `<button type="button" class="lap ch-chip${color ? " on" : ""}" data-ch-lap="${chIdx}" ${color ? `style="border-color:${color}"` : ""}>
+          <span class="dot" style="background:${color ?? "var(--chart-dim)"}"></span>${label}
         </button>`;
       })
       .join("");
-    const charts = CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit)).filter(Boolean);
-    container.innerHTML = `
-      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3)</div>
-      <div class="laps ch-chips">${chips}</div>
-      ${charts.map((c) => `<div class="ch-chart">${c}</div>`).join("")}`;
 
-    container.querySelectorAll("[data-ch-lap]").forEach((btn) => {
+    chipsEl.querySelectorAll("[data-ch-lap]").forEach((btn) => {
       btn.onclick = () => {
         const i = Number(btn.dataset.chLap);
         const at = state.lit.indexOf(i);
@@ -116,13 +157,24 @@ export function bindChannelGraphs(container, channels) {
           state.lit.push(i);
           if (state.lit.length > SLOTS.length) state.lit.shift(); // evict oldest
         }
-        render();
+        renderChips();
+        if (details.open) renderCharts();
+        else chartsDirty = true;
       };
     });
+  };
+
+  // Charts render lazily on first expand — laps × 3 SVGs is wasted work for
+  // a collapsed panel — and re-render only while open.
+  const renderCharts = () => {
+    chartsDirty = false;
+    const lit = litMap();
+    const charts = CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit)).filter(Boolean);
+    chartsEl.innerHTML = charts.map((c) => `<div class="ch-chart">${c}</div>`).join("");
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
     const $tooltip = document.getElementById("tooltip");
-    container.querySelectorAll("svg[data-channel]").forEach((svgEl) => {
+    chartsEl.querySelectorAll("svg[data-channel]").forEach((svgEl) => {
       const def = CHANNEL_DEFS.find((d) => d.key === svgEl.dataset.channel);
       const x1 = Number(svgEl.dataset.x1);
       const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
@@ -132,15 +184,15 @@ export function bindChannelGraphs(container, channels) {
         const frac = (((evt.clientX - rect.left) / rect.width) * vbW - padL) / (vbW - padL - padR);
         const k = Math.round((Math.max(0, Math.min(1, frac)) * x1) / channels.dStepM);
         const d = Math.round(k * channels.dStepM);
-        const rows = state.lit
+        const tipRows = state.lit
           .map((lapIdx, slot) => {
-            const arr = laps[lapIdx]?.[def.key];
+            const arr = chLaps[lapIdx]?.[def.key];
             if (!arr || k >= arr.length) return "";
-            return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${laps[lapIdx].n} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}</div>`;
+            return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}</div>`;
           })
           .join("");
-        if (!rows) { $tooltip.hidden = true; return; }
-        $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${rows}`;
+        if (!tipRows) { $tooltip.hidden = true; return; }
+        $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${tipRows}`;
         $tooltip.hidden = false;
         const tw = $tooltip.offsetWidth;
         let left = evt.clientX + 14;
@@ -151,5 +203,9 @@ export function bindChannelGraphs(container, channels) {
       svgEl.addEventListener("mouseleave", () => ($tooltip.hidden = true));
     });
   };
-  render();
+
+  details.addEventListener("toggle", () => {
+    if (details.open && chartsDirty) renderCharts();
+  });
+  renderChips();
 }

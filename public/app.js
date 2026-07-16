@@ -637,13 +637,16 @@ async function viewEvent(eventId) {
     .map((s) => {
       const lapsMs = s.laps.map((l) => l.time_ms);
       const best = lapsMs.length ? Math.min(...lapsMs) : null;
-      const laps = s.laps
-        .map(
-          (l) => `<span class="lap${l.time_ms === best ? " best" : ""}" title="Lap ${l.lap_num}">
-            ${fmtMs(l.time_ms)}<span class="x" data-del-lap="${l.id}" title="Delete lap">✕</span>
-          </span>`
-        )
-        .join("");
+      // Imported sessions get their lap list from the channel panel (chips +
+      // collapsible graphs); plain sessions render the same chip layout.
+      const lapsHtml = s.channels?.laps?.length
+        ? `<div data-channel-graphs="${s.id}"></div>`
+        : `<div class="laps">${s.laps
+            .map(
+              (l) =>
+                `<span class="lap${l.time_ms === best ? " best" : ""}">Lap ${l.lap_num} · ${fmtMs(l.time_ms)}${l.time_ms === best ? " ★" : ""}</span>`
+            )
+            .join("")}</div>`;
       // Session analysis from the laps we already have: representative pace,
       // how long it took to get up to speed, and whether pace faded late.
       const stats = [];
@@ -665,15 +668,7 @@ async function viewEvent(eventId) {
         </div>
         ${stats.length ? `<div class="s-stats">${stats.join(" · ")}</div>` : ""}
         ${s.notes ? `<div class="notes-block">${esc(s.notes)}</div>` : ""}
-        <div class="laps">${laps}</div>
-        ${
-          s.channels?.laps?.length
-            ? `<details class="ch-details" data-channel-graphs="${s.id}">
-                <summary>Channel graphs <span class="hint">speed${s.channels.laps.some((l) => l.rpm) ? " · rpm" : ""}${s.channels.laps.some((l) => l.latG) ? " · lateral G" : ""} vs distance</span></summary>
-                <div class="ch-graphs"></div>
-              </details>`
-            : ""
-        }
+        ${lapsHtml}
         <div class="btn-row" style="margin-top:16px">
           <input class="add-laps-input" data-add-laps-input="${s.id}" placeholder="Add laps: 2:01.24, 2:03.1 …">
           <button class="btn small" data-add-laps="${s.id}">Add</button>
@@ -836,27 +831,17 @@ async function viewEvent(eventId) {
     });
     route();
   };
-  // Channel graphs render lazily on first expand — 25 laps × 3 SVGs per
-  // session is wasted work for collapsed panels.
-  view.querySelectorAll("[data-channel-graphs]").forEach((det) => {
-    det.addEventListener("toggle", () => {
-      if (!det.open || det.dataset.bound) return;
-      det.dataset.bound = "1";
-      const s = e.sessions.find((x) => String(x.id) === det.dataset.channelGraphs);
-      if (s) bindChannelGraphs(det.querySelector(".ch-graphs"), s.channels);
-    });
+  // The channel panel owns the lap list for imported sessions; the graphs
+  // inside it render lazily on first expand.
+  view.querySelectorAll("[data-channel-graphs]").forEach((el) => {
+    const s = e.sessions.find((x) => String(x.id) === el.dataset.channelGraphs);
+    if (s) bindChannelGraphs(el, s.channels, s.laps);
   });
 
   view.querySelectorAll("[data-del-session]").forEach((btn) => {
     btn.onclick = async () => {
       if (!confirm("Delete this session and its laps?")) return;
       await api(`/sessions/${btn.dataset.delSession}`, { method: "DELETE" });
-      route();
-    };
-  });
-  view.querySelectorAll("[data-del-lap]").forEach((x) => {
-    x.onclick = async () => {
-      await api(`/laps/${x.dataset.delLap}`, { method: "DELETE" });
       route();
     };
   });
