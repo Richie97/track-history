@@ -98,6 +98,48 @@ Sign in with the Google account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other Google accounts get a fresh,
 empty logbook.
 
+## Mobile apps (Capacitor)
+
+[`mobile/`](mobile/) wraps the same frontend in native iOS/Android shells for
+the App Store / Play Store. `public/` stays the single source of truth:
+`mobile/scripts/sync-www.mjs` copies it into the Capacitor webDir, drops the
+service worker, and swaps the module entry to `overrides/native.js`, which
+configures the platform seam (`public/js/platform.js`) — bearer-token auth
+against a configurable server, Google sign-in via the system browser (PKCE +
+`POST /auth/exchange`), OS share sheet, haptics, status-bar theming — and then
+imports the untouched `app.js`.
+
+**Prereqs:** Xcode (iOS) / Android Studio (Android), plus CocoaPods on macOS.
+
+```sh
+cd mobile
+npm install
+npm run ios        # sync www/ + cap sync + open Xcode
+npm run android    # sync www/ + cap sync + open Android Studio
+npm run assets     # regenerate icons/splash from resources/ (uses @capacitor/assets)
+```
+
+**Developing against a local server:** run `npm run dev` at the repo root with
+`DEV_MODE=1`, then in the app's sign-in screen tap *Server:* and point it at
+`http://localhost:8787` (iOS simulator) or `http://10.0.2.2:8787` (Android
+emulator — debug builds allow cleartext for this). Sign-in then uses the dev
+bypass, no Google config needed.
+
+**Users can also point the app at a self-hosted instance** via the same Server
+setting; the Worker ships CORS for the Capacitor shell origins, so a standard
+deploy of this repo works out of the box.
+
+**Release checklist:**
+
+- iOS: set the real `<Team ID>.app.trackevolution` in `wrangler.jsonc`'s
+  `IOS_APP_ID` (served at `/.well-known/apple-app-site-association`) and
+  redeploy the Worker, so Universal Links to `/share/*` open the app.
+- Android: replace the placeholder SHA-256 fingerprint in
+  `public/.well-known/assetlinks.json` with the one from Play Console → App
+  signing, and redeploy, so App Links verify.
+- Store listings: sell the logbook features; the tip link is already hidden on
+  iOS builds (Apple 3.1.1) and external links open in the system browser.
+
 ## Video / telemetry import
 
 On any event page, **Import video / telemetry…** turns recordings into sessions
