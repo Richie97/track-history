@@ -6,7 +6,8 @@ import { lineChart, multiLineChart } from "./js/chart.js";
 import { bindChannelGraphs } from "./js/channel-graphs.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
-import { api as apiFetch, ApiError } from "./js/api.js";
+import { api as apiFetch, authFetch, ApiError } from "./js/api.js";
+import { platform } from "./js/platform.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
@@ -14,6 +15,22 @@ import { US_TRACKS } from "./js/us-tracks.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
 
 const $app = document.getElementById("app");
+
+// Host shown in share URLs — the server's, not the WebView's (which would be
+// capacitor://localhost inside the native apps).
+const serverHost = () => new URL(platform.serverOrigin()).host;
+
+// Native shells open external links in the system browser; a plain WebView
+// navigation would replace the app with no way back. No-op on web
+// (openExternal is null) — the default target="_blank" behavior stands.
+document.addEventListener("click", (ev) => {
+  if (!platform.openExternal) return;
+  const a = ev.target.closest?.('a[target="_blank"]');
+  if (a && /^https?:\/\//.test(a.href)) {
+    ev.preventDefault();
+    platform.openExternal(a.href);
+  }
+});
 
 // API wrapper: a 401 anywhere means the session is gone — show the login view.
 async function api(path, opts) {
@@ -162,9 +179,14 @@ function footerHtml() {
         Contribute ↗
       </a>
     </span>
-    <a class="tip-btn" href="${TIP_URL}" target="_blank" rel="noopener">
+    ${
+      // Apple guideline 3.1.1: no external payment links in the iOS app.
+      platform.native && platform.os === "ios"
+        ? ""
+        : `<a class="tip-btn" href="${TIP_URL}" target="_blank" rel="noopener">
       Buy me <span class="tip-blank">${TIP_ITEMS[tipIdx]}</span>
-    </a>
+    </a>`
+    }
     <a class="ss-credit" href="https://speedshift.io" target="_blank" rel="noopener">
       Built by <span class="ss-mark">${SS_LOGO} <span class="ss-wordmark">Speedshift</span></span>
     </a>
@@ -182,11 +204,25 @@ function renderLogin() {
         <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Track Evolution</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
-        <a class="btn primary" href="/auth/login">Sign in with Google</a>
+        ${
+          platform.login
+            ? `<button class="btn primary" id="native-login">Sign in with Google</button>`
+            : `<a class="btn primary" href="/auth/login">Sign in with Google</a>`
+        }
+        ${
+          platform.openServerSettings
+            ? `<p class="hint" style="margin-top:12px"><a href="#" id="server-settings">Server: ${esc(serverHost())}</a></p>`
+            : ""
+        }
         ${footerHtml()}
       </div>
     </div>`;
   wireThemeToggle();
+  document.getElementById("native-login")?.addEventListener("click", () => platform.login());
+  document.getElementById("server-settings")?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    platform.openServerSettings();
+  });
 }
 
 function shell(content) {
@@ -230,7 +266,7 @@ function shell(content) {
     trigger.setAttribute("aria-expanded", String(open));
   };
   document.getElementById("logout").onclick = async () => {
-    await fetch("/auth/logout", { method: "POST" });
+    await platform.logout();
     // Delete the service worker's cached API responses (named th-data-* in
     // sw.js) so the logbook doesn't linger in Cache Storage on a shared device.
     if ("caches" in window) {
@@ -339,12 +375,13 @@ async function viewDashboard() {
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
       <div class="btn-row">
         <span class="share-url">
-          <span class="share-prefix">${esc(location.host)}/share/</span>
+          <span class="share-prefix">${esc(serverHost())}/share/</span>
           <input id="share-slug" placeholder="your-name" maxlength="32" value="${esc(slug)}" spellcheck="false">
         </span>
         <button class="btn small primary" id="share-save">${slug ? "Update path" : "Create link"}</button>
         ${slug ? `<button class="btn small" id="share-copy">Copy link</button>
-        <a class="btn small ghost" href="/share/${esc(slug)}" target="_blank" rel="noopener">Open ↗</a>
+        ${platform.shareLink ? `<button class="btn small" id="share-sheet">Share…</button>` : ""}
+        <a class="btn small ghost" href="${esc(platform.serverOrigin())}/share/${esc(slug)}" target="_blank" rel="noopener">Open ↗</a>
         <button class="btn small danger" id="share-disable">Disable</button>` : ""}
       </div>
       <div id="share-msg" class="hint" style="margin-top:6px"></div>
@@ -367,10 +404,13 @@ async function viewDashboard() {
     if (e.key === "Enter") view.querySelector("#share-save").click();
   });
   if (slug) {
+    const shareUrl = `${platform.serverOrigin()}/share/${slug}`;
     view.querySelector("#share-copy").onclick = async () => {
-      await navigator.clipboard.writeText(`${location.origin}/share/${slug}`);
+      await platform.copyText(shareUrl);
       shareMsg.textContent = "Link copied.";
     };
+    const shareSheet = view.querySelector("#share-sheet");
+    if (shareSheet) shareSheet.onclick = () => platform.shareLink(shareUrl);
     view.querySelector("#share-disable").onclick = async () => {
       if (!confirm("Disable your public share link? The URL will stop working.")) return;
       await api("/share", { method: "DELETE" });
@@ -537,8 +577,12 @@ async function viewTrack(trackId, params) {
   const shareTrack = view.querySelector("#share-track");
   if (shareTrack)
     shareTrack.onclick = async () => {
-      await navigator.clipboard.writeText(`${location.origin}/share/${state.me.share_slug}#/track/${track.id}`);
-      view.querySelector("#track-msg").textContent = "Share link copied.";
+      const url = `${platform.serverOrigin()}/share/${state.me.share_slug}#/track/${track.id}`;
+      if (platform.shareLink) platform.shareLink(url);
+      else {
+        await platform.copyText(url);
+        view.querySelector("#track-msg").textContent = "Share link copied.";
+      }
     };
 
   wireRowLinks(view);
@@ -757,14 +801,20 @@ async function viewEvent(eventId) {
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
     <div class="pdr-dropzone" id="pdr-dropzone">
-      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
+      ${
+        // iOS Files maps accept= to UTIs and .vbo matches none, which would
+        // grey out VBO files entirely — so no accept filter on iOS.
+        platform.native && platform.os === "ios"
+          ? `<input type="file" id="pdr-files" multiple hidden>`
+          : `<input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>`
+      }
       <div class="pdr-dropzone-inner">
         <span class="pdr-dropzone-icon">📼</span>
         <div>
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
-          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> files here</span>
+          ${platform.native ? "" : `<span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> files here</span>`}
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your ${platform.native ? "device" : "computer"}</span>
       </div>
     </div>
     <div id="pdr-review"></div>
@@ -788,6 +838,7 @@ async function viewEvent(eventId) {
     view.querySelector("#pb-dismiss").onclick = () => banner.remove();
     const r = banner.getBoundingClientRect();
     confettiBurst(r.left + r.width / 2, r.top + 40);
+    platform.hapticPB();
   }
 
   view.querySelector("#del-event").onclick = async () => {
@@ -1215,7 +1266,7 @@ function shareTrack(trackId) {
 
 async function shareRoute() {
   if (!shareData) {
-    const res = await fetch(`/api/share/${encodeURIComponent(SHARE_SLUG)}`);
+    const res = await authFetch(`/api/share/${encodeURIComponent(SHARE_SLUG)}`);
     if (!res.ok) {
       $app.innerHTML = `
         <div class="login-wrap">
@@ -1282,6 +1333,19 @@ async function route() {
     }
   }
 }
+
+// Native-shell re-entry points: re-run the router after a system-browser
+// sign-in completes, and full-page navigate for /share/<slug> deep links
+// (SHARE_SLUG is read from location.pathname at module load, so a reload is
+// what re-evaluates it — Capacitor's local server SPA-falls-back like the Worker).
+platform.onAuthed = () => {
+  showSkeleton();
+  route();
+};
+platform.navigate = (path) => {
+  history.pushState({}, "", path);
+  location.reload();
+};
 
 if (SHARE_SLUG) {
   window.addEventListener("hashchange", shareRoute);

@@ -206,6 +206,21 @@ a:hover { opacity: 0.85; }
 }
 .shell #view { flex: 1 0 auto; }
 
+/* Notched phones and the native apps (viewport-fit=cover): keep content out
+   of the OS bars. env() is 0 on regular browsers, so max() is a no-op there. */
+.shell {
+  padding-left: max(var(--page-gutter), env(safe-area-inset-left));
+  padding-right: max(var(--page-gutter), env(safe-area-inset-right));
+  padding-bottom: max(60px, env(safe-area-inset-bottom));
+}
+header.topbar { padding-top: max(18px, env(safe-area-inset-top)); }
+.login-wrap {
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-right: max(24px, env(safe-area-inset-right));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  padding-left: max(24px, env(safe-area-inset-left));
+}
+
 /* ---------- Header ---------- */
 header.topbar {
   display: flex; align-items: center; flex-wrap: wrap; gap: 14px;

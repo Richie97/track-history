@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Track Evolution</title>
   <meta name="description" content="Track Evolution is a free HPDE / track-day logbook: events, sessions and lap times per track, progress charts, and in-browser telemetry import." />
   <meta property="og:type" content="website" />
@@ -34,11 +34,13 @@
   <div id="app"></div>
   <div id="tooltip" class="tooltip" hidden></div>
   <script type="module" src="/app.js"></script>
+  <!-- native:strip-start — removed by mobile/scripts/sync-www.mjs (no SW in the native shell) -->
   <script>
     // PWA: offline app shell + last-known API data (see sw.js).
     if ("serviceWorker" in navigator) {
       addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
     }
   </script>
+  <!-- native:strip-end -->
 </body>
 </html>
