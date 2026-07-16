@@ -36,7 +36,7 @@ export function distFromTrace(projected) {
   return out;
 }
 
-// Channel sources for a GPS-only import (GoPro, plain VBO/FIT, beacon-less
+// Channel sources for a GPS-only import (GoPro, plain VBO, beacon-less
 // PDR via the line picker): distance integrated from the projected trace,
 // speed from the source's own fixes (m/s) when present.
 export function traceChannelData(gps, projected) {

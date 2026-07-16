@@ -3,8 +3,8 @@
 //   { kind, date, time, durationS, laps: [{timeMs, estimated}],
 //     gps: [{t, lat, lon, v?}] | null, needsLine }
 // gps + needsLine feed the start/finish line picker for sources without lap
-// markers (GoPro, beacon-less PDR, VBO without [laptiming], FIT without lap
-// messages). Every result also gets `lapChannels` — per-lap channel arrays on
+// markers (GoPro, beacon-less PDR, VBO without [laptiming]). Every result
+// also gets `lapChannels` — per-lap channel arrays on
 // a distance grid (js/import/channels.js), stored with the session for the
 // channel graphs; null when laps lack telemetry windows. PDR results also
 // carry `metrics` (top speed / max rpm / max
@@ -16,19 +16,17 @@
 import { parsePdrFile } from "../../pdr.js";
 import { parseGpmfFile } from "./gpmf.js";
 import { parseVboFile } from "./vbo.js";
-import { parseFitFile } from "./fit.js";
 import { lapTrace, projectTrace } from "./geo.js";
 import { recoverPdrLaps } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 
-export const SUPPORTED_EXT = /\.(mp4|vbo|fit)$/i;
+export const SUPPORTED_EXT = /\.(mp4|vbo)$/i;
 
-export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", vbo: "VBO", fit: "Garmin" };
+export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", vbo: "VBO" };
 
 export async function parseTelemetryFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith(".vbo")) return attachLapChannels(await parseVboFile(file));
-  if (name.endsWith(".fit")) return attachLapChannels(await parseFitFile(file));
 
   // .mp4: Corvette PDR first, then GoPro GPMF. Both parsers throw a
   // "No ... telemetry track" error when the file simply isn't theirs.
@@ -36,7 +34,7 @@ export async function parseTelemetryFile(file) {
   try {
     const pdr = await parsePdrFile(file);
     // Beacon-timed laps share the telemetry clock with the GPS trace, so the
-    // fastest lap's window cuts straight out of it (like FIT). Without laps,
+    // fastest lap's window cuts straight out of it. Without laps,
     // the trace goes to the start/finish line picker instead.
     let bestLapTrace = null;
     if (pdr.gps && pdr.laps.length) {

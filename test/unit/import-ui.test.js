@@ -10,7 +10,7 @@ describe("applyGate across longitude sign conventions", () => {
   it("applies one picked line to west-positive (VBO) and east-positive (GPS) traces", () => {
     const points = circleTrace();
     // VBO parse preserves Racelogic's west-positive longitude (+79.2);
-    // a GoPro/FIT trace of the same laps uses standard sign (-79.2).
+    // a GoPro trace of the same laps uses standard sign (-79.2).
     const vbo = parseVboText(buildVboText(points));
     const gps = { kind: "gopro", needsLine: true, gps: points, laps: [] };
 

@@ -114,8 +114,6 @@ never leave your computer**. Supported sources:
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer
   exports) — laps from the file's `[laptiming]` start line when present,
   otherwise from the GPS trace.
-- **Garmin FIT** (Catalyst session exports) — the device's own lap messages,
-  or the GPS trace if a file has none.
 
 GPS-only sources have no lap markers, so the import preview shows the driven
 track map: **click where the start/finish line is** and laps are timed each

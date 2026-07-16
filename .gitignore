@@ -10,7 +10,7 @@ dist/
 Thumbs.db
 Desktop.ini
 
-# Local telemetry footage for testing imports (PDR MP4s, VBO, FIT, GoPro) —
+# Local telemetry footage for testing imports (PDR MP4s, VBO, GoPro) —
 # real video files, never committed
 telemetry-samples/
 

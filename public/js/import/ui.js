@@ -1,7 +1,7 @@
 // Telemetry import UI: file picker + drag & drop -> parse in the browser ->
 // review panel -> POST the accepted files as sessions. Sources with lap
-// markers (PDR beacons, VBO [laptiming], Garmin laps) show their laps
-// directly; GPS-only sources (GoPro, PDR without beacons, plain VBO/FIT) get
+// markers (PDR beacons, VBO [laptiming]) show their laps
+// directly; GPS-only sources (GoPro, PDR without beacons, plain VBO) get
 // a track map where the user clicks the start/finish line and laps are
 // derived from crossings. Beacon-less PDR recordings whose GPS doesn't decode
 // have no trace to click — their laps come from lat+odometer recovery
