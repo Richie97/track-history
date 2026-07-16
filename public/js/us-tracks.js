@@ -1,5 +1,10 @@
 // Common US road courses offered in the track dropdown. Free text is still
 // allowed — the backend find-or-creates tracks by name.
+//
+// This list is mirrored by the seeded track_catalog table (see
+// migrations/0007_track_catalog.sql): tracks whose name matches an entry here
+// get a stable catalog_id. When adding a track, also add it to the catalog via
+// a new migration (existing migrations are never edited).
 export const US_TRACKS = [
   "Atlanta Motorsports Park",
   "Autobahn Country Club",

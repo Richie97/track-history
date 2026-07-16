@@ -169,3 +169,63 @@ describe("track configurations", () => {
     expect((await api("GET", `/events/${id}`)).body.track_config).toBe("Full");
   });
 });
+
+describe("track catalog", () => {
+  it("links a created track to its catalog entry by name", async () => {
+    const { api } = await signedInUser();
+    const { body } = await api("POST", "/tracks", { name: "Road Atlanta" });
+    expect(body.catalog_id).toBeTypeOf("number");
+  });
+
+  it("matches catalog names case-insensitively", async () => {
+    const { api } = await signedInUser();
+    const exact = (await api("POST", "/tracks", { name: "Road Atlanta" })).body;
+    const lower = (await api("POST", "/tracks", { name: "road atlanta", config: "CCW" })).body;
+    expect(lower.catalog_id).toBe(exact.catalog_id);
+  });
+
+  it("leaves catalog_id null for tracks the catalog does not know", async () => {
+    const { api } = await signedInUser();
+    const { body } = await api("POST", "/tracks", { name: "My Backyard Kart Track" });
+    expect(body.catalog_id).toBeNull();
+  });
+
+  it("links tracks find-or-created through events", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "Watkins Glen International" });
+    await createEvent(api, { track_name: "Test Ring" });
+    const tracks = (await api("GET", "/tracks")).body;
+    const glen = tracks.find((t: any) => t.name === "Watkins Glen International");
+    const ring = tracks.find((t: any) => t.name === "Test Ring");
+    expect(glen.catalog_id).toBeTypeOf("number");
+    expect(ring.catalog_id).toBeNull();
+  });
+
+  it("gives the same catalog_id to different users' copies of a track", async () => {
+    const a = await signedInUser();
+    const b = await signedInUser();
+    const ta = (await a.api("POST", "/tracks", { name: "Sonoma Raceway" })).body;
+    const tb = (await b.api("POST", "/tracks", { name: "Sonoma Raceway" })).body;
+    expect(ta.id).not.toBe(tb.id);
+    expect(ta.catalog_id).toBe(tb.catalog_id);
+  });
+
+  it("re-matches the catalog when a track is renamed", async () => {
+    const { api } = await signedInUser();
+    const { body: track } = await api("POST", "/tracks", { name: "Rd Atlanta" });
+    expect(track.catalog_id).toBeNull();
+
+    await api("PUT", `/tracks/${track.id}`, { name: "Road Atlanta" });
+    expect((await api("GET", "/tracks")).body[0].catalog_id).toBeTypeOf("number");
+
+    await api("PUT", `/tracks/${track.id}`, { name: "Rd Atlanta again" });
+    expect((await api("GET", "/tracks")).body[0].catalog_id).toBeNull();
+  });
+
+  it("does not touch catalog_id on goal/notes/config updates", async () => {
+    const { api } = await signedInUser();
+    const { body: track } = await api("POST", "/tracks", { name: "Road Atlanta" });
+    await api("PUT", `/tracks/${track.id}`, { goal_ms: 95000, notes: "n", config: "CCW" });
+    expect((await api("GET", "/tracks")).body[0].catalog_id).toBe(track.catalog_id);
+  });
+});

@@ -24,7 +24,9 @@ changes).
 ## Stack
 
 - **Cloudflare Workers** — serves the API (Hono) and the static frontend
-- **D1** — SQLite database (tracks → events → sessions → laps)
+- **D1** — SQLite database (tracks → events → sessions → laps; per-user tracks
+  link to a seeded canonical track catalog by name, so the same physical track
+  is identifiable across users)
 - **Google OAuth** — login; new Google accounts get their own empty workspace
 - Frontend is dependency-free vanilla JS (hash-routed SPA, SVG charts)
 

@@ -32,6 +32,17 @@ export async function ownedSession(db: D1Database, userId: number, sessionId: st
     .first<{ id: number; event_id: number }>();
 }
 
+// The canonical id for a track name, or null when the seeded track_catalog
+// doesn't know it. The catalog gives the same physical track a stable identity
+// across users; user tracks stay free-text and per-user.
+export async function catalogIdForName(db: D1Database, name: string): Promise<number | null> {
+  const row = await db
+    .prepare("SELECT id FROM track_catalog WHERE name = ? COLLATE NOCASE")
+    .bind(name)
+    .first<{ id: number }>();
+  return row ? row.id : null;
+}
+
 // Resolve a track by id, or find-or-create by (name, config) — both COLLATE
 // NOCASE. Config is part of the track identity: "VIR / Full" and "VIR /
 // Patriot" are separate tracks so bests and goals never mix.
@@ -58,8 +69,10 @@ export async function resolveTrack(
     .first<{ id: number }>();
   if (existing) return existing.id;
   const created = await db
-    .prepare("INSERT INTO tracks (user_id, name, config) VALUES (?, ?, ?) RETURNING id")
-    .bind(userId, name, config)
+    .prepare(
+      "INSERT INTO tracks (user_id, name, config, catalog_id) VALUES (?, ?, ?, ?) RETURNING id"
+    )
+    .bind(userId, name, config, await catalogIdForName(db, name))
     .first<{ id: number }>();
   return created!.id;
 }
@@ -86,9 +99,18 @@ export async function listEvents(db: D1Database, userId: number, trackId?: strin
 export async function tracksSummary(db: D1Database, userId: number) {
   const tracks = (
     await db
-      .prepare("SELECT id, name, config, goal_ms, notes FROM tracks WHERE user_id = ? ORDER BY name, config")
+      .prepare(
+        "SELECT id, name, config, goal_ms, notes, catalog_id FROM tracks WHERE user_id = ? ORDER BY name, config"
+      )
       .bind(userId)
-      .all<{ id: number; name: string; config: string; goal_ms: number | null; notes: string | null }>()
+      .all<{
+        id: number;
+        name: string;
+        config: string;
+        goal_ms: number | null;
+        notes: string | null;
+        catalog_id: number | null;
+      }>()
   ).results;
   const events = (
     await db
