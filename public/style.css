@@ -228,13 +228,17 @@ header.topbar {
 .app-logo.lg { width: 56px; height: 56px; }
 .topbar .brand:hover { opacity: 1; }
 .topbar .spacer { flex: 1; }
-.topbar img.avatar {
+.topbar .avatar {
   width: 28px; height: 28px; border-radius: var(--radius-pill);
   border: 1px solid var(--border-hairline);
 }
-.topbar .who { color: var(--text-body); font-size: var(--fs-sm); }
+.topbar .avatar-fallback {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-raised); color: var(--text-body);
+  font-size: var(--fs-sm); font-weight: 600;
+}
 
-/* User menu (avatar + name → theme & sign out) */
+/* User menu (avatar → who, theme & sign out) */
 .user-menu { position: relative; }
 .user-trigger {
   display: inline-flex; align-items: center; gap: 9px;
@@ -251,6 +255,11 @@ header.topbar {
   min-width: 210px; padding: 6px;
   background: var(--surface-raised); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-pop);
+}
+.menu-who {
+  padding: 7px 10px; max-width: 260px;
+  font-size: var(--fs-sm); color: var(--text-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .menu-row {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;

@@ -197,12 +197,18 @@ function shell(content) {
         <a class="brand" href="#/">${appLogoHtml()} Track Evolution</a>
         <span class="spacer"></span>
         <div class="user-menu">
-          <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false">
-            ${me?.picture ? `<img class="avatar" src="${esc(me.picture)}" alt="">` : ""}
-            <span class="who">${esc(me?.name || me?.email || "")}</span>
+          <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false"
+            aria-label="Account menu — ${esc(me?.name || me?.email || "")}">
+            ${
+              me?.picture
+                ? `<img class="avatar" src="${esc(me.picture)}" alt="">`
+                : `<span class="avatar avatar-fallback" aria-hidden="true">${esc((me?.name || me?.email || "?").trim().charAt(0).toUpperCase())}</span>`
+            }
             <span class="caret" aria-hidden="true">▾</span>
           </button>
           <div class="menu" id="user-dropdown" hidden>
+            <div class="menu-who">${esc(me?.name || me?.email || "")}</div>
+            <div class="menu-sep"></div>
             <div class="menu-row">
               <span class="menu-label">Theme</span>
               ${themeToggleHtml()}
