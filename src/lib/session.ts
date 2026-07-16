@@ -26,6 +26,19 @@ export async function sessionUserId(db: D1Database, token: string): Promise<numb
   return row ? row.user_id : null;
 }
 
+// Extracts the token from an "Authorization: Bearer <token>" header value.
+export function bearerToken(header: string | undefined): string | null {
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim() || null;
+}
+
+// PKCE S256: base64url(SHA-256(input)) with no padding.
+export async function sha256Base64Url(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  const bytes = String.fromCharCode(...new Uint8Array(digest));
+  return btoa(bytes).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
 export function sessionCookieOptions(url: string) {
   return {
     httpOnly: true,

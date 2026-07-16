@@ -4,6 +4,7 @@ export type Env = {
   DB: D1Database;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  IOS_APP_ID?: string;
   DEV_MODE?: string;
   DEV_USER_EMAIL?: string;
   DEV_USER_NAME?: string;
