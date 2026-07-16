@@ -23,6 +23,13 @@ describe("POST /api/tracks", () => {
     expect((await a.api("POST", "/tracks", { name: "VIR Full" })).status).toBe(409);
     expect((await b.api("POST", "/tracks", { name: "VIR Full" })).status).toBe(201);
   });
+
+  it("rejects duplicates that differ only by case", async () => {
+    const { api } = await signedInUser();
+    expect((await api("POST", "/tracks", { name: "VIR", config: "Full" })).status).toBe(201);
+    expect((await api("POST", "/tracks", { name: "vir", config: "FULL" })).status).toBe(409);
+    expect((await api("POST", "/tracks", { name: "VIR FULL" })).status).toBe(201);
+  });
 });
 
 describe("GET /api/tracks", () => {
@@ -143,6 +150,8 @@ describe("track configurations", () => {
     expect((await api("POST", "/tracks", { name: "VIR", config: "Full" })).status).toBe(409);
     const { body: patriot } = await api("POST", "/tracks", { name: "VIR", config: "Patriot" });
     expect((await api("PUT", `/tracks/${patriot.id}`, { config: "Full" })).status).toBe(409);
+    // …including when the rename only differs from an existing track by case
+    expect((await api("PUT", `/tracks/${patriot.id}`, { config: "full" })).status).toBe(409);
   });
 
   it("updates config and course notes", async () => {
