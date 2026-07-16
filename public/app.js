@@ -463,7 +463,7 @@ async function viewTrack(trackId, params) {
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
     <div class="btn-row">
-      <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}&config=${encodeURIComponent(track.config || "")}">+ Add event at ${esc(label)}</a>
+      <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}&config=${encodeURIComponent(track.config || "")}">+ Add event</a>
       ${shareBtn}
       <span id="track-msg" class="goal-msg"></span>
     </div>
