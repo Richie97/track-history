@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Track Evolution</string>
+    <string name="title_activity_main">Track Evolution</string>
+    <string name="package_name">app.trackevolution</string>
+    <string name="custom_url_scheme">app.trackevolution</string>
+</resources>

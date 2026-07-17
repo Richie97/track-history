@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links: https://trackevolution.app/share/* opens in the app.
+	     Requires the matching apple-app-site-association served by the Worker
+	     (src/routes/wellKnown.ts) with the real Team ID in IOS_APP_ID. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:trackevolution.app</string>
+	</array>
+</dict>
+</plist>

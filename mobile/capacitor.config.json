@@ -1,0 +1,15 @@
+{
+  "appId": "app.trackevolution",
+  "appName": "Track Evolution",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#0a0a0b"
+    }
+  }
+}
