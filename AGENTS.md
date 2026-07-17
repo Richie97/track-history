@@ -63,7 +63,8 @@ not a follow-up:**
      share-page privacy. Update when the data model or stats rules change.
    - `site/docs/privacy.html` and `site/docs/terms.html` — privacy policy and
      terms of use (operator: Speedshift LLC). The app footer (`footerHtml()` in
-     `public/app.js`) links to them. Update the privacy policy when data
+     `public/app.js`) links to them on the web; the native apps render no
+     footer at all. Update the privacy policy when data
      collection, storage, or sharing behavior changes, and bump the effective
      date on any substantive edit.
    - **The site is written for users, not developers** — keep implementation

@@ -164,6 +164,10 @@ function startTipRotator() {
 }
 
 function footerHtml() {
+  // The native apps skip the footer entirely: its links (privacy/terms, repo,
+  // tip jar — the latter barred on iOS by Apple guideline 3.1.1, and the rest
+  // web-oriented chrome) don't belong in an app screen.
+  if (platform.native) return "";
   startTipRotator();
   return `<footer class="site-footer">
     <span class="footer-left">
@@ -175,14 +179,9 @@ function footerHtml() {
         Contribute ↗
       </a>
     </span>
-    ${
-      // Apple guideline 3.1.1: no external payment links in the iOS app.
-      platform.native && platform.os === "ios"
-        ? ""
-        : `<a class="tip-btn" href="${TIP_URL}" target="_blank" rel="noopener">
+    <a class="tip-btn" href="${TIP_URL}" target="_blank" rel="noopener">
       Buy me <span class="tip-blank">${TIP_ITEMS[tipIdx]}</span>
-    </a>`
-    }
+    </a>
     <a class="ss-credit" href="https://speedshift.io" target="_blank" rel="noopener">
       Built by <span class="ss-mark">${SS_LOGO} <span class="ss-wordmark">Speedshift</span></span>
     </a>
