@@ -72,10 +72,13 @@ export async function resolveTrack(
   return created!.id;
 }
 
+// Totals count past events only — an upcoming event isn't a track day driven
+// yet. Matches the frontend's isUpcoming (start_date strictly after today,
+// both in UTC), so an event counts from its start date onward.
 export async function userTotals(db: D1Database, userId: number) {
   return db
     .prepare(
-      "SELECT COUNT(*) AS events, COALESCE(SUM(days), 0) AS track_days FROM events WHERE user_id = ?"
+      "SELECT COUNT(*) AS events, COALESCE(SUM(days), 0) AS track_days FROM events WHERE user_id = ? AND start_date <= date('now')"
     )
     .bind(userId)
     .first();
@@ -91,6 +94,8 @@ export async function listEvents(db: D1Database, userId: number, trackId?: strin
 }
 
 // Tracks with per-track aggregates and a best-per-event sparkline series.
+// Aggregates cover past events only (same rule as userTotals) — upcoming
+// events live in the dashboard's upcoming section, not the tracks list.
 export async function tracksSummary(db: D1Database, userId: number) {
   const tracks = (
     await db
@@ -108,7 +113,7 @@ export async function tracksSummary(db: D1Database, userId: number) {
   ).results;
   const events = (
     await db
-      .prepare(`${EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.start_date ASC`)
+      .prepare(`${EVENT_SELECT} WHERE e.user_id = ? AND e.start_date <= date('now') ORDER BY e.start_date ASC`)
       .bind(userId)
       .all<EventRow>()
   ).results.map(withComputed);

@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { apiClient, createUser, sessionFor, signedInUser } from "./helpers";
+import { apiClient, createEvent, createUser, sessionFor, signedInUser } from "./helpers";
 
 describe("API auth middleware", () => {
   it("rejects requests without a session cookie", async () => {
@@ -27,6 +27,14 @@ describe("API auth middleware", () => {
     expect(res.status).toBe(200);
     expect(res.body.user.email).toBe(email);
     expect(res.body.totals).toEqual({ events: 0, track_days: 0 });
+  });
+
+  it("counts only past events (including today) in the totals", async () => {
+    const { api } = await signedInUser();
+    const iso = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    await createEvent(api, { start_date: iso(0), days: 1 }); // today has started — counts
+    await createEvent(api, { start_date: iso(30), days: 2 }); // upcoming — doesn't
+    expect((await api("GET", "/me")).body.totals).toEqual({ events: 1, track_days: 1 });
   });
 });
 
