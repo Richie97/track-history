@@ -811,3 +811,42 @@ button.ch-chip.on { background: var(--surface-raised); }
   display: inline-block; width: 10px; height: 10px; border-radius: 3px;
   vertical-align: baseline; margin-right: 2px;
 }
+
+/* ---------- Pull-to-refresh (touch only — see js/pull-refresh.js) ---------- */
+/* Our gesture replaces the browser's native pull-to-refresh at the top edge. */
+html { overscroll-behavior-y: contain; }
+
+.ptr {
+  position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0;
+  height: 0; z-index: 40; pointer-events: none;
+}
+.ptr-pill {
+  width: 72px; height: 36px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 999px; overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  box-shadow: 0 8px 24px var(--shadow-color);
+  opacity: 0; transform: translateY(-56px);
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.ptr.armed .ptr-pill { border-color: var(--accent-ring); }
+.ptr-mark { display: block; transition: transform 0.15s ease; }
+.ptr-mark svg { display: block; height: 16px; width: auto; }
+.ptr.armed .ptr-mark { transform: scale(1.18); }
+.ptr.refreshing .ptr-mark { animation: ptr-sweep 0.9s ease-in-out infinite; }
+
+/* The refresh state: the chevron sweeps across the pill, left to right. */
+@keyframes ptr-sweep {
+  0%   { transform: translateX(-30px); opacity: 0; }
+  25%  { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { transform: translateX(30px); opacity: 0; }
+}
+@keyframes ptr-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ptr.refreshing .ptr-mark { animation: ptr-pulse 1.2s ease-in-out infinite; }
+}
