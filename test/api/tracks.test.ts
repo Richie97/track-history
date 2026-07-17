@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { apiClient, createEvent, signedInUser } from "./helpers";
 
+const isoInDays = (days: number) =>
+  new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
 describe("POST /api/tracks", () => {
   it("creates a track", async () => {
     const { api } = await signedInUser();
@@ -44,6 +47,30 @@ describe("GET /api/tracks", () => {
       { date: "2026-04-01", best_ms: 125000 },
       { date: "2026-05-01", best_ms: 121000 },
     ]);
+  });
+
+  it("excludes upcoming events from aggregates and the sparkline series", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "Test Ring", start_date: "2026-05-01", best_time_ms: 121000, days: 2 });
+    await createEvent(api, { track_name: "Test Ring", start_date: isoInDays(30), best_time_ms: 119000, days: 3 });
+
+    const t = (await api("GET", "/tracks")).body[0];
+    expect(t.event_count).toBe(1);
+    expect(t.track_days).toBe(2);
+    expect(t.best_ms).toBe(121000);
+    expect(t.last_date).toBe("2026-05-01");
+    expect(t.series).toEqual([{ date: "2026-05-01", best_ms: 121000 }]);
+  });
+
+  it("shows zero-event aggregates for a track with only upcoming events", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "Future Ring", start_date: isoInDays(14) });
+    const t = (await api("GET", "/tracks")).body[0];
+    expect(t.event_count).toBe(0);
+    expect(t.track_days).toBe(0);
+    expect(t.best_ms).toBeNull();
+    expect(t.last_date).toBeNull();
+    expect(t.series).toEqual([]);
   });
 
   it("only returns the caller's tracks", async () => {
