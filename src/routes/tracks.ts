@@ -9,16 +9,24 @@ tracks.get("/tracks", async (c) => {
   return c.json(await tracksSummary(c.env.DB, c.get("userId")));
 });
 
+// The seeded track catalog — backs the track-name suggestions in the event form.
+tracks.get("/catalog", async (c) => {
+  const rows = await c.env.DB.prepare("SELECT id, name FROM track_catalog ORDER BY name").all<{
+    id: number;
+    name: string;
+  }>();
+  return c.json(rows.results);
+});
+
 tracks.post("/tracks", async (c) => {
-  const body = await c.req.json<{ name?: string; config?: string }>();
+  const body = await c.req.json<{ name?: string }>();
   const name = body.name?.trim();
   if (!name) return c.json({ error: "name required" }, 400);
-  const config = (body.config ?? "").trim();
   try {
     const row = await c.env.DB.prepare(
-      "INSERT INTO tracks (user_id, name, config, catalog_id) VALUES (?, ?, ?, ?) RETURNING id, name, config, catalog_id"
+      "INSERT INTO tracks (user_id, name, catalog_id) VALUES (?, ?, ?) RETURNING id, name, catalog_id"
     )
-      .bind(c.get("userId"), name, config, await catalogIdForName(c.env.DB, name))
+      .bind(c.get("userId"), name, await catalogIdForName(c.env.DB, name))
       .first();
     return c.json(row, 201);
   } catch {
@@ -29,7 +37,6 @@ tracks.post("/tracks", async (c) => {
 tracks.put("/tracks/:id", async (c) => {
   const body = await c.req.json<{
     name?: string;
-    config?: string;
     notes?: string | null;
     goal_ms?: number | null;
   }>();
@@ -43,10 +50,6 @@ tracks.put("/tracks/:id", async (c) => {
     // Renaming can change which canonical track this is — re-match the catalog.
     sets.push("catalog_id = ?");
     binds.push(await catalogIdForName(c.env.DB, name));
-  }
-  if (body.config !== undefined) {
-    sets.push("config = ?");
-    binds.push((body.config ?? "").trim());
   }
   if ("notes" in body) {
     sets.push("notes = ?");
@@ -67,8 +70,8 @@ tracks.put("/tracks/:id", async (c) => {
       .run();
     if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   } catch {
-    // UNIQUE(user_id, name, config) — the new name/config collides with another track.
-    return c.json({ error: "a track with that name and configuration already exists" }, 409);
+    // UNIQUE(user_id, name) — the new name collides with another track.
+    return c.json({ error: "a track with that name already exists" }, 409);
   }
   return c.json({ ok: true });
 });

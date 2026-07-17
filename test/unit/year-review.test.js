@@ -3,8 +3,7 @@ import { yearReview, yearsAvailable } from "../../public/js/year-review.js";
 
 const ev = (over) => ({
   track_id: 1,
-  track_name: "VIR",
-  track_config: "Full",
+  track_name: "VIR Full",
   start_date: "2025-06-01",
   days: 2,
   best_ms: 121000,
@@ -56,7 +55,7 @@ describe("yearReview", () => {
   it("marks tracks with no prior baseline as new (gain_ms null)", () => {
     const events = [ev({ start_date: "2025-05-01", best_ms: 121000 })];
     const r = yearReview(events, 2025);
-    expect(r.new_tracks).toEqual([{ track_id: 1, track_name: "VIR", track_config: "Full" }]);
+    expect(r.new_tracks).toEqual([{ track_id: 1, track_name: "VIR Full" }]);
     expect(r.gains[0].gain_ms).toBeNull();
     expect(r.gains[0].best_before).toBeNull();
   });

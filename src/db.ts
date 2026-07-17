@@ -5,7 +5,7 @@
 import { type EventRow, withComputed } from "./lib/stats";
 
 export const EVENT_SELECT = `
-  SELECT e.id, e.track_id, t.name AS track_name, t.config AS track_config,
+  SELECT e.id, e.track_id, t.name AS track_name,
          e.start_date, e.days, e.club, e.run_group, e.car, e.notes,
          e.conditions, e.temp_f, e.checklist, e.best_time_ms,
     (SELECT MIN(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_best_ms,
@@ -43,13 +43,13 @@ export async function catalogIdForName(db: D1Database, name: string): Promise<nu
   return row ? row.id : null;
 }
 
-// Resolve a track by id, or find-or-create by (name, config) — both COLLATE
-// NOCASE. Config is part of the track identity: "VIR / Full" and "VIR /
-// Patriot" are separate tracks so bests and goals never mix.
+// Resolve a track by id, or find-or-create by name (COLLATE NOCASE). The name
+// carries the layout ("VIR Full" vs "VIR Patriot") — different layouts are
+// separate tracks so bests and goals never mix.
 export async function resolveTrack(
   db: D1Database,
   userId: number,
-  body: { track_id?: number; track_name?: string; track_config?: string }
+  body: { track_id?: number; track_name?: string }
 ): Promise<number | null> {
   if (body.track_id) {
     const t = await db
@@ -60,19 +60,14 @@ export async function resolveTrack(
   }
   const name = body.track_name?.trim();
   if (!name) return null;
-  const config = (body.track_config ?? "").trim();
   const existing = await db
-    .prepare(
-      "SELECT id FROM tracks WHERE user_id = ? AND name = ? COLLATE NOCASE AND config = ? COLLATE NOCASE"
-    )
-    .bind(userId, name, config)
+    .prepare("SELECT id FROM tracks WHERE user_id = ? AND name = ? COLLATE NOCASE")
+    .bind(userId, name)
     .first<{ id: number }>();
   if (existing) return existing.id;
   const created = await db
-    .prepare(
-      "INSERT INTO tracks (user_id, name, config, catalog_id) VALUES (?, ?, ?, ?) RETURNING id"
-    )
-    .bind(userId, name, config, await catalogIdForName(db, name))
+    .prepare("INSERT INTO tracks (user_id, name, catalog_id) VALUES (?, ?, ?) RETURNING id")
+    .bind(userId, name, await catalogIdForName(db, name))
     .first<{ id: number }>();
   return created!.id;
 }
@@ -100,13 +95,12 @@ export async function tracksSummary(db: D1Database, userId: number) {
   const tracks = (
     await db
       .prepare(
-        "SELECT id, name, config, goal_ms, notes, catalog_id FROM tracks WHERE user_id = ? ORDER BY name, config"
+        "SELECT id, name, goal_ms, notes, catalog_id FROM tracks WHERE user_id = ? ORDER BY name"
       )
       .bind(userId)
       .all<{
         id: number;
         name: string;
-        config: string;
         goal_ms: number | null;
         notes: string | null;
         catalog_id: number | null;

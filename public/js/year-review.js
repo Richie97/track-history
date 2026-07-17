@@ -1,5 +1,5 @@
 // Year-in-review computation over computed event rows — pure, unit-testable.
-// Events are the /api/events shape: { track_id, track_name, track_config,
+// Events are the /api/events shape: { track_id, track_name,
 // start_date (yyyy-mm-dd), days, best_ms, lap_count, ... } in any order.
 
 export const eventYear = (e) => Number(e.start_date.slice(0, 4));
@@ -30,7 +30,6 @@ export function yearReview(events, year) {
     gains.push({
       track_id: id,
       track_name: sample.track_name,
-      track_config: sample.track_config ?? "",
       best_this_year: bestThisYear,
       best_before: bestBefore,
       // null when there's no prior baseline (first year at this track)
@@ -48,7 +47,7 @@ export function yearReview(events, year) {
     new_tracks: [...trackIds]
       .filter((id) => !priorTrackIds.has(id))
       .map((id) => inYear.find((e) => e.track_id === id))
-      .map((e) => ({ track_id: e.track_id, track_name: e.track_name, track_config: e.track_config ?? "" })),
+      .map((e) => ({ track_id: e.track_id, track_name: e.track_name })),
     gains,
   };
 }
