@@ -12,6 +12,7 @@ import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
+import { initPullRefresh } from "./js/pull-refresh.js";
 
 const $app = document.getElementById("app");
 
@@ -1373,3 +1374,17 @@ if (SHARE_SLUG) {
   });
   route();
 }
+
+// Pull-to-refresh (touch devices): re-run the current route's fetches in
+// place — no skeleton, same as the post-edit refreshes. On share pages the
+// cached payload is dropped so the pull re-fetches, not just re-renders.
+initPullRefresh({
+  chevronHtml: ssBars("", "var(--accent-ink)"),
+  onRefresh: () => {
+    if (SHARE_SLUG) {
+      shareData = null;
+      return shareRoute();
+    }
+    return route();
+  },
+});
