@@ -26,7 +26,12 @@ const lines = [
 
 const trackId = new Map(TRACKS.map((name, i) => [name, i + 1]));
 for (const [name, id] of trackId) {
-  lines.push(`INSERT INTO tracks (id, user_id, name) VALUES (${id}, 1, ${q(name)});`);
+  // Seeding runs after migrations, so link to the canonical catalog inline
+  // (the migration's backfill has already run by then).
+  lines.push(
+    `INSERT INTO tracks (id, user_id, name, catalog_id) VALUES (${id}, 1, ${q(name)}, ` +
+      `(SELECT c.id FROM track_catalog c WHERE c.name = ${q(name)} COLLATE NOCASE));`
+  );
 }
 
 let sessionId = 0;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEvent, signedInUser } from "./helpers";
+import { apiClient, createEvent, signedInUser } from "./helpers";
 
 describe("POST /api/tracks", () => {
   it("creates a track", async () => {
@@ -116,56 +116,135 @@ describe("DELETE /api/tracks/:id", () => {
   });
 });
 
-describe("track configurations", () => {
-  it("treats the same name with different configs as separate tracks", async () => {
+describe("track identity by name", () => {
+  it("treats different layout names as separate tracks", async () => {
     const { api } = await signedInUser();
-    await createEvent(api, { track_name: "VIR", track_config: "Full", best_time_ms: 121000 });
-    await createEvent(api, { track_name: "VIR", track_config: "Patriot", best_time_ms: 80000 });
+    await createEvent(api, { track_name: "VIR Full", best_time_ms: 121000 });
+    await createEvent(api, { track_name: "VIR Patriot", best_time_ms: 80000 });
 
     const tracks = (await api("GET", "/tracks")).body;
     expect(tracks).toHaveLength(2);
-    expect(tracks.map((t: any) => t.config).sort()).toEqual(["Full", "Patriot"]);
-    // Bests must not bleed across configs
-    const full = tracks.find((t: any) => t.config === "Full");
+    expect(tracks.map((t: any) => t.name).sort()).toEqual(["VIR Full", "VIR Patriot"]);
+    // Bests must not bleed across layouts
+    const full = tracks.find((t: any) => t.name === "VIR Full");
     expect(full.best_ms).toBe(121000);
   });
 
-  it("find-or-create matches config case-insensitively", async () => {
+  it("find-or-create matches names case-insensitively", async () => {
     const { api } = await signedInUser();
-    await createEvent(api, { track_name: "VIR", track_config: "Full" });
-    await createEvent(api, { track_name: "vir", track_config: "FULL" });
+    await createEvent(api, { track_name: "VIR Full" });
+    await createEvent(api, { track_name: "vir full" });
     expect((await api("GET", "/tracks")).body).toHaveLength(1);
   });
 
-  it("rejects duplicate (name, config) on create and update", async () => {
+  it("rejects a rename that collides with another track", async () => {
     const { api } = await signedInUser();
-    expect((await api("POST", "/tracks", { name: "VIR", config: "Full" })).status).toBe(201);
-    expect((await api("POST", "/tracks", { name: "VIR", config: "Full" })).status).toBe(409);
-    const { body: patriot } = await api("POST", "/tracks", { name: "VIR", config: "Patriot" });
-    expect((await api("PUT", `/tracks/${patriot.id}`, { config: "Full" })).status).toBe(409);
+    await api("POST", "/tracks", { name: "VIR Full" });
+    const { body: patriot } = await api("POST", "/tracks", { name: "VIR Patriot" });
+    expect((await api("PUT", `/tracks/${patriot.id}`, { name: "VIR Full" })).status).toBe(409);
   });
 
-  it("updates config and course notes", async () => {
+  it("updates course notes", async () => {
     const { api } = await signedInUser();
-    const { body: track } = await api("POST", "/tracks", { name: "VIR" });
-    const res = await api("PUT", `/tracks/${track.id}`, { config: "Full", notes: "T1: brake at the 300 board" });
+    const { body: track } = await api("POST", "/tracks", { name: "VIR Full" });
+    const res = await api("PUT", `/tracks/${track.id}`, { notes: "T1: brake at the 300 board" });
     expect(res.status).toBe(200);
-    const t = (await api("GET", "/tracks")).body[0];
-    expect(t.config).toBe("Full");
-    expect(t.notes).toBe("T1: brake at the 300 board");
+    expect((await api("GET", "/tracks")).body[0].notes).toBe("T1: brake at the 300 board");
   });
 
   it("clears course notes with empty/null", async () => {
     const { api } = await signedInUser();
-    const { body: track } = await api("POST", "/tracks", { name: "VIR" });
+    const { body: track } = await api("POST", "/tracks", { name: "VIR Full" });
     await api("PUT", `/tracks/${track.id}`, { notes: "something" });
     await api("PUT", `/tracks/${track.id}`, { notes: null });
     expect((await api("GET", "/tracks")).body[0].notes).toBeNull();
   });
 
-  it("events expose the track config", async () => {
+  it("events expose the track name", async () => {
     const { api } = await signedInUser();
-    const id = await createEvent(api, { track_name: "VIR", track_config: "Full" });
-    expect((await api("GET", `/events/${id}`)).body.track_config).toBe("Full");
+    const id = await createEvent(api, { track_name: "VIR Full" });
+    expect((await api("GET", `/events/${id}`)).body.track_name).toBe("VIR Full");
+  });
+});
+
+describe("track catalog", () => {
+  it("links a created track to its catalog entry by name", async () => {
+    const { api } = await signedInUser();
+    const { body } = await api("POST", "/tracks", { name: "Road Atlanta" });
+    expect(body.catalog_id).toBeTypeOf("number");
+  });
+
+  it("matches catalog names case-insensitively", async () => {
+    const { api } = await signedInUser();
+    const exact = (await api("POST", "/tracks", { name: "Road Atlanta" })).body;
+    const lower = (await api("POST", "/tracks", { name: "ROAD ATLANTA" })).body;
+    expect(lower.catalog_id).toBe(exact.catalog_id);
+  });
+
+  it("leaves catalog_id null for tracks the catalog does not know", async () => {
+    const { api } = await signedInUser();
+    const { body } = await api("POST", "/tracks", { name: "My Backyard Kart Track" });
+    expect(body.catalog_id).toBeNull();
+  });
+
+  it("links tracks find-or-created through events", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "Watkins Glen International" });
+    await createEvent(api, { track_name: "Test Ring" });
+    const tracks = (await api("GET", "/tracks")).body;
+    const glen = tracks.find((t: any) => t.name === "Watkins Glen International");
+    const ring = tracks.find((t: any) => t.name === "Test Ring");
+    expect(glen.catalog_id).toBeTypeOf("number");
+    expect(ring.catalog_id).toBeNull();
+  });
+
+  it("gives the same catalog_id to different users' copies of a track", async () => {
+    const a = await signedInUser();
+    const b = await signedInUser();
+    const ta = (await a.api("POST", "/tracks", { name: "Sonoma Raceway" })).body;
+    const tb = (await b.api("POST", "/tracks", { name: "Sonoma Raceway" })).body;
+    expect(ta.id).not.toBe(tb.id);
+    expect(ta.catalog_id).toBe(tb.catalog_id);
+  });
+
+  it("re-matches the catalog when a track is renamed", async () => {
+    const { api } = await signedInUser();
+    const { body: track } = await api("POST", "/tracks", { name: "Rd Atlanta" });
+    expect(track.catalog_id).toBeNull();
+
+    await api("PUT", `/tracks/${track.id}`, { name: "Road Atlanta" });
+    expect((await api("GET", "/tracks")).body[0].catalog_id).toBeTypeOf("number");
+
+    await api("PUT", `/tracks/${track.id}`, { name: "Rd Atlanta again" });
+    expect((await api("GET", "/tracks")).body[0].catalog_id).toBeNull();
+  });
+
+  it("does not touch catalog_id on goal/notes updates", async () => {
+    const { api } = await signedInUser();
+    const { body: track } = await api("POST", "/tracks", { name: "Road Atlanta" });
+    await api("PUT", `/tracks/${track.id}`, { goal_ms: 95000, notes: "n" });
+    expect((await api("GET", "/tracks")).body[0].catalog_id).toBe(track.catalog_id);
+  });
+});
+
+describe("GET /api/catalog", () => {
+  it("returns the seeded catalog for the track-name suggestions", async () => {
+    const { api } = await signedInUser();
+    const res = await api("GET", "/catalog");
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThan(50);
+    expect(res.body.map((t: any) => t.name)).toContain("Road Atlanta");
+    expect(res.body[0].id).toBeTypeOf("number");
+    // Layout entries are spelled out, not abbreviated (renamed in 0009).
+    const names = res.body.map((t: any) => t.name);
+    expect(names).toContain("Virginia International Raceway (Full)");
+    expect(names).toContain("Virginia International Raceway (North)");
+    expect(names).toContain("Virginia International Raceway (South)");
+    expect(names).not.toContain("VIR Full");
+  });
+
+  it("requires a session", async () => {
+    const res = await apiClient()("GET", "/catalog");
+    expect(res.status).toBe(401);
   });
 });

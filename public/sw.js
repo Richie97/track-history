@@ -29,7 +29,6 @@ const SHELL = [
   "/js/platform.js",
   "/js/theme.js",
   "/js/trackmap.js",
-  "/js/us-tracks.js",
   "/js/year-review.js",
   "/js/import/channels.js",
   "/js/import/geo.js",

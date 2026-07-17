@@ -5,7 +5,6 @@ const base: EventRow = {
   id: 1,
   track_id: 1,
   track_name: "Test Ring",
-  track_config: "",
   start_date: "2026-05-01",
   days: 1,
   club: null,
