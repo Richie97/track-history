@@ -1,5 +1,6 @@
 -- Remove per-track configurations: the layout now lives in the track name
--- ("VIR Full", "VIR Patriot"), the same way the track catalog names layouts.
+-- ("Virginia International Raceway (Full)"), the same way the track catalog
+-- names layouts.
 -- Existing rows with a config get it folded into the name ("VIR" + "Patriot" →
 -- "VIR — Patriot") so no timing context is lost; tracks that collapse to the
 -- same name are merged — the lowest id survives (keeping its goal/notes) and

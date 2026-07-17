@@ -235,6 +235,12 @@ describe("GET /api/catalog", () => {
     expect(res.body.length).toBeGreaterThan(50);
     expect(res.body.map((t: any) => t.name)).toContain("Road Atlanta");
     expect(res.body[0].id).toBeTypeOf("number");
+    // Layout entries are spelled out, not abbreviated (renamed in 0009).
+    const names = res.body.map((t: any) => t.name);
+    expect(names).toContain("Virginia International Raceway (Full)");
+    expect(names).toContain("Virginia International Raceway (North)");
+    expect(names).toContain("Virginia International Raceway (South)");
+    expect(names).not.toContain("VIR Full");
   });
 
   it("requires a session", async () => {

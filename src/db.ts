@@ -44,8 +44,8 @@ export async function catalogIdForName(db: D1Database, name: string): Promise<nu
 }
 
 // Resolve a track by id, or find-or-create by name (COLLATE NOCASE). The name
-// carries the layout ("VIR Full" vs "VIR Patriot") — different layouts are
-// separate tracks so bests and goals never mix.
+// carries the layout ("Virginia International Raceway (Full)" vs "(Patriot)")
+// — different layouts are separate tracks so bests and goals never mix.
 export async function resolveTrack(
   db: D1Database,
   userId: number,

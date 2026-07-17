@@ -927,10 +927,10 @@ async function viewEventForm(eventId, presetTrack) {
           <div class="combo">
             <input name="track" required autocomplete="off" role="combobox" aria-expanded="false"
               aria-autocomplete="list" aria-controls="track-combo-list"
-              value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="VIR Full">
+              value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="Virginia International Raceway (Full)">
             <div class="combo-list" id="track-combo-list" role="listbox" hidden></div>
           </div>
-          <div class="hint">Pick from your tracks and known US tracks, or type a new name — layouts time differently, so name them separately ("VIR Full" vs "VIR Patriot") to keep PBs honest</div>
+          <div class="hint">Pick from your tracks and known US tracks, or type a new name — layouts time differently, so name them separately ("Virginia International Raceway (Full)" vs "(Patriot)") to keep PBs honest</div>
         </div>
         <div class="field"><label>Start date</label>
           <input name="start_date" type="date" required value="${esc(existing?.start_date ?? new Date().toISOString().slice(0, 10))}">
