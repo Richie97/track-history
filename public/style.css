@@ -199,9 +199,14 @@ a:hover { opacity: 0.85; }
 
 :focus-visible { outline: none; box-shadow: var(--focus-shadow); }
 
-.shell {
-  max-width: var(--page-max); margin: 0 auto; padding: 0 var(--page-gutter) 60px;
+#app {
   min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column;
+}
+.shell {
+  width: 100%; max-width: var(--page-max); margin: 0 auto;
+  padding: 0 var(--page-gutter) 60px;
+  flex: 1 0 auto;
   display: flex; flex-direction: column;
 }
 .shell #view { flex: 1 0 auto; }
@@ -213,7 +218,6 @@ a:hover { opacity: 0.85; }
   padding-right: max(var(--page-gutter), env(safe-area-inset-right));
   padding-bottom: max(60px, env(safe-area-inset-bottom));
 }
-header.topbar { padding-top: max(18px, env(safe-area-inset-top)); }
 .login-wrap {
   padding-top: max(24px, env(safe-area-inset-top));
   padding-right: max(24px, env(safe-area-inset-right));
@@ -222,10 +226,19 @@ header.topbar { padding-top: max(18px, env(safe-area-inset-top)); }
 }
 
 /* ---------- Header ---------- */
+/* App bar: full-bleed, pinned to the top; the hairline spans edge to edge
+   while .topbar-inner keeps the content on the same column as .shell. */
 header.topbar {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 14px;
-  padding: 18px 0;
+  position: sticky; top: 0; z-index: 35; /* above in-content dropdowns (30), below the pull-refresh pill (40) */
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--bg-page);
   border-bottom: 1px solid var(--border-hairline);
+}
+.topbar-inner {
+  max-width: var(--page-max); margin: 0 auto;
+  padding: 10px max(var(--page-gutter), env(safe-area-inset-right))
+           10px max(var(--page-gutter), env(safe-area-inset-left));
+  display: flex; align-items: center; flex-wrap: wrap; gap: 14px;
 }
 .topbar .brand {
   display: inline-flex; align-items: center; gap: 9px;

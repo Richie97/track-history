@@ -253,8 +253,8 @@ function renderUnreachable(err) {
 function shell(content) {
   const me = state.me;
   $app.innerHTML = `
-    <div class="shell">
-      <header class="topbar">
+    <header class="topbar">
+      <div class="topbar-inner">
         <a class="brand" href="#/">${appLogoHtml()} Track Evolution</a>
         <span class="spacer"></span>
         <div class="user-menu">
@@ -278,7 +278,9 @@ function shell(content) {
             <button class="menu-item" id="logout">Sign out</button>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
+    <div class="shell">
       <div id="view">${content}</div>
       ${footerHtml()}
     </div>`;
@@ -1167,14 +1169,16 @@ let shareData = null;
 
 function shareShell(content) {
   $app.innerHTML = `
-    <div class="shell">
-      <header class="topbar">
+    <header class="topbar">
+      <div class="topbar-inner">
         <a class="brand" href="#/">${appLogoHtml()} Track Evolution</a>
         <span class="share-badge">Read-only shared view</span>
         <span class="spacer"></span>
         ${themeToggleHtml()}
         <a class="btn small" href="/">Track your own laps</a>
-      </header>
+      </div>
+    </header>
+    <div class="shell">
       <div id="view">${content}</div>
       ${footerHtml()}
     </div>`;
