@@ -25,7 +25,6 @@ const SHELL = [
   "/js/format.js",
   "/js/pdr-import.js",
   "/js/theme.js",
-  "/js/us-tracks.js",
   "/manifest.webmanifest",
   "/favicon.svg",
   "/icons/icon-192.png",

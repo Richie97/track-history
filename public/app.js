@@ -10,7 +10,6 @@ import { api as apiFetch, ApiError } from "./js/api.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
-import { US_TRACKS } from "./js/us-tracks.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
 
 const $app = document.getElementById("app");
@@ -29,9 +28,6 @@ async function api(path, opts) {
 }
 
 // ---------- shared helpers ---------------------------------------------------
-
-// Config is part of the track identity: "VIR — Full" vs "VIR — Patriot".
-const trackLabel = (name, config) => (config ? `${name} — ${config}` : name);
 
 const CONDITIONS = [
   ["dry", "☀️ Dry"],
@@ -71,7 +67,7 @@ function heroEventHtml(e) {
   return `<a class="hero-event" href="#/event/${e.id}">
     <div class="hero-main">
       <span class="hero-kicker">Next event</span>
-      <div class="hero-track">${esc(trackLabel(e.track_name, e.track_config))}</div>
+      <div class="hero-track">${esc(e.track_name)}</div>
       <div class="hero-meta">${fmtDate(e.start_date)}${e.club ? " · " + esc(e.club) : ""}${e.run_group ? " · " + esc(e.run_group) : ""}</div>
       <div class="hero-count">${fmtCountdown(e.start_date)}</div>
     </div>
@@ -281,7 +277,7 @@ async function viewDashboard() {
           ? lineChart(t.series.map((p, i) => ({ x: i, y: p.best_ms })), { width: 220, height: 44, sparkline: true }).svg
           : "";
       return `<a class="card" href="#/track/${t.id}">
-        <div class="name">${esc(trackLabel(t.name, t.config))}</div>
+        <div class="name">${esc(t.name)}</div>
         <div class="best">${fmtMs(t.best_ms)}</div>
         <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · ${fmtDate(t.last_date)}</div>
         ${spark}
@@ -298,7 +294,7 @@ async function viewDashboard() {
       const cl = e.checklist || [];
       const done = cl.filter((i) => i.done).length;
       return `<a class="card" href="#/event/${e.id}">
-        <div class="name">${esc(trackLabel(e.track_name, e.track_config))}</div>
+        <div class="name">${esc(e.track_name)}</div>
         <div class="countdown">${fmtCountdown(e.start_date)}</div>
         <div class="meta">${fmtDate(e.start_date)}${e.club ? " · " + esc(e.club) : ""}${cl.length ? ` · checklist ${done}/${cl.length}` : ""}</div>
       </a>`;
@@ -309,7 +305,7 @@ async function viewDashboard() {
     .map(
       (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
         <td class="date">${fmtDate(e.start_date)}</td>
-        <td>${esc(trackLabel(e.track_name, e.track_config))}</td>
+        <td>${esc(e.track_name)}</td>
         <td>${esc(e.club ?? "")}</td>
         <td class="num">${fmtMs(e.best_ms)}</td>
       </tr>`
@@ -457,24 +453,17 @@ async function viewTrack(trackId, params) {
     ? `<button class="btn" id="share-track">Copy share link</button>`
     : "";
 
-  const label = trackLabel(track.name, track.config);
   const view = shell(`
-    <h1>${esc(label)}</h1>
+    <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
     <div class="btn-row">
-      <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}&config=${encodeURIComponent(track.config || "")}">+ Add event at ${esc(label)}</a>
+      <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a>
       ${shareBtn}
       <span id="track-msg" class="goal-msg"></span>
     </div>
     <h2>Course notes</h2>
     <div class="panel">
-      <div class="form-grid">
-        <div class="field"><label>Configuration / layout</label>
-          <input id="track-config" value="${esc(track.config ?? "")}" placeholder="Full, Patriot, CCW…">
-          <div class="hint">Part of the track's identity — bests and goals don't mix across configs</div>
-        </div>
-      </div>
       <div class="field"><label>Notes to reread the night before</label>
         <textarea id="track-notes" rows="6" placeholder="T1: brake at the 300 board, 4th gear&#10;T5a: patience — late apex, track out over the curb…">${esc(track.notes ?? "")}</textarea>
       </div>
@@ -526,7 +515,7 @@ async function viewTrack(trackId, params) {
     try {
       await api(`/tracks/${trackId}`, {
         method: "PUT",
-        body: { config: view.querySelector("#track-config").value, notes: view.querySelector("#track-notes").value },
+        body: { notes: view.querySelector("#track-notes").value },
       });
       msg.textContent = "Saved.";
     } catch (err) {
@@ -590,7 +579,7 @@ async function viewCompare(trackId, params) {
       .join("");
 
   const view = shell(`
-    <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(trackLabel(ea.track_name, ea.track_config))}</a></p>
+    <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(ea.track_name)}</a></p>
     <h1>Lap overlay</h1>
     <p class="sub">
       <span class="swatch" style="background:var(--chart-line)"></span> <select id="cmp-a">${pickerOpts(idA)}</select>
@@ -728,7 +717,7 @@ async function viewEvent(eventId) {
         <span class="pb-trophy" aria-hidden="true">🏆</span>
         <span class="pb-kicker">New personal best${pb.goalBeaten ? " · goal beaten" : ""}</span>
         <span class="pb-time">${fmtMs(pb.ms)}</span>
-        <span class="pb-sub"><b>${fmtDelta(pb.delta).replace("+", "")}</b> faster than your previous best at ${esc(trackLabel(e.track_name, e.track_config))}${pb.goalBeaten ? ` — and under your <b>${fmtMs(track.goal_ms)}</b> goal` : ""}.</span>
+        <span class="pb-sub"><b>${fmtDelta(pb.delta).replace("+", "")}</b> faster than your previous best at ${esc(e.track_name)}${pb.goalBeaten ? ` — and under your <b>${fmtMs(track.goal_ms)}</b> goal` : ""}.</span>
         <div class="btn-row">
           <a class="btn small primary" href="#/track/${e.track_id}">${pb.goalBeaten ? "Set a new goal" : "See your progress"}</a>
           <button class="btn small ghost" id="pb-dismiss">Dismiss</button>
@@ -737,7 +726,7 @@ async function viewEvent(eventId) {
     : "";
 
   const view = shell(`
-    <h1>${esc(trackLabel(e.track_name, e.track_config))} — ${fmtDate(e.start_date)}</h1>
+    <h1>${esc(e.track_name)} — ${fmtDate(e.start_date)}</h1>
     <p class="sub">${esc([e.club, e.run_group].filter(Boolean).join(" · ") || "")}${fmtConditions(e) ? `${e.club || e.run_group ? " · " : ""}${fmtConditions(e)}` : ""}</p>
     ${pbBanner}
     ${upcoming ? `<div class="panel countdown-banner"><strong>${fmtCountdown(e.start_date)}</strong> — log sessions here once you're back from the track.</div>` : ""}
@@ -922,13 +911,13 @@ function bindTrackCombo(view, options) {
   input.addEventListener("blur", close);
 }
 
-async function viewEventForm(eventId, presetTrack, presetConfig) {
-  const tracks = await api("/tracks");
+async function viewEventForm(eventId, presetTrack) {
+  const [tracks, catalog] = await Promise.all([api("/tracks"), api("/catalog")]);
   const existing = eventId ? await api(`/events/${eventId}`) : null;
-  // User's own tracks first (deduped across configs), then common US tracks.
-  const ownNames = [...new Set(tracks.map((t) => t.name))];
+  // The user's own tracks first, then the rest of the seeded track catalog.
+  const ownNames = tracks.map((t) => t.name);
   const seen = new Set(ownNames.map((n) => n.toLowerCase()));
-  const trackOpts = [...ownNames, ...US_TRACKS.filter((n) => !seen.has(n.toLowerCase()))];
+  const trackOpts = [...ownNames, ...catalog.map((t) => t.name).filter((n) => !seen.has(n.toLowerCase()))];
 
   const view = shell(`
     <h1>${existing ? "Edit event" : "New event"}</h1>
@@ -938,14 +927,10 @@ async function viewEventForm(eventId, presetTrack, presetConfig) {
           <div class="combo">
             <input name="track" required autocomplete="off" role="combobox" aria-expanded="false"
               aria-autocomplete="list" aria-controls="track-combo-list"
-              value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="VIR Full">
+              value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="Virginia International Raceway (Full)">
             <div class="combo-list" id="track-combo-list" role="listbox" hidden></div>
           </div>
-          <div class="hint">Pick from your tracks and common US tracks, or type a new name</div>
-        </div>
-        <div class="field"><label>Configuration (optional)</label>
-          <input name="track_config" value="${esc(existing?.track_config ?? presetConfig ?? "")}" placeholder="Full, Patriot, CCW…">
-          <div class="hint">Layouts time differently — keep them separate so PBs stay honest</div>
+          <div class="hint">Pick from your tracks and known US tracks, or type a new name — layouts time differently, so name them separately ("Virginia International Raceway (Full)" vs "(Patriot)") to keep PBs honest</div>
         </div>
         <div class="field"><label>Start date</label>
           <input name="start_date" type="date" required value="${esc(existing?.start_date ?? new Date().toISOString().slice(0, 10))}">
@@ -1001,7 +986,6 @@ async function viewEventForm(eventId, presetTrack, presetConfig) {
     const tempRaw = f.temp_f.value.trim();
     const body = {
       track_name: f.track.value.trim(),
-      track_config: f.track_config.value.trim(),
       start_date: f.start_date.value,
       days: Number(f.days.value) || 1,
       club: f.club.value.trim() || null,
@@ -1051,7 +1035,7 @@ function yearReviewHtml(events, year, hashBase) {
               ? "matched PB"
               : `${fmtDelta(-g.gain_ms)} off PB`;
       return `<tr class="rowlink" data-href="#/track/${g.track_id}">
-        <td>${esc(trackLabel(g.track_name, g.track_config))}</td>
+        <td>${esc(g.track_name)}</td>
         <td class="num">${fmtMs(g.best_before)}</td>
         <td class="num">${fmtMs(g.best_this_year)}</td>
         <td>${label}</td>
@@ -1068,7 +1052,7 @@ function yearReviewHtml(events, year, hashBase) {
       <div class="tile"><div class="label">Laps logged</div><div class="value">${r.laps}</div></div>
       <div class="tile"><div class="label">Tracks visited</div><div class="value">${r.tracks_visited}</div></div>
     </div>
-    ${r.new_tracks.length ? `<p class="sub">First time at ${r.new_tracks.map((t) => `<strong>${esc(trackLabel(t.track_name, t.track_config))}</strong>`).join(", ")} 🎉</p>` : ""}
+    ${r.new_tracks.length ? `<p class="sub">First time at ${r.new_tracks.map((t) => `<strong>${esc(t.track_name)}</strong>`).join(", ")} 🎉</p>` : ""}
     ${gainRows ? `<h2>Lap time progress</h2>
     <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best before ${y}</th><th class="num">Best in ${y}</th><th></th></tr></thead>
     <tbody>${gainRows}</tbody></table></div>` : `<div class="empty">No timed events in ${y}.</div>`}
@@ -1123,7 +1107,7 @@ function shareEventRows(events, { withTrack = false } = {}) {
     .map(
       (e) => `<tr${withTrack ? ` class="rowlink" data-href="#/track/${e.track_id}"` : ""}>
         <td class="date">${fmtDate(e.start_date)}</td>
-        ${withTrack ? `<td>${esc(trackLabel(e.track_name, e.track_config))}</td>` : ""}
+        ${withTrack ? `<td>${esc(e.track_name)}</td>` : ""}
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>
         <td>${esc(e.run_group ?? "")}</td>
@@ -1149,7 +1133,7 @@ function shareDashboard() {
           ? lineChart(t.series.map((p, i) => ({ x: i, y: p.best_ms })), { width: 220, height: 44, sparkline: true }).svg
           : "";
       return `<a class="card" href="#/track/${t.id}">
-        <div class="name">${esc(trackLabel(t.name, t.config))}</div>
+        <div class="name">${esc(t.name)}</div>
         <div class="best">${fmtMs(t.best_ms)}</div>
         <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · ${fmtDate(t.last_date)}</div>
         ${spark}
@@ -1203,7 +1187,7 @@ function shareTrack(trackId) {
 
   const view = shareShell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← All tracks</a></p>
-    <h1>${esc(trackLabel(track.name, track.config))}</h1>
+    <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
     <h2>Events</h2>
@@ -1273,7 +1257,7 @@ async function route() {
     if (parts[0] === "track" && parts[1]) return await viewTrack(parts[1], params);
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
-    if (parts[0] === "new") return await viewEventForm(null, params.get("track"), params.get("config"));
+    if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
     if (parts[0] === "year") return await viewYear(params);
     viewNotFound();
   } catch (err) {

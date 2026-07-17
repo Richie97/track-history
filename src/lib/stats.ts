@@ -6,7 +6,6 @@ export type EventRow = {
   id: number;
   track_id: number;
   track_name: string;
-  track_config: string;
   start_date: string;
   days: number;
   club: string | null;

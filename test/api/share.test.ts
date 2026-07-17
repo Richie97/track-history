@@ -97,8 +97,7 @@ describe("GET /api/share/:slug privacy for new fields", () => {
   it("shares conditions but strips course notes and checklists", async () => {
     const { api } = await signedInUser();
     await createEvent(api, {
-      track_name: "VIR",
-      track_config: "Full",
+      track_name: "VIR Full",
       conditions: "dry",
       temp_f: 72,
       checklist: [{ text: "secret prep item", done: false }],
@@ -109,8 +108,8 @@ describe("GET /api/share/:slug privacy for new fields", () => {
 
     const { body } = await publicShare("fields-check");
     expect(body.events[0].conditions).toBe("dry");
-    expect(body.events[0].track_config).toBe("Full");
-    expect(body.tracks[0].config).toBe("Full");
+    expect(body.events[0].track_name).toBe("VIR Full");
+    expect(body.tracks[0].name).toBe("VIR Full");
     expect(body.events[0]).not.toHaveProperty("checklist");
     expect(body.tracks[0]).not.toHaveProperty("notes");
     const raw = JSON.stringify(body);
