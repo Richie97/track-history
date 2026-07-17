@@ -131,6 +131,20 @@ function handleAppUrl(url) {
 
 App?.addListener("appUrlOpen", ({ url }) => handleAppUrl(url));
 
+// ---------- back navigation ---------------------------------------------------
+// Android's system back gesture/button. Registering a listener replaces
+// Capacitor's default handling, so all cases are covered here: dismiss the
+// server-settings overlay if it's up, otherwise walk the hash-route history,
+// and at the root minimize the app instead of killing it. iOS never fires this
+// event — there the WKWebView edge-swipe gesture is enabled natively
+// (mobile/ios/App/App/ViewController.swift).
+App?.addListener("backButton", ({ canGoBack }) => {
+  const overlay = document.getElementById("server-overlay");
+  if (overlay) overlay.remove();
+  else if (canGoBack) history.back();
+  else App.minimizeApp();
+});
+
 // ---------- server settings ---------------------------------------------------
 // Minimal overlay (reuses the app's .panel/.btn/.field styles) to point the
 // app at a self-hosted instance. Saving clears the session and reloads.
