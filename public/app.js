@@ -225,6 +225,35 @@ function renderLogin() {
   });
 }
 
+// Rendered when the server can't be reached at all (offline, bad server URL
+// in the native app, or a server missing the app's API) — without this the
+// boot fetch failing would leave a blank page.
+function renderUnreachable(err) {
+  document.querySelector(".shell")?.remove();
+  $app.innerHTML = `
+    <div class="login-wrap">
+      <span class="login-toggle">${themeToggleHtml()}</span>
+      <div class="login-card">
+        <div class="flag">${appLogoHtml("lg")}</div>
+        <h1>Can't reach the server</h1>
+        <p>${esc(serverHost())} didn't answer${err?.message ? ` (${esc(err.message)})` : ""}. Check your connection and try again.</p>
+        <button class="btn primary" id="retry-connect">Try again</button>
+        ${
+          platform.openServerSettings
+            ? `<p class="hint" style="margin-top:12px"><a href="#" id="server-settings">Server: ${esc(serverHost())}</a></p>`
+            : ""
+        }
+        ${footerHtml()}
+      </div>
+    </div>`;
+  wireThemeToggle();
+  document.getElementById("retry-connect").onclick = () => route();
+  document.getElementById("server-settings")?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    platform.openServerSettings();
+  });
+}
+
 function shell(content) {
   const me = state.me;
   $app.innerHTML = `
@@ -1312,8 +1341,12 @@ async function route() {
   const hash = location.hash || "#/";
   try {
     await ensureMe();
-  } catch {
-    return; // renderLogin already ran on 401
+  } catch (err) {
+    // A 401 already rendered the login view; anything else means the server
+    // never answered (offline, wrong server URL, CORS) — show that instead
+    // of a blank page.
+    if (err.message !== "unauthorized") renderUnreachable(err);
+    return;
   }
   const [path, query] = hash.slice(1).split("?");
   const params = new URLSearchParams(query || "");
