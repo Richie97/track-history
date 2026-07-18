@@ -192,6 +192,9 @@ body {
   font-size: var(--fs-body);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  /* No double-tap-to-zoom on touch screens (it also delays taps); pinch zoom
+     is unaffected here — the native shells lock that via their viewport. */
+  touch-action: manipulation;
 }
 a { color: var(--accent-ink); text-decoration: none; transition: var(--transition); }
 /* All :hover styling is gated behind (hover: hover): touch screens apply
@@ -272,8 +275,8 @@ header.topbar {
 /* User menu (avatar → who, theme & sign out) */
 .user-menu { position: relative; }
 .user-trigger {
-  display: inline-flex; align-items: center; gap: 9px;
-  padding: 5px 10px 5px 6px; border: 1px solid transparent;
+  display: inline-flex; align-items: center;
+  padding: 5px 6px; border: 1px solid transparent;
   border-radius: var(--radius-pill); background: transparent;
   font: inherit; cursor: pointer; transition: var(--transition);
 }
@@ -283,7 +286,6 @@ header.topbar {
 @media (hover: hover) {
   .user-trigger:hover { background: var(--surface-raised); border-color: var(--border-hairline); }
 }
-.user-trigger .caret { color: var(--text-faint); font-size: 10px; }
 .menu {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 20;
   min-width: 210px; padding: 6px;

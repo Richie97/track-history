@@ -132,6 +132,21 @@ bypass, no Google config needed.
 setting; the Worker ships CORS for the Capacitor shell origins, so a standard
 deploy of this repo works out of the box.
 
+**Live lap recording:** the native apps can record a session's laps straight
+from the phone's GPS (`public/js/record/` — the event page's *Record laps with
+your phone* panel, native-only). Recording runs with the screen locked via
+`@capacitor-community/background-geolocation` (Android: foreground service +
+persistent notification; iOS: the `location` background mode — both configured
+in the committed native projects, with `android.useLegacyBridge` set in
+`capacitor.config.json` per the plugin's docs so background updates aren't
+killed after 5 minutes). The recorder buffers ~1 Hz fixes in memory,
+checkpoints them through Capacitor Preferences every few seconds (a killed app
+recovers the recording on next launch), and auto-stops after the car has been
+parked for 15 minutes. Stopping feeds the trace into the same import review +
+start/finish line picker as a GoPro file — laps, best-lap racing line, and
+per-lap speed channels, saved through the normal sessions API. Nothing needs
+the server: the raw GPS trace never leaves the phone.
+
 **Release checklist:**
 
 - iOS: set the real `<Team ID>.app.trackevolution` in `wrangler.jsonc`'s

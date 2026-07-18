@@ -12,6 +12,7 @@ import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
+import { activeEventId, bindRecorder, isRecording, pendingRecording, recorderAvailable } from "./js/record/ui.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 
 const $app = document.getElementById("app");
@@ -272,7 +273,6 @@ function shell(content) {
                 ? `<img class="avatar" src="${esc(me.picture)}" alt="">`
                 : `<span class="avatar avatar-fallback" aria-hidden="true">${esc((me?.name || me?.email || "?").trim().charAt(0).toUpperCase())}</span>`
             }
-            <span class="caret" aria-hidden="true">▾</span>
           </button>
           <div class="menu" id="user-dropdown" hidden>
             <div class="menu-who">${esc(me?.name || me?.email || "")}</div>
@@ -704,6 +704,29 @@ let pbWatch = null;
 
 async function viewEvent(eventId) {
   const [e, tracks] = await Promise.all([api(`/events/${eventId}`), api("/tracks")]);
+  // Live lap recorder entry (native apps only — recorderAvailable() is false
+  // on web). The button doubles as the way back into an active recording and
+  // the recovery path for an unsaved one.
+  let recCta = "";
+  if (recorderAvailable()) {
+    const pending = isRecording() ? null : await pendingRecording();
+    const recLabel = isRecording()
+      ? activeEventId() === e.id
+        ? "Recording — open"
+        : "Recording (other event)"
+      : pending
+        ? "Review unsaved recording"
+        : "Start recording";
+    const recHref = isRecording() && activeEventId() !== e.id ? `#/event/${activeEventId()}/record` : `#/event/${e.id}/record`;
+    recCta = `<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:22px" aria-hidden="true">⏱️</span>
+      <div style="flex:1;min-width:200px">
+        <strong>Record laps with your phone</strong>
+        <div class="hint">Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.</div>
+      </div>
+      <a class="btn ${isRecording() || pending ? "primary" : ""}" href="${recHref}">${recLabel}</a>
+    </div>`;
+  }
   const track = tracks.find((t) => t.id === e.track_id);
   const pb =
     pbWatch && track && pbWatch.trackId === track.id
@@ -828,6 +851,7 @@ async function viewEvent(eventId) {
     ${traceHtml}
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
+    ${recCta}
     <div class="pdr-dropzone" id="pdr-dropzone">
       ${
         // iOS Files maps accept= to UTIs and .vbo matches none, which would
@@ -941,6 +965,28 @@ async function viewEvent(eventId) {
   });
 
   bindTelemetryImport(view, e, route);
+}
+
+// --- live lap recorder (native apps) ---
+
+async function viewRecord(eventId) {
+  if (!recorderAvailable()) {
+    shell(`<div class="error-banner">Lap recording is only available in the iOS/Android app.</div>
+      <a href="#/event/${esc(eventId)}">Back to event</a>`);
+    return;
+  }
+  const e = await api(`/events/${eventId}`);
+  const view = shell(`
+    <h1>Record session</h1>
+    <p class="sub">${esc(e.track_name)} — ${fmtDate(e.start_date)}</p>
+    <div id="rec-panel"></div>
+    <div id="rec-review"></div>
+    <div class="btn-row" style="margin-top:16px"><a class="btn ghost" href="#/event/${e.id}">Back to event</a></div>
+  `);
+  // Saving lands the new session on the event page.
+  bindRecorder(view, e, () => {
+    location.hash = `#/event/${e.id}`;
+  });
 }
 
 // --- event form (new / edit) ---
@@ -1478,6 +1524,7 @@ async function route() {
     if (parts[0] === "track" && parts[1] && parts[2] === "compare") return await viewCompare(parts[1], params);
     if (parts[0] === "track" && parts[1]) return await viewTrack(parts[1], params);
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
+    if (parts[0] === "event" && parts[1] && parts[2] === "record") return await viewRecord(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
     if (parts[0] === "year") return await viewYear(params);

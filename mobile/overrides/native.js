@@ -9,7 +9,7 @@
 
 const cap = window.Capacitor;
 const plugins = cap?.Plugins ?? {};
-const { App, Browser, Preferences, Share, StatusBar, Haptics, Clipboard } = plugins;
+const { App, Browser, Preferences, Share, StatusBar, Haptics, Clipboard, BackgroundGeolocation } = plugins;
 
 const DEFAULT_SERVER = "https://trackevolution.app";
 const AUTH_SCHEME_PREFIX = "trackevolution://auth";
@@ -44,6 +44,60 @@ platform.authToken = sessionToken;
 platform.serverOrigin = () => serverUrl;
 
 platform.openExternal = (url) => Browser?.open({ url });
+
+// Recorder checkpoints go through Capacitor Preferences instead of
+// localStorage — WKWebView storage can be evicted under disk pressure, and a
+// half-recorded session must survive that.
+platform.prefGet = prefGet;
+platform.prefSet = prefSet;
+platform.prefRemove = prefRemove;
+
+// ---------- live lap recorder GPS ---------------------------------------------
+// Background-geolocation watcher for public/js/record/: keeps GPS fixes
+// flowing with the phone locked and stowed (Android: foreground service with
+// the notification text below; iOS: the `location` background mode). The app
+// only starts a watcher while the user is actively recording a session.
+
+if (BackgroundGeolocation) {
+  let watcherId = null;
+  platform.bgLocation = {
+    async start(onFix, onError) {
+      if (watcherId != null) return;
+      watcherId = await BackgroundGeolocation.addWatcher(
+        {
+          backgroundTitle: "Recording your session",
+          backgroundMessage: "Lap times are timed from GPS when you stop.",
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: 0,
+        },
+        (location, error) => {
+          if (error) {
+            onError?.(error);
+            return;
+          }
+          if (!location) return;
+          onFix({
+            timeMs: location.time ?? Date.now(),
+            lat: location.latitude,
+            lon: location.longitude,
+            speed: location.speed ?? null,
+            accuracy: location.accuracy ?? null,
+          });
+        }
+      );
+    },
+    async stop() {
+      if (watcherId == null) return;
+      const id = watcherId;
+      watcherId = null;
+      try {
+        await BackgroundGeolocation.removeWatcher({ id });
+      } catch {}
+    },
+    openSettings: () => BackgroundGeolocation.openSettings().catch(() => {}),
+  };
+}
 
 platform.copyText = async (text) => {
   if (Clipboard) await Clipboard.write({ string: text });

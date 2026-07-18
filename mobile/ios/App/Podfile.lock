@@ -1,0 +1,76 @@
+PODS:
+  - Capacitor (7.6.8):
+    - CapacitorCordova
+  - CapacitorApp (7.1.2):
+    - Capacitor
+  - CapacitorBrowser (7.0.5):
+    - Capacitor
+  - CapacitorClipboard (7.0.4):
+    - Capacitor
+  - CapacitorCommunityBackgroundGeolocation (1.2.26):
+    - Capacitor
+  - CapacitorCordova (7.6.8)
+  - CapacitorHaptics (7.0.5):
+    - Capacitor
+  - CapacitorPreferences (7.0.4):
+    - Capacitor
+  - CapacitorShare (7.0.4):
+    - Capacitor
+  - CapacitorSplashScreen (7.0.5):
+    - Capacitor
+  - CapacitorStatusBar (7.0.6):
+    - Capacitor
+
+DEPENDENCIES:
+  - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
+  - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
+  - "CapacitorClipboard (from `../../node_modules/@capacitor/clipboard`)"
+  - "CapacitorCommunityBackgroundGeolocation (from `../../node_modules/@capacitor-community/background-geolocation`)"
+  - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
+  - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
+  - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
+  - "CapacitorSplashScreen (from `../../node_modules/@capacitor/splash-screen`)"
+  - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
+
+EXTERNAL SOURCES:
+  Capacitor:
+    :path: "../../node_modules/@capacitor/ios"
+  CapacitorApp:
+    :path: "../../node_modules/@capacitor/app"
+  CapacitorBrowser:
+    :path: "../../node_modules/@capacitor/browser"
+  CapacitorClipboard:
+    :path: "../../node_modules/@capacitor/clipboard"
+  CapacitorCommunityBackgroundGeolocation:
+    :path: "../../node_modules/@capacitor-community/background-geolocation"
+  CapacitorCordova:
+    :path: "../../node_modules/@capacitor/ios"
+  CapacitorHaptics:
+    :path: "../../node_modules/@capacitor/haptics"
+  CapacitorPreferences:
+    :path: "../../node_modules/@capacitor/preferences"
+  CapacitorShare:
+    :path: "../../node_modules/@capacitor/share"
+  CapacitorSplashScreen:
+    :path: "../../node_modules/@capacitor/splash-screen"
+  CapacitorStatusBar:
+    :path: "../../node_modules/@capacitor/status-bar"
+
+SPEC CHECKSUMS:
+  Capacitor: 6732cd599444d14e7ad5f4b1a3b9694f6e205572
+  CapacitorApp: 6b89831465d6bc99bc89779b1b7f5327e33011ce
+  CapacitorBrowser: 3bcddd9dd07cfff9105dcc88ad64853be9862e50
+  CapacitorClipboard: 9779d5e2f766d501d8c90e0f0f689abd293efc2f
+  CapacitorCommunityBackgroundGeolocation: 64561a9463d1decd1b58349a5b999327e24bf9ed
+  CapacitorCordova: e61ee8c40101b8cd011d0224261606a290c082cf
+  CapacitorHaptics: ec024a10130c230743219149c76a02da5cff6aed
+  CapacitorPreferences: d82a7e3b95fcab43a553268b803356522910d153
+  CapacitorShare: 14b5d7f0a2c6de86dcad8995da80fb707ee32f62
+  CapacitorSplashScreen: b3d12b4324d93ce605fe57f05a199ade7f26189e
+  CapacitorStatusBar: a3acb591ff56301e28aa1a01791ba74a8e1faabb
+
+PODFILE CHECKSUM: 879eca63e59f17493d82892df45bdbd37c9528c4
+
+COCOAPODS: 1.16.2

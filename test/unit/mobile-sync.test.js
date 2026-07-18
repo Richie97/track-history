@@ -18,6 +18,13 @@ describe("transformIndexHtml", () => {
     expect(out).toContain('<script type="module" src="/native.js"></script>');
   });
 
+  it("locks viewport zoom in the native build only", () => {
+    const out = transformIndexHtml(realIndex);
+    expect(out).toContain("maximum-scale=1, user-scalable=no");
+    // the web build's viewport must stay unlocked (browser zoom is a11y)
+    expect(realIndex).not.toContain("user-scalable");
+  });
+
   it("keeps the rest of the document intact", () => {
     const out = transformIndexHtml(realIndex);
     expect(out).toContain('<div id="app"></div>');
@@ -35,5 +42,10 @@ describe("transformIndexHtml", () => {
   it("fails when the app.js entry script is missing", () => {
     const noEntry = realIndex.replace('<script type="module" src="/app.js"></script>', "");
     expect(() => transformIndexHtml(noEntry)).toThrow(/no longer contains/);
+  });
+
+  it("fails when the viewport meta drifts", () => {
+    const drifted = realIndex.replace("viewport-fit=cover", "viewport-fit=auto");
+    expect(() => transformIndexHtml(drifted)).toThrow(/no longer contains/);
   });
 });

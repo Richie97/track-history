@@ -4,4 +4,7 @@
     <string name="title_activity_main">Track Evolution</string>
     <string name="package_name">app.trackevolution</string>
     <string name="custom_url_scheme">app.trackevolution</string>
+    <!-- Channel name for the lap recorder's persistent background-location
+         notification (@capacitor-community/background-geolocation) -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Lap recording</string>
 </resources>
