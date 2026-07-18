@@ -41,6 +41,7 @@
     <ul>
       <li><a href="./">Getting started</a></li>
       <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
       <li><a href="./data-model.html">Data model &amp; stats</a></li>
     </ul>
     <p class="group">Legal</p>
@@ -79,6 +80,10 @@
         vehicles in your garage and their modification notes, and any
         share slug you choose. This is stored so the app can show it back to
         you.</li>
+      <li><strong>Location, only while recording laps.</strong> The mobile
+        app's lap recorder uses your phone's GPS during a recording you start
+        yourself — see <a href="#location">location data</a> below for exactly
+        what stays on the phone and what is saved.</li>
       <li><strong>Cookies.</strong> A session cookie keeps you signed in, and a
         short-lived cookie protects the sign-in flow itself. There are no
         advertising or analytics cookies.</li>
@@ -98,6 +103,22 @@
       the best lap's GPS racing line and per-lap channel data (speed, RPM,
       lateral G) — as ordinary logbook entries. The recordings themselves are
       never stored.
+    </p>
+
+    <h2 id="location">Location data (recording laps in the mobile app)</h2>
+    <p>
+      The iPhone/Android app can record a track session's laps from your
+      phone's GPS. Location is collected <strong>only while you are actively
+      recording</strong> — you start and stop it yourself — and, because the
+      phone is usually stowed while driving, recording continues while the app
+      is in the background. The GPS trace is kept <strong>on your phone</strong>
+      while you record and until you save or discard it. Saving uploads only
+      the derived results — lap times, the best lap's racing line, and per-lap
+      speed — as ordinary logbook entries, the same as a telemetry import; the
+      fix-by-fix recording itself is never uploaded and is deleted from the
+      phone once saved or discarded. The app never collects your location
+      outside of a recording, and you can revoke location permission at any
+      time in your phone's settings.
     </p>
 
     <h2 id="not">What we don't do</h2>

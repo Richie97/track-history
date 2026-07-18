@@ -16,12 +16,40 @@ export const platform = {
 
   logout: () => fetch("/auth/logout", { method: "POST" }),
 
+  // Small-value persistence that survives app restarts (recorder checkpoints,
+  // recovery state). localStorage on the web; the native shell swaps in
+  // Capacitor Preferences, which the OS never evicts. Async on both.
+  prefGet: async (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  prefSet: async (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {}
+  },
+  prefRemove: async (key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+  },
+
   // Native-only hooks — null on web, filled in by the shell:
   login: null, // system-browser OAuth (web uses <a href="/auth/login">)
   openExternal: null, // open an absolute URL in the system browser
   shareLink: null, // OS share sheet for a URL
   hapticPB: () => {}, // haptic buzz on a personal-best celebration
   openServerSettings: null, // the shell's server-URL settings panel
+  // Background GPS watcher for the live lap recorder (public/js/record/) —
+  // keeps delivering fixes with the screen locked. Filled in by the native
+  // shell when its background-geolocation plugin is present; null on web,
+  // which hides the record feature entirely.
+  //   { start(onFix, onError) → Promise, stop() → Promise, openSettings() }
+  //   onFix receives {timeMs, lat, lon, speed, accuracy}
+  bgLocation: null,
 
   // Registered by app.js so the shell can re-enter the app:
   onAuthed: null, // called after a native sign-in completes

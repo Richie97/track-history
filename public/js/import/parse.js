@@ -22,7 +22,9 @@ import { attachLapChannels } from "./channels.js";
 
 export const SUPPORTED_EXT = /\.(mp4|vbo)$/i;
 
-export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", vbo: "VBO" };
+// "live" is not a file parser: the in-app lap recorder (public/js/record/)
+// produces the same parsed shape and reuses the review UI + line picker.
+export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", vbo: "VBO", live: "Recorded" };
 
 export async function parseTelemetryFile(file) {
   const name = file.name.toLowerCase();

@@ -33,6 +33,16 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Live lap recorder: GPS keeps recording with the phone locked/stowed
+	     during a track session. Only active while the user is recording. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is recorded during a track session to time your laps from GPS.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Your location is recorded during a track session — including with the screen locked — to time your laps from GPS.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Lets dev builds on a phone reach `npm run dev` on the Mac over

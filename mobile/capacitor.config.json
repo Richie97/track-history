@@ -5,6 +5,9 @@
   "ios": {
     "contentInset": "never"
   },
+  "android": {
+    "useLegacyBridge": true
+  },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 1200,

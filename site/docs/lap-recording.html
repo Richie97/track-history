@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recording laps — Track Evolution docs</title>
+  <meta name="description" content="Record lap times with your phone's GPS in the Track Evolution mobile app — start before you head out, stow the phone, save your laps back in the paddock.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="Recording laps — Track Evolution docs">
+  <meta property="og:description" content="Record lap times with your phone's GPS in the Track Evolution mobile app — start before you head out, stow the phone, save your laps back in the paddock.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/lap-recording.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html" class="active">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Recording laps with your phone</h1>
+    <p class="lede">
+      No camera, no lap timer, no hardware — the Track Evolution app for iPhone
+      and Android can record a session straight from your phone's GPS. Start
+      recording before you head out, lock the phone and stow it, and stop back
+      in the paddock: your laps are timed from the trace and saved to the event.
+    </p>
+
+    <h2 id="how">How it works</h2>
+    <ol>
+      <li><strong>Start.</strong> On the event page, tap
+        <em>Record laps with your phone</em>, then <em>Start recording</em>.
+        The first time, the app asks for location permission.</li>
+      <li><strong>Drive.</strong> Lock the phone and put it anywhere in the
+        car — recording continues in the background with the screen off.
+        Nothing to look at, nothing to tap. On Android a notification shows
+        while recording; on iPhone the status bar indicates location use.</li>
+      <li><strong>Stop.</strong> Back in the paddock, open the app and tap
+        <em>Stop &amp; review laps</em>. You'll see the track map you actually
+        drove — tap where the start/finish line is, and every pass across it
+        becomes a lap, exactly like a
+        <a href="./telemetry-import.html#line-picker">telemetry import</a>.</li>
+      <li><strong>Save.</strong> Check the lap list, give the session a label,
+        and save. The session gets lap times, the speed-painted racing line of
+        your best lap, and per-lap speed graphs.</li>
+    </ol>
+
+    <h2 id="accuracy">What to expect from phone GPS</h2>
+    <p>
+      Phones report their position about once a second, and crossings of your
+      start/finish line are interpolated between fixes — lap times come out
+      within roughly ±0.2–0.5&nbsp;s and are shown with a <code>~</code>
+      prefix, like all GPS-derived laps. That's plenty for spotting trends
+      across a day or a season; for tenth-accurate timing, import a proper
+      logger's recording instead.
+    </p>
+
+    <h2 id="reliability">Built to not lose your session</h2>
+    <ul>
+      <li>The recording is checkpointed on your phone every few seconds — if
+        the app is closed or the phone dies, everything up to that moment is
+        recovered the next time you open the event.</li>
+      <li>Stopping never discards anything: an unsaved recording stays on the
+        phone until you review and save it or discard it, so bad paddock
+        signal just means saving a little later.</li>
+      <li>If you forget to stop, recording ends itself after the car has been
+        parked for a while — it won't run all day in your pocket.</li>
+    </ul>
+
+    <div class="callout plain">
+      Your GPS trace stays on the phone until you save. Saving uploads only the
+      derived results — lap times, the best lap's racing line, and per-lap
+      speed — to your logbook, the same as a telemetry import. See the
+      <a href="./privacy.html">privacy policy</a>.
+    </div>
+
+    <nav class="docs-pager">
+      <a href="./telemetry-import.html"><span class="label">Previous</span>← Telemetry import</a>
+      <a href="./data-model.html"><span class="label">Next</span>Data model &amp; stats →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

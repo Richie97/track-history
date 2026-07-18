@@ -43,15 +43,7 @@ export function bindTelemetryImport(view, event, onDone) {
       if (r.parsed?.kind === "pdr" && r.parsed.lapRecovery) attachLapChannels(r.parsed);
     }
 
-    // Shared coordinate frame for all line-picking files (same track), so one
-    // picked line applies to every trace in the batch.
-    const first = results.find((r) => r.parsed?.needsLine && r.parsed.gps?.length);
-    const state = {
-      results,
-      origin: first ? first.parsed.gps[0] : null,
-      gate: null,
-    };
-    renderReview(box, event, state, onDone);
+    reviewResults(box, event, results, onDone);
   }
 
   fileInput.onchange = () => importFiles(fileInput.files);
@@ -80,6 +72,21 @@ export function bindTelemetryImport(view, event, onDone) {
     dropzone.classList.remove("dragover");
     if (ev.dataTransfer.files.length) importFiles(ev.dataTransfer.files);
   });
+}
+
+// Entry into the review panel for already-parsed results — the file-import
+// path above and the live lap recorder (public/js/record/ui.js) both land
+// here. results: [{file, parsed}|{file, error}].
+export function reviewResults(box, event, results, onDone) {
+  // Shared coordinate frame for all line-picking traces (same track), so one
+  // picked line applies to every trace in the batch.
+  const first = results.find((r) => r.parsed?.needsLine && r.parsed.gps?.length);
+  const state = {
+    results,
+    origin: first ? first.parsed.gps[0] : null,
+    gate: null,
+  };
+  renderReview(box, event, state, onDone);
 }
 
 // --- line picker ---------------------------------------------------------------
@@ -193,6 +200,8 @@ function estimatedNote(p, estCount) {
   if (p.kind === "pdr" && !p.needsLine) {
     return `${estCount} of ${p.laps.length} laps distance-estimated (~), rest beacon-exact`;
   }
+  // Phone GPS (the live recorder) fixes at ~1Hz vs a logger's 10–18Hz.
+  if (p.kind === "live") return `lap times derived from GPS start/finish crossings (~±0.2–0.5s)`;
   return `lap times derived from GPS start/finish crossings (~±0.1–0.3s)`;
 }
 
@@ -264,14 +273,18 @@ function renderReview(box, event, state, onDone) {
       <div class="hint" style="margin:4px 0 8px">${
         state.gate
           ? "Line set — click the map again to adjust it."
-          : `${needLine.length} file${needLine.length === 1 ? " has" : "s have"} GPS data but no lap markers. Click the map where the start/finish line is; laps are timed each pass across it.`
+          : `${
+              needLine.every((r) => r.parsed.kind === "live")
+                ? "Your recording has a GPS trace"
+                : `${needLine.length} file${needLine.length === 1 ? " has" : "s have"} GPS data but no lap markers`
+            }. Click the map where the start/finish line is; laps are timed each pass across it.`
       }</div>
       ${lineMapHtml(pickTrace, state.gate)}
     </div>`;
   }
 
   box.innerHTML = `<div class="panel">
-    <strong>Import preview</strong>
+    <strong>${results.every((r) => r.parsed?.kind === "live") ? "Recording preview" : "Import preview"}</strong>
     <div style="margin-top:10px">${pickerHtml}${blocks}</div>
     <div class="btn-row">
       <button class="btn primary" id="import-confirm">Add as sessions</button>
@@ -313,11 +326,12 @@ function renderReview(box, event, state, onDone) {
       const estCount = r.parsed.laps.filter((l) => l.estimated).length;
       const note = estimatedNote(r.parsed, estCount);
       const metrics = metricsSummary(r.parsed);
+      const source = r.parsed.kind === "live" ? "Recorded with the in-app lap timer" : `Imported from ${r.file}`;
       await api(`/events/${event.id}/sessions`, {
         method: "POST",
         body: {
           label: box.querySelector(`[data-import-label="${i}"]`).value.trim() || r.file,
-          notes: `Imported from ${r.file}` + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
+          notes: source + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
           laps: r.parsed.laps.map((l) => l.timeMs),
           trace: r.parsed.bestLapTrace ?? null,
           channels: r.parsed.lapChannels ?? null,

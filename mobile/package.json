@@ -9,6 +9,7 @@
     "assets": "npx @capacitor/assets generate"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/app": "^7.0.0",
     "@capacitor/browser": "^7.0.0",
     "@capacitor/clipboard": "^7.0.0",
@@ -20,8 +21,8 @@
     "@capacitor/status-bar": "^7.0.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.0.0",
     "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
     "@capacitor/ios": "^7.0.0"
   }
 }
