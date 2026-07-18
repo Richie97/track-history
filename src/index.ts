@@ -7,6 +7,7 @@ import { me } from "./routes/me";
 import { tracks } from "./routes/tracks";
 import { events } from "./routes/events";
 import { sessions } from "./routes/sessions";
+import { vehicles } from "./routes/vehicles";
 import { share, publicShare } from "./routes/share";
 import { wellKnown } from "./routes/wellKnown";
 
@@ -15,7 +16,7 @@ export type { Env, AppContext } from "./types";
 // Everything under /api requires a session cookie.
 const api = new Hono<AppContext>();
 api.use("*", requireSession);
-for (const routes of [me, tracks, events, sessions, share]) {
+for (const routes of [me, tracks, events, sessions, vehicles, share]) {
   api.route("/", routes);
 }
 

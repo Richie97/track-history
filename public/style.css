@@ -309,6 +309,7 @@ header.topbar {
   font: inherit; font-size: var(--fs-sm); cursor: pointer;
   transition: var(--transition);
 }
+a.menu-item { color: var(--text-body); }
 @media (hover: hover) { .menu-item:hover { background: var(--surface-hover); color: var(--text-strong); } }
 
 /* Auto / Light / Dark segmented control */
@@ -521,6 +522,18 @@ form.panel, .panel {
 .combo-item.active { background: var(--surface-hover); color: var(--text-strong); }
 @media (hover: hover) { .combo-item:hover { background: var(--surface-hover); color: var(--text-strong); } }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; }
+
+/* Settings: the vehicle garage */
+.vehicle-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vehicle-head .vehicle-name { font-weight: var(--weight-semibold); color: var(--text-strong); font-size: var(--fs-h3); }
+.vehicle-head .grow { flex: 1; }
+.default-badge {
+  padding: 2px 9px; border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--accent-contrast);
+  font-size: var(--fs-xs); font-weight: var(--weight-semibold);
+}
+.vehicle .notes-block { margin-top: 12px; color: var(--text-body); font-size: var(--fs-sm); }
+.vehicle .vehicle-edit { margin-top: 14px; }
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 /* ---------- Sessions & laps ---------- */
