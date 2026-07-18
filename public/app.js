@@ -273,7 +273,6 @@ function shell(content) {
                 ? `<img class="avatar" src="${esc(me.picture)}" alt="">`
                 : `<span class="avatar avatar-fallback" aria-hidden="true">${esc((me?.name || me?.email || "?").trim().charAt(0).toUpperCase())}</span>`
             }
-            <span class="caret" aria-hidden="true">▾</span>
           </button>
           <div class="menu" id="user-dropdown" hidden>
             <div class="menu-who">${esc(me?.name || me?.email || "")}</div>
