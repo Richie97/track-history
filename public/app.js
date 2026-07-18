@@ -164,17 +164,24 @@ function startTipRotator() {
   }, 4000);
 }
 
-function footerHtml() {
-  // The native apps skip the footer entirely: its links (privacy/terms, repo,
-  // tip jar — the latter barred on iOS by Apple guideline 3.1.1, and the rest
-  // web-oriented chrome) don't belong in an app screen.
+// legal:true adds the Privacy/Terms links — used on signed-out and public
+// pages (login, unreachable, share), where the account menu's Settings page
+// (which carries them for signed-in users) isn't reachable.
+function footerHtml({ legal = false } = {}) {
+  // The native apps skip the footer entirely: its links (repo, tip jar — the
+  // latter barred on iOS by Apple guideline 3.1.1, and the rest web-oriented
+  // chrome) don't belong in an app screen. Privacy/terms live in Settings.
   if (platform.native) return "";
   startTipRotator();
   return `<footer class="site-footer">
     <span class="footer-left">
       <span>© ${new Date().getFullYear()} Speedshift LLC</span>
-      <a class="footer-link" href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy</a>
-      <a class="footer-link" href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms</a>
+      ${
+        legal
+          ? `<a class="footer-link" href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy</a>
+      <a class="footer-link" href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms</a>`
+          : ""
+      }
       <a class="contribute-link" href="${REPO_URL}" target="_blank" rel="noopener"
          data-tip="Fix my bugs — or add your own 🐛">
         Contribute ↗
@@ -210,7 +217,7 @@ function renderLogin() {
             ? `<p class="hint" style="margin-top:12px"><a href="#" id="server-settings">Server: ${esc(serverHost())}</a></p>`
             : ""
         }
-        ${footerHtml()}
+        ${footerHtml({ legal: true })}
       </div>
     </div>`;
   wireThemeToggle();
@@ -239,7 +246,7 @@ function renderUnreachable(err) {
             ? `<p class="hint" style="margin-top:12px"><a href="#" id="server-settings">Server: ${esc(serverHost())}</a></p>`
             : ""
         }
-        ${footerHtml()}
+        ${footerHtml({ legal: true })}
       </div>
     </div>`;
   wireThemeToggle();
@@ -275,6 +282,7 @@ function shell(content) {
               ${themeToggleHtml()}
             </div>
             <div class="menu-sep"></div>
+            <a class="menu-item" href="#/settings">Settings</a>
             <button class="menu-item" id="logout">Sign out</button>
           </div>
         </div>
@@ -937,12 +945,10 @@ async function viewEvent(eventId) {
 
 // --- event form (new / edit) ---
 
-// Custom combobox for the track field. A native <datalist> would be simpler,
-// but iOS Safari never shows datalist suggestions and Android only surfaces a
-// few after typing — so we render our own tappable option list.
-function bindTrackCombo(view, options) {
-  const input = view.querySelector('[name="track"]');
-  const list = view.querySelector("#track-combo-list");
+// Custom combobox for the track and car fields. A native <datalist> would be
+// simpler, but iOS Safari never shows datalist suggestions and Android only
+// surfaces a few after typing — so we render our own tappable option list.
+function bindCombo(input, list, options) {
   let matches = [];
   let active = -1;
 
@@ -994,12 +1000,18 @@ function bindTrackCombo(view, options) {
 }
 
 async function viewEventForm(eventId, presetTrack) {
-  const [tracks, catalog] = await Promise.all([api("/tracks"), api("/catalog")]);
+  const [tracks, catalog, vehicles] = await Promise.all([
+    api("/tracks"),
+    api("/catalog"),
+    api("/vehicles"),
+  ]);
   const existing = eventId ? await api(`/events/${eventId}`) : null;
   // The user's own tracks first, then the rest of the seeded track catalog.
   const ownNames = tracks.map((t) => t.name);
   const seen = new Set(ownNames.map((n) => n.toLowerCase()));
   const trackOpts = [...ownNames, ...catalog.map((t) => t.name).filter((n) => !seen.has(n.toLowerCase()))];
+  // New events start with the garage's default vehicle in the car field.
+  const defaultCar = vehicles.find((v) => v.is_default)?.name ?? "";
 
   const view = shell(`
     <h1>${existing ? "Edit event" : "New event"}</h1>
@@ -1027,7 +1039,13 @@ async function viewEventForm(eventId, presetTrack) {
           <input name="run_group" value="${esc(existing?.run_group ?? "")}" placeholder="High Speed">
         </div>
         <div class="field"><label>Car</label>
-          <input name="car" value="${esc(existing?.car ?? "")}" placeholder="Corvette Z06, Miata, GT3…">
+          <div class="combo">
+            <input name="car" autocomplete="off" role="combobox" aria-expanded="false"
+              aria-autocomplete="list" aria-controls="car-combo-list"
+              value="${esc(existing ? (existing.car ?? "") : defaultCar)}" placeholder="Corvette Z06, Miata, GT3…">
+            <div class="combo-list" id="car-combo-list" role="listbox" hidden></div>
+          </div>
+          <div class="hint">Pick from your garage or type anything — manage cars in <a href="#/settings">Settings → Vehicles</a></div>
         </div>
         <div class="field"><label>Conditions</label>
           <select name="conditions">
@@ -1054,7 +1072,8 @@ async function viewEventForm(eventId, presetTrack) {
     </form>
   `);
 
-  bindTrackCombo(view, trackOpts);
+  bindCombo(view.querySelector('[name="track"]'), view.querySelector("#track-combo-list"), trackOpts);
+  bindCombo(view.querySelector('[name="car"]'), view.querySelector("#car-combo-list"), vehicles.map((v) => v.name));
 
   view.querySelector("#event-form").onsubmit = async (evt) => {
     evt.preventDefault();
@@ -1090,6 +1109,121 @@ async function viewEventForm(eventId, presetTrack) {
       view.querySelector("#form-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
     }
   };
+}
+
+// --- settings (garage + legal) ---
+
+async function viewSettings() {
+  const vehicles = await api("/vehicles");
+
+  const vehicleHtml = (v) => `
+    <div class="panel vehicle">
+      <div class="vehicle-head">
+        <span class="vehicle-name">${esc(v.name)}</span>
+        ${v.is_default ? `<span class="default-badge">Default</span>` : ""}
+        <span class="grow"></span>
+        ${v.is_default ? "" : `<button class="btn small" data-veh-default="${v.id}">Set default</button>`}
+        <button class="btn small" data-veh-edit="${v.id}">Edit</button>
+        <button class="btn small danger" data-veh-del="${v.id}">Delete</button>
+      </div>
+      ${v.notes ? `<div class="notes-block">${esc(v.notes)}</div>` : ""}
+      <form class="vehicle-edit" data-veh-form="${v.id}" hidden>
+        <div class="field"><label>Car</label><input name="name" required value="${esc(v.name)}"></div>
+        <div class="field"><label>Modifications &amp; notes</label>
+          <textarea name="notes" placeholder="Coilovers, pads, tires, alignment…">${esc(v.notes ?? "")}</textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn small primary">Save</button>
+          <button class="btn small" type="button" data-veh-cancel="${v.id}">Cancel</button>
+        </div>
+      </form>
+    </div>`;
+
+  const view = shell(`
+    <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
+    <h1>Settings</h1>
+    <h2>Vehicles</h2>
+    <div class="hint" style="margin:0 0 4px">Your garage — the event form's Car field suggests these, and the default fills in automatically on new events. Note modifications here so setup changes stay part of your lap-time story.</div>
+    ${vehicles.map(vehicleHtml).join("") || `<div class="empty">No cars yet — add your first below.</div>`}
+    <form class="panel" id="veh-add">
+      <div class="field"><label>Car</label><input name="name" required placeholder="2023 Corvette Z06"></div>
+      <div class="field"><label>Modifications &amp; notes</label>
+        <textarea name="notes" placeholder="Coilovers, pads, tires, alignment…"></textarea>
+      </div>
+      <div id="veh-error"></div>
+      <button class="btn primary">Add vehicle</button>
+    </form>
+    <h2>About &amp; legal</h2>
+    <div class="panel">
+      <div class="btn-row">
+        <a class="btn small" href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy policy ↗</a>
+        <a class="btn small" href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms of use ↗</a>
+        <a class="btn small" href="${DOCS_URL}" target="_blank" rel="noopener">Documentation ↗</a>
+      </div>
+      <div class="hint" style="margin:10px 0 0">© ${new Date().getFullYear()} Speedshift LLC</div>
+    </div>
+  `);
+
+  const showError = (err) => {
+    view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+  };
+
+  view.querySelector("#veh-add").onsubmit = async (evt) => {
+    evt.preventDefault();
+    const f = evt.target;
+    try {
+      await api("/vehicles", {
+        method: "POST",
+        body: { name: f.name.value.trim(), notes: f.notes.value.trim() || null },
+      });
+      route();
+    } catch (err) {
+      showError(err);
+    }
+  };
+  view.querySelectorAll("[data-veh-default]").forEach((btn) => {
+    btn.onclick = async () => {
+      try {
+        await api(`/vehicles/${btn.dataset.vehDefault}`, { method: "PUT", body: { is_default: true } });
+        route();
+      } catch (err) {
+        showError(err);
+      }
+    };
+  });
+  view.querySelectorAll("[data-veh-del]").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Delete this vehicle? Past events keep the car name they were logged with.")) return;
+      await api(`/vehicles/${btn.dataset.vehDel}`, { method: "DELETE" });
+      route();
+    };
+  });
+  view.querySelectorAll("[data-veh-edit]").forEach((btn) => {
+    btn.onclick = () => {
+      const form = view.querySelector(`[data-veh-form="${btn.dataset.vehEdit}"]`);
+      form.hidden = !form.hidden;
+      if (!form.hidden) form.querySelector('[name="name"]').focus();
+    };
+  });
+  view.querySelectorAll("[data-veh-cancel]").forEach((btn) => {
+    btn.onclick = () => {
+      view.querySelector(`[data-veh-form="${btn.dataset.vehCancel}"]`).hidden = true;
+    };
+  });
+  view.querySelectorAll("[data-veh-form]").forEach((form) => {
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      try {
+        await api(`/vehicles/${form.dataset.vehForm}`, {
+          method: "PUT",
+          body: { name: form.name.value.trim(), notes: form.notes.value.trim() || null },
+        });
+        route();
+      } catch (err) {
+        showError(err);
+      }
+    };
+  });
 }
 
 // --- year in review ---
@@ -1180,7 +1314,7 @@ function shareShell(content) {
     </header>
     <div class="shell">
       <div id="view">${content}</div>
-      ${footerHtml()}
+      ${footerHtml({ legal: true })}
     </div>`;
   wireThemeToggle();
   return document.getElementById("view");
@@ -1292,7 +1426,7 @@ async function shareRoute() {
             <h1>Link not found</h1>
             <p>This share link doesn't exist or has been disabled.</p>
             <a class="btn primary" href="/">Go to Track Evolution</a>
-            ${footerHtml()}
+            ${footerHtml({ legal: true })}
           </div>
         </div>`;
       return;
@@ -1347,6 +1481,7 @@ async function route() {
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
     if (parts[0] === "year") return await viewYear(params);
+    if (parts[0] === "settings") return await viewSettings();
     viewNotFound();
   } catch (err) {
     if (err.message !== "unauthorized") {
