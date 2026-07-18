@@ -3,7 +3,7 @@
   "appName": "Track Evolution",
   "webDir": "www",
   "ios": {
-    "contentInset": "automatic"
+    "contentInset": "never"
   },
   "plugins": {
     "SplashScreen": {
