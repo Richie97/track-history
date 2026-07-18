@@ -8,9 +8,23 @@ ios/App/Pods/
 ios/App/App.xcworkspace/xcuserdata/
 ios/App/App.xcodeproj/xcuserdata/
 ios/DerivedData/
+*.ipa
+*.xcarchive
+*.dSYM
+*.dSYM.zip
 android/.gradle/
+android/.kotlin/
 android/app/build/
+android/app/debug/
+android/app/release/
 android/build/
 android/local.properties
 android/.idea/
 android/capacitor-cordova-android-plugins/
+
+# Signing material — keys, certs, and provisioning profiles never get committed.
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+android/keystore.properties
