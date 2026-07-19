@@ -16,6 +16,7 @@ export type EventRow = {
   temp_f: number | null;
   checklist: string | null; // JSON [{text, done}] as stored
   best_time_ms: number | null;
+  updated_at: number;
   lap_best_ms: number | null;
   lap_count: number;
   lap_avg: number | null;

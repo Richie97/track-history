@@ -782,6 +782,16 @@ button.ch-chip.on { background: var(--surface-raised); }
   padding: 10px 14px; margin: 12px 0; font-size: var(--fs-sm);
 }
 
+/* Offline / pending-sync status strip (updated in place by app.js) */
+.sync-banner {
+  background: var(--surface-raised); color: var(--text-muted);
+  border: 1px solid var(--border-hairline); border-radius: var(--radius-md);
+  padding: 8px 14px; margin: 14px 0 0; font-size: var(--fs-sm);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.sync-banner .btn { margin-left: auto; }
+.sync-banner[hidden] { display: none; }
+
 /* ---------- Share ---------- */
 .share-badge {
   font-size: var(--fs-xs); color: var(--text-muted);

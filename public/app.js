@@ -7,6 +7,8 @@ import { bindChannelGraphs } from "./js/channel-graphs.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, authFetch, ApiError } from "./js/api.js";
+import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
+import { scheduleWarm } from "./js/prefetch.js";
 import { platform } from "./js/platform.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { renderTrackMap } from "./js/trackmap.js";
@@ -289,10 +291,12 @@ function shell(content) {
       </div>
     </header>
     <div class="shell">
+      <div id="sync-banner" class="sync-banner" hidden></div>
       <div id="view">${content}</div>
       ${footerHtml()}
     </div>`;
   wireThemeToggle();
+  updateSyncBanner();
   const trigger = document.getElementById("user-trigger");
   const dropdown = document.getElementById("user-dropdown");
   trigger.onclick = () => {
@@ -301,6 +305,7 @@ function shell(content) {
     trigger.setAttribute("aria-expanded", String(open));
   };
   document.getElementById("logout").onclick = async () => {
+    if (pendingCount() && !confirm("You have offline changes that haven't synced yet — signing out discards them. Sign out anyway?")) return;
     await platform.logout();
     // Delete the service worker's cached API responses (named th-data-* in
     // sw.js) so the logbook doesn't linger in Cache Storage on a shared device.
@@ -308,12 +313,52 @@ function shell(content) {
       const keys = await caches.keys();
       await Promise.all(keys.filter((k) => k.startsWith("th-data")).map((k) => caches.delete(k)));
     }
+    // Same reasoning for the offline layer's response cache and write queue.
+    await clearOffline();
     renderLogin();
   };
   return document.getElementById("view");
 }
 
 const state = { me: null, totals: null };
+
+// ---------- offline / sync status --------------------------------------------
+
+// The shell renders an empty #sync-banner strip; this fills it in place from
+// syncStatus (shell() re-renders per route, so the banner is re-applied there
+// and updated live by the onSyncChange subscription below).
+function updateSyncBanner() {
+  const el = document.getElementById("sync-banner");
+  if (!el) return;
+  const n = syncStatus.pending;
+  const changes = (k) => `${k} change${k === 1 ? "" : "s"}`;
+  const parts = [];
+  if (syncStatus.offline) {
+    parts.push(n ? `📴 Offline — ${changes(n)} saved on this device, syncing when you're back online` : "📴 Offline — showing saved data");
+  } else if (n) {
+    parts.push(`Syncing ${changes(n)}…`);
+  }
+  if (syncStatus.failed) {
+    parts.push(`${changes(syncStatus.failed)} couldn't be synced and ${syncStatus.failed === 1 ? "was" : "were"} discarded
+      <button class="btn small ghost" id="sync-dismiss">Dismiss</button>`);
+  }
+  el.hidden = !parts.length;
+  el.innerHTML = parts.join(" · ");
+  const dismiss = document.getElementById("sync-dismiss");
+  if (dismiss) dismiss.onclick = () => clearFailed();
+}
+
+onSyncChange((_st, change) => {
+  updateSyncBanner();
+  // After a flush, a view parked on an offline-created row's temp URL is
+  // remapped to the real id (which triggers a fresh route). Other views are
+  // left alone — a form could be mid-edit — and pick up synced state on the
+  // next navigation or pull-refresh.
+  if (change.flushed) {
+    const remapped = location.hash.replace(/tmp-\d+/g, (t) => resolveId(t) ?? t);
+    if (remapped !== location.hash) location.hash = remapped;
+  }
+});
 
 // Close the user dropdown on outside click or Escape (module-level: shell()
 // re-renders per route, so per-render listeners would accumulate).
@@ -423,6 +468,8 @@ async function viewDashboard() {
     </div>
   `);
   wireRowLinks(view);
+  // Warm the offline cache in the background while we're on the dashboard.
+  scheduleWarm();
 
   const shareMsg = view.querySelector("#share-msg");
   const shareInput = view.querySelector("#share-slug");

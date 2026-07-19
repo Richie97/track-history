@@ -7,7 +7,7 @@ import { type EventRow, withComputed } from "./lib/stats";
 export const EVENT_SELECT = `
   SELECT e.id, e.track_id, t.name AS track_name,
          e.start_date, e.days, e.club, e.run_group, e.car, e.notes,
-         e.conditions, e.temp_f, e.checklist, e.best_time_ms,
+         e.conditions, e.temp_f, e.checklist, e.best_time_ms, e.updated_at,
     (SELECT MIN(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_best_ms,
     (SELECT COUNT(*)       FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_count,
     (SELECT AVG(l.time_ms * 1.0) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_avg,
@@ -100,7 +100,7 @@ export async function tracksSummary(db: D1Database, userId: number) {
   const tracks = (
     await db
       .prepare(
-        "SELECT id, name, goal_ms, notes, catalog_id FROM tracks WHERE user_id = ? ORDER BY name"
+        "SELECT id, name, goal_ms, notes, catalog_id, updated_at FROM tracks WHERE user_id = ? ORDER BY name"
       )
       .bind(userId)
       .all<{
@@ -109,6 +109,7 @@ export async function tracksSummary(db: D1Database, userId: number) {
         goal_ms: number | null;
         notes: string | null;
         catalog_id: number | null;
+        updated_at: number;
       }>()
   ).results;
   const events = (

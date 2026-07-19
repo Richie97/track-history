@@ -15,6 +15,7 @@ const base: EventRow = {
   temp_f: null,
   checklist: null,
   best_time_ms: null,
+  updated_at: 1,
   lap_best_ms: null,
   lap_count: 0,
   lap_avg: null,
