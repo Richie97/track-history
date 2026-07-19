@@ -258,6 +258,8 @@ const QUEUEABLE = [
   { method: "PUT", re: /^\/events\/[^/]+$/ },
   { method: "DELETE", re: /^\/events\/[^/]+$/ },
   { method: "POST", re: /^\/events\/[^/]+\/sessions$/, creates: true },
+  { method: "PUT", re: /^\/events\/[^/]+\/setups\/\d+$/ },
+  { method: "DELETE", re: /^\/events\/[^/]+\/setups\/\d+$/ },
   { method: "PUT", re: /^\/sessions\/[^/]+$/ },
   { method: "DELETE", re: /^\/sessions\/[^/]+$/ },
   { method: "POST", re: /^\/sessions\/[^/]+\/laps$/ },
@@ -389,8 +391,9 @@ const cleanLaps = (laps) =>
     .map((v) => Math.round(Number(v)))
     .filter((v) => Number.isFinite(v) && v > 0);
 
-// Mirror of withComputed in src/lib/stats.ts (best-time rule + coefficient
-// of variation) — keep in sync.
+// Mirror of withComputed in src/lib/stats.ts (best-time rule, coefficient
+// of variation, on-track hours via eventHours in src/lib/wear.ts) — keep in
+// sync.
 export function recomputeDetail(d) {
   const laps = d.sessions.flatMap((s) => s.laps.map((l) => l.time_ms));
   d.lap_count = laps.length;
@@ -405,6 +408,11 @@ export function recomputeDetail(d) {
   } else {
     d.consistency = null;
   }
+  const hours =
+    d.track_hours != null && d.track_hours > 0
+      ? d.track_hours
+      : Math.max((d.days || 0) * 2, laps.reduce((a, b) => a + b, 0) / 3_600_000);
+  d.hours = Math.round(hours * 10) / 10;
   return d;
 }
 
@@ -415,7 +423,7 @@ const listRowFrom = (detail) => {
 
 const EVENT_FIELDS = [
   "track_name", "start_date", "days", "club", "run_group", "car", "notes",
-  "conditions", "temp_f", "checklist", "best_time_ms",
+  "conditions", "temp_f", "checklist", "best_time_ms", "track_hours",
 ];
 
 async function patchEventLists(fn) {
@@ -465,8 +473,11 @@ async function applyLocal(m) {
       temp_f: m.body?.temp_f ?? null,
       checklist: m.body?.checklist ?? null,
       best_time_ms: m.body?.best_time_ms ?? null,
+      track_hours: m.body?.track_hours ?? null,
+      vehicle_id: null, // matched server-side from the car name on flush
       updated_at: 0,
       sessions: [],
+      setups: [],
     });
     if (m.body?.track_id != null) {
       const tracks = await backend.respGet("/tracks");
@@ -485,7 +496,7 @@ async function applyLocal(m) {
     return;
   }
 
-  if (m.method === "PUT" && seg[0] === "events") {
+  if (m.method === "PUT" && seg[0] === "events" && seg.length === 2) {
     const path = `/events/${seg[1]}`;
     const d = await backend.respGet(path);
     if (d) {
@@ -506,9 +517,22 @@ async function applyLocal(m) {
     return;
   }
 
-  if (m.method === "DELETE" && seg[0] === "events") {
+  if (m.method === "DELETE" && seg[0] === "events" && seg.length === 2) {
     await backend.respDel(`/events/${seg[1]}`);
     await patchEventLists((list) => list.filter((e) => String(e.id) !== String(seg[1])));
+    return;
+  }
+
+  // Setup sheets live inside the event detail response.
+  if (seg[0] === "events" && seg[2] === "setups" && (m.method === "PUT" || m.method === "DELETE")) {
+    const path = `/events/${seg[1]}`;
+    const d = await backend.respGet(path);
+    if (!d) return;
+    const day = Number(seg[3]);
+    const setups = (d.setups ?? []).filter((s) => s.day !== day);
+    if (m.method === "PUT" && m.body) setups.push({ day, data: m.body });
+    d.setups = setups.sort((a, b) => a.day - b.day);
+    await backend.respPut(path, d);
     return;
   }
 

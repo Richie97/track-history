@@ -7,7 +7,11 @@ import { dirname, join } from "node:path";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const dataFile = existsSync(join(dir, "data.personal.mjs")) ? "./data.personal.mjs" : "./data.example.mjs";
-const { USER_EMAIL, USER_NAME, TRACKS, EVENTS, RAW_EVENT_DATE, RAW_SESSIONS } = await import(dataFile);
+const {
+  USER_EMAIL, USER_NAME, TRACKS, EVENTS, RAW_EVENT_DATE, RAW_SESSIONS,
+  // Garage logbook exports — optional so older data files still generate.
+  VEHICLES = [], SETUPS = [], DEFAULT_CAR = null,
+} = await import(dataFile);
 
 // "2:01.24" | "1:58.6" | "3:06.520" -> milliseconds
 function ms(t) {
@@ -34,14 +38,44 @@ for (const [name, id] of trackId) {
   );
 }
 
+// The garage: vehicles, their consumable parts, and wear measurements.
+// Part keys are only a data-file convenience for referencing parts from
+// setup sheets — they become plain ids here.
+const vehicleId = new Map();
+const partIdByKey = new Map();
+let partId = 0;
+VEHICLES.forEach((v, i) => {
+  const vid = i + 1;
+  vehicleId.set(v.name, vid);
+  lines.push(
+    `INSERT INTO vehicles (id, user_id, name, notes, is_default) VALUES (${vid}, 1, ${q(v.name)}, ${q(v.notes ?? null)}, ${v.default ? 1 : 0});`
+  );
+  for (const p of v.parts ?? []) {
+    partId++;
+    if (p.key) partIdByKey.set(p.key, partId);
+    lines.push(
+      `INSERT INTO parts (id, vehicle_id, kind, name, installed_on, retired_on, cost_cents, expected_hours, wear_limit, notes) ` +
+        `VALUES (${partId}, ${vid}, ${q(p.kind)}, ${q(p.name)}, ${q(p.installed)}, ${q(p.retired ?? null)}, ` +
+        `${p.cost != null ? Math.round(p.cost * 100) : "NULL"}, ${p.expected_hours ?? "NULL"}, ${p.wear_limit ?? "NULL"}, ${q(p.notes ?? null)});`
+    );
+    for (const [date, value, unit] of p.measurements ?? []) {
+      lines.push(
+        `INSERT INTO part_measurements (part_id, measured_on, value, unit) VALUES (${partId}, ${q(date)}, ${value}, ${q(unit ?? "mm")});`
+      );
+    }
+  }
+});
+
 let sessionId = 0;
-EVENTS.forEach(([date, days, club, group, track, best, notes, sessionBests], i) => {
+EVENTS.forEach(([date, days, club, group, track, best, notes, sessionBests, car], i) => {
   const eid = i + 1;
   const tid = trackId.get(track);
   if (!tid) throw new Error(`Unknown track: ${track}`);
+  const carName = car ?? DEFAULT_CAR;
+  const vid = carName != null && vehicleId.has(carName) ? vehicleId.get(carName) : null;
   lines.push(
-    `INSERT INTO events (id, user_id, track_id, start_date, days, club, run_group, notes, best_time_ms) ` +
-      `VALUES (${eid}, 1, ${tid}, ${q(date)}, ${days}, ${q(club)}, ${q(group)}, ${q(notes)}, ${best ? ms(best) : "NULL"});`
+    `INSERT INTO events (id, user_id, track_id, start_date, days, club, run_group, car, vehicle_id, notes, best_time_ms) ` +
+      `VALUES (${eid}, 1, ${tid}, ${q(date)}, ${days}, ${q(club)}, ${q(group)}, ${q(carName)}, ${vid ?? "NULL"}, ${q(notes)}, ${best ? ms(best) : "NULL"});`
   );
   // The spreadsheet only recorded each session's best -> one-lap sessions.
   sessionBests.forEach((t, si) => {
@@ -68,6 +102,23 @@ EVENTS.forEach(([date, days, club, group, track, best, notes, sessionBests], i) 
   }
 });
 
+// Per-event-day setup sheets; part refs resolve through the part keys above.
+const eventIdByDate = new Map(EVENTS.map((e, i) => [e[0], i + 1]));
+for (const s of SETUPS) {
+  const eid = eventIdByDate.get(s.event);
+  if (!eid) throw new Error(`Setup references unknown event date: ${s.event}`);
+  const { parts, ...data } = s.data;
+  for (const [from, to] of [["tires", "tires_id"], ["pads_f", "pads_f_id"], ["pads_r", "pads_r_id"]]) {
+    if (!parts?.[from]) continue;
+    const pid = partIdByKey.get(parts[from]);
+    if (!pid) throw new Error(`Setup references unknown part key: ${parts[from]}`);
+    data[to] = pid;
+  }
+  lines.push(`INSERT INTO setups (event_id, day, data) VALUES (${eid}, ${s.day}, ${q(JSON.stringify(data))});`);
+}
+
 const out = join(dir, "seed.sql");
 writeFileSync(out, lines.join("\n") + "\n");
-console.log(`Wrote ${out} from ${dataFile}: ${EVENTS.length} events, ${sessionId} sessions.`);
+console.log(
+  `Wrote ${out} from ${dataFile}: ${EVENTS.length} events, ${sessionId} sessions, ${VEHICLES.length} vehicles, ${partId} parts, ${SETUPS.length} setups.`
+);

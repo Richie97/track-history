@@ -99,6 +99,102 @@ export function sanitizeChannels(v: unknown): LapChannels | null | undefined {
   return { v: 1, dStepM, laps };
 }
 
+// ISO yyyy-mm-dd, the format every date column stores.
+export const isValidDate = (v: unknown): v is string =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+
+// Consumable part kinds — drives grouping and per-kind defaults in the UI.
+export const PART_KINDS = [
+  "pads_front",
+  "pads_rear",
+  "tires",
+  "rotors_front",
+  "rotors_rear",
+  "brake_fluid",
+  "oil",
+  "other",
+] as const;
+export type PartKind = (typeof PART_KINDS)[number];
+export const isValidPartKind = (v: unknown): v is PartKind =>
+  typeof v === "string" && (PART_KINDS as readonly string[]).includes(v);
+
+// A per-event-day setup sheet. Structured enough to diff and chart, loose
+// enough that field applicability varies by car: every field is optional,
+// unknown keys are dropped, out-of-range values reject the sheet.
+// Keep the field list in sync with SETUP_FIELDS in public/js/setup.js,
+// which renders the form from the same spec.
+type CornerKey = "fl" | "fr" | "rl" | "rr";
+type AxleKey = "f" | "r";
+export type SetupSheet = {
+  tp_cold?: Partial<Record<CornerKey, number>>; // psi, cold
+  tp_hot?: Partial<Record<CornerKey, number>>; // psi, hot off track
+  camber?: Partial<Record<AxleKey, number>>; // degrees
+  toe?: Partial<Record<AxleKey, number>>; // user's unit (deg or in)
+  caster?: Partial<Record<AxleKey, number>>; // degrees
+  rebound?: Partial<Record<AxleKey, number>>; // damper clicks
+  compression?: Partial<Record<AxleKey, number>>; // damper clicks
+  sway?: Partial<Record<AxleKey, number>>; // bar position / hole
+  fuel?: number; // gallons at session start
+  tires_id?: number; // parts.id refs — which consumables were on the car
+  pads_f_id?: number;
+  pads_r_id?: number;
+  notes?: string;
+};
+
+const SETUP_GROUPS: [keyof SetupSheet, "corners" | "axle", number, number][] = [
+  ["tp_cold", "corners", 0, 100],
+  ["tp_hot", "corners", 0, 100],
+  ["camber", "axle", -10, 10],
+  ["toe", "axle", -5, 5],
+  ["caster", "axle", 0, 15],
+  ["rebound", "axle", 0, 99],
+  ["compression", "axle", 0, 99],
+  ["sway", "axle", 0, 99],
+];
+const CORNER_KEYS: CornerKey[] = ["fl", "fr", "rl", "rr"];
+const AXLE_KEYS: AxleKey[] = ["f", "r"];
+
+// Normalize a setup sheet. Returns null when nothing usable remains (clear),
+// undefined when a known field holds an implausible value (reject).
+export function sanitizeSetup(v: unknown): SetupSheet | null | undefined {
+  if (v == null) return null;
+  if (typeof v !== "object" || Array.isArray(v)) return undefined;
+  const o = v as Record<string, unknown>;
+  const out: SetupSheet = {};
+
+  for (const [name, shape, min, max] of SETUP_GROUPS) {
+    const raw = o[name];
+    if (raw == null) continue;
+    if (typeof raw !== "object" || Array.isArray(raw)) return undefined;
+    const group: Record<string, number> = {};
+    for (const key of shape === "corners" ? CORNER_KEYS : AXLE_KEYS) {
+      const val = (raw as Record<string, unknown>)[key];
+      if (val == null) continue;
+      if (typeof val !== "number" || !Number.isFinite(val) || val < min || val > max) return undefined;
+      group[key] = Math.round(val * 100) / 100;
+    }
+    if (Object.keys(group).length) (out as Record<string, unknown>)[name] = group;
+  }
+
+  if (o.fuel != null) {
+    if (typeof o.fuel !== "number" || !Number.isFinite(o.fuel) || o.fuel < 0 || o.fuel > 50) return undefined;
+    out.fuel = Math.round(o.fuel * 10) / 10;
+  }
+  for (const ref of ["tires_id", "pads_f_id", "pads_r_id"] as const) {
+    const val = o[ref];
+    if (val == null) continue;
+    if (typeof val !== "number" || !Number.isInteger(val) || val <= 0) return undefined;
+    out[ref] = val;
+  }
+  if (o.notes != null) {
+    if (typeof o.notes !== "string" || o.notes.length > 2000) return undefined;
+    const notes = o.notes.trim();
+    if (notes) out.notes = notes;
+  }
+
+  return Object.keys(out).length ? out : null;
+}
+
 export type ChecklistItem = { text: string; done: boolean };
 
 // Normalize a prep checklist: null clears it, a valid array is trimmed and

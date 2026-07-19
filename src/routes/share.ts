@@ -52,8 +52,12 @@ publicShare.get("/:slug", async (c) => {
       .bind(owner.id)
       .all<EventRow>(),
   ]);
-  // Strip private fields: event notes and prep checklists, per-track course notes.
-  const events = eventRows.results.map(withComputed).map(({ notes, checklist, ...pub }) => pub);
+  // Strip private fields: event notes and prep checklists, per-track course
+  // notes, and the garage linkage (setup sheets and parts are exactly the
+  // data racers don't share — they live behind auth only).
+  const events = eventRows.results
+    .map(withComputed)
+    .map(({ notes, checklist, vehicle_id, track_hours, ...pub }) => pub);
   const publicTracks = tracks.map(({ notes, ...pub }) => pub);
   return c.json({ name: owner.name, totals, tracks: publicTracks, events });
 });

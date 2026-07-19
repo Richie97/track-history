@@ -14,6 +14,10 @@ import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
+import {
+  AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS, WEAR_LIMIT_HINTS,
+  diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, partKindLabel, partStatus,
+} from "./js/garage.js";
 import { activeEventId, bindRecorder, isRecording, pendingRecording, recorderAvailable } from "./js/record/ui.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 
@@ -59,6 +63,237 @@ const CONDITIONS = [
 const condLabel = (c) => (CONDITIONS.find(([v]) => v === c) || [])[1] ?? "";
 const fmtConditions = (e) =>
   [condLabel(e.conditions), e.temp_f != null ? `${e.temp_f}°F` : ""].filter(Boolean).join(" · ");
+
+// ---------- garage & setup-sheet renderers -----------------------------------
+
+// Every part in the garage payload, across vehicles — resolves the part ids
+// a setup sheet references into names.
+const garagePartsById = (garage) =>
+  new Map((garage ?? []).flatMap((v) => v.parts.map((p) => [p.id, p])));
+
+const wearBarHtml = (wear) => {
+  if (!wear || wear.pct_used == null) return "";
+  const pct = Math.round(Math.min(1, wear.pct_used) * 100);
+  return `<div class="wear-bar ${partStatus(wear) ?? "ok"}" role="img" aria-label="${pct}% used">
+    <span style="width:${Math.max(2, pct)}%"></span></div>`;
+};
+
+// One-line wear story for a part: accrued usage, remaining life, and how much
+// to trust the projection.
+function wearStatusHtml(p) {
+  const w = p.wear;
+  const bits = [`<span class="t">${fmtHours(w.hours)}</span> on part`];
+  if (p.kind === "tires") bits.push(`${w.cycles} heat cycle${w.cycles === 1 ? "" : "s"}`);
+  else if (w.events) bits.push(`${w.events} event${w.events === 1 ? "" : "s"}`);
+  const remaining = fmtRemaining(w);
+  if (remaining) {
+    const cls = { due: "unmet", low: "unmet", ok: "met" }[partStatus(w)] ?? "";
+    bits.push(`<span class="goal-status ${cls}">${remaining}</span>`);
+    bits.push(
+      w.source === "measured"
+        ? `measured ${Math.round(w.wear_per_hour * 100) / 100} ${esc(w.unit ?? "")}/h`
+        : `vs. ${fmtHours(w.expected_hours)} expected`
+    );
+  } else if (!p.retired_on) {
+    bits.push(`<span class="hint-inline">no life estimate — set expected hours or log two measurements</span>`);
+  }
+  return bits.join(" · ");
+}
+
+// The maintenance items worth shouting about: active parts at or near the
+// end of their life, worst first.
+const garageAlerts = (garage) =>
+  (garage ?? [])
+    .flatMap((v) =>
+      v.parts
+        .filter((p) => !p.retired_on)
+        .map((p) => ({ vehicle: v, part: p, status: partStatus(p.wear) }))
+        .filter((a) => a.status === "due" || a.status === "low")
+    )
+    .sort((a, b) => (a.status === "due" ? 0 : 1) - (b.status === "due" ? 0 : 1));
+
+const alertStripHtml = (garage) => {
+  const alerts = garageAlerts(garage);
+  if (!alerts.length) return "";
+  return `<div class="panel garage-alerts">
+    <span class="ga-icon" aria-hidden="true">🔧</span>
+    <div class="ga-body"><strong>Maintenance due</strong>
+      <div class="ga-chips">${alerts
+        .map(
+          (a) => `<a class="ga-chip ${a.status}" href="#/vehicle/${a.vehicle.id}">
+            ${esc(partKindLabel(a.part.kind))} — ${
+              a.status === "due" ? "replace now" : fmtRemaining(a.part.wear)
+            }<span class="ga-veh">${esc(a.vehicle.name)}</span></a>`
+        )
+        .join("")}</div>
+    </div>
+  </div>`;
+};
+
+// Compact spec-sheet rendering of a setup: one box per field group, values
+// that differ from `prev` highlighted. prev=null renders without highlights.
+function setupSheetHtml(sheet, prev, partsById) {
+  const changed = new Set(diffSetups(prev, sheet).map((d) => d.key));
+  const sv = (key, value) =>
+    `<span class="sv${changed.has(key) && prev ? " changed" : ""}">${esc(String(value))}</span>`;
+  const boxes = [];
+  for (const f of SETUP_FIELDS) {
+    if (f.shape === "number") {
+      if (sheet[f.key] == null) continue;
+      boxes.push(
+        `<div class="setup-box"><span class="sb-label">${f.label}${f.unit ? ` <em>${f.unit}</em>` : ""}</span>
+         <span class="sb-vals">${sv(f.key, sheet[f.key])}</span></div>`
+      );
+      continue;
+    }
+    const group = sheet[f.key];
+    if (!group) continue;
+    const keys = f.shape === "corners" ? CORNER_KEYS : AXLE_KEYS;
+    const vals = keys
+      .filter(([k]) => group[k] != null)
+      .map(([k, lbl]) => `<span class="sv-wrap" title="${f.label} ${lbl}">${sv(`${f.key}.${k}`, group[k])}</span>`);
+    if (!vals.length) continue;
+    boxes.push(
+      `<div class="setup-box"><span class="sb-label">${f.label}${f.unit ? ` <em>${f.unit}</em>` : ""}</span>
+       <span class="sb-vals">${vals.join('<span class="sep">/</span>')}</span></div>`
+    );
+  }
+  for (const [key, label] of PART_REFS) {
+    if (sheet[key] == null) continue;
+    const p = partsById?.get(sheet[key]);
+    boxes.push(
+      `<div class="setup-box"><span class="sb-label">${label}</span>
+       <span class="sb-vals">${sv(key, p ? p.name : `#${sheet[key]}`)}</span></div>`
+    );
+  }
+  return `${boxes.length ? `<div class="setup-grid">${boxes.join("")}</div>` : ""}
+    ${sheet.notes ? `<div class="notes-block">${esc(sheet.notes)}</div>` : ""}`;
+}
+
+// The editable form for one day's sheet. Inputs are named sf:<flat-key> and
+// read back by readSetupForm; blank inputs mean "not recorded".
+function setupFormHtml(day, sheet, partOptions, existing) {
+  const val = (root, sub) => {
+    const v = sub ? sheet?.[root]?.[sub] : sheet?.[root];
+    return v ?? "";
+  };
+  const fields = SETUP_FIELDS.map((f) => {
+    if (f.shape === "number")
+      return `<div class="field"><label>${f.label}${f.unit ? ` (${f.unit})` : ""}</label>
+        <input name="sf:${f.key}" type="number" step="${f.step}" inputmode="decimal" value="${val(f.key)}"></div>`;
+    const keys = f.shape === "corners" ? CORNER_KEYS : AXLE_KEYS;
+    return `<div class="field"><label>${f.label}${f.unit ? ` (${f.unit})` : ""}</label>
+      <div class="setup-inputs ${f.shape}">${keys
+        .map(
+          ([k, lbl]) =>
+            `<input name="sf:${f.key}.${k}" type="number" step="${f.step}" inputmode="decimal"
+               placeholder="${lbl}" aria-label="${f.label} ${lbl}" value="${val(f.key, k)}">`
+        )
+        .join("")}</div></div>`;
+  }).join("");
+  const refs = PART_REFS.map(([key, label, kind]) => {
+    const opts = partOptions.filter((p) => p.kind === kind);
+    if (!opts.length) return "";
+    return `<div class="field"><label>${label}</label>
+      <select name="sf:${key}"><option value="">—</option>${opts
+        .map(
+          (p) => `<option value="${p.id}"${sheet?.[key] === p.id ? " selected" : ""}>${esc(p.name)}${
+            p.retired_on ? " (retired)" : ""
+          }</option>`
+        )
+        .join("")}</select></div>`;
+  }).join("");
+  return `<form class="panel setup-form" data-setup-form="${day}">
+    <div class="form-grid setup-form-grid">${fields}${refs}</div>
+    <div class="field"><label>Setup notes</label>
+      <textarea name="sf:notes" placeholder="What changed and why — pushing in T5, went two clicks stiffer front…">${esc(sheet?.notes ?? "")}</textarea></div>
+    <div class="btn-row">
+      <button class="btn small primary">Save day ${day} setup</button>
+      <button class="btn small" type="button" data-setup-cancel="${day}">Cancel</button>
+      ${existing ? `<button class="btn small danger" type="button" data-setup-del="${day}">Delete</button>` : ""}
+      <span class="goal-msg" data-setup-msg="${day}"></span>
+    </div>
+  </form>`;
+}
+
+function readSetupForm(form) {
+  const out = {};
+  for (const el of form.elements) {
+    if (!el.name?.startsWith("sf:")) continue;
+    const raw = el.value.trim();
+    if (raw === "") continue;
+    const [root, sub] = el.name.slice(3).split(".");
+    if (root === "notes") {
+      out.notes = raw;
+      continue;
+    }
+    const num = Number(raw);
+    if (!Number.isFinite(num)) continue;
+    const v = PART_REFS.some(([k]) => k === root) ? Math.round(num) : num;
+    if (sub) (out[root] ??= {})[sub] = v;
+    else out[root] = v;
+  }
+  return out;
+}
+
+// "Camber F −3.0 → −3.2" chips for the track page's correlation table.
+function diffChipsHtml(prev, cur, partsById, max = 8) {
+  const fmtV = (key, v) => {
+    if (v == null) return "—";
+    if (PART_REFS.some(([k]) => k === key)) {
+      const p = partsById?.get(v);
+      return p ? p.name : `#${v}`;
+    }
+    return String(v);
+  };
+  const diffs = diffSetups(prev, cur);
+  if (!diffs.length) return `<span class="hint-inline">no changes</span>`;
+  const chips = diffs
+    .slice(0, max)
+    .map(
+      (d) => `<span class="diff-chip"><span class="dc-label">${esc(flatLabel(d.key))}</span>
+        ${prev ? `${esc(fmtV(d.key, d.from))} → ` : ""}<b>${esc(fmtV(d.key, d.to))}</b></span>`
+    )
+    .join("");
+  return chips + (diffs.length > max ? ` <span class="hint-inline">+${diffs.length - max} more</span>` : "");
+}
+
+// Track page: what changed setup-wise across visits, next to what it did to
+// the times. One row per event-day sheet in date order; the Changes column
+// diffs against the previous sheet, so the human does the causal reasoning —
+// this table just does the recall a paper notebook can't.
+function setupHistoryHtml(setupRows, partsById) {
+  if (!setupRows?.length) return "";
+  const rows = setupRows
+    .map((r, i) => {
+      const prev = setupRows[i - 1] ?? null;
+      return `<tr class="rowlink" data-href="#/event/${r.event_id}">
+        <td class="date">${fmtDate(r.start_date)}${r.day > 1 ? ` <span class="hint-inline">day ${r.day}</span>` : ""}</td>
+        <td>${fmtConditions(r)}</td>
+        <td class="num">${fmtMs(r.best_ms)}</td>
+        <td class="num">${fmtConsistency(r.consistency)}</td>
+        <td class="diff-cell">${
+          prev
+            ? diffChipsHtml(prev.data, r.data, partsById)
+            : `<span class="diff-chip baseline">baseline — ${diffSetups(null, r.data).length} values logged</span>${
+                r.data.notes ? ` <span class="hint-inline">${esc(r.data.notes)}</span>` : ""
+              }`
+        }</td>
+      </tr>`;
+    })
+    .join("");
+  return `<h2>Setup vs. lap times</h2>
+    <div class="hint" style="margin:0 0 4px">Every setup sheet logged at this track, oldest first, with what changed between sheets. Best and consistency are the event's — decide for yourself what a change bought you.</div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Setup changes</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+// ISO date of an event's Nth day (day 1 = start_date).
+function eventDayISO(startDate, day) {
+  const d = new Date(startDate + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + day - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 // Dashboard hero for the nearest upcoming event: countdown, checklist
 // progress ring, and the still-open items by name.
@@ -385,7 +620,7 @@ async function ensureMe() {
 // --- dashboard ---
 
 async function viewDashboard() {
-  const [tracks, events] = await Promise.all([api("/tracks"), api("/events")]);
+  const [tracks, events, garage] = await Promise.all([api("/tracks"), api("/events"), api("/garage")]);
   const withData = tracks.filter((t) => t.event_count > 0).sort((a, b) => (b.last_date || "").localeCompare(a.last_date || ""));
   const upcoming = events.filter(isUpcoming).sort((a, b) => a.start_date.localeCompare(b.start_date));
   const recent = events.filter((e) => !isUpcoming(e)).slice(0, 6);
@@ -432,12 +667,36 @@ async function viewDashboard() {
     )
     .join("");
 
+  // Garage cards: hours accrued, what's in service, and the loudest wear
+  // status per vehicle.
+  const garageCards = garage
+    .map((v) => {
+      const active = v.parts.filter((p) => !p.retired_on);
+      const statuses = active.map((p) => partStatus(p.wear));
+      const worst = statuses.includes("due") ? "due" : statuses.includes("low") ? "low" : "ok";
+      const alertCount = statuses.filter((s) => s === "due" || s === "low").length;
+      return `<a class="card" href="#/vehicle/${v.id}">
+        <div class="name">${esc(v.name)}</div>
+        <div class="best garage-hours">${fmtHours(v.hours)}</div>
+        <div class="meta">${v.event_days} track day${v.event_days === 1 ? "" : "s"} · ${active.length} part${active.length === 1 ? "" : "s"} in service</div>
+        <div class="meta garage-status ${worst}">${
+          alertCount
+            ? `● ${alertCount} item${alertCount === 1 ? "" : "s"} due soon`
+            : active.length
+              ? "● consumables OK"
+              : "no consumables tracked yet"
+        }</div>
+      </a>`;
+    })
+    .join("");
+
   const slug = state.me.share_slug || "";
   const view = shell(`
     <div class="btn-row" style="margin-top:20px">
       <a class="btn primary" href="#/new">+ Add event</a>
       <a class="btn" href="#/year">Year in review</a>
     </div>
+    ${alertStripHtml(garage)}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${state.totals.events}</div></div>
@@ -447,6 +706,7 @@ async function viewDashboard() {
     ${upcomingCards ? `<h2>Also upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events yet — add your first track day.</div>`}
+    ${garageCards ? `<h2>Garage</h2><div class="cards">${garageCards}</div>` : ""}
     ${recent.length ? `<h2>Recent events</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Club</th><th class="num">Best</th></tr></thead>
     <tbody>${recentRows}</tbody></table></div>` : ""}
@@ -505,7 +765,12 @@ async function viewDashboard() {
 // --- track detail ---
 
 async function viewTrack(trackId, params) {
-  const [tracks, allEvents] = await Promise.all([api("/tracks"), api(`/events?track_id=${trackId}`)]);
+  const [tracks, allEvents, trackSetups, garage] = await Promise.all([
+    api("/tracks"),
+    api(`/events?track_id=${trackId}`),
+    api(`/tracks/${trackId}/setups`).catch(() => []),
+    api("/garage").catch(() => []),
+  ]);
   const track = tracks.find((t) => String(t.id) === String(trackId));
   if (!track) return viewNotFound();
 
@@ -601,6 +866,7 @@ async function viewTrack(trackId, params) {
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
+    ${setupHistoryHtml(trackSetups, garagePartsById(garage))}
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
 
@@ -750,7 +1016,7 @@ async function viewCompare(trackId, params) {
 let pbWatch = null;
 
 async function viewEvent(eventId) {
-  const [e, tracks] = await Promise.all([api(`/events/${eventId}`), api("/tracks")]);
+  const [e, tracks, garage] = await Promise.all([api(`/events/${eventId}`), api("/tracks"), api("/garage")]);
   // Live lap recorder entry (native apps only — recorderAvailable() is false
   // on web). The button doubles as the way back into an active recording and
   // the recovery path for an unsaved one.
@@ -842,6 +1108,50 @@ async function viewEvent(eventId) {
       </div>`
     : "";
 
+  // Setup notebook: one sheet per event day. Sheets copy forward — the form
+  // prefills from the previous day (or this car's last event) so only the
+  // changes need typing.
+  const partsById = garagePartsById(garage);
+  const vehicleParts = e.vehicle_id
+    ? garage.find((v) => String(v.id) === String(e.vehicle_id))?.parts ?? []
+    : [];
+  const setupsByDay = new Map((e.setups ?? []).map((s) => [s.day, s.data]));
+  const setupDays = [...Array(Math.max(1, Math.ceil(e.days))).keys()].map((i) => i + 1);
+  for (const s of e.setups ?? []) if (!setupDays.includes(s.day)) setupDays.push(s.day);
+  const prevSheetFor = (day) => {
+    for (let d = day - 1; d >= 1; d--) if (setupsByDay.has(d)) return setupsByDay.get(d);
+    return null;
+  };
+  const setupDayHtml = (day) => {
+    const sheet = setupsByDay.get(day);
+    return `<div class="session setup-day">
+      <div class="s-head">
+        <span class="s-label">Day ${day}</span>
+        <span class="s-best">${setupDays.length > 1 || sheet ? fmtDate(eventDayISO(e.start_date, day)) : ""}</span>
+        <span class="grow"></span>
+        ${
+          sheet
+            ? `<button class="btn small" data-setup-edit="${day}">Edit</button>`
+            : `<button class="btn small" data-setup-log="${day}">Log setup</button>`
+        }
+      </div>
+      <div data-setup-body="${day}">${
+        sheet
+          ? setupSheetHtml(sheet, prevSheetFor(day), partsById)
+          : `<div class="hint">No setup sheet yet — pressures, alignment, dampers and which consumables were on the car.</div>`
+      }</div>
+    </div>`;
+  };
+  const setupNotebookHtml = `
+    <h2>Setup notebook</h2>
+    ${e.setups?.length && setupDays.length > 1 ? `<div class="hint" style="margin:0 0 4px">Values <span class="sv changed">highlighted</span> changed from the previous day.</div>` : ""}
+    ${setupDays.map(setupDayHtml).join("")}
+    ${
+      !e.vehicle_id && garage.length
+        ? `<div class="hint" style="margin:6px 0 0">Tip: set this event's Car to one of your garage vehicles and setups will carry over between its events.</div>`
+        : ""
+    }`;
+
   const upcoming = isUpcoming(e);
   const checklist = e.checklist;
   const showChecklist = upcoming || checklist != null;
@@ -878,9 +1188,16 @@ async function viewEvent(eventId) {
       </div>`
     : "";
 
+  const carHtml = e.car
+    ? e.vehicle_id
+      ? `<a href="#/vehicle/${e.vehicle_id}">${esc(e.car)}</a>`
+      : esc(e.car)
+    : "";
   const view = shell(`
     <h1>${esc(e.track_name)} — ${fmtDate(e.start_date)}</h1>
-    <p class="sub">${esc([e.club, e.run_group].filter(Boolean).join(" · ") || "")}${fmtConditions(e) ? `${e.club || e.run_group ? " · " : ""}${fmtConditions(e)}` : ""}</p>
+    <p class="sub">${[esc([e.club, e.run_group].filter(Boolean).join(" · ") || ""), carHtml, fmtConditions(e)]
+      .filter(Boolean)
+      .join(" · ")}</p>
     ${pbBanner}
     ${upcoming ? `<div class="panel countdown-banner"><strong>${fmtCountdown(e.start_date)}</strong> — log sessions here once you're back from the track.</div>` : ""}
     <div class="tiles">
@@ -894,6 +1211,7 @@ async function viewEvent(eventId) {
       <a class="btn" href="#/event/${e.id}/edit">Edit event</a>
       <button class="btn danger" id="del-event">Delete event</button>
     </div>
+    ${setupNotebookHtml}
     ${checklistHtml}
     ${traceHtml}
     <h2>Sessions</h2>
@@ -977,6 +1295,57 @@ async function viewEvent(eventId) {
     if (useDefault)
       useDefault.onclick = () => saveChecklist(DEFAULT_CHECKLIST.map((text) => ({ text, done: false })));
   }
+  // Setup notebook: swap a day's display for the form on Edit / Log setup;
+  // Log setup prefills from the previous sheet (copy-forward) so only the
+  // changes need typing.
+  const openSetupForm = (day, sheet, existing, prefilled) => {
+    const body = view.querySelector(`[data-setup-body="${day}"]`);
+    body.innerHTML = `${
+      prefilled
+        ? `<div class="hint" style="margin:0 0 8px">Pre-filled from your last sheet — adjust what changed.</div>`
+        : ""
+    }${setupFormHtml(day, sheet, vehicleParts, existing)}`;
+    const form = body.querySelector(`[data-setup-form="${day}"]`);
+    const msg = body.querySelector(`[data-setup-msg="${day}"]`);
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      const data = readSetupForm(form);
+      if (!Object.keys(data).length) {
+        msg.textContent = "Nothing filled in yet.";
+        return;
+      }
+      try {
+        await api(`/events/${e.id}/setups/${day}`, { method: "PUT", body: data });
+        route();
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    };
+    body.querySelector(`[data-setup-cancel="${day}"]`).onclick = () => route();
+    const del = body.querySelector(`[data-setup-del="${day}"]`);
+    if (del)
+      del.onclick = async () => {
+        if (!confirm(`Delete the day ${day} setup sheet?`)) return;
+        await api(`/events/${e.id}/setups/${day}`, { method: "DELETE" });
+        route();
+      };
+  };
+  view.querySelectorAll("[data-setup-edit]").forEach((btn) => {
+    btn.onclick = () => openSetupForm(Number(btn.dataset.setupEdit), setupsByDay.get(Number(btn.dataset.setupEdit)), true, false);
+  });
+  view.querySelectorAll("[data-setup-log]").forEach((btn) => {
+    btn.onclick = async () => {
+      const day = Number(btn.dataset.setupLog);
+      let prefill = null;
+      try {
+        prefill = (await api(`/events/${e.id}/setups/prefill?day=${day}`)).data;
+      } catch {
+        // Offline or older server — start from a blank sheet.
+      }
+      openSetupForm(day, prefill, false, prefill != null);
+    };
+  });
+
   view.querySelector("#add-session").onsubmit = async (evt) => {
     evt.preventDefault();
     const f = evt.target;
@@ -1125,6 +1494,10 @@ async function viewEventForm(eventId, presetTrack) {
         <div class="field"><label>Days</label>
           <input name="days" type="number" min="0.5" step="0.5" value="${existing?.days ?? 2}">
         </div>
+        <div class="field"><label>On-track hours (optional)</label>
+          <input name="track_hours" type="number" min="0.5" max="200" step="0.5" value="${existing?.track_hours ?? ""}" placeholder="est. 2h per day">
+          <div class="hint">Seat time for consumable wear tracking — leave blank for the 2h-per-day estimate</div>
+        </div>
         <div class="field"><label>Club / organizer</label>
           <input name="club" value="${esc(existing?.club ?? "")}" placeholder="VIR Club">
         </div>
@@ -1178,10 +1551,12 @@ async function viewEventForm(eventId, presetTrack) {
       return;
     }
     const tempRaw = f.temp_f.value.trim();
+    const hoursRaw = f.track_hours.value.trim();
     const body = {
       track_name: f.track.value.trim(),
       start_date: f.start_date.value,
       days: Number(f.days.value) || 1,
+      track_hours: hoursRaw === "" ? null : Number(hoursRaw),
       club: f.club.value.trim() || null,
       run_group: f.run_group.value.trim() || null,
       car: f.car.value.trim() || null,
@@ -1215,6 +1590,7 @@ async function viewSettings() {
         <span class="vehicle-name">${esc(v.name)}</span>
         ${v.is_default ? `<span class="default-badge">Default</span>` : ""}
         <span class="grow"></span>
+        <a class="btn small primary" href="#/vehicle/${v.id}">Garage page</a>
         ${v.is_default ? "" : `<button class="btn small" data-veh-default="${v.id}">Set default</button>`}
         <button class="btn small" data-veh-edit="${v.id}">Edit</button>
         <button class="btn small danger" data-veh-del="${v.id}">Delete</button>
@@ -1236,7 +1612,7 @@ async function viewSettings() {
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
     <h1>Settings</h1>
     <h2>Vehicles</h2>
-    <div class="hint" style="margin:0 0 4px">Your garage — the event form's Car field suggests these, and the default fills in automatically on new events. Note modifications here so setup changes stay part of your lap-time story.</div>
+    <div class="hint" style="margin:0 0 4px">Your garage — the event form's Car field suggests these, and the default fills in automatically on new events. Open a car's garage page to track its consumables (pads, tires, fluid…) and see when they'll need replacing.</div>
     ${vehicles.map(vehicleHtml).join("") || `<div class="empty">No cars yet — add your first below.</div>`}
     <form class="panel" id="veh-add">
       <div class="field"><label>Car</label><input name="name" required placeholder="2023 Corvette Z06"></div>
@@ -1314,6 +1690,244 @@ async function viewSettings() {
         route();
       } catch (err) {
         showError(err);
+      }
+    };
+  });
+}
+
+// --- vehicle / garage page ---
+
+async function viewVehicle(vehicleId) {
+  const [garage, events] = await Promise.all([api("/garage"), api("/events")]);
+  const v = garage.find((x) => String(x.id) === String(vehicleId));
+  if (!v) return viewNotFound();
+  const vehEvents = events.filter((e) => String(e.vehicle_id) === String(v.id) && !isUpcoming(e));
+  const active = v.parts.filter((p) => !p.retired_on);
+  const retired = v.parts.filter((p) => p.retired_on);
+  const spendCents = v.parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0);
+  const today = todayISO();
+
+  const measurementChips = (p) =>
+    p.measurements.length
+      ? `<div class="laps">${p.measurements
+          .map(
+            (m) => `<span class="lap">${fmtDate(m.measured_on)} · ${m.value} ${esc(m.unit)}
+              <button type="button" class="x" data-meas-del="${p.id}:${m.id}" title="Remove measurement">✕</button></span>`
+          )
+          .join("")}</div>`
+      : "";
+
+  const partEditForm = (p) => `
+    <form class="part-edit" data-part-form="${p.id}" hidden>
+      <div class="form-grid">
+        <div class="field"><label>Type</label>
+          <select name="kind">${PART_KINDS.map(([k, l]) => `<option value="${k}"${p.kind === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="field"><label>Part / compound</label><input name="name" required value="${esc(p.name)}"></div>
+        <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${esc(p.installed_on)}"></div>
+        <div class="field"><label>Retired (blank = in service)</label><input name="retired_on" type="date" value="${esc(p.retired_on ?? "")}"></div>
+        <div class="field"><label>Cost ($)</label><input name="cost" type="number" min="0" step="0.01" value="${p.cost_cents != null ? (p.cost_cents / 100).toFixed(2) : ""}"></div>
+        <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" value="${p.expected_hours ?? ""}"></div>
+        <div class="field"><label>Replace at (measured value)</label><input name="wear_limit" type="number" min="0" step="0.5" value="${p.wear_limit ?? ""}" placeholder="${WEAR_LIMIT_HINTS[p.kind] ?? ""}"></div>
+      </div>
+      <div class="field"><label>Notes</label><input name="notes" value="${esc(p.notes ?? "")}" placeholder="Sizes, torque specs, where bought…"></div>
+      <div class="btn-row">
+        <button class="btn small primary">Save</button>
+        <button class="btn small" type="button" data-part-cancel="${p.id}">Cancel</button>
+        <button class="btn small danger" type="button" data-part-delete="${p.id}">Delete part</button>
+      </div>
+    </form>`;
+
+  const partCard = (p) => `
+    <div class="panel part-card">
+      <div class="part-head">
+        <span class="part-kind">${esc(partKindLabel(p.kind))}</span>
+        <span class="part-name">${esc(p.name)}</span>
+        <span class="grow"></span>
+        <button class="btn small" data-meas-toggle="${p.id}">Measure</button>
+        ${p.retired_on ? "" : `<button class="btn small" data-part-retire="${p.id}">Retire</button>`}
+        <button class="btn small" data-part-edit="${p.id}">Edit</button>
+      </div>
+      <div class="part-meta">Installed ${fmtDate(p.installed_on)}${p.retired_on ? ` — retired ${fmtDate(p.retired_on)}` : ""}${p.cost_cents != null ? ` · ${fmtCost(p.cost_cents)}` : ""}${p.notes ? ` · ${esc(p.notes)}` : ""}</div>
+      ${wearBarHtml(p.wear)}
+      <div class="part-status">${wearStatusHtml(p)}</div>
+      ${measurementChips(p)}
+      <form class="btn-row meas-form" data-meas-form="${p.id}" hidden>
+        <input name="value" type="number" step="0.1" min="0" required placeholder="Value" style="max-width:110px">
+        <input name="unit" value="${esc(p.measurements[p.measurements.length - 1]?.unit ?? (p.kind === "tires" ? "32nds" : "mm"))}" placeholder="mm" style="max-width:90px">
+        <input name="measured_on" type="date" required value="${today}">
+        <button class="btn small primary">Log measurement</button>
+        <span class="hint-inline">two or more measurements unlock the wear projection</span>
+      </form>
+      ${partEditForm(p)}
+    </div>`;
+
+  const ledgerRows = vehEvents
+    .map(
+      (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
+        <td class="date">${fmtDate(e.start_date)}</td>
+        <td>${esc(e.track_name)}</td>
+        <td>${e.days}</td>
+        <td class="num">${fmtHours(e.hours)}${e.track_hours == null ? '<span class="hint-inline"> est.</span>' : ""}</td>
+      </tr>`
+    )
+    .join("");
+
+  const retiredRows = retired
+    .map((p) => {
+      const perHour = p.cost_cents != null && p.wear.hours > 0 ? `$${(p.cost_cents / 100 / p.wear.hours).toFixed(0)}/h` : "—";
+      return `<tr>
+        <td>${esc(partKindLabel(p.kind))}</td>
+        <td>${esc(p.name)}</td>
+        <td class="date">${fmtDate(p.installed_on)} – ${fmtDate(p.retired_on)}</td>
+        <td class="num">${fmtHours(p.wear.hours)}</td>
+        <td class="num">${fmtCost(p.cost_cents) ?? "—"}</td>
+        <td class="num">${perHour}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const view = shell(`
+    <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
+    <h1>${esc(v.name)}${v.is_default ? ' <span class="default-badge">Default</span>' : ""}</h1>
+    ${v.notes ? `<p class="sub">${esc(v.notes)}</p>` : ""}
+    ${alertStripHtml([v])}
+    <div class="tiles">
+      <div class="tile"><div class="label">Track hours</div><div class="value">${fmtHours(v.hours).replace(" h", "")}<span class="unit">h</span></div></div>
+      <div class="tile"><div class="label">Track days</div><div class="value">${v.event_days}</div></div>
+      <div class="tile"><div class="label">Events</div><div class="value">${v.event_count}</div></div>
+      <div class="tile"><div class="label">Parts spend</div><div class="value">${spendCents ? fmtCost(spendCents) : "—"}</div></div>
+    </div>
+    <h2>Consumables in service</h2>
+    <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (2h per track day unless an event says otherwise). Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
+    ${active.map(partCard).join("") || `<div class="empty">Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.</div>`}
+    <form class="panel" id="part-add">
+      <div class="form-grid">
+        <div class="field"><label>Type</label>
+          <select name="kind">${PART_KINDS.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
+        <div class="field"><label>Part / compound</label><input name="name" required placeholder="Hawk DTC-60, RE-71RS 255/40…"></div>
+        <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${today}"></div>
+        <div class="field"><label>Cost ($, optional)</label><input name="cost" type="number" min="0" step="0.01" placeholder="389"></div>
+        <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" placeholder="auto from history"></div>
+        <div class="field"><label>Replace at (optional)</label><input name="wear_limit" type="number" min="0" step="0.5" placeholder="3 (mm)"></div>
+      </div>
+      <div class="field"><label>Notes</label><input name="notes" placeholder="Sizes, torque specs, where bought…"></div>
+      <div id="part-error"></div>
+      <button class="btn primary">+ Add part</button>
+    </form>
+    ${retired.length ? `<h2>Retired parts</h2>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Part</th><th>In service</th><th class="num">Hours</th><th class="num">Cost</th><th class="num">Cost/hour</th></tr></thead>
+    <tbody>${retiredRows}</tbody></table></div>` : ""}
+    ${vehEvents.length ? `<h2>Track-hours ledger</h2>
+    <div class="hint" style="margin:0 0 4px">Hours marked <em>est.</em> use the 2h-per-day default — set exact hours on an event's edit form if a day ran long or short.</div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th class="num">Hours</th></tr></thead>
+    <tbody>${ledgerRows}</tbody></table></div>` : ""}
+  `);
+  wireRowLinks(view);
+
+  const partError = (err) => {
+    view.querySelector("#part-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+  };
+  const numOrNull = (raw) => (raw.trim() === "" ? null : Number(raw));
+
+  view.querySelector("#part-add").onsubmit = async (evt) => {
+    evt.preventDefault();
+    const f = evt.target;
+    try {
+      await api(`/vehicles/${v.id}/parts`, {
+        method: "POST",
+        body: {
+          kind: f.kind.value,
+          name: f.name.value.trim(),
+          installed_on: f.installed_on.value,
+          cost_cents: f.cost.value.trim() === "" ? null : Math.round(Number(f.cost.value) * 100),
+          expected_hours: numOrNull(f.expected_hours.value),
+          wear_limit: numOrNull(f.wear_limit.value),
+          notes: f.notes.value.trim() || null,
+        },
+      });
+      route();
+    } catch (err) {
+      partError(err);
+    }
+  };
+
+  view.querySelectorAll("[data-meas-toggle]").forEach((btn) => {
+    btn.onclick = () => {
+      const form = view.querySelector(`[data-meas-form="${btn.dataset.measToggle}"]`);
+      form.hidden = !form.hidden;
+      if (!form.hidden) form.querySelector('[name="value"]').focus();
+    };
+  });
+  view.querySelectorAll("[data-meas-form]").forEach((form) => {
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      try {
+        await api(`/parts/${form.dataset.measForm}/measurements`, {
+          method: "POST",
+          body: {
+            measured_on: form.measured_on.value,
+            value: Number(form.value.value),
+            unit: form.unit.value.trim() || "mm",
+          },
+        });
+        route();
+      } catch (err) {
+        partError(err);
+      }
+    };
+  });
+  view.querySelectorAll("[data-meas-del]").forEach((btn) => {
+    btn.onclick = async () => {
+      const [partId, measId] = btn.dataset.measDel.split(":");
+      await api(`/parts/${partId}/measurements/${measId}`, { method: "DELETE" });
+      route();
+    };
+  });
+  view.querySelectorAll("[data-part-retire]").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Retire this part? Its wear stops accruing and it moves to the retired list.")) return;
+      await api(`/parts/${btn.dataset.partRetire}`, { method: "PUT", body: { retired_on: today } });
+      route();
+    };
+  });
+  view.querySelectorAll("[data-part-edit]").forEach((btn) => {
+    btn.onclick = () => {
+      const form = view.querySelector(`[data-part-form="${btn.dataset.partEdit}"]`);
+      form.hidden = !form.hidden;
+    };
+  });
+  view.querySelectorAll("[data-part-cancel]").forEach((btn) => {
+    btn.onclick = () => {
+      view.querySelector(`[data-part-form="${btn.dataset.partCancel}"]`).hidden = true;
+    };
+  });
+  view.querySelectorAll("[data-part-delete]").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Delete this part and its measurements? (Retire it instead to keep the history.)")) return;
+      await api(`/parts/${btn.dataset.partDelete}`, { method: "DELETE" });
+      route();
+    };
+  });
+  view.querySelectorAll("[data-part-form]").forEach((form) => {
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      try {
+        await api(`/parts/${form.dataset.partForm}`, {
+          method: "PUT",
+          body: {
+            kind: form.kind.value,
+            name: form.name.value.trim(),
+            installed_on: form.installed_on.value,
+            retired_on: form.retired_on.value || null,
+            cost_cents: form.cost.value.trim() === "" ? null : Math.round(Number(form.cost.value) * 100),
+            expected_hours: numOrNull(form.expected_hours.value),
+            wear_limit: numOrNull(form.wear_limit.value),
+            notes: form.notes.value.trim() || null,
+          },
+        });
+        route();
+      } catch (err) {
+        partError(err);
       }
     };
   });
@@ -1573,6 +2187,7 @@ async function route() {
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
     if (parts[0] === "event" && parts[1] && parts[2] === "record") return await viewRecord(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
+    if (parts[0] === "vehicle" && parts[1]) return await viewVehicle(parts[1]);
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
     if (parts[0] === "year") return await viewYear(params);
     if (parts[0] === "settings") return await viewSettings();

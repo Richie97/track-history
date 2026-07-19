@@ -4,8 +4,11 @@ import {
   isValidGoal,
   isValidSlug,
   isValidTemp,
+  isValidDate,
+  isValidPartKind,
   sanitizeChecklist,
   sanitizeLaps,
+  sanitizeSetup,
   sanitizeTrace,
 } from "../../src/lib/validate";
 
@@ -133,5 +136,64 @@ describe("sanitizeChecklist", () => {
     expect(sanitizeChecklist([{ text: "x".repeat(201) }])).toBeUndefined();
     expect(sanitizeChecklist([null])).toBeUndefined();
     expect(sanitizeChecklist(Array.from({ length: 101 }, () => ({ text: "x" })))).toBeUndefined();
+  });
+});
+
+describe("isValidDate / isValidPartKind", () => {
+  it("accepts ISO dates and known kinds", () => {
+    expect(isValidDate("2026-01-15")).toBe(true);
+    expect(isValidPartKind("pads_front")).toBe(true);
+    expect(isValidPartKind("tires")).toBe(true);
+  });
+
+  it("rejects everything else", () => {
+    expect(isValidDate("15/01/2026")).toBe(false);
+    expect(isValidDate("2026-1-5")).toBe(false);
+    expect(isValidDate(20260115 as any)).toBe(false);
+    expect(isValidPartKind("wing")).toBe(false);
+    expect(isValidPartKind(null)).toBe(false);
+  });
+});
+
+describe("sanitizeSetup", () => {
+  it("null clears, empty object is null too", () => {
+    expect(sanitizeSetup(null)).toBeNull();
+    expect(sanitizeSetup({})).toBeNull();
+    expect(sanitizeSetup({ unknown_field: 1 })).toBeNull(); // unknown keys dropped
+  });
+
+  it("normalizes corner and axle groups and rounds values", () => {
+    expect(
+      sanitizeSetup({
+        tp_cold: { fl: 31.456, fr: 31.5, rl: 30, rr: 30 },
+        camber: { f: -3.2004, r: -2 },
+        fuel: 12.34,
+        notes: "  baseline  ",
+      })
+    ).toEqual({
+      tp_cold: { fl: 31.46, fr: 31.5, rl: 30, rr: 30 },
+      camber: { f: -3.2, r: -2 },
+      fuel: 12.3,
+      notes: "baseline",
+    });
+  });
+
+  it("keeps part references as positive integers", () => {
+    expect(sanitizeSetup({ tires_id: 12, pads_f_id: 3 })).toEqual({ tires_id: 12, pads_f_id: 3 });
+    expect(sanitizeSetup({ tires_id: 0 })).toBeUndefined();
+    expect(sanitizeSetup({ tires_id: 1.5 })).toBeUndefined();
+  });
+
+  it("rejects implausible values instead of silently dropping them", () => {
+    expect(sanitizeSetup({ tp_cold: { fl: 500 } })).toBeUndefined();
+    expect(sanitizeSetup({ camber: { f: -45 } })).toBeUndefined();
+    expect(sanitizeSetup({ fuel: -2 })).toBeUndefined();
+    expect(sanitizeSetup({ notes: "x".repeat(2001) })).toBeUndefined();
+    expect(sanitizeSetup({ tp_cold: "32 everywhere" })).toBeUndefined();
+    expect(sanitizeSetup([1, 2, 3])).toBeUndefined();
+  });
+
+  it("drops unknown corner keys but keeps known ones", () => {
+    expect(sanitizeSetup({ tp_cold: { fl: 31, xx: 4 } })).toEqual({ tp_cold: { fl: 31 } });
   });
 });

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Garage &amp; setup notebook — Track Evolution docs</title>
+  <meta name="description" content="Track consumables (pads, tires, fluid) with automatic wear projections, and keep a per-day setup notebook tied to your lap times.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="Garage &amp; setup notebook — Track Evolution docs">
+  <meta property="og:description" content="Track consumables (pads, tires, fluid) with automatic wear projections, and keep a per-day setup notebook tied to your lap times.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/garage.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html" class="active">Garage &amp; setup notebook</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Garage &amp; setup notebook</h1>
+    <p class="lede">
+      The paper notebook and the parts spreadsheet, folded into your logbook:
+      track what's on the car and what it's set to, and let your logged events
+      tell you <strong>when consumables will need replacing</strong> and what a
+      setup change did to your times.
+    </p>
+
+    <h2 id="garage">Vehicles and their garage pages</h2>
+    <p>
+      Your garage lives in <strong>Settings → Vehicles</strong>. When an
+      event's Car field matches a garage vehicle by name, the event links to
+      that vehicle — that link is what lets parts accrue wear and setups carry
+      over between events. Each vehicle gets a garage page with its track
+      hours, consumables, spend, and a track-hours ledger of every event it
+      ran.
+    </p>
+
+    <h2 id="hours">Track hours — the wear clock</h2>
+    <p>
+      Everything wear-related runs on <strong>on-track hours</strong>, counted
+      automatically from your events: <strong>2 hours per track day</strong> by
+      default, which is a realistic amount of green-flag seat time for an HPDE
+      day. If a day ran long or short, set the exact hours on the event's edit
+      form ("On-track hours") and that event uses your number instead. If
+      you log complete lap data, an event's logged driving time is used when it
+      exceeds the estimate.
+    </p>
+
+    <h2 id="parts">Consumables and wear projections</h2>
+    <p>
+      Add parts — brake pads, tires, rotors, brake fluid, oil — to a vehicle
+      with their install date, cost, and optionally an expected life in track
+      hours. From then on wear accrues by itself as you log events. Each part
+      shows a wear bar and a projection of what's left, from the best
+      information available:
+    </p>
+    <ul>
+      <li><strong>Measured</strong> — log a quick pad-thickness or tread-depth
+        measurement between events (two or more), and the app fits your actual
+        wear rate per track hour and projects when you'll hit the replace-at
+        value. This is the number to trust.</li>
+      <li><strong>Expected life</strong> — with no measurements, remaining life
+        is expected hours minus accrued hours. When you retire a set and add
+        its replacement, the replacement's expected life defaults to what the
+        old set actually lasted.</li>
+    </ul>
+    <p>
+      Parts due (or nearly due) for replacement surface as a
+      <strong>maintenance-due strip</strong> on your dashboard — "front pads,
+      about 1.5 track days left" before your next event, not after it. Tires
+      also count <strong>heat cycles</strong> (one per event day), and retired
+      parts keep their history: hours lived, cost, and cost per track hour.
+    </p>
+
+    <h2 id="setups">The setup notebook</h2>
+    <p>
+      Every event carries one <strong>setup sheet per day</strong>: tire
+      pressures (cold and hot, all four corners), camber, toe, caster, damper
+      clicks, sway-bar settings, fuel, and which pad and tire sets were on the
+      car. Sheets <strong>copy forward</strong> — a new sheet pre-fills from
+      your previous day (or the car's last event), so you only edit what
+      changed. Values that changed from the previous day are highlighted.
+    </p>
+
+    <h2 id="correlation">Setup vs. lap times</h2>
+    <p>
+      Each track page ends with a <strong>Setup vs. lap times</strong> table:
+      every sheet you've logged at that track in date order, what changed
+      between sheets, and the event's best time and consistency alongside.
+      The app deliberately doesn't claim causation — conditions, traffic and
+      driver all move lap times — but it does the recall perfectly, which is
+      the part a paper notebook is bad at.
+    </p>
+
+    <h2 id="privacy">Private by design</h2>
+    <p>
+      Garage data — parts, wear, spend, and every setup sheet — is
+      <strong>never included in share pages</strong>. Share your pace;
+      your damper clicks stay yours.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./data-model.html"><span class="label">Previous</span>← Data model &amp; stats</a>
+      <a href="./privacy.html"><span class="label">Next</span>Privacy policy →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

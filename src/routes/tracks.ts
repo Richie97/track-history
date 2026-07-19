@@ -1,9 +1,48 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { catalogIdForName, tracksSummary } from "../db";
+import { catalogIdForName, listEvents, tracksSummary } from "../db";
 import { isValidGoal } from "../lib/validate";
 
 export const tracks = new Hono<AppContext>();
+
+// Setup sheets across all events at a track, joined with each event's
+// outcome stats — the raw material for the track page's "setup vs. lap
+// times" table. One row per event-day sheet; outcome columns repeat per
+// event since laps aren't attributed to days.
+tracks.get("/tracks/:id/setups", async (c) => {
+  const userId = c.get("userId");
+  const trackId = c.req.param("id");
+  const events = await listEvents(c.env.DB, userId, trackId);
+  const rows = (
+    await c.env.DB.prepare(
+      `SELECT s.event_id, s.day, s.data FROM setups s
+       JOIN events e ON e.id = s.event_id
+       WHERE e.user_id = ? AND e.track_id = ?
+       ORDER BY e.start_date ASC, s.day ASC`
+    )
+      .bind(userId, trackId)
+      .all<{ event_id: number; day: number; data: string }>()
+  ).results;
+  return c.json(
+    rows.flatMap((r) => {
+      const e = events.find((ev) => ev.id === r.event_id);
+      if (!e) return [];
+      return [
+        {
+          event_id: r.event_id,
+          day: r.day,
+          start_date: e.start_date,
+          car: e.car,
+          conditions: e.conditions,
+          temp_f: e.temp_f,
+          best_ms: e.best_ms,
+          consistency: e.consistency,
+          data: JSON.parse(r.data),
+        },
+      ];
+    })
+  );
+});
 
 tracks.get("/tracks", async (c) => {
   return c.json(await tracksSummary(c.env.DB, c.get("userId")));
