@@ -248,13 +248,15 @@ story for the native apps, which don't run the service worker):
   connection. On the web, the service worker additionally serves the app shell
   itself offline.
 - **Writes** — mutations the app can mirror locally (events, sessions, laps,
-  track notes/goals) are queued in IndexedDB when the network is down. Queued
+  setup sheets, track notes/goals) are queued in IndexedDB when the network is
+  down. Queued
   writes patch the cached responses so the UI reflects them immediately, and
   replay in order once the server is reachable; rows created offline get temp
   ids that are remapped to real ids on sync. Conflict policy is last-write-wins;
   writes the server rejects are dropped and reported in the sync banner.
-  Vehicle and share-link management need a live server answer and simply fail
-  offline with the normal error.
+  Vehicle, garage-part and share-link management need a live server answer and
+  simply fail offline with the normal error (garage *reads* still work from
+  the cache).
 - `updated_at` columns (migration `0011_updated_at.sql`, maintained by SQLite
   triggers so nested writes bump their parents — laps → session → event) drive
   the staleness checks, and are the groundwork for real delta sync later.
@@ -274,9 +276,46 @@ doesn't retain the previous user's logbook.
 - **Vehicles** are a per-user garage (account menu → Settings) with a name and
   free-text modification notes. An event's `car` stays a plain text column —
   the garage feeds the event form's suggestions, and the vehicle marked as
-  default pre-fills new events. The Settings page also carries the privacy
-  policy and terms links (the only place the native apps, which render no
-  footer, expose them).
+  default pre-fills new events. When the car text matches a garage vehicle by
+  name (case-insensitive), the event also carries a `vehicle_id` link — that
+  link is what the garage logbook below hangs off. The Settings page also
+  carries the privacy policy and terms links (the only place the native apps,
+  which render no footer, expose them).
+
+## Garage logbook: consumables, wear & setup notebook
+
+Each garage vehicle has a page (`#/vehicle/:id`) that folds the parts
+spreadsheet and the paper setup notebook into the logbook:
+
+- **Track-hours ledger** — every event computes on-track `hours`: an explicit
+  per-event override (`events.track_hours`, "On-track hours" on the edit
+  form), else `max(days × 2h, total logged lap time)`. The 2h/day default is
+  `DEFAULT_HOURS_PER_DAY` in `src/lib/wear.ts`; lap time only ever pushes the
+  estimate *up*, because best-lap-only history badly underestimates seat time.
+- **Consumables** (`parts` + `part_measurements` tables) — part *instances*
+  (pads, tires, rotors, brake fluid, oil…) with install/retire dates, cost,
+  optional expected life and a replace-at value. **Usage is computed, never
+  logged**: a part accrues the hours of every event on its vehicle inside its
+  service window. Tires additionally count heat cycles (≈ event days).
+  Remaining life comes from the best available basis (`wearEstimate` in
+  `src/lib/wear.ts`): a least-squares fit of wear measurements vs. accrued
+  hours when 2+ measurements exist ("measured"), else expected hours minus
+  accrued ("expected") — and a new part with no expected life defaults it to
+  the average of retired lifecycles of the same kind. Parts at/near end of
+  life surface in a maintenance-due strip on the dashboard and vehicle page;
+  retired parts keep hours, cost and cost-per-hour history.
+- **Setup notebook** (`setups` table, one JSON sheet per event day, validated
+  by `sanitizeSetup` in `src/lib/validate.ts`) — tire pressures (cold/hot per
+  corner), camber/toe/caster, damper clicks, sway settings, fuel, and
+  references to the part sets on the car. New sheets **copy forward** from the
+  previous day or the vehicle's last event (`GET
+  /api/events/:id/setups/prefill`), so only changes need typing; each sheet
+  stores the full resolved snapshot, so diffing never chases a chain. The
+  track page's "Setup vs. lap times" table (`GET /api/tracks/:id/setups`)
+  shows every sheet at that track with what changed between sheets next to
+  the event's best/consistency.
+- **Privacy** — parts, wear, spend and setup sheets are never included in the
+  public share payload.
 
 ## License
 

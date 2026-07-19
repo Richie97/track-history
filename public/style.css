@@ -899,3 +899,118 @@ html { overscroll-behavior-y: contain; }
 @media (prefers-reduced-motion: reduce) {
   .ptr.refreshing .ptr-mark { animation: ptr-pulse 1.2s ease-in-out infinite; }
 }
+
+/* ---------- Garage logbook: consumables, wear, setup sheets ---------- */
+
+/* Dashboard/vehicle "maintenance due" strip. The dashboard renders it as a
+   <details> collapsed to a one-line count; the vehicle page shows the chips
+   outright. */
+div.garage-alerts { display: flex; gap: 14px; align-items: flex-start; }
+.garage-alerts .ga-icon { font-size: 22px; line-height: 1.2; }
+.garage-alerts .ga-body { flex: 1; min-width: 0; }
+.garage-alerts .ga-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+details.garage-alerts summary {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  cursor: pointer; list-style: none;
+}
+details.garage-alerts summary::-webkit-details-marker { display: none; }
+details.garage-alerts .ga-count { font-weight: var(--weight-semibold); color: var(--text-strong); }
+details.garage-alerts .ga-count.has-due { color: var(--danger-ink); }
+details.garage-alerts .ga-caret {
+  margin-left: auto; color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+details.garage-alerts[open] .ga-caret { transform: rotate(90deg); }
+details.garage-alerts .ga-chips { margin-top: 14px; }
+.ga-chip {
+  display: inline-flex; gap: 8px; align-items: baseline;
+  padding: 6px 11px; border-radius: var(--radius-xs);
+  border: 1px solid var(--border-hairline); background: var(--surface-raised);
+  font-size: var(--fs-sm); font-weight: var(--weight-medium); color: var(--text-strong);
+}
+.ga-chip:hover { text-decoration: none; background: var(--surface-hover); }
+.ga-chip.due { border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint); }
+.ga-chip .ga-veh { font-size: var(--fs-xs); color: var(--text-faint); font-weight: 400; }
+
+/* Dashboard garage cards */
+.card .garage-hours { font-variant-numeric: tabular-nums; }
+.garage-status.ok { color: var(--positive); }
+.garage-status.low, .garage-status.due { color: var(--danger-ink); }
+
+/* Wear bar: fraction of a part's life used */
+.wear-bar {
+  height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+  margin-top: 12px;
+}
+.wear-bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.wear-bar.low span { background: color-mix(in srgb, var(--accent) 45%, var(--danger)); }
+.wear-bar.due span { background: var(--danger); }
+
+/* Part cards on the vehicle page */
+.part-card { margin: var(--grid-gap) 0; }
+.part-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.part-head .grow { flex: 1; }
+.part-kind {
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+  font-size: var(--fs-xs); font-weight: var(--weight-semibold); color: var(--text-muted);
+  white-space: nowrap;
+}
+.part-name { font-weight: var(--weight-semibold); color: var(--text-strong); font-size: var(--fs-h3); }
+.part-meta { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 6px; }
+.part-status { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 10px; }
+.part-status .t { color: var(--accent-ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+.part-status .goal-status { font-size: var(--fs-sm); }
+.part-card .laps { margin-top: 12px; }
+.part-card .lap .x {
+  border: 0; background: none; color: var(--text-faint); cursor: pointer;
+  font-size: 11px; padding: 0; line-height: 1;
+}
+.part-card .lap .x:hover { color: var(--danger-ink); }
+.meas-form { margin-top: 12px; }
+.meas-form[hidden] { display: none; } /* .btn-row's flex would beat the hidden attribute */
+.meas-form input { padding: 8px 12px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--surface-input); color: var(--text-strong); font: inherit; font-size: 14px; }
+.part-edit { margin-top: 14px; }
+.hint-inline { font-size: var(--fs-xs); color: var(--text-faint); }
+.tile .value .unit { font-size: 0.55em; color: var(--text-muted); margin-left: 3px; }
+
+/* Setup sheets: compact spec boxes, changed values highlighted */
+.setup-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.setup-box {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 9px 13px; border-radius: var(--radius-xs);
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+}
+.setup-box .sb-label { font-size: var(--fs-xs); color: var(--text-muted); font-weight: var(--weight-medium); }
+.setup-box .sb-label em { font-style: normal; color: var(--text-faint); }
+.setup-box .sb-vals {
+  font-size: var(--fs-sm); font-weight: var(--weight-medium); color: var(--text-strong);
+  font-variant-numeric: tabular-nums; display: inline-flex; align-items: baseline; gap: 6px;
+}
+.setup-box .sep { color: var(--text-faint); font-weight: 400; }
+.sv.changed {
+  color: var(--accent-ink); font-weight: var(--weight-semibold);
+  background: var(--accent-tint); border-radius: 4px; padding: 0 4px; margin: 0 -2px;
+}
+.setup-day .notes-block { margin-top: 12px; }
+
+/* Setup form: corner (2×2) and axle (F/R) input clusters */
+.setup-form-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.setup-inputs { display: grid; gap: 6px; }
+.setup-inputs.corners { grid-template-columns: 1fr 1fr; }
+.setup-inputs.axle { grid-template-columns: 1fr 1fr; }
+.setup-inputs input { text-align: center; padding: 8px 6px; }
+
+/* Track page: setup vs. lap times diff chips */
+.diff-cell { max-width: 420px; }
+.diff-chip {
+  display: inline-flex; gap: 6px; align-items: baseline;
+  padding: 3px 8px; margin: 2px 3px 2px 0; border-radius: var(--radius-xs);
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+  font-size: var(--fs-xs); color: var(--text-body); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.diff-chip b { color: var(--accent-ink); font-weight: var(--weight-semibold); }
+.diff-chip .dc-label { color: var(--text-muted); }
+.diff-chip.baseline { color: var(--text-muted); }

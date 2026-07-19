@@ -6,8 +6,8 @@ import { type EventRow, withComputed } from "./lib/stats";
 
 export const EVENT_SELECT = `
   SELECT e.id, e.track_id, t.name AS track_name,
-         e.start_date, e.days, e.club, e.run_group, e.car, e.notes,
-         e.conditions, e.temp_f, e.checklist, e.best_time_ms, e.updated_at,
+         e.start_date, e.days, e.club, e.run_group, e.car, e.vehicle_id, e.notes,
+         e.conditions, e.temp_f, e.checklist, e.best_time_ms, e.track_hours, e.updated_at,
     (SELECT MIN(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_best_ms,
     (SELECT COUNT(*)       FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_count,
     (SELECT AVG(l.time_ms * 1.0) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_avg,
@@ -139,6 +139,56 @@ export async function tracksSummary(db: D1Database, userId: number) {
         .map((e) => ({ date: e.start_date, best_ms: e.best_ms })),
     };
   });
+}
+
+// The garage's vehicle link for a free-text car name (COLLATE NOCASE), or
+// null when the garage doesn't know it. events.car stays the display string;
+// this is what ties events to parts and setups.
+export async function vehicleIdForCar(
+  db: D1Database,
+  userId: number,
+  car: string | null | undefined
+): Promise<number | null> {
+  if (!car?.trim()) return null;
+  const row = await db
+    .prepare("SELECT id FROM vehicles WHERE user_id = ? AND name = ? COLLATE NOCASE")
+    .bind(userId, car.trim())
+    .first<{ id: number }>();
+  return row ? row.id : null;
+}
+
+// A part owned (via its vehicle) by the user, or null.
+export async function ownedPart(db: D1Database, userId: number, partId: string | number) {
+  return db
+    .prepare(
+      "SELECT p.id, p.vehicle_id FROM parts p JOIN vehicles v ON v.id = p.vehicle_id WHERE p.id = ? AND v.user_id = ?"
+    )
+    .bind(partId, userId)
+    .first<{ id: number; vehicle_id: number }>();
+}
+
+// Past vehicle-linked events with the raw inputs for eventHours — the ledger
+// the garage's wear math runs over (lib/wear.ts).
+export async function vehicleHoursEvents(db: D1Database, userId: number) {
+  return (
+    await db
+      .prepare(
+        `SELECT e.id, e.vehicle_id, e.start_date, e.days, e.track_hours,
+           (SELECT SUM(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_ms_sum
+         FROM events e
+         WHERE e.user_id = ? AND e.vehicle_id IS NOT NULL AND e.start_date <= date('now')
+         ORDER BY e.start_date ASC`
+      )
+      .bind(userId)
+      .all<{
+        id: number;
+        vehicle_id: number;
+        start_date: string;
+        days: number;
+        track_hours: number | null;
+        lap_ms_sum: number | null;
+      }>()
+  ).results;
 }
 
 export async function insertLaps(
