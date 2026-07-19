@@ -902,11 +902,26 @@ html { overscroll-behavior-y: contain; }
 
 /* ---------- Garage logbook: consumables, wear, setup sheets ---------- */
 
-/* Dashboard/vehicle "maintenance due" strip */
-.garage-alerts { display: flex; gap: 14px; align-items: flex-start; }
+/* Dashboard/vehicle "maintenance due" strip. The dashboard renders it as a
+   <details> collapsed to a one-line count; the vehicle page shows the chips
+   outright. */
+div.garage-alerts { display: flex; gap: 14px; align-items: flex-start; }
 .garage-alerts .ga-icon { font-size: 22px; line-height: 1.2; }
 .garage-alerts .ga-body { flex: 1; min-width: 0; }
 .garage-alerts .ga-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+details.garage-alerts summary {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  cursor: pointer; list-style: none;
+}
+details.garage-alerts summary::-webkit-details-marker { display: none; }
+details.garage-alerts .ga-count { font-size: var(--fs-sm); color: var(--text-muted); }
+details.garage-alerts .ga-count.has-due { color: var(--danger-ink); font-weight: var(--weight-medium); }
+details.garage-alerts .ga-caret {
+  margin-left: auto; color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+details.garage-alerts[open] .ga-caret { transform: rotate(90deg); }
+details.garage-alerts .ga-chips { margin-top: 14px; }
 .ga-chip {
   display: inline-flex; gap: 8px; align-items: baseline;
   padding: 6px 11px; border-radius: var(--radius-xs);

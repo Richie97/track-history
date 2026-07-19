@@ -112,22 +112,38 @@ const garageAlerts = (garage) =>
     )
     .sort((a, b) => (a.status === "due" ? 0 : 1) - (b.status === "due" ? 0 : 1));
 
-const alertStripHtml = (garage) => {
+// collapsible renders a <details> closed by default (the dashboard — a
+// glanceable count that expands on tap); without it the chips show outright
+// (the vehicle page, where maintenance is the point of the view).
+const alertStripHtml = (garage, { collapsible = false } = {}) => {
   const alerts = garageAlerts(garage);
   if (!alerts.length) return "";
-  return `<div class="panel garage-alerts">
-    <span class="ga-icon" aria-hidden="true">🔧</span>
-    <div class="ga-body"><strong>Maintenance due</strong>
-      <div class="ga-chips">${alerts
-        .map(
-          (a) => `<a class="ga-chip ${a.status}" href="#/vehicle/${a.vehicle.id}">
-            ${esc(partKindLabel(a.part.kind))} — ${
-              a.status === "due" ? "replace now" : fmtRemaining(a.part.wear)
-            }<span class="ga-veh">${esc(a.vehicle.name)}</span></a>`
-        )
-        .join("")}</div>
-    </div>
-  </div>`;
+  const chips = `<div class="ga-chips">${alerts
+    .map(
+      (a) => `<a class="ga-chip ${a.status}" href="#/vehicle/${a.vehicle.id}">
+        ${esc(partKindLabel(a.part.kind))} — ${
+          a.status === "due" ? "replace now" : fmtRemaining(a.part.wear)
+        }<span class="ga-veh">${esc(a.vehicle.name)}</span></a>`
+    )
+    .join("")}</div>`;
+  if (!collapsible)
+    return `<div class="panel garage-alerts">
+      <span class="ga-icon" aria-hidden="true">🔧</span>
+      <div class="ga-body"><strong>Maintenance due</strong>${chips}</div>
+    </div>`;
+  const due = alerts.filter((a) => a.status === "due").length;
+  const count = `${alerts.length} item${alerts.length === 1 ? "" : "s"}${
+    due ? ` — ${due === alerts.length && alerts.length > 1 ? "all" : due === 1 ? "1" : due} need${due === 1 ? "s" : ""} replacing now` : ""
+  }`;
+  return `<details class="panel garage-alerts">
+    <summary>
+      <span class="ga-icon" aria-hidden="true">🔧</span>
+      <strong>Maintenance due</strong>
+      <span class="ga-count${due ? " has-due" : ""}">${count}</span>
+      <span class="ga-caret" aria-hidden="true">▸</span>
+    </summary>
+    ${chips}
+  </details>`;
 };
 
 // Compact spec-sheet rendering of a setup: one box per field group, values
@@ -696,7 +712,7 @@ async function viewDashboard() {
       <a class="btn primary" href="#/new">+ Add event</a>
       <a class="btn" href="#/year">Year in review</a>
     </div>
-    ${alertStripHtml(garage)}
+    ${alertStripHtml(garage, { collapsible: true })}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${state.totals.events}</div></div>
