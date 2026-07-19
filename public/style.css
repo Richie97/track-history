@@ -914,8 +914,8 @@ details.garage-alerts summary {
   cursor: pointer; list-style: none;
 }
 details.garage-alerts summary::-webkit-details-marker { display: none; }
-details.garage-alerts .ga-count { font-size: var(--fs-sm); color: var(--text-muted); }
-details.garage-alerts .ga-count.has-due { color: var(--danger-ink); font-weight: var(--weight-medium); }
+details.garage-alerts .ga-count { font-weight: var(--weight-semibold); color: var(--text-strong); }
+details.garage-alerts .ga-count.has-due { color: var(--danger-ink); }
 details.garage-alerts .ga-caret {
   margin-left: auto; color: var(--text-faint);
   transition: transform 0.15s ease;

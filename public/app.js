@@ -132,14 +132,10 @@ const alertStripHtml = (garage, { collapsible = false } = {}) => {
       <div class="ga-body"><strong>Maintenance due</strong>${chips}</div>
     </div>`;
   const due = alerts.filter((a) => a.status === "due").length;
-  const count = `${alerts.length} item${alerts.length === 1 ? "" : "s"}${
-    due ? ` — ${due === alerts.length && alerts.length > 1 ? "all" : due === 1 ? "1" : due} need${due === 1 ? "s" : ""} replacing now` : ""
-  }`;
   return `<details class="panel garage-alerts">
     <summary>
       <span class="ga-icon" aria-hidden="true">🔧</span>
-      <strong>Maintenance due</strong>
-      <span class="ga-count${due ? " has-due" : ""}">${count}</span>
+      <span class="ga-count${due ? " has-due" : ""}">${alerts.length} maintenance reminder${alerts.length === 1 ? "" : "s"}</span>
       <span class="ga-caret" aria-hidden="true">▸</span>
     </summary>
     ${chips}
