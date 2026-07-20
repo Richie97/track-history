@@ -975,6 +975,21 @@ details.garage-alerts .ga-chips { margin-top: 14px; }
 .hint-inline { font-size: var(--fs-xs); color: var(--text-faint); }
 .tile .value .unit { font-size: 0.55em; color: var(--text-muted); margin-left: 3px; }
 
+/* Setup notebook: collapsed by default on the event page */
+.setup-notebook { margin-top: 24px; }
+.setup-notebook summary {
+  display: flex; gap: 12px; align-items: baseline;
+  cursor: pointer; list-style: none;
+}
+.setup-notebook summary::-webkit-details-marker { display: none; }
+.setup-notebook summary h2 { margin: 0; }
+.setup-notebook .ga-count { font-size: var(--fs-sm); color: var(--text-muted); }
+.setup-notebook .ga-caret {
+  margin-left: auto; align-self: center; color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+.setup-notebook[open] .ga-caret { transform: rotate(90deg); }
+
 /* Setup sheets: compact spec boxes, changed values highlighted */
 .setup-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .setup-box {
