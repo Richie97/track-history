@@ -917,7 +917,8 @@ details.garage-alerts summary::-webkit-details-marker { display: none; }
 details.garage-alerts .ga-count { font-weight: var(--weight-semibold); color: var(--text-strong); }
 details.garage-alerts .ga-count.has-due { color: var(--danger-ink); }
 details.garage-alerts .ga-caret {
-  margin-left: auto; color: var(--text-faint);
+  margin-left: auto; color: var(--text-muted);
+  font-size: 22px; line-height: 1;
   transition: transform 0.15s ease;
 }
 details.garage-alerts[open] .ga-caret { transform: rotate(90deg); }
@@ -985,7 +986,8 @@ details.garage-alerts .ga-chips { margin-top: 14px; }
 .setup-notebook summary h2 { margin: 0; }
 .setup-notebook .ga-count { font-size: var(--fs-sm); color: var(--text-muted); }
 .setup-notebook .ga-caret {
-  margin-left: auto; align-self: center; color: var(--text-faint);
+  margin-left: auto; align-self: center; color: var(--text-muted);
+  font-size: 22px; line-height: 1;
   transition: transform 0.15s ease;
 }
 .setup-notebook[open] .ga-caret { transform: rotate(90deg); }
