@@ -303,7 +303,11 @@ spreadsheet and the paper setup notebook into the logbook:
   accrued ("expected") — and a new part with no expected life defaults it to
   the average of retired lifecycles of the same kind. Parts at/near end of
   life surface in a maintenance-due strip on the dashboard and vehicle page;
-  retired parts keep hours, cost and cost-per-hour history.
+  retired parts keep hours, cost and cost-per-hour history. Replacing a
+  consumable with a fresh set of the same thing is one tap — **Refresh**
+  (`POST /api/parts/:id/refresh`) retires the current part and inserts a
+  same-spec successor with hours reset, its expected life recalibrated from
+  the lifecycle just completed.
 - **Setup notebook** (`setups` table, one JSON sheet per event day, validated
   by `sanitizeSetup` in `src/lib/validate.ts`) — tire pressures (cold/hot per
   corner), camber/toe/caster, damper clicks, sway settings, fuel, and

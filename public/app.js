@@ -1777,7 +1777,8 @@ async function viewVehicle(vehicleId) {
         <span class="part-name">${esc(p.name)}</span>
         <span class="grow"></span>
         <button class="btn small" data-meas-toggle="${p.id}">Measure</button>
-        ${p.retired_on ? "" : `<button class="btn small" data-part-retire="${p.id}">Retire</button>`}
+        ${p.retired_on ? "" : `<button class="btn small" data-part-refresh="${p.id}">Refresh</button>
+        <button class="btn small" data-part-retire="${p.id}">Retire</button>`}
         <button class="btn small" data-part-edit="${p.id}">Edit</button>
       </div>
       <div class="part-meta">Installed ${fmtDate(p.installed_on)}${p.retired_on ? ` — retired ${fmtDate(p.retired_on)}` : ""}${p.cost_cents != null ? ` · ${fmtCost(p.cost_cents)}` : ""}${p.notes ? ` · ${esc(p.notes)}` : ""}</div>
@@ -1914,6 +1915,18 @@ async function viewVehicle(vehicleId) {
       const [partId, measId] = btn.dataset.measDel.split(":");
       await api(`/parts/${partId}/measurements/${measId}`, { method: "DELETE" });
       route();
+    };
+  });
+  view.querySelectorAll("[data-part-refresh]").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Fresh set of the same part? This retires the current one today (keeping its history) and installs a new one with the same details — hours reset to zero. Edit the new part afterwards if the cost or compound changed."))
+        return;
+      try {
+        await api(`/parts/${btn.dataset.partRefresh}/refresh`, { method: "POST", body: {} });
+        route();
+      } catch (err) {
+        partError(err);
+      }
     };
   });
   view.querySelectorAll("[data-part-retire]").forEach((btn) => {

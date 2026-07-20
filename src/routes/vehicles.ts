@@ -173,6 +173,30 @@ vehicles.get("/garage", async (c) => {
   return c.json(garage);
 });
 
+// The "lifecycle average": mean accrued hours of this vehicle's retired parts
+// of the same kind — what a fresh part's expected life defaults to, making the
+// second set of pads self-calibrating. Null when there's no usable history.
+async function retiredLifecycleAvg(
+  db: D1Database,
+  userId: number,
+  vehicleId: number,
+  kind: string
+): Promise<number | null> {
+  const prior = await db
+    .prepare(
+      "SELECT installed_on, retired_on, expected_hours, wear_limit FROM parts WHERE vehicle_id = ? AND kind = ? AND retired_on IS NOT NULL"
+    )
+    .bind(vehicleId, kind)
+    .all<{ installed_on: string; retired_on: string; expected_hours: number | null; wear_limit: number | null }>();
+  if (!prior.results.length) return null;
+  const events = (await vehicleHoursEvents(db, userId)).filter((e) => e.vehicle_id === vehicleId);
+  const lives = prior.results
+    .map((p) => wearEstimate(p, events, [], todayISO()).hours)
+    .filter((h) => h > 0);
+  if (!lives.length) return null;
+  return Math.round((lives.reduce((a, b) => a + b, 0) / lives.length) * 10) / 10;
+}
+
 // Validate part fields off `body`; returns normalized values or an error.
 // `creating` requires kind/name/installed_on to be present.
 function validatePart(body: any, creating: boolean): { error: string } | { values: Record<string, unknown> } {
@@ -222,26 +246,9 @@ vehicles.post("/vehicles/:id/parts", async (c) => {
   if ("error" in checked) return c.json({ error: checked.error }, 400);
   const v = checked.values;
 
-  // No expected life given? Default it from history: the average accrued
-  // hours of retired parts of the same kind on this vehicle — the "lifecycle
-  // average" that makes the second set of pads self-calibrating.
-  if (v.expected_hours == null) {
-    const prior = await c.env.DB.prepare(
-      "SELECT installed_on, retired_on, expected_hours, wear_limit FROM parts WHERE vehicle_id = ? AND kind = ? AND retired_on IS NOT NULL"
-    )
-      .bind(vehicleId, v.kind)
-      .all<{ installed_on: string; retired_on: string; expected_hours: number | null; wear_limit: number | null }>();
-    if (prior.results.length) {
-      const events = (await vehicleHoursEvents(c.env.DB, userId)).filter(
-        (e) => e.vehicle_id === owned.id
-      );
-      const lives = prior.results
-        .map((p) => wearEstimate(p, events, [], todayISO()).hours)
-        .filter((h) => h > 0);
-      if (lives.length)
-        v.expected_hours = Math.round((lives.reduce((a, b) => a + b, 0) / lives.length) * 10) / 10;
-    }
-  }
+  // No expected life given? Default it from history.
+  if (v.expected_hours == null)
+    v.expected_hours = await retiredLifecycleAvg(c.env.DB, userId, owned.id, v.kind as string);
 
   const row = await c.env.DB.prepare(
     `INSERT INTO parts (vehicle_id, kind, name, installed_on, retired_on, cost_cents, expected_hours, wear_limit, notes)
@@ -277,6 +284,64 @@ vehicles.put("/parts/:id", async (c) => {
     .bind(...entries.map(([, v]) => v), id)
     .run();
   return c.json({ ok: true });
+});
+
+// One-tap replacement ("I put a fresh set of the same pads on"): retires the
+// current part as of the swap date and inserts a same-spec successor, so hours
+// reset without re-entering the part. The old row keeps its measurements and
+// history; the successor's expected life recomputes from retired lifecycles
+// (which now include the old part), falling back to the old part's value.
+vehicles.post("/parts/:id/refresh", async (c) => {
+  const userId = c.get("userId");
+  const old = await c.env.DB.prepare(
+    `SELECT p.id, p.vehicle_id, p.kind, p.name, p.installed_on, p.retired_on,
+            p.cost_cents, p.expected_hours, p.wear_limit, p.notes
+     FROM parts p JOIN vehicles v ON v.id = p.vehicle_id
+     WHERE p.id = ? AND v.user_id = ?`
+  )
+    .bind(c.req.param("id"), userId)
+    .first<{
+      id: number;
+      vehicle_id: number;
+      kind: string;
+      name: string;
+      installed_on: string;
+      retired_on: string | null;
+      cost_cents: number | null;
+      expected_hours: number | null;
+      wear_limit: number | null;
+      notes: string | null;
+    }>();
+  if (!old) return c.json({ error: "not found" }, 404);
+  if (old.retired_on) return c.json({ error: "part is already retired" }, 400);
+
+  const body = await c.req.json<any>().catch(() => ({}));
+  const swapDate = body.installed_on ?? todayISO();
+  if (!isValidDate(swapDate) || swapDate < old.installed_on)
+    return c.json({ error: "invalid installed_on" }, 400);
+  let cost = old.cost_cents;
+  if ("cost_cents" in body) {
+    const v = body.cost_cents;
+    if (v != null && (!Number.isInteger(v) || v < 0 || v > 100_000_00))
+      return c.json({ error: "invalid cost_cents" }, 400);
+    cost = v ?? null;
+  }
+  let name = old.name;
+  if ("name" in body) {
+    name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name || name.length > 120) return c.json({ error: "name required" }, 400);
+  }
+
+  await c.env.DB.prepare("UPDATE parts SET retired_on = ? WHERE id = ?").bind(swapDate, old.id).run();
+  const expected =
+    (await retiredLifecycleAvg(c.env.DB, userId, old.vehicle_id, old.kind)) ?? old.expected_hours;
+  const row = await c.env.DB.prepare(
+    `INSERT INTO parts (vehicle_id, kind, name, installed_on, cost_cents, expected_hours, wear_limit, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+  )
+    .bind(old.vehicle_id, old.kind, name, swapDate, cost, expected, old.wear_limit, old.notes)
+    .first<{ id: number }>();
+  return c.json({ id: row!.id, retired_id: old.id }, 201);
 });
 
 vehicles.delete("/parts/:id", async (c) => {

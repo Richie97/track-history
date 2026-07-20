@@ -178,6 +178,78 @@ describe("wear accrual & measurements", () => {
   });
 });
 
+describe("part refresh", () => {
+  const addPads = (api: any, vehicleId: number, extra: Record<string, unknown> = {}) =>
+    api("POST", `/vehicles/${vehicleId}/parts`, {
+      kind: "pads_front",
+      name: "DTC-70",
+      installed_on: "2026-01-15",
+      cost_cents: 38900,
+      wear_limit: 3,
+      notes: "with shims",
+      ...extra,
+    });
+
+  it("retires the old part and installs a same-spec successor with hours reset", async () => {
+    const { api, vehicleId } = await garageUser();
+    await createEvent(api, { start_date: "2026-02-14", days: 2, car: "Corvette Z06" }); // 4h
+    await addPads(api, vehicleId);
+    const oldId = (await api("GET", "/garage")).body[0].parts[0].id;
+
+    const res = await api("POST", `/parts/${oldId}/refresh`, { installed_on: "2026-05-01" });
+    expect(res.status).toBe(201);
+    expect(res.body.retired_id).toBe(oldId);
+
+    const parts = (await api("GET", "/garage")).body[0].parts;
+    expect(parts).toHaveLength(2);
+    const retired = parts.find((p: any) => p.id === oldId);
+    const fresh = parts.find((p: any) => p.id === res.body.id);
+    expect(retired.retired_on).toBe("2026-05-01");
+    expect(fresh).toMatchObject({
+      kind: "pads_front",
+      name: "DTC-70",
+      installed_on: "2026-05-01",
+      retired_on: null,
+      cost_cents: 38900,
+      wear_limit: 3,
+      notes: "with shims",
+    });
+    expect(fresh.wear.hours).toBe(0);
+    expect(fresh.measurements).toHaveLength(0);
+    // Expected life self-calibrates from the just-retired lifecycle (4h).
+    expect(fresh.expected_hours).toBe(4);
+  });
+
+  it("defaults the swap date to today and accepts a new cost", async () => {
+    const { api, vehicleId } = await garageUser();
+    await addPads(api, vehicleId);
+    const oldId = (await api("GET", "/garage")).body[0].parts[0].id;
+    const res = await api("POST", `/parts/${oldId}/refresh`, { cost_cents: 42000 });
+    expect(res.status).toBe(201);
+    const today = new Date().toISOString().slice(0, 10);
+    const parts = (await api("GET", "/garage")).body[0].parts;
+    expect(parts.find((p: any) => p.id === oldId).retired_on).toBe(today);
+    const fresh = parts.find((p: any) => p.id === res.body.id);
+    expect(fresh.installed_on).toBe(today);
+    expect(fresh.cost_cents).toBe(42000);
+    // No driven lifecycle to average → keeps the old part's (null) expected life.
+    expect(fresh.expected_hours).toBeNull();
+  });
+
+  it("rejects retired parts, bad swap dates, and foreign parts", async () => {
+    const a = await garageUser();
+    const b = await signedInUser();
+    await addPads(a.api, a.vehicleId, { installed_on: PAST });
+    const partId = (await a.api("GET", "/garage")).body[0].parts[0].id;
+    expect((await b.api("POST", `/parts/${partId}/refresh`)).status).toBe(404);
+    expect((await a.api("POST", `/parts/${partId}/refresh`, { installed_on: "soon" })).status).toBe(400);
+    // Swap date before the part was even installed makes a negative window.
+    expect((await a.api("POST", `/parts/${partId}/refresh`, { installed_on: "2026-04-01" })).status).toBe(400);
+    await a.api("PUT", `/parts/${partId}`, { retired_on: "2026-06-01" });
+    expect((await a.api("POST", `/parts/${partId}/refresh`)).status).toBe(400);
+  });
+});
+
 describe("setup sheets", () => {
   const SHEET = { tp_cold: { fl: 31, fr: 31, rl: 30, rr: 30 }, camber: { f: -2.5, r: -2 }, notes: "baseline" };
 
