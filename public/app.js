@@ -1027,6 +1027,10 @@ async function viewCompare(trackId, params) {
 // importing telemetry can tell "new personal best" from "just another save".
 let pbWatch = null;
 
+// Event ids whose setup notebook is expanded — collapsed by default, but the
+// route() re-render after saving a sheet must not snap it shut mid-session.
+const setupNotebookOpen = new Set();
+
 async function viewEvent(eventId) {
   const [e, tracks, garage] = await Promise.all([api(`/events/${eventId}`), api("/tracks"), api("/garage")]);
   // Live lap recorder entry (native apps only — recorderAvailable() is false
@@ -1154,15 +1158,26 @@ async function viewEvent(eventId) {
       }</div>
     </div>`;
   };
+  const sheetCount = e.setups?.length ?? 0;
   const setupNotebookHtml = `
-    <h2>Setup notebook</h2>
-    ${e.setups?.length && setupDays.length > 1 ? `<div class="hint" style="margin:0 0 4px">Values <span class="sv changed">highlighted</span> changed from the previous day.</div>` : ""}
-    ${setupDays.map(setupDayHtml).join("")}
-    ${
-      !e.vehicle_id && garage.length
-        ? `<div class="hint" style="margin:6px 0 0">Tip: set this event's Car to one of your garage vehicles and setups will carry over between its events.</div>`
-        : ""
-    }`;
+    <details class="setup-notebook" id="setup-notebook"${setupNotebookOpen.has(e.id) ? " open" : ""}>
+      <summary>
+        <h2>Setup notebook</h2>
+        <span class="ga-count">${
+          sheetCount
+            ? `${sheetCount} day sheet${sheetCount === 1 ? "" : "s"}`
+            : "pressures, alignment, dampers…"
+        }</span>
+        <span class="ga-caret" aria-hidden="true">▸</span>
+      </summary>
+      ${sheetCount && setupDays.length > 1 ? `<div class="hint" style="margin:0 0 4px">Values <span class="sv changed">highlighted</span> changed from the previous day.</div>` : ""}
+      ${setupDays.map(setupDayHtml).join("")}
+      ${
+        !e.vehicle_id && garage.length
+          ? `<div class="hint" style="margin:6px 0 0">Tip: set this event's Car to one of your garage vehicles and setups will carry over between its events.</div>`
+          : ""
+      }
+    </details>`;
 
   const upcoming = isUpcoming(e);
   const checklist = e.checklist;
@@ -1307,6 +1322,12 @@ async function viewEvent(eventId) {
     if (useDefault)
       useDefault.onclick = () => saveChecklist(DEFAULT_CHECKLIST.map((text) => ({ text, done: false })));
   }
+  const notebook = view.querySelector("#setup-notebook");
+  notebook.addEventListener("toggle", () => {
+    if (notebook.open) setupNotebookOpen.add(e.id);
+    else setupNotebookOpen.delete(e.id);
+  });
+
   // Setup notebook: swap a day's display for the form on Edit / Log setup;
   // Log setup prefills from the previous sheet (copy-forward) so only the
   // changes need typing.
