@@ -12,8 +12,8 @@
   },
   "vars": {
     // <Apple Team ID>.<bundle id> for iOS Universal Links (mobile/ apps).
-    // Placeholder until a real Team ID exists; override for self-hosted forks.
-    "IOS_APP_ID": "TEAMID.app.trackevolution",
+    // Override for self-hosted forks.
+    "IOS_APP_ID": "L3NS86NMXZ.app.trackevolution",
   },
   "d1_databases": [
     {
