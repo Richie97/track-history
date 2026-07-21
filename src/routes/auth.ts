@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import type { AppContext } from "../types";
-import { decodeIdTokenPayload, type IdTokenPayload } from "../lib/oidc";
+import type { AppContext, Env } from "../types";
+import { decodeIdTokenPayload } from "../lib/oidc";
+import { APPLE_ISSUER, appleClientSecret, appleUserName } from "../lib/apple";
 import {
   SESSION_COOKIE,
   bearerToken,
@@ -35,34 +36,47 @@ async function createAuthCode(
   return code;
 }
 
-// Find the user for a Google identity: an existing google_sub match, a
-// pre-seeded account claimed by email, or a freshly created account.
-async function upsertGoogleUser(db: D1Database, payload: IdTokenPayload): Promise<number> {
+// Find the user for an OIDC identity: an existing sub match on the provider's
+// column, an account claimed by email (pre-seeded rows, and accounts created
+// via the *other* provider — same email means same person), or a fresh row.
+// Name/picture only ever overwrite when the provider sent one: Apple sends
+// the name on the first authorization only, and never a picture.
+type OidcIdentity = { sub: string; email: string; name?: string | null; picture?: string | null };
+
+async function upsertOidcUser(
+  db: D1Database,
+  column: "google_sub" | "apple_sub",
+  identity: OidcIdentity
+): Promise<number> {
   const existing = await db
-    .prepare("SELECT id FROM users WHERE google_sub = ?")
-    .bind(payload.sub)
+    .prepare(`SELECT id FROM users WHERE ${column} = ?`)
+    .bind(identity.sub)
     .first<{ id: number }>();
   if (existing) {
     await db
-      .prepare("UPDATE users SET name = ?, picture = ?, email = ? WHERE id = ?")
-      .bind(payload.name ?? null, payload.picture ?? null, payload.email, existing.id)
+      .prepare(
+        "UPDATE users SET email = ?, name = COALESCE(?, name), picture = COALESCE(?, picture) WHERE id = ?"
+      )
+      .bind(identity.email, identity.name ?? null, identity.picture ?? null, existing.id)
       .run();
     return existing.id;
   }
-  const preseeded = await db
-    .prepare("SELECT id FROM users WHERE email = ? AND google_sub IS NULL")
-    .bind(payload.email)
+  const claimable = await db
+    .prepare(`SELECT id FROM users WHERE email = ? AND ${column} IS NULL`)
+    .bind(identity.email)
     .first<{ id: number }>();
-  if (preseeded) {
+  if (claimable) {
     await db
-      .prepare("UPDATE users SET google_sub = ?, name = ?, picture = ? WHERE id = ?")
-      .bind(payload.sub, payload.name ?? null, payload.picture ?? null, preseeded.id)
+      .prepare(
+        `UPDATE users SET ${column} = ?, name = COALESCE(?, name), picture = COALESCE(?, picture) WHERE id = ?`
+      )
+      .bind(identity.sub, identity.name ?? null, identity.picture ?? null, claimable.id)
       .run();
-    return preseeded.id;
+    return claimable.id;
   }
   const created = await db
-    .prepare("INSERT INTO users (google_sub, email, name, picture) VALUES (?, ?, ?, ?) RETURNING id")
-    .bind(payload.sub, payload.email, payload.name ?? null, payload.picture ?? null)
+    .prepare(`INSERT INTO users (${column}, email, name, picture) VALUES (?, ?, ?, ?) RETURNING id`)
+    .bind(identity.sub, identity.email, identity.name ?? null, identity.picture ?? null)
     .first<{ id: number }>();
   return created!.id;
 }
@@ -156,7 +170,122 @@ auth.get("/callback", async (c) => {
   // The id_token comes directly from Google's token endpoint over TLS,
   // so decoding its payload without signature verification is safe here (per OIDC spec 3.1.3.7).
   const payload = decodeIdTokenPayload(tokens.id_token);
-  const userId = await upsertGoogleUser(c.env.DB, payload);
+  const userId = await upsertOidcUser(c.env.DB, "google_sub", payload);
+
+  if (isApp) {
+    const appCode = await createAuthCode(c.env.DB, userId, appChallenge!);
+    return c.redirect(`${APP_REDIRECT_URI}?code=${appCode}`);
+  }
+
+  const token = await createSession(c.env.DB, userId);
+  setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
+  return c.redirect("/");
+});
+
+// ---------- Sign in with Apple ------------------------------------------------
+// Same shape as the Google flow with two Apple quirks: the client secret is a
+// self-signed ES256 JWT (lib/apple.ts), and requesting the email scope forces
+// response_mode=form_post — the callback is a *cross-site POST*, so the state
+// and PKCE-challenge cookies must be SameSite=None to arrive with it.
+
+const APPLE_STATE_COOKIE = "apple_oauth_state";
+const APPLE_CHALLENGE_COOKIE = "apple_oauth_challenge";
+
+// All four secrets present, or the feature is off (self-hosters may not
+// have an Apple developer account — Google remains the baseline provider).
+function appleConfig(env: Env) {
+  const { APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY } = env;
+  if (!APPLE_CLIENT_ID || !APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY) return null;
+  return {
+    clientId: APPLE_CLIENT_ID,
+    teamId: APPLE_TEAM_ID,
+    keyId: APPLE_KEY_ID,
+    privateKeyPem: APPLE_PRIVATE_KEY,
+  };
+}
+
+// Which sign-in buttons the (static, server-agnostic) login screen should
+// draw. Google is always on; Apple only when this server carries the secrets.
+auth.get("/providers", (c) => c.json({ google: true, apple: appleConfig(c.env) !== null }));
+
+auth.get("/apple/login", async (c) => {
+  const isApp = c.req.query("client") === "app";
+  const appChallenge = c.req.query("code_challenge");
+  if (isApp && !appChallenge) return c.text("Missing code_challenge.", 400);
+  const config = appleConfig(c.env);
+  if (!config) return c.text("Apple sign-in is not configured on this server.", 503);
+
+  const state = randomToken() + (isApp ? APP_STATE_SUFFIX : "");
+  const crossSitePostCookie = {
+    httpOnly: true,
+    secure: true, // required by SameSite=None
+    sameSite: "None" as const,
+    path: "/",
+    maxAge: 600,
+  };
+  setCookie(c, APPLE_STATE_COOKIE, state, crossSitePostCookie);
+  if (isApp) setCookie(c, APPLE_CHALLENGE_COOKIE, appChallenge!, crossSitePostCookie);
+
+  const url = new URL(`${APPLE_ISSUER}/auth/authorize`);
+  url.searchParams.set("client_id", config.clientId);
+  url.searchParams.set("redirect_uri", new URL("/auth/apple/callback", c.req.url).toString());
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("response_mode", "form_post");
+  url.searchParams.set("scope", "name email");
+  url.searchParams.set("state", state);
+  return c.redirect(url.toString());
+});
+
+auth.post("/apple/callback", async (c) => {
+  const config = appleConfig(c.env);
+  if (!config) return c.text("Apple sign-in is not configured on this server.", 503);
+  const body = await c.req.parseBody();
+  const savedState = getCookie(c, APPLE_STATE_COOKIE);
+  const appChallenge = getCookie(c, APPLE_CHALLENGE_COOKIE);
+  deleteCookie(c, APPLE_STATE_COOKIE, { path: "/" });
+  deleteCookie(c, APPLE_CHALLENGE_COOKIE, { path: "/" });
+
+  // The user backed out of Apple's consent screen — not an error state.
+  if (body.error === "user_cancelled_authorize") return c.redirect("/");
+
+  const code = body.code;
+  const state = body.state;
+  if (typeof code !== "string" || typeof state !== "string" || !code || state !== savedState) {
+    return c.text("Invalid OAuth state. Please try signing in again.", 400);
+  }
+  const isApp = state.endsWith(APP_STATE_SUFFIX);
+  if (isApp && !appChallenge) {
+    return c.text("Missing PKCE challenge. Please try signing in again.", 400);
+  }
+
+  const tokenRes = await fetch(`${APPLE_ISSUER}/auth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: config.clientId,
+      client_secret: await appleClientSecret({ ...config, nowMs: Date.now() }),
+      redirect_uri: new URL("/auth/apple/callback", c.req.url).toString(),
+      grant_type: "authorization_code",
+    }),
+  });
+  if (!tokenRes.ok) {
+    return c.text("Failed to exchange authorization code.", 502);
+  }
+  const tokens = (await tokenRes.json()) as { id_token?: string };
+  if (!tokens.id_token) return c.text("No id_token in Apple response.", 502);
+
+  // Same trust argument as the Google callback: the id_token came straight
+  // from Apple's token endpoint over TLS, so no signature check is needed.
+  const payload = decodeIdTokenPayload(tokens.id_token);
+  if (!payload.email) {
+    return c.text("Apple did not provide an email address for this account.", 502);
+  }
+  const userId = await upsertOidcUser(c.env.DB, "apple_sub", {
+    sub: payload.sub,
+    email: payload.email,
+    name: appleUserName(body.user),
+  });
 
   if (isApp) {
     const appCode = await createAuthCode(c.env.DB, userId, appChallenge!);

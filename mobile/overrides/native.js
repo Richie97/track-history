@@ -1,7 +1,7 @@
 // Native shell bootstrap. sync-www.mjs installs this as the module entry in
 // place of app.js: it fills in the platform seam (js/platform.js) with native
 // behaviors — bearer-token auth against a configurable server, system-browser
-// Google OAuth, share sheet, haptics, status-bar theming — then imports the
+// OAuth (Google or Apple), share sheet, haptics, status-bar theming — then imports the
 // untouched app.js. Plugins come from the Capacitor bridge proxies
 // (window.Capacitor.Plugins), so the app stays bundler-free vanilla JS.
 // Every plugin call is feature-checked: a missing plugin degrades, never
@@ -121,8 +121,9 @@ platform.logout = async () => {
   platform.authToken = null;
 };
 
-// ---------- system-browser Google OAuth (PKCE S256) --------------------------
-// native.js opens {server}/auth/login?client=app&code_challenge=… in the
+// ---------- system-browser OAuth (PKCE S256) ----------------------------------
+// native.js opens {server}/auth/login (or /auth/apple/login) with
+// ?client=app&code_challenge=… in the
 // system browser (Google forbids OAuth in webviews); the server bounces the
 // callback to trackevolution://auth?code=…, and the appUrlOpen handler below
 // trades code + verifier for a bearer token at /auth/exchange. The verifier
@@ -136,14 +137,15 @@ function base64Url(bytes) {
     .replace(/=+$/, "");
 }
 
-platform.login = async () => {
+platform.login = async (provider) => {
   const raw = new Uint8Array(32);
   crypto.getRandomValues(raw);
   const verifier = Array.from(raw, (b) => b.toString(16).padStart(2, "0")).join("");
   await prefSet("pkceVerifier", verifier);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   const challenge = base64Url(new Uint8Array(digest));
-  const url = `${serverUrl}/auth/login?client=app&code_challenge=${challenge}`;
+  const path = provider === "apple" ? "/auth/apple/login" : "/auth/login";
+  const url = `${serverUrl}${path}?client=app&code_challenge=${challenge}`;
   if (Browser) await Browser.open({ url });
   else window.open(url, "_blank");
 };

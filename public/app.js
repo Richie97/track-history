@@ -448,6 +448,31 @@ function footerHtml({ legal = false } = {}) {
 
 // ---------- shell & login ----------------------------------------------------
 
+const APPLE_LOGO = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z"/></svg>`;
+
+// The login screen is static HTML but the Apple button depends on server
+// config (a self-hosted instance may not carry Apple credentials), so it's
+// injected only after the server says it offers the provider. Errors are
+// swallowed: an unreachable server still gets a working Google-only screen.
+async function showAppleLoginIfAvailable() {
+  try {
+    const res = await fetch(`${platform.apiBase}/auth/providers`);
+    if (!res.ok) return;
+    const { apple } = await res.json();
+    const slot = document.querySelector(".login-buttons");
+    if (!apple || !slot || document.getElementById("apple-login")) return;
+    slot.insertAdjacentHTML(
+      "beforeend",
+      platform.login
+        ? `<button class="btn apple" id="apple-login">${APPLE_LOGO} Sign in with Apple</button>`
+        : `<a class="btn apple" id="apple-login" href="/auth/apple/login">${APPLE_LOGO} Sign in with Apple</a>`
+    );
+    if (platform.login) {
+      document.getElementById("apple-login").addEventListener("click", () => platform.login("apple"));
+    }
+  } catch {}
+}
+
 function renderLogin() {
   document.querySelector(".shell")?.remove();
   $app.innerHTML = `
@@ -457,25 +482,19 @@ function renderLogin() {
         <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Track Evolution</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
-        ${
-          platform.login
-            ? `<button class="btn primary" id="native-login">Sign in with Google</button>`
-            : `<a class="btn primary" href="/auth/login">Sign in with Google</a>`
-        }
-        ${
-          platform.openServerSettings
-            ? `<p class="hint" style="margin-top:12px"><a href="#" id="server-settings">Server: ${esc(serverHost())}</a></p>`
-            : ""
-        }
+        <div class="login-buttons">
+          ${
+            platform.login
+              ? `<button class="btn primary" id="native-login">Sign in with Google</button>`
+              : `<a class="btn primary" href="/auth/login">Sign in with Google</a>`
+          }
+        </div>
         ${footerHtml({ legal: true })}
       </div>
     </div>`;
   wireThemeToggle();
   document.getElementById("native-login")?.addEventListener("click", () => platform.login());
-  document.getElementById("server-settings")?.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    platform.openServerSettings();
-  });
+  showAppleLoginIfAvailable();
 }
 
 // Rendered when the server can't be reached at all (offline, bad server URL
