@@ -12,4 +12,10 @@ class ViewController: CAPBridgeViewController {
         super.viewDidLoad()
         webView?.allowsBackForwardNavigationGestures = true
     }
+
+    // App-local plugins (no npm package) register here — Capacitor exposes
+    // them to the web app as Capacitor.Plugins.<jsName>.
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(CarPlayBridgePlugin())
+    }
 }
