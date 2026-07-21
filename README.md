@@ -150,9 +150,11 @@ the server: the raw GPS trace never leaves the phone.
 
 **Release checklist:**
 
-- iOS: set the real `<Team ID>.app.trackevolution` in `wrangler.jsonc`'s
-  `IOS_APP_ID` (served at `/.well-known/apple-app-site-association`) and
-  redeploy the Worker, so Universal Links to `/share/*` open the app.
+- iOS: `wrangler.jsonc`'s `IOS_APP_ID` carries the real
+  `<Team ID>.app.trackevolution` (served at
+  `/.well-known/apple-app-site-association`; forks: replace with your own Team
+  ID) — redeploy the Worker after changing it, so Universal Links to `/share/*`
+  open the app.
   The Associated Domains entitlement lives only in the **Release**
   configuration (`App.entitlements`); Debug builds use the empty
   `AppDebug.entitlements` so free personal Apple teams can run the app on
