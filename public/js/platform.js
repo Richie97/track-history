@@ -38,7 +38,9 @@ export const platform = {
   },
 
   // Native-only hooks — null on web, filled in by the shell:
-  login: null, // system-browser OAuth (web uses <a href="/auth/login">)
+  // System-browser OAuth; takes an optional provider ("apple", default
+  // Google). Web instead links to /auth/login and /auth/apple/login directly.
+  login: null,
   openExternal: null, // open an absolute URL in the system browser
   shareLink: null, // OS share sheet for a URL
   hapticPB: () => {}, // haptic buzz on a personal-best celebration

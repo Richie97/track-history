@@ -2,7 +2,7 @@
 
 A personal HPDE/track-day logbook: events, sessions, lap times and notes per track,
 with progress charts over time. Runs on Cloudflare Workers + D1 (SQLite), signs in
-with Google, and fits comfortably in Cloudflare's free tier.
+with Google (or Apple), and fits comfortably in Cloudflare's free tier.
 
 **The app:** https://trackevolution.app — the hosted instance, and where the docs
 site points users. (This README covers development and deploying an instance;
@@ -28,7 +28,10 @@ changes).
   link to a seeded canonical track catalog by name, so the same physical track
   is identifiable across users — the catalog also backs the track-name
   suggestions in the event form)
-- **Google OAuth** — login; new Google accounts get their own empty workspace
+- **Google OAuth** — login; new accounts get their own empty workspace. **Sign
+  in with Apple** is an optional second provider (needs an Apple developer
+  account — see deployment below); accounts are linked by email, so signing in
+  with either provider reaches the same logbook
 - Frontend is dependency-free vanilla JS (hash-routed SPA, SVG charts,
   offline-first via an IndexedDB response cache + write queue)
 
@@ -98,8 +101,29 @@ your events, and re-run `npm run seed:generate`.
    npm run deploy
    ```
 
-Sign in with the Google account matching your seed data's `USER_EMAIL` and it
-claims the imported history automatically. Other Google accounts get a fresh,
+5. **(Optional) Enable Sign in with Apple**
+
+   Requires a paid Apple developer account. In the
+   [developer portal](https://developer.apple.com/account/resources/):
+
+   - Create (or reuse) an **App ID**, then create a **Services ID** (this is
+     your `APPLE_CLIENT_ID`) with *Sign in with Apple* enabled; register your
+     domain and `https://<your-domain>/auth/apple/callback` as the return URL
+   - Create a **Sign in with Apple key**, note its Key ID, and download the
+     `.p8` file (downloadable only once)
+   - Set the secrets — the login screen shows the Apple button automatically
+     once they're present (`GET /auth/providers` tells the frontend):
+
+   ```sh
+   npx wrangler secret put APPLE_CLIENT_ID    # the Services ID, e.g. app.example.web
+   npx wrangler secret put APPLE_TEAM_ID
+   npx wrangler secret put APPLE_KEY_ID
+   npx wrangler secret put APPLE_PRIVATE_KEY  # paste the .p8 file's full PEM contents
+   npm run deploy
+   ```
+
+Sign in with the account matching your seed data's `USER_EMAIL` and it
+claims the imported history automatically. Other accounts get a fresh,
 empty logbook.
 
 ## Mobile apps (Capacitor)
@@ -109,8 +133,8 @@ the App Store / Play Store. `public/` stays the single source of truth:
 `mobile/scripts/sync-www.mjs` copies it into the Capacitor webDir, drops the
 service worker, and swaps the module entry to `overrides/native.js`, which
 configures the platform seam (`public/js/platform.js`) — bearer-token auth
-against a configurable server, Google sign-in via the system browser (PKCE +
-`POST /auth/exchange`), OS share sheet, haptics, status-bar theming — and then
+against a configurable server, Google/Apple sign-in via the system browser
+(PKCE + `POST /auth/exchange`), OS share sheet, haptics, status-bar theming — and then
 imports the untouched `app.js`.
 
 **Prereqs:** Xcode (iOS) / Android Studio (Android), plus CocoaPods on macOS.
@@ -124,10 +148,12 @@ npm run assets     # regenerate icons/splash from resources/ (uses @capacitor/as
 ```
 
 **Developing against a local server:** run `npm run dev` at the repo root with
-`DEV_MODE=1`, then in the app's sign-in screen tap *Server:* and point it at
+`DEV_MODE=1`, then open the app's server settings and point it at
 `http://localhost:8787` (iOS simulator) or `http://10.0.2.2:8787` (Android
-emulator — debug builds allow cleartext for this). Sign-in then uses the dev
-bypass, no Google config needed.
+emulator — debug builds allow cleartext for this). The *Server:* link lives on
+the "Can't reach the server" screen (it's deliberately not shown on the normal
+sign-in screen) — get there by launching the app with networking off, e.g.
+airplane mode. Sign-in then uses the dev bypass, no Google config needed.
 
 **Users can also point the app at a self-hosted instance** via the same Server
 setting; the Worker ships CORS for the Capacitor shell origins, so a standard

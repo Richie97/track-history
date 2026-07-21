@@ -602,6 +602,13 @@ button.ch-chip.on { background: var(--surface-raised); }
 .login-card h1 { margin: 16px 0 10px; font-size: 24px; }
 .login-card p { color: var(--text-muted); font-size: 15px; margin: 0 auto 26px; max-width: 260px; }
 .login-card .flag { display: flex; justify-content: center; }
+.login-buttons { display: grid; gap: 10px; margin: 0 auto; max-width: 260px; }
+/* Apple-brand button: black in light mode, white in dark — the inverted
+   text/surface tokens give exactly that in both themes. */
+.btn.apple { background: var(--text-strong); color: var(--surface-card); border-color: transparent; }
+@media (hover: hover) {
+  .btn.apple:hover { background: var(--text-strong); opacity: 0.85; }
+}
 
 .empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
 
