@@ -33,6 +33,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- The app only uses standard HTTPS (exempt encryption), so App Store
+	     Connect skips the export-compliance prompt on every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<!-- Live lap recorder: GPS keeps recording with the phone locked/stowed
 	     during a track session. Only active while the user is recording. -->
 	<key>NSLocationWhenInUseUsageDescription</key>
