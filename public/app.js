@@ -477,7 +477,6 @@ function renderLogin() {
   document.querySelector(".shell")?.remove();
   $app.innerHTML = `
     <div class="login-wrap">
-      <span class="login-toggle">${themeToggleHtml()}</span>
       <div class="login-card">
         <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Track Evolution</h1>
@@ -492,7 +491,6 @@ function renderLogin() {
         ${footerHtml({ legal: true })}
       </div>
     </div>`;
-  wireThemeToggle();
   document.getElementById("native-login")?.addEventListener("click", () => platform.login());
   showAppleLoginIfAvailable();
 }
