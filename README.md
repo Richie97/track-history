@@ -162,6 +162,11 @@ the server: the raw GPS trace never leaves the phone.
   signing, and redeploy, so App Links verify.
 - Store listings: sell the logbook features; the tip link is already hidden on
   iOS builds (Apple 3.1.1) and external links open in the system browser.
+- Xcode Cloud: builds work out of the box —
+  `mobile/ios/App/ci_scripts/ci_post_clone.sh` installs Node/CocoaPods if
+  missing, runs `npm ci`, rebuilds `www/`, and runs `cap sync ios` (which runs
+  `pod install`) before the archive step, since `node_modules/`, `www/`, and
+  `Pods/` are all gitignored.
 
 ## Video / telemetry import
 
