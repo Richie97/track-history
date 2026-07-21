@@ -174,6 +174,39 @@ start/finish line picker as a GoPro file — laps, best-lap racing line, and
 per-lap speed channels, saved through the normal sessions API. Nothing needs
 the server: the raw GPS trace never leaves the phone.
 
+**CarPlay (iOS):** the iOS shell ships a CarPlay "driving task" scene
+(`mobile/ios/App/App/CarPlaySceneDelegate.swift`) that remote-controls the lap
+recorder — one Start/Stop button plus a status line on the car screen, so you
+can start recording from the grid without touching the phone. Starting picks
+the event whose dates cover today (it refuses, with a message on the car
+screen, if there is none); stopping keeps the recording checkpointed on the
+phone for the usual review/line-picker/save flow. The scene talks to the web
+app through the app-local `CarPlayBridgePlugin.swift`
+(`Capacitor.Plugins.CarPlayBridge`), wired to `platform.recorderRemote` /
+`platform.onRecorderState` in `overrides/native.js`.
+
+CarPlay apps require an Apple-granted entitlement, so the feature is **dormant
+until you**:
+
+1. Request the **CarPlay driving task app** entitlement at
+   <https://developer.apple.com/contact/carplay/> (describe the recorder; it
+   fits the driving-task category's start/stop-an-activity pattern).
+2. Once granted, create/refresh provisioning profiles that include it, and add
+   to `App.entitlements`:
+   `<key>com.apple.developer.carplay-driving-task</key><true/>`
+3. When a CarPlay-enabled build ships, document the feature for users in
+   `site/docs/lap-recording.html` (it's deliberately absent there until then —
+   the docs site must not advertise features the shipped app doesn't have).
+
+Don't add the key before Apple grants the entitlement — signing (including
+Xcode Cloud builds) fails for entitlements your profiles don't carry, which is
+also why it isn't checked in. Per the note in `AppDebug.entitlements`, keep it
+out of the Debug configuration if you develop on a free personal team. The
+CarPlay Simulator (Xcode: I/O → External Displays → CarPlay in the iOS
+Simulator) needs the entitlement too. Everything else — the scene manifest in
+`Info.plist`, the bridge plugin, the JS wiring — is inert without it and
+harmless to ship.
+
 **Release checklist:**
 
 - iOS: set the real `<Team ID>.app.trackevolution` in `wrangler.jsonc`'s
