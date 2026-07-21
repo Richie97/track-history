@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import type { AppContext } from "../types";
+import type { AppContext, Ctx } from "../types";
 import { decodeIdTokenPayload, type IdTokenPayload } from "../lib/oidc";
 import {
   SESSION_COOKIE,
@@ -33,6 +33,40 @@ async function createAuthCode(
     .bind(code, userId, codeChallenge, Date.now() + AUTH_CODE_TTL_MS)
     .run();
   return code;
+}
+
+// Shared tail of the non-Google sign-ins (dev bypass, review demo): hand the
+// native app a one-time PKCE code, or set the web session cookie.
+async function completeLogin(
+  c: Ctx,
+  userId: number,
+  isApp: boolean,
+  appChallenge: string | undefined
+) {
+  if (isApp) {
+    const code = await createAuthCode(c.env.DB, userId, appChallenge!);
+    return c.redirect(`${APP_REDIRECT_URI}?code=${code}`);
+  }
+  const token = await createSession(c.env.DB, userId);
+  setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
+  return c.redirect("/");
+}
+
+async function findOrCreateUserByEmail(
+  db: D1Database,
+  email: string,
+  name: string
+): Promise<number> {
+  const existing = await db
+    .prepare("SELECT id FROM users WHERE email = ?")
+    .bind(email)
+    .first<{ id: number }>();
+  if (existing) return existing.id;
+  const created = await db
+    .prepare("INSERT INTO users (email, name) VALUES (?, ?) RETURNING id")
+    .bind(email, name)
+    .first<{ id: number }>();
+  return created!.id;
 }
 
 // Find the user for a Google identity: an existing google_sub match, a
@@ -72,28 +106,38 @@ auth.get("/login", async (c) => {
   const appChallenge = c.req.query("code_challenge");
   if (isApp && !appChallenge) return c.text("Missing code_challenge.", 400);
 
+  // App Store / Play review bypass: a secret demo code (set via
+  // `wrangler secret put REVIEW_DEMO_SECRET`, handed to the reviewer in App
+  // Review Information) signs into a shared demo account without Google.
+  // Disabled entirely when the secret isn't set. The demo user is a plain
+  // users row, so ownership scoping isolates it like any other account; its
+  // email should be one the operator controls, since a Google sign-in with
+  // that email would claim the row (upsertGoogleUser's pre-seeded path).
+  const demoCode = c.req.query("demo_code");
+  if (demoCode) {
+    const secret = c.env.REVIEW_DEMO_SECRET;
+    // Compare hashes, not strings — string equality would leak the secret
+    // byte-by-byte through response timing.
+    const ok =
+      !!secret && (await sha256Base64Url(demoCode)) === (await sha256Base64Url(secret));
+    if (!ok) return c.text("Invalid demo access code.", 401);
+    const userId = await findOrCreateUserByEmail(
+      c.env.DB,
+      c.env.REVIEW_DEMO_EMAIL || "demo@trackevolution.app",
+      c.env.REVIEW_DEMO_NAME || "Demo Driver"
+    );
+    return completeLogin(c, userId, isApp, appChallenge);
+  }
+
   // Local development bypass: sign in as a fixed dev user without Google.
   // Set DEV_USER_EMAIL in .dev.vars to match your seeded account.
   if (c.env.DEV_MODE === "1") {
-    const devEmail = c.env.DEV_USER_EMAIL || "dev@example.com";
-    let user = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?")
-      .bind(devEmail)
-      .first<{ id: number }>();
-    if (!user) {
-      const res = await c.env.DB.prepare(
-        "INSERT INTO users (email, name) VALUES (?, ?) RETURNING id"
-      )
-        .bind(devEmail, c.env.DEV_USER_NAME || "Dev User")
-        .first<{ id: number }>();
-      user = res!;
-    }
-    if (isApp) {
-      const code = await createAuthCode(c.env.DB, user.id, appChallenge!);
-      return c.redirect(`${APP_REDIRECT_URI}?code=${code}`);
-    }
-    const token = await createSession(c.env.DB, user.id);
-    setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
-    return c.redirect("/");
+    const userId = await findOrCreateUserByEmail(
+      c.env.DB,
+      c.env.DEV_USER_EMAIL || "dev@example.com",
+      c.env.DEV_USER_NAME || "Dev User"
+    );
+    return completeLogin(c, userId, isApp, appChallenge);
   }
 
   // The app's PKCE challenge rides in a short-lived cookie (the system
@@ -157,15 +201,7 @@ auth.get("/callback", async (c) => {
   // so decoding its payload without signature verification is safe here (per OIDC spec 3.1.3.7).
   const payload = decodeIdTokenPayload(tokens.id_token);
   const userId = await upsertGoogleUser(c.env.DB, payload);
-
-  if (isApp) {
-    const appCode = await createAuthCode(c.env.DB, userId, appChallenge!);
-    return c.redirect(`${APP_REDIRECT_URI}?code=${appCode}`);
-  }
-
-  const token = await createSession(c.env.DB, userId);
-  setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
-  return c.redirect("/");
+  return completeLogin(c, userId, isApp, appChallenge);
 });
 
 // Native app: trade a one-time code (from the custom-scheme redirect) plus

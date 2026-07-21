@@ -8,6 +8,9 @@ export type Env = {
   DEV_MODE?: string;
   DEV_USER_EMAIL?: string;
   DEV_USER_NAME?: string;
+  REVIEW_DEMO_SECRET?: string;
+  REVIEW_DEMO_EMAIL?: string;
+  REVIEW_DEMO_NAME?: string;
 };
 
 export type AppContext = { Bindings: Env; Variables: { userId: number } };

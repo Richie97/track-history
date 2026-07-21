@@ -462,6 +462,7 @@ function renderLogin() {
             ? `<button class="btn primary" id="native-login">Sign in with Google</button>`
             : `<a class="btn primary" href="/auth/login">Sign in with Google</a>`
         }
+        <p class="hint" style="margin-top:12px"><a href="#" id="demo-login">Have a demo access code?</a></p>
         ${
           platform.openServerSettings
             ? `<p class="hint" style="margin-top:12px"><a href="#" id="server-settings">Server: ${esc(serverHost())}</a></p>`
@@ -472,6 +473,15 @@ function renderLogin() {
     </div>`;
   wireThemeToggle();
   document.getElementById("native-login")?.addEventListener("click", () => platform.login());
+  // App Store / Play review: a secret demo code signs into the shared demo
+  // account (server-side REVIEW_DEMO_SECRET) without Google.
+  document.getElementById("demo-login")?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    const code = window.prompt("Demo access code")?.trim();
+    if (!code) return;
+    if (platform.login) platform.login(code);
+    else location.href = `/auth/login?demo_code=${encodeURIComponent(code)}`;
+  });
   document.getElementById("server-settings")?.addEventListener("click", (ev) => {
     ev.preventDefault();
     platform.openServerSettings();

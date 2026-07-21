@@ -102,6 +102,32 @@ Sign in with the Google account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other Google accounts get a fresh,
 empty logbook.
 
+### Demo account for app-store review
+
+App Store / Play Store reviewers need working sign-in credentials, and Google
+sign-ins from review environments routinely trip Google's security
+checkpoints. Setting one extra secret enables a Google-free demo login:
+
+```sh
+npx wrangler secret put REVIEW_DEMO_SECRET   # the access code you give reviewers
+```
+
+With the secret set, the "Have a demo access code?" link on the sign-in screen
+(web and native apps) prompts for the code and signs into a shared demo
+account. Leave the secret unset and the server rejects all demo logins.
+
+- The demo account is a normal user row with email `REVIEW_DEMO_EMAIL`
+  (default `demo@trackevolution.app`) and name `REVIEW_DEMO_NAME` (default
+  "Demo Driver") — set those as plain vars if you want to override them. Use
+  an email you control: a Google sign-in with that email claims the account.
+- Give it realistic data before submitting — either sign in with the code and
+  enter a few events, or point the seed pipeline's `USER_EMAIL` at the demo
+  email. Apple rejects demo accounts that don't demonstrate the app.
+- In App Store Connect → App Review Information, tick "Sign-in required" and
+  provide e.g. user `demo` / password `<the code>`, with a review note
+  explaining to tap "Have a demo access code?" on the sign-in screen and
+  enter the code.
+
 ## Mobile apps (Capacitor)
 
 [`mobile/`](mobile/) wraps the same frontend in native iOS/Android shells for

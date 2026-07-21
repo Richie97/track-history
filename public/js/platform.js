@@ -38,7 +38,7 @@ export const platform = {
   },
 
   // Native-only hooks — null on web, filled in by the shell:
-  login: null, // system-browser OAuth (web uses <a href="/auth/login">)
+  login: null, // system-browser OAuth; takes an optional review demo code (web uses <a href="/auth/login">)
   openExternal: null, // open an absolute URL in the system browser
   shareLink: null, // OS share sheet for a URL
   hapticPB: () => {}, // haptic buzz on a personal-best celebration

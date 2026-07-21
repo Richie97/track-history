@@ -136,14 +136,17 @@ function base64Url(bytes) {
     .replace(/=+$/, "");
 }
 
-platform.login = async () => {
+// demoCode (optional) is the App Store / Play review access code — the server
+// signs the demo account in directly instead of bouncing through Google.
+platform.login = async (demoCode) => {
   const raw = new Uint8Array(32);
   crypto.getRandomValues(raw);
   const verifier = Array.from(raw, (b) => b.toString(16).padStart(2, "0")).join("");
   await prefSet("pkceVerifier", verifier);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   const challenge = base64Url(new Uint8Array(digest));
-  const url = `${serverUrl}/auth/login?client=app&code_challenge=${challenge}`;
+  let url = `${serverUrl}/auth/login?client=app&code_challenge=${challenge}`;
+  if (demoCode) url += `&demo_code=${encodeURIComponent(demoCode)}`;
   if (Browser) await Browser.open({ url });
   else window.open(url, "_blank");
 };
