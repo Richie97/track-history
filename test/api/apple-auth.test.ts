@@ -90,7 +90,7 @@ describe("POST /auth/apple/callback (web)", () => {
     const { state, cookieHeader } = await appleLogin();
     const res = await postCallback(
       {
-        code: codeFor({ sub: "apple-sub-1", email: "senna@example.com" }),
+        code: codeFor({ sub: "apple-sub-1", email: "senna@example.com", email_verified: true }),
         state,
         user: JSON.stringify({ name: { firstName: "Ayrton", lastName: "Senna" } }),
       },
@@ -108,7 +108,8 @@ describe("POST /auth/apple/callback (web)", () => {
   });
 
   it("reuses the account on a later sign-in and keeps the stored name", async () => {
-    const code = codeFor({ sub: "apple-sub-2", email: "prost@example.com" });
+    // Apple sends email_verified as the string "true" — that form must pass.
+    const code = codeFor({ sub: "apple-sub-2", email: "prost@example.com", email_verified: "true" });
     const first = await appleLogin();
     const firstRes = await postCallback(
       {
@@ -132,7 +133,7 @@ describe("POST /auth/apple/callback (web)", () => {
     const existing = await createUser("Existing User");
     const { state, cookieHeader } = await appleLogin();
     const res = await postCallback(
-      { code: codeFor({ sub: "apple-sub-3", email: existing.email }), state },
+      { code: codeFor({ sub: "apple-sub-3", email: existing.email, email_verified: true }), state },
       cookieHeader
     );
     const me = (await apiClient(sessionCookieToken(res))("GET", "/me")).body;
@@ -157,6 +158,19 @@ describe("POST /auth/apple/callback (web)", () => {
     const { state, cookieHeader } = await appleLogin();
     const res = await postCallback({ code: codeFor({ sub: "apple-sub-4" }), state }, cookieHeader);
     expect(res.status).toBe(502);
+  });
+
+  it("rejects an unverified email (accounts are claimed/linked by email)", async () => {
+    const unverified = [
+      { sub: "apple-sub-6", email: "unverified@example.com", email_verified: false },
+      { sub: "apple-sub-7", email: "unverified2@example.com", email_verified: "false" },
+      { sub: "apple-sub-8", email: "no-claim@example.com" }, // missing claim = unverified
+    ];
+    for (const payload of unverified) {
+      const { state, cookieHeader } = await appleLogin();
+      const res = await postCallback({ code: codeFor(payload), state }, cookieHeader);
+      expect(res.status).toBe(403);
+    }
   });
 
   it("surfaces an Apple response with no id_token", async () => {
@@ -185,7 +199,10 @@ describe("POST /auth/apple/callback (native app)", () => {
     const { state, cookieHeader } = await appleLogin(`?client=app&code_challenge=${challenge}`);
     expect(state.endsWith(".app")).toBe(true);
     const res = await postCallback(
-      { code: codeFor({ sub: "apple-sub-5", email: "app-user@example.com" }), state },
+      {
+        code: codeFor({ sub: "apple-sub-5", email: "app-user@example.com", email_verified: true }),
+        state,
+      },
       cookieHeader
     );
     expect(res.status).toBe(302);

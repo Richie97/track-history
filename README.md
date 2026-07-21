@@ -56,7 +56,9 @@ GOOGLE_CLIENT_SECRET=dev
 ```
 
 `DEV_MODE=1` replaces Google login with a local dev user so you can develop
-without OAuth credentials. It must never be set in production.
+without OAuth credentials. The bypass only works on local dev hosts
+(`localhost`, `127.0.0.1`, `[::1]`, `10.0.2.2`) — on any other hostname login
+falls through to real OAuth — but it must still never be set in production.
 
 ### Seeding your own history
 

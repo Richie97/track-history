@@ -1,5 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "../../src/lib/session";
 import { createUser, sessionFor, signedInUser } from "./helpers";
 
 // The native-app auth surface: Bearer tokens on /api/*, CORS for the
@@ -17,11 +18,11 @@ async function pkcePair() {
   return { verifier, challenge };
 }
 
-// Runs the DEV_MODE app login and returns the one-time code from the
-// custom-scheme redirect.
+// Runs the DEV_MODE app login (bypass only answers on local dev hosts) and
+// returns the one-time code from the custom-scheme redirect.
 async function appLoginCode(challenge: string) {
   const res = await SELF.fetch(
-    `https://example.com/auth/login?client=app&code_challenge=${challenge}`,
+    `http://localhost:8787/auth/login?client=app&code_challenge=${challenge}`,
     { redirect: "manual" }
   );
   expect(res.status).toBe(302);
@@ -92,7 +93,7 @@ describe("CORS for app origins", () => {
 
 describe("native app login + code exchange", () => {
   it("requires code_challenge on app login", async () => {
-    const res = await SELF.fetch("https://example.com/auth/login?client=app", {
+    const res = await SELF.fetch("http://localhost:8787/auth/login?client=app", {
       redirect: "manual",
     });
     expect(res.status).toBe(400);
@@ -132,7 +133,7 @@ describe("native app login + code exchange", () => {
     await env.DB.prepare(
       "INSERT INTO auth_codes (code, user_id, code_challenge, expires_at) VALUES (?, ?, ?, ?)"
     )
-      .bind(code, user.id, challenge, Date.now() - 1000)
+      .bind(await sha256Hex(code), user.id, challenge, Date.now() - 1000)
       .run();
     expect((await exchange({ code, code_verifier: verifier })).status).toBe(401);
   });

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { AppContext, Env } from "../types";
-import { decodeIdTokenPayload } from "../lib/oidc";
+import { decodeIdTokenPayload, isEmailVerified } from "../lib/oidc";
 import { APPLE_ISSUER, appleClientSecret, appleUserName } from "../lib/apple";
 import {
   SESSION_COOKIE,
@@ -10,6 +10,7 @@ import {
   randomToken,
   sessionCookieOptions,
   sha256Base64Url,
+  sha256Hex,
 } from "../lib/session";
 
 export const auth = new Hono<AppContext>();
@@ -31,10 +32,18 @@ async function createAuthCode(
   const code = randomToken();
   await db
     .prepare("INSERT INTO auth_codes (code, user_id, code_challenge, expires_at) VALUES (?, ?, ?, ?)")
-    .bind(code, userId, codeChallenge, Date.now() + AUTH_CODE_TTL_MS)
+    .bind(await sha256Hex(code), userId, codeChallenge, Date.now() + AUTH_CODE_TTL_MS)
     .run();
   return code;
 }
+
+// The DEV_MODE bypass only answers on hosts local development actually uses:
+// wrangler dev's loopback addresses plus 10.0.2.2, the Android emulator's
+// alias for the host machine. A DEV_MODE=1 that leaks into a deployed
+// environment then fails closed — login falls through to real OAuth.
+const DEV_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "10.0.2.2"]);
+const isDevLogin = (env: Env, url: string) =>
+  env.DEV_MODE === "1" && DEV_HOSTS.has(new URL(url).hostname);
 
 // Find the user for an OIDC identity: an existing sub match on the provider's
 // column, an account claimed by email (pre-seeded rows, and accounts created
@@ -88,7 +97,7 @@ auth.get("/login", async (c) => {
 
   // Local development bypass: sign in as a fixed dev user without Google.
   // Set DEV_USER_EMAIL in .dev.vars to match your seeded account.
-  if (c.env.DEV_MODE === "1") {
+  if (isDevLogin(c.env, c.req.url)) {
     const devEmail = c.env.DEV_USER_EMAIL || "dev@example.com";
     let user = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?")
       .bind(devEmail)
@@ -170,6 +179,14 @@ auth.get("/callback", async (c) => {
   // The id_token comes directly from Google's token endpoint over TLS,
   // so decoding its payload without signature verification is safe here (per OIDC spec 3.1.3.7).
   const payload = decodeIdTokenPayload(tokens.id_token);
+  // Accounts are claimed/linked by email, so an unverified one can't sign in
+  // (see isEmailVerified in lib/oidc.ts for the account-takeover argument).
+  if (!isEmailVerified(payload)) {
+    return c.text(
+      "Your Google account's email address is unverified, so it can't be used to sign in.",
+      403
+    );
+  }
   const userId = await upsertOidcUser(c.env.DB, "google_sub", payload);
 
   if (isApp) {
@@ -281,6 +298,13 @@ auth.post("/apple/callback", async (c) => {
   if (!payload.email) {
     return c.text("Apple did not provide an email address for this account.", 502);
   }
+  // Same rule as the Google callback — email claiming needs a verified email.
+  if (!isEmailVerified(payload)) {
+    return c.text(
+      "Your Apple ID's email address is unverified, so it can't be used to sign in.",
+      403
+    );
+  }
   const userId = await upsertOidcUser(c.env.DB, "apple_sub", {
     sub: payload.sub,
     email: payload.email,
@@ -307,14 +331,15 @@ auth.post("/exchange", async (c) => {
   if (!body?.code || !body?.code_verifier) {
     return c.json({ error: "code and code_verifier are required" }, 400);
   }
+  const codeHash = await sha256Hex(body.code);
   const row = await c.env.DB.prepare(
     "SELECT user_id, code_challenge, expires_at FROM auth_codes WHERE code = ?"
   )
-    .bind(body.code)
+    .bind(codeHash)
     .first<{ user_id: number; code_challenge: string; expires_at: number }>();
   if (row) {
     // Single-use: burn the code before verifying so a failed attempt can't retry it.
-    await c.env.DB.prepare("DELETE FROM auth_codes WHERE code = ?").bind(body.code).run();
+    await c.env.DB.prepare("DELETE FROM auth_codes WHERE code = ?").bind(codeHash).run();
   }
   if (!row || row.expires_at <= Date.now()) {
     return c.json({ error: "invalid or expired code" }, 401);
@@ -330,7 +355,9 @@ auth.post("/logout", async (c) => {
   const token =
     bearerToken(c.req.header("Authorization")) || getCookie(c, SESSION_COOKIE);
   if (token) {
-    await c.env.DB.prepare("DELETE FROM auth_sessions WHERE token = ?").bind(token).run();
+    await c.env.DB.prepare("DELETE FROM auth_sessions WHERE token = ?")
+      .bind(await sha256Hex(token))
+      .run();
   }
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
   return c.json({ ok: true });
