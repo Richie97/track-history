@@ -1,5 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "../../src/lib/session";
 import { apiClient, createEvent, createUser, sessionFor, signedInUser } from "./helpers";
 
 describe("API auth middleware", () => {
@@ -39,8 +40,9 @@ describe("API auth middleware", () => {
 });
 
 describe("DEV_MODE login", () => {
+  // The bypass only answers on local dev hosts (see DEV_HOSTS in routes/auth.ts).
   it("signs in the fixed dev user and sets a working session cookie", async () => {
-    const res = await SELF.fetch("https://example.com/auth/login", { redirect: "manual" });
+    const res = await SELF.fetch("http://localhost:8787/auth/login", { redirect: "manual" });
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/");
     const cookie = res.headers.get("set-cookie") ?? "";
@@ -54,12 +56,33 @@ describe("DEV_MODE login", () => {
 
   it("reuses the same user across logins", async () => {
     const login = async () => {
-      const res = await SELF.fetch("https://example.com/auth/login", { redirect: "manual" });
+      const res = await SELF.fetch("http://localhost:8787/auth/login", { redirect: "manual" });
       const token = /session=([0-9a-f]+)/.exec(res.headers.get("set-cookie") ?? "")?.[1];
       const me = await apiClient(token)("GET", "/me");
       return me.body.user.id as number;
     };
     expect(await login()).toBe(await login());
+  });
+
+  it("stores only a hash of the session token", async () => {
+    const res = await SELF.fetch("http://localhost:8787/auth/login", { redirect: "manual" });
+    const token = /session=([0-9a-f]+)/.exec(res.headers.get("set-cookie") ?? "")![1];
+    const count = async (value: string) =>
+      (
+        await env.DB.prepare("SELECT COUNT(*) AS n FROM auth_sessions WHERE token = ?")
+          .bind(value)
+          .first<{ n: number }>()
+      )!.n;
+    expect(await count(token)).toBe(0);
+    expect(await count(await sha256Hex(token))).toBe(1);
+  });
+
+  it("falls through to real OAuth on a non-local host", async () => {
+    const res = await SELF.fetch("https://example.com/auth/login", { redirect: "manual" });
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toMatch(/^https:\/\/accounts\.google\.com\//);
+    expect(res.headers.get("set-cookie") ?? "").not.toContain("session=");
   });
 });
 
@@ -72,7 +95,7 @@ describe("logout", () => {
     });
     expect(out.status).toBe(200);
     const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM auth_sessions WHERE token = ?")
-      .bind(token)
+      .bind(await sha256Hex(token))
       .first<{ n: number }>();
     expect(rows!.n).toBe(0);
     expect((await api("GET", "/me")).status).toBe(401);

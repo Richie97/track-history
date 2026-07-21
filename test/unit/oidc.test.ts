@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeIdTokenPayload } from "../../src/lib/oidc";
+import { decodeIdTokenPayload, isEmailVerified } from "../../src/lib/oidc";
 
 // base64url without Buffer so this compiles against workers-types only.
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -32,5 +32,21 @@ describe("decodeIdTokenPayload", () => {
 
   it("throws on malformed tokens", () => {
     expect(() => decodeIdTokenPayload("not-a-jwt")).toThrow();
+  });
+});
+
+describe("isEmailVerified", () => {
+  const base = { sub: "s", email: "a@b.com" };
+
+  it("accepts boolean true and Apple's string form", () => {
+    expect(isEmailVerified({ ...base, email_verified: true })).toBe(true);
+    expect(isEmailVerified({ ...base, email_verified: "true" })).toBe(true);
+  });
+
+  it("treats false, junk, and a missing claim as unverified", () => {
+    expect(isEmailVerified({ ...base, email_verified: false })).toBe(false);
+    expect(isEmailVerified({ ...base, email_verified: "false" })).toBe(false);
+    expect(isEmailVerified({ ...base, email_verified: "yes" })).toBe(false);
+    expect(isEmailVerified(base)).toBe(false);
   });
 });

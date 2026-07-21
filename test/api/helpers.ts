@@ -1,4 +1,5 @@
 import { env, SELF } from "cloudflare:test";
+import { sha256Hex } from "../../src/lib/session";
 
 let userSeq = 0;
 
@@ -11,11 +12,12 @@ export async function createUser(name = "Test User") {
   return { id: row!.id, email };
 }
 
-// Insert an auth session for a user and return the cookie token.
+// Insert an auth session for a user and return the cookie token (the DB
+// stores its SHA-256 hash, exactly like createSession in src/lib/session.ts).
 export async function sessionFor(userId: number, expiresAt = Date.now() + 86_400_000) {
   const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
   await env.DB.prepare("INSERT INTO auth_sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
-    .bind(token, userId, expiresAt)
+    .bind(await sha256Hex(token), userId, expiresAt)
     .run();
   return token;
 }
