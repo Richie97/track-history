@@ -19,6 +19,7 @@ import {
   diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, partKindLabel, partStatus,
 } from "./js/garage.js";
 import { activeEventId, bindRecorder, isRecording, pendingRecording, recorderAvailable } from "./js/record/ui.js";
+import { initRemoteRecorder } from "./js/record/remote.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 
 const $app = document.getElementById("app");
@@ -2274,6 +2275,9 @@ platform.navigate = (path) => {
   history.pushState({}, "", path);
   location.reload();
 };
+// Remote start/stop of the lap recorder (the CarPlay scene in the iOS shell).
+// Registers platform.recorderRemote; no-op on web, where there's no recorder.
+initRemoteRecorder();
 
 if (SHARE_SLUG) {
   window.addEventListener("hashchange", shareRoute);
