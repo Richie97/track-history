@@ -9,8 +9,7 @@
 
 const cap = window.Capacitor;
 const plugins = cap?.Plugins ?? {};
-const { App, Browser, Preferences, Share, StatusBar, Haptics, Clipboard, BackgroundGeolocation, CarPlayBridge } =
-  plugins;
+const { App, Browser, Preferences, Share, StatusBar, Haptics, Clipboard, BackgroundGeolocation } = plugins;
 
 const DEFAULT_SERVER = "https://trackevolution.app";
 const AUTH_SCHEME_PREFIX = "trackevolution://auth";
@@ -98,39 +97,6 @@ if (BackgroundGeolocation) {
     },
     openSettings: () => BackgroundGeolocation.openSettings().catch(() => {}),
   };
-}
-
-// ---------- CarPlay -----------------------------------------------------------
-// The CarPlay scene (iOS only — mobile/ios/App/App/CarPlaySceneDelegate.swift,
-// behind Apple's driving-task entitlement) is a remote control for the lap
-// recorder: its Start/Stop button arrives here as a plugin "command" event and
-// is routed into platform.recorderRemote (public/js/record/remote.js), and
-// recorder state changes are pushed back so the car screen mirrors the phone.
-// The plugin instance is registered by ViewController.capacitorDidLoad(); it's
-// absent on Android, where this whole block is skipped.
-
-if (CarPlayBridge) {
-  const push = (state) => CarPlayBridge.updateState(state).catch(() => {});
-  platform.onRecorderState = push;
-
-  // Why a start couldn't happen, in words that make sense on a car screen.
-  const START_FAILED = {
-    "no-event": "No event for today — create one on your phone first.",
-    auth: "Signed out — open the app on your phone to sign in.",
-    offline: "Couldn't load your events — check the phone's connection.",
-    gps: "Couldn't start GPS — check the app's location permission on the phone.",
-  };
-
-  CarPlayBridge.addListener("command", async ({ action }) => {
-    const remote = platform.recorderRemote;
-    if (!remote) return;
-    if (action === "start") {
-      const res = await remote.start().catch(() => ({ ok: false, reason: "offline" }));
-      if (!res?.ok) push({ recording: false, message: START_FAILED[res?.reason] ?? "Couldn't start recording." });
-    } else if (action === "stop") {
-      await remote.stop().catch(() => {});
-    }
-  });
 }
 
 platform.copyText = async (text) => {

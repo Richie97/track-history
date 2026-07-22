@@ -29,24 +29,11 @@ const CHECKPOINT_EVERY_S = 10;
 // Active recording state — survives view re-renders and navigation.
 const active = {
   rec: null,
-  label: null, // track/event name for external displays (CarPlay); not persisted
   lastFix: null, // {timeMs, lat, lon, speed, accuracy} as delivered
   error: null, // watcher error (permission denied, GPS off)
   lastCheckpointT: 0,
   onChange: null, // re-render hook while a record view is bound
 };
-
-// Mirror recorder transitions to the shell (platform.onRecorderState — the
-// CarPlay scene on iOS). No-op on web and on shells without the hook.
-function emitState() {
-  platform.onRecorderState?.({
-    recording: !!active.rec,
-    eventId: active.rec?.eventId ?? null,
-    eventLabel: active.rec ? active.label : null,
-    startedAtMs: active.rec?.startedAtMs ?? null,
-    error: active.error ? String(active.error?.message ?? active.error) : null,
-  });
-}
 
 export function recorderAvailable() {
   return !!platform.bgLocation;
@@ -93,10 +80,9 @@ function onError(error) {
   stopRecording();
 }
 
-export async function startRecording(eventId, label = null) {
+export async function startRecording(eventId) {
   if (active.rec || !platform.bgLocation) return;
   active.rec = createRecording(eventId, Date.now());
-  active.label = label;
   active.lastFix = null;
   active.error = null;
   active.lastCheckpointT = 0;
@@ -108,7 +94,6 @@ export async function startRecording(eventId, label = null) {
     active.error = err;
   }
   active.onChange?.();
-  emitState();
 }
 
 // Stop collecting. The recording stays checkpointed as "pending" until it is
@@ -120,7 +105,6 @@ export async function stopRecording() {
   await platform.bgLocation?.stop();
   await platform.prefSet(CHECKPOINT_KEY, serializeRecording(rec));
   active.onChange?.();
-  emitState();
   return rec;
 }
 
@@ -282,7 +266,7 @@ export function bindRecorder(view, event, onSaved) {
     </div>`;
     panel.querySelector("#rec-start").onclick = async () => {
       panel.querySelector("#rec-start").disabled = true;
-      await startRecording(event.id, event.track_name);
+      await startRecording(event.id);
     };
   }
 

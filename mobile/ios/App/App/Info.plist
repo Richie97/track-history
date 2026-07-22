@@ -77,27 +77,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<!-- CarPlay lap-recorder remote (CarPlaySceneDelegate.swift). Declaring
-	     ONLY the CarPlay scene role keeps the iPhone app on the classic
-	     app-delegate lifecycle — don't add a UIWindowScene role here without
-	     migrating AppDelegate to scenes. The scene attaches only when the app
-	     is signed with Apple's carplay-driving-task entitlement (README). -->
-	<key>UIApplicationSceneManifest</key>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<true/>
-		<key>UISceneConfigurations</key>
-		<dict>
-			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
-			<array>
-				<dict>
-					<key>UISceneConfigurationName</key>
-					<string>CarPlay</string>
-					<key>UISceneDelegateClassName</key>
-					<string>$(PRODUCT_MODULE_NAME).CarPlaySceneDelegate</string>
-				</dict>
-			</array>
-		</dict>
-	</dict>
 </dict>
 </plist>
