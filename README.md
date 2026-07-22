@@ -209,6 +209,11 @@ Simulator) needs the entitlement too. Everything else — the scene manifest in
 `Info.plist`, the bridge plugin, the JS wiring — is inert without it and
 harmless to ship.
 
+Note the CarPlay scene manifest moved the iOS app onto the UIKit scene
+lifecycle: the iPhone window is now a scene (`PhoneSceneDelegate.swift`, which
+also forwards OAuth-callback and universal-link URLs to Capacitor — under
+scenes they bypass the `AppDelegate` callbacks).
+
 **Release checklist:**
 
 - iOS: set the real `<Team ID>.app.trackevolution` in `wrangler.jsonc`'s
