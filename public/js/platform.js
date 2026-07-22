@@ -52,16 +52,8 @@ export const platform = {
   //   { start(onFix, onError) → Promise, stop() → Promise, openSettings() }
   //   onFix receives {timeMs, lat, lon, speed, accuracy}
   bgLocation: null,
-  // Called by the recorder on every start/stop/error so the shell can mirror
-  // recorder state onto external surfaces (the CarPlay scene). Receives
-  // {recording, eventId, eventLabel, startedAtMs, error}.
-  onRecorderState: null,
 
   // Registered by app.js so the shell can re-enter the app:
   onAuthed: null, // called after a native sign-in completes
   navigate: null, // full-page navigation for deep links (/share/<slug>)
-  // Remote controls for the lap recorder (public/js/record/remote.js) — how a
-  // CarPlay button drives a recording: { start() → {ok, reason?}, stop() }.
-  // Only registered when bgLocation is present.
-  recorderRemote: null,
 };
