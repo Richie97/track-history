@@ -203,11 +203,20 @@ until you**:
 Don't add the key before Apple grants the entitlement — signing (including
 Xcode Cloud builds) fails for entitlements your profiles don't carry, which is
 also why it isn't checked in. Per the note in `AppDebug.entitlements`, keep it
-out of the Debug configuration if you develop on a free personal team. The
-CarPlay Simulator (Xcode: I/O → External Displays → CarPlay in the iOS
-Simulator) needs the entitlement too. Everything else — the scene manifest in
-`Info.plist`, the bridge plugin, the JS wiring — is inert without it and
-harmless to ship.
+out of the Debug configuration if you develop on a free personal team.
+Everything else — the scene manifest in `Info.plist`, the bridge plugin, the
+JS wiring — is inert without it and harmless to ship.
+
+**Testing CarPlay in the iOS Simulator (works before Apple's grant):**
+simulator builds skip provisioning checks, so temporarily add the
+`com.apple.developer.carplay-driving-task` key to `AppDebug.entitlements`
+(don't commit it, and revert before building Debug to a device — there it
+fails signing until granted), run on an iPhone simulator, then open
+**I/O → External Displays → CarPlay** in the Simulator app. Tap the app icon
+on the CarPlay home screen; use **Features → Location → Freeway Drive** for
+GPS fixes fast enough to arm the recorder. Real head units (and Apple's
+CarPlay Simulator from Additional Tools for Xcode, which runs a signed device
+build) need the granted entitlement.
 
 Note the CarPlay scene manifest moved the iOS app onto the UIKit scene
 lifecycle: the iPhone window is now a scene (`PhoneSceneDelegate.swift`, which
