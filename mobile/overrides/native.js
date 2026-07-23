@@ -150,18 +150,39 @@ platform.login = async (provider) => {
   else window.open(url, "_blank");
 };
 
+// iOS can deliver the same auth deep link more than once — appUrlOpen plus the
+// cold-start getLaunchUrl below, or a re-report when the app foregrounds — so
+// completeLogin dedupes by code and treats a missing verifier as a stale
+// re-delivery to ignore, never a failure to alert about.
+const handledAuthCodes = new Set();
+
 async function completeLogin(code) {
+  if (handledAuthCodes.has(code)) return;
+  handledAuthCodes.add(code);
   try {
     await Browser?.close();
   } catch {}
   const verifier = await prefGet("pkceVerifier");
+  if (!verifier) return; // stale re-delivery: the exchange already ran
   await prefRemove("pkceVerifier");
   try {
-    const res = await fetch(`${serverUrl}/auth/exchange`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, code_verifier: verifier }),
-    });
+    let res;
+    // The exchange fires right as the app returns to the foreground, when the
+    // network can still be waking up — retry transient failures before giving up.
+    for (let attempt = 0, delay = 500; ; attempt++, delay *= 2) {
+      try {
+        res = await fetch(`${serverUrl}/auth/exchange`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, code_verifier: verifier }),
+        });
+        if (res.status < 500) break;
+      } catch (err) {
+        if (attempt >= 2) throw err;
+      }
+      if (attempt >= 2) break;
+      await new Promise((r) => setTimeout(r, delay));
+    }
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
     const { token } = await res.json();
     await prefSet("sessionToken", token);
