@@ -19,6 +19,18 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
     // native.js's getLaunchUrl fallback also sees it.
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession,
                options connectionOptions: UIScene.ConnectionOptions) {
+        // UIKit builds the window from the configuration's storyboard and
+        // assigns it to `window` before this runs. If that didn't happen
+        // (a configuration that lost its storyboard — e.g. one restored from
+        // a stale persisted session), build it by hand: a scene without a
+        // window is an unrecoverable black screen.
+        if window == nil, let windowScene = scene as? UIWindowScene {
+            let manual = UIWindow(windowScene: windowScene)
+            manual.rootViewController = UIStoryboard(name: "Main", bundle: nil).instantiateInitialViewController()
+            window = manual
+        }
+        window?.makeKeyAndVisible()
+
         if let urlContext = connectionOptions.urlContexts.first {
             forward(url: urlContext.url)
         }
