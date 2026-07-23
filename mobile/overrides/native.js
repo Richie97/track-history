@@ -44,7 +44,16 @@ platform.apiBase = serverUrl;
 platform.authToken = sessionToken;
 platform.serverOrigin = () => serverUrl;
 
-platform.openExternal = (url) => Browser?.open({ url });
+// Every Browser.open goes through openBrowser: on iOS, Capacitor's default
+// fullscreen presentation builds a temporary UIWindow(frame:) — a classic-
+// lifecycle window that has no windowScene under the scene lifecycle (which
+// the CarPlay scene forced on the app), so it never becomes visible and the
+// browser silently doesn't appear. The popover style presents directly on the
+// web view's controller instead (adapting to a sheet on iPhone), which is
+// scene-safe.
+const openBrowser = (url) => Browser?.open({ url, presentationStyle: "popover" });
+
+platform.openExternal = openBrowser;
 
 // Recorder checkpoints go through Capacitor Preferences instead of
 // localStorage — WKWebView storage can be evicted under disk pressure, and a
@@ -180,7 +189,7 @@ platform.login = async (provider) => {
   const challenge = base64Url(new Uint8Array(digest));
   const path = provider === "apple" ? "/auth/apple/login" : "/auth/login";
   const url = `${serverUrl}${path}?client=app&code_challenge=${challenge}`;
-  if (Browser) await Browser.open({ url });
+  if (Browser) await openBrowser(url);
   else window.open(url, "_blank");
 };
 
