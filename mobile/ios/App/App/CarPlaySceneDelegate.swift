@@ -66,7 +66,8 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
                 title: "Not recording",
                 detail: "Start before you head out — laps are timed from the phone's GPS and reviewed on the phone afterwards."))
             if let message = state.message {
-                items.append(CPInformationItem(title: nil, detail: message))
+                // Title slot, not detail — refusals must be legible at a glance.
+                items.append(CPInformationItem(title: message, detail: nil))
             }
         }
         template.items = items

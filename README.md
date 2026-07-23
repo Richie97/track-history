@@ -179,10 +179,14 @@ the server: the raw GPS trace never leaves the phone.
 **CarPlay (iOS):** the iOS shell ships a CarPlay "driving task" scene
 (`mobile/ios/App/App/CarPlaySceneDelegate.swift`) that remote-controls the lap
 recorder — one Start/Stop button plus a status line on the car screen, so you
-can start recording from the grid without touching the phone. Starting picks
-the event whose dates cover today (it refuses, with a message on the car
-screen, if there is none); stopping keeps the recording checkpointed on the
-phone for the usual review/line-picker/save flow. The scene talks to the web
+can start recording from the grid without touching the phone. Starting
+attaches to the event whose dates cover today; with no matching event (or
+offline, or signed out) it records anyway — recording is entirely on-device —
+and the dashboard shows a banner for the event-less recording: create the
+event whenever you like and the recording is adopted the moment you open that
+event's record screen, feeding the usual review/line-picker/save flow.
+Stopping keeps the recording checkpointed on the phone until it's saved or
+discarded. The scene talks to the web
 app through the app-local `CarPlayBridgePlugin.swift`
 (`Capacitor.Plugins.CarPlayBridge`), wired to `platform.recorderRemote` /
 `platform.onRecorderState` in `overrides/native.js`.

@@ -123,21 +123,36 @@ if (CarPlayBridge) {
   platform.onRecorderState = push;
 
   // Why a start couldn't happen, in words that make sense on a car screen.
+  // Start records even with no event / no network / signed out (the event is
+  // attached at review time), so GPS trouble is the only expected refusal.
   const START_FAILED = {
-    "no-event": "No event for today — create one on your phone first.",
-    auth: "Signed out — open the app on your phone to sign in.",
-    offline: "Couldn't load your events — check the phone's connection.",
     gps: "Couldn't start GPS — check the app's location permission on the phone.",
   };
 
+  let commandBusy = false;
   CarPlayBridge.addListener("command", async ({ action }) => {
     const remote = platform.recorderRemote;
-    if (!remote) return;
-    if (action === "start") {
-      const res = await remote.start().catch(() => ({ ok: false, reason: "offline" }));
-      if (!res?.ok) push({ recording: false, message: START_FAILED[res?.reason] ?? "Couldn't start recording." });
-    } else if (action === "stop") {
-      await remote.stop().catch(() => {});
+    if (!remote || commandBusy) return; // repeated taps must not stack duplicate starts
+    commandBusy = true;
+    try {
+      if (action === "start") {
+        const res = await remote.start().catch(() => ({ ok: false, reason: "gps" }));
+        console.log(
+          `CarPlay start → ${
+            res?.ok
+              ? res.eventId != null
+                ? `recording event ${res.eventId}`
+                : "recording without an event (attach at review)"
+              : `refused: ${res?.reason}`
+          }`
+        );
+        if (!res?.ok) push({ recording: false, message: START_FAILED[res?.reason] ?? "Couldn't start recording." });
+      } else if (action === "stop") {
+        await remote.stop().catch(() => {});
+        console.log("CarPlay stop → recording stopped");
+      }
+    } finally {
+      commandBusy = false;
     }
   });
 }
