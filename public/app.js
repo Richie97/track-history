@@ -720,8 +720,44 @@ async function viewDashboard() {
     })
     .join("");
 
+  // Native apps: a recording that no event page can reach — active or stopped
+  // with no event attached (CarPlay can start one before the event exists), or
+  // stopped-but-unsaved — is surfaced here so it can't be forgotten.
+  let recBanner = "";
+  if (recorderAvailable()) {
+    const pending = isRecording() ? null : await pendingRecording();
+    const banner = (title, hint, href, label) => `<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:20px">
+      <span style="font-size:22px" aria-hidden="true">⏱️</span>
+      <div style="flex:1;min-width:200px"><strong>${title}</strong><div class="hint">${hint}</div></div>
+      <a class="btn primary" href="${href}">${label}</a>
+    </div>`;
+    if (isRecording() && activeEventId() == null) {
+      recBanner = banner(
+        "● Recording track session",
+        "No event for today yet — create it now or after you stop; the recording attaches when you open the event.",
+        "#/new",
+        "+ Add event"
+      );
+    } else if (pending && pending.eventId == null) {
+      recBanner = banner(
+        "Unsaved track recording",
+        "Create its event to pick the start/finish line and save the laps.",
+        "#/new",
+        "+ Add event"
+      );
+    } else if (pending) {
+      recBanner = banner(
+        "Unsaved track recording",
+        "Review it to save the laps to its event, or discard it.",
+        `#/event/${esc(String(pending.eventId))}/record`,
+        "Review & save"
+      );
+    }
+  }
+
   const slug = state.me.share_slug || "";
   const view = shell(`
+    ${recBanner}
     <div class="btn-row" style="margin-top:20px">
       <a class="btn primary" href="#/new">+ Add event</a>
       <a class="btn" href="#/year">Year in review</a>
@@ -1057,14 +1093,19 @@ async function viewEvent(eventId) {
   let recCta = "";
   if (recorderAvailable()) {
     const pending = isRecording() ? null : await pendingRecording();
+    // An active recording with no event yet (started from CarPlay) is offered
+    // to this event — opening the record screen adopts it.
+    const otherEvent = isRecording() && activeEventId() != null && activeEventId() !== e.id;
     const recLabel = isRecording()
-      ? activeEventId() === e.id
-        ? "Recording — open"
-        : "Recording (other event)"
+      ? otherEvent
+        ? "Recording (other event)"
+        : activeEventId() === e.id
+          ? "Recording — open"
+          : "Recording — attach to this event"
       : pending
         ? "Review unsaved recording"
         : "Start recording";
-    const recHref = isRecording() && activeEventId() !== e.id ? `#/event/${activeEventId()}/record` : `#/event/${e.id}/record`;
+    const recHref = otherEvent ? `#/event/${activeEventId()}/record` : `#/event/${e.id}/record`;
     recCta = `<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="font-size:22px" aria-hidden="true">⏱️</span>
       <div style="flex:1;min-width:200px">

@@ -97,28 +97,51 @@ describe("initRemoteRecorder", () => {
     expect(states.at(-1)).toMatchObject({ recording: false, eventId: null });
   });
 
-  it("refuses with no-event when nothing is scheduled today", async () => {
-    fakeShell();
+  it("records without an event when nothing is scheduled today", async () => {
+    const watcher = fakeShell();
     vi.stubGlobal("fetch", async () => ({
       ok: true,
       status: 200,
       json: async () => [{ id: 1, start_date: "2000-01-01", days: 1 }],
     }));
+    const states = [];
+    platform.onRecorderState = (s) => states.push(s);
+
     initRemoteRecorder();
-    expect(await platform.recorderRemote.start()).toEqual({ ok: false, reason: "no-event" });
-    expect(isRecording()).toBe(false);
+    expect(await platform.recorderRemote.start()).toEqual({ ok: true, eventId: null });
+    expect(isRecording()).toBe(true);
+    expect(watcher.started).toBe(1);
+    expect(states.at(-1)).toMatchObject({ recording: true, eventId: null, eventLabel: null });
   });
 
-  it("maps a 401 to auth and a dead network to offline", async () => {
-    fakeShell();
+  it("still records when signed out or offline — the event attaches at review", async () => {
+    const watcher = fakeShell();
     vi.stubGlobal("fetch", async () => ({ ok: false, status: 401, json: async () => ({ error: "auth required" }) }));
     initRemoteRecorder();
-    expect(await platform.recorderRemote.start()).toEqual({ ok: false, reason: "auth" });
+    expect(await platform.recorderRemote.start()).toEqual({ ok: true, eventId: null });
+    expect(isRecording()).toBe(true);
+    await platform.recorderRemote.stop();
 
     vi.stubGlobal("fetch", async () => {
       throw new TypeError("network down");
     });
-    expect(await platform.recorderRemote.start()).toEqual({ ok: false, reason: "offline" });
+    expect(await platform.recorderRemote.start()).toEqual({ ok: true, eventId: null });
+    expect(isRecording()).toBe(true);
+    expect(watcher.started).toBe(2);
+  });
+
+  it("refuses with gps when the watcher can't start", async () => {
+    platform.bgLocation = {
+      start: async () => {
+        throw new Error("NOT_AUTHORIZED");
+      },
+      stop: async () => {},
+      openSettings: () => {},
+    };
+    vi.stubGlobal("fetch", async () => ({ ok: true, status: 200, json: async () => [] }));
+    initRemoteRecorder();
+    expect(await platform.recorderRemote.start()).toEqual({ ok: false, reason: "gps" });
+    expect(isRecording()).toBe(false);
   });
 
   it("treats start while already recording as success", async () => {

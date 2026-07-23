@@ -199,6 +199,16 @@ export function bindRecorder(view, event, onSaved) {
   async function render() {
     reviewBox.innerHTML = "";
 
+    // A recording started without an event (CarPlay, before the event
+    // existed) is adopted by the first event whose record screen it's opened
+    // from — from here on it behaves like it was started here.
+    if (active.rec && active.rec.eventId == null) {
+      active.rec.eventId = event.id;
+      active.label = event.track_name;
+      await checkpoint();
+      emitState();
+    }
+
     // A recording started from a different event keeps running — point there
     // instead of showing a start button that would silently do nothing.
     if (active.rec && active.rec.eventId !== event.id) {

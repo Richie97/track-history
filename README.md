@@ -179,10 +179,14 @@ the server: the raw GPS trace never leaves the phone.
 **CarPlay (iOS):** the iOS shell ships a CarPlay "driving task" scene
 (`mobile/ios/App/App/CarPlaySceneDelegate.swift`) that remote-controls the lap
 recorder — one Start/Stop button plus a status line on the car screen, so you
-can start recording from the grid without touching the phone. Starting picks
-the event whose dates cover today (it refuses, with a message on the car
-screen, if there is none); stopping keeps the recording checkpointed on the
-phone for the usual review/line-picker/save flow. The scene talks to the web
+can start recording from the grid without touching the phone. Starting
+attaches to the event whose dates cover today; with no matching event (or
+offline, or signed out) it records anyway — recording is entirely on-device —
+and the dashboard shows a banner for the event-less recording: create the
+event whenever you like and the recording is adopted the moment you open that
+event's record screen, feeding the usual review/line-picker/save flow.
+Stopping keeps the recording checkpointed on the phone until it's saved or
+discarded. The scene talks to the web
 app through the app-local `CarPlayBridgePlugin.swift`
 (`Capacitor.Plugins.CarPlayBridge`), wired to `platform.recorderRemote` /
 `platform.onRecorderState` in `overrides/native.js`.
@@ -203,11 +207,20 @@ until you**:
 Don't add the key before Apple grants the entitlement — signing (including
 Xcode Cloud builds) fails for entitlements your profiles don't carry, which is
 also why it isn't checked in. Per the note in `AppDebug.entitlements`, keep it
-out of the Debug configuration if you develop on a free personal team. The
-CarPlay Simulator (Xcode: I/O → External Displays → CarPlay in the iOS
-Simulator) needs the entitlement too. Everything else — the scene manifest in
-`Info.plist`, the bridge plugin, the JS wiring — is inert without it and
-harmless to ship.
+out of the Debug configuration if you develop on a free personal team.
+Everything else — the scene manifest in `Info.plist`, the bridge plugin, the
+JS wiring — is inert without it and harmless to ship.
+
+**Testing CarPlay in the iOS Simulator (works before Apple's grant):**
+simulator builds skip provisioning checks, so temporarily add the
+`com.apple.developer.carplay-driving-task` key to `AppDebug.entitlements`
+(don't commit it, and revert before building Debug to a device — there it
+fails signing until granted), run on an iPhone simulator, then open
+**I/O → External Displays → CarPlay** in the Simulator app. Tap the app icon
+on the CarPlay home screen; use **Features → Location → Freeway Drive** for
+GPS fixes fast enough to arm the recorder. Real head units (and Apple's
+CarPlay Simulator from Additional Tools for Xcode, which runs a signed device
+build) need the granted entitlement.
 
 Note the CarPlay scene manifest moved the iOS app onto the UIKit scene
 lifecycle: the iPhone window is now a scene (`PhoneSceneDelegate.swift`, which
