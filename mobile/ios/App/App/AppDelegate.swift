@@ -1,4 +1,5 @@
 import UIKit
+import CarPlay
 import Capacitor
 
 @UIApplicationMain
@@ -9,6 +10,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         return true
+    }
+
+    // Scene configurations are resolved here, in code, rather than trusting
+    // Info.plist's UIApplicationSceneManifest alone: this method is consulted
+    // for every connecting scene — including sessions the system persisted
+    // from builds that predate scene support, which otherwise come back with
+    // a stale (empty) configuration and a permanently black window.
+    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        if connectingSceneSession.role == .carTemplateApplication {
+            let config = UISceneConfiguration(name: "CarPlay", sessionRole: connectingSceneSession.role)
+            config.delegateClass = CarPlaySceneDelegate.self
+            return config
+        }
+        let config = UISceneConfiguration(name: "Phone", sessionRole: connectingSceneSession.role)
+        config.delegateClass = PhoneSceneDelegate.self
+        config.storyboard = UIStoryboard(name: "Main", bundle: nil)
+        return config
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
