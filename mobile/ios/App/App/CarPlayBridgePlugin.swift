@@ -15,6 +15,7 @@ import Capacitor
 
 extension Notification.Name {
     static let carPlayStateChanged = Notification.Name("TrackEvolutionCarPlayStateChanged")
+    static let carPlayTelemetry = Notification.Name("TrackEvolutionCarPlayTelemetry")
     static let carPlayCommand = Notification.Name("TrackEvolutionCarPlayCommand")
 }
 
@@ -26,6 +27,11 @@ final class CarPlayRecorderState {
     var eventLabel: String?
     var startedAtMs: Double?
     var message: String? // error/help line shown while not recording
+    // Live telemetry (fix rate, ~1 Hz) for the recording screen's traction
+    // circle. GPS-derived in public/js/record/core.js — phone-orientation-free.
+    var latG = 0.0
+    var lonG = 0.0
+    var speedMps = 0.0
 }
 
 @objc(CarPlayBridgePlugin)
@@ -33,7 +39,8 @@ public class CarPlayBridgePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "CarPlayBridgePlugin"
     public let jsName = "CarPlayBridge"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "updateState", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "updateState", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "updateTelemetry", returnType: CAPPluginReturnPromise)
     ]
 
     public override func load() {
@@ -57,7 +64,23 @@ public class CarPlayBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             state.eventLabel = call.getString("eventLabel")
             state.startedAtMs = call.getDouble("startedAtMs")
             state.message = call.getString("message") ?? call.getString("error")
+            if !state.recording {
+                state.latG = 0
+                state.lonG = 0
+                state.speedMps = 0
+            }
             NotificationCenter.default.post(name: .carPlayStateChanged, object: nil)
+        }
+        call.resolve()
+    }
+
+    @objc func updateTelemetry(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let state = CarPlayRecorderState.shared
+            state.latG = call.getDouble("latG") ?? 0
+            state.lonG = call.getDouble("lonG") ?? 0
+            state.speedMps = call.getDouble("speedMps") ?? 0
+            NotificationCenter.default.post(name: .carPlayTelemetry, object: nil)
         }
         call.resolve()
     }

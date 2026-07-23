@@ -178,8 +178,10 @@ the server: the raw GPS trace never leaves the phone.
 
 **CarPlay (iOS):** the iOS shell ships a CarPlay "driving task" scene
 (`mobile/ios/App/App/CarPlaySceneDelegate.swift`) that remote-controls the lap
-recorder — one Start/Stop button plus a status line on the car screen, so you
-can start recording from the grid without touching the phone. Starting
+recorder — a Start button while idle, and while recording a live status row
+(elapsed time, GPS speed, and a traction-circle graphic showing the current
+lateral/longitudinal g, derived from the GPS trace so phone orientation
+doesn't matter) above a Stop row. Starting
 attaches to the event whose dates cover today; with no matching event (or
 offline, or signed out) it records anyway — recording is entirely on-device —
 and the dashboard shows a banner for the event-less recording: create the

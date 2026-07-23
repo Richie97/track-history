@@ -80,6 +80,38 @@ export function fixSpeeds(fixes) {
   });
 }
 
+// Instantaneous g-forces from the tail of a fix list, for the live traction
+// circle on external displays (CarPlay). GPS-derived on purpose: the phone is
+// stowed during a recording, so device-frame accelerometer axes are
+// meaningless, while heading-rate × speed and Δv/Δt don't care how the phone
+// is mounted. Signs: latG > 0 = turning right, lonG > 0 = accelerating.
+// Returns zeros below walking-out-of-the-pits pace (GPS headings are noise
+// when barely moving) and across data gaps.
+export function gForces(fixes) {
+  const n = fixes.length;
+  if (n < 3) return { latG: 0, lonG: 0 };
+  const [a, b, c] = [fixes[n - 3], fixes[n - 2], fixes[n - 1]];
+  const dtAC = c[0] - a[0];
+  if (dtAC <= 0 || dtAC > 10) return { latG: 0, lonG: 0 };
+  const kx = 111320 * Math.cos((b[1] * Math.PI) / 180);
+  const ky = 110540;
+  const segV = (p, q) => Math.hypot((q[2] - p[2]) * kx, (q[1] - p[1]) * ky) / (q[0] - p[0]);
+  const va = a[3] ?? segV(a, b);
+  const v = c[3] ?? segV(b, c);
+  if (v < 3) return { latG: 0, lonG: 0 };
+  // Headings clockwise from north; the turn rate is the wrapped heading
+  // change between the two segments over their mean duration.
+  const h1 = Math.atan2((b[2] - a[2]) * kx, (b[1] - a[1]) * ky);
+  const h2 = Math.atan2((c[2] - b[2]) * kx, (c[1] - b[1]) * ky);
+  let dh = h2 - h1;
+  if (dh > Math.PI) dh -= 2 * Math.PI;
+  if (dh < -Math.PI) dh += 2 * Math.PI;
+  return {
+    latG: (v * dh) / (dtAC / 2) / 9.81,
+    lonG: (v - va) / dtAC / 9.81,
+  };
+}
+
 // Should the recorder stop itself? Two triggers:
 //  - the car was driven at track pace at some point and has now been
 //    stationary for AUTO_STOP_IDLE_S (driver forgot to stop after the

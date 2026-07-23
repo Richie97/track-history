@@ -56,6 +56,9 @@ export const platform = {
   // recorder state onto external surfaces (the CarPlay scene). Receives
   // {recording, eventId, eventLabel, startedAtMs, error}.
   onRecorderState: null,
+  // Called at fix rate (~1 Hz) while recording with live telemetry for the
+  // CarPlay traction circle: {latG, lonG, speedMps, elapsedS, fixCount}.
+  onRecorderTelemetry: null,
 
   // Registered by app.js so the shell can re-enter the app:
   onAuthed: null, // called after a native sign-in completes

@@ -18,6 +18,7 @@ import {
   createRecording,
   deserializeRecording,
   elapsedS,
+  gForces,
   serializeRecording,
   shouldAutoStop,
   toParsed,
@@ -32,6 +33,7 @@ const active = {
   label: null, // track/event name for external displays (CarPlay); not persisted
   lastFix: null, // {timeMs, lat, lon, speed, accuracy} as delivered
   error: null, // watcher error (permission denied, GPS off)
+  g: { lat: 0, lon: 0 }, // EMA-smoothed g-forces for the live telemetry feed
   lastCheckpointT: 0,
   onChange: null, // re-render hook while a record view is bound
 };
@@ -85,6 +87,20 @@ function onFix(fix) {
     checkpoint();
     if (shouldAutoStop(active.rec, fix.timeMs)) stopRecording();
   }
+  // Live telemetry for external displays (the CarPlay traction circle) —
+  // fix-rate (~1 Hz), lightly smoothed so single-fix GPS jitter doesn't
+  // throw the dot around.
+  if (platform.onRecorderTelemetry && active.rec) {
+    const g = gForces(active.rec.fixes);
+    active.g = { lat: (active.g.lat + g.latG) / 2, lon: (active.g.lon + g.lonG) / 2 };
+    platform.onRecorderTelemetry({
+      latG: active.g.lat,
+      lonG: active.g.lon,
+      speedMps: fix.speed ?? 0,
+      elapsedS: t,
+      fixCount: active.rec.fixes.length,
+    });
+  }
   active.onChange?.();
 }
 
@@ -99,6 +115,7 @@ export async function startRecording(eventId, label = null) {
   active.label = label;
   active.lastFix = null;
   active.error = null;
+  active.g = { lat: 0, lon: 0 };
   active.lastCheckpointT = 0;
   try {
     await platform.bgLocation.start(onFix, onError);

@@ -4,6 +4,7 @@ import {
   createRecording,
   deserializeRecording,
   fixSpeeds,
+  gForces,
   serializeRecording,
   shouldAutoStop,
   toParsed,
@@ -158,5 +159,42 @@ describe("checkpoint serialization", () => {
     expect(deserializeRecording("not json{")).toBeNull();
     expect(deserializeRecording('{"v":99,"fixes":[]}')).toBeNull();
     expect(deserializeRecording('{"v":1,"startedAtMs":0,"fixes":[["x"]]}')).toBeNull();
+  });
+});
+
+describe("gForces", () => {
+  it("reads steady cornering off a constant-speed circle", () => {
+    const { rec } = syntheticRecording({ laps: 2, idleBeforeS: 0, idleAfterS: 0 });
+    // v²/r/g = 25²/200/9.81 ≈ 0.319 g of pure lateral, no longitudinal.
+    const g = gForces(rec.fixes);
+    expect(Math.abs(g.latG)).toBeCloseTo(0.319, 1);
+    expect(Math.abs(g.lonG)).toBeLessThan(0.05);
+  });
+
+  it("reads braking/accelerating on a straight as longitudinal g", () => {
+    const rec = createRecording("e", 0);
+    let d = 0;
+    for (let t = 0; t <= 20; t++) {
+      const v = 10 + 2 * t; // 2 m/s² ≈ 0.204 g
+      d += v;
+      addFix(rec, { timeMs: t * 1000, lat: 36.56 + d / 110540, lon: -79.2, speed: v });
+    }
+    const g = gForces(rec.fixes);
+    expect(g.lonG).toBeCloseTo(0.204, 1);
+    expect(Math.abs(g.latG)).toBeLessThan(0.02);
+  });
+
+  it("returns zeros for short tails, gaps, and walking pace", () => {
+    expect(gForces([])).toEqual({ latG: 0, lonG: 0 });
+    expect(gForces([[0, 36.56, -79.2, 25, 5]])).toEqual({ latG: 0, lonG: 0 });
+
+    const gap = createRecording("e", 0);
+    addFix(gap, { timeMs: 0, lat: 36.56, lon: -79.2, speed: 25 });
+    addFix(gap, { timeMs: 1000, lat: 36.5602, lon: -79.2, speed: 25 });
+    addFix(gap, { timeMs: 60000, lat: 36.57, lon: -79.2, speed: 25 });
+    expect(gForces(gap.fixes)).toEqual({ latG: 0, lonG: 0 });
+
+    const slow = syntheticRecording({ laps: 1, idleBeforeS: 0, idleAfterS: 0, speed: 2 });
+    expect(gForces(slow.rec.fixes)).toEqual({ latG: 0, lonG: 0 });
   });
 });

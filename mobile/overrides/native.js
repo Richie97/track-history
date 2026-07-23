@@ -121,6 +121,8 @@ if (BackgroundGeolocation) {
 if (CarPlayBridge) {
   const push = (state) => CarPlayBridge.updateState(state).catch(() => {});
   platform.onRecorderState = push;
+  // Fix-rate g/speed feed for the car screen's live traction circle.
+  platform.onRecorderTelemetry = (t) => CarPlayBridge.updateTelemetry(t).catch(() => {});
 
   // Why a start couldn't happen, in words that make sense on a car screen.
   // Start records even with no event / no network / signed out (the event is
