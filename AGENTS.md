@@ -127,6 +127,8 @@ One Worker serves both the API and the static frontend (`wrangler.jsonc`: `publi
 
 **Marketing/docs site** (`site/`): see the Documentation section above for the page inventory and the keep-in-sync policy.
 
+**Marketing copy** (`marketing/`): drafts of promotional/launch copy (not deployed anywhere — plain Markdown for a human to paste). Claims here must match what actually ships; each draft ends with a "deliberately not mentioned" list of features that exist in the repo but aren't user-available yet (CarPlay until Apple grants the entitlement, store links until the apps are live), and — like `site/` — the copy stays user-facing, never mentioning Cloudflare, self-hosting, or the stack.
+
 **Tests** (`test/`, Vitest with two projects — see `vitest.config.mts`):
 - `test/unit/` — pure-function tests running in Node: `src/lib/*` plus the frontend modules (`public/js/format.js`, `chart.js`) and `pdr.js` internals.
 - `test/api/` — the whole Worker under `@cloudflare/vitest-pool-workers`: real D1 with migrations applied per test (`setup.ts`), requests via `SELF.fetch`. `helpers.ts` creates users/sessions directly in D1 so multi-user ownership isolation is testable; DEV_MODE bindings live in `vitest.workers.config.mts`.
