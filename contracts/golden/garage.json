@@ -1,0 +1,95 @@
+{
+  "method": "GET",
+  "path": "/garage",
+  "status": 200,
+  "body": [
+    {
+      "event_count": 0,
+      "event_days": 0,
+      "hours": 0,
+      "id": 1,
+      "is_default": 1,
+      "name": "Corvette C7",
+      "notes": "Track car.",
+      "parts": [
+        {
+          "cost_cents": null,
+          "expected_hours": null,
+          "id": 1,
+          "installed_on": "2026-03-15",
+          "kind": "tires",
+          "measurements": [],
+          "name": "Falken RT660",
+          "notes": null,
+          "retired_on": null,
+          "vehicle_id": 1,
+          "wear": {
+            "cycles": 0,
+            "events": 0,
+            "expected_hours": null,
+            "hours": 0,
+            "last_value": null,
+            "pct_used": null,
+            "remaining_hours": null,
+            "source": null,
+            "unit": null,
+            "wear_per_hour": null
+          },
+          "wear_limit": null
+        },
+        {
+          "cost_cents": 32000,
+          "expected_hours": 24,
+          "id": 1,
+          "installed_on": "2026-03-01",
+          "kind": "pads_front",
+          "measurements": [
+            {
+              "id": 1,
+              "measured_on": "2026-04-12",
+              "part_id": 1,
+              "unit": "mm",
+              "value": 9.5
+            },
+            {
+              "id": 1,
+              "measured_on": "2026-05-02",
+              "part_id": 1,
+              "unit": "mm",
+              "value": 7.8
+            }
+          ],
+          "name": "Carbotech XP12",
+          "notes": null,
+          "retired_on": null,
+          "vehicle_id": 1,
+          "wear": {
+            "cycles": 0,
+            "events": 0,
+            "expected_hours": 24,
+            "hours": 0,
+            "last_value": 7.8,
+            "pct_used": 0,
+            "remaining_hours": 24,
+            "source": "expected",
+            "unit": "mm",
+            "wear_per_hour": null
+          },
+          "wear_limit": 3
+        }
+      ],
+      "updated_at": 0
+    },
+    {
+      "event_count": 0,
+      "event_days": 0,
+      "hours": 0,
+      "id": 1,
+      "is_default": 0,
+      "name": "Miata",
+      "notes": null,
+      "parts": [],
+      "updated_at": 0
+    }
+  ]
+}

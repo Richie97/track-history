@@ -1,0 +1,31 @@
+{
+  "method": "GET",
+  "path": "/events/:id",
+  "status": 200,
+  "body": {
+    "best_ms": null,
+    "best_time_ms": null,
+    "car": null,
+    "checklist": null,
+    "club": null,
+    "conditions": null,
+    "consistency": null,
+    "days": 1,
+    "hours": 2,
+    "id": 1,
+    "lap_best_ms": null,
+    "lap_count": 0,
+    "notes": null,
+    "run_group": null,
+    "session_count": 0,
+    "sessions": [],
+    "setups": [],
+    "start_date": "2026-06-01",
+    "temp_f": null,
+    "track_hours": null,
+    "track_id": 1,
+    "track_name": "Summit Point",
+    "updated_at": 0,
+    "vehicle_id": null
+  }
+}

@@ -20,3 +20,7 @@ seed/seed.sql
 
 # Local design system reference (not part of the app)
 Track History design system/
+
+# Scratch D1 the contract harness builds and tears down each run
+# (contracts/golden/ itself IS committed — it's the pinned API contract)
+contracts/.persist/

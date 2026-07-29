@@ -1,0 +1,347 @@
+{
+  "description": "Captured API responses. Regenerate with `npm run contracts:generate`. The Swift and Kotlin test suites decode every entry; a failing decode means the backend response shape changed.",
+  "entries": [
+    {
+      "name": "me",
+      "file": "me.json",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "description": "The signed-in user.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "events-list",
+      "file": "events-list.json",
+      "method": "GET",
+      "path": "/events",
+      "status": 200,
+      "description": "All events with lap aggregates and computed stats (withComputed).",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "event-detail",
+      "file": "event-detail.json",
+      "method": "GET",
+      "path": "/events/:id",
+      "status": 200,
+      "description": "One event with its sessions, laps and setup sheets. Populated stats branch.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "event-detail-no-laps",
+      "file": "event-detail-no-laps.json",
+      "method": "GET",
+      "path": "/events/:id",
+      "status": 200,
+      "description": "Event with no laps: best_ms and consistency are both null.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "event-setups-prefill",
+      "file": "event-setups-prefill.json",
+      "method": "GET",
+      "path": "/events/:id/setups/prefill",
+      "status": 200,
+      "description": "Copy-forward prefill for a blank setup form.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "tracks-list",
+      "file": "tracks-list.json",
+      "method": "GET",
+      "path": "/tracks",
+      "status": 200,
+      "description": "Tracks with per-track aggregates and the best-per-event sparkline series.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "track-setups",
+      "file": "track-setups.json",
+      "method": "GET",
+      "path": "/tracks/:id/setups",
+      "status": 200,
+      "description": "Setup-vs-lap-times rows for a track.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "catalog",
+      "file": "catalog.json",
+      "method": "GET",
+      "path": "/catalog",
+      "status": 200,
+      "description": "Seeded canonical track catalog backing event-form suggestions.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "vehicles-list",
+      "file": "vehicles-list.json",
+      "method": "GET",
+      "path": "/vehicles",
+      "status": 200,
+      "description": "The user's garage vehicles.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "garage",
+      "file": "garage.json",
+      "method": "GET",
+      "path": "/garage",
+      "status": 200,
+      "description": "Every vehicle with accrued hours, parts, measurements and computed wear.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "share-public",
+      "file": "share-public.json",
+      "method": "GET",
+      "path": "/share/:slug",
+      "status": 200,
+      "description": "Public share page data. Deliberately reduced: no notes, email, per-lap data or garage/setup linkage.",
+      "source": "src/routes/share.ts"
+    },
+    {
+      "name": "event-create",
+      "file": "event-create.json",
+      "method": "POST",
+      "path": "/events",
+      "status": 201,
+      "description": "Create an event.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "event-update",
+      "file": "event-update.json",
+      "method": "PUT",
+      "path": "/events/:id",
+      "status": 200,
+      "description": "Update an event.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "session-create",
+      "file": "session-create.json",
+      "method": "POST",
+      "path": "/events/:id/sessions",
+      "status": 201,
+      "description": "Create a session with laps.",
+      "source": "src/routes/sessions.ts"
+    },
+    {
+      "name": "session-update",
+      "file": "session-update.json",
+      "method": "PUT",
+      "path": "/sessions/:id",
+      "status": 200,
+      "description": "Update a session.",
+      "source": "src/routes/sessions.ts"
+    },
+    {
+      "name": "laps-append",
+      "file": "laps-append.json",
+      "method": "POST",
+      "path": "/sessions/:id/laps",
+      "status": 201,
+      "description": "Append laps to a session.",
+      "source": "src/routes/sessions.ts"
+    },
+    {
+      "name": "track-create",
+      "file": "track-create.json",
+      "method": "POST",
+      "path": "/tracks",
+      "status": 201,
+      "description": "Create a track directly.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "vehicle-create",
+      "file": "vehicle-create.json",
+      "method": "POST",
+      "path": "/vehicles",
+      "status": 201,
+      "description": "Create a garage vehicle.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "vehicle-update",
+      "file": "vehicle-update.json",
+      "method": "PUT",
+      "path": "/vehicles/:id",
+      "status": 200,
+      "description": "Update a vehicle.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "part-create",
+      "file": "part-create.json",
+      "method": "POST",
+      "path": "/vehicles/:id/parts",
+      "status": 201,
+      "description": "Add a consumable part.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "part-update",
+      "file": "part-update.json",
+      "method": "PUT",
+      "path": "/parts/:id",
+      "status": 200,
+      "description": "Update a part.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "part-refresh",
+      "file": "part-refresh.json",
+      "method": "POST",
+      "path": "/parts/:id/refresh",
+      "status": 201,
+      "description": "One-tap replacement: retires the part and inserts a same-spec successor.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "measurement-create",
+      "file": "measurement-create.json",
+      "method": "POST",
+      "path": "/parts/:id/measurements",
+      "status": 201,
+      "description": "Log a wear measurement.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "setup-upsert",
+      "file": "setup-upsert.json",
+      "method": "PUT",
+      "path": "/events/:id/setups/:day",
+      "status": 200,
+      "description": "Upsert a day's setup sheet.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "share-set",
+      "file": "share-set.json",
+      "method": "PUT",
+      "path": "/share",
+      "status": 200,
+      "description": "Claim a share slug.",
+      "source": "src/routes/share.ts"
+    },
+    {
+      "name": "setup-delete",
+      "file": "setup-delete.json",
+      "method": "DELETE",
+      "path": "/events/:id/setups/:day",
+      "status": 200,
+      "description": "Delete a setup sheet.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "lap-delete",
+      "file": "lap-delete.json",
+      "method": "DELETE",
+      "path": "/laps/:id",
+      "status": 200,
+      "description": "Delete a single lap.",
+      "source": "src/routes/sessions.ts"
+    },
+    {
+      "name": "session-delete",
+      "file": "session-delete.json",
+      "method": "DELETE",
+      "path": "/sessions/:id",
+      "status": 200,
+      "description": "Delete a session.",
+      "source": "src/routes/sessions.ts"
+    },
+    {
+      "name": "measurement-delete",
+      "file": "measurement-delete.json",
+      "method": "DELETE",
+      "path": "/parts/:id/measurements/:mid",
+      "status": 200,
+      "description": "Delete a measurement.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "part-delete",
+      "file": "part-delete.json",
+      "method": "DELETE",
+      "path": "/parts/:id",
+      "status": 200,
+      "description": "Delete a part.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "vehicle-delete",
+      "file": "vehicle-delete.json",
+      "method": "DELETE",
+      "path": "/vehicles/:id",
+      "status": 200,
+      "description": "Delete a vehicle.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "track-update",
+      "file": "track-update.json",
+      "method": "PUT",
+      "path": "/tracks/:id",
+      "status": 200,
+      "description": "Update a track (name / goal time).",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "track-delete",
+      "file": "track-delete.json",
+      "method": "DELETE",
+      "path": "/tracks/:id",
+      "status": 404,
+      "description": "Delete a track.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "event-delete",
+      "file": "event-delete.json",
+      "method": "DELETE",
+      "path": "/events/:id",
+      "status": 200,
+      "description": "Delete an event.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "share-clear",
+      "file": "share-clear.json",
+      "method": "DELETE",
+      "path": "/share",
+      "status": 200,
+      "description": "Disable sharing.",
+      "source": "src/routes/share.ts"
+    },
+    {
+      "name": "error-400",
+      "file": "error-400.json",
+      "method": "POST",
+      "path": "/events",
+      "status": 400,
+      "description": "400: missing required field.",
+      "source": "src/routes/events.ts"
+    },
+    {
+      "name": "error-401",
+      "file": "error-401.json",
+      "method": "GET",
+      "path": "/events",
+      "status": 401,
+      "description": "401: no session.",
+      "source": "src/middleware.ts"
+    },
+    {
+      "name": "error-404",
+      "file": "error-404.json",
+      "method": "GET",
+      "path": "/events/:id",
+      "status": 404,
+      "description": "404: not found, or owned by another user.",
+      "source": "src/routes/events.ts"
+    }
+  ]
+}

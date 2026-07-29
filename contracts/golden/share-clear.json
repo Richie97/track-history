@@ -1,0 +1,8 @@
+{
+  "method": "DELETE",
+  "path": "/share",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

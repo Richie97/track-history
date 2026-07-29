@@ -1,0 +1,56 @@
+{
+  "method": "GET",
+  "path": "/tracks",
+  "status": 200,
+  "body": [
+    {
+      "best_ms": null,
+      "catalog_id": null,
+      "event_count": 1,
+      "goal_ms": null,
+      "id": 1,
+      "last_date": "2026-06-01",
+      "name": "Summit Point",
+      "notes": null,
+      "series": [],
+      "track_days": 1,
+      "updated_at": 0
+    },
+    {
+      "best_ms": 121500,
+      "catalog_id": 1,
+      "event_count": 1,
+      "goal_ms": null,
+      "id": 1,
+      "last_date": "2026-04-10",
+      "name": "Virginia International Raceway (Full)",
+      "notes": null,
+      "series": [
+        {
+          "best_ms": 121500,
+          "date": "2026-04-10"
+        }
+      ],
+      "track_days": 2,
+      "updated_at": 0
+    },
+    {
+      "best_ms": 77400,
+      "catalog_id": null,
+      "event_count": 1,
+      "goal_ms": null,
+      "id": 1,
+      "last_date": "2026-05-01",
+      "name": "Virginia International Raceway (Patriot)",
+      "notes": null,
+      "series": [
+        {
+          "best_ms": 77400,
+          "date": "2026-05-01"
+        }
+      ],
+      "track_days": 1,
+      "updated_at": 0
+    }
+  ]
+}

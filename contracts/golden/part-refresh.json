@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "path": "/parts/:id/refresh",
+  "status": 201,
+  "body": {
+    "id": 1,
+    "retired_id": 1
+  }
+}

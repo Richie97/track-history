@@ -17,3 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # The API contract the native clients decode (contracts/golden/). A
+      # response-shape change that doesn't regenerate these fails here, with a
+      # readable diff, instead of silently breaking the iOS/Android decoders.
+      - run: npm run contracts:check

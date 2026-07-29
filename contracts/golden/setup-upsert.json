@@ -1,0 +1,8 @@
+{
+  "method": "PUT",
+  "path": "/events/:id/setups/:day",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "method": "POST",
+  "path": "/parts/:id/measurements",
+  "status": 201,
+  "body": {
+    "id": 1
+  }
+}

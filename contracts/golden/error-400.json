@@ -1,0 +1,8 @@
+{
+  "method": "POST",
+  "path": "/events",
+  "status": 400,
+  "body": {
+    "error": "start_date required"
+  }
+}

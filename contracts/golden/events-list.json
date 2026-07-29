@@ -1,0 +1,88 @@
+{
+  "method": "GET",
+  "path": "/events",
+  "status": 200,
+  "body": [
+    {
+      "best_ms": null,
+      "best_time_ms": null,
+      "car": null,
+      "checklist": null,
+      "club": null,
+      "conditions": null,
+      "consistency": null,
+      "days": 1,
+      "hours": 2,
+      "id": 1,
+      "lap_best_ms": null,
+      "lap_count": 0,
+      "notes": null,
+      "run_group": null,
+      "session_count": 0,
+      "start_date": "2026-06-01",
+      "temp_f": null,
+      "track_hours": null,
+      "track_id": 1,
+      "track_name": "Summit Point",
+      "updated_at": 0,
+      "vehicle_id": null
+    },
+    {
+      "best_ms": 77400,
+      "best_time_ms": null,
+      "car": null,
+      "checklist": null,
+      "club": null,
+      "conditions": null,
+      "consistency": 0.004239612392579993,
+      "days": 1,
+      "hours": 3.5,
+      "id": 1,
+      "lap_best_ms": 77400,
+      "lap_count": 3,
+      "notes": null,
+      "run_group": null,
+      "session_count": 1,
+      "start_date": "2026-05-01",
+      "temp_f": null,
+      "track_hours": 3.5,
+      "track_id": 1,
+      "track_name": "Virginia International Raceway (Patriot)",
+      "updated_at": 0,
+      "vehicle_id": null
+    },
+    {
+      "best_ms": 121500,
+      "best_time_ms": 121500,
+      "car": "Corvette C7",
+      "checklist": [
+        {
+          "done": true,
+          "text": "Torque wheels"
+        },
+        {
+          "done": false,
+          "text": "Check pad thickness"
+        }
+      ],
+      "club": "Chin Track Days",
+      "conditions": "dry",
+      "consistency": 0.01738467127508466,
+      "days": 2,
+      "hours": 4,
+      "id": 1,
+      "lap_best_ms": 121500,
+      "lap_count": 7,
+      "notes": "Cool morning, damp session 1.",
+      "run_group": "Advanced",
+      "session_count": 3,
+      "start_date": "2026-04-10",
+      "temp_f": 62,
+      "track_hours": null,
+      "track_id": 1,
+      "track_name": "Virginia International Raceway (Full)",
+      "updated_at": 0,
+      "vehicle_id": null
+    }
+  ]
+}

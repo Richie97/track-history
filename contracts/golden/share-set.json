@@ -1,0 +1,8 @@
+{
+  "method": "PUT",
+  "path": "/share",
+  "status": 200,
+  "body": {
+    "slug": "contract-fixture"
+  }
+}
