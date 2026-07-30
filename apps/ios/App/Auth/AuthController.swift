@@ -45,8 +45,21 @@ final class AuthController {
     ) {
         self.tokens = tokens
         self.server = server
-        self.api = APIClient(baseURL: server.url, tokens: tokens)
+        // The offline cache and write queue (NS-21). If it can't be opened the app
+        // still works, online-only — better than refusing to launch.
+        let offline = try? OfflineStore(url: Self.offlineStoreURL())
+        if offline == nil {
+            Self.log.error("offline store unavailable; running online-only")
+        }
+        self.api = APIClient(baseURL: server.url, tokens: tokens, offline: offline)
         self.webAuth = webAuth ?? WebAuthSession()
+    }
+
+    private static func offlineStoreURL() -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL.temporaryDirectory
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base.appending(path: "offline.sqlite")
     }
 
     // MARK: - Launch
@@ -135,6 +148,9 @@ final class AuthController {
     func signOut() async {
         try? await api.logout()
         tokens.clear()
+        // A shared device must not retain the previous user's logbook or their
+        // unsent writes.
+        await api.clearOffline()
         state = .signedOut
     }
 
@@ -145,6 +161,11 @@ final class AuthController {
         state = .signedOut
     }
 
+    /// Replay anything queued — called when the app comes back to the foreground.
+    func syncNow() async {
+        await api.flushQueue()
+    }
+
     // MARK: - Server override
 
     /// Point the app at another instance — `wrangler dev`, or a self-hosted deploy.
@@ -152,6 +173,9 @@ final class AuthController {
         server.url = url
         await api.setServerURL(url)
         tokens.clear()
+        // Another server means another logbook: keeping the old cache would show one
+        // user's data under another's account.
+        await api.clearOffline()
         state = .signedOut
         await refreshProviders()
     }

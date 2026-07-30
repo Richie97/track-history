@@ -16,15 +16,49 @@ public actor APIClient {
     private let session: URLSession
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+    /// The offline layer (NS-21). When present, every `/api` request routes through
+    /// it: reads are network-first with a cache fallback, and queueable writes are
+    /// stored and replayed. When nil the client talks straight to the server, which
+    /// is what the contract tests want.
+    private let offline: OfflineStore?
 
     public init(
         baseURL: URL = TrackEvolutionKit.defaultBaseURL,
         tokens: any TokenProviding = NoToken(),
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        offline: OfflineStore? = nil
     ) {
         self.baseURL = Self.normalize(baseURL)
         self.tokens = tokens
         self.session = session
+        self.offline = offline
+    }
+
+    /// Replay anything queued. Safe to call often — it no-ops on an empty queue.
+    @discardableResult
+    public func flushQueue() async -> OfflineStore.SyncStatus? {
+        guard let offline, await offline.pendingCount() > 0 else { return nil }
+        return try? await offline.flush { [weak self] method, path, body in
+            guard let self else { throw APIError.transport("client went away") }
+            let response = try await self.rawSend(
+                method, path, query: nil, body: body, authenticated: true, prefix: "/api"
+            )
+            return (status: response.status, body: response.data)
+        }
+    }
+
+    public func syncStatus() async -> OfflineStore.SyncStatus? {
+        await offline?.syncStatus()
+    }
+
+    /// Acknowledge dropped writes, so the banner stops reporting them.
+    public func clearSyncFailures() async {
+        await offline?.clearFailed()
+    }
+
+    /// Sign-out: drop the cached logbook and any unsent writes.
+    public func clearOffline() async {
+        try? await offline?.clear()
     }
 
     /// Trailing slashes would double up when paths are appended.
@@ -193,10 +227,128 @@ public actor APIClient {
         prefix: String = "/api",
         as type: Response.Type
     ) async throws -> Response {
+        let encodedBody = try body.map { try encoder.encode($0) }
+        let data = try await route(
+            method, path, query: query, body: encodedBody,
+            authenticated: authenticated, prefix: prefix
+        )
+        do {
+            return try decoder.decode(Response.self, from: data)
+        } catch {
+            throw APIError.decoding("\(path): \(error)")
+        }
+    }
+
+    /// One request, with the offline layer in the middle when there is one.
+    /// Mirrors `api()` in `public/js/api.js`.
+    private func route(
+        _ method: String,
+        _ path: String,
+        query: [URLQueryItem]?,
+        body: Data?,
+        authenticated: Bool,
+        prefix: String
+    ) async throws -> Data {
+        // Auth and the public share endpoint never touch the cache.
+        guard let offline, prefix == "/api" else {
+            let response = try await rawSend(
+                method, path, query: query, body: body, authenticated: authenticated, prefix: prefix
+            )
+            guard (200..<300).contains(response.status) else {
+                throw APIError.from(status: response.status, body: response.data)
+            }
+            return response.data
+        }
+
+        let cacheKey = Self.cacheKey(path: path, query: query)
+        if method == "GET" {
+            // A row created offline exists only in the cache: the server would 404
+            // its temp id.
+            if OfflineStore.isTempPath(cacheKey), let cached = try? await offline.cachedGet(cacheKey) {
+                return cached
+            }
+            let response: (status: Int, data: Data)
+            do {
+                response = try await rawSend(
+                    method, path, query: query, body: body, authenticated: authenticated, prefix: prefix
+                )
+            } catch {
+                // Network gone: a cached copy is better than an error. An `APIError`
+                // from the server is not a network failure and must not fall back.
+                await offline.noteOffline()
+                if let cached = try? await offline.cachedGet(cacheKey) { return cached }
+                throw error
+            }
+            await offline.noteOnline()
+            guard (200..<300).contains(response.status) else {
+                throw APIError.from(status: response.status, body: response.data)
+            }
+            try? await offline.cachePut(cacheKey, body: response.data)
+            if await offline.pendingCount() > 0 {
+                // Fresh server state predates the queued writes — re-patch it so they
+                // stay visible until the flush lands.
+                try? await offline.reapplyQueue()
+                if let patched = try? await offline.cachedGet(cacheKey) { return patched }
+            }
+            return response.data
+        }
+
+        // While writes are queued, a later queueable write has to queue too: sending
+        // it directly would reorder it ahead of the queue.
+        let queueable = OfflineStore.isQueueable(method: method, path: path)
+        if queueable, await offline.pendingCount() > 0 {
+            let result = try await offline.enqueue(method: method, path: path, body: body)
+            Task { await flushQueue() }
+            return Self.synthetic(result)
+        }
+
+        let response: (status: Int, data: Data)
+        do {
+            response = try await rawSend(
+                method, path, query: query, body: body, authenticated: authenticated, prefix: prefix
+            )
+        } catch {
+            await offline.noteOffline()
+            guard queueable else { throw error }
+            return Self.synthetic(try await offline.enqueue(method: method, path: path, body: body))
+        }
+        await offline.noteOnline()
+        guard (200..<300).contains(response.status) else {
+            throw APIError.from(status: response.status, body: response.data)
+        }
+        return response.data
+    }
+
+    /// The response a queued write stands in for, in the server's own shape.
+    private static func synthetic(_ result: OfflineStore.QueuedResult) -> Data {
+        switch result {
+        case .created(let id): Data(#"{"id":\#(id)}"#.utf8)
+        case .ok: Data(#"{"ok":true}"#.utf8)
+        }
+    }
+
+    /// The cache is keyed by the path the web app uses, query string included, so
+    /// `/events?track_id=7` is a distinct entry the store knows how to derive.
+    private static func cacheKey(path: String, query: [URLQueryItem]?) -> String {
+        guard let query, !query.isEmpty else { return path }
+        let encoded = query.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&")
+        return "\(path)?\(encoded)"
+    }
+
+    /// The transport, with no offline behavior and no error mapping: throws only
+    /// when the network failed.
+    private func rawSend(
+        _ method: String,
+        _ path: String,
+        query: [URLQueryItem]?,
+        body: Data?,
+        authenticated: Bool,
+        prefix: String
+    ) async throws -> (status: Int, data: Data) {
         var request = URLRequest(url: try url(for: path, query: query, prefix: prefix))
         request.httpMethod = method
         if let body {
-            request.httpBody = try encoder.encode(body)
+            request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         if authenticated, let token = await tokens.currentToken() {
@@ -210,18 +362,10 @@ public actor APIClient {
         } catch {
             throw APIError.transport(error.localizedDescription)
         }
-
         guard let http = response as? HTTPURLResponse else {
             throw APIError.transport("Malformed response")
         }
-        guard (200..<300).contains(http.statusCode) else {
-            throw APIError.from(status: http.statusCode, body: data)
-        }
-        do {
-            return try decoder.decode(Response.self, from: data)
-        } catch {
-            throw APIError.decoding("\(path): \(error)")
-        }
+        return (http.statusCode, data)
     }
 
     private func url(for path: String, query: [URLQueryItem]?, prefix: String) throws -> URL {

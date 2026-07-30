@@ -45,6 +45,7 @@ struct RootView: View {
                         RecordingBanner()
                     }
                 }
+                .safeAreaInset(edge: .top, spacing: 0) { SyncBanner() }
         }
     }
 

@@ -27,6 +27,7 @@
 		D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */; };
 		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
 		DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150A5FDFCC1A9C0324EA2622 /* AuthController.swift */; };
+		E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */; };
 		F903D5D339EABBC96E51A877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D10939598E67F796CA22FCE3 /* Assets.xcassets */; };
 		FE1DBD9FE6647218B6AEB845 /* ReviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12317D03A02B7DF755F9A335 /* ReviewScreen.swift */; };
 /* End PBXBuildFile section */
@@ -43,6 +44,7 @@
 
 /* Begin PBXFileReference section */
 		00C463A61C87EA12BC0DD175 /* TrackEvolutionKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TrackEvolutionKit; path = Packages/TrackEvolutionKit; sourceTree = SOURCE_ROOT; };
+		04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBanner.swift; sourceTree = "<group>"; };
 		12317D03A02B7DF755F9A335 /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScreen.swift; sourceTree = "<group>"; };
 		150A5FDFCC1A9C0324EA2622 /* AuthController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthController.swift; sourceTree = "<group>"; };
 		1D6588990892F4B703C72631 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -117,11 +119,20 @@
 			);
 			sourceTree = "<group>";
 		};
+		578A399D6F6E60A4A894C8B8 /* Offline */ = {
+			isa = PBXGroup;
+			children = (
+				04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */,
+			);
+			path = Offline;
+			sourceTree = "<group>";
+		};
 		7F9F76BF9CBBCC264B34A93D /* App */ = {
 			isa = PBXGroup;
 			children = (
 				05785085DD8CB7FE9F551097 /* Auth */,
 				FD4C440116BA269B836CB734 /* DesignSystem */,
+				578A399D6F6E60A4A894C8B8 /* Offline */,
 				05F08C89A2F106188B1AC56B /* Recording */,
 				D10939598E67F796CA22FCE3 /* Assets.xcassets */,
 				7FAD7F0F8459AFBE55AE39CB /* Info.plist */,
@@ -292,6 +303,7 @@
 				5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */,
 				4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */,
 				7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */,
+				E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */,
 				4672EECB0EB121F69CCDC6DF /* ThemePreference.swift in Sources */,
 				1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */,
 				D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */,
