@@ -133,7 +133,10 @@ struct ReviewScreen: View {
                 } else {
                     ForEach(Array(model.laps.enumerated()), id: \.offset) { index, lap in
                         HStack {
-                            Text("Lap \(index + 1)")
+                            // `String(...)`: a lap number is an identifier, so it must
+                            // not pick up the locale's grouping separator the way a
+                            // count should. Same as the event page's lap rows.
+                            Text("Lap \(String(index + 1))")
                                 .teStyle(.sm)
                                 .foregroundStyle(Color(.textMuted))
                             Spacer()

@@ -120,7 +120,10 @@ struct SettingsScreen: View {
                     Link(destination: Self.docsURL) {
                         legalRow("Documentation")
                     }
-                    Text("© \(Calendar.current.component(.year, from: Date())) Speedshift LLC")
+                    // `String(...)`, not the bare Int: `Text` interpolation formats a
+                    // number for the locale, and a year is an identifier rather than a
+                    // quantity — grouping turns 2026 into "2,026".
+                    Text("© \(String(Calendar.current.component(.year, from: Date()))) Speedshift LLC")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                     Text(Self.versionLine)

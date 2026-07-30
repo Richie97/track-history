@@ -120,7 +120,11 @@ struct ProgressChart: View {
         .modifier(ChartChrome(style: style, points: points, xLabel: xLabel))
         .foregroundStyle(Color(.textMuted))
         .modifier(ReadOutGesture(style: style, points: points, selected: $selected))
-        .frame(height: style == .full ? 200 : 44)
+        // Only the full chart fixes its own height. A sparkline is sized by whatever
+        // it sits beside — on a dashboard card that's the height of the track's name,
+        // best lap and meta line, and a hardcoded 44 left it floating in the middle of
+        // a card twice that tall.
+        .modifier(SparklineSizing(style: style))
         .overlay(alignment: .topTrailing) {
             if let selected {
                 Text("\(selected.label) · \(LapTime.fmtMs(selected.ms))")
@@ -147,6 +151,28 @@ struct ProgressChart: View {
             \(points.count) \(unit), from \(LapTime.fmtMs(first.ms)) to \
             \(LapTime.fmtMs(last.ms)) — \(LapTime.fmtDelta(abs(delta))) \(direction)
             """
+    }
+}
+
+/// The full chart is 200pt tall; a sparkline takes the height it's given.
+///
+/// `maxHeight: .infinity` rather than no frame at all: `Chart` has no intrinsic
+/// height, so left entirely unconstrained inside a vertically-unbounded scroll view
+/// it collapses. This makes it *fill* the height its container settles on, which the
+/// text column next to it determines.
+private struct SparklineSizing: ViewModifier {
+    let style: ProgressChart.Style
+
+    func body(content: Content) -> some View {
+        switch style {
+        case .full: content.frame(height: 200)
+        case .sparkline:
+            // The inset is for the stroke, not for looks: the domain pads by 4% of the
+            // range, which at sparkline scale is less than half the line's width, so
+            // the fastest and slowest laps — the two points you actually look at — get
+            // sliced in half by the plot edge.
+            content.padding(.vertical, 5).frame(maxHeight: .infinity)
+        }
     }
 }
 

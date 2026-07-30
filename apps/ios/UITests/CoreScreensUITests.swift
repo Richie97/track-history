@@ -158,6 +158,16 @@ final class CoreScreensUITests: XCTestCase {
             "settings should link out to the web garage rather than stub one here"
         )
         XCTAssertTrue(app.buttons["Sign out"].exists)
+
+        // A year is an identifier, not a quantity. `Text` interpolation formats a bare
+        // Int for the locale, which rendered the copyright as "© 2,026". Matched by
+        // shape rather than against this year's number, so the test doesn't expire.
+        XCTAssertTrue(
+            app.staticTexts.containing(
+                NSPredicate(format: "label MATCHES %@", "© [0-9]{4} Speedshift LLC")
+            ).firstMatch.exists,
+            "the copyright year must not be group-separated"
+        )
         attach(app, named: "settings")
     }
 

@@ -175,7 +175,7 @@ struct DashboardScreen: View {
                     .trim(from: 0, to: Double(done) / Double(items.count))
                     .stroke(Color(.accent), style: .init(lineWidth: 7, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text("\(done)/\(items.count)")
+                Text(verbatim: "\(done)/\(items.count)")
                     .teStyle(.xxs)
                     .foregroundStyle(Color(.textStrong))
             }
@@ -209,7 +209,12 @@ struct DashboardScreen: View {
 
     private func trackCard(_ track: Track) -> some View {
         TENavCard(route: .track(track.id), identifier: "trackCard") {
-            HStack(alignment: .top) {
+            // The text column sets the row's height and the sparkline fills it, so the
+            // trend line reads as part of the card rather than a stamp floating in it.
+            // `.fixedSize(vertical:)` is what pins that height to the text: without it
+            // the flexible chart and the flexible stack negotiate with each other and
+            // the row collapses.
+            HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(track.name)
                         .teStyle(.h3)
@@ -223,7 +228,9 @@ struct DashboardScreen: View {
                         EventDates.fmtDate(track.lastDate)
                     ])
                 }
-                Spacer(minLength: 8)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
                 // Two points is the least that can show a direction; one would be a
                 // dot pretending to be a trend.
                 if track.series.count >= 2 {
