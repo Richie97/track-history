@@ -21,6 +21,20 @@
                ReferencedContainer = "container:TrackEvolution.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7759B992E68D75E18E12DBF1"
+               BuildableName = "TrackEvolutionUITests.xctest"
+               BlueprintName = "TrackEvolutionUITests"
+               ReferencedContainer = "container:TrackEvolution.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -39,6 +53,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7759B992E68D75E18E12DBF1"
+               BuildableName = "TrackEvolutionUITests.xctest"
+               BlueprintName = "TrackEvolutionUITests"
+               ReferencedContainer = "container:TrackEvolution.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

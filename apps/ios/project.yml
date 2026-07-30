@@ -61,15 +61,34 @@ targets:
         SUPPORTS_XR_DESIGNED_FOR_IPHONE: NO
         SWIFT_EMIT_LOC_STRINGS: YES
 
+  # Taps through the real sign-in browser flow, which is the one part of NS-08 no
+  # unit test can reach. Skipped unless TE_DEV_SERVER is set, because it needs
+  # `npm run dev` on :8787 — see UITests/SignInUITests.swift.
+  TrackEvolutionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: TrackEvolution
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.trackevolution.uitests
+        TEST_TARGET_NAME: TrackEvolution
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   TrackEvolution:
     build:
       targets:
         TrackEvolution: all
+        TrackEvolutionUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
+      targets:
+        - TrackEvolutionUITests
     profile:
       config: Release
     analyze:

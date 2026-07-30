@@ -31,6 +31,10 @@ struct SignInScreen: View {
                     buttons
                 }
 
+                if !auth.server.isDefault {
+                    devServerBadge
+                }
+
                 if let error = auth.error {
                     Text(error)
                         .teStyle(.sm)
@@ -67,6 +71,26 @@ struct SignInScreen: View {
                     .frame(height: 46)
             }
         }
+    }
+
+    /// A non-default server is easy to leave set by accident — and then sign-in
+    /// opens a browser at a host that may not even be running, which looks like
+    /// the app being broken rather than the server being absent. Say so loudly.
+    private var devServerBadge: some View {
+        Button {
+            showingServerSheet = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text("Signing in against \(auth.server.url.absoluteString)")
+            }
+            .teStyle(.xs)
+            .foregroundStyle(Color(.dangerInk))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.dangerTint), in: .rect(cornerRadius: TERadius.sm))
+        }
+        .buttonStyle(.plain)
     }
 
     private var serverFooter: some View {
@@ -124,6 +148,15 @@ private struct ServerSheet: View {
                         (http://localhost:8787 in the simulator). Changing this signs \
                         you out.
                         """)
+                }
+
+                if !auth.server.isDefault {
+                    Section {
+                        Button("Use trackevolution.app") {
+                            Task { await auth.useServer(TrackEvolutionKit.defaultBaseURL) }
+                            dismiss()
+                        }
+                    }
                 }
             }
             .navigationTitle("Server")

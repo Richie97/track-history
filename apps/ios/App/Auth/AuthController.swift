@@ -36,12 +36,12 @@ final class AuthController {
     let api: APIClient
     let server: ServerSettings
     private let tokens: KeychainTokenStore
-    private let webAuth: WebAuthenticating
+    private let webAuth: any WebAuthenticating
 
     init(
         tokens: KeychainTokenStore = KeychainTokenStore(),
         server: ServerSettings = ServerSettings(),
-        webAuth: WebAuthenticating? = nil
+        webAuth: (any WebAuthenticating)? = nil
     ) {
         self.tokens = tokens
         self.server = server
@@ -53,6 +53,14 @@ final class AuthController {
 
     /// Decide what to show at launch, and refresh who's signed in.
     func restore() async {
+        #if DEBUG
+        // Test hook: the Keychain outlives an app reinstall in the simulator, so
+        // the UI test needs a way to start from a genuinely signed-out state.
+        //   xcrun simctl launch <device> app.trackevolution -resetAuth
+        if ProcessInfo.processInfo.arguments.contains("-resetAuth") {
+            tokens.clear()
+        }
+        #endif
         await refreshProviders()
         guard tokens.isSignedIn else {
             state = .signedOut
@@ -168,11 +176,22 @@ protocol WebAuthenticating {
 /// retyping a password.
 @MainActor
 final class WebAuthSession: NSObject, WebAuthenticating {
+    /// **Load-bearing.** `ASWebAuthenticationSession` must be retained until its
+    /// completion handler runs: as a local it is released the moment `start()`
+    /// returns, the browser sheet closes again immediately, and the completion
+    /// handler never fires — which reads as "sign-in does nothing", with the UI
+    /// stuck on its spinner forever.
+    private var session: ASWebAuthenticationSession?
+
     func authenticate(url: URL, callbackScheme: String) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
+        // A second tap while one is in flight would otherwise strand the first
+        // continuation.
+        session?.cancel()
+        return try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: url, callbackURLScheme: callbackScheme
-            ) { callback, error in
+            ) { [weak self] callback, error in
+                MainActor.assumeIsolated { self?.session = nil }
                 if let callback {
                     continuation.resume(returning: callback)
                 } else {
@@ -181,7 +200,15 @@ final class WebAuthSession: NSObject, WebAuthenticating {
             }
             session.presentationContextProvider = self
             session.prefersEphemeralWebBrowserSession = false
-            session.start()
+            self.session = session
+            if !session.start() {
+                self.session = nil
+                continuation.resume(
+                    throwing: APIError.transport(
+                        "Couldn't open the sign-in browser. Check the server URL is http or https."
+                    )
+                )
+            }
         }
     }
 }
@@ -189,10 +216,13 @@ final class WebAuthSession: NSObject, WebAuthenticating {
 extension WebAuthSession: ASWebAuthenticationPresentationContextProviding {
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         MainActor.assumeIsolated {
-            let scene = UIApplication.shared.connectedScenes
+            // Any window will do as an anchor, and there must be one — falling
+            // back to a bare `ASPresentationAnchor()` would hand the system an
+            // unattached window and the sheet would never appear.
+            let windows = UIApplication.shared.connectedScenes
                 .compactMap { $0 as? UIWindowScene }
-                .first { $0.activationState == .foregroundActive }
-            return scene?.keyWindow ?? ASPresentationAnchor()
+                .flatMap(\.windows)
+            return windows.first(where: \.isKeyWindow) ?? windows.first ?? ASPresentationAnchor()
         }
     }
 }
