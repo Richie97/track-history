@@ -110,6 +110,18 @@ not a follow-up:**
    Update it when you add a directory, command, route, or convention that a
    future agent would need to know.
 
+## Issues close with the PR that finishes the work
+
+Tracked work has a GitHub issue — the native rewrite has one per `NS-*` spec
+under epic #63 (`gh issue list --search "NS-13" --state all`). **Closing it is
+part of the change, not a follow-up:** put `Closes #<n>` in the PR body, one line
+per issue, so merging does it.
+
+A PR that only *partly* implements a ticket uses `Refs #<n>`, leaves the issue
+open, and comments on it with what's outstanding. Never close an issue whose
+acceptance criteria aren't all met — a ticket closed early is worse than no
+ticket, because the remaining gap stops being visible.
+
 ## Architecture
 
 One Worker serves both the API and the static frontend (`wrangler.jsonc`: `public/` is served as SPA assets; `/api/*` and `/auth/*` hit the Worker first).
