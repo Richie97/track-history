@@ -41,9 +41,13 @@ jobs:
       # checkout: the app must build and ship inert without it (NS-19). If this
       # ever fails, someone committed the entitlement and device signing will break
       # for everyone who lacks the grant.
+      # Checked against the *parsed* plist, not the raw file: the entitlements
+      # carry a comment explaining why the key is absent, and a plain grep matches
+      # that prose. Converting strips comments, leaving only real keys.
       - name: The CarPlay entitlement stays out
         run: |
-          if grep -q "carplay-driving-task" apps/ios/App/TrackEvolution.entitlements; then
+          if plutil -convert json -o - apps/ios/App/TrackEvolution.entitlements \
+            | grep -q "carplay-driving-task"; then
             echo "::error::com.apple.developer.carplay-driving-task is checked in — see NS-19"
             exit 1
           fi
