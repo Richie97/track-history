@@ -88,7 +88,13 @@ struct ProgressChart: View {
             ForEach(points) { point in
                 LineMark(x: .value("Position", point.x), y: .value("Lap", point.ms))
                     .foregroundStyle(Color(.chartLine))
-                    .interpolationMethod(.monotone)
+                    // Straight segments between points, not a spline.
+                    //
+                    // There is nothing between two events. A curve draws lap times for
+                    // days that were never driven, and at three points — which is most
+                    // tracks — it bulges into an arch that reads as a story the data
+                    // doesn't tell. `public/js/chart.js` polylines for the same reason.
+                    .interpolationMethod(.linear)
                 if style == .full {
                     PointMark(x: .value("Position", point.x), y: .value("Lap", point.ms))
                         .foregroundStyle(Color(.chartLine))
