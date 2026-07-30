@@ -5,20 +5,13 @@ import Testing
 
 /// Request shaping and error mapping, against a stubbed transport. Mirrors what
 /// `public/js/api.js` does — minus its offline routing, which is NS-21.
-///
-/// Serialized because `URLProtocol` subclasses are registered process-wide: two
-/// of these running at once would answer each other's requests.
-@Suite(.serialized)
 struct APIClientTests {
     private func client(
         tokens: any TokenProviding = StaticToken("tok_123"),
         baseURL: URL = URL(string: "https://example.test")!,
         respond: @escaping @Sendable (URLRequest) throws -> (Int, Data)
     ) -> APIClient {
-        StubProtocol.respond = respond
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubProtocol.self]
-        return APIClient(baseURL: baseURL, tokens: tokens, session: URLSession(configuration: config))
+        APIClient(baseURL: baseURL, tokens: tokens, session: StubProtocol.session(respond))
     }
 
     @Test func getsSendTheBearerTokenToTheApiPath() async throws {
@@ -211,20 +204,44 @@ final class Recorder: @unchecked Sendable {
 
 /// A `URLProtocol` that answers from a closure, so client tests never touch the
 /// network.
+///
+/// `URLProtocol` subclasses are registered process-wide, so a single shared
+/// handler would let concurrent tests answer each other's requests. Each session
+/// therefore gets an id, carried in a request header, and its own handler —
+/// which keeps the suites running in parallel.
 final class StubProtocol: URLProtocol {
-    private static let lock = NSLock()
-    nonisolated(unsafe) private static var _respond: (@Sendable (URLRequest) throws -> (Int, Data))?
+    typealias Handler = @Sendable (URLRequest) throws -> (Int, Data)
 
-    static var respond: (@Sendable (URLRequest) throws -> (Int, Data))? {
-        get { lock.withLock { _respond } }
-        set { lock.withLock { _respond = newValue } }
+    static let headerName = "X-Stub-Session"
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var handlers: [String: Handler] = [:]
+    nonisolated(unsafe) private static var nextID = 0
+
+    /// A `URLSession` wired to `respond`, tagged so only its own requests reach it.
+    static func session(_ respond: @escaping Handler) -> URLSession {
+        let id = lock.withLock {
+            nextID += 1
+            let id = "stub-\(nextID)"
+            handlers[id] = respond
+            return id
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        config.httpAdditionalHeaders = [headerName: id]
+        return URLSession(configuration: config)
+    }
+
+    private static func handler(for request: URLRequest) -> Handler? {
+        guard let id = request.value(forHTTPHeaderField: headerName) else { return nil }
+        return lock.withLock { handlers[id] }
     }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        guard let respond = Self.respond else {
+        guard let respond = Self.handler(for: request) else {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
             return
         }

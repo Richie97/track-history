@@ -6,6 +6,7 @@ import TrackEvolutionKit
 /// dependency, and — in debug builds — opens the design-token gallery.
 struct RootView: View {
     @Environment(ThemeStore.self) private var theme
+    @Environment(AuthController.self) private var auth
 
     var body: some View {
         #if DEBUG
@@ -24,7 +25,22 @@ struct RootView: View {
         #endif
     }
 
+    @ViewBuilder
     private var placeholder: some View {
+        switch auth.state {
+        case .unknown:
+            ZStack {
+                Color(.bgPage).ignoresSafeArea()
+                ProgressView()
+            }
+        case .signedOut, .signingIn:
+            SignInScreen()
+        case .signedIn(let me):
+            signedIn(me)
+        }
+    }
+
+    private func signedIn(_ me: Me?) -> some View {
         NavigationStack {
             ZStack {
                 Color(.bgPage)
@@ -34,7 +50,7 @@ struct RootView: View {
                     Text("Track Evolution")
                         .teStyle(.h1)
                         .foregroundStyle(Color(.textStrong))
-                    Text(TrackEvolutionKit.defaultBaseURL.host() ?? "")
+                    Text(me?.user.email ?? auth.server.url.host() ?? "")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
 
@@ -73,4 +89,5 @@ struct RootView: View {
     RootView()
         .environment(ThemeStore())
         .environment(RecordingController())
+        .environment(AuthController())
 }

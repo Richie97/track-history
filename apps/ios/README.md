@@ -118,6 +118,46 @@ Updates use `Patch<Value>` rather than plain optionals, because the server only
 writes columns whose keys are *present* in the body: `.unchanged` omits the key,
 `.set(nil)` sends an explicit null and clears the column.
 
+## Sign-in
+
+The flow is the server's, unchanged (`src/routes/auth.ts`): generate a PKCE
+verifier, open `/auth/login?client=app&code_challenge=…` **in the system browser**
+(Google forbids OAuth in an embedded web view — this is why the flow is shaped
+this way), catch the `trackevolution://auth?code=` redirect, and `POST
+/auth/exchange` the code plus verifier for a bearer token.
+
+Three server behaviors the client has to respect, each of which produces a
+confusing error otherwise:
+
+- The challenge is `base64url(SHA-256(verifier))` **unpadded** — wrong encoding
+  gives `401 PKCE verification failed`. `PKCE` is pinned against RFC 7636's
+  worked example.
+- The one-time code lives **60 seconds**. Exchange it immediately.
+- The code is **burned on first use, before verification**, so a failed exchange
+  can't be retried — recovery is restarting the flow, and the error message says
+  so.
+
+The token lives in the Keychain as `kSecAttrAccessibleAfterFirstUnlock`, not
+`WhenUnlocked`: the recorder runs with the phone locked and a saved session has to
+reach the server from there. It is deliberately *not* `...ThisDeviceOnly`, so a
+restored phone stays signed in — the token is a revocable session, not a password.
+
+The Apple button is drawn only when `GET /auth/providers` advertises it (a
+deployment without the `APPLE_*` secrets doesn't), and it's Apple's own
+`ASAuthorizationAppleIDButton` — App Review rejects approximations — wired to our
+web flow rather than `ASAuthorizationController`.
+
+Pointing the app at a dev server needs no test hook, because `UserDefaults` reads
+launch arguments:
+
+```sh
+npm run dev   # at the repo root, with .dev.vars
+xcrun simctl launch <device> app.trackevolution -server.url http://localhost:8787
+```
+
+Not done: Universal Links for `/share/*` (there's no share screen to route to
+until NS-25), and the tap-through sign-in on a device.
+
 ## The recorder
 
 `App/Recording/` is the reason for the rewrite. Three pieces:

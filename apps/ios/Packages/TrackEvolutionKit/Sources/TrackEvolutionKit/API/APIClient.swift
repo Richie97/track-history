@@ -170,15 +170,30 @@ public actor APIClient {
         )
     }
 
+    /// `/auth/*` rather than `/api/*` — the sign-in flow (NS-08) lives outside the
+    /// API surface and is unauthenticated until the token exists.
+    func authGet<Response: Decodable>(_ path: String, as type: Response.Type) async throws -> Response {
+        try await send("GET", path, body: NoBody?.none, authenticated: false, prefix: "/auth", as: type)
+    }
+
+    func authPost<Body: Encodable, Response: Decodable>(
+        _ path: String, body: Body, as type: Response.Type
+    ) async throws -> Response {
+        // Authenticated: /auth/logout needs the bearer token; /auth/exchange
+        // ignores it harmlessly (it has no token yet).
+        try await send("POST", path, body: body, authenticated: true, prefix: "/auth", as: type)
+    }
+
     private func send<Body: Encodable, Response: Decodable>(
         _ method: String,
         _ path: String,
         query: [URLQueryItem]? = nil,
         body: Body?,
         authenticated: Bool = true,
+        prefix: String = "/api",
         as type: Response.Type
     ) async throws -> Response {
-        var request = URLRequest(url: try url(for: path, query: query))
+        var request = URLRequest(url: try url(for: path, query: query, prefix: prefix))
         request.httpMethod = method
         if let body {
             request.httpBody = try encoder.encode(body)
@@ -209,8 +224,8 @@ public actor APIClient {
         }
     }
 
-    private func url(for path: String, query: [URLQueryItem]?) throws -> URL {
-        guard var components = URLComponents(string: baseURL.absoluteString + "/api" + path) else {
+    private func url(for path: String, query: [URLQueryItem]?, prefix: String) throws -> URL {
+        guard var components = URLComponents(string: baseURL.absoluteString + prefix + path) else {
             throw APIError.transport("Invalid server URL")
         }
         if let query, !query.isEmpty { components.queryItems = query }

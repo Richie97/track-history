@@ -10,15 +10,18 @@ struct TrackEvolutionApp: App {
     @State private var theme = ThemeStore()
     /// One recorder for the whole app: navigating away must not end a recording.
     @State private var recorder = RecordingController()
+    @State private var auth = AuthController()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(theme)
                 .environment(recorder)
+                .environment(auth)
                 .preferredColorScheme(theme.preference.colorScheme)
                 // A recording the app died on is offered back on next launch.
                 .task { recorder.recoverIfNeeded() }
+                .task { await auth.restore() }
         }
     }
 }
