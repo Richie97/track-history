@@ -83,6 +83,16 @@ byte-identical tree.
 Why a standalone script rather than a test: `test/api/` runs inside workerd,
 which has no filesystem access and so cannot write the files.
 
+### Cross-language fixtures (`contracts/logic/`)
+
+Some pure logic is ported from `public/js/` into the native clients — the lap
+geometry that turns a recorded GPS trace into lap times, for instance.
+`npm run contracts:logic` runs the **web** implementation over an analytic input
+and commits what it produced; the Swift and Kotlin ports then assert identical
+output, lap times to the millisecond. Reimplementing the fixture generator in
+each language would only prove the three of them agree with each other.
+`contracts:check` covers this tree too.
+
 ### Seeding your own history
 
 `seed/generate.mjs` reads `seed/data.personal.mjs` if it exists (gitignored —

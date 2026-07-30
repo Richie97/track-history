@@ -9,17 +9,7 @@ import Testing
 /// silently rot the moment the backend response shape changed, which is exactly
 /// what these tests exist to catch.
 enum Goldens {
-    static let directory: URL = {
-        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        while dir.path != "/" {
-            let candidate = dir.appending(path: "contracts/golden", directoryHint: .isDirectory)
-            if FileManager.default.fileExists(atPath: candidate.appending(path: "manifest.json").path) {
-                return candidate
-            }
-            dir = dir.deletingLastPathComponent()
-        }
-        fatalError("contracts/golden not found above \(#filePath) — run `npm run contracts:generate`")
-    }()
+    static let directory = RepoRoot.path("contracts/golden")
 
     /// One captured response.
     struct Entry: Codable, Sendable {

@@ -20,6 +20,7 @@ apps/ios/
     Sources/TrackEvolutionKit/
       Models/                  Codable models + LapTime formatting
       API/                     APIClient, APIError, request bodies
+      Recorder/                lap geometry, recorder core
     Tests/TrackEvolutionKitTests/
 ```
 
@@ -67,6 +68,18 @@ a manual best nor any laps, `hours` is never nil. See `withComputed` in
 Updates use `Patch<Value>` rather than plain optionals, because the server only
 writes columns whose keys are *present* in the body: `.unchanged` omits the key,
 `.set(nil)` sends an explicit null and clears the column.
+
+## Ported logic keeps its JS name — and its JS output
+
+Anything ported from `public/js/` keeps the original's function and constant
+names, so the two can be diffed by eye, and it brings that file's test cases with
+it. `Geo` ↔ `public/js/import/geo.js` is the current example.
+
+Agreement is enforced, not assumed: `contracts/logic/geo-laps.json` is generated
+by running the **web** implementation (`npm run contracts:logic`), and `GeoTests`
+asserts this port reproduces it — lap times identical to the millisecond,
+geometry to within 1e-9. Breaking the crossing-time interpolation, say, fails
+that test immediately.
 
 ## The project file is generated *and* committed
 
