@@ -11,6 +11,7 @@
 		098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */; };
 		1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC08E6DAFEE98F1569066E49 /* TokenGallery.swift */; };
 		212E41370DD7175B47DE9DDB /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF71BFD1447FEAD3D7528461 /* LocationService.swift */; };
+		2B296B48C5EA86083A5DE11F /* TrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */; };
 		34446D1A60916C974D7DCF59 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB943307051525CEC527B23 /* Typography.swift */; };
 		397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */; };
 		444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32AEB077B38B164C34ECD9E /* Haptics.swift */; };
@@ -22,6 +23,7 @@
 		5F8BC0ED3060AC991BAB71F8 /* TrackEvolutionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5F2EDF1C9FC56FC64FA6AD /* TrackEvolutionKit */; };
 		66E2ABF81E3E3688EBA81EA6 /* RecordingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84545EEFA513CC785A84F2E /* RecordingScreen.swift */; };
 		7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684F8FFC9870756AC968E1E6 /* SignInScreen.swift */; };
+		79DB087EDD43CCC5CE9D378E /* ProgressChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D9EC7D2504A9022D639B5C /* ProgressChart.swift */; };
 		8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */; };
 		B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82118910A4D7C285ABC04083 /* SignInUITests.swift */; };
 		D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */; };
@@ -49,6 +51,7 @@
 		150A5FDFCC1A9C0324EA2622 /* AuthController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthController.swift; sourceTree = "<group>"; };
 		1D6588990892F4B703C72631 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		380D4BFFDADBA70827336888 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
+		41D9EC7D2504A9022D639B5C /* ProgressChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressChart.swift; sourceTree = "<group>"; };
 		4F2186F17C307D76064E1F95 /* TrackEvolution.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrackEvolution.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		53A61B2645926992E00FFAD3 /* Shape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shape.swift; sourceTree = "<group>"; };
 		6531D681E22CE7E088412777 /* FixJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixJournal.swift; sourceTree = "<group>"; };
@@ -69,6 +72,7 @@
 		D10939598E67F796CA22FCE3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackEvolutionApp.swift; sourceTree = "<group>"; };
 		DF71BFD1447FEAD3D7528461 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackMapView.swift; sourceTree = "<group>"; };
 		F48AE0050A975A2D2C847DDB /* RecordingBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -131,6 +135,7 @@
 			isa = PBXGroup;
 			children = (
 				05785085DD8CB7FE9F551097 /* Auth */,
+				E0D236F11D520CECDCCB8AF4 /* Charts */,
 				FD4C440116BA269B836CB734 /* DesignSystem */,
 				578A399D6F6E60A4A894C8B8 /* Offline */,
 				05F08C89A2F106188B1AC56B /* Recording */,
@@ -158,6 +163,15 @@
 				00C463A61C87EA12BC0DD175 /* TrackEvolutionKit */,
 			);
 			path = Packages;
+			sourceTree = "<group>";
+		};
+		E0D236F11D520CECDCCB8AF4 /* Charts */ = {
+			isa = PBXGroup;
+			children = (
+				41D9EC7D2504A9022D639B5C /* ProgressChart.swift */,
+				F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */,
+			);
+			path = Charts;
 			sourceTree = "<group>";
 		};
 		E1619804A1ABA704C06014FE /* Products */ = {
@@ -296,6 +310,7 @@
 				8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */,
 				4D5846D926BDEF1D48B78043 /* LinePickerView.swift in Sources */,
 				212E41370DD7175B47DE9DDB /* LocationService.swift in Sources */,
+				79DB087EDD43CCC5CE9D378E /* ProgressChart.swift in Sources */,
 				06FA7C499CE4618F1B680CD6 /* RecordingBanner.swift in Sources */,
 				48E955F21551B6D82C3AB62C /* RecordingController.swift in Sources */,
 				66E2ABF81E3E3688EBA81EA6 /* RecordingScreen.swift in Sources */,
@@ -307,6 +322,7 @@
 				4672EECB0EB121F69CCDC6DF /* ThemePreference.swift in Sources */,
 				1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */,
 				D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */,
+				2B296B48C5EA86083A5DE11F /* TrackMapView.swift in Sources */,
 				34446D1A60916C974D7DCF59 /* Typography.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
