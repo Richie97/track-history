@@ -44,7 +44,11 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
     public var trackName: String
     /// ISO `yyyy-mm-dd`, the format every date column stores.
     public var startDate: String
-    public var days: Int
+    /// Track days, **fractional**: the column is `days REAL` and the web form's
+    /// input steps by 0.5, so a half-day event is 0.5 and a Saturday-plus-Sunday-
+    /// morning weekend is 1.5. Modelling this as `Int` fails the decode of the
+    /// entire events list for anyone who has ever logged one.
+    public var days: Double
     public var club: String?
     public var runGroup: String?
     public var car: String?

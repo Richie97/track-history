@@ -43,9 +43,26 @@ struct ModelTests {
                 #expect(event.hours == override)
             } else {
                 // Else max(days × 2h, logged lap time) — at least the 2h/day floor.
-                #expect(event.hours >= Double(event.days) * 2)
+                #expect(event.hours >= event.days * 2)
             }
         }
+    }
+
+    /// `days` is a REAL column (`migrations/0001_init.sql`) and the web event form
+    /// steps by 0.5, so a Saturday-plus-Sunday-morning weekend is `1.5`. Modelling
+    /// it as an `Int` doesn't lose the fraction — it throws, failing the decode of
+    /// the whole events list for anyone who has logged a half day.
+    @Test func fractionalDaysDecode() throws {
+        let events = try Goldens.decode([Event].self, "events-list")
+        var half = events[0]
+        half.days = 1.5
+        let json = try JSONEncoder().encode([half])
+        let round = try JSONDecoder().decode([Event].self, from: json)
+        #expect(round[0].days == 1.5)
+
+        // And straight off the wire, which is the path that actually breaks.
+        let wire = Data(#"[{"id":1,"track_id":1,"track_name":"VIR (Full)","start_date":"2026-05-01","days":0.5,"updated_at":0,"lap_count":0,"session_count":0,"hours":1}]"#.utf8)
+        #expect(try JSONDecoder().decode([Event].self, from: wire)[0].days == 0.5)
     }
 
     @Test func eventDetailCarriesSessionsLapsAndSetups() throws {

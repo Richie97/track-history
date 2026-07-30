@@ -175,9 +175,22 @@ logbook you check between sessions, CarPlay/Android Auto.
 The work breakdown lives in [`docs/specs/native/`](docs/specs/native/) as `NS-*`
 specs. The Capacitor apps below keep shipping until the native ones land.
 
+The iOS client now carries the whole logbook natively — dashboard, event detail,
+event form, track page and settings, plus the read-only page a
+`trackevolution.app/share/<slug>` link opens — on top of the lap recorder, the
+offline cache and write queue, and the charts. The garage, the setup notebook, year
+in review, compare and telemetry import stay web-only by design; Settings links out
+to the web app for the garage rather than half-building one.
+
 ```sh
 cd apps/ios/Packages/TrackEvolutionKit && swift test   # iOS pure logic, no simulator
 open apps/ios/TrackEvolution.xcodeproj                 # the iOS app
+
+# the screens, against a local dev server (skips without one)
+npm run dev
+xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:TrackEvolutionUITests/CoreScreensUITests
 
 cd apps/android && ./gradlew :core:test                # Android pure logic, no emulator
 ```

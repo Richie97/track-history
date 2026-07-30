@@ -45,13 +45,26 @@ struct TokenGallery: View {
             section("Charts — improvement trends downward")
             ProgressChart(
                 points: [
-                    .init(date: "2026-04-10", bestMs: 124_500),
-                    .init(date: "2026-05-01", bestMs: 122_800),
-                    .init(date: "2026-06-01", bestMs: 121_500),
-                    .init(date: "2026-07-04", bestMs: 119_900)
+                    .init(x: 0, label: "Apr 10", ms: 124_500),
+                    .init(x: 1, label: "May 1", ms: 122_800),
+                    .init(x: 2, label: "Jun 1", ms: 121_500),
+                    .init(x: 3, label: "Jul 4", ms: 119_900)
                 ],
                 goalMs: 118_000
             )
+            Text("…and the dashboard's sparkline of the same series")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textFaint))
+            ProgressChart(
+                points: [
+                    .init(x: 0, label: "Apr 10", ms: 124_500),
+                    .init(x: 1, label: "May 1", ms: 122_800),
+                    .init(x: 2, label: "Jun 1", ms: 121_500),
+                    .init(x: 3, label: "Jul 4", ms: 119_900)
+                ],
+                style: .sparkline
+            )
+            .frame(width: 140)
             Text("Trackmap — speed ramp over tarmac")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))

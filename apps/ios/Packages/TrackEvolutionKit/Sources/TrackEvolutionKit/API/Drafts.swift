@@ -28,7 +28,8 @@ public struct EventDraft: Encodable, Hashable, Sendable {
     public var startDate: String
     public var trackName: String?
     public var trackId: Int?
-    public var days: Int?
+    /// Fractional — the column is `days REAL`. See `Event.days`.
+    public var days: Double?
     public var club: String?
     public var runGroup: String?
     public var car: String?
@@ -63,7 +64,7 @@ public struct EventPatch: Encodable, Hashable, Sendable {
     public var trackName: Patch<String> = .unchanged
     public var trackId: Patch<Int> = .unchanged
     public var startDate: Patch<String> = .unchanged
-    public var days: Patch<Int> = .unchanged
+    public var days: Patch<Double> = .unchanged
     public var club: Patch<String> = .unchanged
     public var runGroup: Patch<String> = .unchanged
     public var car: Patch<String> = .unchanged

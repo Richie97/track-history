@@ -22,7 +22,8 @@ public struct SharedEvent: Codable, Hashable, Sendable, Identifiable {
     public var trackId: Int
     public var trackName: String
     public var startDate: String
-    public var days: Int
+    /// Fractional, like `Event.days` — see the note there.
+    public var days: Double
     public var club: String?
     public var runGroup: String?
     public var car: String?

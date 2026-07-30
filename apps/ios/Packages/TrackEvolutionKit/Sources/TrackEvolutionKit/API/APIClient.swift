@@ -61,6 +61,33 @@ public actor APIClient {
         try? await offline?.clear()
     }
 
+    /// The real id a row created offline was given, once its create flushed. Screens
+    /// parked on a temp id follow it here rather than 404ing against the server.
+    public func resolveTempId(_ id: Int) async -> Int? {
+        guard let offline else { return nil }
+        return try? await offline.resolveId(id)
+    }
+
+    /// Pull every event's detail into the cache, so an event you never opened still
+    /// reads in the paddock. The counterpart to `public/js/prefetch.js`, and the
+    /// difference between "offline works" and "offline works for the two events you
+    /// happened to tap": signal is gone *before* you need the data.
+    ///
+    /// Cheap on repeat visits — a row whose cached copy is already at the server's
+    /// `updated_at` (migration 0011, trigger-maintained) is skipped without a
+    /// request. Failures are ignored: this is a warm-up, not a load.
+    public func warmCache(for events: [Event]) async {
+        guard let offline else { return }
+        for row in events where !OfflineStore.isTemp(row.id) {
+            if let cached = try? await offline.cachedGet("/events/\(row.id)"),
+               let detail = try? decoder.decode(EventDetail.self, from: cached),
+               detail.event.updatedAt == row.updatedAt {
+                continue
+            }
+            _ = try? await event(id: row.id)
+        }
+    }
+
     /// Trailing slashes would double up when paths are appended.
     private static func normalize(_ url: URL) -> URL {
         guard url.absoluteString.hasSuffix("/") else { return url }

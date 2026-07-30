@@ -19,20 +19,18 @@ final class RecordAndSaveUITests: XCTestCase {
     }
 
     func testRecordsPicksALineAndSavesASession() throws {
-        try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
+        let app = try launchSignedIn()
 
-        let app = XCUIApplication()
-        // -resetRecording clears any unsaved recording: it survives on disk by
-        // design, so without this the second run of this test starts in review.
-        app.launchArguments = [
-            "-server.url", "http://localhost:8787", "-resetAuth", "-resetRecording"
-        ]
-        app.launch()
+        // The recorder's entry point is an event page (NS-25): the recording is saved
+        // as one of that event's sessions, so this is where it's started from.
+        let event = app.buttons["recentEventCard"].firstMatch
+        XCTAssertTrue(event.waitForExistence(timeout: 20), "the seeded logbook should have an event")
+        event.tap()
 
-        signIn(app)
+        let entry = app.buttons["recordEntry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 15), "the event page carries the recorder entry point")
+        entry.tap()
 
-        // Record.
-        app.buttons["Record laps"].tap()
         let start = app.buttons["Start recording"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         start.tap()
@@ -94,30 +92,4 @@ final class RecordAndSaveUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Review & save"].exists)
     }
 
-    // MARK: - Helpers
-
-    private func signIn(_ app: XCUIApplication) {
-        let google = app.buttons["Continue with Google"]
-        XCTAssertTrue(google.waitForExistence(timeout: 15))
-        google.tap()
-        let consent = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Continue"]
-        if consent.waitForExistence(timeout: 15) { consent.tap() }
-        XCTAssertTrue(
-            app.staticTexts["dev@example.com"].waitForExistence(timeout: 30),
-            "should reach the signed-in screen"
-        )
-    }
-
-    private func devServerIsRunning() -> Bool {
-        var request = URLRequest(url: URL(string: "http://localhost:8787/auth/providers")!)
-        request.timeoutInterval = 3
-        var ok = false
-        let probe = expectation(description: "dev server probe")
-        URLSession.shared.dataTask(with: request) { _, response, _ in
-            ok = (response as? HTTPURLResponse)?.statusCode == 200
-            probe.fulfill()
-        }.resume()
-        wait(for: [probe], timeout: 8)
-        return ok
-    }
 }

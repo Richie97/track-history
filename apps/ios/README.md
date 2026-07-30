@@ -114,6 +114,14 @@ Nullability is the part that bites, and it is pinned by `ModelTests`:
 a manual best nor any laps, `hours` is never nil. See `withComputed` in
 `src/lib/stats.ts` for the rules.
 
+Numeric *width* bites too, and the goldens can't catch it on their own — they only
+contain whole numbers. `Event.days` is a `Double`, because the column is `days REAL`
+and the web form's input steps by 0.5: a Saturday plus a Sunday morning is `1.5`.
+Modelled as an `Int` it doesn't round, it **throws**, failing the decode of the whole
+events list for anyone who has ever logged a half day. `ModelTests` pins it off the
+wire rather than through a golden for exactly that reason. When adding a model field,
+check the migration's column type, not just the captured sample.
+
 Updates use `Patch<Value>` rather than plain optionals, because the server only
 writes columns whose keys are *present* in the body: `.unchanged` omits the key,
 `.set(nil)` sends an explicit null and clears the column.
@@ -155,8 +163,99 @@ npm run dev   # at the repo root, with .dev.vars
 xcrun simctl launch <device> app.trackevolution -server.url http://localhost:8787
 ```
 
-Not done: Universal Links for `/share/*` (there's no share screen to route to
-until NS-25), and the tap-through sign-in on a device.
+The dev bypass signs in as `DEV_USER_EMAIL` from `.dev.vars`, which **must match
+`USER_EMAIL` in the seed data** or the app signs into a real but empty account —
+the seeded logbook belongs to the other address, and every screen looks broken in
+the same way an empty logbook does.
+
+Not done: the tap-through sign-in on a device.
+
+## The screens
+
+`App/Screens/` is the logbook (NS-25). One `@Observable` model per screen owns its
+data and its writes; the views are layout. Nothing calls the network directly —
+every read and write goes through `APIClient`, which *is* the offline layer, so
+there is no separate offline path to forget to test.
+
+| Screen | Web reference |
+|---|---|
+| `DashboardScreen` | `viewDashboard` |
+| `EventScreen` + `EventModel` | `viewEvent` |
+| `EventFormScreen` | `viewEventForm` |
+| `TrackScreen` | `viewTrack` |
+| `SettingsScreen` | `viewSettings` |
+| `SharedLogbookScreen` | the public `/share/<slug>` page |
+
+`App/Navigation/Router.swift` holds the typed `NavigationStack` path. Deep links are
+parsed by `DeepLink` in the Kit — pure, so the routing table is unit-tested rather
+than tapped through. Two things it settles:
+
+- `trackevolution://auth?code=…` is **not** a route. `ASWebAuthenticationSession`
+  consumes it, and treating it as navigation would race the sign-in flow for a
+  one-time code that is burned on first use.
+- `/share/<slug>` — the only pattern the association file advertises
+  (`src/routes/wellKnown.ts`) — opens `SharedLogbookScreen`. Without it, tapping
+  someone's shared link opens the app showing *your* logbook, which is worse than
+  not handling the link.
+
+A link that arrives while signed out is held and applied after sign-in, so tapping
+a share link, signing in, and landing on that logbook is one flow.
+
+**Deliberate absences.** The garage (its dashboard strip and vehicle cards, the
+per-day setup notebook, the setup-vs-lap-times diff), year in review, compare, and
+telemetry file import are web-only (`docs/specs/native/README.md`). They are absent,
+not stubbed; Settings links out to the web app for the garage. There is a UI-test
+assertion keeping the dashboard's garage strip out, because half a garage is worse
+than none.
+
+**Absent for want of an endpoint, not by choice:** editing a lap in place and
+reordering sessions. There is no `PUT /laps/:id` and no sort endpoint, and `src/`
+is out of scope here — so a mistyped lap is deleted and retyped, which is what the
+web app offers too.
+
+Two web behaviors are deliberately *not* ported, because they are workarounds for
+things the platform gives away: `pull-refresh.js` (a hand-built approximation of
+`.refreshable`) and the per-row Delete buttons the web app needs for want of a
+swipe gesture.
+
+## Screens are tested against a real server
+
+`UITests/CoreScreensUITests` walks all five screens against `npm run dev`, and
+`DevServerSignIn` is the shared way in. `UITests/OfflineWritesUITests` then does the
+same CRUD with **no reachable server** — the app is relaunched pointed at a dead port,
+which is what a lost connection looks like to `URLSession` — and checks that the
+cached logbook still reads, that a queued write is on screen immediately, that the
+sync banner says so, and that all of it survives a relaunch. They skip when no dev
+server answers, so `xcodebuild test` and CI stay green.
+
+```sh
+npm run dev
+xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:TrackEvolutionUITests/CoreScreensUITests
+```
+
+**Don't pass `CODE_SIGNING_ALLOWED=NO` when running UI tests.** It's right for the CI
+*build* (no signing secret is a prerequisite for green), but an unsigned build has no
+keychain-access-group entitlement, so every Keychain call fails with `-34018`
+(`errSecMissingEntitlement`). Sign-in still appears to work — the token is cached in
+memory for the life of the process — and then silently doesn't survive a relaunch,
+which looks exactly like an auth bug in the app.
+
+Each attaches a screenshot **on success**, not only on failure: the progress chart,
+the sparklines and the trackmap are drawn in a `Canvas`, so a render that goes wrong
+fails no assertion. That is how the x-axis bug was caught — Swift Charts anchors an
+automatic numeric domain at zero, so an axis of Unix timestamps started in *1970*
+and squeezed a season's progress into a vertical line. Export them with:
+
+```sh
+xcrun xcresulttool export attachments --path <result>.xcresult --output-path <dir>
+```
+
+Tests that create data delete it again. The dev logbook is shared between them, and
+leftovers silently rewrite the dashboard's totals and which event is next. Two tests
+do read the example seed, for history no UI can create in a test: a past event's
+progress chart, and an upcoming event for the hero slot.
 
 ## The recorder
 
@@ -195,8 +294,21 @@ until NS-25), and the tap-through sign-in on a device.
 
 Nothing is destroyed on the way through. A stopped recording stays checkpointed
 until it is saved or explicitly discarded (with a confirmation), and a **failed
-save keeps it** — the whole point is a phone in a paddock. Real offline queueing
-arrives with NS-21.
+save keeps it** — the whole point is a phone in a paddock. Saving now goes through
+NS-21's write queue, so a save with no signal is queued rather than merely retryable.
+
+## The offline queue outlives the process
+
+`OfflineStore.status.pending` is in-memory, and everything that moves the queue is
+gated on it: `flushQueue` returns early at zero, the sync banner says nothing, and a
+fresh queueable write is sent **directly** instead of queueing behind what's already
+waiting. So the count is read back from the database in `init` — the queue survives a
+relaunch and the count has to survive with it.
+
+Without that read the failure is silent and total: writes made in the paddock sit in
+SQLite forever, the app stops mentioning them, and they reach the server — if ever —
+out of order. It is pinned by `aQueueSurvivesTheProcessThatMadeIt`, which reopens a
+store on the same file, and end to end by `OfflineWritesUITests`.
 
 Driving it from the simulator without tapping:
 
@@ -238,9 +350,21 @@ the 90-minute battery measurement — none of which the simulator can answer.
 
 Anything ported from `public/js/` keeps the original's function and constant
 names, so the two can be diffed by eye, and it brings that file's test cases with
-it. So far: `Geo` ↔ `public/js/import/geo.js`, and `Recording`/`RecorderCore` ↔
+it. So far: `Geo` ↔ `public/js/import/geo.js`, `Recording`/`RecorderCore` ↔
 `public/js/record/core.js` (`SCREAMING_SNAKE` constants included — unusual for
-Swift, deliberate here).
+Swift, deliberate here), `LapStats` ↔ `public/js/lap-stats.js`, and `EventDates` ↔
+the date helpers in `public/app.js` plus `fmtDate` from `public/js/format.js`.
+
+`LapStats.cleanLaps` and `OfflineMirrors.cleanLaps` are different functions with the
+same name, from different JS files (`lap-stats.js`'s 107% filter, and `offline.js`'s
+mirror of `sanitizeLaps`). Both keep their original's name, which is why they live in
+separate namespaces.
+
+`EventDates` keeps the JS's **two different clocks**, and the split is load-bearing:
+`todayISO` is UTC because `toISOString()` is, while a date the user picked is
+formatted in *their* calendar because `<input type="date">` submits it that way. At
+10pm in New York those disagree by a day, which is one evening's events landing on
+the wrong date.
 
 Agreement is enforced, not assumed. `npm run contracts:logic` runs the **web**
 implementation and commits what it produced, and the Swift tests assert this port

@@ -1,13 +1,19 @@
 import SwiftUI
 import TrackEvolutionKit
 
-/// Placeholder shell. The real navigation lands with the core screens (NS-25);
-/// this exists so the scaffold has something to launch into, exercises the Kit
-/// dependency, and — in debug builds — opens the design-token gallery.
+/// The app shell: auth gate, navigation stack, and the two banners that have to be
+/// visible from anywhere.
+///
+/// The banners are `safeAreaInset`s rather than content, deliberately. A recording
+/// keeps running when you navigate away, and unsent writes keep waiting — both are
+/// states you must be able to see from whatever screen you happen to be on, so
+/// neither can live inside a single view.
 struct RootView: View {
     @Environment(ThemeStore.self) private var theme
     @Environment(AuthController.self) private var auth
     @Environment(RecordingController.self) private var recorder
+
+    @State private var router = AppRouter()
 
     var body: some View {
         #if DEBUG
@@ -19,15 +25,15 @@ struct RootView: View {
         } else if ProcessInfo.processInfo.arguments.contains("-recorder") {
             NavigationStack { RecordingScreen(eventId: nil) }
         } else {
-            placeholder
+            shell
         }
         #else
-        placeholder
+        shell
         #endif
     }
 
     @ViewBuilder
-    private var placeholder: some View {
+    private var shell: some View {
         switch auth.state {
         case .unknown:
             ZStack {
@@ -36,63 +42,94 @@ struct RootView: View {
             }
         case .signedOut, .signingIn:
             SignInScreen()
-        case .signedIn(let me):
-            signedIn(me)
-                // A recording must be visible from wherever you are in the app,
-                // since navigating away deliberately doesn't stop it.
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if recorder.isRecording {
-                        RecordingBanner()
-                    }
-                }
-                .safeAreaInset(edge: .top, spacing: 0) { SyncBanner() }
+                // A link that arrived while signed out is held, not dropped: tapping a
+                // share link, signing in, and landing on that logbook is one flow.
+                .onOpenURL { router.open($0, signedIn: false) }
+        case .signedIn:
+            signedIn
         }
     }
 
-    private func signedIn(_ me: Me?) -> some View {
-        NavigationStack {
-            ZStack {
-                Color(.bgPage)
-                    .ignoresSafeArea()
-
-                VStack(spacing: 14) {
-                    Text("Track Evolution")
-                        .teStyle(.h1)
-                        .foregroundStyle(Color(.textStrong))
-                    Text(me?.user.email ?? auth.server.url.host() ?? "")
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.textMuted))
-
-                    // Event-less on purpose: an event can be created after the
-                    // session was driven, and the recording is adopted then.
-                    NavigationLink("Record laps") {
-                        RecordingScreen(eventId: nil)
-                    }
-                    .teStyle(.bodyStrong)
-                    .foregroundStyle(Color(.accentInk))
-                    .padding(.top, 8)
-
-                    #if DEBUG
-                    NavigationLink("Design tokens") {
-                        TokenGallery()
-                    }
-                    .teStyle(.bodyStrong)
-                    .foregroundStyle(Color(.accentInk))
-                    .padding(.top, 8)
-                    #endif
-
-                    Picker("Theme", selection: Binding(get: { theme.preference }, set: { theme.preference = $0 })) {
-                        ForEach(ThemePreference.allCases) { preference in
-                            Text(preference.label).tag(preference)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
-                    .padding(.top, 8)
+    private var signedIn: some View {
+        NavigationStack(path: $router.path) {
+            DashboardScreen()
+                .navigationDestination(for: Route.self) { route in
+                    destination(route)
                 }
-                .padding(TESpacing.pageGutter)
+        }
+        .environment(router)
+        // A recording must be visible from wherever you are in the app,
+        // since navigating away deliberately doesn't stop it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if recorder.isRecording {
+                RecordingBanner()
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) { SyncBanner() }
+        .onOpenURL { router.open($0, signedIn: true) }
+        // Cold start with a pending link, and the moment after signing in: both land
+        // here, so the destination survives the auth detour either way.
+        .task { router.applyPending() }
+        .task {
+            // Rows created offline are renumbered when the queue flushes; a screen
+            // parked on a temp id has to follow. The web app does the same to
+            // `location.hash` in `onSyncChange`.
+            await followFlushedIds()
+        }
+    }
+
+    @ViewBuilder
+    private func destination(_ route: Route) -> some View {
+        switch route {
+        case .event(let id):
+            EventScreen(eventId: id)
+        case .eventForm(let target):
+            EventFormScreen(target: target)
+        case .track(let id):
+            TrackScreen(trackId: id)
+        case .settings:
+            SettingsScreen()
+        case .record(let eventId):
+            RecordingScreen(eventId: eventId)
+        case .shared(let slug):
+            SharedLogbookScreen(slug: slug)
+        }
+    }
+
+    /// Watch for the queue draining and remap any temp ids in the path.
+    ///
+    /// Polled on the same 3-second cadence as `SyncBanner`, and for the same reason:
+    /// the store is an actor behind an async boundary, and a flush doesn't announce
+    /// itself. The alternative — a notification from the store — would be a second
+    /// mechanism for something already being watched.
+    private func followFlushedIds() async {
+        while !Task.isCancelled {
+            if router.path.contains(where: Self.holdsTempId) {
+                var resolved: [Int: Int] = [:]
+                for id in router.path.compactMap(Self.tempId) {
+                    if let real = await auth.api.resolveTempId(id) { resolved[id] = real }
+                }
+                if !resolved.isEmpty {
+                    router.remapTempIds { resolved[$0] }
+                }
+            }
+            try? await Task.sleep(for: .seconds(3))
+        }
+    }
+
+    private static func tempId(_ route: Route) -> Int? {
+        let id: Int? = switch route {
+        case .event(let id): id
+        case .eventForm(.edit(let id)): id
+        case .record(let id): id
+        case .track, .settings, .shared, .eventForm(.new): nil
+        }
+        guard let id, OfflineStore.isTemp(id) else { return nil }
+        return id
+    }
+
+    private static func holdsTempId(_ route: Route) -> Bool {
+        tempId(route) != nil
     }
 }
 
