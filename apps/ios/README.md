@@ -18,6 +18,8 @@ apps/ios/
     Assets.xcassets/
   Packages/TrackEvolutionKit/  local SPM package — all pure logic
     Sources/TrackEvolutionKit/
+      Models/                  Codable models + LapTime formatting
+      API/                     APIClient, APIError, request bodies
     Tests/TrackEvolutionKitTests/
 ```
 
@@ -43,6 +45,28 @@ xcodebuild test -project TrackEvolution.xcodeproj -scheme TrackEvolutionKit \
 # or just open it
 open TrackEvolution.xcodeproj
 ```
+
+## The API contract is a test, not a convention
+
+`GoldenContractTests` decodes every entry in `contracts/golden/manifest.json`
+into its model, then **re-encodes it and compares the two JSON trees**. That
+second half is what makes the test useful: a field the server sends and the model
+doesn't have shows up as a missing key rather than a silently dropped value, and
+an endpoint with no model at all fails outright.
+
+The goldens are read from the repo (located by walking up from the test file),
+never copied into the package — a copy would rot exactly when it mattered. If a
+backend change is deliberate, run `npm run contracts:generate` and update the
+models in the same change.
+
+Nullability is the part that bites, and it is pinned by `ModelTests`:
+`consistency` is nil below 3 laps (never 0), `bestMs` is nil when there's neither
+a manual best nor any laps, `hours` is never nil. See `withComputed` in
+`src/lib/stats.ts` for the rules.
+
+Updates use `Patch<Value>` rather than plain optionals, because the server only
+writes columns whose keys are *present* in the body: `.unchanged` omits the key,
+`.set(nil)` sends an explicit null and clears the column.
 
 ## The project file is generated *and* committed
 
