@@ -80,6 +80,9 @@ struct SharedLogbookScreen: View {
                                     },
                                     style: .sparkline
                                 )
+                                // Laid out full-width under the text rather than beside
+                                // it, so nothing else fixes its height.
+                                .frame(height: 44)
                             }
                         }
                     }

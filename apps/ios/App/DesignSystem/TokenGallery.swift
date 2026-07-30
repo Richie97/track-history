@@ -64,7 +64,7 @@ struct TokenGallery: View {
                 ],
                 style: .sparkline
             )
-            .frame(width: 140)
+            .frame(width: 140, height: 44)
             Text("Trackmap — speed ramp over tarmac")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))

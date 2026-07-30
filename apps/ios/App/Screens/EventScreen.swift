@@ -348,7 +348,10 @@ struct EventScreen: View {
             ForEach(session.laps) { lap in
                 row {
                     HStack {
-                        Text("Lap \(lap.lapNum)")
+                        // `String(...)` for the same reason as the copyright year in
+                        // Settings: a lap number is an identifier, not a quantity, and
+                        // `Text`'s number formatting would render lap 1024 as "1,024".
+                        Text("Lap \(String(lap.lapNum))")
                             .teStyle(.sm)
                             .foregroundStyle(Color(.textMuted))
                         Spacer()
