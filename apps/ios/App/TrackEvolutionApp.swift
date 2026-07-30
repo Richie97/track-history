@@ -5,9 +5,15 @@ import SwiftUI
 /// scene-manifest surgery the Capacitor shell needed.
 @main
 struct TrackEvolutionApp: App {
+    /// The theme override (system/light/dark), persisted. Owned here because the
+    /// root scene applies it and Settings writes it.
+    @State private var theme = ThemeStore()
+
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(theme)
+                .preferredColorScheme(theme.preference.colorScheme)
         }
     }
 }

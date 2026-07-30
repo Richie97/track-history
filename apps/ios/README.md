@@ -47,6 +47,55 @@ xcodebuild test -project TrackEvolution.xcodeproj -scheme TrackEvolutionKit \
 open TrackEvolution.xcodeproj
 ```
 
+## Design system
+
+`public/style.css` is the source of truth. If the app's tokens change, the port is
+updated to match — never the other way round.
+
+Colors are **generated**, not transcribed:
+
+```sh
+node apps/ios/Tools/generate-tokens.mjs
+```
+
+reads the stylesheet's dark and light token blocks and writes
+`App/Assets.xcassets/Colors/*.colorset` (Any = light, Dark = dark, since the web
+app defaults to dark and follows the device) plus `ColorTokens.generated.swift`.
+It fails if a token exists in one theme and not the other. Both outputs are
+committed. Use the tokens through the asset symbols Xcode generates —
+`Color(.bgPage)`, `Color(.textMuted)` — and never a literal hex.
+
+The light and dark values are genuinely different hues in places, not lightness
+flips: `accentInk` is lime on dark and dark olive on light, and the chart series
+colors change entirely. Don't collapse them.
+
+Hand-written, in `App/DesignSystem/`:
+
+- `Typography.swift` — the type scale mapped onto Dynamic Type. Every style
+  declares the system text style it scales with, and tracking (an `em` value in
+  CSS) is applied in points against the *scaled* size. `.teStyle(.h1)` on any
+  view. Lap times use `.lapTime`, which is monospaced with tabular figures so a
+  column of times aligns on the decimal.
+- `Shape.swift` — radii, spacing, the standard animation curve, and `TECard`. The
+  app's depth is deliberately flat: hairline border plus one surface step, never
+  stacked shadows. `teShadowPop()` is for popovers only.
+- `ThemePreference.swift` — the system/light/dark override, persisted, mirroring
+  the web app's `data-theme`.
+- `TokenGallery.swift` — `#if DEBUG` only. Every swatch, the type scale and the
+  radii, which is how this port gets reviewed:
+
+```sh
+xcrun simctl launch <device> app.trackevolution -tokenGallery
+xcrun simctl ui <device> appearance light          # and dark
+xcrun simctl ui <device> content_size accessibility-extra-extra-extra-large
+```
+
+**Geist is not bundled yet.** The web loads Geist and Geist Mono from Google
+Fonts and this repo holds no font binaries, so `Typography` falls back to SF Pro
+/ SF Mono and says so in the gallery. Dropping `Geist-*.otf` and `GeistMono-*.otf`
+into `App/Fonts/`, adding them to `UIAppFonts` in `Info.plist`, and re-running
+`generate.sh` switches it over with no other change.
+
 ## The API contract is a test, not a convention
 
 `GoldenContractTests` decodes every entry in `contracts/golden/manifest.json`
