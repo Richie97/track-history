@@ -1,0 +1,8 @@
+{
+  "method": "DELETE",
+  "path": "/parts/:id/measurements/:mid",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "method": "PUT",
+  "path": "/tracks/:id",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

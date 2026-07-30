@@ -1,0 +1,18 @@
+{
+  "method": "GET",
+  "path": "/me",
+  "status": 200,
+  "body": {
+    "totals": {
+      "events": 3,
+      "track_days": 4
+    },
+    "user": {
+      "email": "dev@example.com",
+      "id": 1,
+      "name": "Dev User",
+      "picture": null,
+      "share_slug": "contract-fixture"
+    }
+  }
+}

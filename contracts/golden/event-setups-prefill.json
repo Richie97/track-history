@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/events/:id/setups/prefill",
+  "status": 200,
+  "body": {
+    "data": null
+  }
+}

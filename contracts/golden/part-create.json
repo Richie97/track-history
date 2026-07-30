@@ -1,0 +1,8 @@
+{
+  "method": "POST",
+  "path": "/vehicles/:id/parts",
+  "status": 201,
+  "body": {
+    "id": 1
+  }
+}

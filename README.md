@@ -60,6 +60,29 @@ without OAuth credentials. The bypass only works on local dev hosts
 (`localhost`, `127.0.0.1`, `[::1]`, `10.0.2.2`) — on any other hostname login
 falls through to real OAuth — but it must still never be set in production.
 
+### The API contract (`contracts/golden/`)
+
+`npm run contracts:generate` starts the Worker against a scratch D1, builds a
+fixed fixture, and writes every API response to `contracts/golden/` as JSON.
+Those files are committed: they are the pinned shape of the API, and the native
+iOS/Android clients' test suites decode them, so a response-shape change fails
+those builds with a readable diff instead of breaking at runtime on a phone.
+
+Regenerate whenever you deliberately change a response shape, and commit the
+result with the change. CI runs `npm run contracts:check`, which regenerates and
+fails if the tree is dirty.
+
+The fixture is deliberately awkward — an event with no laps (`best_ms` and
+`consistency` null), a session below the 3-lap threshold where `consistency`
+stays null, sessions with and without channel data, both VIR layouts as separate
+tracks, and one error response per status the clients handle. Volatile fields
+(ids, timestamps) are normalized to stable placeholders of the same type rather
+than deleted, so nullability is still pinned. Regenerating twice must produce a
+byte-identical tree.
+
+Why a standalone script rather than a test: `test/api/` runs inside workerd,
+which has no filesystem access and so cannot write the files.
+
 ### Seeding your own history
 
 `seed/generate.mjs` reads `seed/data.personal.mjs` if it exists (gitignored —

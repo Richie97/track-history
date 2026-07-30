@@ -1,0 +1,243 @@
+{
+  "method": "GET",
+  "path": "/catalog",
+  "status": 200,
+  "body": [
+    {
+      "id": 1,
+      "name": "Atlanta Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Autobahn Country Club"
+    },
+    {
+      "id": 1,
+      "name": "Barber Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Blackhawk Farms Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Brainerd International Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Buttonwillow Raceway Park"
+    },
+    {
+      "id": 1,
+      "name": "Carolina Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Charlotte Motor Speedway (Roval)"
+    },
+    {
+      "id": 1,
+      "name": "Chuckwalla Valley Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Circuit of the Americas"
+    },
+    {
+      "id": 1,
+      "name": "Daytona International Speedway (Road Course)"
+    },
+    {
+      "id": 1,
+      "name": "Dominion Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Eagles Canyon Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Gingerman Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Grattan Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Hallett Motor Racing Circuit"
+    },
+    {
+      "id": 1,
+      "name": "Harris Hill Raceway"
+    },
+    {
+      "id": 1,
+      "name": "High Plains Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Homestead-Miami Speedway (Road Course)"
+    },
+    {
+      "id": 1,
+      "name": "Inde Motorsports Ranch"
+    },
+    {
+      "id": 1,
+      "name": "Indianapolis Motor Speedway (Road Course)"
+    },
+    {
+      "id": 1,
+      "name": "Laguna Seca (WeatherTech Raceway)"
+    },
+    {
+      "id": 1,
+      "name": "Lime Rock Park"
+    },
+    {
+      "id": 1,
+      "name": "M1 Concourse"
+    },
+    {
+      "id": 1,
+      "name": "Mid-Ohio Sports Car Course"
+    },
+    {
+      "id": 1,
+      "name": "MotorSport Ranch (Cresson)"
+    },
+    {
+      "id": 1,
+      "name": "MSR Houston"
+    },
+    {
+      "id": 1,
+      "name": "NCM Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Nelson Ledges Road Course"
+    },
+    {
+      "id": 1,
+      "name": "New Jersey Motorsports Park (Lightning)"
+    },
+    {
+      "id": 1,
+      "name": "New Jersey Motorsports Park (Thunderbolt)"
+    },
+    {
+      "id": 1,
+      "name": "NOLA Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Oregon Raceway Park"
+    },
+    {
+      "id": 1,
+      "name": "Ozarks International Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Pacific Raceways"
+    },
+    {
+      "id": 1,
+      "name": "Palmer Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Pittsburgh International Race Complex"
+    },
+    {
+      "id": 1,
+      "name": "Pocono Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Portland International Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Putnam Park Road Course"
+    },
+    {
+      "id": 1,
+      "name": "Road America"
+    },
+    {
+      "id": 1,
+      "name": "Road Atlanta"
+    },
+    {
+      "id": 1,
+      "name": "Roebling Road Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Sebring International Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Sonoma Raceway"
+    },
+    {
+      "id": 1,
+      "name": "Streets of Willow"
+    },
+    {
+      "id": 1,
+      "name": "Summit Point (Jefferson Circuit)"
+    },
+    {
+      "id": 1,
+      "name": "Summit Point (Main Circuit)"
+    },
+    {
+      "id": 1,
+      "name": "Summit Point (Shenandoah Circuit)"
+    },
+    {
+      "id": 1,
+      "name": "The Ridge Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Thompson Speedway Motorsports Park"
+    },
+    {
+      "id": 1,
+      "name": "Thunderhill Raceway (2-Mile)"
+    },
+    {
+      "id": 1,
+      "name": "Thunderhill Raceway (3-Mile)"
+    },
+    {
+      "id": 1,
+      "name": "Utah Motorsports Campus"
+    },
+    {
+      "id": 1,
+      "name": "Virginia International Raceway (Full)"
+    },
+    {
+      "id": 1,
+      "name": "Virginia International Raceway (North)"
+    },
+    {
+      "id": 1,
+      "name": "Virginia International Raceway (South)"
+    },
+    {
+      "id": 1,
+      "name": "Watkins Glen International"
+    },
+    {
+      "id": 1,
+      "name": "Willow Springs (Big Willow)"
+    }
+  ]
+}

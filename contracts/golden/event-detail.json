@@ -1,0 +1,264 @@
+{
+  "method": "GET",
+  "path": "/events/:id",
+  "status": 200,
+  "body": {
+    "best_ms": 121500,
+    "best_time_ms": 121500,
+    "car": "Corvette C7",
+    "checklist": [
+      {
+        "done": true,
+        "text": "Torque wheels"
+      },
+      {
+        "done": false,
+        "text": "Check pad thickness"
+      }
+    ],
+    "club": "Chin Track Days",
+    "conditions": "dry",
+    "consistency": 0.01738467127508466,
+    "days": 2,
+    "hours": 4,
+    "id": 1,
+    "lap_best_ms": 121500,
+    "lap_count": 7,
+    "notes": "Cool morning, damp session 1.",
+    "run_group": "Advanced",
+    "session_count": 3,
+    "sessions": [
+      {
+        "channels": null,
+        "id": 1,
+        "label": "Session 1",
+        "laps": [
+          {
+            "id": 1,
+            "lap_num": 1,
+            "session_id": 1,
+            "time_ms": 128400
+          },
+          {
+            "id": 1,
+            "lap_num": 2,
+            "session_id": 1,
+            "time_ms": 125100
+          },
+          {
+            "id": 1,
+            "lap_num": 3,
+            "session_id": 1,
+            "time_ms": 123800
+          },
+          {
+            "id": 1,
+            "lap_num": 4,
+            "session_id": 1,
+            "time_ms": 124200
+          }
+        ],
+        "notes": "Learning the line.",
+        "sort": 1,
+        "trace": null
+      },
+      {
+        "channels": null,
+        "id": 1,
+        "label": "Session 2",
+        "laps": [
+          {
+            "id": 1,
+            "lap_num": 1,
+            "session_id": 1,
+            "time_ms": 122900
+          },
+          {
+            "id": 1,
+            "lap_num": 2,
+            "session_id": 1,
+            "time_ms": 121500
+          }
+        ],
+        "notes": null,
+        "sort": 2,
+        "trace": null
+      },
+      {
+        "channels": {
+          "dStepM": 20,
+          "laps": [
+            {
+              "latG": [
+                0,
+                0.4,
+                0.8,
+                1.2,
+                0,
+                0.4,
+                0.8,
+                1.2,
+                0,
+                0.4,
+                0.8,
+                1.2
+              ],
+              "n": 1,
+              "rpm": [
+                3000,
+                3150,
+                3300,
+                3450,
+                3600,
+                3750,
+                3900,
+                4050,
+                4200,
+                4350,
+                4500,
+                4650
+              ],
+              "speed": [
+                30,
+                32,
+                34,
+                36,
+                38,
+                40,
+                42,
+                44,
+                46,
+                48,
+                50,
+                52
+              ],
+              "timeMs": 121900
+            }
+          ],
+          "v": 1
+        },
+        "id": 1,
+        "label": "Session 3",
+        "laps": [
+          {
+            "id": 1,
+            "lap_num": 1,
+            "session_id": 1,
+            "time_ms": 121900
+          }
+        ],
+        "notes": null,
+        "sort": 3,
+        "trace": [
+          [
+            400,
+            0,
+            30
+          ],
+          [
+            346.4,
+            200,
+            32
+          ],
+          [
+            200,
+            346.4,
+            34
+          ],
+          [
+            0,
+            400,
+            36
+          ],
+          [
+            -200,
+            346.4,
+            38
+          ],
+          [
+            -346.4,
+            200,
+            40
+          ],
+          [
+            -400,
+            0,
+            42
+          ],
+          [
+            -346.4,
+            -200,
+            44
+          ],
+          [
+            -200,
+            -346.4,
+            46
+          ],
+          [
+            0,
+            -400,
+            48
+          ],
+          [
+            200,
+            -346.4,
+            50
+          ],
+          [
+            346.4,
+            -200,
+            52
+          ]
+        ]
+      }
+    ],
+    "setups": [
+      {
+        "data": {
+          "camber": {
+            "f": -3.2,
+            "r": -2.1
+          },
+          "rebound": {
+            "f": 8,
+            "r": 6
+          },
+          "tp_cold": {
+            "fl": 26,
+            "fr": 26,
+            "rl": 24,
+            "rr": 24
+          }
+        },
+        "day": 1
+      },
+      {
+        "data": {
+          "camber": {
+            "f": -3.5,
+            "r": -2.1
+          },
+          "rebound": {
+            "f": 10,
+            "r": 6
+          },
+          "tp_cold": {
+            "fl": 25,
+            "fr": 25,
+            "rl": 24,
+            "rr": 24
+          }
+        },
+        "day": 2
+      }
+    ],
+    "start_date": "2026-04-10",
+    "temp_f": 62,
+    "track_hours": null,
+    "track_id": 1,
+    "track_name": "Virginia International Raceway (Full)",
+    "updated_at": 0,
+    "vehicle_id": null
+  }
+}

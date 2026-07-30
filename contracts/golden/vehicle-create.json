@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "path": "/vehicles",
+  "status": 201,
+  "body": {
+    "id": 1,
+    "is_default": 0,
+    "name": "BRZ",
+    "notes": null
+  }
+}

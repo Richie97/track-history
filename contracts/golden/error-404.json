@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/events/:id",
+  "status": 404,
+  "body": {
+    "error": "not found"
+  }
+}

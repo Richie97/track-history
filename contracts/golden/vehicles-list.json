@@ -1,0 +1,19 @@
+{
+  "method": "GET",
+  "path": "/vehicles",
+  "status": 200,
+  "body": [
+    {
+      "id": 1,
+      "is_default": 1,
+      "name": "Corvette C7",
+      "notes": "Track car."
+    },
+    {
+      "id": 1,
+      "is_default": 0,
+      "name": "Miata",
+      "notes": null
+    }
+  ]
+}

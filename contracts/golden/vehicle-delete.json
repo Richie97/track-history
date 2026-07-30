@@ -1,0 +1,8 @@
+{
+  "method": "DELETE",
+  "path": "/vehicles/:id",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

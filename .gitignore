@@ -20,3 +20,14 @@ seed/seed.sql
 
 # Local design system reference (not part of the app)
 Track History design system/
+
+# Scratch D1 the contract harness builds and tears down each run
+# (contracts/golden/ itself IS committed — it's the pinned API contract)
+contracts/.persist/
+
+# Native client build output. The Gradle wrapper itself IS committed, so CI
+# needs no local Gradle install.
+apps/android/.gradle/
+apps/android/build/
+apps/android/*/build/
+apps/android/local.properties

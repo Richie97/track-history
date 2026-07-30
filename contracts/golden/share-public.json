@@ -1,0 +1,122 @@
+{
+  "method": "GET",
+  "path": "/share/:slug",
+  "status": 200,
+  "body": {
+    "events": [
+      {
+        "best_ms": null,
+        "best_time_ms": null,
+        "car": null,
+        "club": null,
+        "conditions": null,
+        "consistency": null,
+        "days": 1,
+        "hours": 2,
+        "id": 1,
+        "lap_best_ms": null,
+        "lap_count": 0,
+        "run_group": null,
+        "session_count": 0,
+        "start_date": "2026-06-01",
+        "temp_f": null,
+        "track_id": 1,
+        "track_name": "Summit Point",
+        "updated_at": 0
+      },
+      {
+        "best_ms": 77400,
+        "best_time_ms": null,
+        "car": null,
+        "club": null,
+        "conditions": null,
+        "consistency": 0.004239612392579993,
+        "days": 1,
+        "hours": 3.5,
+        "id": 1,
+        "lap_best_ms": 77400,
+        "lap_count": 3,
+        "run_group": null,
+        "session_count": 1,
+        "start_date": "2026-05-01",
+        "temp_f": null,
+        "track_id": 1,
+        "track_name": "Virginia International Raceway (Patriot)",
+        "updated_at": 0
+      },
+      {
+        "best_ms": 121500,
+        "best_time_ms": 121500,
+        "car": "Corvette C7",
+        "club": "Chin Track Days",
+        "conditions": "dry",
+        "consistency": 0.01738467127508466,
+        "days": 2,
+        "hours": 4,
+        "id": 1,
+        "lap_best_ms": 121500,
+        "lap_count": 7,
+        "run_group": "Advanced",
+        "session_count": 3,
+        "start_date": "2026-04-10",
+        "temp_f": 62,
+        "track_id": 1,
+        "track_name": "Virginia International Raceway (Full)",
+        "updated_at": 0
+      }
+    ],
+    "name": "Dev User",
+    "totals": {
+      "events": 3,
+      "track_days": 4
+    },
+    "tracks": [
+      {
+        "best_ms": null,
+        "catalog_id": null,
+        "event_count": 1,
+        "goal_ms": null,
+        "id": 1,
+        "last_date": "2026-06-01",
+        "name": "Summit Point",
+        "series": [],
+        "track_days": 1,
+        "updated_at": 0
+      },
+      {
+        "best_ms": 121500,
+        "catalog_id": 1,
+        "event_count": 1,
+        "goal_ms": null,
+        "id": 1,
+        "last_date": "2026-04-10",
+        "name": "Virginia International Raceway (Full)",
+        "series": [
+          {
+            "best_ms": 121500,
+            "date": "2026-04-10"
+          }
+        ],
+        "track_days": 2,
+        "updated_at": 0
+      },
+      {
+        "best_ms": 77400,
+        "catalog_id": null,
+        "event_count": 1,
+        "goal_ms": null,
+        "id": 1,
+        "last_date": "2026-05-01",
+        "name": "Virginia International Raceway (Patriot)",
+        "series": [
+          {
+            "best_ms": 77400,
+            "date": "2026-05-01"
+          }
+        ],
+        "track_days": 1,
+        "updated_at": 0
+      }
+    ]
+  }
+}

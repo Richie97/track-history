@@ -1,0 +1,8 @@
+{
+  "method": "POST",
+  "path": "/sessions/:id/laps",
+  "status": 201,
+  "body": {
+    "ok": true
+  }
+}

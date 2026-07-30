@@ -1,0 +1,59 @@
+{
+  "method": "GET",
+  "path": "/tracks/:id/setups",
+  "status": 200,
+  "body": [
+    {
+      "best_ms": 121500,
+      "car": "Corvette C7",
+      "conditions": "dry",
+      "consistency": 0.01738467127508466,
+      "data": {
+        "camber": {
+          "f": -3.2,
+          "r": -2.1
+        },
+        "rebound": {
+          "f": 8,
+          "r": 6
+        },
+        "tp_cold": {
+          "fl": 26,
+          "fr": 26,
+          "rl": 24,
+          "rr": 24
+        }
+      },
+      "day": 1,
+      "event_id": 1,
+      "start_date": "2026-04-10",
+      "temp_f": 62
+    },
+    {
+      "best_ms": 121500,
+      "car": "Corvette C7",
+      "conditions": "dry",
+      "consistency": 0.01738467127508466,
+      "data": {
+        "camber": {
+          "f": -3.5,
+          "r": -2.1
+        },
+        "rebound": {
+          "f": 10,
+          "r": 6
+        },
+        "tp_cold": {
+          "fl": 25,
+          "fr": 25,
+          "rl": 24,
+          "rr": 24
+        }
+      },
+      "day": 2,
+      "event_id": 1,
+      "start_date": "2026-04-10",
+      "temp_f": 62
+    }
+  ]
+}
