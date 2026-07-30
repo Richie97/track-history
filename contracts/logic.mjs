@@ -24,6 +24,14 @@ import {
   gateCrossings,
   projectTrace,
 } from "../public/js/import/geo.js";
+import {
+  addFix,
+  createRecording,
+  serializeRecording,
+  shouldAutoStop,
+  toParsed,
+  trimIdle,
+} from "../public/js/record/core.js";
 import { LAP_S, circleTrace } from "../test/fixtures/build.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -68,8 +76,101 @@ function pick(p) {
   return { t: p.t, x: p.x, y: p.y };
 }
 
+// ---------------------------------------------------------------------------
+// Recorder core: a synthetic track day, checkpointed exactly as the live
+// recorder checkpoints one (public/js/record/core.js). `checkpoint` below is the
+// literal string the web app stores under localStorage["recording.pending"], so
+// the native ports prove they can read a recording written by another client —
+// and then agree on every derived value.
+
+const REC_LAT0 = 36.56;
+const REC_LON0 = -79.2;
+const REC_KX = 111320 * Math.cos((REC_LAT0 * Math.PI) / 180);
+const REC_KY = 110540;
+
+// Mirrors the helper in test/unit/record.test.js: idle in the paddock, 5 laps of
+// a 200 m circle at 25 m/s (~50.3 s/lap) at 1 Hz, then idle again.
+function syntheticRecording({
+  idleBeforeS = 120,
+  laps = 5,
+  idleAfterS = 120,
+  speed = 25,
+  startedAtMs = 1750000000000,
+} = {}) {
+  const rec = createRecording("ev1", startedAtMs);
+  const r = 200;
+  const lapS = (2 * Math.PI * r) / speed;
+  const driveS = Math.round(laps * lapS);
+  let t = 0;
+  const push = (lat, lon, v) =>
+    addFix(rec, { timeMs: startedAtMs + t++ * 1000, lat, lon, speed: v, accuracy: 5 });
+  for (let i = 0; i < idleBeforeS; i++) push(REC_LAT0, REC_LON0 - 500 / REC_KX, 0);
+  for (let i = 0; i <= driveS; i++) {
+    const a = (i * speed) / r;
+    push(REC_LAT0 + (r * Math.sin(a)) / REC_KY, REC_LON0 + (r * Math.cos(a)) / REC_KX, speed);
+  }
+  for (let i = 0; i < idleAfterS; i++) push(REC_LAT0, REC_LON0 - 500 / REC_KX, 0);
+  return { rec, lapS, driveS, idleBeforeS };
+}
+
+const { rec, lapS: recLapS, driveS, idleBeforeS } = syntheticRecording();
+const trimmed = trimIdle(rec.fixes);
+const parsed = toParsed(rec);
+const drivingEndMs = rec.startedAtMs + (idleBeforeS + driveS) * 1000;
+// The same line-pick flow the review panel runs: pick a point mid-drive.
+const recTrace = projectTrace(parsed.gps);
+const recPickedIndex = Math.floor(recTrace.length / 2);
+const recGate = buildGate(recTrace, recPickedIndex);
+
+const recorderFixture = {
+  description:
+    "A synthetic track day recorded and checkpointed by public/js/record/core.js. " +
+    "`checkpoint` is the literal localStorage[\"recording.pending\"] string, so the " +
+    "native ports (NS-11 iOS, NS-12 Android) must deserialize it and reproduce every " +
+    "expected value below. Deliberately excludes toParsed's date/time, which are " +
+    "local-time formatting and so depend on the generating machine's zone. " +
+    "Regenerate with `npm run contracts:logic`.",
+  source: "public/js/record/core.js",
+  input: {
+    checkpoint: serializeRecording(rec),
+    lapS: recLapS,
+    driveS,
+    idleBeforeS,
+    pickedIndex: recPickedIndex,
+    // Wall-clock instants the auto-stop expectations below are evaluated at.
+    nowMs: {
+      fiveMinutesAfterDriving: drivingEndMs + 5 * 60 * 1000,
+      sixteenMinutesAfterDriving: drivingEndMs + 16 * 60 * 1000,
+    },
+  },
+  expected: {
+    fixCount: rec.fixes.length,
+    firstFix: rec.fixes[0],
+    lastFix: rec.fixes[rec.fixes.length - 1],
+    trimmedCount: trimmed.length,
+    trimmedFirstT: trimmed[0][0],
+    trimmedLastT: trimmed[trimmed.length - 1][0],
+    autoStopAtFiveMinutes: shouldAutoStop(rec, drivingEndMs + 5 * 60 * 1000),
+    autoStopAtSixteenMinutes: shouldAutoStop(rec, drivingEndMs + 16 * 60 * 1000),
+    parsed: {
+      kind: parsed.kind,
+      needsLine: parsed.needsLine,
+      durationS: parsed.durationS,
+      gpsCount: parsed.gps.length,
+      firstGps: parsed.gps[0],
+      lastGps: parsed.gps[parsed.gps.length - 1],
+    },
+    // Laps the recording yields once the user picks a start/finish line.
+    laps: deriveLaps(recTrace, recGate),
+  },
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 console.log(
   `wrote contracts/logic/geo-laps.json (${points.length} points, ${fixture.expected.laps.length} laps)`
+);
+console.log(
+  `wrote contracts/logic/recorder.json (${rec.fixes.length} fixes, ${recorderFixture.expected.laps.length} laps)`
 );

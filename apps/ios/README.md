@@ -73,13 +73,26 @@ writes columns whose keys are *present* in the body: `.unchanged` omits the key,
 
 Anything ported from `public/js/` keeps the original's function and constant
 names, so the two can be diffed by eye, and it brings that file's test cases with
-it. `Geo` ↔ `public/js/import/geo.js` is the current example.
+it. So far: `Geo` ↔ `public/js/import/geo.js`, and `Recording`/`RecorderCore` ↔
+`public/js/record/core.js` (`SCREAMING_SNAKE` constants included — unusual for
+Swift, deliberate here).
 
-Agreement is enforced, not assumed: `contracts/logic/geo-laps.json` is generated
-by running the **web** implementation (`npm run contracts:logic`), and `GeoTests`
-asserts this port reproduces it — lap times identical to the millisecond,
-geometry to within 1e-9. Breaking the crossing-time interpolation, say, fails
-that test immediately.
+Agreement is enforced, not assumed. `npm run contracts:logic` runs the **web**
+implementation and commits what it produced, and the Swift tests assert this port
+reproduces it:
+
+- `contracts/logic/geo-laps.json` — lap times identical to the millisecond,
+  geometry to within 1e-9. Breaking the crossing-time interpolation fails it.
+- `contracts/logic/recorder.json` — the literal
+  `localStorage["recording.pending"]` string a web recording checkpoints to.
+  Swift deserializes it and must agree on the trim window, both auto-stop
+  decisions, the parsed duration, and the laps a line pick yields.
+
+`JSMath` exists for the same reason: the JS rounds with `Math.round(v * f) / f`,
+which is half-up **toward +infinity**, while Swift's `rounded()` is
+half-away-from-zero. That rounding is part of the checkpoint format, and
+latitude, longitude and speed all cross zero. `apps/android/core`'s `JsMath` is
+its twin — keep the two in step.
 
 ## The project file is generated *and* committed
 
