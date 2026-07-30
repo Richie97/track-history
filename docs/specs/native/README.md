@@ -103,3 +103,30 @@ review, compare view, and **all telemetry file import**.
 - Every ported pure function ports its JS test cases with it, same inputs, same
   expectations.
 - Per `AGENTS.md`, documentation changes ship in the same change as the code.
+
+## Tracking: every spec has a GitHub issue
+
+Each `NS-*` spec has an issue whose title matches its heading, under the epic
+[#63](https://github.com/Richie97/track-history/issues/63). Find one with:
+
+```sh
+gh issue list --search "NS-13" --state all
+```
+
+**A PR that lands a spec closes its issue, and that is part of finishing the
+work** — not a follow-up. Put the keyword in the PR body so merging does it:
+
+```
+Closes #76
+```
+
+The discipline is in the other half. A PR that implements a spec **partially**
+uses `Refs #78` instead, leaves the issue open, and comments on it saying exactly
+what is outstanding. Never close an issue whose acceptance criteria aren't all
+met — the checklist in each spec is the definition of done, and a ticket closed
+early is worse than no ticket, because the gap stops being visible. If a criterion
+turns out to be wrong, change the spec deliberately and say so; don't quietly
+drop it.
+
+One PR may close several issues (Phase 0 specs are small and land together);
+list one `Closes` line per issue.
