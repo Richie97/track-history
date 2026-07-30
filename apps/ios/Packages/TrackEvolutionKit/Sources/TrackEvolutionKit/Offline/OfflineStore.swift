@@ -73,6 +73,20 @@ public actor OfflineStore {
             dbQueue = try DatabaseQueue()
         }
         try Self.migrator.migrate(dbQueue)
+        // **Load-bearing.** `status.pending` is in-memory, and everything that moves
+        // the queue is gated on it: `flushQueue` returns early at zero, the sync
+        // banner says nothing, and a fresh queueable write is sent *directly* instead
+        // of queueing behind the ones already waiting.
+        //
+        // Without this line all three are wrong on every launch, because the queue
+        // outlives the process and the count didn't. The symptom is the worst one this
+        // layer has: writes made in the paddock sit in SQLite forever, the app stops
+        // mentioning them, and they arrive at the server — if ever — out of order.
+        //
+        // Written to the property directly rather than through `refreshPending()`: an
+        // actor's `init` is nonisolated, so it can assign stored state but not call
+        // isolated methods.
+        status.pending = try dbQueue.read { try QueuedWrite.fetchCount($0) }
     }
 
     private static var migrator: DatabaseMigrator {

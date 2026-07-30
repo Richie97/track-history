@@ -18,7 +18,7 @@ struct OfflineStoreTests {
     }
 
     /// An event as the server would return it in a list.
-    private func event(id: Int, trackId: Int = 1, date: String, days: Int = 1) throws -> Event {
+    private func event(id: Int, trackId: Int = 1, date: String, days: Double = 1) throws -> Event {
         var detail = EventDetail(
             event: Event(
                 id: id, trackId: trackId, trackName: "Summit Point", startDate: date, days: days,
@@ -404,6 +404,44 @@ struct OfflineStoreTests {
         #expect(try await store.cachedKeys().isEmpty)
         #expect(try await store.queuedWrites().isEmpty)
         #expect(try await store.pendingCount() == 0)
+    }
+
+    /// A queue outlives the process it was made in, so the pending count has to be
+    /// read back from the database — not just tracked in memory.
+    ///
+    /// The bug this catches is the worst one this layer can have. Everything that
+    /// moves the queue is gated on `pendingCount()`: `flushQueue` returns early at
+    /// zero, the sync banner goes quiet, and a fresh queueable write is sent
+    /// *directly* rather than queueing behind what's already waiting. With the count
+    /// starting at zero on every launch, writes made in the paddock sit in SQLite
+    /// forever, the app stops mentioning them, and they reach the server — if ever —
+    /// out of order.
+    @Test
+    func aQueueSurvivesTheProcessThatMadeIt() async throws {
+        let url = URL.temporaryDirectory.appending(path: "offline-restart-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        do {
+            let first = try OfflineStore(url: url)
+            try await first.cachePut("/events", body: try encode([try event(id: 7, date: "2026-05-01")]))
+            _ = try await first.enqueue(
+                method: "PUT", path: "/events/7", body: try json(["club": "Chin Track Days"])
+            )
+            #expect(try await first.pendingCount() == 1)
+        }
+
+        // A second store on the same file is what the next app launch sees.
+        let reopened = try OfflineStore(url: url)
+        #expect(try await reopened.pendingCount() == 1, "the queue is still there; the count has to be too")
+        #expect(try await reopened.queuedWrites().count == 1)
+
+        let recorder = Recorder()
+        let status = try await reopened.flush { method, path, _ in
+            recorder.record(method: method, path: path)
+            return (status: 200, body: Data(#"{"ok":true}"#.utf8))
+        }
+        #expect(recorder.calls == ["PUT /events/7"], "and a flush after a restart has to send it")
+        #expect(status.pending == 0)
     }
 
     /// Records what the flush sent, in order.

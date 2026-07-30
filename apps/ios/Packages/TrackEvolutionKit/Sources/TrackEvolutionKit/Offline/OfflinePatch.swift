@@ -21,7 +21,7 @@ extension OfflineStore {
         var track_id: Int?
         var track_name: String?
         var start_date: String?
-        var days: Int?
+        var days: Double?
         var club: String?
         var run_group: String?
         var car: String?

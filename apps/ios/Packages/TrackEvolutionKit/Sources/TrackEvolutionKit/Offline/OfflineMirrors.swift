@@ -70,7 +70,7 @@ public enum OfflineMirrors {
         if let override = detail.event.trackHours, override > 0 {
             hours = override
         } else {
-            hours = max(Double(detail.event.days) * 2, lapHours)
+            hours = max(detail.event.days * 2, lapHours)
         }
         detail.event.hours = JSMath.round(hours, 10)
     }
