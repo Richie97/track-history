@@ -1,9 +1,19 @@
 name: CI
 
+# Web and backend. Deliberately `paths-ignore` rather than `paths`: a new
+# top-level directory then still runs this by default, where an allowlist would
+# silently skip it. Native-only changes are covered by ios.yml / android.yml, and
+# note contracts/** is NOT ignored — a golden change must run the API tests too.
 on:
   push:
     branches: [main]
+    paths-ignore: ["apps/**", "docs/**", "**/*.md"]
   pull_request:
+    paths-ignore: ["apps/**", "docs/**", "**/*.md"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

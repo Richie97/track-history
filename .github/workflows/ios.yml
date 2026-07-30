@@ -1,0 +1,59 @@
+# iOS client CI (spec: docs/specs/native/NS-10-native-ci.md).
+#
+# macOS runners bill at a heavy multiplier, so this is kept off web/backend PRs by
+# the path filter and superseded runs are cancelled. It triggers on contracts/**
+# too: a golden change has to be proven against the Swift decoders in the same PR
+# that makes it.
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/ios/**", "contracts/**", ".github/workflows/ios.yml"]
+  pull_request:
+    paths: ["apps/ios/**", "contracts/**", ".github/workflows/ios.yml"]
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Kit builds for macOS as well as iOS precisely so its tests need no
+      # simulator: `swift test` runs the whole suite in seconds, where
+      # `xcodebuild test` would boot one first for the same result.
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: apps/ios/Packages/TrackEvolutionKit/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('apps/ios/Packages/TrackEvolutionKit/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Kit tests (no simulator)
+        working-directory: apps/ios/Packages/TrackEvolutionKit
+        run: swift test
+
+      # The CarPlay entitlement is Apple-granted and deliberately absent from the
+      # checkout: the app must build and ship inert without it (NS-19). If this
+      # ever fails, someone committed the entitlement and device signing will break
+      # for everyone who lacks the grant.
+      - name: The CarPlay entitlement stays out
+        run: |
+          if grep -q "carplay-driving-task" apps/ios/App/TrackEvolution.entitlements; then
+            echo "::error::com.apple.developer.carplay-driving-task is checked in — see NS-19"
+            exit 1
+          fi
+
+      # Unsigned simulator build: no signing secret is a prerequisite for green.
+      - name: Build the app
+        working-directory: apps/ios
+        run: |
+          xcodebuild build \
+            -project TrackEvolution.xcodeproj \
+            -scheme TrackEvolution \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
