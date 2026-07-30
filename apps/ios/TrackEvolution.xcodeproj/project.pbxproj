@@ -9,28 +9,36 @@
 /* Begin PBXBuildFile section */
 		098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */; };
 		1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC08E6DAFEE98F1569066E49 /* TokenGallery.swift */; };
+		212E41370DD7175B47DE9DDB /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF71BFD1447FEAD3D7528461 /* LocationService.swift */; };
 		34446D1A60916C974D7DCF59 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB943307051525CEC527B23 /* Typography.swift */; };
 		4672EECB0EB121F69CCDC6DF /* ThemePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77AAF51B0B3269B08721385C /* ThemePreference.swift */; };
+		48E955F21551B6D82C3AB62C /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 380D4BFFDADBA70827336888 /* RecordingController.swift */; };
 		4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A61B2645926992E00FFAD3 /* Shape.swift */; };
 		5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6588990892F4B703C72631 /* RootView.swift */; };
 		5F8BC0ED3060AC991BAB71F8 /* TrackEvolutionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5F2EDF1C9FC56FC64FA6AD /* TrackEvolutionKit */; };
+		66E2ABF81E3E3688EBA81EA6 /* RecordingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84545EEFA513CC785A84F2E /* RecordingScreen.swift */; };
 		D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */; };
+		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
 		F903D5D339EABBC96E51A877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D10939598E67F796CA22FCE3 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		00C463A61C87EA12BC0DD175 /* TrackEvolutionKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TrackEvolutionKit; path = Packages/TrackEvolutionKit; sourceTree = SOURCE_ROOT; };
 		1D6588990892F4B703C72631 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		380D4BFFDADBA70827336888 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
 		4F2186F17C307D76064E1F95 /* TrackEvolution.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrackEvolution.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		53A61B2645926992E00FFAD3 /* Shape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shape.swift; sourceTree = "<group>"; };
+		6531D681E22CE7E088412777 /* FixJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixJournal.swift; sourceTree = "<group>"; };
 		77AAF51B0B3269B08721385C /* ThemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreference.swift; sourceTree = "<group>"; };
 		7FAD7F0F8459AFBE55AE39CB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTokens.generated.swift; sourceTree = "<group>"; };
 		A9CE6FCEF23CA4222C13FF34 /* TrackEvolution.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrackEvolution.entitlements; sourceTree = "<group>"; };
+		B84545EEFA513CC785A84F2E /* RecordingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingScreen.swift; sourceTree = "<group>"; };
 		BC08E6DAFEE98F1569066E49 /* TokenGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenGallery.swift; sourceTree = "<group>"; };
 		BEB943307051525CEC527B23 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		D10939598E67F796CA22FCE3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackEvolutionApp.swift; sourceTree = "<group>"; };
+		DF71BFD1447FEAD3D7528461 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +53,17 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		05F08C89A2F106188B1AC56B /* Recording */ = {
+			isa = PBXGroup;
+			children = (
+				6531D681E22CE7E088412777 /* FixJournal.swift */,
+				DF71BFD1447FEAD3D7528461 /* LocationService.swift */,
+				380D4BFFDADBA70827336888 /* RecordingController.swift */,
+				B84545EEFA513CC785A84F2E /* RecordingScreen.swift */,
+			);
+			path = Recording;
+			sourceTree = "<group>";
+		};
 		216647CDD6A5F969D30A744B = {
 			isa = PBXGroup;
 			children = (
@@ -58,6 +77,7 @@
 			isa = PBXGroup;
 			children = (
 				FD4C440116BA269B836CB734 /* DesignSystem */,
+				05F08C89A2F106188B1AC56B /* Recording */,
 				D10939598E67F796CA22FCE3 /* Assets.xcassets */,
 				7FAD7F0F8459AFBE55AE39CB /* Info.plist */,
 				1D6588990892F4B703C72631 /* RootView.swift */,
@@ -172,6 +192,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */,
+				D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */,
+				212E41370DD7175B47DE9DDB /* LocationService.swift in Sources */,
+				48E955F21551B6D82C3AB62C /* RecordingController.swift in Sources */,
+				66E2ABF81E3E3688EBA81EA6 /* RecordingScreen.swift in Sources */,
 				5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */,
 				4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */,
 				4672EECB0EB121F69CCDC6DF /* ThemePreference.swift in Sources */,

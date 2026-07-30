@@ -48,6 +48,14 @@
 	<string>Your location is recorded during a track session to time your laps from GPS.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Your location is recorded during a track session — including with the screen locked — to time your laps from GPS.</string>
+	<!-- Precise Location off puts fixes hundreds of metres out, which no amount
+	     of gate math rescues — so the recorder can ask for it for one session.
+	     The key is LocationService.temporaryAccuracyPurposeKey. -->
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>recordLaps</key>
+		<string>Lap timing needs precise location — without it, GPS can't tell which side of the start/finish line you're on.</string>
+	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

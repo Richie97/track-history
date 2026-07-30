@@ -118,6 +118,45 @@ Updates use `Patch<Value>` rather than plain optionals, because the server only
 writes columns whose keys are *present* in the body: `.unchanged` omits the key,
 `.set(nil)` sends an explicit null and clears the column.
 
+## The recorder
+
+`App/Recording/` is the reason for the rewrite. Three pieces:
+
+- `LocationService` — `CLLocationManager` configured for a track day. The settings
+  are the point: `pausesLocationUpdatesAutomatically = false` above all, because
+  left on, iOS pauses updates when it decides you've stopped, which happens in pit
+  lane and silently ends a recording. Deliberately *not* iOS 17's
+  `CLLocationUpdate.liveUpdates()`, which doesn't expose those knobs.
+  `CLLocation` becomes a `RawFix` value before crossing to the main actor, so
+  nothing non-`Sendable` does — and the fix's **own** timestamp is used, or a
+  batched delivery would collapse to one instant and be rejected as
+  non-monotonic.
+- `FixJournal` — every accepted fix appended to disk as it arrives, one JSON line
+  each, so a force-quit costs nothing. (The web app checkpoints the whole
+  recording every ~10 s, driven by fix arrival because `setInterval` throttles
+  with the screen off.) **NS-15 asks for SQLite via GRDB shared with NS-21's
+  store; this is an append-only journal instead** — no dependency, and a better
+  fit for a write-per-fix path whose only query is "read it all back". Swap the
+  implementation behind this type if NS-21 wants one database.
+- `RecordingController` — the app-global lifecycle, owned by the scene so
+  navigating away can't end a recording. Evaluates `shouldAutoStop` per fix,
+  recovers an unsaved recording at launch, and can adopt an event-less recording
+  into an event after the fact (`attach(eventId:)`), which is what CarPlay needs.
+
+Driving it from the simulator without tapping:
+
+```sh
+xcrun simctl privacy <device> grant location-always app.trackevolution
+xcrun simctl location <device> start --speed=25 --interval=0.5 <lat,lon> <lat,lon> …
+xcrun simctl launch <device> app.trackevolution -recorder -autoRecord
+# the journal, readable from the host:
+open "$(xcrun simctl get_app_container <device> app.trackevolution data)/Library/Application Support/Recorder"
+```
+
+Still outstanding from NS-15: the Live Activity / Dynamic Island (the spec
+sequences it after the core recorder), the 60-minute screen-locked device run, and
+the 90-minute battery measurement — none of which the simulator can answer.
+
 ## Ported logic keeps its JS name — and its JS output
 
 Anything ported from `public/js/` keeps the original's function and constant

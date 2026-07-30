@@ -14,6 +14,8 @@ struct RootView: View {
         //   xcrun simctl launch <device> app.trackevolution -tokenGallery
         if ProcessInfo.processInfo.arguments.contains("-tokenGallery") {
             TokenGallery()
+        } else if ProcessInfo.processInfo.arguments.contains("-recorder") {
+            NavigationStack { RecordingScreen(eventId: nil) }
         } else {
             placeholder
         }
@@ -35,6 +37,13 @@ struct RootView: View {
                     Text(TrackEvolutionKit.defaultBaseURL.host() ?? "")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
+
+                    NavigationLink("Record laps") {
+                        RecordingScreen(eventId: nil)
+                    }
+                    .teStyle(.bodyStrong)
+                    .foregroundStyle(Color(.accentInk))
+                    .padding(.top, 8)
 
                     #if DEBUG
                     NavigationLink("Design tokens") {
@@ -63,4 +72,5 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(ThemeStore())
+        .environment(RecordingController())
 }
