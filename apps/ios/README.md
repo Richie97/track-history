@@ -182,6 +182,21 @@ until NS-25), and the tap-through sign-in on a device.
   navigating away can't end a recording. Evaluates `shouldAutoStop` per fix,
   recovers an unsaved recording at launch, and can adopt an event-less recording
   into an event after the fact (`attach(eventId:)`), which is what CarPlay needs.
+- `RecordingBanner` — a recording is visible from every screen, because navigating
+  away deliberately doesn't stop it.
+- `LinePickerView` + `ReviewScreen` — stopping leads to review, never straight to a
+  save: a GPS recording has no lap markers, so the user taps the trace to place the
+  start/finish line and the lap list recomputes on every tap. The fitting and
+  hit-testing maths live in the Kit (`TraceMap`) where they're unit-tested; the
+  view only draws. **`channels` is sent as nil** — per-lap speed channels would
+  need `js/import/channels.js` ported, and a half-formed shape is rejected by
+  `sanitizeChannels` with a 400. `trace` *is* sent: the best lap's polyline from
+  `Geo.bestLapTrace`.
+
+Nothing is destroyed on the way through. A stopped recording stays checkpointed
+until it is saved or explicitly discarded (with a confirmation), and a **failed
+save keeps it** — the whole point is a phone in a paddock. Real offline queueing
+arrives with NS-21.
 
 Driving it from the simulator without tapping:
 
@@ -192,6 +207,28 @@ xcrun simctl launch <device> app.trackevolution -recorder -autoRecord
 # the journal, readable from the host:
 open "$(xcrun simctl get_app_container <device> app.trackevolution data)/Library/Application Support/Recorder"
 ```
+
+Or the whole thing end to end — record, pick a line, save — as a UI test
+(`RecordAndSaveUITests`, ~100 s because the recording has to exceed a minute of
+driving before `toParsed` will time it):
+
+```sh
+npm run dev
+xcrun simctl location <device> start --speed=25 --interval=0.5 <a closed loop…>
+xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:TrackEvolutionUITests/RecordAndSaveUITests
+```
+
+It attaches a screenshot of the review screen on success, not just on failure: the
+trace and gate are drawn in a `Canvas`, so a broken render wouldn't fail any
+assertion. Export it with
+`xcrun xcresulttool export attachments --path <result>.xcresult --output-path <dir>`.
+
+The `-resetAuth` and `-resetRecording` launch arguments (DEBUG only) exist for
+these tests: the Keychain token and an unsaved recording both survive a reinstall
+by design, which would otherwise make a recording test pass by starting in the
+state it was meant to reach.
 
 Still outstanding from NS-15: the Live Activity / Dynamic Island (the spec
 sequences it after the core recorder), the 60-minute screen-locked device run, and
@@ -236,9 +273,12 @@ brew install xcodegen   # once
 apps/ios/generate.sh
 ```
 
-Adding a Swift file under `App/` or `Sources/` needs no regeneration — sources
-are picked up by directory. Adding a *directory*, target, build setting, or
-capability does.
+**A new Swift file under `App/` needs a regenerate too.** XcodeGen resolves the
+file list when it runs, so until `generate.sh` picks a new file up it's invisible
+to the app target — the symptom is `cannot find 'X' in scope` for a type that
+plainly exists. Files under `Packages/` are the exception: SwiftPM globs its own
+sources at build time, so the Kit needs nothing. Adding a target, build setting or
+capability always means editing `project.yml` and regenerating.
 
 ## Load-bearing details
 

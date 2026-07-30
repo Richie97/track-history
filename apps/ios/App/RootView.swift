@@ -7,6 +7,7 @@ import TrackEvolutionKit
 struct RootView: View {
     @Environment(ThemeStore.self) private var theme
     @Environment(AuthController.self) private var auth
+    @Environment(RecordingController.self) private var recorder
 
     var body: some View {
         #if DEBUG
@@ -37,6 +38,13 @@ struct RootView: View {
             SignInScreen()
         case .signedIn(let me):
             signedIn(me)
+                // A recording must be visible from wherever you are in the app,
+                // since navigating away deliberately doesn't stop it.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if recorder.isRecording {
+                        RecordingBanner()
+                    }
+                }
         }
     }
 
@@ -54,6 +62,8 @@ struct RootView: View {
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
 
+                    // Event-less on purpose: an event can be created after the
+                    // session was driven, and the recording is adopted then.
                     NavigationLink("Record laps") {
                         RecordingScreen(eventId: nil)
                     }

@@ -43,6 +43,9 @@ final class RecordingController {
     var error: RecorderError?
     /// A recording found on disk at launch that was never saved.
     private(set) var recovered: Recording?
+    /// When the last fix arrived, so the UI can say the stream has stalled.
+    /// Silence during a session is the worst outcome — it has to be visible.
+    private(set) var lastFixAt: Date?
 
     let location: LocationService
     private let journal: FixJournal
@@ -67,6 +70,19 @@ final class RecordingController {
     var elapsedS: Double { recording.map { $0.elapsedS(nowMs: now()) } ?? 0 }
     /// The best speed we can show: the newest fix's, when it reported one.
     var lastSpeedMps: Double? { recording?.fixes.last?.v }
+    /// Reported horizontal accuracy of the newest fix, in metres.
+    var lastAccuracyM: Double? { recording?.fixes.last?.acc }
+    /// Accuracy bad enough that lap timing will suffer, though fixes above
+    /// MAX_ACC_M are dropped outright by `addFix`.
+    var isAccuracyPoor: Bool { (lastAccuracyM ?? 0) > 25 }
+
+    /// No fix for a while: a stalled stream, not just a slow one. Recording at
+    /// track pace delivers ~1 Hz or better, so ten seconds of nothing is wrong.
+    var isStalled: Bool {
+        guard phase == .recording else { return false }
+        guard let lastFixAt else { return true }
+        return Date().timeIntervalSince(lastFixAt) > 10
+    }
 
     // MARK: - Lifecycle
 
@@ -102,6 +118,7 @@ final class RecordingController {
             Self.log.error("could not open the fix journal: \(error.localizedDescription, privacy: .public)")
         }
         recording = fresh
+        lastFixAt = nil
         phase = .recording
         location.start()
         Self.log.notice("recording started for event \(eventId ?? -1, privacy: .public)")
@@ -155,6 +172,15 @@ final class RecordingController {
 
     /// Look for a recording the app died on. Called once at launch.
     func recoverIfNeeded() {
+        #if DEBUG
+        // Test hook, the counterpart to -resetAuth: an unsaved recording survives
+        // on disk by design, which makes a UI test that records non-idempotent.
+        //   xcrun simctl launch <device> app.trackevolution -resetRecording
+        if ProcessInfo.processInfo.arguments.contains("-resetRecording") {
+            journal.clear()
+            return
+        }
+        #endif
         guard phase == .idle, recording == nil else { return }
         guard let found = journal.recover() else { return }
         recovered = found
@@ -169,6 +195,7 @@ final class RecordingController {
         guard phase == .recording, var current = recording else { return }
         guard current.addFix(fix), let stored = current.fixes.last else { return }
         recording = current
+        lastFixAt = Date()
         journal.append(stored)
 
         if let failure = location.failure {
