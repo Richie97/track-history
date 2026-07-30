@@ -14,6 +14,17 @@ struct RecordingScreen: View {
     /// The event a saved session will hang off, when it's already known.
     let eventId: Int?
 
+    /// Where "done with this recording" leads once it has been discarded.
+    ///
+    /// Popping back to *this* screen would be wrong: you discarded the recording
+    /// because you didn't want it, and landing on a Start button invites recording
+    /// the same nothing again. The caller decides — the navigation stack pops to the
+    /// dashboard, the banner's sheet closes. nil just dismisses.
+    var onFinish: (() -> Void)?
+
+    /// The `-autoRecord` hook must fire once per launch, not once per appearance.
+    @MainActor private static var didAutoRecord = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TESpacing.gridGap) {
@@ -44,7 +55,15 @@ struct RecordingScreen: View {
             // Test hook: lets a simulated drive be recorded without a tap.
             //   xcrun simctl location <device> start --speed=30 <waypoints…>
             //   xcrun simctl launch <device> app.trackevolution -recorder -autoRecord
-            if ProcessInfo.processInfo.arguments.contains("-autoRecord"), recorder.recording == nil {
+            //
+            // Guarded to once per launch. `.task` runs on every appearance, so without
+            // the flag, discarding a recording and landing back here started another
+            // one instantly — the screen became impossible to leave, and it looked like
+            // discard was restarting the recorder rather than the hook re-firing.
+            if ProcessInfo.processInfo.arguments.contains("-autoRecord"),
+               !Self.didAutoRecord,
+               recorder.recording == nil {
+                Self.didAutoRecord = true
                 try? recorder.start(eventId: eventId)
             }
             #endif
@@ -145,7 +164,7 @@ struct RecordingScreen: View {
                 }
                 // The recording stays checkpointed on disk until it is saved or
                 // explicitly discarded, so leaving this screen costs nothing.
-                NavigationLink("Review & save") { ReviewScreen() }
+                NavigationLink("Review & save") { ReviewScreen(onFinish: onFinish) }
                     .buttonStyle(TEButtonStyle(kind: .accent))
             }
         }

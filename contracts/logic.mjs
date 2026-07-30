@@ -42,6 +42,7 @@ import {
   toParsed,
   trimIdle,
 } from "../public/js/record/core.js";
+import { pickRecordingEvent } from "../public/js/record/remote.js";
 import { LAP_S, circleTrace } from "../test/fixtures/build.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -280,11 +281,95 @@ const garageFixture = {
   })),
 };
 
+// Which event a CarPlay-started recording attaches to (NS-19). The rule is
+// deliberately conservative and the two clients must agree on it exactly: the phone
+// and the head unit deciding differently would put one drive in two logbook entries.
+//
+// `localTodayIso` is deliberately absent. It reads the generating machine's local
+// calendar date, so a fixture built from it would encode whoever ran the generator
+// rather than the behaviour — it is covered by unit tests on each side instead.
+const attachEvents = {
+  // [id, start_date, days?]
+  threeSingleDays: [
+    ["a", "2026-07-25", 1],
+    ["b", "2026-07-21", 1],
+    ["c", "2026-07-01", 1],
+  ],
+  weekend: [["a", "2026-07-19", 3]],
+  gapAroundToday: [
+    ["a", "2026-07-20", 1],
+    ["b", "2026-07-22", 1],
+  ],
+  overlapping: [
+    ["long", "2026-07-18", 7],
+    ["today", "2026-07-21", 1],
+  ],
+  // The event form steps by 0.5, so half days reach this rule.
+  halfDay: [["h", "2026-07-19", 1.5]],
+  twoAndAHalf: [["t", "2026-07-19", 2.5]],
+  zeroDays: [["z", "2026-07-21", 0]],
+  negativeDays: [["n", "2026-07-21", -3]],
+  missingDays: [["x", "2026-07-21"]],
+  monthEnd: [["m", "2026-07-31", 2]],
+  yearEnd: [["y", "2026-12-31", 2]],
+  // US spring forward 2026 is Sunday 8 March; fall back is Sunday 1 November.
+  springForward: [["s", "2026-03-07", 2]],
+  fallBack: [["f", "2026-10-31", 2]],
+  empty: [],
+};
+
+const toEvent = ([id, start_date, days]) =>
+  days === undefined ? { id, start_date } : { id, start_date, days };
+
+const attachCases = [
+  ["threeSingleDays", "2026-07-21"],
+  ["weekend", "2026-07-19"],
+  ["weekend", "2026-07-21"],
+  ["weekend", "2026-07-22"],
+  ["gapAroundToday", "2026-07-21"],
+  ["overlapping", "2026-07-21"],
+  ["halfDay", "2026-07-19"],
+  ["halfDay", "2026-07-20"],
+  ["twoAndAHalf", "2026-07-20"],
+  ["twoAndAHalf", "2026-07-21"],
+  ["zeroDays", "2026-07-21"],
+  ["zeroDays", "2026-07-22"],
+  ["negativeDays", "2026-07-21"],
+  ["missingDays", "2026-07-21"],
+  ["missingDays", "2026-07-22"],
+  ["monthEnd", "2026-08-01"],
+  ["yearEnd", "2027-01-01"],
+  ["springForward", "2026-03-08"],
+  ["springForward", "2026-03-09"],
+  ["fallBack", "2026-11-01"],
+  ["fallBack", "2026-11-02"],
+  ["empty", "2026-07-21"],
+].map(([set, todayIso]) => {
+  const events = attachEvents[set].map(toEvent);
+  return {
+    events: set,
+    todayIso,
+    // What the web implementation actually picks. Null means "record unattached".
+    expectedId: pickRecordingEvent(events, todayIso)?.id ?? null,
+  };
+});
+
+const remoteFixture = {
+  note:
+    "Reference output of pickRecordingEvent in public/js/record/remote.js. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  events: Object.fromEntries(
+    Object.entries(attachEvents).map(([name, rows]) => [name, rows.map(toEvent)])
+  ),
+  cases: attachCases,
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
 console.log(
   `wrote contracts/logic/geo-laps.json (${points.length} points, ${fixture.expected.laps.length} laps)`
 );
@@ -293,3 +378,4 @@ console.log(
 );
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
+console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);

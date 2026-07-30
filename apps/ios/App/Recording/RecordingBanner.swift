@@ -46,7 +46,12 @@ struct RecordingBanner: View {
         .buttonStyle(.plain)
         .sheet(isPresented: $showingRecorder) {
             NavigationStack {
-                RecordingScreen(eventId: recorder.recording?.eventIdValue)
+                // Discarding closes the sheet outright — the equivalent of the stack's
+                // pop to root, from a presentation that has no root to pop to.
+                RecordingScreen(
+                    eventId: recorder.recording?.eventIdValue,
+                    onFinish: { showingRecorder = false }
+                )
             }
         }
     }

@@ -40,6 +40,30 @@ extension XCTestCase {
         return ok
     }
 
+    /// Bring an element into view, and say whether it got there.
+    ///
+    /// Two things this has to get right, each learned the hard way:
+    ///
+    /// - **Scroll the scroller, not the app.** `app.swipeUp()` swipes the application
+    ///   element and reliably moves nothing on these screens; the gesture has to land
+    ///   on the scroll container. A SwiftUI `List` is a collection view, a `ScrollView`
+    ///   a scroll view.
+    /// - **Wait for `isHittable`, not `exists`.** A `List` builds rows lazily, so an
+    ///   off-screen row may not exist yet — but once it does exist it can still be
+    ///   off-screen, and `tap()` on it fails. Hittable is the property that matters.
+    @discardableResult
+    func scrollTo(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 12) -> Bool {
+        let scroller =
+            app.collectionViews.firstMatch.exists
+            ? app.collectionViews.firstMatch
+            : (app.scrollViews.firstMatch.exists ? app.scrollViews.firstMatch : app)
+        for _ in 0..<swipes {
+            if element.exists && element.isHittable { return true }
+            scroller.swipeUp(velocity: .fast)
+        }
+        return element.exists && element.isHittable
+    }
+
     /// Launch, tap through the browser flow, and return the app on the dashboard.
     func launchSignedIn() throws -> XCUIApplication {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")

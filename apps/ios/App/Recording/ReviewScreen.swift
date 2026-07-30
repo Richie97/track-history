@@ -10,6 +10,9 @@ import TrackEvolutionKit
 /// stays checkpointed on disk until it is saved or explicitly discarded, including
 /// if the save fails.
 struct ReviewScreen: View {
+    /// Where to go once the recording is discarded — see `RecordingScreen.onFinish`.
+    var onFinish: (() -> Void)?
+
     @Environment(RecordingController.self) private var recorder
     @Environment(AuthController.self) private var auth
     @Environment(\.dismiss) private var dismiss
@@ -41,7 +44,8 @@ struct ReviewScreen: View {
         ) {
             Button("Discard", role: .destructive) {
                 recorder.discard()
-                dismiss()
+                // Out of the recorder entirely, not back one step onto a Start button.
+                if let onFinish { onFinish() } else { dismiss() }
             }
             Button("Keep", role: .cancel) {}
         } message: {

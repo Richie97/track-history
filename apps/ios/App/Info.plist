@@ -37,6 +37,36 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- CarPlay driving-task scene (NS-19). Only the CarPlay role is declared: a
+	     SwiftUI-lifecycle app supplies its own window scene, and naming one here
+	     would replace it. (The Capacitor app had to declare a phone scene by hand
+	     for exactly the opposite reason — it was on the app-delegate lifecycle, and
+	     the manifest's presence moved it onto scenes.)
+
+	     iOS attaches this scene only to a build signed with
+	     com.apple.developer.carplay-driving-task, which Apple has granted and which
+	     is now in TrackEvolution.entitlements. Drop the key and this manifest stays
+	     harmless — the scene simply never attaches, and no test notices, which is
+	     why CI checks the key is present. See the README's CarPlay section. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>CPTemplateApplicationScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>CarPlay</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).CarPlaySceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<!-- The app only uses standard HTTPS (exempt encryption), so App Store
 	     Connect skips the export-compliance prompt on every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>

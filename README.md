@@ -263,36 +263,33 @@ app through the app-local `CarPlayBridgePlugin.swift`
 (`Capacitor.Plugins.CarPlayBridge`), wired to `platform.recorderRemote` /
 `platform.onRecorderState` in `overrides/native.js`.
 
-CarPlay apps require an Apple-granted entitlement, so the feature is **dormant
-until you**:
+CarPlay apps require an Apple-granted entitlement.
+**`com.apple.developer.carplay-driving-task` has been granted** and is checked in
+— `mobile/ios/App/App/*.entitlements` for the Capacitor app, and
+`apps/ios/App/TrackEvolution.entitlements` for the native one.
 
-1. Request the **CarPlay driving task app** entitlement at
-   <https://developer.apple.com/contact/carplay/> (describe the recorder; it
-   fits the driving-task category's start/stop-an-activity pattern).
-2. Once granted, create/refresh provisioning profiles that include it, and add
-   to `App.entitlements`:
-   `<key>com.apple.developer.carplay-driving-task</key><true/>`
-3. When a CarPlay-enabled build ships, document the feature for users in
-   `site/docs/lap-recording.html` (it's deliberately absent there until then —
-   the docs site must not advertise features the shipped app doesn't have).
+Two consequences worth knowing:
 
-Don't add the key before Apple grants the entitlement — signing (including
-Xcode Cloud builds) fails for entitlements your profiles don't carry, which is
-also why it isn't checked in. Per the note in `AppDebug.entitlements`, keep it
-out of the Debug configuration if you develop on a free personal team.
-Everything else — the scene manifest in `Info.plist`, the bridge plugin, the
-JS wiring — is inert without it and harmless to ship.
+- **Removing the key doesn't break anything visibly.** The build still succeeds,
+  the phone app is unaffected, and the CarPlay scene simply never attaches — so
+  the feature disappears with nothing failing. CI asserts the key is present, and
+  lints every entitlements file, for exactly that reason.
+- **A device build that fails complaining about this key means a stale
+  provisioning profile**, not a wrong key: refresh it (Xcode → Settings →
+  Accounts → Download Manual Profiles). Signing fails for entitlements a profile
+  doesn't carry, so a profile created before the grant won't do.
 
-**Testing CarPlay in the iOS Simulator (works before Apple's grant):**
-simulator builds skip provisioning checks, so temporarily add the
-`com.apple.developer.carplay-driving-task` key to `AppDebug.entitlements`
-(don't commit it, and revert before building Debug to a device — there it
-fails signing until granted), run on an iPhone simulator, then open
+Still outstanding: documenting the feature for users in
+`site/docs/lap-recording.html`. It is deliberately absent there until a
+CarPlay-enabled build actually ships — the docs site must not advertise
+features the shipped app doesn't have.
+
+**Testing CarPlay in the iOS Simulator:** run on an iPhone simulator, then open
 **I/O → External Displays → CarPlay** in the Simulator app. Tap the app icon
 on the CarPlay home screen; use **Features → Location → Freeway Drive** for
 GPS fixes fast enough to arm the recorder. Real head units (and Apple's
 CarPlay Simulator from Additional Tools for Xcode, which runs a signed device
-build) need the granted entitlement.
+build) need the granted entitlement and a matching profile.
 
 Note the CarPlay scene manifest moved the iOS app onto the UIKit scene
 lifecycle: the iPhone window is now a scene (`PhoneSceneDelegate.swift`, which

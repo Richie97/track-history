@@ -5,12 +5,16 @@ import SwiftUI
 /// scene-manifest surgery the Capacitor shell needed.
 @main
 struct TrackEvolutionApp: App {
+    // Seeded from `AppServices` rather than constructed here, so the CarPlay scene —
+    // built by UIKit, outside this view tree — drives the very same objects instead of
+    // a copy kept in step. See `AppServices`.
+
     /// The theme override (system/light/dark), persisted. Owned here because the
     /// root scene applies it and Settings writes it.
-    @State private var theme = ThemeStore()
+    @State private var theme = AppServices.theme
     /// One recorder for the whole app: navigating away must not end a recording.
-    @State private var recorder = RecordingController()
-    @State private var auth = AuthController()
+    @State private var recorder = AppServices.recorder
+    @State private var auth = AppServices.auth
 
     var body: some Scene {
         WindowGroup {

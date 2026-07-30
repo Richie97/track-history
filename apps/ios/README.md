@@ -373,6 +373,97 @@ until it is saved or explicitly discarded (with a confirmation), and a **failed
 save keeps it** — the whole point is a phone in a paddock. Saving now goes through
 NS-21's write queue, so a save with no signal is queued rather than merely retryable.
 
+## CarPlay
+
+`App/CarPlay/` is NS-19: start and stop a recording from the head unit, talking
+**directly** to the recorder — no bridge, no serialization, no JS.
+
+That directness is the whole point of the rewrite here. The Capacitor app reached
+CarPlay through five workarounds — a scene delegate, a `CarPlayBridgePlugin` marshalling
+commands into JS, `public/js/record/remote.js`, a `PhoneSceneDelegate` that existed
+*only* because declaring a CarPlay scene moved the app onto the scene lifecycle and
+broke URL handling, and a rule that every in-app browser must be a popover. A
+SwiftUI app is scene-based from birth, so none of them have a counterpart. NS-27
+deletes them.
+
+Three pieces:
+
+- **`AppServices`** — the app's long-lived objects as shared references. A
+  `CPTemplateApplicationScene` is built by UIKit, outside the SwiftUI view tree, so it
+  has no `@Environment` to read; this is how the car screen drives *the same*
+  recorder the phone does rather than a copy kept in step. `TrackEvolutionApp` seeds
+  its `@State` from here.
+- **`RemoteRecorder`** — start/stop for a caller with no screen. The event list fetch
+  is **best effort only**: signed out, offline, or no event today must all still
+  record, because the GPS trace is the irreplaceable part and an unattached recording
+  is adopted later by the first event whose record screen it's opened from. The only
+  refusal is `gps`, which reads as "No GPS signal" on the head unit rather than a
+  silent no-op.
+- **`CarPlaySceneDelegate`** — one `CPInformationTemplate`, one Start/Stop button.
+  Deliberately that small: this is a driving-task app and Apple's review bar for
+  driver distraction is unforgiving. It re-renders on a 1-second timer rather than via
+  `withObservationTracking`, because the elapsed readout needs a tick anyway — so
+  polling gives state mirroring (start on the phone, the head unit shows Stop) for
+  free instead of two mechanisms each doing half the job.
+
+**The event-attachment rule is the only real judgment in it**, and it lives in the Kit
+as `RemoteRecording` — ported from `remote.js`, keeping its names. It attaches to an
+event whose day range covers today and **never guesses further**, because the costs are
+asymmetric: an unattached recording is offered on the dashboard and adopted at review
+time, while a misattached one silently corrupts a logbook entry. Overlaps tie-break to
+the most recently started event. Day arithmetic is date-only in UTC so a DST transition
+can't skip or repeat a calendar day.
+
+It is pinned twice: unit tests ported from `test/unit/record-remote.test.js` (with the
+DST cases), and `contracts/logic/remote-attach.json` — 22 cases of the **web**
+implementation's actual output, so a change to `remote.js` fails the Swift suite rather
+than letting the phone and the head unit disagree about which event a drive belongs to.
+
+One deliberate divergence: `remote.js` sets `location.hash` on start, to land the phone
+UI where the recording is reachable. Natively that's unnecessary — `RecordingBanner` is
+a `safeAreaInset` on every screen — and moving someone's screen while they drive is
+worse than not doing it.
+
+**Fractional days truncate.** A 1.5-day event covers only its start date, because the
+JS passes `days - 1` to `Date.UTC`, which floors it. That is mirrored rather than
+improved on, since the two clients must agree; fixing it means changing `remote.js`
+first. See `fractionalDaysTruncateJustAsTheyDoOnTheWeb`.
+
+### Testing it in the Simulator
+
+```sh
+# the CarPlay display; the app must be signed with the granted entitlement
+xcrun simctl io <device> enumerate | grep -A3 CarPlay     # confirm the screen exists
+xcrun simctl io <device> screenshot --display CarPlay shot.png
+```
+
+Enable the display with Simulator → **I/O → External Displays → CarPlay**, then tap the
+app icon on the CarPlay home screen — the template only appears once the app is opened
+*there*, so a screenshot before that shows the CarPlay springboard, not a bug. Use
+**Features → Location → Freeway Drive** (or `xcrun simctl location … start`) for fixes
+fast enough to arm the recorder.
+
+## A chart may not eat the page's scroll
+
+`ProgressChart` reads out a point on **tap**, not on drag, and that is not a style
+choice.
+
+Every chart in the app sits inside a vertical scroller — the track page's `ScrollView`,
+the event page's `List`. A `DragGesture` on the plot takes the touch that would have
+started a scroll, so the page refuses to move whenever a finger lands on the chart. On
+the event page the chart is a band across the middle of the screen, so the whole page
+reads as frozen. Nothing fails: every button works, every other test passes.
+
+`simultaneousGesture` with a dominant-axis guard, and
+`LongPressGesture.sequenced(before:)`, were both tried and neither handed the touch back
+to the scroller; removing the gesture entirely restored scrolling instantly, which is
+what identified it. A tap doesn't compete with a scroll at all.
+
+The cost is scrubbing along the line, which was nice and is not worth a page you can't
+scroll. `GestureUITests` pins both halves — that the page scrolls when the swipe starts
+on the chart, and that the edge-swipe back gesture still works over the chart and over
+the lap list.
+
 ## The offline queue outlives the process
 
 `OfflineStore.status.pending` is in-memory, and everything that moves the queue is
@@ -489,10 +580,14 @@ capability always means editing `project.yml` and regenerating.
 - **Deployment target iOS 17.0**, **Swift 6 language mode with complete
   concurrency checking**. The recorder is concurrent by nature; this is enforced
   from the scaffold up rather than retrofitted.
-- **The CarPlay entitlement is deliberately absent.**
-  `com.apple.developer.carplay-driving-task` is Apple-granted and signing fails
-  without the grant, so everything compiles and ships inert without it — NS-19
-  adds it. Same policy as the Capacitor app (see the root README).
+- **The CarPlay entitlement is present and load-bearing.**
+  Apple has granted `com.apple.developer.carplay-driving-task`, so NS-19 checks it
+  into `App/TrackEvolution.entitlements`. Removing it doesn't break the build — the
+  scene just never attaches and CarPlay silently disappears, which no test catches
+  because the phone app is unaffected. CI asserts the key is present, and lints the
+  entitlements files, for that reason.
+  If a device build fails complaining about this key, the provisioning profile
+  predates the grant: Xcode → Settings → Accounts → Download Manual Profiles.
 - **`Info.plist` location strings are App Review-approved copy** carried over
   verbatim from `mobile/ios/App/App/Info.plist`. Reword them only with a reason.
 - The old Capacitor project stays in `mobile/` until NS-27. Read it for plist

@@ -2,10 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- CarPlay driving task (NS-19): start and stop a lap recording from the
+	     head unit. Apple-granted — the capability must be enabled on the
+	     app.trackevolution App ID or signing fails for every device build, so a
+	     signing failure mentioning this key means the profile needs regenerating
+	     (Xcode → Settings → Accounts → Download Manual Profiles), not that the key
+	     is wrong. -->
+	<key>com.apple.developer.carplay-driving-task</key>
+	<true/>
 	<!-- Universal Links for /share/* — the association file is served by
 	     src/routes/wellKnown.ts. Deliberately absent:
-	     com.apple.developer.carplay-driving-task (Apple-granted; signing fails
-	     without the grant, so NS-19 adds it) and
 	     com.apple.developer.applesignin (added with Sign in with Apple, NS-08). -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>

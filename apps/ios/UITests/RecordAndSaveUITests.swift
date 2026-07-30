@@ -3,7 +3,9 @@ import XCTest
 /// The recorder end to end: record a drive, pick the start/finish line, save the
 /// session. Everything between the fix stream and a row in the logbook.
 ///
-/// Needs a dev server *and* a simulated drive, so it skips unless both are set up:
+/// Needs a dev server *and* a simulated drive. It skips without the server; with the
+/// server but no drive it *fails*, because nothing probes for movement — see the loop
+/// sizing below before suspecting the lap maths.
 ///
 ///     npm run dev
 ///     xcrun simctl location <device> start --speed=25 --interval=0.5 <waypoints…>
@@ -13,6 +15,22 @@ import XCTest
 ///
 /// The recording has to run for over a minute of *driving*, because `toParsed`
 /// refuses anything shorter — so this test is slow by nature, not by accident.
+///
+/// ## The loop has to be the right size
+///
+/// Not any closed circuit will do, and getting this wrong looks exactly like a broken
+/// lap-timing bug. Two constraints pull against each other:
+///
+/// - `lapsFromCrossings` discards anything under **`minLapS = 30`** (`geo.js`), so a
+///   small loop produces laps that are all correctly thrown away — you tap the line and
+///   get "No laps cross the picked line".
+/// - The recording only drives for ~78 s, and one lap needs **two** crossings, so a
+///   large loop never completes two.
+///
+/// That leaves roughly a 30–35 s lap. At `--speed=25` that's an 800 m circuit — a
+/// circle of radius ~128 m (0.00115° of latitude), which is what this was verified
+/// with. A 90 m circle gives 22 s laps and finds nothing; a 167 m one gives 42 s laps
+/// and only completes 1.9 of them.
 final class RecordAndSaveUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -28,7 +46,7 @@ final class RecordAndSaveUITests: XCTestCase {
         event.tap()
 
         let entry = app.buttons["recordEntry"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 15), "the event page carries the recorder entry point")
+        XCTAssertTrue(scrollTo(entry, in: app), "the event page carries the recorder entry point")
         entry.tap()
 
         let start = app.buttons["Start recording"]
@@ -92,4 +110,53 @@ final class RecordAndSaveUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Review & save"].exists)
     }
 
+    /// Discarding leaves the recorder entirely.
+    ///
+    /// It used to pop one step, back onto a Start button — you discarded the recording
+    /// because you didn't want it, and the app immediately offered to record the same
+    /// nothing again. Fast, because it needs no *timeable* recording: a few seconds of
+    /// fixes is enough to reach review, where the discard button lives whether or not
+    /// the trace yielded any laps.
+    func testDiscardingARecordingReturnsToTheDashboard() throws {
+        let app = try launchSignedIn()
+
+        let event = app.buttons["recentEventCard"].firstMatch
+        XCTAssertTrue(event.waitForExistence(timeout: 20))
+        event.tap()
+        XCTAssertTrue(
+            app.staticTexts["Best time"].waitForExistence(timeout: 20),
+            "should have navigated to the event page"
+        )
+
+        let entry = app.buttons["recordEntry"]
+        XCTAssertTrue(scrollTo(entry, in: app), "the recorder entry point is on the event page")
+        entry.tap()
+
+        let start = app.buttons["Start recording"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        start.tap()
+
+        let stop = app.buttons["Stop recording"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 10), "the button should flip to Stop")
+        // A few seconds of fixes is enough to reach review — no timeable lap needed.
+        let recorded = expectation(description: "a few fixes")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { recorded.fulfill() }
+        wait(for: [recorded], timeout: 20)
+        stop.tap()
+
+        let review = app.buttons["Review & save"]
+        XCTAssertTrue(review.waitForExistence(timeout: 10))
+        review.tap()
+
+        let discard = app.buttons["Discard recording"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 10))
+        discard.tap()
+        app.buttons["Discard"].tap()  // the confirmation
+
+        XCTAssertTrue(
+            app.buttons["+ Add event"].waitForExistence(timeout: 15),
+            "discarding should land on the dashboard, not back on the recorder"
+        )
+        XCTAssertFalse(app.buttons["Start recording"].exists, "and not on a Start button")
+    }
 }

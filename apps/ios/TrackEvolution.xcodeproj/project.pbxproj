@@ -14,7 +14,9 @@
 		0C6C6E94CEE1F31E72BB6A12 /* TrackScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C37B0DDB941D4C18A32BA87 /* TrackScreen.swift */; };
 		1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC08E6DAFEE98F1569066E49 /* TokenGallery.swift */; };
 		212E41370DD7175B47DE9DDB /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF71BFD1447FEAD3D7528461 /* LocationService.swift */; };
+		2AE133FCAF4C715B3E33AFC8 /* RemoteRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069CAEC52E0E9C81C22DC8C8 /* RemoteRecorder.swift */; };
 		2B296B48C5EA86083A5DE11F /* TrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */; };
+		2D35025A70FD15F566175D84 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC94F085162A76DECDFA4087 /* AppServices.swift */; };
 		34446D1A60916C974D7DCF59 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB943307051525CEC527B23 /* Typography.swift */; };
 		397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */; };
 		43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE19F08670203224D23A5F6F /* GarageViews.swift */; };
@@ -29,6 +31,7 @@
 		51CF45A0E84DE89AA15DB4D7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF43C9F27E545AD049BEA61F /* Router.swift */; };
 		5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6588990892F4B703C72631 /* RootView.swift */; };
 		5F8BC0ED3060AC991BAB71F8 /* TrackEvolutionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5F2EDF1C9FC56FC64FA6AD /* TrackEvolutionKit */; };
+		66499C8CFD338E62777C4FFE /* GestureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */; };
 		66E2ABF81E3E3688EBA81EA6 /* RecordingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84545EEFA513CC785A84F2E /* RecordingScreen.swift */; };
 		68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D136E4DE2F395728D4F10F3 /* EventScreen.swift */; };
 		7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684F8FFC9870756AC968E1E6 /* SignInScreen.swift */; };
@@ -43,6 +46,7 @@
 		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
 		D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D029EFD956A7AC879046769 /* SettingsScreen.swift */; };
 		DAE2D0644FF52D0956D4E4B9 /* ChannelGraphsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2133654268DDDB033D753977 /* ChannelGraphsUITests.swift */; };
+		DB78BAE155E508C9C20736D1 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */; };
 		DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150A5FDFCC1A9C0324EA2622 /* AuthController.swift */; };
 		E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */; };
 		E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11E4CD1582ACC54710F446D /* LapChannelChart.swift */; };
@@ -64,6 +68,7 @@
 /* Begin PBXFileReference section */
 		00C463A61C87EA12BC0DD175 /* TrackEvolutionKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TrackEvolutionKit; path = Packages/TrackEvolutionKit; sourceTree = SOURCE_ROOT; };
 		04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBanner.swift; sourceTree = "<group>"; };
+		069CAEC52E0E9C81C22DC8C8 /* RemoteRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRecorder.swift; sourceTree = "<group>"; };
 		12317D03A02B7DF755F9A335 /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScreen.swift; sourceTree = "<group>"; };
 		150A5FDFCC1A9C0324EA2622 /* AuthController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthController.swift; sourceTree = "<group>"; };
 		1D6588990892F4B703C72631 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -71,9 +76,11 @@
 		30D7E5BFFAD255C5A8CDC979 /* EventModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventModel.swift; sourceTree = "<group>"; };
 		380D4BFFDADBA70827336888 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
 		41D9EC7D2504A9022D639B5C /* ProgressChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressChart.swift; sourceTree = "<group>"; };
+		47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureUITests.swift; sourceTree = "<group>"; };
 		490360DEB9D237C16354DD63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		4F2186F17C307D76064E1F95 /* TrackEvolution.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrackEvolution.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		53A61B2645926992E00FFAD3 /* Shape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shape.swift; sourceTree = "<group>"; };
+		56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
 		5D136E4DE2F395728D4F10F3 /* EventScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventScreen.swift; sourceTree = "<group>"; };
 		6531D681E22CE7E088412777 /* FixJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixJournal.swift; sourceTree = "<group>"; };
 		66389188B710C7781911F41D /* CoreScreensUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreScreensUITests.swift; sourceTree = "<group>"; };
@@ -91,6 +98,7 @@
 		93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageUITests.swift; sourceTree = "<group>"; };
 		A32AEB077B38B164C34ECD9E /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		A9CE6FCEF23CA4222C13FF34 /* TrackEvolution.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrackEvolution.entitlements; sourceTree = "<group>"; };
+		AC94F085162A76DECDFA4087 /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLogbookScreen.swift; sourceTree = "<group>"; };
 		AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordAndSaveUITests.swift; sourceTree = "<group>"; };
 		B4630A11194CA0906744BD96 /* TrackEvolutionUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrackEvolutionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -186,6 +194,7 @@
 			isa = PBXGroup;
 			children = (
 				05785085DD8CB7FE9F551097 /* Auth */,
+				EB34187C37F208C141376079 /* CarPlay */,
 				E0D236F11D520CECDCCB8AF4 /* Charts */,
 				FD4C440116BA269B836CB734 /* DesignSystem */,
 				ACA50735DEE1C5D3D51426EA /* Navigation */,
@@ -216,6 +225,7 @@
 				66389188B710C7781911F41D /* CoreScreensUITests.swift */,
 				CA9909D90A12012D6F62C72B /* DevServerSignIn.swift */,
 				93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */,
+				47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */,
 				6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */,
 				AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */,
 				82118910A4D7C285ABC04083 /* SignInUITests.swift */,
@@ -248,6 +258,16 @@
 				B4630A11194CA0906744BD96 /* TrackEvolutionUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		EB34187C37F208C141376079 /* CarPlay */ = {
+			isa = PBXGroup;
+			children = (
+				AC94F085162A76DECDFA4087 /* AppServices.swift */,
+				56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */,
+				069CAEC52E0E9C81C22DC8C8 /* RemoteRecorder.swift */,
+			);
+			path = CarPlay;
 			sourceTree = "<group>";
 		};
 		FD4C440116BA269B836CB734 /* DesignSystem */ = {
@@ -365,6 +385,7 @@
 				44C9344E2201B4126ABEF4D7 /* CoreScreensUITests.swift in Sources */,
 				F87B8589AAC23215D4995227 /* DevServerSignIn.swift in Sources */,
 				05E3AA3580CA0FCFBB1886CD /* GarageUITests.swift in Sources */,
+				66499C8CFD338E62777C4FFE /* GestureUITests.swift in Sources */,
 				B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */,
 				397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */,
 				B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */,
@@ -375,7 +396,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2D35025A70FD15F566175D84 /* AppServices.swift in Sources */,
 				DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */,
+				DB78BAE155E508C9C20736D1 /* CarPlaySceneDelegate.swift in Sources */,
 				098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */,
 				8942CFCB809A0BD25305A821 /* Components.swift in Sources */,
 				AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */,
@@ -393,6 +416,7 @@
 				06FA7C499CE4618F1B680CD6 /* RecordingBanner.swift in Sources */,
 				48E955F21551B6D82C3AB62C /* RecordingController.swift in Sources */,
 				66E2ABF81E3E3688EBA81EA6 /* RecordingScreen.swift in Sources */,
+				2AE133FCAF4C715B3E33AFC8 /* RemoteRecorder.swift in Sources */,
 				FE1DBD9FE6647218B6AEB845 /* ReviewScreen.swift in Sources */,
 				5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */,
 				51CF45A0E84DE89AA15DB4D7 /* Router.swift in Sources */,

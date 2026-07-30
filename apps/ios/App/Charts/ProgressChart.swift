@@ -229,6 +229,17 @@ private struct ChartChrome: ViewModifier {
 
 /// Drag to read a value off the line, with a detent per point — this is where
 /// native earns its keep over the web chart. Sparklines get none of it.
+///
+/// **Simultaneous, and horizontal-only**, both deliberately. Every chart here sits
+/// inside a vertical scroller — the track page's `ScrollView`, the event page's
+/// `List` — and an exclusive `DragGesture(minimumDistance: 0)` swallows *all* drags
+/// over the plot, including vertical ones. The page then simply refuses to scroll
+/// while your finger is on the chart, which reads as the app being broken rather
+/// than as a gesture conflict.
+///
+/// `simultaneousGesture` lets the scroller keep receiving the drag, and the
+/// dominant-axis check means a vertical scroll doesn't also drag the read-out
+/// tooltip around behind it.
 private struct ReadOutGesture: ViewModifier {
     let style: ProgressChart.Style
     let points: [ProgressChart.Point]
@@ -241,23 +252,44 @@ private struct ReadOutGesture: ViewModifier {
             content.chartOverlay { proxy in
                 GeometryReader { geometry in
                     Rectangle().fill(.clear).contentShape(.rect)
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { drag in
-                                    guard let plotFrame = proxy.plotFrame else { return }
-                                    let x = drag.location.x - geometry[plotFrame].origin.x
-                                    guard let position: Double = proxy.value(atX: x),
-                                          let hit = points.min(by: {
-                                              abs($0.x - position) < abs($1.x - position)
-                                          })
-                                    else { return }
-                                    if hit.id != selected?.id { Haptics.select() }
-                                    selected = hit
-                                }
-                                .onEnded { _ in selected = nil }
-                        )
+                        .onTapGesture { location in
+                            select(at: location, proxy: proxy, geometry: geometry)
+                        }
                 }
             }
+        }
+    }
+
+    /// Tap a point to read its value. Tap it again to dismiss.
+    ///
+    /// **A drag gesture cannot live here**, which took a while to establish. Every chart
+    /// sits inside a vertical scroller — the track page's `ScrollView`, the event page's
+    /// `List` — and any `DragGesture` on the plot takes the touch that would have
+    /// started a scroll. The page then simply refuses to move while your finger is on
+    /// the chart, and since the chart is a band across the middle of the event page,
+    /// that reads as an app that won't scroll.
+    ///
+    /// `simultaneousGesture` with a dominant-axis guard, and
+    /// `LongPressGesture.sequenced(before:)`, were both tried; neither handed the touch
+    /// back to the scroller. Removing the gesture entirely restored scrolling
+    /// immediately, which is what identified it.
+    ///
+    /// A tap doesn't compete with a scroll at all, so this keeps the feature and the
+    /// page. The cost is scrubbing — dragging along the line — which was pleasant and
+    /// is not worth a page you can't scroll.
+    private func select(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else { return }
+        let x = location.x - geometry[plotFrame].origin.x
+        guard let position: Double = proxy.value(atX: x),
+              let hit = points.min(by: { abs($0.x - position) < abs($1.x - position) })
+        else { return }
+        // Tapping the selected point clears it, so the tooltip is dismissible without
+        // hunting for empty space.
+        if hit.id == selected?.id {
+            selected = nil
+        } else {
+            selected = hit
+            Haptics.select()
         }
     }
 }
