@@ -11,8 +11,15 @@ let package = Package(
     products: [
         .library(name: "TrackEvolutionKit", targets: ["TrackEvolutionKit"])
     ],
+    dependencies: [
+        // The offline cache and write queue (NS-21). SQL rather than SwiftData
+        // because the queue needs explicit ordering, temp-id rewriting, and a
+        // queued write plus its optimistic cache patch committing in one
+        // transaction — an object graph fights all three.
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
+    ],
     targets: [
-        .target(name: "TrackEvolutionKit"),
+        .target(name: "TrackEvolutionKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
         .testTarget(name: "TrackEvolutionKitTests", dependencies: ["TrackEvolutionKit"])
     ]
 )
