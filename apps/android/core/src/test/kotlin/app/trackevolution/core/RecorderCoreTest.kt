@@ -230,6 +230,28 @@ class RecorderCoreTest {
         }
 
         @Test
+        fun `laps derive from the parsed output via the line-picker path`() {
+            // The end-to-end case from test/unit/record.test.js: exactly the flow
+            // js/import/ui.js runs after the user picks a start/finish line on a
+            // live recording. This is what makes a native recording become laps,
+            // and it could not be ported until GeoTrace landed (NS-14).
+            val s = syntheticRecording()
+            val parsed = present(RecorderCore.toParsed(s.rec))
+            val trace = GeoTrace.projectTrace(parsed.gps)
+            // pick a point mid-drive, away from the trim margins
+            val gate = present(GeoTrace.buildGate(trace, trace.size / 2))
+            val laps = GeoTrace.deriveLaps(trace, gate)
+
+            assertTrue(laps.size >= 3) { "expected at least 3 laps, got ${laps.size}" }
+            for (lap in laps) {
+                val seconds = lap.timeMs / 1000.0
+                assertTrue(seconds > s.lapS - 2) { "lap ${seconds}s too short vs ${s.lapS}s" }
+                assertTrue(seconds < s.lapS + 2) { "lap ${seconds}s too long vs ${s.lapS}s" }
+                assertTrue(lap.estimated) { "GPS-derived laps must stay flagged estimated" }
+            }
+        }
+
+        @Test
         fun `returns null for recordings too short to time`() {
             val rec = RecorderCore.createRecording("e", 0.0)
             for (t in 0 until 20) {
