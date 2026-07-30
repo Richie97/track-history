@@ -4,9 +4,10 @@ import TrackEvolutionKit
 
 /// Start and stop a recording, and watch it run.
 ///
-/// This is the NS-15 face of the recorder — enough to drive and verify the
-/// location service. The full flow (line picker, lap review, saving to a session)
-/// is NS-17 and lands on top of this.
+/// Stopping leads to `ReviewScreen`, never straight to a save: a GPS recording has
+/// no lap markers, so the user has to pick the start/finish line first. Nothing
+/// here is required for the recording to continue — the recorder is owned above
+/// the view tree and keeps going with this screen closed and the phone locked.
 struct RecordingScreen: View {
     @Environment(RecordingController.self) private var recorder
 
@@ -34,6 +35,10 @@ struct RecordingScreen: View {
         .background(Color(.bgPage))
         .navigationTitle("Record laps")
         .task {
+            // `bindRecorder` in the web app does the same: a recording started
+            // before its event existed — from CarPlay, say — is adopted by the
+            // first event whose record screen it's opened from.
+            if let eventId { recorder.attach(eventId: eventId) }
             recorder.prepare()
             #if DEBUG
             // Test hook: lets a simulated drive be recorded without a tap.
@@ -80,14 +85,37 @@ struct RecordingScreen: View {
                 HStack(spacing: 24) {
                     stat("Fixes", value: "\(recorder.fixCount)")
                     stat("Speed", value: Self.speed(recorder.lastSpeedMps))
+                    stat("Accuracy", value: Self.accuracy(recorder.lastAccuracyM))
                 }
 
                 if recorder.isRecording {
-                    Button("Stop recording") { recorder.stop() }
-                        .buttonStyle(TEButtonStyle(kind: .danger))
+                    // Silence is the failure that costs a session, so it gets said
+                    // out loud rather than being left to an absent number.
+                    TimelineView(.periodic(from: .now, by: 2)) { _ in
+                        if recorder.isStalled {
+                            warning("No GPS fixes are arriving. Recording is still running — check the phone has a view of the sky.")
+                        } else if recorder.isAccuracyPoor {
+                            warning("GPS accuracy is poor right now, so lap times will be rough.")
+                        }
+                    }
+                }
+
+                if recorder.isRecording {
+                    Button("Stop recording") {
+                        recorder.stop()
+                        Haptics.confirm()
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .danger))
                 } else {
-                    Button("Start recording") { try? recorder.start(eventId: eventId) }
-                        .buttonStyle(TEButtonStyle(kind: .accent))
+                    Button("Start recording") {
+                        do {
+                            try recorder.start(eventId: eventId)
+                            if recorder.isRecording { Haptics.confirm() }
+                        } catch {
+                            Haptics.warn()
+                        }
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .accent))
                 }
             }
         }
@@ -115,10 +143,10 @@ struct RecordingScreen: View {
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
                 }
-                // Review and save arrive with NS-17; until then the only way out
-                // is to discard, and the recording stays on disk if you don't.
-                Button("Discard") { recorder.discard() }
-                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                // The recording stays checkpointed on disk until it is saved or
+                // explicitly discarded, so leaving this screen costs nothing.
+                NavigationLink("Review & save") { ReviewScreen() }
+                    .buttonStyle(TEButtonStyle(kind: .accent))
             }
         }
     }
@@ -150,6 +178,17 @@ struct RecordingScreen: View {
         }
     }
 
+    private func warning(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(text)
+        }
+        .teStyle(.xs)
+        .foregroundStyle(Color(.dangerInk))
+        .padding(10)
+        .background(Color(.dangerTint), in: .rect(cornerRadius: TERadius.sm))
+    }
+
     private func stat(_ label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
@@ -176,6 +215,11 @@ struct RecordingScreen: View {
     private static func speed(_ mps: Double?) -> String {
         guard let mps else { return "—" }
         return String(format: "%.0f mph", mps * 2.236936)
+    }
+
+    private static func accuracy(_ metres: Double?) -> String {
+        guard let metres else { return "—" }
+        return String(format: "±%.0fm", metres)
     }
 
     private static func explain(_ reason: RecordingController.StopReason) -> String {
