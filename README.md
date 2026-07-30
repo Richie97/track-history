@@ -151,6 +151,31 @@ Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
 empty logbook.
 
+## Native apps (in progress)
+
+The Capacitor shells are being replaced by first-party native clients —
+**SwiftUI** in [`apps/ios/`](apps/ios/) and **Jetpack Compose** in
+[`apps/android/`](apps/android/) — so that background GPS recording and
+CarPlay/Android Auto stop fighting a web view. The backend and the web app
+(`public/`) are unchanged by that work: the web app stays the feature frontier
+and keeps the desk-bound long tail (telemetry file import, year in review, deep
+garage analysis), while the native apps own the on-track path — recording, the
+logbook you check between sessions, CarPlay/Android Auto.
+
+The work breakdown lives in [`docs/specs/native/`](docs/specs/native/) as `NS-*`
+specs. The Capacitor apps below keep shipping until the native ones land.
+
+```sh
+cd apps/ios/Packages/TrackEvolutionKit && swift test   # iOS pure logic, no simulator
+open apps/ios/TrackEvolution.xcodeproj                 # the iOS app
+
+cd apps/android && ./gradlew :core:test                # Android pure logic, no emulator
+```
+
+iOS specifics — the generated-but-committed Xcode project, the bundle id shared
+with the Capacitor app, Swift 6 concurrency, and why the CarPlay entitlement
+stays out of the checkout — are in [`apps/ios/README.md`](apps/ios/README.md).
+
 ## Mobile apps (Capacitor)
 
 [`mobile/`](mobile/) wraps the same frontend in native iOS/Android shells for

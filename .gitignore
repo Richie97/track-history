@@ -31,3 +31,13 @@ apps/android/.gradle/
 apps/android/build/
 apps/android/*/build/
 apps/android/local.properties
+
+# iOS build output and per-user Xcode state. TrackEvolution.xcodeproj IS
+# committed (generated from project.yml by apps/ios/generate.sh) so a clean
+# checkout builds with nothing but Xcode; Package.resolved is committed too, to
+# pin dependency versions.
+apps/ios/build/
+apps/ios/DerivedData/
+apps/ios/**/.build/
+*.xcuserdatad
+xcuserdata/
