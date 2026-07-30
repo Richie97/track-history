@@ -1,5 +1,6 @@
 #if DEBUG
 import SwiftUI
+import TrackEvolutionKit
 
 /// Debug-only gallery of the design system: every color token in both themes, the
 /// type scale, and the radii.
@@ -14,6 +15,7 @@ struct TokenGallery: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
+                    charts
                     fonts
                     colors
                     typeScale
@@ -35,6 +37,39 @@ struct TokenGallery: View {
             }
         }
         .preferredColorScheme(forcedScheme)
+    }
+
+    /// Sample data with times *falling* over time: the line must fall too.
+    private var charts: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            section("Charts — improvement trends downward")
+            ProgressChart(
+                points: [
+                    .init(date: "2026-04-10", bestMs: 124_500),
+                    .init(date: "2026-05-01", bestMs: 122_800),
+                    .init(date: "2026-06-01", bestMs: 121_500),
+                    .init(date: "2026-07-04", bestMs: 119_900)
+                ],
+                goalMs: 118_000
+            )
+            Text("Trackmap — speed ramp over tarmac")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textFaint))
+            TrackMapView(trace: Self.sampleTrace)
+                .frame(height: 180)
+                .background(Color(.bgSubtle), in: .rect(cornerRadius: TERadius.md))
+        }
+    }
+
+    /// A lap-shaped loop, slow in the corners and fast down the straights.
+    private static var sampleTrace: [TracePoint] {
+        (0..<160).map { i in
+            let a = Double(i) / 160 * 2 * .pi
+            let r = 200.0
+            // Two fast straights and two slow corners.
+            let speed = 20 + 25 * abs(sin(a * 2))
+            return TracePoint(x: r * cos(a), y: r * 1.6 * sin(a), v: speed)
+        }
     }
 
     private var fonts: some View {
