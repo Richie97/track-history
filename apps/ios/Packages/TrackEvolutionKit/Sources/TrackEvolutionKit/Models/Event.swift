@@ -106,6 +106,12 @@ public struct EventDetail: Codable, Hashable, Sendable, Identifiable {
 
     public var id: Int { event.id }
 
+    public init(event: Event, sessions: [Session], setups: [Setup]) {
+        self.event = event
+        self.sessions = sessions
+        self.setups = setups
+    }
+
     public enum CodingKeys: String, CodingKey {
         case sessions, setups
     }
