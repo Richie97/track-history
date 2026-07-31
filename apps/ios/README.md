@@ -162,6 +162,29 @@ deployment without the `APPLE_*` secrets doesn't), and it's Apple's own
 `ASAuthorizationAppleIDButton` — App Review rejects approximations — wired to our
 web flow rather than `ASAuthorizationController`.
 
+Its appearance is not a free choice. The guidelines allow three styles (black,
+white, white-with-outline) and no custom colors for the mark or the title, so what
+the app controls is *which* one:
+
+- **Black on light, white on dark**, picked from `colorScheme`. The same inversion
+  `.btn.apple` already does on the web through `--text-strong`/`--surface-card`. It
+  was pinned to `.white`, which put a white button on the near-white `bgPage` and
+  was near-invisible in light mode. The style is **init-only** — no property
+  changes it — so the view carries `.id(colorScheme)` and is rebuilt when the theme
+  flips; without that the button keeps its launch-time appearance.
+- **Corner radius** is the one dimension they explicitly allow you to match to your
+  own buttons ("you can use a corner radius value that matches the other buttons in
+  your UI"), hence `TERadius.md`, the same radius `TEButtonStyle` draws.
+- **Height scales with Dynamic Type.** The button renders its own label and doesn't
+  follow Dynamic Type on its own, so a fixed height leaves it visibly slighter than
+  the Google button at large text sizes — and Sign in with Apple must not be the
+  less prominent option. Scaling the frame scales the label with it.
+
+Both buttons are capped at 260pt wide, mirroring `.login-buttons` in
+`public/style.css`: full-bleed buttons read as a form to fill in rather than a
+choice to make. The cap is a `@ScaledMetric`, so it grows rather than clipping
+"Continue with Google" at accessibility sizes.
+
 Two things about that fetch are load-bearing, both learned from the button going
 missing on a real phone:
 
