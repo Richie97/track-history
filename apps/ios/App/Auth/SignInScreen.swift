@@ -16,6 +16,8 @@ struct SignInScreen: View {
                 Spacer()
 
                 VStack(spacing: 6) {
+                    BrandMark()
+                        .padding(.bottom, 10)
                     Text("Track Evolution")
                         .teStyle(.h1)
                         .foregroundStyle(Color(.textStrong))
@@ -51,6 +53,13 @@ struct SignInScreen: View {
         .sheet(isPresented: $showingServerSheet) {
             ServerSheet()
         }
+        // Ask again every time this screen appears, not just at launch. The launch
+        // fetch is a single silent attempt (`try?`), so a phone that cold-starts
+        // without signal — or a sign-out in the paddock, which doesn't re-ask —
+        // would leave `providers` at its Google-only default with no way back but
+        // relaunching the app. This is the screen that can't work without the
+        // answer, so this is where it's worth re-asking.
+        .task { await auth.refreshProviders() }
     }
 
     @ViewBuilder
