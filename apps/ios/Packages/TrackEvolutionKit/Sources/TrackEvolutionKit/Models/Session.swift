@@ -75,6 +75,14 @@ public struct SessionChannels: Codable, Hashable, Sendable {
     /// Grid step in metres of driven distance.
     public var dStepM: Double
     public var laps: [LapChannels]
+
+    /// Decoding is the only way this arrives in the app — the initializer is here for
+    /// the previews and the `-channelGraphs` demo, which have no import to read.
+    public init(v: Int, dStepM: Double, laps: [LapChannels]) {
+        self.v = v
+        self.dStepM = dStepM
+        self.laps = laps
+    }
 }
 
 /// One lap's channel series. All present channels share the same length —
@@ -86,4 +94,12 @@ public struct LapChannels: Codable, Hashable, Sendable {
     public var speed: [Double]?
     public var rpm: [Double]?
     public var latG: [Double]?
+
+    public init(n: Int, timeMs: Int, speed: [Double]? = nil, rpm: [Double]? = nil, latG: [Double]? = nil) {
+        self.n = n
+        self.timeMs = timeMs
+        self.speed = speed
+        self.rpm = rpm
+        self.latG = latG
+    }
 }

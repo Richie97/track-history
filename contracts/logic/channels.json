@@ -1,0 +1,46 @@
+{
+  "description": "Lap-to-channel matching reference output from public/js/channel-graphs.js. The native ports must reproduce chIdx exactly, -1 included. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/channel-graphs.js",
+  "input": {
+    "sessionLaps": [
+      {
+        "lap_num": 1,
+        "time_ms": 121900
+      },
+      {
+        "lap_num": 2,
+        "time_ms": 120400
+      },
+      {
+        "lap_num": 3,
+        "time_ms": 120400
+      },
+      {
+        "lap_num": 4,
+        "time_ms": 119800
+      }
+    ],
+    "channelLaps": [
+      {
+        "n": 1,
+        "timeMs": 121900
+      },
+      {
+        "n": 2,
+        "timeMs": 120400
+      },
+      {
+        "n": 3,
+        "timeMs": 120400
+      }
+    ]
+  },
+  "expected": {
+    "chIdx": [
+      0,
+      1,
+      2,
+      -1
+    ]
+  }
+}

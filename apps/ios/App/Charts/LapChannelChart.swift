@@ -1,0 +1,359 @@
+import Charts
+import SwiftUI
+import TrackEvolutionKit
+
+/// The lap overlay: every lap of an imported session drawn on one driven-distance
+/// axis, so the laps line up corner-for-corner and you can see *where* the fast lap
+/// was fast.
+///
+/// `public/js/channel-graphs.js` is the reference for behavior — up to three laps
+/// highlighted at once in the `--chart-line` / `-b` / `-c` slots with the rest a dim
+/// envelope, best lap pre-selected, the chips doubling as the legend so a lap is
+/// never identified by color alone. The maths is in the Kit's `ChannelGraphs`; this
+/// file is drawing and gesture.
+///
+/// **A screen of its own, presented as a sheet, rather than the web version's
+/// collapsible panel.** Two reasons, one of them load-bearing: three stacked charts
+/// want the whole width and most of the height of a phone, and — the load-bearing one
+/// — a chart of this many marks inside the event page's `List` row never settles.
+/// The row is measured over and over, the app stops idling, and the page goes with
+/// it. In a sheet's own `ScrollView` it lays out once and draws instantly.
+///
+/// The data only ever comes from the *web* telemetry importer (`sessions.channels`)
+/// — file import is deliberately not ported — so a natively-recorded session has
+/// nothing to show here and the event page offers no way in.
+struct LapChannelChart: View {
+    let channels: SessionChannels
+    let laps: [Lap]
+
+    /// Channel-lap indexes in slot order — oldest first, so the eviction in
+    /// `ChannelGraphs.toggle` drops the one you selected longest ago.
+    @State private var lit: [Int] = []
+    /// The grid point the read-out is parked on. Shared across the stacked charts
+    /// because they share the distance axis: tapping the speed trace at the braking
+    /// zone also shows you the RPM and the lateral G there.
+    @State private var readout: Int?
+
+    /// The slot colors, in the order laps take them.
+    private static let slots: [Color] = [Color(.chartLine), Color(.chartLineB), Color(.chartLineC)]
+
+    private var matches: [ChannelGraphs.LapMatch] {
+        ChannelGraphs.matchLapsToChannels(laps, channels.laps)
+    }
+
+    private var present: [ChannelGraphs.Channel] {
+        ChannelGraphs.presentChannels(channels)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                chips
+                ForEach(present, id: \.self) { channel in
+                    channelChart(channel)
+                }
+            }
+            .padding(TESpacing.pageGutter)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(.bgPage))
+        .onAppear {
+            if lit.isEmpty { lit = ChannelGraphs.initialSelection(matches) }
+        }
+    }
+
+    // MARK: - Lap chips
+
+    /// The legend and the selector in one control, as on the web: a lap's color is
+    /// only ever readable next to its number.
+    private var chips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(matches.filter(\.hasChannels), id: \.chIdx) { match in
+                    chip(match)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .contentShape(.rect)
+    }
+
+    private func chip(_ match: ChannelGraphs.LapMatch) -> some View {
+        let color = color(forLapIndex: match.chIdx)
+        let isBest = match.lap.timeMs == laps.map(\.timeMs).min()
+        return Button {
+            lit = ChannelGraphs.toggle(match.chIdx, in: lit)
+            Haptics.select()
+        } label: {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(color ?? Color(.chartDim))
+                    .frame(width: 8, height: 8)
+                Text("Lap \(String(match.lap.lapNum))\(isBest ? " ★" : "")")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+                Text(LapTime.fmtMs(match.lap.timeMs))
+                    .teStyle(.lapTime)
+                    .foregroundStyle(Color(.textStrong))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(.surfaceRaised), in: .rect(cornerRadius: TERadius.sm))
+            .overlay(
+                RoundedRectangle(cornerRadius: TERadius.sm)
+                    .strokeBorder(color ?? Color(.borderHairline), lineWidth: color == nil ? 1 : 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Lap \(String(match.lap.lapNum)), \(LapTime.fmtMs(match.lap.timeMs))")
+        .accessibilityAddTraits(color == nil ? [] : .isSelected)
+    }
+
+    /// A lap's highlight color, or nil when it's part of the dim envelope.
+    private func color(forLapIndex chIdx: Int) -> Color? {
+        guard let slot = lit.firstIndex(of: chIdx), slot < Self.slots.count else { return nil }
+        return Self.slots[slot]
+    }
+
+    // MARK: - One channel's overlay
+
+    @ViewBuilder
+    private func channelChart(_ channel: ChannelGraphs.Channel) -> some View {
+        if let domain = ChannelGraphs.valueDomain(channel, in: channels) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(channel.label) (\(channel.unit))")
+                        .teStyle(.eyebrow)
+                        .foregroundStyle(Color(.textMuted))
+                    Spacer()
+                    if let readout {
+                        Text(readoutText(channel, at: readout))
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textStrong))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                }
+                // One flat array of points through a single `ForEach`, and nothing
+                // else in the builder — not a `RuleMark` for the read-out, not an
+                // `if`. Mixing mark kinds here makes the builder's content type a
+                // nested tuple over a few hundred marks per lap, and the app wedges
+                // in layout before it ever draws (it did; the read-out's rule is a
+                // two-point line in this same array instead, see `samples`).
+                Chart {
+                    ForEach(samples(channel, domain), id: \.id) { sample in
+                        LineMark(
+                            x: .value("Distance", sample.distance),
+                            y: .value(channel.label, sample.value),
+                            series: .value("Lap", sample.lapIndex)
+                        )
+                        .foregroundStyle(sample.color)
+                        .lineStyle(.init(lineWidth: sample.lineWidth, lineCap: .round, lineJoin: .round))
+                        // A trace is a sampled path, not a curve fit through it.
+                        .interpolationMethod(.linear)
+                        // Suppressed *per mark*, which is the only level that works:
+                        // Swift Charts publishes an accessibility element for every
+                        // mark, and hiding the chart as a whole doesn't prune them.
+                        // A few hundred per lap makes the hierarchy so large that
+                        // asking for a snapshot of it — which VoiceOver and every UI
+                        // test do — never returns. The chart's summary is on the
+                        // container below; point-by-point is not what a chart says.
+                        .accessibilityHidden(true)
+                    }
+                }
+                .chartYScale(domain: domain.low...domain.high)
+                .chartXScale(domain: 0...max(1, ChannelGraphs.distanceSpan(channel, in: channels)))
+                .chartYAxis {
+                    AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                        AxisGridLine().foregroundStyle(Color(.chartGrid))
+                        AxisValueLabel {
+                            if let v = value.as(Double.self) {
+                                Text(fmtValue(v, channel)).teStyle(.xxs)
+                            }
+                        }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                        AxisGridLine().foregroundStyle(Color(.chartGrid))
+                        AxisValueLabel {
+                            if let d = value.as(Double.self) {
+                                Text(ChannelGraphs.fmtDist(d)).teStyle(.xxs)
+                            }
+                        }
+                    }
+                }
+                .foregroundStyle(Color(.textMuted))
+                .frame(height: 150)
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle().fill(.clear).contentShape(.rect)
+                            .onTapGesture { location in
+                                readOut(at: location, channel, proxy: proxy, geometry: geometry)
+                            }
+                    }
+                }
+                // Belt and braces with the per-mark suppression above: this alone does
+                // *not* prune the marks — that is what the per-mark modifier is for —
+                // but it does keep the plot's own furniture out of the hierarchy.
+                .accessibilityHidden(true)
+            }
+            // So the chart reads as one element with the summary below, which is what
+            // a chart should say.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(channel.label) by driven distance, per lap")
+            .accessibilityValue(summary(channel))
+        }
+    }
+
+    /// One point of one lap's trace, ready to plot.
+    private struct Sample: Identifiable {
+        let id: Int
+        let lapIndex: Int
+        let distance: Double
+        let value: Double
+        let color: Color
+        let lineWidth: CGFloat
+    }
+
+    /// Every lap's points for a channel, flattened in painter's order: the dim
+    /// envelope first, then the highlighted laps in slot order, so the lap you
+    /// selected first is never buried under the ones you didn't — plus, last, the
+    /// read-out's vertical rule as a two-point series of its own.
+    private func samples(_ channel: ChannelGraphs.Channel, _ domain: (low: Double, high: Double)) -> [Sample] {
+        let dim = channels.laps.indices.filter { !lit.contains($0) }
+        var out: [Sample] = []
+        for chIdx in dim + lit {
+            guard let series = channel.series(of: channels.laps[chIdx]) else { continue }
+            let color = color(forLapIndex: chIdx)
+            for (k, raw) in series.enumerated() {
+                out.append(
+                    Sample(
+                        // Unique across laps: `Chart` identifies marks by this, and a
+                        // shared id would collapse the laps into one line.
+                        id: chIdx * 100_000 + k,
+                        lapIndex: chIdx,
+                        distance: Double(k) * channels.dStepM,
+                        value: channel.convert(raw),
+                        color: color ?? Color(.chartDim),
+                        lineWidth: color == nil ? 1 : 2
+                    )
+                )
+            }
+        }
+        if let readout {
+            let x = Double(readout) * channels.dStepM
+            for (k, y) in [domain.low, domain.high].enumerated() {
+                out.append(
+                    Sample(
+                        id: -1 - k,
+                        // Negative so it can't collide with a lap's series.
+                        lapIndex: -1,
+                        distance: x,
+                        value: y,
+                        color: Color(.textFaint),
+                        lineWidth: 1
+                    )
+                )
+            }
+        }
+        return out
+    }
+
+    // MARK: - Read-out
+
+    /// Tap to park the read-out on a grid point; tap the same point to clear it.
+    ///
+    /// A tap rather than a drag, for the reason spelled out in `ProgressChart`: the
+    /// charts sit in a scroller, and a `DragGesture` over the plot takes the touch
+    /// that would have scrolled it.
+    private func readOut(
+        at location: CGPoint, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
+    ) {
+        guard let plotFrame = proxy.plotFrame else { return }
+        let x = location.x - geometry[plotFrame].origin.x
+        guard let metres: Double = proxy.value(atX: x) else { return }
+        let index = ChannelGraphs.gridIndex(atDistance: metres, channel, in: channels)
+        if readout == index {
+            readout = nil
+        } else {
+            readout = index
+            Haptics.select()
+        }
+    }
+
+    /// "1.2 km · Lap 3 92 · Lap 5 88" — the distance once, then a value per
+    /// highlighted lap in its slot order.
+    private func readoutText(_ channel: ChannelGraphs.Channel, at index: Int) -> String {
+        let values = lit.compactMap { chIdx -> String? in
+            guard let v = ChannelGraphs.value(channel, lapIndex: chIdx, gridIndex: index, in: channels) else {
+                return nil
+            }
+            return "L\(String(lapNumber(forLapIndex: chIdx))) \(fmtValue(v, channel))"
+        }
+        let distance = ChannelGraphs.fmtDist(Double(index) * channels.dStepM)
+        return values.isEmpty ? distance : "\(distance) · \(values.joined(separator: " · "))"
+    }
+
+    /// What VoiceOver gets: the range each highlighted lap covered, not the pixels.
+    private func summary(_ channel: ChannelGraphs.Channel) -> String {
+        let parts = lit.compactMap { chIdx -> String? in
+            guard let series = channel.series(of: channels.laps[chIdx]),
+                  let low = series.map(channel.convert).min(),
+                  let high = series.map(channel.convert).max()
+            else { return nil }
+            return """
+                Lap \(String(lapNumber(forLapIndex: chIdx))), \
+                \(fmtValue(low, channel)) to \(fmtValue(high, channel)) \(channel.unit)
+                """
+        }
+        guard !parts.isEmpty else { return "No lap highlighted" }
+        return parts.joined(separator: ". ")
+    }
+
+    /// The session's own lap number for a channel entry, so the chips, the read-out
+    /// and the lap list above all call the same lap the same thing.
+    private func lapNumber(forLapIndex chIdx: Int) -> Int {
+        matches.first { $0.chIdx == chIdx }?.lap.lapNum ?? channels.laps[chIdx].n
+    }
+
+    private func fmtValue(_ value: Double, _ channel: ChannelGraphs.Channel) -> String {
+        String(format: "%.\(channel.decimals)f", value)
+    }
+}
+
+#if DEBUG
+extension LapChannelChart {
+    /// The panel on synthetic data, for `-channelGraphs` (see `RootView`) and for
+    /// previews. Shaped like a real import: three laps of a 2.4 km circuit on the
+    /// importer's 20 m grid, all three channels.
+    static var demoScreen: some View {
+        let times = [118_400, 116_900, 117_600]
+        let channels = SessionChannels(
+            v: 1,
+            dStepM: 20,
+            laps: times.enumerated().map { index, ms -> LapChannels in
+                let phase = Double(index) * 0.15
+                let wave: [Double] = (0..<120).map { k in sin(Double(k) / 9 + phase) }
+                let speed: [Double] = wave.map { v in 90 + 60 * v }
+                let rpm: [Double] = wave.map { v in 3000 + 3500 * (1 + v) / 2 }
+                let latG: [Double] = (0..<120).map { k in abs(cos(Double(k) / 9 + phase)) * 1.2 }
+                return LapChannels(n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG)
+            }
+        )
+        return LapChannelChart(
+            channels: channels,
+            laps: times.enumerated().map { index, ms in
+                Lap(id: index + 1, sessionId: 1, lapNum: index + 1, timeMs: ms)
+            }
+        )
+    }
+}
+
+#Preview {
+    LapChannelChart.demoScreen
+}
+#endif
