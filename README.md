@@ -83,6 +83,21 @@ byte-identical tree.
 Why a standalone script rather than a test: `test/api/` runs inside workerd,
 which has no filesystem access and so cannot write the files.
 
+### Cross-client fixtures (`contracts/fixtures/`)
+
+Where `contracts/golden/` pins what the *server* sends, `contracts/fixtures/`
+pins what the *web client* writes and the native ports have to read back
+byte-identically. `npm run fixtures:generate` produces them by importing the
+real web modules, so the fixture cannot drift from the code it represents.
+
+Today that is the lap recorder's checkpoint — the `{v, eventId, startedAtMs,
+fixes}` JSON the web app parks in `localStorage["recording.pending"]` every few
+seconds so a recording survives the app dying mid-session. The Kotlin recorder
+tests (`cd apps/android && ./gradlew :core:test`) decode the committed file and
+write it back out, asserting the exact same bytes, which is what keeps a
+checkpoint portable between the web, Android and iOS clients. CI runs
+`npm run fixtures:check`.
+
 ### Seeding your own history
 
 `seed/generate.mjs` reads `seed/data.personal.mjs` if it exists (gitignored —

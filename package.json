@@ -12,6 +12,8 @@
     "seed:generate": "node seed/generate.mjs",
     "contracts:generate": "node contracts/generate.mjs",
     "contracts:check": "node contracts/generate.mjs && git diff --exit-code contracts/golden",
+    "fixtures:generate": "node contracts/fixtures/build.mjs",
+    "fixtures:check": "node contracts/fixtures/build.mjs && git diff --exit-code contracts/fixtures",
     "db:migrate:local": "wrangler d1 migrations apply track-history --local",
     "db:migrate:remote": "wrangler d1 migrations apply track-history --remote",
     "db:seed:local": "wrangler d1 execute track-history --local --file seed/seed.sql",

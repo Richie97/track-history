@@ -28,6 +28,17 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
+// Fixtures the web client generates and all three ports must read identically
+// (`npm run fixtures:generate`) live at the repo root so iOS and Android cannot
+// drift onto separate copies. Copy them onto the test classpath at build time
+// rather than reaching across the tree at test runtime, where the working
+// directory depends on how the tests were launched.
+tasks.named<ProcessResources>("processTestResources") {
+    from(rootProject.projectDir.resolve("../../contracts/fixtures")) {
+        include("*.json")
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
     testLogging {
