@@ -64,6 +64,31 @@ final class CoreScreensUITests: XCTestCase {
 
     }
 
+    /// The dashboard's own way into the recorder: one tap from the front page to a
+    /// live Start button, without going through an event first.
+    ///
+    /// Asserts reachability only, and deliberately stops at Start rather than pressing
+    /// it — recording end to end needs a simulated drive, which is
+    /// `RecordAndSaveUITests`' job. `-resetRecording` matters here: an unsaved
+    /// recording left on disk by an earlier test puts the recorder in `.stopped`, and
+    /// this button is idle-only, so the dashboard would legitimately not show it.
+    func testDashboardStartsARecording() throws {
+        let app = try launchSignedIn()
+
+        let record = app.buttons["dashboardRecord"]
+        XCTAssertTrue(
+            record.waitForExistence(timeout: 20),
+            "the dashboard should offer the recorder next to + Add event"
+        )
+        record.tap()
+
+        XCTAssertTrue(
+            app.buttons["Start recording"].waitForExistence(timeout: 10),
+            "it should land on the record screen, ready to start"
+        )
+        attach(app, named: "dashboard-record")
+    }
+
     // MARK: - Event: create, log laps, delete
 
     /// The event page's real content, on data this test owns: create the event, add a
@@ -105,7 +130,8 @@ final class CoreScreensUITests: XCTestCase {
         )
         attach(app, named: "event")
 
-        // NS-17's recorder, whose only reachable door is now this panel.
+        // NS-17's recorder. The event page is the door that attaches a recording to
+        // *this* event; the dashboard's is the one for a session about to be driven.
         XCTAssertTrue(app.buttons["recordEntry"].exists)
 
         deleteCurrentEvent(app)

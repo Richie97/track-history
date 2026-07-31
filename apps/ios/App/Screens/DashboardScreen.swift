@@ -57,8 +57,26 @@ struct DashboardScreen: View {
 
             MaintenanceStrip(garage: model.garage, collapsed: true)
 
-            Button("+ Add event") { router.push(.eventForm(.new(presetTrack: nil))) }
-                .buttonStyle(TEButtonStyle(kind: .accent))
+            // The two ways into a track day, side by side — the web app's `.btn-row`.
+            // Recording is offered here because the alternative is navigating into an
+            // event first, which is exactly the wrong amount of friction with a helmet
+            // in your other hand.
+            HStack(spacing: TESpacing.gridGap) {
+                Button("+ Add event") { router.push(.eventForm(.new(presetTrack: nil))) }
+                    .buttonStyle(TEButtonStyle(kind: .accent))
+
+                // Only when the recorder is idle. A live recording already has the
+                // always-visible `RecordingBanner`, and an unsaved one has the card
+                // above; a third control would be a third answer to the same question.
+                if recorder.phase == .idle {
+                    Button("Record laps") {
+                        router.push(.record(eventId: model.todaysEvent?.id))
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("dashboardRecord")
+                    .accessibilityLabel(Self.recordLabel(model.todaysEvent))
+                }
+            }
 
             if let hero = model.heroEvent {
                 heroCard(hero)
@@ -122,6 +140,14 @@ struct DashboardScreen: View {
             }
         }
         .refreshable { await model.load() }
+    }
+
+    /// Where the laps are going to land, said out loud. The button can't carry a
+    /// subtitle without pushing the fold down on every day that isn't a track day,
+    /// but a screen reader can have the whole sentence for free.
+    private static func recordLabel(_ event: Event?) -> String {
+        guard let event else { return "Record laps. No event today — the recording is saved to one afterwards." }
+        return "Record laps at \(event.trackName)"
     }
 
     // MARK: - The next event
@@ -407,6 +433,20 @@ final class DashboardModel {
     }
 
     var heroEvent: Event? { upcoming.first }
+
+    /// The event a recording started from the dashboard attaches to.
+    ///
+    /// Deliberately `RemoteRecording.pickRecordingEvent` — the *same* rule CarPlay
+    /// uses — so a session started on the phone and one started from the head unit
+    /// can never disagree about where the laps belong. It reads the already-loaded
+    /// event list, so the button costs no request and works offline.
+    ///
+    /// nil means record unattached, which is a normal outcome rather than a failure:
+    /// the event often doesn't exist until after the session is driven, and
+    /// `recordingBanner` above offers the recording to the first event that opens it.
+    var todaysEvent: Event? {
+        RemoteRecording.pickRecordingEvent(events, todayIso: RemoteRecording.localTodayIso())
+    }
     var alsoUpcoming: [Event] { Array(upcoming.dropFirst()) }
 
     /// The server already returns events newest-first.
