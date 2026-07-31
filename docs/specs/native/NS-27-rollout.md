@@ -47,10 +47,10 @@ Do not change it.
    here is worse than shipping late.
 4. **Keep the Capacitor build as the rollback path** until 100% is stable. Do not
    delete `mobile/` until then.
-5. **CarPlay entitlement.** If Apple has granted
-   `com.apple.developer.carplay-driving-task` by now, enable it per README lines
-   194–213 and add CarPlay to the release notes. If not, ship without it — the app
-   works inert (NS-19).
+5. **CarPlay.** The entitlement is granted and checked in (NS-19), so add CarPlay to
+   the release notes — and this is the release that finally documents it for users
+   in `site/docs/lap-recording.html`, which has been deliberately silent about it
+   until a CarPlay-enabled build shipped.
 6. **Android Auto** needs its own Play review against the declared category
    (NS-20). Budget for a rejection round.
 7. **Then, and only then, retire `mobile/`:**

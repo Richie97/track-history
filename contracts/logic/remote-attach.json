@@ -1,0 +1,228 @@
+{
+  "note": "Reference output of pickRecordingEvent in public/js/record/remote.js. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "events": {
+    "threeSingleDays": [
+      {
+        "id": "a",
+        "start_date": "2026-07-25",
+        "days": 1
+      },
+      {
+        "id": "b",
+        "start_date": "2026-07-21",
+        "days": 1
+      },
+      {
+        "id": "c",
+        "start_date": "2026-07-01",
+        "days": 1
+      }
+    ],
+    "weekend": [
+      {
+        "id": "a",
+        "start_date": "2026-07-19",
+        "days": 3
+      }
+    ],
+    "gapAroundToday": [
+      {
+        "id": "a",
+        "start_date": "2026-07-20",
+        "days": 1
+      },
+      {
+        "id": "b",
+        "start_date": "2026-07-22",
+        "days": 1
+      }
+    ],
+    "overlapping": [
+      {
+        "id": "long",
+        "start_date": "2026-07-18",
+        "days": 7
+      },
+      {
+        "id": "today",
+        "start_date": "2026-07-21",
+        "days": 1
+      }
+    ],
+    "halfDay": [
+      {
+        "id": "h",
+        "start_date": "2026-07-19",
+        "days": 1.5
+      }
+    ],
+    "twoAndAHalf": [
+      {
+        "id": "t",
+        "start_date": "2026-07-19",
+        "days": 2.5
+      }
+    ],
+    "zeroDays": [
+      {
+        "id": "z",
+        "start_date": "2026-07-21",
+        "days": 0
+      }
+    ],
+    "negativeDays": [
+      {
+        "id": "n",
+        "start_date": "2026-07-21",
+        "days": -3
+      }
+    ],
+    "missingDays": [
+      {
+        "id": "x",
+        "start_date": "2026-07-21"
+      }
+    ],
+    "monthEnd": [
+      {
+        "id": "m",
+        "start_date": "2026-07-31",
+        "days": 2
+      }
+    ],
+    "yearEnd": [
+      {
+        "id": "y",
+        "start_date": "2026-12-31",
+        "days": 2
+      }
+    ],
+    "springForward": [
+      {
+        "id": "s",
+        "start_date": "2026-03-07",
+        "days": 2
+      }
+    ],
+    "fallBack": [
+      {
+        "id": "f",
+        "start_date": "2026-10-31",
+        "days": 2
+      }
+    ],
+    "empty": []
+  },
+  "cases": [
+    {
+      "events": "threeSingleDays",
+      "todayIso": "2026-07-21",
+      "expectedId": "b"
+    },
+    {
+      "events": "weekend",
+      "todayIso": "2026-07-19",
+      "expectedId": "a"
+    },
+    {
+      "events": "weekend",
+      "todayIso": "2026-07-21",
+      "expectedId": "a"
+    },
+    {
+      "events": "weekend",
+      "todayIso": "2026-07-22",
+      "expectedId": null
+    },
+    {
+      "events": "gapAroundToday",
+      "todayIso": "2026-07-21",
+      "expectedId": null
+    },
+    {
+      "events": "overlapping",
+      "todayIso": "2026-07-21",
+      "expectedId": "today"
+    },
+    {
+      "events": "halfDay",
+      "todayIso": "2026-07-19",
+      "expectedId": "h"
+    },
+    {
+      "events": "halfDay",
+      "todayIso": "2026-07-20",
+      "expectedId": null
+    },
+    {
+      "events": "twoAndAHalf",
+      "todayIso": "2026-07-20",
+      "expectedId": "t"
+    },
+    {
+      "events": "twoAndAHalf",
+      "todayIso": "2026-07-21",
+      "expectedId": null
+    },
+    {
+      "events": "zeroDays",
+      "todayIso": "2026-07-21",
+      "expectedId": "z"
+    },
+    {
+      "events": "zeroDays",
+      "todayIso": "2026-07-22",
+      "expectedId": null
+    },
+    {
+      "events": "negativeDays",
+      "todayIso": "2026-07-21",
+      "expectedId": "n"
+    },
+    {
+      "events": "missingDays",
+      "todayIso": "2026-07-21",
+      "expectedId": "x"
+    },
+    {
+      "events": "missingDays",
+      "todayIso": "2026-07-22",
+      "expectedId": null
+    },
+    {
+      "events": "monthEnd",
+      "todayIso": "2026-08-01",
+      "expectedId": "m"
+    },
+    {
+      "events": "yearEnd",
+      "todayIso": "2027-01-01",
+      "expectedId": "y"
+    },
+    {
+      "events": "springForward",
+      "todayIso": "2026-03-08",
+      "expectedId": "s"
+    },
+    {
+      "events": "springForward",
+      "todayIso": "2026-03-09",
+      "expectedId": null
+    },
+    {
+      "events": "fallBack",
+      "todayIso": "2026-11-01",
+      "expectedId": "f"
+    },
+    {
+      "events": "fallBack",
+      "todayIso": "2026-11-02",
+      "expectedId": null
+    },
+    {
+      "events": "empty",
+      "todayIso": "2026-07-21",
+      "expectedId": null
+    }
+  ]
+}

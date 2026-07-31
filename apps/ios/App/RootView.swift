@@ -98,7 +98,9 @@ struct RootView: View {
         case .settings:
             SettingsScreen()
         case .record(let eventId):
-            RecordingScreen(eventId: eventId)
+            // Discarding leaves the recorder for the dashboard rather than popping one
+            // step onto a Start button.
+            RecordingScreen(eventId: eventId, onFinish: { router.popToRoot() })
         case .shared(let slug):
             SharedLogbookScreen(slug: slug)
         }

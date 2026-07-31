@@ -57,13 +57,18 @@ CarPlay scene costs nothing and breaks nothing. Delete them in NS-27.
    time, attached event name (or "No event — will attach later"), and a GPS-fix
    indicator. Report failures plainly — a `{ ok: false, reason: "gps" }` today
    should read as "No GPS signal" on the head unit.
-6. **The entitlement is not checked in, and must not be added.**
-   `com.apple.developer.carplay-driving-task` is Apple-granted; adding the key
-   before the grant breaks signing for every build including CI (NS-10).
-   The app must **compile and ship inert without it**. README lines 194–213
-   document the request-then-enable steps; follow them when the grant lands, and
-   only then update `site/docs/lap-recording.html` — the docs site must not
-   advertise a feature the shipped app doesn't have.
+6. **The entitlement is granted, so it is checked in.**
+   *(Amended: this requirement originally read "not checked in, and must not be
+   added", because `com.apple.developer.carplay-driving-task` is Apple-granted and
+   the key breaks signing for profiles that don't carry it. Apple has since granted
+   it — verified by a signed device build embedding the key under team
+   `L3NS86NMXZ` — so the rule is inverted.)*
+   The key lives in `apps/ios/App/TrackEvolution.entitlements`. Dropping it does
+   **not** fail a build: the scene just never attaches and CarPlay vanishes
+   silently, which no test catches. CI therefore asserts the key is present and
+   lints every entitlements file.
+   `site/docs/lap-recording.html` still waits — the docs site must not advertise a
+   feature until a CarPlay-enabled build actually ships (NS-27).
 
 ## Acceptance criteria
 

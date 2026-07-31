@@ -37,18 +37,30 @@ jobs:
         working-directory: apps/ios/Packages/TrackEvolutionKit
         run: swift test
 
-      # The CarPlay entitlement is Apple-granted and deliberately absent from the
-      # checkout: the app must build and ship inert without it (NS-19). If this
-      # ever fails, someone committed the entitlement and device signing will break
-      # for everyone who lacks the grant.
-      # Checked against the *parsed* plist, not the raw file: the entitlements
-      # carry a comment explaining why the key is absent, and a plain grep matches
-      # that prose. Converting strips comments, leaving only real keys.
-      - name: The CarPlay entitlement stays out
+      # Apple has granted com.apple.developer.carplay-driving-task, so the key is now
+      # checked in (NS-19) and this guard runs the other way: dropping it would
+      # silently ship a build whose CarPlay scene never attaches, which no test
+      # catches because the phone app is unaffected.
+      #
+      # Both files are also linted. An entitlements file that doesn't parse is the
+      # failure mode that actually happened here — a hand-edited `<key>` with no
+      # value left the Capacitor app's Release entitlements invalid, and nothing
+      # noticed.
+      - name: The CarPlay entitlement stays in, and the entitlements parse
         run: |
-          if plutil -convert json -o - apps/ios/App/TrackEvolution.entitlements \
+          for f in apps/ios/App/TrackEvolution.entitlements \
+                   mobile/ios/App/App/App.entitlements \
+                   mobile/ios/App/App/AppDebug.entitlements; do
+            if ! plutil -lint "$f"; then
+              echo "::error::$f is not a valid plist"
+              exit 1
+            fi
+          done
+          # Checked against the *parsed* plist, not the raw file: the entitlements
+          # carry explanatory comments, and a plain grep would match that prose.
+          if ! plutil -convert json -o - apps/ios/App/TrackEvolution.entitlements \
             | grep -q "carplay-driving-task"; then
-            echo "::error::com.apple.developer.carplay-driving-task is checked in — see NS-19"
+            echo "::error::com.apple.developer.carplay-driving-task is missing — CarPlay ships inert without it (NS-19)"
             exit 1
           fi
 

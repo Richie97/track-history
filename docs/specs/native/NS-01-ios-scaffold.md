@@ -67,9 +67,10 @@ NS-06. CI is NS-10.
      callback, NS-08).
    - Associated Domains entitlement for `applinks:trackevolution.app` (Universal
      Links for `/share/*`).
-7. **Do not add the CarPlay entitlement.** `com.apple.developer.carplay-driving-task`
-   is Apple-granted and signing fails without the grant. NS-19 covers how it is
-   added later; everything must compile and ship inert without it.
+7. ~~**Do not add the CarPlay entitlement.**~~ *(Superseded: Apple granted
+   `com.apple.developer.carplay-driving-task`, and NS-19 checked it in. It was
+   correctly kept out at scaffold time, when signing would have failed without the
+   grant.)*
 8. **`.gitignore`** — add `apps/ios/build/`, `apps/ios/DerivedData/`,
    `*.xcuserdatad`, and SPM `.build/`. Do not ignore `Package.resolved`.
 9. **App icon and launch screen** from `mobile/resources/` (1024px source already

@@ -182,15 +182,6 @@ final class ChannelGraphsUITests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Bring an element into view. The dashboard's tracks sit below the fold, and so
-    /// does a session's overlay panel on an event page with a trace and a chart above
-    /// it — `exists` is true for both, `tap()` on an off-screen element is not.
-    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, tries: Int = 8) {
-        for _ in 0..<tries where !element.isHittable {
-            app.swipeUp()
-        }
-    }
-
     private func deleteEventFromMenu(_ app: XCUIApplication) {
         guard app.buttons["eventMenu"].exists else { return }
         app.buttons["eventMenu"].tap()
