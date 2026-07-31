@@ -30,6 +30,61 @@ struct AuthTests {
         #expect(seen.count == 50, "verifiers must not repeat")
     }
 
+    // MARK: - Remembered providers
+    //
+    // The bug these pin: `GET /auth/providers` is fetched with `try?`, so a single
+    // failed request used to leave the sign-in screen on its Google-only default —
+    // and an account that only exists as an Apple one had no way in until the app
+    // was relaunched somewhere with signal.
+
+    /// A scratch suite per test, so these never touch the real defaults and never
+    /// leak into each other.
+    private func scratchDefaults() -> UserDefaults {
+        let suite = "AuthProvidersStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+
+    @Test func unknownServerFallsBackToGoogleOnly() {
+        let store = AuthProvidersStore(defaults: scratchDefaults())
+        let providers = store.providers(for: URL(string: "https://example.test")!)
+        #expect(providers.google)
+        #expect(!providers.apple, "Apple is never assumed — only ever advertised")
+    }
+
+    @Test func aSavedAnswerSurvivesAFailedFetch() {
+        let server = URL(string: "https://trackevolution.app")!
+        let store = AuthProvidersStore(defaults: scratchDefaults())
+        store.save(AuthProviders(google: true, apple: true), for: server)
+
+        // A later launch with no signal never calls `save`, so the stored answer is
+        // what the sign-in screen starts from.
+        #expect(store.providers(for: server).apple)
+    }
+
+    @Test func answersAreKeyedPerServer() {
+        let hosted = URL(string: "https://trackevolution.app")!
+        let dev = URL(string: "http://localhost:8787")!
+        let store = AuthProvidersStore(defaults: scratchDefaults())
+        store.save(AuthProviders(google: true, apple: true), for: hosted)
+
+        // `wrangler dev` carries no APPLE_* secrets; the hosted app's answer must not
+        // draw an Apple button there.
+        #expect(!store.providers(for: dev).apple)
+        #expect(store.providers(for: hosted).apple)
+    }
+
+    @Test func aServerThatDropsAppleIsBelieved() {
+        let server = URL(string: "https://trackevolution.app")!
+        let store = AuthProvidersStore(defaults: scratchDefaults())
+        store.save(AuthProviders(google: true, apple: true), for: server)
+        // Remembering is not pinning: a successful fetch always wins, including one
+        // that takes Apple away.
+        store.save(AuthProviders(google: true, apple: false), for: server)
+        #expect(!store.providers(for: server).apple)
+    }
+
     @Test func signInUrlOpensTheProvidersLoginWithTheChallenge() async {
         let api = APIClient(baseURL: URL(string: "https://example.test")!)
         let google = await api.signInURL(provider: .google, challenge: "abc123")
