@@ -47,6 +47,7 @@ import {
   trimIdle,
 } from "../public/js/record/core.js";
 import { pickRecordingEvent } from "../public/js/record/remote.js";
+import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
 import {
   LAP_S,
   buildGpmfMp4,
@@ -551,7 +552,25 @@ const videoFixture = {
   afterBatchAnchor: anchored,
 };
 
+// ---------------------------------------------------------------------------
+// The prep checklist a new event starts from.
+//
+// Not logic — a list of strings — but it is *product copy carried in two
+// clients*, and the web and iOS copies drifting is invisible until someone
+// notices their phone offering a different default from their laptop. A user
+// who edits the list in Settings gets their own (`users.checklist_template`);
+// this is only what they start from.
+const checklistFixture = {
+  description:
+    "The built-in prep checklist from public/js/checklist.js. The iOS port " +
+    "(EventDates.DEFAULT_CHECKLIST) must match it item for item, in order. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/checklist.js",
+  DEFAULT_CHECKLIST,
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
@@ -567,6 +586,7 @@ console.log(
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
+console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
 console.log(
   `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`
 );

@@ -7,7 +7,25 @@
       "method": "GET",
       "path": "/me",
       "status": 200,
-      "description": "The signed-in user.",
+      "description": "The signed-in user. checklist_template is null — the common case, where the client falls back to its built-in DEFAULT_CHECKLIST.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "checklist-template-set",
+      "file": "checklist-template-set.json",
+      "method": "PUT",
+      "path": "/me/checklist-template",
+      "status": 200,
+      "description": "Replace the prep-checklist template. Null or [] clears it.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "me-checklist-template",
+      "file": "me-checklist-template.json",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "description": "The signed-in user with a customized prep-checklist template.",
       "source": "src/routes/me.ts"
     },
     {

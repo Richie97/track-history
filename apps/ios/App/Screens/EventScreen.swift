@@ -248,14 +248,18 @@ struct EventScreen: View {
 
                 if items?.isEmpty ?? true {
                     row {
-                        Button("Use default list") {
+                        // The user's own list when they have one (Settings → Prep
+                        // checklist), else the app's built-in default.
+                        Button(auth.hasCustomChecklistTemplate ? "Use my list" : "Use default list") {
+                            let template = auth.checklistTemplate
                             Task {
                                 await model.setChecklist(
-                                    EventDates.DEFAULT_CHECKLIST.map { ChecklistItem(text: $0, done: false) }
+                                    template.map { ChecklistItem(text: $0, done: false) }
                                 )
                             }
                         }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
+                        .accessibilityIdentifier("useChecklistTemplate")
                     }
                 }
             } header: {

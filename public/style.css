@@ -854,11 +854,16 @@ button.ch-chip.on { background: var(--surface-raised); }
   color: var(--text-faint); font-size: 13px; line-height: 1;
 }
 @media (hover: hover) { .check-item .x:hover { color: var(--danger-ink); } }
-#check-new {
+#check-new, #tmpl-new {
   flex: 1; min-width: 160px; padding: 8px 12px;
   border: 1px solid var(--border-hairline); border-radius: var(--radius-sm);
   background: var(--surface-input); color: var(--text-strong); font-size: var(--fs-sm);
 }
+/* The checklist *template* rows (Settings) reuse .check-item without a
+   checkbox: nothing here is tickable, so the row isn't a label and the cursor
+   shouldn't promise it is. */
+#tmpl-panel .check-item { cursor: default; }
+#tmpl-panel .check-item .x[disabled] { opacity: 0.3; cursor: default; }
 
 /* ---------- Session analysis & comparisons ---------- */
 .session .s-stats { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
