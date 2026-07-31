@@ -83,6 +83,11 @@ Hand-written, in `App/DesignSystem/`:
   stacked shadows. `teShadowPop()` is for popovers only.
 - `ThemePreference.swift` — the system/light/dark override, persisted, mirroring
   the web app's `data-theme`.
+- `BrandMark.swift` — the app mark: the Speedshift double-bar on a lime disc, the
+  port of `ssBars`/`appLogoHtml` in `public/app.js` (same viewBox, same two
+  rotated rects, and the same rule that the bars are `accentContrast` because dark
+  ink is what sits on the lime fill). A `Shape` rather than a bundled image, so it
+  scales and follows the tokens in both appearances with no asset to drift from.
 - `TokenGallery.swift` — `#if DEBUG` only. Every swatch, the type scale and the
   radii, which is how this port gets reviewed:
 
@@ -156,6 +161,23 @@ The Apple button is drawn only when `GET /auth/providers` advertises it (a
 deployment without the `APPLE_*` secrets doesn't), and it's Apple's own
 `ASAuthorizationAppleIDButton` — App Review rejects approximations — wired to our
 web flow rather than `ASAuthorizationController`.
+
+Two things about that fetch are load-bearing, both learned from the button going
+missing on a real phone:
+
+- **It is never awaited at launch.** `restore()` used to gate the auth decision on
+  it, so a cold start on a weak connection sat on the launch spinner for the full
+  URLSession timeout and *then* showed a Google-only sign-in screen. Nothing at
+  launch needs the answer — `SignInScreen` asks for itself when it appears, which
+  also covers signing out mid-session (`signOut()` doesn't re-ask).
+- **The answer is remembered per server** (`AuthProvidersStore`), so a failed fetch
+  leaves the last known answer standing instead of silently downgrading to
+  Google-only. It only ever stores what a server advertised and never invents a
+  provider, so a self-hosted instance without the secrets still draws Google alone,
+  and `wrangler dev` doesn't inherit the hosted app's answer.
+
+`SignInUITests.testSignInScreenDoesNotWaitOnTheProvidersFetch` pins the first by
+pointing the app at a black-hole address; it needs no dev server, so it runs in CI.
 
 Pointing the app at a dev server needs no test hook, because `UserDefaults` reads
 launch arguments:
