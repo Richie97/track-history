@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The two colors the platform needs before Compose is running: the launcher
+    icon's background and the splash window. Both are the brand's near-black,
+    matching the "bg" design token in public/style.css. The app's real palette
+    is NS-07's job.
+-->
+<resources>
+    <color name="brand_background">#0A0A0B</color>
+    <color name="ic_launcher_background">#0A0A0B</color>
+</resources>

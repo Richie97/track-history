@@ -27,9 +27,30 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
 
-      # :app isn't in settings.gradle.kts yet (NS-02 landed :core only), and its
-      # absence is what lets this run without an SDK install. Add
-      # `:app:assembleDebug` here in the same change that adds the module.
+      # Deliberately no SDK install. :app is in the build now, but AGP defers its
+      # SDK check to task execution, so configuring it costs nothing here and
+      # this job stays under a minute. The app job below is what needs the SDK.
       - name: Core tests
         working-directory: apps/android
         run: ./gradlew :core:test --no-daemon
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 21 rather than the core job's 17: :app depends on :core, whose toolchain
+      # is 21, so running on 21 means Gradle never has to go hunting for a
+      # second JDK. AGP itself is happy on anything 17 or newer.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Compiles the Compose UI and dexes :core — which is the real assertion
+      # here, that the pure-JVM module is consumable from the Android shell.
+      # No emulator: instrumentation tests, if they ever appear, go nightly.
+      - name: Assemble debug APK
+        working-directory: apps/android
+        run: ./gradlew :app:assembleDebug --no-daemon

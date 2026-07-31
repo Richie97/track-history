@@ -197,7 +197,15 @@ xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolutio
   -only-testing:TrackEvolutionUITests/CoreScreensUITests
 
 cd apps/android && ./gradlew :core:test                # Android pure logic, no emulator
+cd apps/android && ./gradlew :app:assembleDebug        # the Android app (needs the SDK)
 ```
+
+The Android project is two modules, and the split is the point: `:core` is pure
+Kotlin/JVM, so its tests run in seconds with no SDK and no emulator, while
+`:app` is the Compose shell around it. Building `:app` needs an Android SDK —
+either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
+`apps/android/local.properties` (gitignored; Android Studio writes it for you).
+`:core:test` deliberately still works without one.
 
 iOS specifics — the generated-but-committed Xcode project, the bundle id shared
 with the Capacitor app, Swift 6 concurrency, and why the CarPlay entitlement
