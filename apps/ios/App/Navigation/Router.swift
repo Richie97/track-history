@@ -15,6 +15,9 @@ enum Route: Hashable {
     case settings
     /// NS-17's recorder. Deliberately not reachable from a link — see `DeepLink`.
     case record(eventId: Int?)
+    /// NS-30's video import. `incoming` is set when Files or the share sheet handed
+    /// the app a clip directly, so the picker is skipped.
+    case importVideo(eventId: Int?, incoming: URL?)
     /// Someone's public logbook, read-only.
     case shared(slug: String)
 }
@@ -108,6 +111,9 @@ final class AppRouter {
             case .record(let id):
                 guard let id, OfflineStore.isTemp(id), let real = resolve(id) else { return route }
                 return .record(eventId: real)
+            case .importVideo(let id, let incoming):
+                guard let id, OfflineStore.isTemp(id), let real = resolve(id) else { return route }
+                return .importVideo(eventId: real, incoming: incoming)
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.
             case .track, .vehicle, .settings, .shared, .eventForm(.new):

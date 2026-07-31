@@ -21,6 +21,7 @@
 		397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */; };
 		43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE19F08670203224D23A5F6F /* GarageViews.swift */; };
 		444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32AEB077B38B164C34ECD9E /* Haptics.swift */; };
+		449B69CF28F00455EFE6F6DA /* ImportScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 291C87F538FC7E79CDB43160 /* ImportScreen.swift */; };
 		44C9344E2201B4126ABEF4D7 /* CoreScreensUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66389188B710C7781911F41D /* CoreScreensUITests.swift */; };
 		4672EECB0EB121F69CCDC6DF /* ThemePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77AAF51B0B3269B08721385C /* ThemePreference.swift */; };
 		48D153C4F58B8B1A62F7A616 /* SharedLogbookScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */; };
@@ -30,6 +31,7 @@
 		4D5846D926BDEF1D48B78043 /* LinePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA73ABB4BB40CF826F60AF4 /* LinePickerView.swift */; };
 		4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A61B2645926992E00FFAD3 /* Shape.swift */; };
 		51CF45A0E84DE89AA15DB4D7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF43C9F27E545AD049BEA61F /* Router.swift */; };
+		5A671EFFAC149837963BCEBF /* TelemetryImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D8720DD4F67BA47FB3A473 /* TelemetryImporter.swift */; };
 		5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6588990892F4B703C72631 /* RootView.swift */; };
 		5F8BC0ED3060AC991BAB71F8 /* TrackEvolutionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5F2EDF1C9FC56FC64FA6AD /* TrackEvolutionKit */; };
 		66499C8CFD338E62777C4FFE /* GestureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */; };
@@ -37,6 +39,7 @@
 		68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D136E4DE2F395728D4F10F3 /* EventScreen.swift */; };
 		7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684F8FFC9870756AC968E1E6 /* SignInScreen.swift */; };
 		79DB087EDD43CCC5CE9D378E /* ProgressChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D9EC7D2504A9022D639B5C /* ProgressChart.swift */; };
+		7D8383BD1872AF68D53716DD /* DebugImportFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC506BB6A47DA40FDE9F249 /* DebugImportFixture.swift */; };
 		8942CFCB809A0BD25305A821 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490360DEB9D237C16354DD63 /* Components.swift */; };
 		8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */; };
 		99384036CC3B4CB5D05BD649 /* EventFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */; };
@@ -46,11 +49,14 @@
 		D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */; };
 		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
 		D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D029EFD956A7AC879046769 /* SettingsScreen.swift */; };
+		DA264BA1CC72048E06DF405D /* TelemetryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */; };
 		DAE2D0644FF52D0956D4E4B9 /* ChannelGraphsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2133654268DDDB033D753977 /* ChannelGraphsUITests.swift */; };
 		DB78BAE155E508C9C20736D1 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */; };
+		DDC81CFF119F5757B8E5C2A5 /* VideoImportUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2547D11C2AB55F3F271936B4 /* VideoImportUITests.swift */; };
 		DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150A5FDFCC1A9C0324EA2622 /* AuthController.swift */; };
 		E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */; };
 		E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11E4CD1582ACC54710F446D /* LapChannelChart.swift */; };
+		E9868474425C0AC1F91A7E55 /* TelemetryFileSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497D4C7291EC82131207C136 /* TelemetryFileSource.swift */; };
 		F87B8589AAC23215D4995227 /* DevServerSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9909D90A12012D6F62C72B /* DevServerSignIn.swift */; };
 		F903D5D339EABBC96E51A877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D10939598E67F796CA22FCE3 /* Assets.xcassets */; };
 		FE1DBD9FE6647218B6AEB845 /* ReviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12317D03A02B7DF755F9A335 /* ReviewScreen.swift */; };
@@ -73,13 +79,17 @@
 		069CAEC52E0E9C81C22DC8C8 /* RemoteRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRecorder.swift; sourceTree = "<group>"; };
 		12317D03A02B7DF755F9A335 /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScreen.swift; sourceTree = "<group>"; };
 		150A5FDFCC1A9C0324EA2622 /* AuthController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthController.swift; sourceTree = "<group>"; };
+		1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryPicker.swift; sourceTree = "<group>"; };
 		1D6588990892F4B703C72631 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		2133654268DDDB033D753977 /* ChannelGraphsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelGraphsUITests.swift; sourceTree = "<group>"; };
+		2547D11C2AB55F3F271936B4 /* VideoImportUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoImportUITests.swift; sourceTree = "<group>"; };
+		291C87F538FC7E79CDB43160 /* ImportScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportScreen.swift; sourceTree = "<group>"; };
 		30D7E5BFFAD255C5A8CDC979 /* EventModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventModel.swift; sourceTree = "<group>"; };
 		380D4BFFDADBA70827336888 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
 		41D9EC7D2504A9022D639B5C /* ProgressChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressChart.swift; sourceTree = "<group>"; };
 		47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureUITests.swift; sourceTree = "<group>"; };
 		490360DEB9D237C16354DD63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		497D4C7291EC82131207C136 /* TelemetryFileSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryFileSource.swift; sourceTree = "<group>"; };
 		4F2186F17C307D76064E1F95 /* TrackEvolution.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrackEvolution.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		53A61B2645926992E00FFAD3 /* Shape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shape.swift; sourceTree = "<group>"; };
 		56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
@@ -116,8 +126,10 @@
 		DE19F08670203224D23A5F6F /* GarageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageViews.swift; sourceTree = "<group>"; };
 		DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackEvolutionApp.swift; sourceTree = "<group>"; };
 		DF71BFD1447FEAD3D7528461 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		E7D8720DD4F67BA47FB3A473 /* TelemetryImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryImporter.swift; sourceTree = "<group>"; };
 		F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackMapView.swift; sourceTree = "<group>"; };
 		F48AE0050A975A2D2C847DDB /* RecordingBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingBanner.swift; sourceTree = "<group>"; };
+		FFC506BB6A47DA40FDE9F249 /* DebugImportFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugImportFixture.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -192,6 +204,18 @@
 			path = Screens;
 			sourceTree = "<group>";
 		};
+		7856111F3AF967BCD3D757E1 /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				FFC506BB6A47DA40FDE9F249 /* DebugImportFixture.swift */,
+				291C87F538FC7E79CDB43160 /* ImportScreen.swift */,
+				497D4C7291EC82131207C136 /* TelemetryFileSource.swift */,
+				E7D8720DD4F67BA47FB3A473 /* TelemetryImporter.swift */,
+				1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */,
+			);
+			path = Import;
+			sourceTree = "<group>";
+		};
 		7F9F76BF9CBBCC264B34A93D /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -199,6 +223,7 @@
 				EB34187C37F208C141376079 /* CarPlay */,
 				E0D236F11D520CECDCCB8AF4 /* Charts */,
 				FD4C440116BA269B836CB734 /* DesignSystem */,
+				7856111F3AF967BCD3D757E1 /* Import */,
 				ACA50735DEE1C5D3D51426EA /* Navigation */,
 				578A399D6F6E60A4A894C8B8 /* Offline */,
 				05F08C89A2F106188B1AC56B /* Recording */,
@@ -231,6 +256,7 @@
 				6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */,
 				AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */,
 				82118910A4D7C285ABC04083 /* SignInUITests.swift */,
+				2547D11C2AB55F3F271936B4 /* VideoImportUITests.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -392,6 +418,7 @@
 				B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */,
 				397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */,
 				B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */,
+				DDC81CFF119F5757B8E5C2A5 /* VideoImportUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -406,12 +433,14 @@
 				098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */,
 				8942CFCB809A0BD25305A821 /* Components.swift in Sources */,
 				AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */,
+				7D8383BD1872AF68D53716DD /* DebugImportFixture.swift in Sources */,
 				99384036CC3B4CB5D05BD649 /* EventFormScreen.swift in Sources */,
 				0B42C235850422B2C6BF0737 /* EventModel.swift in Sources */,
 				68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */,
 				D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */,
 				43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */,
 				444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */,
+				449B69CF28F00455EFE6F6DA /* ImportScreen.swift in Sources */,
 				8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */,
 				E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */,
 				4D5846D926BDEF1D48B78043 /* LinePickerView.swift in Sources */,
@@ -429,6 +458,9 @@
 				48D153C4F58B8B1A62F7A616 /* SharedLogbookScreen.swift in Sources */,
 				7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */,
 				E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */,
+				E9868474425C0AC1F91A7E55 /* TelemetryFileSource.swift in Sources */,
+				5A671EFFAC149837963BCEBF /* TelemetryImporter.swift in Sources */,
+				DA264BA1CC72048E06DF405D /* TelemetryPicker.swift in Sources */,
 				4672EECB0EB121F69CCDC6DF /* ThemePreference.swift in Sources */,
 				1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */,
 				D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */,

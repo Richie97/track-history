@@ -27,9 +27,9 @@ The three clients are deliberately **not** at parity:
 - **Native apps own the on-track critical path** — recording, the logbook you
   check between sessions, CarPlay/Android Auto. Fast, offline, reliable with the
   screen off.
-- **The web app owns the desk-bound long tail** — telemetry file import, year in
-  review, the setup notebook and its lap-time correlation. Big screen, file
-  drag-and-drop, ships instantly.
+- **The web app owns the desk-bound long tail** — `.vbo` and other logger-file
+  import, year in review, the setup notebook and its lap-time correlation. Big
+  screen, file drag-and-drop, ships instantly.
 - **The web app stays the feature frontier.** New ideas land there first and
   graduate to native once proven.
 
@@ -100,6 +100,7 @@ argument in full.
 | ID | Spec | Platform | Depends on |
 |---|---|---|---|
 | NS-29 | [Garage — iOS](NS-29-ios-garage.md) | iOS | NS-25 |
+| NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
 | NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
 
 ## Deferred — not in this programme

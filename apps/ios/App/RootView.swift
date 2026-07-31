@@ -72,10 +72,27 @@ struct RootView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) { SyncBanner() }
-        .onOpenURL { router.open($0, signedIn: true) }
+        .onOpenURL { url in
+            // A video handed over by Files or the share sheet is a file URL, not one
+            // of our links — `DeepLink` doesn't know about it and shouldn't.
+            if url.isFileURL {
+                router.show(.importVideo(eventId: nil, incoming: url))
+                return
+            }
+            router.open(url, signedIn: true)
+        }
         // Cold start with a pending link, and the moment after signing in: both land
         // here, so the destination survives the auth detour either way.
         .task { router.applyPending() }
+        #if DEBUG
+        .task {
+            // -importFixture <clip>: open NS-30's import on a committed fixture,
+            // skipping only the system picker. See `DebugImportFixture`.
+            if let url = DebugImportFixture.pendingURL {
+                router.show(.importVideo(eventId: DebugImportFixture.pendingEventId, incoming: url))
+            }
+        }
+        #endif
         .task {
             // Rows created offline are renumbered when the queue flushes; a screen
             // parked on a temp id has to follow. The web app does the same to
@@ -101,6 +118,8 @@ struct RootView: View {
             // Discarding leaves the recorder for the dashboard rather than popping one
             // step onto a Start button.
             RecordingScreen(eventId: eventId, onFinish: { router.popToRoot() })
+        case .importVideo(let eventId, let incoming):
+            ImportScreen(eventId: eventId, incoming: incoming)
         case .shared(let slug):
             SharedLogbookScreen(slug: slug)
         }
@@ -132,6 +151,7 @@ struct RootView: View {
         case .event(let id): id
         case .eventForm(.edit(let id)): id
         case .record(let id): id
+        case .importVideo(let id, _): id
         case .track, .vehicle, .settings, .shared, .eventForm(.new): nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }

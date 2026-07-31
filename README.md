@@ -168,10 +168,11 @@ The Capacitor shells are being replaced by first-party native clients —
 [`apps/android/`](apps/android/) — so that background GPS recording and
 CarPlay/Android Auto stop fighting a web view. The backend and the web app
 (`public/`) are unchanged by that work: the web app stays the feature frontier
-and keeps the desk-bound long tail (telemetry file import, year in review, the
-setup notebook and its lap-time correlation), while the native apps own the
-on-track path — recording, the logbook you check between sessions, the garage you
-check before an event, CarPlay/Android Auto.
+and keeps the desk-bound long tail (`.vbo` and other logger-file import, year in
+review, the setup notebook and its lap-time correlation), while the native apps
+own the on-track path — recording, the logbook you check between sessions, the
+garage you check before an event, CarPlay/Android Auto, and **video** import,
+which belongs on the device the footage is already on.
 
 The work breakdown lives in [`docs/specs/native/`](docs/specs/native/) as `NS-*`
 specs. The Capacitor apps below keep shipping until the native ones land.
@@ -180,8 +181,10 @@ The iOS client now carries the whole logbook natively — dashboard, event detai
 event form, track page, settings and the garage (vehicles, consumables, wear and
 measurements), plus the read-only page a `trackevolution.app/share/<slug>` link
 opens — on top of the lap recorder, the offline cache and write queue, and the
-charts. The setup notebook, the setup-vs-lap-times diff, year in review, compare
-and telemetry import stay web-only by design.
+charts. **Video telemetry import is native too**: a PDR or GoPro clip picked from
+Files or Photos is parsed on the phone, laps and all, without the video being
+copied or uploaded. The setup notebook, the setup-vs-lap-times diff, year in
+review, compare and `.vbo` import stay web-only by design.
 
 ```sh
 cd apps/ios/Packages/TrackEvolutionKit && swift test   # iOS pure logic, no simulator
@@ -319,9 +322,9 @@ scenes they bypass the `AppDelegate` callbacks).
 ## Video / telemetry import
 
 On any event page, **Import video / telemetry…** turns recordings into sessions
-with laps. Parsing happens entirely in the browser — for videos, via byte-range
-reads of the embedded telemetry track (a few MB of a multi-GB file); **files
-never leave your computer**. Supported sources:
+with laps. Parsing happens entirely on your own device — for videos, via
+byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
+**files never leave your computer or phone**. Supported sources:
 
 - **Corvette PDR (Cosworth) MP4** — lap times from beacon/odometer telemetry,
   the GPS trace from the delta-encoded lat/lon channels, and car metrics (top
@@ -332,6 +335,17 @@ never leave your computer**. Supported sources:
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer
   exports) — laps from the file's `[laptiming]` start line when present,
   otherwise from the GPS trace.
+
+The two **video** formats also import on the native iOS app (**Import video** on
+any event page, or "Open with Track Evolution" from Files): a GoPro clip arrives
+over Wi-Fi into Photos and a PDR clip lands in Files off a USB stick, so the
+phone is usually where the footage already is. The parsers are ported (`PDR`,
+`GPMF`, `Series` and `TelemetryChannels` in `apps/ios/Packages/TrackEvolutionKit`)
+and pinned to the JavaScript implementation's output by
+`contracts/logic/video-parsers.json`, so the same clip yields the same lap times
+either way. The clip is read in place through a security-scoped file handle —
+never copied, never uploaded. `.vbo` import stays on the web: a VBOX writes to an
+SD card that gets read on a laptop.
 
 GPS-only sources have no lap markers, so the import preview shows the driven
 track map: **click where the start/finish line is** and laps are timed each
