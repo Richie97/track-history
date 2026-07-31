@@ -13,7 +13,17 @@ import XCTest
 /// `xcodebuild` doesn't forward the shell environment to the test process, so a flag
 /// would silently skip exactly when you meant to run it.)
 extension XCTestCase {
-    static let devServerURL = "http://localhost:8787"
+    /// `http://localhost:8787` unless told otherwise. The override exists because
+    /// `wrangler dev` picks the next free port when 8787 is taken, so a second
+    /// checkout of this repo lands on 8788 — and without this its UI tests would
+    /// silently write to the *other* checkout's logbook:
+    ///
+    ///     xcodebuild test … TEST_RUNNER_TE_DEV_SERVER=http://localhost:8788
+    ///
+    /// `xcodebuild` doesn't forward the shell environment to the test process, but
+    /// it does forward variables prefixed `TEST_RUNNER_`, with the prefix stripped.
+    static let devServerURL =
+        ProcessInfo.processInfo.environment["TE_DEV_SERVER"] ?? "http://localhost:8787"
 
     /// Is `wrangler dev` up? Also confirms the bypass is enabled: without
     /// `DEV_MODE=1` in `.dev.vars` the flow would need a real Google password.

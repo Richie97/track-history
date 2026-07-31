@@ -8,9 +8,9 @@ import TrackEvolutionKit
 /// - **Share-link management lives here**, not on the dashboard. The web app puts it
 ///   at the bottom of the dashboard; on a phone a settings screen is where it's
 ///   looked for, and the dashboard is long enough already.
-/// - **Vehicle and garage management links out to the web app.** Wear tracking, the
-///   setup notebook and the garage pages are deferred (`docs/specs/native/README.md`)
-///   and building a vehicle editor here would be the first half of a feature.
+/// - **Vehicles are managed here**, matching the web app: this screen owns the
+///   list, the default flag and deletion, while a car's consumables and wear live
+///   on its garage page (`VehicleScreen`).
 ///
 /// **Privacy and terms are required on every platform.** The web app carries them in
 /// the footer on signed-out pages and in Settings for signed-in users; the native app
@@ -24,6 +24,7 @@ struct SettingsScreen: View {
     @State private var model: SettingsModel?
     @State private var confirmingSignOut = false
     @State private var confirmingDisableShare = false
+    @State private var deletingVehicle: Vehicle?
 
     private static let docsURL = URL(string: "https://docs.trackevolution.app")!
 
@@ -67,6 +68,22 @@ struct SettingsScreen: View {
             }
             Button("Keep it", role: .cancel) {}
         }
+        .confirmationDialog(
+            deletingVehicle.map {
+                "Delete \($0.name)? Its consumables, measurements and wear history go with it. "
+                    + "Events keep their car name and simply stop being linked."
+            } ?? "",
+            isPresented: .init(get: { deletingVehicle != nil }, set: { if !$0 { deletingVehicle = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete vehicle", role: .destructive) {
+                if let vehicle = deletingVehicle {
+                    Task { await model?.deleteVehicle(id: vehicle.id) }
+                }
+                deletingVehicle = nil
+            }
+            Button("Keep it", role: .cancel) { deletingVehicle = nil }
+        }
     }
 
     private func content(_ model: SettingsModel) -> some View {
@@ -87,24 +104,8 @@ struct SettingsScreen: View {
             TESectionHeader("Share your history")
             shareCard(model)
 
-            TESectionHeader("Vehicles & garage")
-            TECard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("""
-                        Your garage — consumable wear, measurements and the per-day setup notebook — \
-                        lives in the web app for now. The event form's Car field is free text and is \
-                        matched to a garage vehicle automatically.
-                        """)
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.textMuted))
-                    Link(destination: auth.server.url) {
-                        Text("Open the garage on the web ↗")
-                            .teStyle(.bodyStrong)
-                            .foregroundStyle(Color(.accentInk))
-                    }
-                    .accessibilityIdentifier("garageLinkOut")
-                }
-            }
+            TESectionHeader("Vehicles")
+            vehiclesCard(model)
 
             TESectionHeader("About & legal")
             TECard {
@@ -207,6 +208,94 @@ struct SettingsScreen: View {
         }
     }
 
+    // MARK: - Vehicles
+
+    /// The garage's front door: one row per car, each opening its own page. The
+    /// default car pre-fills new events, which is the only reason the flag is
+    /// worth surfacing at all.
+    private func vehiclesCard(_ model: SettingsModel) -> some View {
+        @Bindable var model = model
+        return TECard {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("""
+                    Your cars. The default one pre-fills new events, and an event's Car field is \
+                    matched to a vehicle by name — so consumables accrue wear from the events you \
+                    already log. Open a car to track pads, tires and fluid.
+                    """)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+
+                if model.vehicles.isEmpty {
+                    TEEmpty("No vehicles yet — add one and its consumables start tracking themselves.")
+                } else {
+                    ForEach(model.vehicles) { vehicle in
+                        vehicleRow(model, vehicle)
+                    }
+                }
+
+                if let error = model.vehicleError {
+                    TEErrorBanner(message: error)
+                }
+
+                // Stacked, not side by side. `TEButtonStyle` sets
+                // `frame(maxWidth: .infinity)`, and pinning that down with
+                // `.fixedSize()` inside an `HStack` gives the layout engine a
+                // contradiction to chew on — which it does, until the watchdog
+                // kills the app mid-keystroke. Full-width is also the shape every
+                // other primary button on this screen has.
+                TextField("Corvette Z06", text: $model.newVehicleName)
+                    .teInput()
+                    .accessibilityIdentifier("newVehicleName")
+                Button("Add vehicle") { Task { await model.addVehicle() } }
+                    .buttonStyle(TEButtonStyle(kind: .accent))
+                    .disabled(model.newVehicleName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityIdentifier("addVehicle")
+            }
+        }
+    }
+
+    private func vehicleRow(_ model: SettingsModel, _ vehicle: Vehicle) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button {
+                    router.push(.vehicle(vehicle.id))
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(vehicle.name)
+                            .teStyle(.bodyStrong)
+                            .foregroundStyle(Color(.textStrong))
+                        if vehicle.isDefault {
+                            Text("Default")
+                                .teStyle(.xxs)
+                                .foregroundStyle(Color(.accentInk))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color(.accentTint), in: .capsule)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("vehicleRow")
+            }
+            HStack(spacing: 14) {
+                if !vehicle.isDefault {
+                    Button("Make default") { Task { await model.makeDefault(id: vehicle.id) } }
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.accentInk))
+                }
+                Button("Delete") { deletingVehicle = vehicle }
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.dangerInk))
+                Spacer()
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
     // MARK: - Share link
 
     private func shareCard(_ model: SettingsModel) -> some View {
@@ -268,7 +357,7 @@ struct SettingsScreen: View {
     }
 }
 
-/// Settings' data: who you are, and the share slug.
+/// Settings' data: who you are, the share slug, and the garage's vehicle list.
 @MainActor
 @Observable
 final class SettingsModel {
@@ -279,6 +368,11 @@ final class SettingsModel {
     private(set) var slug: String?
     var slugDraft = ""
     var writeError: String?
+    private(set) var vehicles: [Vehicle] = []
+    var newVehicleName = ""
+    /// Kept apart from `writeError` so a rejected slug and a duplicate vehicle
+    /// name don't overwrite each other's message halfway down the screen.
+    var vehicleError: String?
     /// Writes still waiting to reach the server — signing out would discard them, so
     /// the confirmation says so.
     private(set) var hasUnsyncedChanges = false
@@ -288,6 +382,9 @@ final class SettingsModel {
     }
 
     func load() async {
+        // The vehicle list is a section, not the screen: an empty garage or a
+        // failed fetch must not take the account and legal pages down with it.
+        async let vehicleList = try? api.vehicles()
         do {
             let me = try await api.me()
             user = me.user
@@ -299,6 +396,50 @@ final class SettingsModel {
             state = .failed(error.message)
         } catch {
             state = .failed(error.localizedDescription)
+        }
+        vehicles = await vehicleList ?? []
+    }
+
+    // MARK: - Vehicles
+
+    /// The first vehicle in an empty garage becomes the default server-side, so
+    /// this never asks about that — it just adds the car.
+    func addVehicle() async {
+        let name = newVehicleName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        await vehicleWrite {
+            _ = try await $0.createVehicle(VehicleDraft(name: name))
+            self.newVehicleName = ""
+        }
+    }
+
+    func makeDefault(id: Int) async {
+        var patch = VehiclePatch()
+        patch.isDefault = .set(true)
+        await vehicleWrite { try await $0.updateVehicle(id: id, patch) }
+    }
+
+    /// Cascades to the vehicle's parts and measurements. Events keep their
+    /// free-text car name and simply lose the link.
+    func deleteVehicle(id: Int) async {
+        await vehicleWrite { try await $0.deleteVehicle(id: id) }
+    }
+
+    /// Garage writes are deliberately off the offline queue, so this surfaces the
+    /// server's own message — including the 409 for a duplicate name, which is the
+    /// one a user actually hits.
+    private func vehicleWrite(_ body: (APIClient) async throws -> Void) async {
+        vehicleError = nil
+        do {
+            try await body(api)
+            vehicles = (try? await api.vehicles()) ?? vehicles
+            Haptics.confirm()
+        } catch let error as APIError {
+            vehicleError = error.message
+            Haptics.warn()
+        } catch {
+            vehicleError = error.localizedDescription
+            Haptics.warn()
         }
     }
 

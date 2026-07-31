@@ -20,15 +20,21 @@ Everything a user touches between sessions.
 | Settings | `viewSettings` (1676) | `#/settings` |
 
 **Out of scope — deferred, stays web-only** (see `README.md` in this directory):
-garage / vehicle pages (`viewVehicle`), the per-day setup notebook, the
-setup-vs-lap-times diff, year in review (`viewYear`), compare (`viewCompare`),
-and all telemetry file import. The recorder screen is NS-17.
+the per-day setup notebook, the setup-vs-lap-times diff, year in review
+(`viewYear`), compare (`viewCompare`), and all telemetry file import. The
+recorder screen is NS-17.
 
 **Consequence to handle deliberately:** the dashboard currently carries a
 maintenance-due strip and garage cards fed by `GET /api/garage`. Those are part
 of the deferred garage feature. Either omit them cleanly or show a read-only
 summary that links out to the web app — **decide, and say which in the PR.** Do
 not half-build the garage.
+
+> **Resolved by NS-29.** This spec shipped with both omitted and Settings linking
+> out to the web app. NS-29 then built the garage natively and brought the strip
+> and the cards back, so the acceptance criterion below about handling their
+> absence no longer applies — the garage/vehicle page (`viewVehicle`) is also no
+> longer out of scope. The setup notebook and the diff still are.
 
 ## Requirements
 
@@ -83,7 +89,8 @@ not half-build the garage.
 - [ ] Privacy and terms are reachable from Settings.
 - [ ] Share slug can be set, copied via the share sheet, and disabled.
 - [ ] Lap times format identically to the web app, including `~` on estimated laps.
-- [ ] Garage/setup/year-review absence is handled cleanly — no dead links, no empty shells.
+- [x] Garage/setup/year-review absence is handled cleanly — no dead links, no empty shells.
+      *(The garage half of this was superseded by NS-29; setup and year-review stand.)*
 - [ ] Largest Dynamic Type size is usable on every screen.
 - [ ] `git diff --stat public/ src/` is empty.
 

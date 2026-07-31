@@ -23,6 +23,11 @@ struct DeepLinkTests {
         #expect(parse("https://trackevolution.app/#/event/5") == .event(5))
         #expect(parse("https://trackevolution.app/#/event/5/edit") == .editEvent(5))
         #expect(parse("https://trackevolution.app/#/track/7") == .track(7))
+        // A garage page. The web dashboard's maintenance chips link here, so a
+        // link shared from a desk browser has to land on the same car.
+        #expect(parse("https://trackevolution.app/#/vehicle/3") == .vehicle(3))
+        // An unparseable id falls back to the dashboard rather than a blank screen.
+        #expect(parse("https://trackevolution.app/#/vehicle/notanid") == .dashboard)
         #expect(parse("https://trackevolution.app/#/settings") == .settings)
         #expect(parse("https://trackevolution.app/") == .dashboard)
         #expect(parse("https://trackevolution.app/#/") == .dashboard)

@@ -201,12 +201,23 @@ than tapped through. Two things it settles:
 A link that arrives while signed out is held and applied after sign-in, so tapping
 a share link, signing in, and landing on that logbook is one flow.
 
-**Deliberate absences.** The garage (its dashboard strip and vehicle cards, the
-per-day setup notebook, the setup-vs-lap-times diff), year in review, compare, and
-telemetry file import are web-only (`docs/specs/native/README.md`). They are absent,
-not stubbed; Settings links out to the web app for the garage. There is a UI-test
-assertion keeping the dashboard's garage strip out, because half a garage is worse
-than none.
+**The garage** — vehicles, consumables, wear and measurements — is native
+(`App/Screens/VehicleScreen.swift`, NS-29). Three things about it are load-bearing:
+
+- **The wear math is not ported.** `GET /api/garage` arrives with each part's
+  estimate already computed by `src/lib/wear.ts`, and the Kit only decides how to
+  *say* it (`Garage.swift`). The thresholds and phrasing that it does own are
+  pinned against the web implementation by `contracts/logic/garage-status.json`.
+- **It needs a live server.** Garage writes are deliberately absent from the
+  offline queue: retiring a part rewrites the wear of everything around it, and a
+  "refresh" is two rows in one request whose successor id the client can't invent.
+  Reads still come from the cache, so the garage is *readable* in the paddock.
+- The dashboard fetches `/garage` independently of the rest and swallows its
+  failure — an empty garage or a failed fetch must not take the logbook down.
+
+**Deliberate absences.** The per-day setup notebook, the setup-vs-lap-times diff,
+year in review, compare, and telemetry file import are web-only
+(`docs/specs/native/README.md`). They are absent, not stubbed.
 
 **Absent for want of an endpoint, not by choice:** editing a lap in place and
 reordering sessions. There is no `PUT /laps/:id` and no sort endpoint, and `src/`
@@ -220,7 +231,8 @@ swipe gesture.
 
 ## Screens are tested against a real server
 
-`UITests/CoreScreensUITests` walks all five screens against `npm run dev`, and
+`UITests/CoreScreensUITests` walks all five screens against `npm run dev`,
+`UITests/GarageUITests` walks a consumable from install to measurement, and
 `DevServerSignIn` is the shared way in. `UITests/OfflineWritesUITests` then does the
 same CRUD with **no reachable server** — the app is relaunched pointed at a dead port,
 which is what a lost connection looks like to `URLSession` — and checks that the
@@ -234,6 +246,30 @@ xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolutio
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -only-testing:TrackEvolutionUITests/CoreScreensUITests
 ```
+
+**Connect the simulator's hardware keyboard** (Simulator → I/O → Keyboard →
+Connect Hardware Keyboard, or `defaults write com.apple.iphonesimulator
+ConnectHardwareKeyboard -bool true`). With the software keyboard, `typeText` can
+take the app down through an XPC fault in the keyboard's own service — it surfaces
+as "Lost connection to the application", with no crash log and no stack, and it
+fails tests that have nothing to do with whatever you just changed.
+
+**Pin the destination by id (`-destination 'id=<udid>'`) when you're chasing a
+failure.** `name=iPhone 17` also matches "iPhone 17 Pro", so the device you
+prepared and the device the test ran on can be different ones — which reads as
+maddening nondeterminism.
+
+**Two checkouts of this repo can't both use port 8787.** The second `wrangler dev`
+takes 8788, and by default both apps' UI tests still sign into 8787 — so one
+checkout's tests write to the other's logbook. Point them at the right one with
+`TEST_RUNNER_TE_DEV_SERVER` in xcodebuild's **environment**:
+
+```sh
+TEST_RUNNER_TE_DEV_SERVER=http://localhost:8788 xcodebuild test …
+```
+
+Passing it as a trailing `KEY=VALUE` argument does nothing — xcodebuild reads that
+as a build-setting override, and the tests quietly keep using the default.
 
 **Don't pass `CODE_SIGNING_ALLOWED=NO` when running UI tests.** It's right for the CI
 *build* (no signing secret is a prerequisite for green), but an unsigned build has no

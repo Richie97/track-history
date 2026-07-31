@@ -3,15 +3,15 @@ import TrackEvolutionKit
 
 /// The logbook's front page: what's next, what you've done, and how fast you were.
 ///
-/// `viewDashboard` in `public/app.js` is the reference for behavior and copy. Two
-/// deliberate differences:
+/// `viewDashboard` in `public/app.js` is the reference for behavior and copy. One
+/// deliberate difference: pull-to-refresh is `.refreshable`, not
+/// `public/js/pull-refresh.js`'s hand-built approximation of it.
 ///
-/// - **The garage is not here.** The web dashboard carries a maintenance-due strip
-///   and a card per vehicle from `GET /api/garage`; wear tracking is a deferred,
-///   web-only feature (`docs/specs/native/README.md`), so rather than half-build it
-///   this omits both cleanly. Settings links out to the web app for the garage.
-/// - Pull-to-refresh is `.refreshable`, not `public/js/pull-refresh.js`'s hand-built
-///   approximation of it.
+/// The garage appears here as it does on the web — a collapsed maintenance strip
+/// and a card per vehicle — but it is the one section allowed to be **missing**.
+/// `GET /api/garage` is fetched independently of the rest and its failure is
+/// swallowed: a user with no garage, or an offline first launch, still gets the
+/// whole logbook rather than an error page about a feature they may not use.
 struct DashboardScreen: View {
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
@@ -55,6 +55,8 @@ struct DashboardScreen: View {
         TEPage {
             recordingBanner
 
+            MaintenanceStrip(garage: model.garage, collapsed: true)
+
             Button("+ Add event") { router.push(.eventForm(.new(presetTrack: nil))) }
                 .buttonStyle(TEButtonStyle(kind: .accent))
 
@@ -91,6 +93,13 @@ struct DashboardScreen: View {
             } else {
                 ForEach(model.tracksWithData) { track in
                     trackCard(track)
+                }
+            }
+
+            if !model.garage.isEmpty {
+                TESectionHeader("Garage")
+                ForEach(model.garage) { vehicle in
+                    garageCard(vehicle)
                 }
             }
 
@@ -246,6 +255,40 @@ struct DashboardScreen: View {
         }
     }
 
+    // MARK: - Garage cards
+
+    /// A car's accrued hours and the worst thing fitted to it — enough to know
+    /// whether the garage needs opening before the next event.
+    private func garageCard(_ vehicle: GarageVehicle) -> some View {
+        let active = vehicle.parts.filter { $0.retiredOn == nil }
+        let worst = Garage.garageAlerts([vehicle]).first?.status
+        return TENavCard(route: .vehicle(vehicle.id), identifier: "garageCard") {
+            Text(vehicle.name)
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            Text(Garage.fmtHours(vehicle.hours))
+                .teStyle(.lapTimeHero)
+                .foregroundStyle(Color(.textStrong))
+            TEMeta([
+                fmtCount(vehicle.eventDays, "track day"),
+                "\(fmtCount(active.count, "part")) in service"
+            ])
+            Text(Self.garageStatusLine(worst: worst, activeParts: active.count))
+                .teStyle(.xs)
+                .foregroundStyle((worst ?? .ok).ink)
+        }
+    }
+
+    private static func garageStatusLine(worst: Garage.PartStatus?, activeParts: Int) -> String {
+        switch worst {
+        case .due: "Replace something now"
+        case .low: "Something's due soon"
+        // No alert isn't the same as nothing fitted: an empty garage card says so
+        // rather than claiming everything's healthy.
+        case .ok, nil: activeParts == 0 ? "No consumables tracked yet" : "Nothing due"
+        }
+    }
+
     // MARK: - The recording that no event page can reach
 
     /// A CarPlay-started recording with no event yet, or a stopped one still unsaved.
@@ -315,14 +358,20 @@ final class DashboardModel {
     private(set) var totals: Totals?
     private(set) var tracks: [Track] = []
     private(set) var events: [Event] = []
+    private(set) var garage: [GarageVehicle] = []
 
     init(api: APIClient) {
         self.api = api
     }
 
-    /// Three requests, in parallel — all three read through the offline cache, so
+    /// Four requests, in parallel — all four read through the offline cache, so
     /// this works in the paddock as long as the dashboard has been seen once.
+    ///
+    /// The garage is the one that's allowed to fail. It is a section of this
+    /// screen rather than the screen itself, and failing the whole dashboard
+    /// because a user's empty garage 500'd would be the wrong trade.
     func load() async {
+        async let garageList = try? api.garage()
         do {
             async let account = api.me()
             async let trackList = api.tracks()
@@ -337,6 +386,7 @@ final class DashboardModel {
         } catch {
             state = .failed(error.localizedDescription)
         }
+        garage = await garageList ?? []
     }
 
     func warmCache() async {

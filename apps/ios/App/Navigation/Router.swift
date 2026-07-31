@@ -10,6 +10,8 @@ enum Route: Hashable {
     case event(Int)
     case eventForm(EventFormTarget)
     case track(Int)
+    /// A car's garage page: consumables, wear and its track-hours ledger.
+    case vehicle(Int)
     case settings
     /// NS-17's recorder. Deliberately not reachable from a link — see `DeepLink`.
     case record(eventId: Int?)
@@ -82,6 +84,7 @@ final class AppRouter {
         case .editEvent(let id): .eventForm(.edit(id))
         case .newEvent(let track): .eventForm(.new(presetTrack: track))
         case .track(let id): .track(id)
+        case .vehicle(let id): .vehicle(id)
         case .settings: .settings
         case .shared(let slug): .shared(slug: slug)
         }
@@ -105,7 +108,9 @@ final class AppRouter {
             case .record(let id):
                 guard let id, OfflineStore.isTemp(id), let real = resolve(id) else { return route }
                 return .record(eventId: real)
-            case .track, .settings, .shared, .eventForm(.new):
+            // A vehicle id is never temp: garage writes don't queue offline, so a
+            // vehicle only ever exists once the server has given it a real id.
+            case .track, .vehicle, .settings, .shared, .eventForm(.new):
                 return route
             }
         }

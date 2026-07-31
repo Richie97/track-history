@@ -62,9 +62,6 @@ final class CoreScreensUITests: XCTestCase {
             "a track name should render with its layout suffix intact"
         )
 
-        // The garage is deferred: its dashboard strip and cards must be absent, not
-        // half-built. This is the assertion that keeps them out.
-        XCTAssertFalse(app.staticTexts["Garage"].exists, "the garage stays web-only")
     }
 
     // MARK: - Event: create, log laps, delete
@@ -152,11 +149,7 @@ final class CoreScreensUITests: XCTestCase {
         )
         XCTAssertTrue(app.staticTexts["Terms of use"].exists, "so must the terms of use")
         XCTAssertTrue(app.staticTexts["dev@example.com"].exists, "with the signed-in account")
-        // The garage is deferred and says so, rather than offering a dead link.
-        XCTAssertTrue(
-            app.descendants(matching: .any)["garageLinkOut"].exists,
-            "settings should link out to the web garage rather than stub one here"
-        )
+        XCTAssertTrue(app.staticTexts["Vehicles"].exists, "the garage's vehicle list lives here")
         XCTAssertTrue(app.buttons["Sign out"].exists)
 
         // A year is an identifier, not a quantity. `Text` interpolation formats a bare
