@@ -156,6 +156,170 @@ public struct SessionPatch: Encodable, Hashable, Sendable {
     }
 }
 
+// MARK: - Garage
+
+/// `POST /api/vehicles`. The first vehicle in an empty garage becomes the
+/// default whatever this says, so `isDefault` is only worth sending to promote a
+/// later one.
+public struct VehicleDraft: Encodable, Hashable, Sendable {
+    public var name: String
+    public var notes: String?
+    public var isDefault: Bool?
+
+    public enum CodingKeys: String, CodingKey {
+        case name, notes
+        case isDefault = "is_default"
+    }
+
+    public init(name: String, notes: String? = nil, isDefault: Bool? = nil) {
+        self.name = name
+        self.notes = notes
+        self.isDefault = isDefault
+    }
+}
+
+/// `PUT /api/vehicles/:id`. The server updates only the keys present and rejects
+/// a body with none of them, so every field is a `Patch`.
+///
+/// Setting `isDefault` to true clears the flag on every other vehicle server-side
+/// — there is no "unset the default" request, only "make this one it".
+public struct VehiclePatch: Encodable, Hashable, Sendable {
+    /// Not nullable server-side: `.set(nil)` would fault with "name required".
+    public var name: Patch<String> = .unchanged
+    public var notes: Patch<String> = .unchanged
+    public var isDefault: Patch<Bool> = .unchanged
+
+    public enum CodingKeys: String, CodingKey {
+        case name, notes
+        case isDefault = "is_default"
+    }
+
+    public init() {}
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encode(notes, forKey: .notes)
+        try c.encode(isDefault, forKey: .isDefault)
+    }
+}
+
+/// `POST /api/vehicles/:id/parts` — fit a consumable.
+///
+/// Leaving `expectedHours` nil is the useful default rather than a gap: the
+/// server fills it from the mean accrued life of this vehicle's retired parts of
+/// the same kind, so the second set of pads calibrates itself.
+public struct PartDraft: Encodable, Hashable, Sendable {
+    public var kind: PartKind
+    public var name: String
+    public var installedOn: String
+    public var costCents: Int?
+    public var expectedHours: Double?
+    public var wearLimit: Double?
+    public var notes: String?
+
+    public enum CodingKeys: String, CodingKey {
+        case kind, name, notes
+        case installedOn = "installed_on"
+        case costCents = "cost_cents"
+        case expectedHours = "expected_hours"
+        case wearLimit = "wear_limit"
+    }
+
+    public init(kind: PartKind, name: String, installedOn: String) {
+        self.kind = kind
+        self.name = name
+        self.installedOn = installedOn
+    }
+}
+
+/// `PUT /api/parts/:id`. Present keys only, like `VehiclePatch` — and here the
+/// distinction earns its keep: `retiredOn` as `.set(nil)` un-retires a part,
+/// while `.unchanged` leaves it retired.
+public struct PartPatch: Encodable, Hashable, Sendable {
+    public var kind: Patch<PartKind> = .unchanged
+    /// Not nullable server-side — see `VehiclePatch.name`.
+    public var name: Patch<String> = .unchanged
+    public var installedOn: Patch<String> = .unchanged
+    /// `.set(nil)` puts a retired part back in service.
+    public var retiredOn: Patch<String> = .unchanged
+    public var costCents: Patch<Int> = .unchanged
+    public var expectedHours: Patch<Double> = .unchanged
+    public var wearLimit: Patch<Double> = .unchanged
+    public var notes: Patch<String> = .unchanged
+
+    public enum CodingKeys: String, CodingKey {
+        case kind, name, notes
+        case installedOn = "installed_on"
+        case retiredOn = "retired_on"
+        case costCents = "cost_cents"
+        case expectedHours = "expected_hours"
+        case wearLimit = "wear_limit"
+    }
+
+    public init() {}
+
+    /// Retire a part as of a date — the one-field edit the garage page makes most.
+    public static func retiring(on date: String) -> PartPatch {
+        var patch = PartPatch()
+        patch.retiredOn = .set(date)
+        return patch
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(name, forKey: .name)
+        try c.encode(installedOn, forKey: .installedOn)
+        try c.encode(retiredOn, forKey: .retiredOn)
+        try c.encode(costCents, forKey: .costCents)
+        try c.encode(expectedHours, forKey: .expectedHours)
+        try c.encode(wearLimit, forKey: .wearLimit)
+        try c.encode(notes, forKey: .notes)
+    }
+}
+
+/// `POST /api/parts/:id/refresh` — "fresh set of the same part". Every field is
+/// optional: the successor inherits the old part's spec, and the swap defaults to
+/// today. Send `name`/`costCents` only when this set actually differs.
+public struct PartRefreshDraft: Encodable, Hashable, Sendable {
+    public var installedOn: String?
+    public var name: String?
+    public var costCents: Int?
+
+    public enum CodingKeys: String, CodingKey {
+        case name
+        case installedOn = "installed_on"
+        case costCents = "cost_cents"
+    }
+
+    public init(installedOn: String? = nil, name: String? = nil, costCents: Int? = nil) {
+        self.installedOn = installedOn
+        self.name = name
+        self.costCents = costCents
+    }
+}
+
+/// `POST /api/parts/:id/measurements` — a pad thickness or tread depth reading.
+/// Two of these on one part unlock the measured wear projection.
+public struct MeasurementDraft: Encodable, Hashable, Sendable {
+    public var measuredOn: String
+    public var value: Double
+    /// Free text, truncated to 12 characters server-side; blank becomes "mm".
+    public var unit: String
+
+    public enum CodingKeys: String, CodingKey {
+        case value, unit
+        case measuredOn = "measured_on"
+    }
+
+    public init(measuredOn: String, value: Double, unit: String) {
+        self.measuredOn = measuredOn
+        self.value = value
+        self.unit = unit
+    }
+}
+
 /// `PUT /api/tracks/:id` — rename, set a goal time, or edit notes.
 public struct TrackPatch: Encodable, Hashable, Sendable {
     /// Deliberately *not* a `Patch`: the server trims the name unconditionally

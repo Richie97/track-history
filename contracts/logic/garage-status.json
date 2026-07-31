@@ -1,0 +1,316 @@
+{
+  "description": "Wear-estimate presentation captured from public/js/garage.js: the due/low/ok thresholds and the remaining-life phrasing. The wear math itself is server-side (src/lib/wear.ts) and is not ported. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/garage.js",
+  "cases": [
+    {
+      "name": "no basis for an estimate",
+      "wear": {
+        "hours": 3.5,
+        "events": 2,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": null,
+        "pct_used": null,
+        "source": null,
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": null,
+      "remaining": null
+    },
+    {
+      "name": "comfortably in service",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 9.4,
+        "pct_used": 0.3,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "ok",
+      "remaining": "~9.4 h left (≈5 track days)"
+    },
+    {
+      "name": "exactly at the low threshold",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 4,
+        "pct_used": 0.6,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "low",
+      "remaining": "~4 h left (≈2 track days)"
+    },
+    {
+      "name": "just above the low threshold",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 4.1,
+        "pct_used": 0.6,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "ok",
+      "remaining": "~4.1 h left (≈2 track days)"
+    },
+    {
+      "name": "low, half a day left",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 1,
+        "pct_used": 0.9,
+        "source": "measured",
+        "wear_per_hour": 0.12,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "low",
+      "remaining": "~1 h left (≈0.5 track days)"
+    },
+    {
+      "name": "low, one day left",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 2,
+        "pct_used": 0.85,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "low",
+      "remaining": "~2 h left (≈1 track day)"
+    },
+    {
+      "name": "nothing left",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 0,
+        "pct_used": 1,
+        "source": "measured",
+        "wear_per_hour": 0.2,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "due",
+      "remaining": "replace now"
+    },
+    {
+      "name": "used up despite remaining hours",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 1.5,
+        "pct_used": 1,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "due",
+      "remaining": "~1.5 h left (≈1 track day)"
+    },
+    {
+      "name": "overdue",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": -2,
+        "pct_used": 1.4,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "due",
+      "remaining": "replace now"
+    },
+    {
+      "name": "rounds to two track days",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 4.4,
+        "pct_used": 0.5,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "ok",
+      "remaining": "~4.4 h left (≈2 track days)"
+    },
+    {
+      "name": "keeps half-day precision",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 3.4,
+        "pct_used": 0.7,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "low",
+      "remaining": "~3.4 h left (≈1.5 track days)"
+    },
+    {
+      "name": "one track day",
+      "wear": {
+        "hours": 0,
+        "events": 0,
+        "cycles": 0,
+        "expected_hours": null,
+        "remaining_hours": 2,
+        "pct_used": 0.8,
+        "source": "expected",
+        "wear_per_hour": null,
+        "last_value": null,
+        "unit": null
+      },
+      "status": "low",
+      "remaining": "~2 h left (≈1 track day)"
+    }
+  ],
+  "hours": [
+    {
+      "input": null,
+      "output": "—"
+    },
+    {
+      "input": 0,
+      "output": "0 h"
+    },
+    {
+      "input": 0.04,
+      "output": "0 h"
+    },
+    {
+      "input": 0.05,
+      "output": "0.1 h"
+    },
+    {
+      "input": 2,
+      "output": "2 h"
+    },
+    {
+      "input": 4.25,
+      "output": "4.3 h"
+    },
+    {
+      "input": 4.35,
+      "output": "4.4 h"
+    },
+    {
+      "input": 12.5,
+      "output": "12.5 h"
+    },
+    {
+      "input": 100,
+      "output": "100 h"
+    }
+  ],
+  "cost": [
+    {
+      "input": null,
+      "output": null
+    },
+    {
+      "input": 0,
+      "output": "$0"
+    },
+    {
+      "input": 5,
+      "output": "$0.05"
+    },
+    {
+      "input": 38900,
+      "output": "$389"
+    },
+    {
+      "input": 38950,
+      "output": "$389.50"
+    },
+    {
+      "input": 100000,
+      "output": "$1000"
+    }
+  ],
+  "kinds": [
+    {
+      "kind": "pads_front",
+      "label": "Front pads",
+      "wearLimitHint": "3 (mm)"
+    },
+    {
+      "kind": "pads_rear",
+      "label": "Rear pads",
+      "wearLimitHint": "3 (mm)"
+    },
+    {
+      "kind": "tires",
+      "label": "Tires",
+      "wearLimitHint": "3 (32nds)"
+    },
+    {
+      "kind": "rotors_front",
+      "label": "Front rotors",
+      "wearLimitHint": "28 (mm)"
+    },
+    {
+      "kind": "rotors_rear",
+      "label": "Rear rotors",
+      "wearLimitHint": "26 (mm)"
+    },
+    {
+      "kind": "brake_fluid",
+      "label": "Brake fluid",
+      "wearLimitHint": null
+    },
+    {
+      "kind": "oil",
+      "label": "Oil",
+      "wearLimitHint": null
+    },
+    {
+      "kind": "other",
+      "label": "Other",
+      "wearLimitHint": null
+    }
+  ]
+}

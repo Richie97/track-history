@@ -192,10 +192,67 @@ public actor APIClient {
     // MARK: - Garage
 
     /// The user's vehicles — enough to pre-fill an event's car from the default.
-    /// Wear tracking and the setup notebook stay web-only for now (see
-    /// `docs/specs/native/README.md`), so there are no methods for those.
     public func vehicles() async throws -> [Vehicle] {
         try await get("/vehicles", as: [Vehicle].self)
+    }
+
+    /// The whole garage in one payload: every vehicle with its accrued track
+    /// hours and its parts, each carrying measurements and a server-computed wear
+    /// estimate. One round trip backs both the garage page and the dashboard's
+    /// maintenance strip.
+    ///
+    /// **Reads cache, writes don't queue.** This GET falls back to the offline
+    /// cache like any other, so the garage is readable in the paddock — but every
+    /// mutation below needs a live server and fails offline with its normal
+    /// error, because their effects (defaulted expected life, the retire-and-
+    /// replace of a refresh, the recomputed wear on every other part) can't be
+    /// mirrored locally. See the queueable whitelist in `OfflineStore`.
+    public func garage() async throws -> [GarageVehicle] {
+        try await get("/garage", as: [GarageVehicle].self)
+    }
+
+    public func createVehicle(_ draft: VehicleDraft) async throws -> Vehicle {
+        try await send("POST", "/vehicles", body: draft, as: Vehicle.self)
+    }
+
+    public func updateVehicle(id: Int, _ patch: VehiclePatch) async throws {
+        _ = try await send("PUT", "/vehicles/\(id)", body: patch, as: OKResponse.self)
+    }
+
+    /// Deleting a vehicle takes its parts and measurements with it. Events keep
+    /// their free-text car name and simply stop being linked.
+    public func deleteVehicle(id: Int) async throws {
+        _ = try await send("DELETE", "/vehicles/\(id)", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    public func createPart(vehicleId: Int, _ draft: PartDraft) async throws -> Int {
+        try await send("POST", "/vehicles/\(vehicleId)/parts", body: draft, as: CreatedID.self).id
+    }
+
+    public func updatePart(id: Int, _ patch: PartPatch) async throws {
+        _ = try await send("PUT", "/parts/\(id)", body: patch, as: OKResponse.self)
+    }
+
+    /// Deletes the part **and its measurements**. Retiring keeps the history;
+    /// this doesn't.
+    public func deletePart(id: Int) async throws {
+        _ = try await send("DELETE", "/parts/\(id)", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    /// One-tap replacement: retires this part as of the swap date and installs a
+    /// same-spec successor, so accrued hours reset without re-entering the part.
+    public func refreshPart(id: Int, _ draft: PartRefreshDraft = PartRefreshDraft()) async throws -> PartRefresh {
+        try await send("POST", "/parts/\(id)/refresh", body: draft, as: PartRefresh.self)
+    }
+
+    public func addMeasurement(partId: Int, _ draft: MeasurementDraft) async throws -> Int {
+        try await send("POST", "/parts/\(partId)/measurements", body: draft, as: CreatedID.self).id
+    }
+
+    public func deleteMeasurement(partId: Int, id: Int) async throws {
+        _ = try await send(
+            "DELETE", "/parts/\(partId)/measurements/\(id)", body: NoBody?.none, as: OKResponse.self
+        )
     }
 
     // MARK: - Sharing

@@ -28,8 +28,8 @@ The three clients are deliberately **not** at parity:
   check between sessions, CarPlay/Android Auto. Fast, offline, reliable with the
   screen off.
 - **The web app owns the desk-bound long tail** — telemetry file import, year in
-  review, deep garage/setup analysis. Big screen, file drag-and-drop, ships
-  instantly.
+  review, the setup notebook and its lap-time correlation. Big screen, file
+  drag-and-drop, ships instantly.
 - **The web app stays the feature frontier.** New ideas land there first and
   graduate to native once proven.
 
@@ -88,11 +88,24 @@ needs start/finish line crossing to time laps.
 | NS-27 | [Store rollout + Capacitor retirement](NS-27-rollout.md) | Shared | NS-25, NS-26 |
 | NS-28 | [Documentation update](NS-28-docs.md) | Shared | NS-27 |
 
+### Graduated from the deferred list
+
+| ID | Spec | Platform | Depends on |
+|---|---|---|---|
+| NS-29 | [Garage — iOS](NS-29-ios-garage.md) | iOS | NS-25 |
+
 ## Deferred — not in this programme
 
-Available on web throughout, ported to native later or never: garage (vehicles,
-parts, wear, measurements), setup notebook, setup-vs-lap-times diff, year in
-review, compare view, and **all telemetry file import**.
+Available on web throughout, ported to native later or never: the setup notebook,
+the setup-vs-lap-times diff, year in review, the compare view, and **all telemetry
+file import**.
+
+The garage (vehicles, parts, wear, measurements) was on this list and came off it
+— NS-29 above. It graduated for the reason the split predicts: deciding whether the
+pads will last the weekend is something you do *at* the car, and the web app is not
+where you are then. Its **analysis** half — the setup notebook and the
+setup-vs-lap-times diff — stays deferred, and that division is deliberate rather
+than a stopping point someone ran out of time at.
 
 ## Conventions for every spec
 

@@ -168,19 +168,20 @@ The Capacitor shells are being replaced by first-party native clients —
 [`apps/android/`](apps/android/) — so that background GPS recording and
 CarPlay/Android Auto stop fighting a web view. The backend and the web app
 (`public/`) are unchanged by that work: the web app stays the feature frontier
-and keeps the desk-bound long tail (telemetry file import, year in review, deep
-garage analysis), while the native apps own the on-track path — recording, the
-logbook you check between sessions, CarPlay/Android Auto.
+and keeps the desk-bound long tail (telemetry file import, year in review, the
+setup notebook and its lap-time correlation), while the native apps own the
+on-track path — recording, the logbook you check between sessions, the garage you
+check before an event, CarPlay/Android Auto.
 
 The work breakdown lives in [`docs/specs/native/`](docs/specs/native/) as `NS-*`
 specs. The Capacitor apps below keep shipping until the native ones land.
 
 The iOS client now carries the whole logbook natively — dashboard, event detail,
-event form, track page and settings, plus the read-only page a
-`trackevolution.app/share/<slug>` link opens — on top of the lap recorder, the
-offline cache and write queue, and the charts. The garage, the setup notebook, year
-in review, compare and telemetry import stay web-only by design; Settings links out
-to the web app for the garage rather than half-building one.
+event form, track page, settings and the garage (vehicles, consumables, wear and
+measurements), plus the read-only page a `trackevolution.app/share/<slug>` link
+opens — on top of the lap recorder, the offline cache and write queue, and the
+charts. The setup notebook, the setup-vs-lap-times diff, year in review, compare
+and telemetry import stay web-only by design.
 
 ```sh
 cd apps/ios/Packages/TrackEvolutionKit && swift test   # iOS pure logic, no simulator

@@ -20,6 +20,9 @@ public enum DeepLink: Hashable, Sendable {
     case editEvent(Int)
     case newEvent(presetTrack: String?)
     case track(Int)
+    /// A car's garage page — `#/vehicle/3`, which the web app links to from its
+    /// dashboard and event pages.
+    case vehicle(Int)
     case settings
     /// Someone's public logbook — including your own, when you tap your own link.
     case shared(slug: String)
@@ -71,6 +74,9 @@ public enum DeepLink: Hashable, Sendable {
         case "track":
             guard segments.count >= 2, let id = Int(segments[1]) else { return nil }
             return .track(id)
+        case "vehicle":
+            guard segments.count >= 2, let id = Int(segments[1]) else { return nil }
+            return .vehicle(id)
         case "new":
             return .newEvent(presetTrack: query["track"])
         case "settings":

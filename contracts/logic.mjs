@@ -26,6 +26,15 @@ import {
 } from "../public/js/import/geo.js";
 import { matchLapsToChannels } from "../public/js/channel-graphs.js";
 import {
+  PART_KINDS,
+  WEAR_LIMIT_HINTS,
+  fmtCost,
+  fmtHours,
+  fmtRemaining,
+  partKindLabel,
+  partStatus,
+} from "../public/js/garage.js";
+import {
   addFix,
   createRecording,
   serializeRecording,
@@ -200,11 +209,82 @@ const channelsFixture = {
     chIdx: matchLapsToChannels(sessionLaps, channelLaps).map((r) => r.chIdx),
   },
 };
+// ---------------------------------------------------------------------------
+// Garage: how a server-computed wear estimate is turned into words.
+//
+// The wear *math* is server-side (src/lib/wear.ts) and arrives pre-computed, so
+// there is nothing to port and nothing to pin about it. What the clients do port
+// is the reading of it — the due/low/ok thresholds and the "≈2 track days"
+// phrasing — and those thresholds are exactly where three implementations would
+// drift apart unnoticed: a boundary off by one hour still looks plausible on
+// screen. Every case below sits on or beside a threshold for that reason.
+
+const wear = (over = {}) => ({
+  hours: 0,
+  events: 0,
+  cycles: 0,
+  expected_hours: null,
+  remaining_hours: null,
+  pct_used: null,
+  source: null,
+  wear_per_hour: null,
+  last_value: null,
+  unit: null,
+  ...over,
+});
+
+const wearCases = [
+  ["no basis for an estimate", wear({ hours: 3.5, events: 2 })],
+  ["comfortably in service", wear({ remaining_hours: 9.4, pct_used: 0.3, source: "expected" })],
+  // 4h is exactly 2 track days: the low/ok boundary, inclusive on the low side.
+  ["exactly at the low threshold", wear({ remaining_hours: 4, pct_used: 0.6, source: "expected" })],
+  ["just above the low threshold", wear({ remaining_hours: 4.1, pct_used: 0.6, source: "expected" })],
+  ["low, half a day left", wear({ remaining_hours: 1, pct_used: 0.9, source: "measured", wear_per_hour: 0.12 })],
+  ["low, one day left", wear({ remaining_hours: 2, pct_used: 0.85, source: "expected" })],
+  ["nothing left", wear({ remaining_hours: 0, pct_used: 1, source: "measured", wear_per_hour: 0.2 })],
+  // pct_used ≥ 1 makes it due even with hours nominally remaining — a measured
+  // fit and a plain expectation can disagree, and the pessimistic one wins.
+  ["used up despite remaining hours", wear({ remaining_hours: 1.5, pct_used: 1, source: "expected" })],
+  ["overdue", wear({ remaining_hours: -2, pct_used: 1.4, source: "expected" })],
+  // Rounds to 2 days, so the noun is plural even though 2 is not 1.
+  ["rounds to two track days", wear({ remaining_hours: 4.4, pct_used: 0.5, source: "expected" })],
+  // Below 2 days the phrasing keeps half-day precision: 3.4h → ≈1.5 days.
+  ["keeps half-day precision", wear({ remaining_hours: 3.4, pct_used: 0.7, source: "expected" })],
+  // Exactly one day: the only case that says "track day" singular.
+  ["one track day", wear({ remaining_hours: 2, pct_used: 0.8, source: "expected" })],
+];
+
+const garageFixture = {
+  description:
+    "Wear-estimate presentation captured from public/js/garage.js: the due/low/ok " +
+    "thresholds and the remaining-life phrasing. The wear math itself is server-side " +
+    "(src/lib/wear.ts) and is not ported. Regenerate with `npm run contracts:logic`.",
+  source: "public/js/garage.js",
+  cases: wearCases.map(([name, w]) => ({
+    name,
+    wear: w,
+    status: partStatus(w),
+    remaining: fmtRemaining(w),
+  })),
+  // fmtHours is used for accrued hours, expected life and remaining life alike,
+  // so its rounding shows up in three places on the garage page.
+  hours: [null, 0, 0.04, 0.05, 2, 4.25, 4.35, 12.5, 100].map((h) => ({
+    input: h,
+    output: fmtHours(h),
+  })),
+  cost: [null, 0, 5, 38900, 38950, 100000].map((c) => ({ input: c, output: fmtCost(c) })),
+  kinds: PART_KINDS.map(([kind]) => ({
+    kind,
+    label: partKindLabel(kind),
+    wearLimitHint: WEAR_LIMIT_HINTS[kind] ?? null,
+  })),
+};
 
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 console.log(
   `wrote contracts/logic/geo-laps.json (${points.length} points, ${fixture.expected.laps.length} laps)`
 );
@@ -212,3 +292,4 @@ console.log(
   `wrote contracts/logic/recorder.json (${rec.fixes.length} fixes, ${recorderFixture.expected.laps.length} laps)`
 );
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
+console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);

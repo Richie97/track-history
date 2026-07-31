@@ -58,6 +58,30 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         case eventDays = "event_days"
     }
 
+    /// Spelled out because the custom `init(from:)` below suppresses the
+    /// memberwise one — tests and previews still need to build a garage.
+    public init(
+        id: Int,
+        name: String,
+        notes: String? = nil,
+        isDefault: Bool = false,
+        updatedAt: Int = 0,
+        hours: Double = 0,
+        eventCount: Int = 0,
+        eventDays: Int = 0,
+        parts: [Part] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.notes = notes
+        self.isDefault = isDefault
+        self.updatedAt = updatedAt
+        self.hours = hours
+        self.eventCount = eventCount
+        self.eventDays = eventDays
+        self.parts = parts
+    }
+
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(Int.self, forKey: .id)
