@@ -33,10 +33,17 @@ The three clients are deliberately **not** at parity:
 - **The web app stays the feature frontier.** New ideas land there first and
   graduate to native once proven.
 
-Consequence: **the telemetry parsers (`public/pdr.js`, `js/import/gpmf.js`,
-`vbo.js`, `pdr-laps.js`, `channels.js`) are never ported.** That is the design,
-not a gap. `js/import/geo.js` *is* ported (NS-13/NS-14) because the live recorder
-needs start/finish line crossing to time laps.
+Consequence: **the telemetry parsers are, with one exception, never ported.** That
+is the design, not a gap. `js/import/geo.js` *is* ported (NS-13/NS-14) because the
+live recorder needs start/finish line crossing to time laps.
+
+The exception is **video** — `public/pdr.js`, `js/import/gpmf.js`, `channels.js`
+and `pdr-laps.js`, ported by NS-30. The split was right about the shape of import
+and wrong about that one input: a `.vbo` reaches a laptop on an SD card, but a
+GoPro clip arrives in Photos over Wi-Fi and a PDR clip lands in Files off a USB
+stick, both on the phone and usually before the laptop is opened. `vbo.js` stays
+web-only, and so does everything else on the deferred list. See NS-30 for the
+argument in full.
 
 ## Specs
 
@@ -93,19 +100,25 @@ needs start/finish line crossing to time laps.
 | ID | Spec | Platform | Depends on |
 |---|---|---|---|
 | NS-29 | [Garage — iOS](NS-29-ios-garage.md) | iOS | NS-25 |
+| NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
 
 ## Deferred — not in this programme
 
 Available on web throughout, ported to native later or never: the setup notebook,
-the setup-vs-lap-times diff, year in review, the compare view, and **all telemetry
-file import**.
+the setup-vs-lap-times diff, year in review, the compare view, and **`.vbo`
+telemetry file import**.
 
-The garage (vehicles, parts, wear, measurements) was on this list and came off it
-— NS-29 above. It graduated for the reason the split predicts: deciding whether the
-pads will last the weekend is something you do *at* the car, and the web app is not
-where you are then. Its **analysis** half — the setup notebook and the
-setup-vs-lap-times diff — stays deferred, and that division is deliberate rather
-than a stopping point someone ran out of time at.
+Two things were on this list and came off it, both for the reason the split
+predicts — the work happens where the web app isn't:
+
+- **The garage** (vehicles, parts, wear, measurements) — NS-29. Deciding whether
+  the pads will last the weekend is something you do *at* the car. Its **analysis**
+  half — the setup notebook and the setup-vs-lap-times diff — stays deferred, and
+  that division is deliberate rather than a stopping point someone ran out of time
+  at.
+- **Video import** (GoPro and Corvette PDR) — NS-30. The footage is already on the
+  phone that shot or received it. `.vbo` import, which really does arrive on an SD
+  card at a desk, stays deferred.
 
 ## Conventions for every spec
 
