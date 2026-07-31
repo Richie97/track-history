@@ -177,7 +177,18 @@ private struct SparklineSizing: ViewModifier {
             // range, which at sparkline scale is less than half the line's width, so
             // the fastest and slowest laps — the two points you actually look at — get
             // sliced in half by the plot edge.
-            content.padding(.vertical, 5).frame(maxHeight: .infinity)
+            //
+            // `idealHeight` is what stops a card being sized *by* its chart. `Chart`
+            // reports an ideal height around 100pt, and an HStack sizes itself from its
+            // children's ideals — so a one-line track card came out taller than a
+            // two-line one beside it, with the extra height showing as dead space under
+            // the meta line. A low ideal (and an explicit zero minimum, since `Chart`'s
+            // own minimum would otherwise leak through) leaves the text column as the
+            // only thing setting the row height, while `maxHeight: .infinity` still
+            // stretches the line to fill whatever that turns out to be.
+            content
+                .padding(.vertical, 5)
+                .frame(minHeight: 0, idealHeight: 44, maxHeight: .infinity)
         }
     }
 }
