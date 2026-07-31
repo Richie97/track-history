@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Two themes, and the split matters:
+
+    Theme.TrackEvolution.Splash is the *launch* theme. It only exists for the
+    handful of frames between the launcher tap and Compose drawing, so it draws
+    the brand mark on the brand background instead of a white flash.
+    androidx.core.splashscreen swaps it for the real theme in installSplashScreen(),
+    and backports the Android 12 splash to the API 26-30 devices minSdk allows.
+
+    Theme.TrackEvolution is what the app actually runs in. It is deliberately
+    bare — the palette, type scale and shapes are NS-07's job, and Compose draws
+    everything above this anyway.
+-->
+<resources>
+
+    <style name="Theme.TrackEvolution" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/brand_background</item>
+        <item name="android:navigationBarColor">@color/brand_background</item>
+        <item name="android:windowBackground">@color/brand_background</item>
+    </style>
+
+    <style name="Theme.TrackEvolution.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.TrackEvolution</item>
+    </style>
+
+</resources>
