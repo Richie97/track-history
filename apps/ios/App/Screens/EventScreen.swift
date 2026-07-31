@@ -27,6 +27,8 @@ struct EventScreen: View {
     @State private var newChecklistItem = ""
     @State private var newSession = SessionFormFields()
     @State private var appendLapText: [Int: String] = [:]
+    /// The session whose lap overlay is open, if any.
+    @State private var channelSession: Session?
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -82,6 +84,18 @@ struct EventScreen: View {
                 Task { await model?.deleteEvent() }
             }
             Button("Keep", role: .cancel) {}
+        }
+        .sheet(item: $channelSession) { session in
+            NavigationStack {
+                LapChannelChart(channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []), laps: session.laps)
+                    .navigationTitle(session.label ?? "Channel graphs")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { channelSession = nil }
+                        }
+                    }
+            }
         }
         .sheet(item: $editingSession) { session in
             SessionEditSheet(session: session) { label, notes in
@@ -345,6 +359,8 @@ struct EventScreen: View {
                 }
             }
 
+            channelSection(session)
+
             ForEach(session.laps) { lap in
                 row {
                     HStack {
@@ -434,6 +450,49 @@ struct EventScreen: View {
             // Same reason as `header(_:)`: pinned headers need an opaque background.
             .background(Color(.bgPage))
             .listRowInsets(EdgeInsets())
+        }
+    }
+
+    /// The way into the lap overlay, for sessions that carry per-lap channel data —
+    /// imports only, so most sessions never show it. Absent rather than empty when
+    /// there is nothing to draw: a session recorded on the phone has laps but no
+    /// channels, and a door onto an empty room is worse than no door.
+    ///
+    /// The charts themselves open as a sheet rather than expanding in place; see
+    /// `LapChannelChart` for why that isn't only a layout preference.
+    @ViewBuilder
+    private func channelSection(_ session: Session) -> some View {
+        let present = session.channels.map { ChannelGraphs.presentChannels($0) } ?? []
+        if !present.isEmpty {
+            row {
+                Button {
+                    channelSession = session
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Channel graphs")
+                                .teStyle(.bodyStrong)
+                                .foregroundStyle(Color(.textStrong))
+                            Text("\(present.map(\.label).joined(separator: " · ")) vs distance")
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textMuted))
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.surfaceCard), in: .rect(cornerRadius: TERadius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TERadius.md)
+                            .strokeBorder(Color(.borderHairline), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("channelGraphs")
+            }
         }
     }
 

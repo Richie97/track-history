@@ -24,6 +24,7 @@ import {
   gateCrossings,
   projectTrace,
 } from "../public/js/import/geo.js";
+import { matchLapsToChannels } from "../public/js/channel-graphs.js";
 import {
   PART_KINDS,
   WEAR_LIMIT_HINTS,
@@ -174,6 +175,40 @@ const recorderFixture = {
   },
 };
 
+
+// ---------------------------------------------------------------------------
+// Lap overlay: matching a session's stored lap rows to its channel entries.
+//
+// The reference is matchLapsToChannels in public/js/channel-graphs.js. Both
+// lists come from the same parsed laps at import time, but laps added by hand
+// afterwards have no channel data and duplicate lap times have to pair up in
+// order — which is the whole reason this is a greedy in-order match rather than
+// a lookup, and the reason it is worth pinning across languages.
+const channelLaps = [
+  { n: 1, timeMs: 121900 },
+  { n: 2, timeMs: 120400 },
+  { n: 3, timeMs: 120400 },
+];
+const sessionLaps = [
+  { lap_num: 1, time_ms: 121900 },
+  { lap_num: 2, time_ms: 120400 },
+  // Same time as lap 2: the pairing must stay one-to-one and in order.
+  { lap_num: 3, time_ms: 120400 },
+  // Typed in after the import, so no channel entry exists for it.
+  { lap_num: 4, time_ms: 119800 },
+];
+
+const channelsFixture = {
+  description:
+    "Lap-to-channel matching reference output from public/js/channel-graphs.js. " +
+    "The native ports must reproduce chIdx exactly, -1 included. Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/channel-graphs.js",
+  input: { sessionLaps, channelLaps },
+  expected: {
+    chIdx: matchLapsToChannels(sessionLaps, channelLaps).map((r) => r.chIdx),
+  },
+};
 // ---------------------------------------------------------------------------
 // Garage: how a server-computed wear estimate is turned into words.
 //
@@ -248,6 +283,7 @@ const garageFixture = {
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 console.log(
   `wrote contracts/logic/geo-laps.json (${points.length} points, ${fixture.expected.laps.length} laps)`
@@ -255,4 +291,5 @@ console.log(
 console.log(
   `wrote contracts/logic/recorder.json (${rec.fixes.length} fixes, ${recorderFixture.expected.laps.length} laps)`
 );
+console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);

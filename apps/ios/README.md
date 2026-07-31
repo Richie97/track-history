@@ -229,6 +229,46 @@ things the platform gives away: `pull-refresh.js` (a hand-built approximation of
 `.refreshable`) and the per-row Delete buttons the web app needs for want of a
 swipe gesture.
 
+## The lap overlay
+
+`App/Charts/LapChannelChart.swift` is the port of `public/js/channel-graphs.js`
+(NS-23): every lap of an imported session on one driven-distance axis, up to three
+highlighted at once in the `--chart-line` / `-b` / `-c` slots with the rest a dim
+envelope, the fastest lap pre-selected, and lap chips that double as the legend so a
+lap is never identified by color alone. Tapping a chart parks a read-out on the
+nearest grid point — on *every* chart at once, since they share the axis.
+
+The maths lives in the Kit (`ChannelGraphs`): the lap↔channel matching, the highlight
+slots, the axis window. `matchLapsToChannels` keeps its JS name and its JS test cases,
+and `contracts/logic/channels.json` pins it against the reference implementation.
+
+The data (`sessions.channels`) only ever comes from the **web** telemetry importer, so
+the panel has no data source on a phone-recorded session and the event page then
+offers no way in. To see it without importing a file first:
+
+```sh
+xcrun simctl launch <device> app.trackevolution -channelGraphs   # synthetic data
+```
+
+`UITests/ChannelGraphsUITests` covers the real thing. It is the one screen test that
+can't create what it asserts on through the UI, so it seeds a session over the dev
+API (the same `DEV_MODE` door `DevServerSignIn` uses) and deletes the event again.
+
+Three things about Swift Charts are load-bearing here, all found by the app wedging
+rather than by any assertion failing:
+
+- **Suppress accessibility per mark** (`.accessibilityHidden(true)` on the `LineMark`).
+  Charts publishes an element for every mark; a few hundred per lap makes the
+  hierarchy so large that any snapshot of it — which VoiceOver and every UI test take
+  — never returns. Hiding the *chart* does not prune them. The chart's summary goes on
+  the container instead, which is what a chart should say anyway.
+- **Keep the builder homogeneous**: one `ForEach` of `LineMark`s and nothing else. A
+  `RuleMark` or an `if` beside it makes the content type a nested tuple over those
+  same few hundred marks. The read-out's rule is a two-point line in the same data.
+- **Not in a `List` row.** A chart this size inside one never settles — the row is
+  measured over and over and the app stops idling. Hence the sheet, which also gives
+  three stacked charts the height they want on a phone.
+
 ## Screens are tested against a real server
 
 `UITests/CoreScreensUITests` walks all five screens against `npm run dev`,

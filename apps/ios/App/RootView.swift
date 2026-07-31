@@ -24,6 +24,12 @@ struct RootView: View {
             TokenGallery()
         } else if ProcessInfo.processInfo.arguments.contains("-recorder") {
             NavigationStack { RecordingScreen(eventId: nil) }
+        } else if ProcessInfo.processInfo.arguments.contains("-channelGraphs") {
+            // The lap overlay on synthetic channel data. Channels only ever come from
+            // the *web* telemetry importer, so this is the one way to see the panel
+            // without importing a real telemetry file first:
+            //   xcrun simctl launch <device> app.trackevolution -channelGraphs
+            LapChannelChart.demoScreen
         } else {
             shell
         }

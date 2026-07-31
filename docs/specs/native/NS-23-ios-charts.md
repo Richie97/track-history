@@ -53,14 +53,16 @@ speed-painted GPS trackmap.
 
 ## Acceptance criteria
 
-- [ ] Progress chart plots **lower times lower**, verified by test.
-- [ ] Lap overlay highlights up to 3 laps in the correct slot colors, rest dimmed, best pre-selected.
+- [x] Progress chart plots **lower times lower**, verified by test (`ChartScaleTests`).
+- [x] Lap overlay highlights up to 3 laps in the correct slot colors, rest dimmed, best pre-selected.
 - [ ] Trackmap renders the speed ramp correctly and matches the web app for the same trace.
 - [ ] All colors resolve from design tokens; both themes verified.
-- [ ] Single-point, identical-value, and empty datasets render without crashing.
+- [x] Single-point, identical-value, and empty datasets render without crashing
+      (`ChartScaleTests`, `ChannelGraphsTests`).
 - [ ] VoiceOver reads a meaningful summary of each chart.
-- [ ] Sessions with no channel data show a clean empty state.
-- [ ] `git diff --stat public/ src/` is empty.
+- [x] Sessions with no channel data show no way in at all — the event page's row is
+      absent rather than opening onto an empty panel.
+- [x] `git diff --stat public/ src/` is empty.
 
 ## Verification
 
@@ -74,3 +76,17 @@ data is identical.
   look native. Parity of *meaning* is required: same data, same ordering, same
   downward-is-better convention, same color semantics.
 - Resist adding chart types the web app doesn't have. Feature drift starts here.
+- The lap overlay opens as a **sheet of its own** rather than the web version's
+  collapsible panel. Three stacked charts want a phone's whole width, and — the
+  load-bearing half — a Swift Charts chart of a few hundred marks per lap inside the
+  event page's `List` row never settles: the row is measured over and over, the app
+  stops idling, and the page stops scrolling with it.
+- Two more Swift Charts behaviors cost a day between them, and are commented where
+  they bite: accessibility has to be suppressed **per mark** (Charts publishes an
+  element for every mark, and a snapshot of that hierarchy never returns — which is
+  every UI test and VoiceOver), and the chart's content builder has to stay one
+  homogeneous `ForEach` (a `RuleMark` or an `if` beside it wedges layout, so the
+  read-out's rule is a two-point line in the same data).
+- Channel data is written by the *web* importer only, so there is no native way to
+  create it: `-channelGraphs` launches the panel on synthetic data, and
+  `UITests/ChannelGraphsUITests` seeds a session over the dev API and deletes it again.
