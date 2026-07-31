@@ -1,0 +1,15 @@
+{
+  "description": "The built-in prep checklist from public/js/checklist.js. The iOS port (EventDates.DEFAULT_CHECKLIST) must match it item for item, in order. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/checklist.js",
+  "DEFAULT_CHECKLIST": [
+    "Purchase Track insurance",
+    "Tech inspection",
+    "Torque lug nuts",
+    "Check brake pads & fluid",
+    "Set tire pressures",
+    "Top off fuel",
+    "Pack helmet & gloves",
+    "Empty the car — remove loose items",
+    "Charge camera / lap timer"
+  ]
+}

@@ -34,6 +34,36 @@ final class AuthController {
     /// because it is — with a fresh code.
     var error: String?
 
+    /// The signed-in account, when it has loaded.
+    var me: Me? {
+        if case .signedIn(let me) = state { return me }
+        return nil
+    }
+
+    /// The prep list a new event's checklist starts from: the user's own when they
+    /// have edited one in Settings, else the app's built-in default.
+    ///
+    /// It lives here rather than being re-fetched per screen because two screens
+    /// need it — the event page's "Use my list" button and the Settings editor —
+    /// and they must not disagree the moment one of them changes it.
+    var checklistTemplate: [String] {
+        me?.user.effectiveChecklistTemplate ?? EventDates.DEFAULT_CHECKLIST
+    }
+
+    /// Whether the list above is the user's own rather than the built-in default.
+    var hasCustomChecklistTemplate: Bool {
+        me?.user.checklistTemplate != nil
+    }
+
+    /// Save a new template, and keep the cached account in step so the event page
+    /// agrees without a round trip. An empty list clears it.
+    func setChecklistTemplate(_ items: [String]) async throws {
+        try await api.updateChecklistTemplate(items)
+        guard var current = me else { return }
+        current.user.checklistTemplate = items.isEmpty ? nil : items
+        state = .signedIn(current)
+    }
+
     let api: APIClient
     let server: ServerSettings
     private let tokens: KeychainTokenStore

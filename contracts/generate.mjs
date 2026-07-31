@@ -299,7 +299,21 @@ async function captureAll(api, anon, f) {
   const track = f.trackId;
 
   // --- reads --------------------------------------------------------------
-  record("me", "GET", "/me", "The signed-in user.", "src/routes/me.ts", await api("GET", "/me"));
+  record("me", "GET", "/me",
+    "The signed-in user. checklist_template is null — the common case, where the " +
+    "client falls back to its built-in DEFAULT_CHECKLIST.",
+    "src/routes/me.ts", await api("GET", "/me"));
+
+  // The other branch: a user who edited their prep list in Settings. Captured
+  // second so the null case above is what a fresh account really looks like.
+  record("checklist-template-set", "PUT", "/me/checklist-template",
+    "Replace the prep-checklist template. Null or [] clears it.", "src/routes/me.ts",
+    await api("PUT", "/me/checklist-template", {
+      checklist_template: ["Purchase Track insurance", "Torque lug nuts", "Set tire pressures"],
+    }));
+  record("me-checklist-template", "GET", "/me",
+    "The signed-in user with a customized prep-checklist template.",
+    "src/routes/me.ts", await api("GET", "/me"));
 
   record("events-list", "GET", "/events",
     "All events with lap aggregates and computed stats (withComputed).",
@@ -444,7 +458,7 @@ async function captureAll(api, anon, f) {
 // Every route registered under /api must appear in the manifest. A silently
 // uncovered endpoint is a silently unprotected client.
 const EXPECTED_ROUTES = [
-  "GET /me",
+  "GET /me", "PUT /me/checklist-template",
   "GET /events", "POST /events", "GET /events/:id", "PUT /events/:id", "DELETE /events/:id",
   "PUT /events/:id/setups/:day", "DELETE /events/:id/setups/:day", "GET /events/:id/setups/prefill",
   "POST /events/:id/sessions", "PUT /sessions/:id", "DELETE /sessions/:id",

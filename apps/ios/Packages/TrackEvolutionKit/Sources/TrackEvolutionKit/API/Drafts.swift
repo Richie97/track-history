@@ -133,6 +133,25 @@ public struct SessionDraft: Encodable, Hashable, Sendable {
     }
 }
 
+/// `PUT /api/me/checklist-template` — the prep list new checklists start from.
+/// Explicit null clears it, so the field is always written.
+public struct ChecklistTemplateDraft: Encodable, Hashable, Sendable {
+    public var checklistTemplate: [String]?
+
+    public init(checklistTemplate: [String]?) {
+        self.checklistTemplate = checklistTemplate
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(checklistTemplate, forKey: .checklistTemplate)
+    }
+
+    public enum CodingKeys: String, CodingKey {
+        case checklistTemplate = "checklist_template"
+    }
+}
+
 /// `PUT /api/sessions/:id`. Both columns are written unconditionally by the
 /// server, so nil really does clear them here.
 public struct SessionPatch: Encodable, Hashable, Sendable {

@@ -11,6 +11,7 @@ import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncS
 import { scheduleWarm } from "./js/prefetch.js";
 import { platform } from "./js/platform.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
+import { DEFAULT_CHECKLIST } from "./js/checklist.js";
 import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
@@ -358,16 +359,10 @@ const fmtCountdown = (iso) => {
   return dd <= 0 ? "Today" : dd === 1 ? "Tomorrow" : `In ${dd} days`;
 };
 
-const DEFAULT_CHECKLIST = [
-  "Tech inspection",
-  "Torque lug nuts",
-  "Check brake pads & fluid",
-  "Set tire pressures",
-  "Top off fuel",
-  "Pack helmet & gloves",
-  "Empty the car — remove loose items",
-  "Charge camera / lap timer",
-];
+// The list the event page's "Use my list" button actually uses: the user's own
+// (Settings → Prep checklist, stored server-side), else the app's built-in one.
+// `state.me` is loaded by ensureMe() before any view renders.
+const checklistTemplate = () => state.me?.checklist_template ?? DEFAULT_CHECKLIST;
 
 // ---------- branding & footer ------------------------------------------------
 
@@ -1257,7 +1252,7 @@ async function viewEvent(eventId) {
         <div class="btn-row" style="margin-top:${checklist?.length ? 12 : 0}px">
           <input id="check-new" placeholder="Add item…" maxlength="200">
           <button class="btn small" id="check-add">Add</button>
-          ${!checklist?.length ? `<button class="btn small" id="check-default">Use default list</button>` : ""}
+          ${!checklist?.length ? `<button class="btn small" id="check-default">Use ${state.me?.checklist_template ? "my" : "default"} list</button>` : ""}
         </div>
       </div>`;
 
@@ -1379,7 +1374,7 @@ async function viewEvent(eventId) {
     });
     const useDefault = view.querySelector("#check-default");
     if (useDefault)
-      useDefault.onclick = () => saveChecklist(DEFAULT_CHECKLIST.map((text) => ({ text, done: false })));
+      useDefault.onclick = () => saveChecklist(checklistTemplate().map((text) => ({ text, done: false })));
   }
   const notebook = view.querySelector("#setup-notebook");
   notebook.addEventListener("toggle", () => {
@@ -1675,6 +1670,9 @@ async function viewEventForm(eventId, presetTrack) {
 
 async function viewSettings() {
   const vehicles = await api("/vehicles");
+  // The user's own list, or the built-in one shown as the starting point.
+  const template = checklistTemplate();
+  const isCustom = !!state.me?.checklist_template;
 
   const vehicleHtml = (v) => `
     <div class="panel vehicle">
@@ -1714,6 +1712,29 @@ async function viewSettings() {
       <div id="veh-error"></div>
       <button class="btn primary">Add vehicle</button>
     </form>
+    <h2>Prep checklist</h2>
+    <div class="hint" style="margin:0 0 4px">The list an upcoming event starts from. Edit it here and every checklist you start from now on uses your version — checklists already on an event keep whatever is on them.</div>
+    <div class="panel" id="tmpl-panel">
+      ${template
+        .map(
+          (text, i) => `<div class="check-item">
+            <span>${esc(text)}</span>
+            <button type="button" class="x" data-tmpl-up="${i}" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
+            <button type="button" class="x" data-tmpl-down="${i}" title="Move down" ${i === template.length - 1 ? "disabled" : ""}>↓</button>
+            <button type="button" class="x" data-tmpl-del="${i}" title="Remove">✕</button>
+          </div>`
+        )
+        .join("")}
+      <div class="btn-row" style="margin-top:12px">
+        <input id="tmpl-new" placeholder="Add item…" maxlength="200">
+        <button class="btn small" id="tmpl-add">Add</button>
+        ${isCustom ? `<button class="btn small" id="tmpl-reset">Reset to default</button>` : ""}
+      </div>
+      <div class="hint" style="margin:8px 0 0">${
+        isCustom ? "This is your own list." : "This is the app's default — your first edit makes it yours."
+      }</div>
+      <div id="tmpl-error"></div>
+    </div>
     <h2>About &amp; legal</h2>
     <div class="panel">
       <div class="btn-row">
@@ -1728,6 +1749,52 @@ async function viewSettings() {
   const showError = (err) => {
     view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
   };
+
+  // --- prep checklist template ---
+  // Saved whole, not item by item: it is one ordered list, and a partial write
+  // would leave the user staring at a list that isn't what they'll get.
+  const saveTemplate = async (next) => {
+    try {
+      await api("/me/checklist-template", {
+        method: "PUT",
+        body: { checklist_template: next.length ? next : null },
+      });
+      // Keep the in-memory copy in step so the event page's button agrees
+      // without a reload.
+      state.me.checklist_template = next.length ? next : null;
+      route();
+    } catch (err) {
+      view.querySelector("#tmpl-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+    }
+  };
+  const swap = (i, j) => {
+    const next = [...template];
+    [next[i], next[j]] = [next[j], next[i]];
+    return next;
+  };
+  view.querySelectorAll("[data-tmpl-del]").forEach((btn) => {
+    btn.onclick = () => saveTemplate(template.filter((_, i) => i !== Number(btn.dataset.tmplDel)));
+  });
+  view.querySelectorAll("[data-tmpl-up]").forEach((btn) => {
+    btn.onclick = () => saveTemplate(swap(Number(btn.dataset.tmplUp), Number(btn.dataset.tmplUp) - 1));
+  });
+  view.querySelectorAll("[data-tmpl-down]").forEach((btn) => {
+    btn.onclick = () => saveTemplate(swap(Number(btn.dataset.tmplDown), Number(btn.dataset.tmplDown) + 1));
+  });
+  const tmplInput = view.querySelector("#tmpl-new");
+  view.querySelector("#tmpl-add").onclick = () => {
+    const text = tmplInput.value.trim();
+    if (!text) return;
+    saveTemplate([...template, text]);
+  };
+  tmplInput.addEventListener("keydown", (evt) => {
+    if (evt.key === "Enter") {
+      evt.preventDefault();
+      view.querySelector("#tmpl-add").click();
+    }
+  });
+  const tmplReset = view.querySelector("#tmpl-reset");
+  if (tmplReset) tmplReset.onclick = () => saveTemplate([]);
 
   view.querySelector("#veh-add").onsubmit = async (evt) => {
     evt.preventDefault();

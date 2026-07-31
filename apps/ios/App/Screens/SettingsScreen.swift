@@ -38,7 +38,7 @@ struct SettingsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = SettingsModel(api: auth.api)
+                let model = SettingsModel(api: auth.api, auth: auth)
                 self.model = model
                 await model.load()
             }
@@ -103,6 +103,9 @@ struct SettingsScreen: View {
 
             TESectionHeader("Share your history")
             shareCard(model)
+
+            TESectionHeader("Prep checklist")
+            checklistTemplateCard(model)
 
             TESectionHeader("Vehicles")
             vehiclesCard(model)
@@ -213,6 +216,88 @@ struct SettingsScreen: View {
     /// The garage's front door: one row per car, each opening its own page. The
     /// default car pre-fills new events, which is the only reason the flag is
     /// worth surfacing at all.
+    /// The prep list every new checklist starts from.
+    ///
+    /// Editing it never touches a checklist already on an event: those are
+    /// snapshots taken when the list was started, and rewriting them would tick
+    /// items the driver had already dealt with.
+    private func checklistTemplateCard(_ model: SettingsModel) -> some View {
+        @Bindable var model = model
+        return TECard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("The list an upcoming event starts from. Checklists already on an event keep whatever is on them.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+
+                ForEach(Array(auth.checklistTemplate.enumerated()), id: \.offset) { index, text in
+                    HStack(spacing: 8) {
+                        Text(text)
+                            .teStyle(.body)
+                            .foregroundStyle(Color(.textBody))
+                        Spacer(minLength: 8)
+                        Button {
+                            Task { await model.moveChecklistItem(from: index, by: -1) }
+                        } label: {
+                            Image(systemName: "arrow.up")
+                        }
+                        .disabled(index == 0)
+                        .accessibilityLabel("Move \(text) up")
+                        Button {
+                            Task { await model.moveChecklistItem(from: index, by: 1) }
+                        } label: {
+                            Image(systemName: "arrow.down")
+                        }
+                        .disabled(index == auth.checklistTemplate.count - 1)
+                        .accessibilityLabel("Move \(text) down")
+                        Button(role: .destructive) {
+                            Task { await model.removeChecklistItem(at: index) }
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .accessibilityLabel("Remove \(text)")
+                    }
+                    .buttonStyle(.plain)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textFaint))
+                    if index < auth.checklistTemplate.count - 1 {
+                        Divider().overlay(Color(.borderHairline))
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    TextField("Add item…", text: $model.newChecklistItem)
+                        .teInput()
+                        .submitLabel(.done)
+                        .onSubmit { Task { await model.addChecklistItem() } }
+                        .accessibilityIdentifier("checklistTemplateField")
+                    Button("Add") { Task { await model.addChecklistItem() } }
+                        .teStyle(.bodyStrong)
+                        .foregroundStyle(Color(.accentInk))
+                        .disabled(model.newChecklistItem.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .accessibilityIdentifier("addChecklistTemplateItem")
+                }
+
+                Text(auth.hasCustomChecklistTemplate
+                    ? "This is your own list."
+                    : "This is the app's default — your first edit makes it yours.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+
+                if auth.hasCustomChecklistTemplate {
+                    Button("Reset to default") {
+                        Task { await model.resetChecklistTemplate() }
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("resetChecklistTemplate")
+                }
+
+                if let error = model.checklistError {
+                    TEErrorBanner(message: error)
+                }
+            }
+        }
+    }
+
     private func vehiclesCard(_ model: SettingsModel) -> some View {
         @Bindable var model = model
         return TECard {
@@ -377,8 +462,58 @@ final class SettingsModel {
     /// the confirmation says so.
     private(set) var hasUnsyncedChanges = false
 
-    init(api: APIClient) {
+    /// The account, so the checklist template written here and the one the event
+    /// page reads stay the same value rather than two copies.
+    private let auth: AuthController
+
+    var newChecklistItem = ""
+    var checklistError: String?
+
+    init(api: APIClient, auth: AuthController) {
         self.api = api
+        self.auth = auth
+    }
+
+    // MARK: - Prep checklist template
+
+    func addChecklistItem() async {
+        let text = newChecklistItem.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        await writeChecklist(auth.checklistTemplate + [text]) { self.newChecklistItem = "" }
+    }
+
+    func removeChecklistItem(at index: Int) async {
+        var next = auth.checklistTemplate
+        guard next.indices.contains(index) else { return }
+        next.remove(at: index)
+        await writeChecklist(next)
+    }
+
+    func moveChecklistItem(from index: Int, by offset: Int) async {
+        var next = auth.checklistTemplate
+        let target = index + offset
+        guard next.indices.contains(index), next.indices.contains(target) else { return }
+        next.swapAt(index, target)
+        await writeChecklist(next)
+    }
+
+    /// Back to the app's built-in list. Sending an empty list is what clears the
+    /// stored one — see `sanitizeChecklistTemplate`.
+    func resetChecklistTemplate() async {
+        await writeChecklist([])
+    }
+
+    private func writeChecklist(_ items: [String], onSuccess: () -> Void = {}) async {
+        checklistError = nil
+        do {
+            try await auth.setChecklistTemplate(items)
+            onSuccess()
+            Haptics.select()
+        } catch let error as APIError {
+            checklistError = error.message
+        } catch {
+            checklistError = error.localizedDescription
+        }
     }
 
     func load() async {

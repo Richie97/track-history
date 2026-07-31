@@ -646,6 +646,24 @@ which are separate processes whose automation would make the suite flaky about
 something other than this feature — everything after the pick is the production
 path.
 
+## One value, two screens: the prep checklist template
+
+The list a new event's checklist starts from is editable in Settings and used on
+the event page, and those are different screens. `AuthController` owns it —
+`checklistTemplate`, `hasCustomChecklistTemplate`, `setChecklistTemplate` — so
+both read one value; a Settings editor holding its own copy would look right on
+its own screen while the event page kept offering the built-in default.
+
+`EventDates.DEFAULT_CHECKLIST` is the fallback for a user who has never edited it,
+and it is a port of `public/js/checklist.js` pinned to it by
+`contracts/logic/checklist.json`. It is only a list of strings, but it is *product
+copy carried in two clients*: the phone quietly offering a different default from
+the laptop is the kind of drift nobody files a bug about.
+
+Editing the template never rewrites a checklist already on an event. Those are a
+copy taken when the list was started, and rewriting one would untick items the
+driver had already dealt with — `ChecklistTemplateUITests` asserts exactly that.
+
 ## The project file is generated *and* committed
 
 `TrackEvolution.xcodeproj` is produced from `project.yml` by

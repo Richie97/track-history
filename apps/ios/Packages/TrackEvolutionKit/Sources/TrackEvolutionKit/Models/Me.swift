@@ -14,10 +14,20 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     public var picture: String?
     /// The public share slug, when the user has claimed one.
     public var shareSlug: String?
+    /// The user's own prep-checklist template, or nil when they haven't made one
+    /// and `EventDates.DEFAULT_CHECKLIST` applies. Strings, not `ChecklistItem`s:
+    /// a template is what a checklist starts *from*, so it carries no done flags.
+    public var checklistTemplate: [String]?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
         case shareSlug = "share_slug"
+        case checklistTemplate = "checklist_template"
+    }
+
+    /// The list "Use my list" actually uses.
+    public var effectiveChecklistTemplate: [String] {
+        checklistTemplate ?? EventDates.DEFAULT_CHECKLIST
     }
 }
 

@@ -440,6 +440,16 @@ doesn't retain the previous user's logbook.
 - Imported per-session bests (from a spreadsheet era) appear as one-lap sessions;
   full lap-by-lap data can be attached to any event via `RAW_SESSIONS` in the seed
   data or pasted into the UI.
+- **Prep checklists** hang off an upcoming event: tick items off as you pack,
+  and the dashboard's countdown card shows how far through you are. The list a
+  new checklist starts from is **yours to edit** — account menu → Settings → Prep
+  checklist — and is stored per user (`users.checklist_template`), so every
+  client offers the same list. Until you edit it you get the app's built-in
+  default (`public/js/checklist.js`, ported to iOS as
+  `EventDates.DEFAULT_CHECKLIST` and pinned to it by
+  `contracts/logic/checklist.json`). Editing the template never rewrites a
+  checklist already on an event — those are snapshots taken when the list was
+  started, and rewriting one would untick what you had already dealt with.
 - **Vehicles** are a per-user garage (account menu → Settings) with a name and
   free-text modification notes. An event's `car` stays a plain text column —
   the garage feeds the event form's suggestions, and the vehicle marked as

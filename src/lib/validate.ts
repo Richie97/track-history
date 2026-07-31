@@ -197,6 +197,29 @@ export function sanitizeSetup(v: unknown): SetupSheet | null | undefined {
 
 export type ChecklistItem = { text: string; done: boolean };
 
+// Normalize a user's prep-checklist template: null clears it (falling back to
+// the app's built-in default), a valid array is trimmed. Returns undefined when
+// the input isn't a template.
+//
+// Strings, not {text, done}: a template is what a checklist starts *from*, so
+// carrying done flags would only invite an item that arrives pre-ticked. The
+// caps match sanitizeChecklist's, since one becomes the other.
+export function sanitizeChecklistTemplate(v: unknown): string[] | null | undefined {
+  if (v == null) return null;
+  if (!Array.isArray(v) || v.length > 100) return undefined;
+  const items: string[] = [];
+  for (const raw of v) {
+    if (typeof raw !== "string") return undefined;
+    const text = raw.trim();
+    if (!text || text.length > 200) return undefined;
+    items.push(text);
+  }
+  // An empty list is a cleared template, not a template with nothing in it —
+  // otherwise "delete every item" would leave the user with no default at all
+  // and no way back to one.
+  return items.length ? items : null;
+}
+
 // Normalize a prep checklist: null clears it, a valid array is trimmed and
 // coerced to {text, done}. Returns undefined when the input isn't a checklist.
 export function sanitizeChecklist(v: unknown): ChecklistItem[] | null | undefined {
