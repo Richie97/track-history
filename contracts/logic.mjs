@@ -24,6 +24,10 @@ import {
   gateCrossings,
   projectTrace,
 } from "../public/js/import/geo.js";
+import { parseTelemetryFile } from "../public/js/import/parse.js";
+import { applyGate } from "../public/js/import/ui.js";
+import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
+import { attachLapChannels } from "../public/js/import/channels.js";
 import { matchLapsToChannels } from "../public/js/channel-graphs.js";
 import {
   PART_KINDS,
@@ -43,7 +47,15 @@ import {
   trimIdle,
 } from "../public/js/record/core.js";
 import { pickRecordingEvent } from "../public/js/record/remote.js";
-import { LAP_S, circleTrace } from "../test/fixtures/build.mjs";
+import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
+import {
+  LAP_S,
+  buildGpmfMp4,
+  buildPdrDeltaMp4,
+  buildPdrMp4,
+  buildPdrRealMp4,
+  circleTrace,
+} from "../test/fixtures/build.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = path.join(ROOT, "contracts", "logic");
@@ -364,7 +376,202 @@ const remoteFixture = {
   cases: attachCases,
 };
 
+// ---------------------------------------------------------------------------
+// Video telemetry parsers (NS-30): the MP4s themselves, and what the JS parsers
+// make of them.
+//
+// Unlike every other fixture here, the input is *binary* — the synthetic MP4s
+// from test/fixtures/build.mjs are written to contracts/logic/video/ and
+// committed, because a Swift or Kotlin reimplementation of the fixture builder
+// would only prove the two builders agree. The parsers are what has to agree,
+// and a byte-identical file is the only way to ask them the same question.
+//
+// The PDR decoder in particular is reverse-engineered sign extension and running
+// state (see the comment block in public/pdr.js), so what is pinned below is
+// deliberately deep: lap times to the millisecond with their `estimated` flags,
+// the GPS trace, the session metrics, and every per-lap channel array element by
+// element.
+
+const VIDEO_DIR = path.join(OUT_DIR, "video");
+
+// Every sampled coordinate, so a decoder that is subtly off is caught rather
+// than averaged away — but not every one of ~1,500 fixes, which would make the
+// fixture unreadable. First, last and every 50th.
+const GPS_STRIDE = 50;
+
+function sampleGps(gps) {
+  if (!gps) return null;
+  const idx = new Set([0, gps.length - 1]);
+  for (let i = 0; i < gps.length; i += GPS_STRIDE) idx.add(i);
+  return [...idx]
+    .sort((a, b) => a - b)
+    .map((i) => ({ i, t: gps[i].t, lat: gps[i].lat, lon: gps[i].lon, v: gps[i].v ?? null }));
+}
+
+const lapOut = (l) => ({
+  lapNumber: l.lapNumber ?? null,
+  timeMs: l.timeMs,
+  estimated: !!l.estimated,
+  startT: l.startT ?? null,
+  endT: l.endT ?? null,
+});
+
+function parsedOut(p) {
+  return {
+    kind: p.kind,
+    date: p.date ?? null,
+    time: p.time ?? null,
+    durationS: p.durationS,
+    needsLine: !!p.needsLine,
+    beaconCount: p.beaconCount ?? 0,
+    metrics: p.metrics
+      ? {
+          topSpeedKph: p.metrics.topSpeedKph ?? null,
+          maxRpm: p.metrics.maxRpm ?? null,
+          maxLatG: p.metrics.maxLatG ?? null,
+        }
+      : null,
+    gpsCount: p.gps?.length ?? 0,
+    gpsSample: sampleGps(p.gps),
+    laps: p.laps.map(lapOut),
+    lapChannels: p.lapChannels ?? null,
+    lapRecovery: p.lapRecovery
+      ? {
+          lapM: p.lapRecovery.lapM,
+          r: p.lapRecovery.r,
+          anchored: p.lapRecovery.anchored,
+          phaseR: p.lapRecovery.phaseR ?? null,
+          lapCount: p.lapRecovery.laps.length,
+        }
+      : null,
+    // The odometer and raw-latitude series feed lap recovery; their extent is
+    // enough to catch a decoder that dropped or duplicated samples.
+    channels: p.channels
+      ? {
+          latCount: p.channels.latPts.length,
+          odoCount: p.channels.odoPts.length,
+          odoFirst: p.channels.odoPts[0] ?? null,
+          odoLast: p.channels.odoPts[p.channels.odoPts.length - 1] ?? null,
+        }
+      : null,
+  };
+}
+
+// The three revolutions of the reference circle every fixture drives, and the
+// beacon times that make three crossings out of them.
+const beaconTimes = [30, 30 + lapS, 30 + 2 * lapS];
+
+const videoFixtures = [
+  {
+    file: "gopro.mp4",
+    note: "GoPro GPMF, GPS5 stream at 10 Hz. No lap markers: needs a picked line.",
+    bytes: buildGpmfMp4(points),
+    pick: true,
+  },
+  {
+    file: "pdr-beacons.mp4",
+    note: "PDR, full records only, beacon-timed laps plus a deg*1e7 GPS trace.",
+    bytes: buildPdrMp4({ beaconTimes, gpsPoints: points }),
+  },
+  {
+    file: "pdr-delta.mp4",
+    note: "PDR in the real-firmware shape: delta framing, channel dictionary, car channels.",
+    bytes: buildPdrDeltaMp4({ beaconTimes }),
+  },
+  {
+    file: "pdr-delta-nobeacon.mp4",
+    note: "The same delta-encoded firmware shape without beacons — the input the JS decoder unit tests use, so the Swift ones can ask the same question.",
+    bytes: buildPdrDeltaMp4(),
+    pick: true,
+  },
+  {
+    file: "pdr-nobeacon.mp4",
+    note: "PDR with a GPS trace and no beacons: the line picker times the laps.",
+    bytes: buildPdrMp4({ beaconTimes: [], gpsPoints: points }),
+    pick: true,
+  },
+  {
+    file: "pdr-real-beacons.mp4",
+    note: "PDR whose GPS can't be decoded (one longitude fix) but which has beacons — the lap template a batch anchors against.",
+    bytes: buildPdrRealMp4({ beaconTimes }),
+  },
+  {
+    file: "pdr-real-shifted.mp4",
+    note: "The same track from a different pit-out angle, no beacons: laps recovered from lat+odometer periodicity, then anchored by the file above.",
+    bytes: buildPdrRealMp4({ startAngle: 1.0 }),
+  },
+];
+
+mkdirSync(VIDEO_DIR, { recursive: true });
+const videoCases = [];
+for (const f of videoFixtures) {
+  writeFileSync(path.join(VIDEO_DIR, f.file), Buffer.from(f.bytes));
+  const parsed = await parseTelemetryFile(new File([f.bytes], f.file));
+  const entry = { file: f.file, note: f.note, expected: parsedOut(parsed), picked: null };
+  if (f.pick) {
+    // The same flow the review panel runs: project on the file's own first fix,
+    // tap a quarter of a lap in, and let applyGate re-derive laps and channels.
+    const pickedIndex = Math.round(0.25 * lapS * 10);
+    const state = { results: [{ file: f.file, parsed }], origin: parsed.gps[0], gate: null };
+    state.gate = buildGate(projectTrace(parsed.gps, state.origin), pickedIndex);
+    applyGate(state);
+    entry.picked = {
+      pickedIndex,
+      gate: state.gate,
+      laps: parsed.laps.map(lapOut),
+      bestLapTrace: parsed.bestLapTrace,
+      lapChannels: parsed.lapChannels ?? null,
+    };
+  }
+  videoCases.push({ entry, parsed });
+}
+
+// Batch pass, exactly as the import flow runs it: a beacon-timed recording of
+// the same track re-anchors the recovered laps of a beacon-less one, and the
+// per-lap channels follow the moved boundaries.
+const batchResults = videoCases.map(({ entry, parsed }) => ({ file: entry.file, parsed }));
+anchorPdrBatch(batchResults);
+for (const r of batchResults) {
+  if (r.parsed?.kind === "pdr" && r.parsed.lapRecovery) attachLapChannels(r.parsed);
+}
+const anchored = batchResults
+  .filter((r) => r.parsed?.lapRecovery)
+  .map((r) => ({ file: r.file, expected: parsedOut(r.parsed) }));
+
+const videoFixture = {
+  description:
+    "Reference output of the video telemetry parsers (public/pdr.js, " +
+    "public/js/import/gpmf.js, channels.js, pdr-laps.js) over the committed MP4s " +
+    "in contracts/logic/video/. The iOS port (NS-30) must reproduce lap times to " +
+    "the millisecond, coordinates to 1e-9 and every channel array element for " +
+    "element. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/pdr.js, public/js/import/gpmf.js, public/js/import/channels.js, public/js/import/pdr-laps.js",
+  gpsStride: GPS_STRIDE,
+  files: videoCases.map(({ entry }) => entry),
+  // What anchorPdrBatch changed once every file in the batch was parsed.
+  afterBatchAnchor: anchored,
+};
+
+// ---------------------------------------------------------------------------
+// The prep checklist a new event starts from.
+//
+// Not logic — a list of strings — but it is *product copy carried in two
+// clients*, and the web and iOS copies drifting is invisible until someone
+// notices their phone offering a different default from their laptop. A user
+// who edits the list in Settings gets their own (`users.checklist_template`);
+// this is only what they start from.
+const checklistFixture = {
+  description:
+    "The built-in prep checklist from public/js/checklist.js. The iOS port " +
+    "(EventDates.DEFAULT_CHECKLIST) must match it item for item, in order. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/checklist.js",
+  DEFAULT_CHECKLIST,
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
@@ -379,3 +586,7 @@ console.log(
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
+console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
+console.log(
+  `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`
+);

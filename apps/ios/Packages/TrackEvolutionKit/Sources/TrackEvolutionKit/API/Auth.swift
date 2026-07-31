@@ -14,6 +14,52 @@ public struct AuthProviders: Codable, Hashable, Sendable {
     }
 }
 
+/// What each server last advertised, remembered across launches.
+///
+/// `GET /auth/providers` is unauthenticated and cheap, but it can still fail — a
+/// phone cold-starting without signal, a sign-out in the paddock — and the app
+/// asks for it exactly where a wrong answer is unrecoverable: no Apple button
+/// locks out anyone whose account is an Apple one, with relaunching the app the
+/// only way back. Remembering the last answer makes a failed fetch a no-op
+/// instead of a silent downgrade to Google-only.
+///
+/// It only ever *stores* what a server advertised and never invents a provider,
+/// so a self-hosted instance without the `APPLE_*` secrets still draws Google
+/// alone. Keyed by server, because this is a property of the deployment:
+/// pointing a dev build at `wrangler dev` and back must not carry one server's
+/// answer over to the other.
+/// Not `Sendable`: `UserDefaults` isn't marked as such, and this is only ever
+/// touched from the main actor (`AuthController`).
+public struct AuthProvidersStore {
+    /// Google is always on (`src/routes/auth.ts`); Apple has to be earned.
+    public static let fallback = AuthProviders(google: true, apple: false)
+
+    private let defaults: UserDefaults
+
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    public static func key(for server: URL) -> String {
+        "auth.providers.\(server.absoluteString)"
+    }
+
+    /// What this server said last time, or the Google-only fallback.
+    public func providers(for server: URL) -> AuthProviders {
+        guard let data = defaults.data(forKey: Self.key(for: server)),
+              let stored = try? JSONDecoder().decode(AuthProviders.self, from: data)
+        else {
+            return Self.fallback
+        }
+        return stored
+    }
+
+    public func save(_ providers: AuthProviders, for server: URL) {
+        guard let encoded = try? JSONEncoder().encode(providers) else { return }
+        defaults.set(encoded, forKey: Self.key(for: server))
+    }
+}
+
 /// The identity providers the app can start a flow with.
 public enum AuthProvider: String, CaseIterable, Sendable {
     case google

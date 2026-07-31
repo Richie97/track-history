@@ -44,6 +44,20 @@ public enum JSMath {
         return Int(rounded)
     }
 
+    /// `Math.trunc` — toward zero, never away from it.
+    ///
+    /// The PDR decoder seeds a channel that arrives as a delta before it ever
+    /// arrives in full with `Math.trunc((min + max) / 2)` from the channel
+    /// dictionary. `Int(_:)` truncates the same way; this exists so the call site
+    /// reads like its JS original and so a non-finite midpoint yields nil rather
+    /// than trapping.
+    public static func trunc(_ value: Double) -> Int? {
+        guard value.isFinite else { return nil }
+        let truncated = value.rounded(.towardZero)
+        guard truncated >= Double(Int.min), truncated <= Double(Int.max) else { return nil }
+        return Int(truncated)
+    }
+
     /// Ties go toward +infinity, everything else to the nearest value.
     private static func roundHalfUp(_ value: Double) -> Double {
         let fraction = value - value.rounded(.down)

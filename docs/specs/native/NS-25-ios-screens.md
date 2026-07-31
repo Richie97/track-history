@@ -45,6 +45,20 @@ not half-build the garage.
    the **unattached-recording banner** from NS-17 (a CarPlay-started recording
    waiting for an event to adopt it). Pull-to-refresh — `public/js/pull-refresh.js`
    is a hand-built approximation of what `.refreshable` gives natively for free.
+
+   > **Deliberate divergence from `viewDashboard`.** The dashboard also carries a
+   > **"Record laps" button beside "+ Add event"**, which the web dashboard does
+   > not have — on the web the recorder's only door is the event page. Reaching
+   > the recorder shouldn't require first navigating into an event, which is the
+   > wrong friction to hit while suiting up. It targets the event
+   > `RemoteRecording.pickRecordingEvent` picks — the *same* rule CarPlay uses, so
+   > the phone and the head unit can never disagree about where laps land — over
+   > the already-loaded event list, so it costs no request and works offline. It
+   > is shown **only while the recorder is idle**: a live recording already has
+   > the always-visible `RecordingBanner` and an unsaved one has the banner card,
+   > and a third control would be a third answer to the same question. Android
+   > gets the same treatment separately, tracked in #108 — which also has to port
+   > `pickRecordingEvent` to `:core`, since nothing there has it yet.
 3. **Event detail**: sessions with their laps, per-session stats (best-N average,
    pace slope, warmup — port `public/js/lap-stats.js`, 44 lines, with
    `test/unit/lap-stats.test.js`), the progress chart, the best-lap trackmap, and

@@ -108,6 +108,17 @@ public actor APIClient {
         try await get("/me", as: Me.self)
     }
 
+    /// Replace the prep-checklist template. An empty list clears it, putting the
+    /// user back on `EventDates.DEFAULT_CHECKLIST` rather than leaving them with
+    /// nothing to start a checklist from — the server treats `[]` and null alike.
+    public func updateChecklistTemplate(_ items: [String]) async throws {
+        _ = try await send(
+            "PUT", "/me/checklist-template",
+            body: ChecklistTemplateDraft(checklistTemplate: items.isEmpty ? nil : items),
+            as: OKResponse.self
+        )
+    }
+
     // MARK: - Events
 
     public func events(trackId: Int? = nil) async throws -> [Event] {

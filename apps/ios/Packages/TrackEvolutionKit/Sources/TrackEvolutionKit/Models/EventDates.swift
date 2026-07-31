@@ -106,8 +106,17 @@ public enum EventDates {
         )
     }
 
-    /// The prep checklist a new event can start from (`DEFAULT_CHECKLIST`).
+    /// The prep checklist a new event starts from when the user hasn't made their
+    /// own — a port of `DEFAULT_CHECKLIST` in `public/js/checklist.js`, pinned to
+    /// it item for item by `contracts/logic/checklist.json`.
+    ///
+    /// A user who edits the list in Settings gets their own, stored server-side
+    /// and served by `GET /api/me` as `User.checklistTemplate`; that wins over
+    /// this whenever it is present.
     public static let DEFAULT_CHECKLIST = [
+        // First because it is the only item with a deadline days before the event
+        // rather than the morning of it.
+        "Purchase Track insurance",
         "Tech inspection",
         "Torque lug nuts",
         "Check brake pads & fluid",

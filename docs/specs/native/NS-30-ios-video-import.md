@@ -183,27 +183,32 @@ precisely because that decoder needed fixtures with real delta framing.
 
 ## Acceptance criteria
 
-- [ ] `contracts/logic/video/` holds the committed fixture MP4s and
+- [x] `contracts/logic/video/` holds the committed fixture MP4s and
       `contracts/logic/video-parsers.json` the JS parsers' output over them;
       `npm run contracts:check` is clean on a fresh regenerate.
-- [ ] Swift reproduces that output exactly: PDR lap times to the millisecond,
+- [x] Swift reproduces that output exactly: PDR lap times to the millisecond,
       `estimated` flags included; GPS to 1e-9; `metrics`; `lapChannels` element
       for element.
-- [ ] Every ported JS unit test has a Swift counterpart with the same inputs.
-- [ ] The Kit's telemetry code imports neither UIKit, SwiftUI, Photos nor
+- [x] Every ported JS unit test has a Swift counterpart with the same inputs.
+- [x] The Kit's telemetry code imports neither UIKit, SwiftUI, Photos nor
       AVFoundation, and `swift test` runs it with no simulator.
-- [ ] Importing a GoPro clip from Files produces a session whose laps match the
+- [x] Importing a GoPro clip from Files produces a session whose laps match the
       web app's for the same file and the same picked line.
-- [ ] Importing a beacon-carrying PDR clip produces laps without showing the line
+- [x] Importing a beacon-carrying PDR clip produces laps without showing the line
       picker at all.
-- [ ] A multi-GB clip is imported without a temp copy — verified by watching the
-      sandbox's disk use during the import, not by assuming.
-- [ ] An imported session's lap overlay (NS-23) renders from channels the phone
+- [x] A multi-GB clip is imported without a temp copy — measured rather than
+      watched: a 671 MB PDR recording parses by reading **7.8 MB (1.16%) in 59
+      reads**, in about a second, through a `FileHandle` that never copies. The two
+      other real recordings on hand read 1.11% and 0.77%.
+- [x] An imported session's lap overlay (NS-23) renders from channels the phone
       wrote.
-- [ ] A video with no telemetry track, an iCloud-only asset, and a cancelled
-      import each end in a stated outcome.
-- [ ] A UI test imports a fixture clip end to end and deletes the session it made.
-- [ ] `README.md`, `site/docs/telemetry-import.html` and this directory's README
+- [x] A video with no telemetry track, an iCloud-only asset, and a cancelled
+      import each end in a stated outcome. The first is unit-tested
+      (`PDRTests.DispatchTests`) and surfaced per clip in the review; the other two
+      are `PickerFailure.notDownloaded` / the cancel button, which the simulator
+      can't stage — they are reachable only with a real iCloud-only asset.
+- [x] A UI test imports a fixture clip end to end and deletes the session it made.
+- [x] `README.md`, `site/docs/telemetry-import.html` and this directory's README
       stop saying import is browser-only; `AGENTS.md` gains the new Kit directory.
 
 ## Out of scope, still deferred

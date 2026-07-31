@@ -27,24 +27,59 @@ final class AuthController {
 
     private(set) var state: State = .unknown
     /// Which buttons the sign-in screen should draw. Apple only when the server
-    /// advertises it.
-    private(set) var providers = AuthProviders(google: true, apple: false)
+    /// advertises it — seeded from what this server said last time, so a failed
+    /// fetch doesn't silently drop back to Google-only. See `refreshProviders`.
+    private(set) var providers: AuthProviders
     /// Surfaced by the sign-in screen; a failed exchange must read as retryable,
     /// because it is — with a fresh code.
     var error: String?
+
+    /// The signed-in account, when it has loaded.
+    var me: Me? {
+        if case .signedIn(let me) = state { return me }
+        return nil
+    }
+
+    /// The prep list a new event's checklist starts from: the user's own when they
+    /// have edited one in Settings, else the app's built-in default.
+    ///
+    /// It lives here rather than being re-fetched per screen because two screens
+    /// need it — the event page's "Use my list" button and the Settings editor —
+    /// and they must not disagree the moment one of them changes it.
+    var checklistTemplate: [String] {
+        me?.user.effectiveChecklistTemplate ?? EventDates.DEFAULT_CHECKLIST
+    }
+
+    /// Whether the list above is the user's own rather than the built-in default.
+    var hasCustomChecklistTemplate: Bool {
+        me?.user.checklistTemplate != nil
+    }
+
+    /// Save a new template, and keep the cached account in step so the event page
+    /// agrees without a round trip. An empty list clears it.
+    func setChecklistTemplate(_ items: [String]) async throws {
+        try await api.updateChecklistTemplate(items)
+        guard var current = me else { return }
+        current.user.checklistTemplate = items.isEmpty ? nil : items
+        state = .signedIn(current)
+    }
 
     let api: APIClient
     let server: ServerSettings
     private let tokens: KeychainTokenStore
     private let webAuth: any WebAuthenticating
+    private let providersStore: AuthProvidersStore
 
     init(
         tokens: KeychainTokenStore = KeychainTokenStore(),
         server: ServerSettings = ServerSettings(),
-        webAuth: (any WebAuthenticating)? = nil
+        webAuth: (any WebAuthenticating)? = nil,
+        providersStore: AuthProvidersStore = AuthProvidersStore()
     ) {
         self.tokens = tokens
         self.server = server
+        self.providersStore = providersStore
+        self.providers = providersStore.providers(for: server.url)
         // The offline cache and write queue (NS-21). If it can't be opened the app
         // still works, online-only — better than refusing to launch.
         let offline = try? OfflineStore(url: Self.offlineStoreURL())
@@ -74,7 +109,13 @@ final class AuthController {
             tokens.clear()
         }
         #endif
-        await refreshProviders()
+        // Deliberately *not* awaited. This used to gate the auth decision, which
+        // put a launch-blocking network request in front of every cold start: on a
+        // weak connection the app sat on its launch spinner until `/auth/providers`
+        // timed out — a minute of nothing — and only then showed a sign-in screen
+        // whose Apple button the failed request had just hidden. Nothing here needs
+        // the answer; `SignInScreen` asks for itself when it appears.
+        Task { await refreshProviders() }
         guard tokens.isSignedIn else {
             state = .signedOut
             return
@@ -91,10 +132,14 @@ final class AuthController {
         }
     }
 
+    /// Ask the server which sign-in buttons to draw, and remember the answer.
+    ///
+    /// A failure deliberately leaves the last known answer standing rather than
+    /// downgrading to Google-only — see `AuthProvidersStore` for why that matters.
     func refreshProviders() async {
-        if let advertised = try? await api.authProviders() {
-            providers = advertised
-        }
+        guard let advertised = try? await api.authProviders() else { return }
+        providers = advertised
+        providersStore.save(advertised, for: server.url)
     }
 
     // MARK: - Sign in
@@ -177,6 +222,9 @@ final class AuthController {
         // user's data under another's account.
         await api.clearOffline()
         state = .signedOut
+        // Another server, another set of buttons — drop to its own last known
+        // answer rather than leaving the previous server's on screen.
+        providers = providersStore.providers(for: url)
         await refreshProviders()
     }
 

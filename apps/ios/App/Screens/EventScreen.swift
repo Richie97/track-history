@@ -122,6 +122,7 @@ struct EventScreen: View {
                 row { TEEmpty("No sessions recorded yet.") }
             }
             recorderSection(detail.event)
+            importSection(detail.event)
             addSessionSection(model)
         }
         .listStyle(.plain)
@@ -247,14 +248,18 @@ struct EventScreen: View {
 
                 if items?.isEmpty ?? true {
                     row {
-                        Button("Use default list") {
+                        // The user's own list when they have one (Settings → Prep
+                        // checklist), else the app's built-in default.
+                        Button(auth.hasCustomChecklistTemplate ? "Use my list" : "Use default list") {
+                            let template = auth.checklistTemplate
                             Task {
                                 await model.setChecklist(
-                                    EventDates.DEFAULT_CHECKLIST.map { ChecklistItem(text: $0, done: false) }
+                                    template.map { ChecklistItem(text: $0, done: false) }
                                 )
                             }
                         }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
+                        .accessibilityIdentifier("useChecklistTemplate")
                     }
                 }
             } header: {
@@ -562,6 +567,33 @@ struct EventScreen: View {
             return attached
         }
         return event.id
+    }
+
+    // MARK: - Video import entry point
+
+    /// Lap times out of a video already on the phone (NS-30). Only *video* import
+    /// is native — `.vbo` and the rest of the desk-bound long tail stay on the web
+    /// app (`docs/specs/native/README.md`).
+    private func importSection(_ event: Event) -> some View {
+        Section {
+            row {
+                TECard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Import a video")
+                            .teStyle(.h3)
+                            .foregroundStyle(Color(.textStrong))
+                        Text("PDR and GoPro clips carry telemetry. Pick one from Files or Photos and the laps come out of it — the video stays on this phone.")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textMuted))
+                        Button("Import video") {
+                            router.push(.importVideo(eventId: event.id, incoming: nil))
+                        }
+                        .buttonStyle(TEButtonStyle(kind: .quiet))
+                        .accessibilityIdentifier("importEntry")
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Add a session

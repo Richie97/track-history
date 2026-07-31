@@ -101,4 +101,56 @@ extension XCTestCase {
         )
         return app
     }
+
+    // MARK: - Talking to the dev server directly
+
+    /// One dev-server call, signed in through the `DEV_MODE` bypass.
+    ///
+    /// Some fixtures can't be produced through the UI — a session with stored
+    /// channels, an event a later screen has to already find — so the tests that
+    /// need one seed it over HTTP and delete it again in `tearDown`.
+    ///
+    /// `URLSession.shared` keeps the session cookie, so `GET /auth/login` once per
+    /// call is enough — it is a redirect on an already-authenticated session.
+    @discardableResult
+    func api(_ method: String, _ path: String, body: [String: Any]? = nil) throws -> [String: Any] {
+        try signInOverHTTP()
+        var request = URLRequest(url: URL(string: "\(Self.devServerURL)\(path)")!)
+        request.httpMethod = method
+        request.timeoutInterval = 15
+        if let body {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        var payload: [String: Any] = [:]
+        var status = 0
+        let done = expectation(description: "\(method) \(path)")
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if let data, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                payload = object
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 20)
+        XCTAssertTrue((200..<300).contains(status), "\(method) \(path) failed: \(status) \(payload)")
+        return payload
+    }
+
+    func signInOverHTTP() throws {
+        var request = URLRequest(url: URL(string: "\(Self.devServerURL)/auth/login")!)
+        request.timeoutInterval = 10
+        let done = expectation(description: "dev sign-in")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 15)
+    }
+
+    /// Kept on success as well as failure: a chart or a trackmap that renders wrong
+    /// trips no assertion, so the screenshot is the only artifact that shows it.
+    func attach(_ app: XCUIApplication, named name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
 }
