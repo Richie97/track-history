@@ -13,6 +13,7 @@ apps/ios/
   Schemes/                     hand-written shared schemes copied in by generate.sh
   TrackEvolution.xcodeproj      generated, but COMMITTED (see below)
   App/                         app target — SwiftUI views, scenes, platform services
+    Import/                    video telemetry import: pickers, file byte source
     Info.plist                 hand-maintained (GENERATE_INFOPLIST_FILE is off)
     TrackEvolution.entitlements
     Assets.xcassets/
@@ -21,6 +22,7 @@ apps/ios/
       Models/                  Codable models + LapTime formatting
       API/                     APIClient, APIError, request bodies
       Recorder/                lap geometry, recorder core
+      Telemetry/               PDR + GoPro parsers, per-lap channels, lap recovery
     Tests/TrackEvolutionKitTests/
 ```
 
@@ -519,8 +521,10 @@ Anything ported from `public/js/` keeps the original's function and constant
 names, so the two can be diffed by eye, and it brings that file's test cases with
 it. So far: `Geo` ↔ `public/js/import/geo.js`, `Recording`/`RecorderCore` ↔
 `public/js/record/core.js` (`SCREAMING_SNAKE` constants included — unusual for
-Swift, deliberate here), `LapStats` ↔ `public/js/lap-stats.js`, and `EventDates` ↔
-the date helpers in `public/app.js` plus `fmtDate` from `public/js/format.js`.
+Swift, deliberate here), `LapStats` ↔ `public/js/lap-stats.js`, `EventDates` ↔
+the date helpers in `public/app.js` plus `fmtDate` from `public/js/format.js`, and
+the whole of `Telemetry/` ↔ the video parsers (`public/pdr.js`,
+`js/import/gpmf.js`, `channels.js`, `pdr-laps.js`).
 
 `LapStats.cleanLaps` and `OfflineMirrors.cleanLaps` are different functions with the
 same name, from different JS files (`lap-stats.js`'s 107% filter, and `offline.js`'s
@@ -543,12 +547,59 @@ reproduces it:
   `localStorage["recording.pending"]` string a web recording checkpoints to.
   Swift deserializes it and must agree on the trim window, both auto-stop
   decisions, the parsed duration, and the laps a line pick yields.
+- `contracts/logic/video-parsers.json` plus the **binary** MP4s in
+  `contracts/logic/video/` — the only fixture here whose input isn't JSON, because
+  the question is what a decoder makes of a byte stream. Swift parses the same
+  bytes and must reproduce lap times to the millisecond with their `estimated`
+  flags, coordinates to 1e-9, the session metrics, and every per-lap channel array
+  element for element.
 
 `JSMath` exists for the same reason: the JS rounds with `Math.round(v * f) / f`,
 which is half-up **toward +infinity**, while Swift's `rounded()` is
 half-away-from-zero. That rounding is part of the checkpoint format, and
 latitude, longitude and speed all cross zero. `apps/android/core`'s `JsMath` is
 its twin — keep the two in step.
+
+## Video import reads the file where it sits
+
+`App/Import/` and the Kit's `Telemetry/` are NS-30: pick a PDR or GoPro clip and
+get lap times out of it, on the device the footage is already on.
+
+**The video is never copied and never uploaded.** Both parsers read the MP4 index
+plus the telemetry track's own samples — a few MB for PDR, tens for a long GoPro
+`gpmd` track — against an essence one to two orders of magnitude larger they never
+touch. A temp copy of a 4 GB clip takes minutes and may not fit in the sandbox at
+all, so anything that materialises the file first is the wrong design here. That
+rules out the obvious SwiftUI reach: `PhotosPicker`'s `loadTransferable`
+materialises a full temp copy before handing anything back. The two no-copy paths
+are
+
+- `.fileImporter` → security-scoped `URL` → `FileHandle` (the primary path, no
+  permission needed), and
+- `PHPickerConfiguration(photoLibrary: .shared())` → `assetIdentifier` → `PHAsset`
+  → `requestAVAsset` → `AVURLAsset.url`, which needs a photo-library read
+  authorization and an `NSPhotoLibraryUsageDescription`. That prompt is the price
+  of not copying, and it is worth paying.
+
+`requestAVAsset` runs with `isNetworkAccessAllowed = false` on purpose: an
+iCloud-only clip would otherwise download in full behind a spinner, which is the
+one thing to avoid on track-day cellular. It and the not-`AVURLAsset` case (edited
+and slow-motion clips are an `AVComposition`, and carry no telemetry track anyway)
+each get a stated outcome rather than a hang.
+
+Everything downstream is shared with the recorder. `ReviewScreen` takes a
+`ParsedTelemetry` — the shape every parser and `ParsedRecording` produce — so the
+line picker, the lap list and the save are one code path. A side effect worth
+knowing: because `TelemetryChannels.buildLapChannels` now exists natively, a
+*recorded* session stores per-lap channel data too, which it couldn't before.
+
+Two testing notes. The parsers take a `TelemetryByteSource` and import no UIKit,
+SwiftUI, Photos or AVFoundation, so `swift test` exercises them on macOS against
+bytes in memory. And `UITests/VideoImportUITests` reaches the import through the
+debug-only `-importFixture <clip>` launch argument rather than the system pickers,
+which are separate processes whose automation would make the suite flaky about
+something other than this feature — everything after the pick is the production
+path.
 
 ## The project file is generated *and* committed
 

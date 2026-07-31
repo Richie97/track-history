@@ -27,17 +27,6 @@ final class CoreScreensUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Kept on success, not only on failure: the progress chart, the sparklines and
-    /// the trackmap are all drawn in a `Canvas`, so a render that goes wrong wouldn't
-    /// fail any assertion — a screenshot is the only artifact that would show it.
-    ///   xcrun xcresulttool export attachments --path <result>.xcresult --output-path <dir>
-    private func attach(_ app: XCUIApplication, named name: String) {
-        let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = name
-        shot.lifetime = .keepAlways
-        add(shot)
-    }
-
     // MARK: - Dashboard
 
     func testDashboardShowsTheLogbook() throws {

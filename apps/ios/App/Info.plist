@@ -90,6 +90,33 @@
 	<array>
 		<string>location</string>
 	</array>
+	<!-- Video telemetry import (NS-30). Reading a clip's telemetry track without
+	     copying the whole file needs a PHAsset, which needs a photo-library read
+	     authorization; PhotosPicker's loadTransferable would avoid the prompt and
+	     copy gigabytes instead. Files import needs no permission at all. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Track Evolution reads the telemetry track of a video you pick to work out your lap times. The video itself stays on your phone and is never uploaded or copied.</string>
+	<!-- "Open with Track Evolution" from Files, Photos and the GoPro app. Paired
+	     with LSSupportsOpeningDocumentsInPlace so a multi-GB clip is read where it
+	     sits rather than copied into the app's Inbox first. -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Track video</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.mpeg-4</string>
+				<string>com.apple.quicktime-movie</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Lets dev builds on a phone reach `npm run dev` on the Mac over

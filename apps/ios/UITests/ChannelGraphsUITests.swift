@@ -143,43 +143,6 @@ final class ChannelGraphsUITests: XCTestCase {
         )
     }
 
-    /// One dev-server call, signed in through the `DEV_MODE` bypass.
-    ///
-    /// `URLSession.shared` keeps the session cookie, so `GET /auth/login` once per
-    /// call is enough — it is a redirect on an already-authenticated session.
-    @discardableResult
-    private func api(_ method: String, _ path: String, body: [String: Any]? = nil) throws -> [String: Any] {
-        try signInOverHTTP()
-        var request = URLRequest(url: URL(string: "\(Self.devServerURL)\(path)")!)
-        request.httpMethod = method
-        request.timeoutInterval = 15
-        if let body {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-        var payload: [String: Any] = [:]
-        var status = 0
-        let done = expectation(description: "\(method) \(path)")
-        URLSession.shared.dataTask(with: request) { data, response, _ in
-            status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if let data, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                payload = object
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 20)
-        XCTAssertTrue((200..<300).contains(status), "\(method) \(path) failed: \(status) \(payload)")
-        return payload
-    }
-
-    private func signInOverHTTP() throws {
-        var request = URLRequest(url: URL(string: "\(Self.devServerURL)/auth/login")!)
-        request.timeoutInterval = 10
-        let done = expectation(description: "dev sign-in")
-        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
-        wait(for: [done], timeout: 15)
-    }
-
     // MARK: - Helpers
 
     private func deleteEventFromMenu(_ app: XCUIApplication) {
@@ -189,11 +152,4 @@ final class ChannelGraphsUITests: XCTestCase {
         app.buttons["Delete event"].tap()
     }
 
-    /// Kept on success: see `CoreScreensUITests`.
-    private func attach(_ app: XCUIApplication, named name: String) {
-        let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = name
-        shot.lifetime = .keepAlways
-        add(shot)
-    }
 }
