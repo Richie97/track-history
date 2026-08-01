@@ -1,11 +1,9 @@
 package app.trackevolution.ui.theme
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import app.trackevolution.data.settingsDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -28,8 +26,6 @@ enum class ThemeChoice {
     }
 }
 
-private val Context.themeDataStore: DataStore<Preferences> by preferencesDataStore("settings")
-
 private val THEME_KEY = stringPreferencesKey("theme")
 
 /**
@@ -42,9 +38,9 @@ private val THEME_KEY = stringPreferencesKey("theme")
 class ThemePreference(private val context: Context) {
 
     val choice: Flow<ThemeChoice> =
-        context.themeDataStore.data.map { ThemeChoice.fromStored(it[THEME_KEY]) }
+        context.settingsDataStore.data.map { ThemeChoice.fromStored(it[THEME_KEY]) }
 
     suspend fun set(choice: ThemeChoice) {
-        context.themeDataStore.edit { it[THEME_KEY] = choice.stored }
+        context.settingsDataStore.edit { it[THEME_KEY] = choice.stored }
     }
 }

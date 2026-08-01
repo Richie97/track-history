@@ -50,6 +50,9 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG gates the dev-server override on the sign-in screen
+        // (NS-09), which must never be reachable in a release build.
+        buildConfig = true
     }
 }
 
@@ -69,6 +72,13 @@ dependencies {
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.browser)
+    implementation(libs.androidx.security.crypto)
+
+    // The engine :core's ApiClient is constructed with. Choosing it here rather
+    // than there is what keeps :core a plain JVM module.
+    implementation(libs.ktor.client.okhttp)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
