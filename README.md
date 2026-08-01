@@ -208,10 +208,18 @@ either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
 `:core:test` deliberately still works without one.
 
 `:core` currently holds the recorder core, the lap geometry, the domain models,
-the API client and the recording journal; `:app` holds the design system and the
-lap recorder's foreground service. The logbook screens themselves are still to
-come. Three things worth knowing before touching either:
+the API client and the recording journal; `:app` holds the design system,
+sign-in and the lap recorder's foreground service. The logbook screens
+themselves are still to come. Four things worth knowing before touching either:
 
+- **Sign-in runs in a Chrome Custom Tab**, never a WebView — Google blocks OAuth
+  in embedded web views, which is why the server grew a PKCE native-app flow.
+  A debug build can point itself at a local `wrangler dev` from the small server
+  line under the sign-in buttons; `http://10.0.2.2:8787` is offered as a preset
+  because 10.0.2.2 is the emulator's alias for the host, and the server's
+  `DEV_MODE` bypass answers there, giving one-tap local sign-in with no Google
+  round trip. That control and the cleartext-traffic exception it needs exist in
+  debug builds only.
 - **The recorder is a foreground service, and the service — not the activity —
   owns the recording.** That is what lets it keep taking fixes with the screen
   off and after the app is swiped out of recents, and it is why the native app
@@ -350,7 +358,10 @@ scenes they bypass the `AppDelegate` callbacks).
   a device — don't add capabilities to the Debug side.
 - Android: replace the placeholder SHA-256 fingerprint in
   `public/.well-known/assetlinks.json` with the one from Play Console → App
-  signing, and redeploy, so App Links verify.
+  signing, and redeploy, so App Links verify. Until that lands,
+  `adb shell pm get-app-links app.trackevolution` reports `legacy_failure` and a
+  `/share/<slug>` link opens the browser rather than the app — the app's own
+  handling is in place and waiting on the file, not the other way round.
 - Store listings: sell the logbook features; the tip link is already hidden on
   iOS builds (Apple 3.1.1) and external links open in the system browser.
 - Xcode Cloud: builds work out of the box —

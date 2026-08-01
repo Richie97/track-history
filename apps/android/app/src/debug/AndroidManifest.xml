@@ -9,7 +9,13 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <application>
+    <!--
+      Cleartext to the dev server, debug builds only (NS-09). `wrangler dev`
+      serves plain HTTP and the server's DEV_MODE bypass answers on 10.0.2.2,
+      the emulator's alias for the host. Scoped to those hosts in res/xml, and
+      here rather than in main, so no release build can ship it.
+    -->
+    <application android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".ui.theme.TokenGalleryActivity"
             android:label="@string/token_gallery_label"
