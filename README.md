@@ -207,6 +207,25 @@ either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
 `apps/android/local.properties` (gitignored; Android Studio writes it for you).
 `:core:test` deliberately still works without one.
 
+`:core` currently holds the recorder core, the lap geometry, the domain models
+and the API client; `:app` holds the design system. The screens themselves are
+still to come. Two things worth knowing before touching either:
+
+- **The palette is generated, not typed.** `public/style.css` is the source of
+  truth for the design system, and `node apps/android/tools/generate-tokens.mjs`
+  turns its dark and light token blocks into
+  `ui/theme/ColorTokens.generated.kt`. Read colors through `TrackTheme.colors`,
+  never as a hex literal, and change the stylesheet plus re-run the generator
+  rather than editing the output. Material You dynamic color is deliberately off:
+  the lime accent is the "faster" signal the charts rely on, and a wallpaper must
+  not be able to recolor it. Geist and Geist Mono ship as variable fonts under
+  `res/font/` (SIL OFL 1.1, license in `assets/licenses/`).
+- **There is a token gallery.** A debug build adds a second launcher icon, "TE
+  Tokens", showing every color in both themes plus the type scale and radii —
+  which is how the port gets checked against https://trackevolution.app, and
+  against the largest system font size, without diffing hex codes by eye. It
+  lives in the `debug` source set, so it is not compiled into a release build.
+
 iOS specifics — the generated-but-committed Xcode project, the bundle id shared
 with the Capacitor app, Swift 6 concurrency, and why the CarPlay entitlement
 stays out of the checkout — are in [`apps/ios/README.md`](apps/ios/README.md).

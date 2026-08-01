@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The two colors the platform needs before Compose is running: the launcher
-    icon's background and the splash window. Both are the brand's near-black,
-    matching the "bg" design token in public/style.css. The app's real palette
-    is NS-07's job.
+    The colors the platform needs before Compose is running: the launcher icon's
+    background, the splash window, and the window behind the app.
+
+    The first two are the brand's near-black in every configuration — the splash
+    is a brand moment, not a themed surface — and match the dark `bg-page` token
+    in public/style.css.
+
+    window_background carries the *light* `bg-page` value here, with the dark one
+    in values-night/. It is only visible for the frames between the splash and
+    Compose's first draw, but a near-black flash on a light-mode phone is exactly
+    the kind of seam that reads as "web app in a wrapper".
+
+    The app's real palette lives in Kotlin, generated from public/style.css by
+    apps/android/tools/generate-tokens.mjs (NS-07).
 -->
 <resources>
     <color name="brand_background">#0A0A0B</color>
     <color name="ic_launcher_background">#0A0A0B</color>
+    <color name="window_background">#FBFBFA</color>
 </resources>

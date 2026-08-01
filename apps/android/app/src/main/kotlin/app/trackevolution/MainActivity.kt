@@ -3,29 +3,33 @@ package app.trackevolution
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import app.trackevolution.core.RecorderCore
+import androidx.compose.material3.Text
+import app.trackevolution.core.LapTime
+import app.trackevolution.ui.theme.ThemeChoice
+import app.trackevolution.ui.theme.ThemePreference
+import app.trackevolution.ui.theme.TrackTheme
 
 /**
  * The single activity the app runs in (spec: NS-02).
  *
- * Deliberately almost empty. The real screens arrive with NS-26, the recorder
- * UI with NS-18, and the design system with NS-07 — this exists so the project
- * assembles, installs and launches with the right identity and icon before any
- * of that lands.
+ * Still deliberately thin. The real screens arrive with NS-26 and the recorder
+ * UI with NS-18; what this now does is own the theme — reading the persisted
+ * system/light/dark override and wrapping everything in [TrackTheme].
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,44 +38,43 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme()) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    PlaceholderScreen()
-                }
-            }
+            val preference = remember { ThemePreference(applicationContext) }
+            // Until the first read lands, System is the right answer anyway —
+            // so there is nothing to block the first frame on.
+            val choice by preference.choice.collectAsState(initial = ThemeChoice.System)
+            TrackTheme(choice) { PlaceholderScreen() }
         }
     }
 }
 
 /**
- * The scaffold's "hello" screen.
+ * The scaffold's "hello" screen, now drawn from tokens.
  *
- * It reads a constant from `:core` on purpose. The module split is only proven
- * if the shell actually references the pure-logic module — an unused Gradle
- * dependency would compile whether or not the two can really talk.
+ * It reads from `:core` on purpose. The module split is only proven if the shell
+ * actually references the pure-logic module — an unused Gradle dependency would
+ * compile whether or not the two can really talk.
  */
 @Composable
 private fun PlaceholderScreen() {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().background(colors.bgPage).padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = "Track Evolution",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center,
-        )
+        Text("Track Evolution", style = type.h1, color = colors.textStrong, textAlign = TextAlign.Center)
         Text(
             text = "Native shell. The logbook lands with NS-26.",
-            style = MaterialTheme.typography.bodyMedium,
+            style = type.sm,
+            color = colors.textMuted,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "core linked · checkpoint format v${RecorderCore.RECORDING_V}",
-            style = MaterialTheme.typography.labelSmall,
-            textAlign = TextAlign.Center,
+            text = LapTime.fmtMs(118_421),
+            style = type.lapTimeHero,
+            color = colors.accentInk,
             modifier = Modifier.padding(top = 24.dp),
         )
     }
@@ -80,7 +83,11 @@ private fun PlaceholderScreen() {
 @Preview(showBackground = true)
 @Composable
 private fun PlaceholderScreenPreview() {
-    MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme()) {
-        Surface { PlaceholderScreen() }
-    }
+    TrackTheme(ThemeChoice.Dark) { PlaceholderScreen() }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PlaceholderScreenLightPreview() {
+    TrackTheme(ThemeChoice.Light) { PlaceholderScreen() }
 }

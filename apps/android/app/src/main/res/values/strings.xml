@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Track Evolution</string>
+    <!-- Debug-only launcher entry for the design-token gallery (NS-07). It lives
+         here rather than in the debug source set so one strings file holds every
+         user-visible string. -->
+    <string name="token_gallery_label">TE Tokens</string>
 </resources>

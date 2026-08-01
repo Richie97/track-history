@@ -8,16 +8,22 @@
     androidx.core.splashscreen swaps it for the real theme in installSplashScreen(),
     and backports the Android 12 splash to the API 26-30 devices minSdk allows.
 
-    Theme.TrackEvolution is what the app actually runs in. It is deliberately
-    bare — the palette, type scale and shapes are NS-07's job, and Compose draws
-    everything above this anyway.
+    Theme.TrackEvolution is what the app actually runs in, and stays deliberately
+    thin: Compose draws everything above it from the tokens in
+    app/src/main/kotlin/app/trackevolution/ui/theme (NS-07). All it owns is the
+    window chrome — which has to be right *before* Compose composes, so it
+    follows the system's light/dark through values-night rather than the in-app
+    theme override.
 -->
 <resources>
 
-    <style name="Theme.TrackEvolution" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">@color/brand_background</item>
-        <item name="android:navigationBarColor">@color/brand_background</item>
-        <item name="android:windowBackground">@color/brand_background</item>
+    <style name="Theme.TrackEvolution" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
+        <item name="android:windowBackground">@color/window_background</item>
+        <!-- Dark icons, for the light chrome above. -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
     <style name="Theme.TrackEvolution.Splash" parent="Theme.SplashScreen">

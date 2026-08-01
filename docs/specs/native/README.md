@@ -101,7 +101,6 @@ argument in full.
 |---|---|---|---|
 | NS-29 | [Garage — iOS](NS-29-ios-garage.md) | iOS | NS-25 |
 | NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
-| NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
 
 ## Deferred — not in this programme
 

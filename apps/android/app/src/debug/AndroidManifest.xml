@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only additions (spec: NS-07).
+
+  The token gallery gets its own launcher entry rather than a hidden route in
+  the app, so reviewing the design system against the web app is one tap and
+  needs no signed-in state. It exists only in debug builds — this manifest is
+  never merged into a release APK.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name=".ui.theme.TokenGalleryActivity"
+            android:label="@string/token_gallery_label"
+            android:exported="true"
+            android:theme="@style/Theme.TrackEvolution">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
