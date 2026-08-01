@@ -173,6 +173,18 @@ final class RecordingController {
     /// Look for a recording the app died on. Called once at launch.
     func recoverIfNeeded() {
         #if DEBUG
+        // Test hook, the other side of -resetRecording below: a stopped-but-unsaved
+        // recording, without driving one. Recording for real in a UI test would need
+        // simulated location over minutes, and the dashboard's banner only cares that
+        // one is waiting. Checked first so it wins when both flags are passed — the
+        // shared sign-in helper always passes -resetRecording.
+        //   xcrun simctl launch <device> app.trackevolution -pendingRecording
+        if ProcessInfo.processInfo.arguments.contains("-pendingRecording") {
+            journal.clear()
+            recording = Self.debugPendingRecording(startedAtMs: now())
+            phase = .stopped(.user)
+            return
+        }
         // Test hook, the counterpart to -resetAuth: an unsaved recording survives
         // on disk by design, which makes a UI test that records non-idempotent.
         //   xcrun simctl launch <device> app.trackevolution -resetRecording
@@ -188,6 +200,28 @@ final class RecordingController {
         phase = .stopped(.user)
         Self.log.notice("recovered an unsaved recording with \(found.fixes.count) fixes")
     }
+
+    #if DEBUG
+    /// A minute of made-up fixes, event-less — the shape the dashboard banner
+    /// describes and the Discard button throws away.
+    private static func debugPendingRecording(startedAtMs: Double) -> Recording {
+        // `nil` alone is ambiguous between the String? and Int? initialisers.
+        var seeded = Recording(eventId: Int?.none, startedAtMs: startedAtMs - 60_000)
+        for step in 0..<60 {
+            let t = Double(step)
+            seeded.addFix(
+                Recording.RawFix(
+                    timeMs: seeded.startedAtMs + t * 1000,
+                    lat: 36.56 + t * 0.0002,
+                    lon: -79.2 + t * 0.0002,
+                    speed: 25,
+                    accuracy: 5
+                )
+            )
+        }
+        return seeded
+    }
+    #endif
 
     // MARK: - Fix ingestion
 

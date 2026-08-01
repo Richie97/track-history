@@ -78,6 +78,39 @@ final class CoreScreensUITests: XCTestCase {
         attach(app, named: "dashboard-record")
     }
 
+    /// An unsaved recording you've decided against. The dashboard is the only place
+    /// an event-less one can be reached at all, so the discard path is asserted here:
+    /// the banner offers it, the confirmation asks, and taking it clears the banner.
+    ///
+    /// It also covers a SwiftUI hazard no assertion would otherwise notice — a
+    /// confirmation dialog that wedges the view hangs the app rather than failing.
+    func testDashboardDiscardsAnUnsavedRecording() throws {
+        let app = try launchSignedIn(extraLaunchArguments: ["-pendingRecording"])
+
+        let banner = app.staticTexts["Unsaved track recording"]
+        XCTAssertTrue(
+            banner.waitForExistence(timeout: 20),
+            "a stopped recording should be surfaced on the dashboard"
+        )
+        attach(app, named: "dashboard-unsaved-recording")
+
+        let discard = app.buttons["dashboardDiscardRecording"]
+        XCTAssertTrue(discard.exists, "the banner should offer a way to throw it away")
+        discard.tap()
+
+        // The dialog's own Discard, not the banner's — they share a label.
+        let confirm = app.sheets.buttons["Discard"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "discarding should ask first")
+        confirm.tap()
+
+        // The recorder is back to idle: no banner, and the idle-only Record button.
+        XCTAssertTrue(
+            app.buttons["dashboardRecord"].waitForExistence(timeout: 10),
+            "discarding should return the recorder to idle"
+        )
+        XCTAssertFalse(banner.exists, "the banner should be gone once the recording is discarded")
+    }
+
     // MARK: - Event: create, log laps, delete
 
     /// The event page's real content, on data this test owns: create the event, add a

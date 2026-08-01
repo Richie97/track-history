@@ -269,7 +269,9 @@ and the dashboard shows a banner for the event-less recording: create the
 event whenever you like and the recording is adopted the moment you open that
 event's record screen, feeding the usual review/line-picker/save flow.
 Stopping keeps the recording checkpointed on the phone until it's saved or
-discarded. The scene talks to the web
+discarded — the dashboard banner carries a Discard button for exactly that,
+so a recording you don't want doesn't need an event created just to reach one.
+The scene talks to the web
 app through the app-local `CarPlayBridgePlugin.swift`
 (`Capacitor.Plugins.CarPlayBridge`), wired to `platform.recorderRemote` /
 `platform.onRecorderState` in `overrides/native.js`.

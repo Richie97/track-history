@@ -554,7 +554,10 @@ assertion. Export it with
 The `-resetAuth` and `-resetRecording` launch arguments (DEBUG only) exist for
 these tests: the Keychain token and an unsaved recording both survive a reinstall
 by design, which would otherwise make a recording test pass by starting in the
-state it was meant to reach.
+state it was meant to reach. `-pendingRecording` is the inverse — it seeds a
+stopped, unsaved recording so the dashboard's banner (and its Discard button) can
+be tested without driving one, and it is checked before `-resetRecording` so it
+wins when the shared sign-in helper passes both.
 
 Still outstanding from NS-15: the Live Activity / Dynamic Island (the spec
 sequences it after the core recorder), the 60-minute screen-locked device run, and

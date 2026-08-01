@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { platform } from "../../public/js/platform.js";
 import { clearOffline } from "../../public/js/offline.js";
 import { initRemoteRecorder, localTodayIso, pickRecordingEvent } from "../../public/js/record/remote.js";
-import { isRecording, stopRecording } from "../../public/js/record/ui.js";
+import { discardPending, isRecording, pendingRecording, startRecording, stopRecording } from "../../public/js/record/ui.js";
 
 describe("localTodayIso", () => {
   it("formats the local calendar date as YYYY-MM-DD", () => {
@@ -151,5 +151,45 @@ describe("initRemoteRecorder", () => {
     initRemoteRecorder();
     await platform.recorderRemote.start();
     expect(await platform.recorderRemote.start()).toEqual({ ok: true, eventId: 9 });
+  });
+});
+
+// A stopped recording stays checkpointed until it is saved or thrown away. The
+// dashboard's Discard button is the only way out for a recording with no event
+// — there is no event record screen to open — so it gets its own coverage.
+describe("pending recordings", () => {
+  const prefs = new Map();
+  const webPrefs = { get: platform.prefGet, set: platform.prefSet, remove: platform.prefRemove };
+
+  afterEach(async () => {
+    await stopRecording();
+    await discardPending();
+    prefs.clear();
+    platform.bgLocation = null;
+    platform.prefGet = webPrefs.get;
+    platform.prefSet = webPrefs.set;
+    platform.prefRemove = webPrefs.remove;
+  });
+
+  function fakePrefsShell() {
+    // localStorage doesn't exist in Node and the web defaults swallow that, so
+    // stand in for the native shell's own key/value store.
+    platform.prefGet = async (k) => prefs.get(k) ?? null;
+    platform.prefSet = async (k, v) => void prefs.set(k, v);
+    platform.prefRemove = async (k) => void prefs.delete(k);
+    platform.bgLocation = { start: async () => {}, stop: async () => {}, openSettings: () => {} };
+  }
+
+  it("keeps a stopped recording until it is discarded", async () => {
+    fakePrefsShell();
+    await startRecording(null);
+    await stopRecording();
+
+    const pending = await pendingRecording();
+    expect(pending).toBeTruthy();
+    expect(pending.eventId).toBeNull();
+
+    await discardPending();
+    expect(await pendingRecording()).toBeNull();
   });
 });
