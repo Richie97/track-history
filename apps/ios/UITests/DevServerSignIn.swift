@@ -65,7 +65,11 @@ extension XCTestCase {
     }
 
     /// Launch, tap through the browser flow, and return the app on the dashboard.
-    func launchSignedIn() throws -> XCUIApplication {
+    ///
+    /// `extraLaunchArguments` is for debug-only test hooks that have to be in place
+    /// before the first screen draws — `-pendingRecording`, which seeds the unsaved
+    /// recording the dashboard banner is about.
+    func launchSignedIn(extraLaunchArguments: [String] = []) throws -> XCUIApplication {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
 
         let app = XCUIApplication()
@@ -78,7 +82,7 @@ extension XCTestCase {
         // otherwise put a banner on the dashboard that this run didn't create.
         app.launchArguments = [
             "-server.url", Self.devServerURL, "-resetAuth", "-resetRecording"
-        ]
+        ] + extraLaunchArguments
         app.launch()
 
         let google = app.buttons["Continue with Google"]
@@ -90,7 +94,13 @@ extension XCTestCase {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let consent = springboard.buttons["Continue"]
         if consent.waitForExistence(timeout: 15) {
-            consent.tap()
+            // Existing isn't enough: the alert animates in, and a tap synthesized
+            // while it's still moving is swallowed — leaving the alert up and the
+            // test waiting 30 s for a dashboard behind it. Tap until it's gone.
+            for _ in 0..<10 where consent.exists {
+                if consent.isHittable { consent.tap() }
+                _ = consent.waitForNonExistence(timeout: 2)
+            }
         }
 
         // The dashboard's own button, rather than anything about the account: this is

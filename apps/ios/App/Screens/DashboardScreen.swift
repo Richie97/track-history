@@ -18,6 +18,7 @@ struct DashboardScreen: View {
     @Environment(RecordingController.self) private var recorder
 
     @State private var model: DashboardModel?
+    @State private var showingDiscardConfirmation = false
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -342,14 +343,16 @@ struct DashboardScreen: View {
                     title: "Unsaved track recording",
                     hint: "Review it to save the laps to its event, or discard it.",
                     action: "Review & save",
-                    route: .record(eventId: eventId)
+                    route: .record(eventId: eventId),
+                    discardable: true
                 )
             } else {
                 banner(
                     title: "Unsaved track recording",
-                    hint: "Create its event to pick the start/finish line and save the laps.",
+                    hint: "Create its event to pick the start/finish line and save the laps, or discard it.",
                     action: "+ Add event",
-                    route: .eventForm(.new(presetTrack: nil))
+                    route: .eventForm(.new(presetTrack: nil)),
+                    discardable: true
                 )
             }
         }
@@ -360,7 +363,17 @@ struct DashboardScreen: View {
         return recorder.recording
     }
 
-    private func banner(title: String, hint: String, action: String, route: Route) -> some View {
+    /// `discardable` offers the way out alongside the way forward: an unsaved
+    /// recording you've decided not to keep can be thrown away from here, without
+    /// creating an event for it just to reach a discard button. Destructive, so it
+    /// asks first — the trace is the only copy.
+    private func banner(
+        title: String,
+        hint: String,
+        action: String,
+        route: Route,
+        discardable: Bool = false
+    ) -> some View {
         TECard(padding: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
@@ -373,9 +386,26 @@ struct DashboardScreen: View {
                 Text(hint)
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
-                Button(action) { router.push(route) }
-                    .buttonStyle(TEButtonStyle(kind: .accent))
+                HStack(spacing: TESpacing.gridGap) {
+                    Button(action) { router.push(route) }
+                        .buttonStyle(TEButtonStyle(kind: .accent))
+                    if discardable {
+                        Button("Discard") { showingDiscardConfirmation = true }
+                            .buttonStyle(TEButtonStyle(kind: .danger))
+                            .accessibilityIdentifier("dashboardDiscardRecording")
+                    }
+                }
             }
+        }
+        .confirmationDialog(
+            "Discard this recording?",
+            isPresented: $showingDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Discard", role: .destructive) { recorder.discard() }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            Text("The GPS trace is deleted from this device and can't be recovered.")
         }
     }
 }

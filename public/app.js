@@ -19,7 +19,14 @@ import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS, WEAR_LIMIT_HINTS,
   diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, partKindLabel, partStatus,
 } from "./js/garage.js";
-import { activeEventId, bindRecorder, isRecording, pendingRecording, recorderAvailable } from "./js/record/ui.js";
+import {
+  activeEventId,
+  bindRecorder,
+  discardPending,
+  isRecording,
+  pendingRecording,
+  recorderAvailable,
+} from "./js/record/ui.js";
 import { initRemoteRecorder } from "./js/record/remote.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 
@@ -721,10 +728,16 @@ async function viewDashboard() {
   let recBanner = "";
   if (recorderAvailable()) {
     const pending = isRecording() ? null : await pendingRecording();
-    const banner = (title, hint, href, label) => `<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:20px">
+    // `discard` adds the way out: an unsaved recording you don't want an event
+    // for can be thrown away here, rather than only from an event's record
+    // screen — which the event-less case can't reach at all.
+    const banner = (title, hint, href, label, discard = false) => `<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:20px">
       <span style="font-size:22px" aria-hidden="true">⏱️</span>
       <div style="flex:1;min-width:200px"><strong>${title}</strong><div class="hint">${hint}</div></div>
-      <a class="btn primary" href="${href}">${label}</a>
+      <div class="btn-row" style="margin:0">
+        <a class="btn primary" href="${href}">${label}</a>
+        ${discard ? `<button class="btn danger" id="rec-banner-discard">Discard</button>` : ""}
+      </div>
     </div>`;
     if (isRecording() && activeEventId() == null) {
       recBanner = banner(
@@ -736,16 +749,18 @@ async function viewDashboard() {
     } else if (pending && pending.eventId == null) {
       recBanner = banner(
         "Unsaved track recording",
-        "Create its event to pick the start/finish line and save the laps.",
+        "Create its event to pick the start/finish line and save the laps, or discard it.",
         "#/new",
-        "+ Add event"
+        "+ Add event",
+        true
       );
     } else if (pending) {
       recBanner = banner(
         "Unsaved track recording",
         "Review it to save the laps to its event, or discard it.",
         `#/event/${esc(String(pending.eventId))}/record`,
-        "Review & save"
+        "Review & save",
+        true
       );
     }
   }
@@ -791,6 +806,16 @@ async function viewDashboard() {
   wireRowLinks(view);
   // Warm the offline cache in the background while we're on the dashboard.
   scheduleWarm();
+
+  // Throw away an unsaved recording without having to open (or invent) its event.
+  const recDiscard = view.querySelector("#rec-banner-discard");
+  if (recDiscard) {
+    recDiscard.onclick = async () => {
+      if (!confirm("Discard this recording and its GPS data?")) return;
+      await discardPending();
+      route();
+    };
+  }
 
   const shareMsg = view.querySelector("#share-msg");
   const shareInput = view.querySelector("#share-slug");
