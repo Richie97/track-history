@@ -53,6 +53,9 @@ object RecordingNotification {
             0,
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                // Tapping it must land on the live recording, not the dashboard
+                // — while driving, that is the only screen worth reaching.
+                putExtra(RecordingService.EXTRA_OPEN_RECORDER, true)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

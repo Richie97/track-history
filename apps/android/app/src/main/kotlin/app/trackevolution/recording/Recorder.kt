@@ -18,6 +18,16 @@ data class RecorderState(
     val fixCount: Int = 0,
     /** Elapsed seconds, from the last fix rather than the wall clock. */
     val elapsedS: Double = 0.0,
+    /** Speed of the last accepted fix, m/s, or null when the source reported none. */
+    val lastSpeedMps: Double? = null,
+    /** Reported accuracy of the last accepted fix, meters, or null. */
+    val lastAccuracyM: Double? = null,
+    /**
+     * Epoch ms at which the last fix was *delivered*, wall clock — the one place
+     * the wall clock is right, because the question it answers is "how long since
+     * anything arrived", and a stalled stream has no fix time to ask.
+     */
+    val lastFixAtMs: Long = 0L,
     /** Set when the recorder stopped itself — the 4-hour cap or forgot-to-stop. */
     val autoStopped: Boolean = false,
     /** Why a recording could not start or had to end. */

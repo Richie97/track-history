@@ -1,9 +1,11 @@
 package app.trackevolution
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +18,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -32,6 +36,11 @@ import app.trackevolution.auth.ServerOverride
 import app.trackevolution.auth.SignInScreen
 import app.trackevolution.core.DeepLink
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.recording.Haptics
+import app.trackevolution.recording.Recorder
+import app.trackevolution.recording.RecorderPermissions
+import app.trackevolution.recording.RecordingFlow
+import app.trackevolution.recording.RecordingService
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.ThemePreference
 import app.trackevolution.ui.theme.TrackTheme
@@ -60,6 +69,24 @@ class MainActivity : ComponentActivity() {
      */
     private var pendingLink: DeepLink? = null
 
+    private lateinit var flow: RecordingFlow
+
+    /**
+     * Set when the app was opened by tapping the recording notification, which
+     * must land on the recording rather than the dashboard.
+     */
+    private var openRecorder by mutableStateOf(false)
+
+    /**
+     * Fine location and notifications, asked for at the moment the user asks to
+     * record — in context, not at launch. Background location is a separate,
+     * later escalation; Android rejects a combined request.
+     */
+    private val requestRecordingPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            startRecordingIfAllowed()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Must precede super.onCreate: it swaps the splash theme out for the
         // real one, so the app never flashes the splash background as a window.
@@ -78,7 +105,11 @@ class MainActivity : ComponentActivity() {
             providersStore = AuthProvidersStore(this),
             serverPreference = serverPreference,
         )
+        flow = RecordingFlow(scope = lifecycleScope, api = api)
         auth.start()
+        // A recording a previous launch never finished is offered back rather
+        // than left on disk unmentioned.
+        Recorder.recoverPending(this)
         // Cold start: the launching intent is delivered here, not to onNewIntent.
         handleIntent(intent)
 
@@ -89,7 +120,13 @@ class MainActivity : ComponentActivity() {
             val server by serverPreference.url.collectAsState(initial = ApiClient.DEFAULT_BASE_URL)
             TrackTheme(choice) {
                 when (state) {
-                    is AuthState.SignedIn -> PlaceholderScreen(onSignOut = auth::signOut)
+                    is AuthState.SignedIn -> SignedInScaffold(
+                        flow = flow,
+                        startOnRecord = openRecorder,
+                        onConsumedStartOnRecord = { openRecorder = false },
+                        onStartRecording = ::requestPermissionsThenRecord,
+                        onSignOut = auth::signOut,
+                    )
                     AuthState.Loading -> LoadingScreen()
                     else -> SignInScreen(
                         state = state,
@@ -121,11 +158,41 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Ask, then record. Asking here rather than at launch is the point: a
+     * permission prompt makes sense the moment someone taps "record", and makes
+     * none on first open.
+     */
+    private fun requestPermissionsThenRecord() {
+        val needed = buildList {
+            if (!RecorderPermissions.hasFineLocation(this@MainActivity)) {
+                add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+            if (!RecorderPermissions.hasNotifications(this@MainActivity) &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            ) {
+                add(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        if (needed.isEmpty()) startRecordingIfAllowed() else requestRecordingPermissions.launch(needed.toTypedArray())
+    }
+
+    private fun startRecordingIfAllowed() {
+        // The service refuses and reports anything still blocking, so this only
+        // has to not start a recording that obviously cannot work.
+        Recorder.start(this, eventId = null)
+        Haptics.confirm(this)
+    }
+
+    /**
      * One entry point for every URL the app is opened with: the OAuth redirect
      * first, since it is not navigation and must not be parsed as such, then
      * anything the routing table recognises.
      */
     private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(RecordingService.EXTRA_OPEN_RECORDER, false) == true) {
+            openRecorder = true
+        }
         val uri = intent?.data ?: return
         if (auth.handleRedirect(uri)) return
         // NS-26 owns navigation; until it exists, a link is remembered rather

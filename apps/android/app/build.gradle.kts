@@ -76,6 +76,8 @@ dependencies {
     implementation(libs.androidx.browser)
     implementation(libs.androidx.security.crypto)
     implementation(libs.play.services.location)
+    // Version floor only; see the note in libs.versions.toml.
+    implementation(libs.androidx.fragment)
 
     // The engine :core's ApiClient is constructed with. Choosing it here rather
     // than there is what keeps :core a plain JVM module.
