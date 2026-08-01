@@ -202,6 +202,56 @@ public class ApiClient(
     public suspend fun sharedLogbook(slug: String): ShareData =
         get("/share/$slug", ShareData.serializer(), authenticated = false)
 
+    // ---- Sign-in (NS-09) --------------------------------------------------
+    //
+    // These live under /auth rather than /api and are what the sign-in screen
+    // drives; obtaining and storing the token is `:app`'s job, since `:core`
+    // must not touch the Android keystore.
+
+    /**
+     * The sign-in URL to open **in the system browser** (a Custom Tab, never a
+     * WebView — Google forbids OAuth in an embedded web view, which is the whole
+     * reason this flow exists).
+     */
+    public fun signInUrl(provider: AuthProvider, challenge: String): String =
+        "$serverUrl${provider.loginPath}?client=app&code_challenge=${challenge.urlEncoded()}"
+
+    /** Which providers this server advertises. Unauthenticated. */
+    public suspend fun authProviders(): AuthProviders =
+        send(
+            "GET", "/providers", null, AuthProviders.serializer(),
+            authenticated = false, prefix = AUTH_PREFIX,
+        )
+
+    /**
+     * Trades the one-time code from the `trackevolution://auth` redirect, plus
+     * the PKCE verifier, for a bearer token. Do this immediately: the code lives
+     * 60 seconds and is burned on first use, so a retry needs a whole new flow.
+     */
+    public suspend fun exchange(code: String, verifier: String): String =
+        send(
+            "POST", "/exchange",
+            requestJson.encodeToJsonElement(
+                ExchangeBody.serializer(),
+                ExchangeBody(code = code, code_verifier = verifier),
+            ),
+            AuthTokenResponse.serializer(),
+            // No token yet; the endpoint ignores the header harmlessly.
+            authenticated = false, prefix = AUTH_PREFIX,
+        ).token
+
+    /**
+     * Revokes the session server-side. The caller still has to clear the token
+     * and every cached row locally — a shared device must not keep the previous
+     * user's logbook.
+     */
+    public suspend fun logout() {
+        send(
+            "POST", "/logout", buildJsonObject { }, OkResponse.serializer(),
+            authenticated = true, prefix = AUTH_PREFIX,
+        )
+    }
+
     // ---- Plumbing ---------------------------------------------------------
 
     private suspend fun <T> get(
@@ -278,6 +328,13 @@ public class ApiClient(
         public const val DEFAULT_BASE_URL: String = "https://trackevolution.app"
 
         private const val API_PREFIX = "/api"
+
+        /** Sign-in lives outside the API surface, and outside the offline layer. */
+        private const val AUTH_PREFIX = "/auth"
+
+        /** Percent-encoding for a query value, without dragging in a URL builder. */
+        private fun String.urlEncoded(): String =
+            java.net.URLEncoder.encode(this, "UTF-8")
 
         /**
          * Strict on purpose (item 7 of NS-05): a field the server adds and this
