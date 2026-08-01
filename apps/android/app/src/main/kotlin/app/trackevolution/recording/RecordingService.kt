@@ -114,8 +114,17 @@ class RecordingService : Service() {
         journal.append(rec.fixes.last())
 
         val elapsed = RecorderCore.elapsedS(rec, fix.timeMs)
+        val stored = rec.fixes.last()
         Recorder.publish(
-            Recorder.state.value.copy(fixCount = rec.fixes.size, elapsedS = elapsed),
+            Recorder.state.value.copy(
+                fixCount = rec.fixes.size,
+                elapsedS = elapsed,
+                // From the stored fix, not the raw one: what the screen shows is
+                // then exactly what was recorded, rounding included.
+                lastSpeedMps = stored.speed,
+                lastAccuracyM = stored.accuracy,
+                lastFixAtMs = System.currentTimeMillis(),
+            ),
         )
         updateNotification(elapsed, rec.fixes.size)
 
@@ -206,6 +215,9 @@ class RecordingService : Service() {
         const val ACTION_START = "app.trackevolution.recording.START"
         const val ACTION_STOP = "app.trackevolution.recording.STOP"
         const val EXTRA_EVENT_ID = "eventId"
+
+        /** Set on the notification's content intent — see [RecordingNotification]. */
+        const val EXTRA_OPEN_RECORDER = "openRecorder"
 
         private const val TAG = "RecordingService"
 

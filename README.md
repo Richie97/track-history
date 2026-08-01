@@ -227,9 +227,12 @@ themselves are still to come. Four things worth knowing before touching either:
   Every accepted fix is appended to a journal on disk as it arrives
   (`RecordingJournal` in `:core`, so it unit-tests on the JVM), so a force-stop
   loses nothing rather than the ~10 s the WebView recorder can, and the next
-  launch offers the recording back. A debug build adds a "TE Recorder" launcher
-  icon for exercising all of that before the real screen lands with NS-18 —
-  drive it on an emulator with `adb emu geo fix <lon> <lat>`.
+  launch offers the recording back. Stopping hands it to a review screen: tap
+  the driven trace where the start/finish line is, check the laps that fall out,
+  pick the event, save. Nothing there is required for the recording to continue,
+  and back never stops one. A debug build also keeps a "TE Recorder" launcher
+  icon for driving the service directly; feed either with
+  `adb emu geo fix <lon> <lat>` on an emulator.
 - **The palette is generated, not typed.** `public/style.css` is the source of
   truth for the design system, and `node apps/android/tools/generate-tokens.mjs`
   turns its dark and light token blocks into
