@@ -21,10 +21,16 @@ kotlin {
 }
 
 dependencies {
-    implementation(libs.kotlinx.serialization.json)
+    // `api`, not `implementation`: the models are @Serializable and the API
+    // client's constructor takes an HttpClientEngine, so both leak into :core's
+    // public surface and consumers need them on the compile classpath.
+    api(libs.kotlinx.serialization.json)
+    api(libs.ktor.client.core)
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

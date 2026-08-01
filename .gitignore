@@ -28,6 +28,8 @@ contracts/.persist/
 # Native client build output. The Gradle wrapper itself IS committed, so CI
 # needs no local Gradle install.
 apps/android/.gradle/
+# Kotlin's incremental-compilation session directory, written next to the build.
+apps/android/.kotlin/
 apps/android/build/
 apps/android/*/build/
 apps/android/local.properties
