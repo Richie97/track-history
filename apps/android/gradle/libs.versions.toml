@@ -18,6 +18,8 @@ androidxCore = "1.15.0"
 activityCompose = "1.9.3"
 composeBom = "2024.12.01"
 coreSplashscreen = "1.0.1"
+# Fused location. The recorder needs dense, high-accuracy fixes; see NS-16.
+playServicesLocation = "21.3.0"
 datastore = "1.1.1"
 
 [libraries]
@@ -39,6 +41,7 @@ androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", versi
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 # Backs the persisted theme override (NS-07) and, later, any other small setting.
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui = { module = "androidx.compose.ui:ui" }

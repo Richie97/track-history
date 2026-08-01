@@ -20,6 +20,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The recorder bench (NS-16). The real recording screen is NS-18; this
+             exists so a service, a permission ladder and a durability guarantee
+             can be exercised before that lands. -->
+        <activity
+            android:name=".recording.RecorderHarnessActivity"
+            android:label="@string/recorder_harness_label"
+            android:exported="true"
+            android:theme="@style/Theme.TrackEvolution">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

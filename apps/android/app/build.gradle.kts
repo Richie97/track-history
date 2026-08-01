@@ -69,6 +69,7 @@ dependencies {
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.play.services.location)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
