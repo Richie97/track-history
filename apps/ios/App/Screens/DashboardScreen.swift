@@ -249,10 +249,17 @@ struct DashboardScreen: View {
             // `.fixedSize(vertical:)` is what pins that height to the text: without it
             // the flexible chart and the flexible stack negotiate with each other and
             // the row collapses.
+            //
+            // Since the text is the only thing setting the height, the name reserves two
+            // lines whether it needs them or not — that's what makes every card in the
+            // list the same height instead of a row of ragged ones, and two lines is
+            // what a track name with its layout suffix ("… — Grand West") actually
+            // takes at this width.
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(track.name)
                         .teStyle(.h3)
+                        .lineLimit(2, reservesSpace: true)
                         .foregroundStyle(Color(.textStrong))
                     Text(LapTime.fmtMs(track.bestMs))
                         .teStyle(.lapTimeHero)
