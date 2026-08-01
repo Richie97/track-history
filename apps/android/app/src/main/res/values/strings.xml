@@ -5,4 +5,14 @@
          here rather than in the debug source set so one strings file holds every
          user-visible string. -->
     <string name="token_gallery_label">TE Tokens</string>
+    <string name="recorder_harness_label">TE Recorder</string>
+
+    <!-- The lap recorder's foreground-service notification (NS-16). The channel
+         wording matches the Capacitor app's so an upgrading user recognises it. -->
+    <string name="recording_channel_name">Lap recording</string>
+    <string name="recording_channel_description">Shows while the app is recording laps with GPS.</string>
+    <string name="recording_title">Recording laps</string>
+    <!-- %1$s elapsed time, %2$d GPS fixes captured -->
+    <string name="recording_text">%1$s · %2$d fixes</string>
+    <string name="recording_stop">Stop</string>
 </resources>

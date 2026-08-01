@@ -73,5 +73,23 @@
                     android:pathPrefix="/share/" />
             </intent-filter>
         </activity>
+
+        <!--
+            The lap recorder (NS-16). The *service* owns the recording, not the
+            activity, which is what lets it keep taking fixes with the screen off
+            and after the app is swiped out of recents.
+
+            foregroundServiceType="location" is what buys that on Android 10+;
+            it also means the system kills the process unless startForeground is
+            called within five seconds of startForegroundService, which
+            RecordingService is built around.
+
+            Not exported: nothing outside the app has any business starting a
+            GPS recording.
+        -->
+        <service
+            android:name=".recording.RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 </manifest>

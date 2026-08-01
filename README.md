@@ -207,10 +207,10 @@ either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
 `apps/android/local.properties` (gitignored; Android Studio writes it for you).
 `:core:test` deliberately still works without one.
 
-`:core` currently holds the recorder core, the lap geometry, the domain models
-and the API client; `:app` holds the design system and sign-in. The logbook
-screens themselves are still to come. Three things worth knowing before touching
-either:
+`:core` currently holds the recorder core, the lap geometry, the domain models,
+the API client and the recording journal; `:app` holds the design system,
+sign-in and the lap recorder's foreground service. The logbook screens
+themselves are still to come. Four things worth knowing before touching either:
 
 - **Sign-in runs in a Chrome Custom Tab**, never a WebView — Google blocks OAuth
   in embedded web views, which is why the server grew a PKCE native-app flow.
@@ -220,7 +220,16 @@ either:
   `DEV_MODE` bypass answers there, giving one-tap local sign-in with no Google
   round trip. That control and the cleartext-traffic exception it needs exist in
   debug builds only.
-
+- **The recorder is a foreground service, and the service — not the activity —
+  owns the recording.** That is what lets it keep taking fixes with the screen
+  off and after the app is swiped out of recents, and it is why the native app
+  needs none of the `useLegacyBridge` workaround the Capacitor shell carries.
+  Every accepted fix is appended to a journal on disk as it arrives
+  (`RecordingJournal` in `:core`, so it unit-tests on the JVM), so a force-stop
+  loses nothing rather than the ~10 s the WebView recorder can, and the next
+  launch offers the recording back. A debug build adds a "TE Recorder" launcher
+  icon for exercising all of that before the real screen lands with NS-18 —
+  drive it on an emulator with `adb emu geo fix <lon> <lat>`.
 - **The palette is generated, not typed.** `public/style.css` is the source of
   truth for the design system, and `node apps/android/tools/generate-tokens.mjs`
   turns its dark and light token blocks into

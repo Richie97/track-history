@@ -19,6 +19,8 @@ activityCompose = "1.9.3"
 lifecycle = "2.8.7"
 composeBom = "2024.12.01"
 coreSplashscreen = "1.0.1"
+# Fused location. The recorder needs dense, high-accuracy fixes; see NS-16.
+playServicesLocation = "21.3.0"
 datastore = "1.1.1"
 # Chrome Custom Tabs. Sign-in must happen in the system browser — Google blocks
 # OAuth in an embedded WebView — and this is the tab that shares its cookies.
@@ -49,6 +51,7 @@ androidx-browser = { module = "androidx.browser:browser", version.ref = "browser
 # The bearer token at rest. Must stay readable while the device is locked — the
 # lap recorder runs locked and has to sync.
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui = { module = "androidx.compose.ui:ui" }
