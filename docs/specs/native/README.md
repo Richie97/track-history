@@ -101,6 +101,7 @@ argument in full.
 |---|---|---|---|
 | NS-29 | [Garage — iOS](NS-29-ios-garage.md) | iOS | NS-25 |
 | NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
+| NS-31 | [Garage — Android](NS-31-android-garage.md) | Android | NS-26 |
 
 ## Deferred — not in this programme
 
@@ -111,11 +112,13 @@ telemetry file import**.
 Two things were on this list and came off it, both for the reason the split
 predicts — the work happens where the web app isn't:
 
-- **The garage** (vehicles, parts, wear, measurements) — NS-29. Deciding whether
-  the pads will last the weekend is something you do *at* the car. Its **analysis**
-  half — the setup notebook and the setup-vs-lap-times diff — stays deferred, and
-  that division is deliberate rather than a stopping point someone ran out of time
-  at.
+- **The garage** (vehicles, parts, wear, measurements) — NS-29 on iOS, NS-31 on
+  Android. Deciding whether the pads will last the weekend is something you do
+  *at* the car, and that argument was never iOS-specific — it was simply written
+  down while iOS was the client being built. Its **analysis** half — the setup
+  notebook and the setup-vs-lap-times diff — stays deferred on both platforms,
+  and that division is deliberate rather than a stopping point someone ran out of
+  time at.
 - **Video import** (GoPro and Corvette PDR) — NS-30. The footage is already on the
   phone that shot or received it. `.vbo` import, which really does arrive on an SD
   card at a desk, stays deferred.
