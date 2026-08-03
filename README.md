@@ -247,6 +247,12 @@ themselves are still to come. Four things worth knowing before touching either:
   which is how the port gets checked against https://trackevolution.app, and
   against the largest system font size, without diffing hex codes by eye. It
   lives in the `debug` source set, so it is not compiled into a release build.
+- **So is a chart gallery.** A third debug launcher, "TE Charts", draws the
+  progress chart, trackmap and lap overlay in both themes, plus the line picker
+  on a 20,000-fix trace. Charts are drawn rather than laid out, so no unit test
+  can tell you a trace came out mirrored or a ramp backwards — and that trace is
+  also the performance case, since a stored lap is capped at 300 points and only
+  a raw recording is that long.
 
 iOS specifics — the generated-but-committed Xcode project, the bundle id shared
 with the Capacitor app, Swift 6 concurrency, and why the CarPlay entitlement

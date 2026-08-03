@@ -27,6 +27,21 @@
             </intent-filter>
         </activity>
 
+        <!-- The chart bench (NS-24). Charts are drawn rather than laid out, so
+             a unit test cannot tell you a trace came out mirrored or a ramp
+             backwards; this shows all four in both themes, and carries the
+             20,000-fix line picker the spec asks to be profiled. -->
+        <activity
+            android:name=".ui.charts.ChartGalleryActivity"
+            android:label="@string/chart_gallery_label"
+            android:exported="true"
+            android:theme="@style/Theme.TrackEvolution">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- The recorder bench (NS-16). The real recording screen is NS-18; this
              exists so a service, a permission ladder and a durability guarantee
              can be exercised before that lands. -->
