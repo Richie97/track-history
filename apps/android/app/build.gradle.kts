@@ -58,8 +58,9 @@ android {
 
     testOptions {
         unitTests {
-            // Robolectric needs the merged resources and manifest to stand up an
-            // Application; without this the offline-store tests fail at startup.
+            // Robolectric needs the merged resources and manifest to stand up
+            // an Application; without this the offline-store and chart tests
+            // fail at startup rather than at an assertion.
             isIncludeAndroidResources = true
         }
     }
@@ -114,10 +115,18 @@ dependencies {
 
     debugImplementation(libs.compose.ui.tooling)
 
-    // JUnit 4 rather than :core's JUnit 5 — the Robolectric runner is a JUnit 4
-    // runner, and pairing it with 5 costs an extension for no benefit here.
+    // Robolectric — still no emulator. It runs Room against real SQLite for the
+    // offline queue's durability (NS-22) and Compose itself for the charts'
+    // degenerate datasets (NS-24).
+    //
+    // JUnit 4 rather than :core's JUnit 5: both the Robolectric runner and
+    // Compose's test rule are JUnit 4, and pairing them with 5 costs an
+    // extension for no benefit here.
     testImplementation(libs.junit4)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

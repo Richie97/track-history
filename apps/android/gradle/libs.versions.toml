@@ -43,8 +43,9 @@ ksp = "2.0.21-1.0.28"
 # Replay scheduling. A CoroutineWorker with a CONNECTED constraint survives
 # process death, which a coroutine in a ViewModel does not.
 work = "2.10.0"
-# :app's JVM tests. Robolectric runs Room against real SQLite without an
-# emulator, so CI can prove durability rather than only the logic above it.
+# :app's JVM tests. Robolectric runs both Room against real SQLite and Compose
+# itself without an emulator — so CI proves the queue survives a restart (NS-22)
+# and the charts render their degenerate datasets (NS-24), on the same runner.
 junit4 = "4.13.2"
 robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
@@ -90,6 +91,10 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+# Drives the chart composables under Robolectric, so the degenerate datasets
+# and the TalkBack strings are gated by CI rather than by remembering to look.
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
