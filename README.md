@@ -198,6 +198,7 @@ xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolutio
 
 cd apps/android && ./gradlew :core:test                # Android pure logic, no emulator
 cd apps/android && ./gradlew :app:assembleDebug        # the Android app (needs the SDK)
+cd apps/android && ./gradlew :app:testDebugUnitTest    # Robolectric; still no emulator
 ```
 
 The Android project is two modules, and the split is the point: `:core` is pure
@@ -206,6 +207,12 @@ Kotlin/JVM, so its tests run in seconds with no SDK and no emulator, while
 either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
 `apps/android/local.properties` (gitignored; Android Studio writes it for you).
 `:core:test` deliberately still works without one.
+
+`:app`'s own tests are Robolectric rather than instrumentation, so they need the
+SDK but no emulator. They exist for one thing the `:core` tests cannot claim:
+the offline write queue is exercised against **real SQLite**, closing and
+reopening the database file, because the queue holds recorded lap sessions that
+exist nowhere else until they replay.
 
 `:core` currently holds the recorder core, the lap geometry, the domain models,
 the API client and the recording journal; `:app` holds the design system,

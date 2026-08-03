@@ -166,7 +166,11 @@ class AuthController(
 
     private suspend fun signOutLocally() {
         store.clear()
-        // NS-22 owns the offline cache; clearing it belongs here when it exists.
+        // The cached logbook and any unsent writes go with the token: a shared
+        // device must not retain the previous user's data, and a queued write
+        // replayed under the next user's session would file it to the wrong
+        // account (NS-22).
+        api.clearOffline()
         _state.value = signedOut()
     }
 

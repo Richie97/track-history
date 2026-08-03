@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -54,12 +55,28 @@ android {
         // (NS-09), which must never be reachable in a release build.
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric needs the merged resources and manifest to stand up an
+            // Application; without this the offline-store tests fail at startup.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+ksp {
+    // The schema is checked in. There is deliberately no destructive-migration
+    // fallback (see OfflineDatabase): the write queue holds sessions that exist
+    // nowhere else yet, so a future schema change owes this database a real
+    // migration, and a committed schema is what makes that diffable in review.
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -83,10 +100,24 @@ dependencies {
     // than there is what keeps :core a plain JVM module.
     implementation(libs.ktor.client.okhttp)
 
+    // The durable half of NS-22: Room backs :core's OfflinePersistence, and
+    // WorkManager is what replays the queue after the process is gone.
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.work.runtime.ktx)
+
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
 
     debugImplementation(libs.compose.ui.tooling)
+
+    // JUnit 4 rather than :core's JUnit 5 — the Robolectric runner is a JUnit 4
+    // runner, and pairing it with 5 costs an extension for no benefit here.
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
