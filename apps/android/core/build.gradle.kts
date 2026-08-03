@@ -26,7 +26,9 @@ dependencies {
     // public surface and consumers need them on the compile classpath.
     api(libs.kotlinx.serialization.json)
     api(libs.ktor.client.core)
-    implementation(libs.kotlinx.coroutines.core)
+    // `api` as well: the offline layer (NS-22) publishes its sync status as a
+    // StateFlow, which the banner in :app collects.
+    api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotlinx.coroutines.test)

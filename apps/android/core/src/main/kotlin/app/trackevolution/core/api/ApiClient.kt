@@ -15,6 +15,8 @@ import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.core.model.Vehicle
+import app.trackevolution.core.offline.OfflineJson
+import app.trackevolution.core.offline.OfflineStore
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.request.header
@@ -26,6 +28,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.http.takeFrom
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
@@ -45,13 +49,23 @@ import kotlinx.serialization.json.buildJsonObject
  * plain JVM module: `:app` passes OkHttp, tests pass `MockEngine`, and the code
  * under test is the same code that ships.
  *
- * Deliberately not in scope: caching and the offline write queue (NS-22), and
- * obtaining a token (NS-09 — this layer only asks [TokenProvider] for one).
+ * When an [OfflineStore] is supplied this client **is** the offline layer: reads
+ * are network-first with a cache fallback and writes on the queueable whitelist
+ * are stored and replayed. There is deliberately no second path a screen could
+ * take to reach the server, and so none to forget to test.
+ *
+ * Deliberately not in scope: obtaining a token (NS-09 — this layer only asks
+ * [TokenProvider] for one).
  */
 public class ApiClient(
     engine: HttpClientEngine,
     baseUrl: String = DEFAULT_BASE_URL,
     private val tokens: TokenProvider = NoToken,
+    /**
+     * The offline cache and write queue (NS-22). Null talks straight to the
+     * server, which is what the contract tests want.
+     */
+    private val offline: OfflineStore? = null,
 ) {
     private val client = HttpClient(engine) {
         // Non-2xx is mapped by hand below, into the server's own message.
@@ -70,6 +84,79 @@ public class ApiClient(
         }
 
     public fun close(): Unit = client.close()
+
+    // ---- The offline layer (NS-22) ----------------------------------------
+
+    /**
+     * What the sync banner collects: how many writes are waiting, how many the
+     * server refused, and whether the last request reached it at all. Emits a
+     * quiet, never-changing status when there is no offline store.
+     */
+    public val syncStatus: StateFlow<OfflineStore.SyncStatus>
+        get() = offline?.syncStatus ?: noSync
+
+    /**
+     * Replay anything queued. Safe to call often — it no-ops on an empty queue,
+     * and a second concurrent call is a no-op rather than a second replay.
+     */
+    public suspend fun flushQueue(): OfflineStore.SyncStatus? {
+        val store = offline ?: return null
+        if (store.pendingCount() == 0) return store.syncStatus.value
+        return store.flush { method, path, body ->
+            val (status, text) = rawSend(method, path, body, emptyList(), true, API_PREFIX)
+            OfflineStore.SendResult(status, text)
+        }
+    }
+
+    /** Acknowledge dropped writes, so the banner stops reporting them. */
+    public fun clearSyncFailures() {
+        offline?.clearFailed()
+    }
+
+    /** Sign-out: drop the cached logbook and any unsent writes. */
+    public suspend fun clearOffline() {
+        offline?.clear()
+    }
+
+    /**
+     * The real id a row created offline was given, once its create flushed. A
+     * screen parked on a temp id follows it here rather than 404ing against the
+     * server.
+     */
+    public suspend fun resolveTempId(id: Int): Int? = offline?.resolveId(id)
+
+    /**
+     * Pull every event's detail into the cache, so an event you never opened still
+     * reads in the paddock. The counterpart to `public/js/prefetch.js`, and the
+     * difference between "offline works" and "offline works for the two events you
+     * happened to tap": signal is gone *before* you need the data.
+     *
+     * Cheap on repeat visits — a row whose cached copy is already at the server's
+     * `updated_at` (migration 0011, trigger-maintained) is skipped without a
+     * request. Failures are ignored: this is a warm-up, not a load.
+     */
+    public suspend fun warmCache(events: List<Event>) {
+        val store = offline ?: return
+        for (row in events) {
+            if (OfflineStore.isTemp(row.id)) continue
+            val cached = store.cachedGet("/events/${row.id}")?.let { raw ->
+                runCatching {
+                    OfflineJson.decode.decodeFromString(EventDetail.serializer(), raw)
+                }.getOrNull()
+            }
+            if (cached?.event?.updatedAt == row.updatedAt) continue
+            runCatching { event(row.id) }
+        }
+        // Drop cached details for events deleted elsewhere (another device, the
+        // web app) — the list is authoritative for what still exists.
+        val live = events.map { it.id.toString() }.toSet()
+        for (key in store.cachedKeys()) {
+            val id = key.removePrefix("/events/").takeIf { key.startsWith("/events/") } ?: continue
+            if (id.contains('/') || id.contains('?')) continue
+            val numeric = id.toIntOrNull() ?: continue
+            if (!OfflineStore.isTemp(numeric) && id !in live) store.removeCached(key)
+        }
+    }
 
     // ---- Account ----------------------------------------------------------
 
@@ -275,8 +362,7 @@ public class ApiClient(
         authenticated: Boolean = true,
         prefix: String = API_PREFIX,
     ): T {
-        val (status, text) = rawSend(method, path, body, query, authenticated, prefix)
-        if (status !in 200..299) throw ApiException.from(status, text)
+        val text = route(method, path, body?.toString(), query, authenticated, prefix)
         return try {
             responseJson.decodeFromString(deserializer, text)
         } catch (e: SerializationException) {
@@ -288,13 +374,104 @@ public class ApiClient(
     }
 
     /**
-     * The transport, with no error mapping: throws only when the network failed,
-     * and otherwise hands back whatever the server said.
+     * One request, with the offline layer in the middle when there is one.
+     * Mirrors `api()` in `public/js/api.js`.
+     */
+    private suspend fun route(
+        method: String,
+        path: String,
+        body: String?,
+        query: List<Pair<String, String>>,
+        authenticated: Boolean,
+        prefix: String,
+    ): String {
+        // Sign-in never touches the cache: it has no offline meaning, and a token
+        // exchange replayed later would be a burned code.
+        val store = offline
+        if (store == null || prefix != API_PREFIX) {
+            val (status, text) = rawSend(method, path, body, query, authenticated, prefix)
+            if (status !in 200..299) throw ApiException.from(status, text)
+            return text
+        }
+
+        val cacheKey = cacheKey(path, query)
+        if (method == "GET") return routeGet(store, path, body, query, authenticated, cacheKey)
+
+        // While writes are queued, a later queueable write has to queue too:
+        // sending it directly would reorder it ahead of the queue.
+        val queueable = OfflineStore.isQueueable(method, path)
+        if (queueable && store.pendingCount() > 0) {
+            return synthetic(store.enqueue(method, path, body))
+        }
+
+        val (status, text) = try {
+            rawSend(method, path, body, query, authenticated, prefix)
+        } catch (e: ApiException.Transport) {
+            store.noteOffline()
+            if (!queueable) throw e
+            return synthetic(store.enqueue(method, path, body))
+        }
+        store.noteOnline()
+        if (status !in 200..299) throw ApiException.from(status, text)
+        return text
+    }
+
+    private suspend fun routeGet(
+        store: OfflineStore,
+        path: String,
+        body: String?,
+        query: List<Pair<String, String>>,
+        authenticated: Boolean,
+        cacheKey: String,
+    ): String {
+        // A row created offline exists only in the cache: the server would 404 its
+        // temp id.
+        if (OfflineStore.isTempPath(cacheKey)) {
+            store.cachedGet(cacheKey)?.let { return it }
+        }
+
+        val (status, text) = try {
+            rawSend("GET", path, body, query, authenticated, API_PREFIX)
+        } catch (e: ApiException.Transport) {
+            // Network gone: a cached copy is better than an error. A *status* from
+            // the server is not a network failure and must not fall back.
+            store.noteOffline()
+            return store.cachedGet(cacheKey) ?: throw e
+        }
+        store.noteOnline()
+        if (status !in 200..299) throw ApiException.from(status, text)
+
+        store.cachePut(cacheKey, text)
+        if (store.pendingCount() > 0) {
+            // Fresh server state predates the queued writes — re-patch it so they
+            // stay visible until the flush lands.
+            store.reapplyQueue()
+            store.cachedGet(cacheKey)?.let { return it }
+        }
+        return text
+    }
+
+    /** The response a queued write stands in for, in the server's own shape. */
+    private fun synthetic(result: OfflineStore.QueuedResult): String = when (result) {
+        is OfflineStore.QueuedResult.Created -> """{"id":${result.id}}"""
+        OfflineStore.QueuedResult.Ok -> """{"ok":true}"""
+    }
+
+    /**
+     * The cache is keyed by the path the web app uses, query string included, so
+     * `/events?track_id=7` is a distinct entry the store knows how to derive.
+     */
+    private fun cacheKey(path: String, query: List<Pair<String, String>>): String =
+        if (query.isEmpty()) path else path + "?" + query.joinToString("&") { "${it.first}=${it.second}" }
+
+    /**
+     * The transport, with no offline behavior and no error mapping: throws only
+     * when the network failed, and otherwise hands back whatever the server said.
      */
     private suspend fun rawSend(
         method: String,
         path: String,
-        body: JsonElement?,
+        body: String?,
         query: List<Pair<String, String>>,
         authenticated: Boolean,
         prefix: String,
@@ -310,7 +487,7 @@ public class ApiClient(
                 if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
                 if (body != null) {
                     contentType(ContentType.Application.Json)
-                    setBody(body.toString())
+                    setBody(body)
                 }
             }
         } catch (e: Exception) {
@@ -356,6 +533,10 @@ public class ApiClient(
             explicitNulls = false
             encodeDefaults = false
         }
+
+        /** A never-changing status, for a client with no offline store. */
+        private val noSync: StateFlow<OfflineStore.SyncStatus> =
+            MutableStateFlow(OfflineStore.SyncStatus())
 
         /** Trailing slashes would double up when paths are appended. */
         private fun normalize(url: String): String = url.trimEnd('/')
