@@ -32,6 +32,11 @@ datastore = "1.1.1"
 # OAuth in an embedded WebView — and this is the tab that shares its cookies.
 browser = "1.8.0"
 securityCrypto = "1.1.0-alpha06"
+# :app's JVM tests. Robolectric runs Compose without an emulator, so the chart
+# rendering cases stay in CI rather than needing a device.
+junit4 = "4.13.2"
+robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
@@ -59,11 +64,19 @@ androidx-browser = { module = "androidx.browser:browser", version.ref = "browser
 # lap recorder runs locked and has to sync.
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
+
+junit4 = { module = "junit:junit", version.ref = "junit4" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+# Drives the chart composables under Robolectric, so the degenerate datasets
+# and the TalkBack strings are gated by CI rather than by remembering to look.
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

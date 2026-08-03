@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.ChartScale
 import app.trackevolution.core.Gate
 import app.trackevolution.core.TraceMap
 import app.trackevolution.core.TracePoint
@@ -59,6 +60,9 @@ fun LinePicker(
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
+    // Drawn at display resolution, hit-tested at full resolution — see
+    // ChartScale.downsampleForDisplay for why the two differ.
+    val drawn = remember(trace) { ChartScale.downsampleForDisplay(trace) }
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var size by remember { mutableStateOf(Offset.Zero) }
@@ -67,7 +71,7 @@ fun LinePicker(
     val dotRadius = with(LocalDensity.current) { 5.dp.toPx() }
 
     fun map(): TraceMap? = TraceMap.fit(
-        trace = trace,
+        trace = drawn,
         width = size.x.toDouble(),
         height = size.y.toDouble(),
         scale = scale.toDouble(),
@@ -107,7 +111,7 @@ fun LinePicker(
                 },
         ) {
             val m = TraceMap.fit(
-                trace = trace,
+                trace = drawn,
                 width = this.size.width.toDouble(),
                 height = this.size.height.toDouble(),
                 scale = scale.toDouble(),
@@ -115,7 +119,7 @@ fun LinePicker(
                 panY = pan.y.toDouble(),
             ) ?: return@Canvas
 
-            drawTrace(m, trace, colors.mapTarmac, strokeWidth)
+            drawTrace(m, drawn, colors.mapTarmac, strokeWidth)
             gate?.let { drawGate(m, it, colors.accent, gateWidth) }
             pickedIndex?.let { index ->
                 trace.getOrNull(index)?.let { point ->

@@ -54,6 +54,15 @@ android {
         // (NS-09), which must never be reachable in a release build.
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric needs the merged resources and manifest to stand up
+            // an Application; without this the Compose chart tests fail at
+            // startup rather than at an assertion.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 kotlin {
@@ -89,4 +98,18 @@ dependencies {
     implementation(libs.compose.material3)
 
     debugImplementation(libs.compose.ui.tooling)
+
+    // Compose under Robolectric — still no emulator. This is what lets the
+    // chart tests assert the degenerate datasets render and that TalkBack has
+    // something to read.
+    //
+    // JUnit 4 rather than :core's JUnit 5: both the Robolectric runner and
+    // Compose's test rule are JUnit 4, and pairing them with 5 costs an
+    // extension for no benefit here.
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

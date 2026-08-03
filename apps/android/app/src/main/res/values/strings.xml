@@ -6,6 +6,7 @@
          user-visible string. -->
     <string name="token_gallery_label">TE Tokens</string>
     <string name="recorder_harness_label">TE Recorder</string>
+    <string name="chart_gallery_label">TE Charts</string>
 
     <!-- The lap recorder's foreground-service notification (NS-16). The channel
          wording matches the Capacitor app's so an upgrading user recognises it. -->
