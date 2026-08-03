@@ -32,8 +32,20 @@ datastore = "1.1.1"
 # OAuth in an embedded WebView — and this is the tab that shares its cookies.
 browser = "1.8.0"
 securityCrypto = "1.1.0-alpha06"
-# :app's JVM tests. Robolectric runs Compose without an emulator, so the chart
-# rendering cases stay in CI rather than needing a device.
+# The offline cache and write queue (NS-22). Room rather than raw SQLite for the
+# suspend-aware `withTransaction`, which is what lets a queued write and its
+# optimistic cache patch commit together.
+room = "2.6.1"
+# KSP replaces kapt for Room's annotation processing. The version is a pair —
+# the suffix tracks the Kotlin version, so bumping `kotlin` above means bumping
+# this too or the plugin refuses to load.
+ksp = "2.0.21-1.0.28"
+# Replay scheduling. A CoroutineWorker with a CONNECTED constraint survives
+# process death, which a coroutine in a ViewModel does not.
+work = "2.10.0"
+# :app's JVM tests. Robolectric runs both Room against real SQLite and Compose
+# itself without an emulator — so CI proves the queue survives a restart (NS-22)
+# and the charts render their degenerate datasets (NS-24), on the same runner.
 junit4 = "4.13.2"
 robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
@@ -64,6 +76,12 @@ androidx-browser = { module = "androidx.browser:browser", version.ref = "browser
 # lap recorder runs locked and has to sync.
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
+# room-ktx carries the suspend `withTransaction` the OfflinePersistence contract
+# is built around; room-runtime alone cannot express it.
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 
 junit4 = { module = "junit:junit", version.ref = "junit4" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
@@ -84,3 +102,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

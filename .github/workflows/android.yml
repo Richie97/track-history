@@ -1,8 +1,9 @@
 # Android client CI (spec: docs/specs/native/NS-10-native-ci.md).
 #
 # :core is pure Kotlin/JVM by design, so this needs no Android SDK and no emulator
-# — which is what keeps it under a minute. Emulator tests are deliberately not part
-# of a PR run; if instrumentation tests ever appear, gate them to a nightly.
+# — which is what keeps it under a minute. :app's tests are Robolectric, so they
+# need the SDK but still no emulator. Instrumentation tests are deliberately not
+# part of a PR run; if any ever appear, gate them to a nightly.
 name: Android
 
 on:
@@ -54,3 +55,11 @@ jobs:
       - name: Assemble debug APK
         working-directory: apps/android
         run: ./gradlew :app:assembleDebug --no-daemon
+
+      # Robolectric, so still no emulator. This is what proves the offline queue
+      # survives on real SQLite rather than only in the in-memory fake :core
+      # tests against — and the queue holds recorded sessions that exist nowhere
+      # else until they replay, so "it probably persists" is not good enough.
+      - name: App unit tests
+        working-directory: apps/android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon

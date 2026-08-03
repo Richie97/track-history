@@ -30,12 +30,12 @@ import androidx.lifecycle.lifecycleScope
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthProvidersStore
 import app.trackevolution.auth.AuthState
-import app.trackevolution.auth.AuthStore
 import app.trackevolution.auth.ServerPreference
 import app.trackevolution.auth.ServerOverride
 import app.trackevolution.auth.SignInScreen
 import app.trackevolution.core.DeepLink
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.data.AppServices
 import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
@@ -44,7 +44,6 @@ import app.trackevolution.recording.RecordingService
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.ThemePreference
 import app.trackevolution.ui.theme.TrackTheme
-import io.ktor.client.engine.okhttp.OkHttp
 
 /**
  * The single activity the app runs in (spec: NS-02).
@@ -93,11 +92,13 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
 
-        val store = AuthStore(this)
+        // Process-wide, not activity-scoped: the offline store behind this
+        // client keeps the queue's pending count and flush lock in memory, and
+        // the replay worker has to share them. See AppServices.
+        val services = AppServices.get(this)
+        val store = services.authStore
         val serverPreference = ServerPreference(this)
-        // OkHttp is chosen here, not in :core — that is what keeps the pure
-        // module free of an HTTP engine and testable on the JVM.
-        api = ApiClient(OkHttp.create(), tokens = store)
+        api = services.api
         auth = AuthController(
             scope = lifecycleScope,
             api = api,

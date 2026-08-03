@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -58,8 +59,8 @@ android {
     testOptions {
         unitTests {
             // Robolectric needs the merged resources and manifest to stand up
-            // an Application; without this the Compose chart tests fail at
-            // startup rather than at an assertion.
+            // an Application; without this the offline-store and chart tests
+            // fail at startup rather than at an assertion.
             isIncludeAndroidResources = true
         }
     }
@@ -69,6 +70,14 @@ kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+ksp {
+    // The schema is checked in. There is deliberately no destructive-migration
+    // fallback (see OfflineDatabase): the write queue holds sessions that exist
+    // nowhere else yet, so a future schema change owes this database a real
+    // migration, and a committed schema is what makes that diffable in review.
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -92,6 +101,13 @@ dependencies {
     // than there is what keeps :core a plain JVM module.
     implementation(libs.ktor.client.okhttp)
 
+    // The durable half of NS-22: Room backs :core's OfflinePersistence, and
+    // WorkManager is what replays the queue after the process is gone.
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.work.runtime.ktx)
+
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
@@ -99,9 +115,9 @@ dependencies {
 
     debugImplementation(libs.compose.ui.tooling)
 
-    // Compose under Robolectric — still no emulator. This is what lets the
-    // chart tests assert the degenerate datasets render and that TalkBack has
-    // something to read.
+    // Robolectric — still no emulator. It runs Room against real SQLite for the
+    // offline queue's durability (NS-22) and Compose itself for the charts'
+    // degenerate datasets (NS-24).
     //
     // JUnit 4 rather than :core's JUnit 5: both the Robolectric runner and
     // Compose's test rule are JUnit 4, and pairing them with 5 costs an
@@ -109,6 +125,7 @@ dependencies {
     testImplementation(libs.junit4)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
