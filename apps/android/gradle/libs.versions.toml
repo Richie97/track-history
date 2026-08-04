@@ -32,6 +32,9 @@ datastore = "1.1.1"
 # OAuth in an embedded WebView — and this is the tab that shares its cookies.
 browser = "1.8.0"
 securityCrypto = "1.1.0-alpha06"
+# Navigation (NS-26). 2.8+ is what makes routes type-safe @Serializable objects
+# rather than string templates you can typo.
+navigation = "2.8.5"
 # The offline cache and write queue (NS-22). Room rather than raw SQLite for the
 # suspend-aware `withTransaction`, which is what lets a queued write and its
 # optimistic cache patch commit together.
@@ -82,6 +85,7 @@ androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
 
 junit4 = { module = "junit:junit", version.ref = "junit4" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }

@@ -15,6 +15,14 @@ import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.core.model.Vehicle
+import app.trackevolution.core.model.VehicleDraft
+import app.trackevolution.core.model.VehiclePatch
+import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.MeasurementDraft
+import app.trackevolution.core.model.PartDraft
+import app.trackevolution.core.model.PartPatch
+import app.trackevolution.core.model.PartRefresh
+import app.trackevolution.core.model.PartRefreshDraft
 import app.trackevolution.core.offline.OfflineJson
 import app.trackevolution.core.offline.OfflineStore
 import io.ktor.client.HttpClient
@@ -264,15 +272,80 @@ public class ApiClient(
 
     // ---- Vehicles ---------------------------------------------------------
 
-    /**
-     * The user's vehicles — enough to pre-fill an event's car from the default.
-     *
-     * The garage proper (`GET /api/garage`, parts, measurements, wear) is a
-     * deferred feature on Android, so it has models here but no methods; see
-     * `docs/specs/native/README.md`.
-     */
+    /** The user's vehicles — enough to pre-fill an event's car from the default. */
     public suspend fun vehicles(): List<Vehicle> =
         get("/vehicles", ListSerializer(Vehicle.serializer()))
+
+    public suspend fun createVehicle(draft: VehicleDraft): Vehicle =
+        send("POST", "/vehicles", encode(VehicleDraft.serializer(), draft), Vehicle.serializer())
+
+    public suspend fun updateVehicle(id: Int, patch: VehiclePatch) {
+        send("PUT", "/vehicles/$id", encode(VehiclePatch.serializer(), patch), OkResponse.serializer())
+    }
+
+    /**
+     * Deleting a vehicle takes its parts and measurements with it. Events keep
+     * the free-text car name they were logged with and simply stop being linked.
+     */
+    public suspend fun deleteVehicle(id: Int) {
+        send("DELETE", "/vehicles/$id", null, OkResponse.serializer())
+    }
+
+    // ---- The garage -------------------------------------------------------
+    //
+    // **The wear math is not ported, and that is deliberate.** `GET /api/garage`
+    // arrives with each part's estimate already computed by `src/lib/wear.ts`,
+    // so the client only decides how to *say* it. A fifth implementation of a
+    // least-squares projection is a fifth thing to keep in step.
+    //
+    // **These writes stay off the offline queue**, unlike events and laps.
+    // Retiring a part rewrites its neighbours' wear, a new part's expected life
+    // is defaulted server-side from retired lifecycles, and a refresh is a
+    // retire-plus-create whose successor id the client cannot invent. So the
+    // garage reads offline from the cache and fails to write, which is the same
+    // call iOS and the web app make.
+
+    /** Every vehicle with its accrued hours, parts, measurements and wear. */
+    public suspend fun garage(): List<GarageVehicle> =
+        get("/garage", ListSerializer(GarageVehicle.serializer()))
+
+    public suspend fun createPart(vehicleId: Int, draft: PartDraft): Int =
+        send(
+            "POST", "/vehicles/$vehicleId/parts",
+            encode(PartDraft.serializer(), draft), CreatedId.serializer(),
+        ).id
+
+    public suspend fun updatePart(id: Int, patch: PartPatch) {
+        send("PUT", "/parts/$id", encode(PartPatch.serializer(), patch), OkResponse.serializer())
+    }
+
+    /**
+     * Deletes the part **and its measurements**. Retiring keeps the history;
+     * this does not — which is why the UI offers both.
+     */
+    public suspend fun deletePart(id: Int) {
+        send("DELETE", "/parts/$id", null, OkResponse.serializer())
+    }
+
+    /**
+     * One-tap replacement: retires this part as of the swap date and installs a
+     * same-spec successor, so accrued hours reset without re-entering the part.
+     */
+    public suspend fun refreshPart(id: Int, draft: PartRefreshDraft = PartRefreshDraft()): PartRefresh =
+        send(
+            "POST", "/parts/$id/refresh",
+            encode(PartRefreshDraft.serializer(), draft), PartRefresh.serializer(),
+        )
+
+    public suspend fun addMeasurement(partId: Int, draft: MeasurementDraft): Int =
+        send(
+            "POST", "/parts/$partId/measurements",
+            encode(MeasurementDraft.serializer(), draft), CreatedId.serializer(),
+        ).id
+
+    public suspend fun deleteMeasurement(partId: Int, id: Int) {
+        send("DELETE", "/parts/$partId/measurements/$id", null, OkResponse.serializer())
+    }
 
     // ---- Sharing ----------------------------------------------------------
 
