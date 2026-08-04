@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthProvidersStore
 import app.trackevolution.auth.AuthState
@@ -36,6 +37,7 @@ import app.trackevolution.auth.SignInScreen
 import app.trackevolution.core.DeepLink
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.data.AppServices
+import app.trackevolution.navigation.Router
 import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
@@ -62,11 +64,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var auth: AuthController
 
     /**
-     * A link that arrived before there was anywhere to send it. Cold start hands
-     * the intent over long before NS-26's navigation exists, and dropping it
-     * would make a tapped share link open a blank app.
+     * Where a link waits until there is a graph and a session to send it to. A
+     * cold start hands the intent over long before either exists, and dropping
+     * it would make a tapped share link open a blank app.
      */
-    private var pendingLink: DeepLink? = null
+    private val router = Router()
 
     private lateinit var flow: RecordingFlow
 
@@ -85,6 +87,13 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             startRecordingIfAllowed()
         }
+
+    /**
+     * The event the pending start belongs to, held across the permission prompt
+     * — the result callback has no arguments of its own, and a recording that
+     * lost its event on the way through a system dialog would land unattached.
+     */
+    private var recordingEventId: Int? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Must precede super.onCreate: it swaps the splash theme out for the
@@ -122,11 +131,25 @@ class MainActivity : ComponentActivity() {
             TrackTheme(choice) {
                 when (state) {
                     is AuthState.SignedIn -> SignedInScaffold(
+                        api = api,
+                        auth = auth,
+                        authState = state,
+                        router = router,
                         flow = flow,
+                        serverUrl = server,
+                        themeChoice = choice,
+                        onThemeChange = { next ->
+                            lifecycleScope.launch { preference.set(next) }
+                        },
                         startOnRecord = openRecorder,
                         onConsumedStartOnRecord = { openRecorder = false },
                         onStartRecording = ::requestPermissionsThenRecord,
-                        onSignOut = auth::signOut,
+                        onSignOut = {
+                            // A deep link parked for a session that no longer
+                            // exists must not fire under the next one.
+                            router.clear()
+                            auth.signOut()
+                        },
                     )
                     AuthState.Loading -> LoadingScreen()
                     else -> SignInScreen(
@@ -163,7 +186,8 @@ class MainActivity : ComponentActivity() {
      * permission prompt makes sense the moment someone taps "record", and makes
      * none on first open.
      */
-    private fun requestPermissionsThenRecord() {
+    private fun requestPermissionsThenRecord(eventId: Int?) {
+        recordingEventId = eventId
         val needed = buildList {
             if (!RecorderPermissions.hasFineLocation(this@MainActivity)) {
                 add(android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -181,7 +205,7 @@ class MainActivity : ComponentActivity() {
     private fun startRecordingIfAllowed() {
         // The service refuses and reports anything still blocking, so this only
         // has to not start a recording that obviously cannot work.
-        Recorder.start(this, eventId = null)
+        Recorder.start(this, eventId = recordingEventId?.toString())
         Haptics.confirm(this)
     }
 
@@ -196,9 +220,9 @@ class MainActivity : ComponentActivity() {
         }
         val uri = intent?.data ?: return
         if (auth.handleRedirect(uri)) return
-        // NS-26 owns navigation; until it exists, a link is remembered rather
-        // than dropped so the screens can consume it the moment they land.
-        pendingLink = DeepLink.parse(uri.toString())
+        // Parked rather than navigated to: the nav graph consumes it once it
+        // exists, which on a cold start is several frames after this.
+        DeepLink.parse(uri.toString())?.let(router::offer)
     }
 }
 
@@ -209,33 +233,5 @@ private fun LoadingScreen() {
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(color = TrackTheme.colors.accent)
-    }
-}
-
-/**
- * What sits behind sign-in until NS-26. It reads from `:core` on purpose: the
- * module split is only proven if the shell actually references the pure-logic
- * module.
- */
-@Composable
-private fun PlaceholderScreen(onSignOut: () -> Unit) {
-    val colors = TrackTheme.colors
-    val type = TrackTheme.typography
-    Column(
-        modifier = Modifier.fillMaxSize().background(colors.bgPage).padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Signed in", style = type.h1, color = colors.textStrong, textAlign = TextAlign.Center)
-        Text(
-            text = "The logbook lands with NS-26.",
-            style = type.sm,
-            color = colors.textMuted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        TextButton(onClick = onSignOut, modifier = Modifier.padding(top = 24.dp)) {
-            Text("Sign out", style = type.bodyStrong, color = colors.accentInk)
-        }
     }
 }

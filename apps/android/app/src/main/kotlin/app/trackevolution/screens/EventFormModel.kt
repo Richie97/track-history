@@ -3,7 +3,9 @@ package app.trackevolution.screens
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import app.trackevolution.core.EventDates
+import app.trackevolution.navigation.SavedState
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
@@ -33,21 +35,47 @@ class EventFormModel(
     /** Null for a new event. */
     val editId: Int? = null,
     presetTrack: String? = null,
+    /**
+     * Where the draft is kept so it survives the system killing the app in the
+     * background. Null in tests, which is the only place it isn't wanted: every
+     * field below then behaves as a plain Compose state.
+     */
+    private val saved: SavedStateHandle? = null,
 ) {
     var state by mutableStateOf<LoadState>(LoadState.Loading)
         private set
 
-    var trackName by mutableStateOf(presetTrack.orEmpty())
-    var startDate by mutableStateOf(EventDates.todayIso())
-    var days by mutableStateOf("2")
-    var trackHours by mutableStateOf("")
-    var club by mutableStateOf("")
-    var runGroup by mutableStateOf("")
-    var car by mutableStateOf("")
-    var conditions by mutableStateOf<Conditions?>(null)
-    var tempF by mutableStateOf("")
-    var bestTime by mutableStateOf("")
-    var notes by mutableStateOf("")
+    var trackName by SavedState(saved, "trackName", presetTrack.orEmpty())
+    var startDate by SavedState(saved, "startDate", EventDates.todayIso())
+    var days by SavedState(saved, "days", "2")
+    var trackHours by SavedState(saved, "trackHours", "")
+    var club by SavedState(saved, "club", "")
+    var runGroup by SavedState(saved, "runGroup", "")
+    var car by SavedState(saved, "car", "")
+    var tempF by SavedState(saved, "tempF", "")
+    var bestTime by SavedState(saved, "bestTime", "")
+    var notes by SavedState(saved, "notes", "")
+
+    /**
+     * Stored as the string it is spelled with on the wire, because [Conditions]
+     * is a value class and a `SavedStateHandle` holds Bundle values.
+     */
+    private var conditionsRaw by SavedState<String?>(saved, "conditions", null)
+
+    var conditions: Conditions?
+        get() = conditionsRaw?.let { Conditions(it) }
+        set(value) {
+            conditionsRaw = value?.rawValue
+        }
+
+    /**
+     * Whether the form has already been filled in once.
+     *
+     * **Load-bearing on the edit path.** [load] runs again after process death,
+     * and without this it would overwrite a restored draft with the server's copy
+     * — silently discarding the changes the restore existed to preserve.
+     */
+    private var hydrated by SavedState(saved, "hydrated", false)
 
     /** Own track names first, then catalog names not already among them. */
     var trackOptions by mutableStateOf<List<String>>(emptyList())
@@ -82,6 +110,12 @@ class EventFormModel(
                 carOptions = vehicles.map { it.name }
 
                 val existing = editJob?.await()?.event
+                if (hydrated) {
+                    // A restored draft wins over the server's copy: it is what
+                    // the user was in the middle of typing.
+                    state = LoadState.Ready
+                    return@launch
+                }
                 if (existing != null) {
                     trackName = existing.trackName
                     startDate = existing.startDate
@@ -99,6 +133,7 @@ class EventFormModel(
                     // point of marking one.
                     car = vehicles.firstOrNull { it.isDefault }?.name.orEmpty()
                 }
+                hydrated = true
                 state = LoadState.Ready
             } catch (e: ApiException) {
                 state = LoadState.Failed(e.message ?: "Couldn't load the form.")

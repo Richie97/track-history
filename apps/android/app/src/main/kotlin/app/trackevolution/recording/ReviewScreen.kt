@@ -81,7 +81,6 @@ fun ReviewScreen(
         modifier = modifier
             .fillMaxSize()
             .background(colors.bgPage)
-            .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),

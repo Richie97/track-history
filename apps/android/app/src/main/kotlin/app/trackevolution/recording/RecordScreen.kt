@@ -72,7 +72,6 @@ fun RecordScreen(
         modifier = modifier
             .fillMaxSize()
             .background(colors.bgPage)
-            .systemBarsPadding()
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

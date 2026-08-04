@@ -23,6 +23,7 @@ import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Track
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.TEEmpty
+import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.TEMeta
 import app.trackevolution.ui.TENavCard
@@ -66,7 +67,7 @@ fun DashboardScreen(
                         onClick = onNewEvent,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = colors.accent,
-                            contentColor = colors.accentInk,
+                            contentColor = colors.accentContrast,
                         ),
                     ) {
                         Text("+ Add event", style = TrackTheme.typography.bodyStrong)
@@ -186,8 +187,8 @@ private fun TrackRow(track: Track, onClick: () -> Unit) {
                 Text(track.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
                 TEMeta(
                     listOf(
-                        "${track.eventCount} events",
-                        "${track.trackDays} days",
+                        fmtCount(track.eventCount, "event"),
+                        fmtCount(track.trackDays, "day"),
                         EventDates.fmtDate(track.lastDate),
                     ),
                 )

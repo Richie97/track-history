@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -103,17 +105,41 @@ fun TEEmpty(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun TEStatTile(label: String, value: String, modifier: Modifier = Modifier) {
     TrackCard(modifier = modifier, contentPadding = 12.dp) {
-        Text(value, style = TrackTheme.typography.h2, color = TrackTheme.colors.textStrong)
+        Text(
+            value,
+            style = TrackTheme.typography.h2,
+            color = TrackTheme.colors.textStrong,
+            // Never wrapped. A lap time broken across two lines — "0:45.18" then
+            // "4" — reads as two numbers, and the second one is nonsense.
+            maxLines = 1,
+        )
         Text(label, style = TrackTheme.typography.xxs, color = TrackTheme.colors.textMuted)
     }
 }
 
-/** A row of tiles, sharing the width evenly. */
+/**
+ * Tiles sharing the width evenly, wrapping past three.
+ *
+ * **Four across does not fit a phone.** On a 393dp screen four tiles leave about
+ * 60dp of content each, and `0:45.184` at h2 is wider than that — so the event
+ * page's four-up row becomes two rows of two rather than a clipped best lap.
+ */
 @Composable
 fun TEStatRow(tiles: List<Pair<String, String>>, modifier: Modifier = Modifier) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        tiles.forEach { (label, value) ->
-            TEStatTile(label = label, value = value, modifier = Modifier.weight(1f))
+    val perRow = if (tiles.size == 4) 2 else minOf(tiles.size, 3)
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        tiles.chunked(perRow.coerceAtLeast(1)).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                row.forEach { (label, value) ->
+                    TEStatTile(label = label, value = value, modifier = Modifier.weight(1f))
+                }
+                // Keeps a short final row's tiles the same width as the ones
+                // above rather than stretching them across the screen.
+                repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+            }
         }
     }
 }
@@ -159,6 +185,46 @@ fun TEField(
         }
     }
 }
+
+/**
+ * Confirm-or-cancel for a destructive action.
+ *
+ * One shape for all of them — deleting an event, disabling a share link, signing
+ * out over unsynced writes — because the cost of getting one of those wrong is
+ * the same everywhere, and a dialog that looks different each time is a dialog
+ * people stop reading.
+ */
+@Composable
+fun TEConfirmDialog(
+    text: String,
+    confirm: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = TrackTheme.colors.surfaceRaised,
+        title = { Text(text, style = TrackTheme.typography.body, color = TrackTheme.colors.textStrong) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirm, color = TrackTheme.colors.danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TrackTheme.colors.textMuted)
+            }
+        },
+    )
+}
+
+/**
+ * "1 event" / "3 events" — the noun agreeing with the number.
+ *
+ * Small, but it is on every track card in the app, and "1 events" is the kind of
+ * thing that makes a logbook look unfinished.
+ */
+fun fmtCount(count: Int, noun: String): String = "$count $noun${if (count == 1) "" else "s"}"
 
 /** Dot-separated metadata, skipping whatever is absent. */
 @Composable

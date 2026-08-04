@@ -181,7 +181,7 @@ fun EventFormScreen(
                         enabled = !model.saving && model.trackName.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = colors.accent,
-                            contentColor = colors.accentInk,
+                            contentColor = colors.accentContrast,
                         ),
                     ) {
                         Text(

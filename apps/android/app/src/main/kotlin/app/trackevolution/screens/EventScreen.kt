@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -36,6 +35,7 @@ import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.TELoadable
@@ -183,7 +183,7 @@ fun EventScreen(
                             onClick = { onRecord(model.eventId) },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = colors.accent,
-                                contentColor = colors.accentInk,
+                                contentColor = colors.accentContrast,
                             ),
                         ) {
                             Text("Start recording", style = TrackTheme.typography.bodyStrong)
@@ -231,7 +231,7 @@ fun EventScreen(
     }
 
     if (confirmDeleteEvent) {
-        ConfirmDialog(
+        TEConfirmDialog(
             text = "Delete this event and all its sessions/laps?",
             confirm = "Delete",
             onConfirm = { confirmDeleteEvent = false; model.deleteEvent() },
@@ -240,7 +240,7 @@ fun EventScreen(
     }
 
     confirmDeleteSession?.let { id ->
-        ConfirmDialog(
+        TEConfirmDialog(
             text = "Delete this session and its laps?",
             confirm = "Delete",
             onConfirm = { confirmDeleteSession = null; model.deleteSession(id) },
@@ -502,35 +502,11 @@ private fun AddSessionCard(onAdd: (String?, String?, List<Int>) -> Unit) {
             },
             colors = ButtonDefaults.buttonColors(
                 containerColor = colors.accent,
-                contentColor = colors.accentInk,
+                contentColor = colors.accentContrast,
             ),
             modifier = Modifier.padding(top = 8.dp),
         ) {
             Text("Add session", style = TrackTheme.typography.bodyStrong)
         }
     }
-}
-
-@Composable
-private fun ConfirmDialog(
-    text: String,
-    confirm: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = TrackTheme.colors.surfaceRaised,
-        title = { Text(text, style = TrackTheme.typography.body, color = TrackTheme.colors.textStrong) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(confirm, color = TrackTheme.colors.danger)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TrackTheme.colors.textMuted)
-            }
-        },
-    )
 }
