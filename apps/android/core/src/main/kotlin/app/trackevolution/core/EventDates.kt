@@ -58,6 +58,21 @@ public object EventDates {
         return date.format(MEDIUM)
     }
 
+    /**
+     * The date as a chart x coordinate: days since the epoch.
+     *
+     * **Days, not an instant.** The web chart plots `new Date(start_date).getTime()`
+     * and iOS plots a `timeIntervalSince1970`; both are the same axis scaled
+     * differently, and `ChartScale` only ever normalises a range, so the unit is
+     * free. Days is the one that cannot drift: a calendar date turned into a
+     * timestamp acquires a time zone, and an event would move a day either side of
+     * midnight depending on where the phone is. What matters — that a two-year gap
+     * between events *looks* like a gap rather than the next point along — is
+     * preserved exactly.
+     */
+    public fun epochDay(startDate: String?): Double? =
+        startDate?.let { parse(it) }?.toEpochDay()?.toDouble()
+
     /** "2 days" / "1 day" / "1.5 days", the way the event tiles read. */
     public fun fmtDays(days: Double): String {
         val whole = days.toInt()

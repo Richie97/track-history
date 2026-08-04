@@ -1,68 +1,103 @@
 package app.trackevolution
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.activity.compose.BackHandler
-import app.trackevolution.recording.RecordScreen
-import app.trackevolution.recording.Recorder
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import app.trackevolution.auth.AuthController
+import app.trackevolution.auth.AuthState
+import app.trackevolution.auth.checklistTemplate
+import app.trackevolution.auth.hasCustomChecklistTemplate
+import app.trackevolution.core.api.ApiClient
+import app.trackevolution.navigation.AppNavHost
+import app.trackevolution.navigation.Route
+import app.trackevolution.navigation.Router
+import app.trackevolution.navigation.showDeepLink
 import app.trackevolution.recording.RecordingBanner
+import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecordingFlow
 import app.trackevolution.recording.ReviewScreen
+import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.TrackTheme
 
-/** Where the signed-in app is. NS-26 replaces this with the real logbook. */
-enum class Destination { Home, Record, Review }
-
 /**
- * The signed-in shell, and the navigation NS-18 needs to exist at all.
+ * The signed-in shell: the recording banner, the navigation graph, and the
+ * review flow that sits over both.
  *
- * Deliberately a three-way enum rather than a nav library: NS-26 owns the real
- * navigation, and inventing a graph here that it would immediately replace would
- * be work spent on the wrong thing. What it does own — and what NS-26 must keep
- * — is the two rules that make the recorder behave:
+ * Three rules here are load-bearing, and NS-26 inherits all three from NS-18:
  *
- *  - **The banner is above the destination**, so an in-progress or unsaved
- *    recording is visible from everywhere.
+ *  - **The banner is above the destination**, so a recording in progress — or,
+ *    worse, an unsaved one sitting on disk — is visible from every screen. An
+ *    unattached recording belongs to no event, so there is no page to stumble
+ *    across it on.
  *  - **Back never stops a recording.** It navigates; the service carries on.
+ *  - **Back at the root minimizes** rather than finishing the activity, because
+ *    a recording may be running and the task should stay where the user left it.
+ *
+ * Review is an overlay rather than a destination on purpose: "save or discard
+ * this recording" is modal by nature, and putting it on the back stack would let
+ * a gesture bury an unsaved session behind the logbook.
  */
 @Composable
 fun SignedInScaffold(
+    api: ApiClient,
+    auth: AuthController,
+    authState: AuthState,
+    router: Router,
     flow: RecordingFlow,
+    serverUrl: String,
+    themeChoice: ThemeChoice,
+    onThemeChange: (ThemeChoice) -> Unit,
     startOnRecord: Boolean,
     onConsumedStartOnRecord: () -> Unit,
-    onStartRecording: () -> Unit,
+    onStartRecording: (Int?) -> Unit,
     onSignOut: () -> Unit,
 ) {
     val context = LocalContext.current
+    val nav = rememberNavController()
     val recorder by Recorder.state.collectAsState()
     val pending by Recorder.finished.collectAsState()
     val review by flow.state.collectAsState()
     val saved by flow.saved.collectAsState()
-    var destination by remember { mutableStateOf(Destination.Home) }
+    val parkedLink by router.pending.collectAsState()
+    val entry by nav.currentBackStackEntryAsState()
+
+    // Saveable: the system killing the app mid-review must not lose the fact
+    // that there is a recording waiting to be saved.
+    var reviewing by rememberSaveable { mutableStateOf(false) }
+
+    val onRecordScreen = entry?.destination?.hasRoute(Route.Record::class) == true
+    val atRoot = entry?.destination?.hasRoute(Route.Dashboard::class) == true
+
+    // A link that arrived before there was a graph to send it to — a cold start
+    // hands the intent over long before this composes.
+    LaunchedEffect(parkedLink) {
+        val route = router.consume() ?: return@LaunchedEffect
+        nav.showDeepLink(route)
+    }
 
     // Tapping the recording notification must land on the recording, not the
     // dashboard — the whole point of it while driving.
     LaunchedEffect(startOnRecord) {
         if (startOnRecord) {
-            destination = Destination.Record
+            nav.navigate(Route.Record())
             onConsumedStartOnRecord()
         }
     }
@@ -75,86 +110,84 @@ fun SignedInScaffold(
         // Stopping goes straight to review — that is the flow. A recording
         // *recovered* at launch does not hijack the app the same way: the
         // banner offers it, and the user decides when.
-        if (destination == Destination.Record) destination = Destination.Review
+        if (onRecordScreen) {
+            reviewing = true
+            // Take the recorder off the stack with it, so backing out of review
+            // lands on the logbook rather than on a stopped recorder.
+            nav.popBackStack()
+        }
     }
 
     LaunchedEffect(saved) {
         if (saved) {
-            destination = Destination.Home
+            reviewing = false
+            nav.popBackStack(Route.Dashboard, inclusive = false)
             flow.acknowledgeSaved()
         }
     }
 
-    // Back goes home; it does not stop anything. A recording is not something
-    // you should be able to end by accident with a gesture.
-    BackHandler(enabled = destination != Destination.Home) {
-        destination = Destination.Home
+    // Leaving review does not stop or discard anything: the recording stays
+    // checkpointed and the banner keeps offering it.
+    BackHandler(enabled = reviewing) { reviewing = false }
+
+    // The root. Finishing the activity would tear down a task that may have a
+    // recording notification attached to it; the Capacitor app called
+    // `App.minimizeApp()` here for the same reason.
+    BackHandler(enabled = atRoot && !reviewing) {
+        (context as? Activity)?.moveTaskToBack(true)
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(TrackTheme.colors.bgPage)) {
-        if (destination == Destination.Home) {
+    // The insets live here, once: the app draws edge to edge behind the system
+    // bars, and every screen below is laid out inside them.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TrackTheme.colors.bgPage)
+            .systemBarsPadding(),
+    ) {
+        if (!reviewing && !onRecordScreen) {
             RecordingBanner(
                 state = recorder,
                 pending = pending,
                 onOpen = {
-                    destination = if (pending != null && !recorder.isRecording) {
-                        Destination.Review
+                    if (pending != null && !recorder.isRecording) {
+                        reviewing = true
                     } else {
-                        Destination.Record
+                        nav.navigate(Route.Record())
                     }
                 },
-                modifier = Modifier.systemBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
 
-        when (destination) {
-            Destination.Home -> HomePlaceholder(
-                onRecord = { destination = Destination.Record },
+        Box(modifier = Modifier.weight(1f)) {
+            // The graph stays composed underneath: review is a cover, not a
+            // replacement, so returning from it does not rebuild the back stack.
+            AppNavHost(
+                nav = nav,
+                api = api,
+                auth = auth,
+                checklistTemplate = authState.checklistTemplate,
+                hasCustomChecklistTemplate = authState.hasCustomChecklistTemplate,
+                themeChoice = themeChoice,
+                onThemeChange = onThemeChange,
+                serverUrl = serverUrl,
+                recorderState = recorder,
+                onStartRecording = onStartRecording,
+                onStopRecording = { Recorder.stop(context) },
                 onSignOut = onSignOut,
             )
-
-            Destination.Record -> RecordScreen(
-                state = recorder,
-                eventLabel = null,
-                onStart = onStartRecording,
-                onStop = { Recorder.stop(context) },
-            )
-
-            Destination.Review -> ReviewScreen(
-                state = review,
-                onPick = flow::pick,
-                onLabelChange = flow::setLabel,
-                onNotesChange = flow::setNotes,
-                onSelectEvent = flow::selectEvent,
-                onSave = { flow.save(context) },
-                onDiscard = { flow.discard(context) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomePlaceholder(onRecord: () -> Unit, onSignOut: () -> Unit) {
-    val colors = TrackTheme.colors
-    val type = TrackTheme.typography
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Signed in", style = type.h1, color = colors.textStrong, textAlign = TextAlign.Center)
-        Text(
-            "The logbook lands with NS-26.",
-            style = type.sm,
-            color = colors.textMuted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        TextButton(onClick = onRecord, modifier = Modifier.padding(top = 24.dp)) {
-            Text("Record laps", style = type.bodyStrong, color = colors.accentInk)
-        }
-        TextButton(onClick = onSignOut) {
-            Text("Sign out", style = type.sm, color = colors.textMuted)
+            if (reviewing) {
+                ReviewScreen(
+                    state = review,
+                    onPick = flow::pick,
+                    onLabelChange = flow::setLabel,
+                    onNotesChange = flow::setNotes,
+                    onSelectEvent = flow::selectEvent,
+                    onSave = { flow.save(context) },
+                    onDiscard = { flow.discard(context); reviewing = false },
+                )
+            }
         }
     }
 }

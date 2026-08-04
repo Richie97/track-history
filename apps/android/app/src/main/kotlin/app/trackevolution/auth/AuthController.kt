@@ -2,6 +2,7 @@ package app.trackevolution.auth
 
 import android.content.Context
 import android.net.Uri
+import app.trackevolution.core.EventDates
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.api.AuthProvider
@@ -33,6 +34,39 @@ sealed interface AuthState {
 }
 
 /**
+ * The prep list a new event's checklist starts from — the user's own, or the
+ * app's built-in default when they have never edited it.
+ *
+ * Derived from [AuthState] rather than read off [AuthController] so that a
+ * composable which collects the state re-renders when the template changes:
+ * Settings edits it and the event page's "Use my list" button reads it, and two
+ * copies of one value is exactly how those two would disagree.
+ */
+val AuthState.checklistTemplate: List<String>
+    get() = (this as? AuthState.SignedIn)?.user?.checklistTemplate?.takeIf { it.isNotEmpty() }
+        ?: EventDates.DEFAULT_CHECKLIST
+
+/** Whether the list above is the user's own or still the built-in default. */
+val AuthState.hasCustomChecklistTemplate: Boolean
+    get() = (this as? AuthState.SignedIn)?.user?.checklistTemplate?.isNotEmpty() == true
+
+/**
+ * The prep-checklist template as the Settings editor needs it: read the current
+ * list, write a new one.
+ *
+ * An interface rather than a direct [AuthController] dependency because the
+ * editor's whole job is *ordering* — move up, move down, remove, reset — and
+ * that logic deserves a test that doesn't have to stand up an encrypted token
+ * store and an OAuth state machine to run.
+ */
+interface ChecklistTemplateStore {
+    val items: List<String>
+
+    /** Throws [ApiException] on rejection: a template is never queued offline. */
+    suspend fun set(items: List<String>)
+}
+
+/**
  * Owns the sign-in flow: PKCE, the browser hop, the code exchange, and the token.
  *
  * The server side already exists and is not touched (`src/routes/auth.ts`, with
@@ -55,7 +89,7 @@ class AuthController(
     private val store: AuthStore,
     private val providersStore: AuthProvidersStore,
     private val serverPreference: ServerPreference,
-) {
+) : ChecklistTemplateStore {
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
     val state: StateFlow<AuthState> = _state.asStateFlow()
 
@@ -143,6 +177,28 @@ class AuthController(
             }
         }
         return true
+    }
+
+    /**
+     * Replaces the prep-checklist template, and keeps the in-memory user in step
+     * so the event page's button agrees without a reload — the same reason the
+     * web app writes back to `state.me` after a save.
+     *
+     * An empty list clears the stored one, putting the user back on the built-in
+     * default; `sanitizeChecklistTemplate` treats `[]` and null alike. Throws
+     * [ApiException] on rejection: a template is not on the offline queue, so the
+     * caller has a real answer to show.
+     */
+    override val items: List<String> get() = _state.value.checklistTemplate
+
+    override suspend fun set(items: List<String>): Unit = setChecklistTemplate(items)
+
+    suspend fun setChecklistTemplate(items: List<String>) {
+        api.updateChecklistTemplate(items)
+        val current = _state.value as? AuthState.SignedIn ?: return
+        _state.value = AuthState.SignedIn(
+            current.user.copy(checklistTemplate = items.ifEmpty { null }),
+        )
     }
 
     /** A 401 from any request: the session is gone. Drop to sign-in, no retry. */

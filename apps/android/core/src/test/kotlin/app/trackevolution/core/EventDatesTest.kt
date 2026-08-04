@@ -83,6 +83,27 @@ class EventDatesTest {
         assertEquals("1.5 days", EventDates.fmtDays(1.5))
     }
 
+    // ---- the chart axis ----------------------------------------------------
+
+    @Test
+    fun `epoch days space events by the gap between them`() {
+        val a = EventDates.epochDay("2026-05-01")!!
+        val b = EventDates.epochDay("2026-05-31")!!
+        val c = EventDates.epochDay("2028-05-31")!!
+        // The axis has to be proportional, not ordinal: a two-year gap must plot
+        // as a gap rather than as the next point along.
+        assertEquals(30.0, b - a)
+        assertEquals(731.0, c - b)
+    }
+
+    @Test
+    fun `a date with no chart position is null rather than zero`() {
+        // Zero is a real position — 1970 — so a malformed date has to drop out of
+        // the series instead of anchoring it to the far left.
+        assertNull(EventDates.epochDay(null))
+        assertNull(EventDates.epochDay("nonsense"))
+    }
+
     // ---- the checklist contract -------------------------------------------
 
     @Test

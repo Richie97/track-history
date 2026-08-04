@@ -73,6 +73,12 @@ androidx-activity-compose = { module = "androidx.activity:activity-compose", ver
 # Backs the persisted theme override (NS-07) and, later, any other small setting.
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+# Scopes a screen's model to its NavBackStackEntry (NS-26), so rotation and a
+# theme change don't re-fetch the screen or drop a half-typed form.
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+# `createSavedStateHandle()`, which is what carries an event-form draft through
+# the system killing the app in the background.
+androidx-lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }
 androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
 # The bearer token at rest. Must stay readable while the device is locked — the
