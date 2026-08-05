@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Declares this app to Android Auto as a templated (Car App Library) app.
+
+  Load-bearing and silent when wrong: without this file and the
+  com.google.android.gms.car.application meta-data that points at it, Android
+  Auto never discovers the CarAppService at all. Nothing fails to build and no
+  test notices — the app simply does not appear on the head unit, which is the
+  same class of trap as iOS's missing CarPlay entitlement (NS-19).
+-->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>

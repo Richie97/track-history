@@ -216,6 +216,14 @@ either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
 `apps/android/local.properties` (gitignored; Android Studio writes it for you).
 `:core:test` deliberately still works without one.
 
+The Android app also carries an **Android Auto** surface: one screen with a
+Start/Stop control over the same recorder, so laps can be started from the head
+unit. Whether it reaches users depends on a Play Store category review that has
+not been attempted yet — Android Auto has no category for a driving-task app, so
+it is declared under Points of Interest. Nothing about the phone app depends on
+the outcome, and the review is only triggered by opting in to the Android Auto
+form factor at release time.
+
 `:app`'s own tests are Robolectric rather than instrumentation, so they need the
 SDK but no emulator. They exist for one thing the `:core` tests cannot claim:
 the offline write queue is exercised against **real SQLite**, closing and

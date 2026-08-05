@@ -51,6 +51,10 @@ work = "2.10.0"
 # and the charts render their degenerate datasets (NS-24), on the same runner.
 junit4 = "4.13.2"
 robolectric = "4.14.1"
+# Android Auto (NS-20). The Car App Library renders our templates on the head
+# unit; `app-projected` is the half that talks to the phone-projected host, as
+# opposed to Automotive OS running in the car itself.
+carApp = "1.7.0"
 androidxTestCore = "1.6.1"
 
 [libraries]
@@ -105,6 +109,11 @@ compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview"
 # and the TalkBack strings are gated by CI rather than by remembering to look.
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+androidx-car-app = { module = "androidx.car.app:app", version.ref = "carApp" }
+androidx-car-app-projected = { module = "androidx.car.app:app-projected", version.ref = "carApp" }
+# TestCarContext + ScreenController: drives the head-unit screen under
+# Robolectric, which is the only way this surface gets tested without a car.
+androidx-car-app-testing = { module = "androidx.car.app:app-testing", version.ref = "carApp" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
