@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.core.EventDates
+import app.trackevolution.core.Garage
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Event
@@ -68,6 +69,14 @@ class DashboardModel(
             runCatching { api.warmCache(events) }
         }
     }
+
+    /**
+     * The maintenance reminders across every car (NS-31). Derived, not fetched:
+     * `Garage.garageAlerts` is the port of the web app's own rule, so the strip
+     * on the dashboard and the panel on a vehicle page can never disagree.
+     */
+    val alerts: List<Garage.Alert>
+        get() = Garage.garageAlerts(garage)
 
     /** Tracks worth listing: one with no events has nothing to show yet. */
     val tracksWithData: List<Track>

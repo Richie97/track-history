@@ -43,9 +43,9 @@ public data class Vehicle(
  * A vehicle in the garage logbook (`GET /api/garage`): accrued hours plus its
  * consumable parts, each with measurements and a computed wear estimate.
  *
- * The garage is **deferred** on Android (web and iOS only, see
- * `docs/specs/native/README.md`) — modelled so the response decodes and the
- * contract stays pinned, with no client methods yet.
+ * Every part arrives with its [WearEstimate] **already computed by the server**
+ * (`src/lib/wear.ts`). No client recomputes it — see `Garage` for the half that
+ * is ported, which is only how to say what arrived.
  */
 @Serializable
 public data class GarageVehicle(
