@@ -117,6 +117,12 @@ dependencies {
     // no longer matches fails to compile rather than at a tap.
     implementation(libs.androidx.navigation.compose)
 
+    // Android Auto (NS-20). Lives in :app rather than a separate :auto module
+    // because the car screen drives the recorder directly and a library module
+    // cannot depend on an application one — see TrackAutoService.
+    implementation(libs.androidx.car.app)
+    implementation(libs.androidx.car.app.projected)
+
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
@@ -138,6 +144,7 @@ dependencies {
     // Drives ApiClient without a server, so the form's track-name rule is
     // asserted against the bytes that would actually be sent.
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.androidx.car.app.testing)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)

@@ -92,5 +92,36 @@
             android:name=".recording.RecordingService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- Android Auto (NS-20). The head unit talks to this service, which
+             hands back one screen that drives the same RecordingService above —
+             no bridge, so connecting or disconnecting the car cannot interrupt a
+             recording.
+
+             The POI category is a deliberate choice by the project owner:
+             Android Auto has no driving-task category, and the supported set is
+             navigation, POI, IoT, weather, media and communication. It is only
+             reviewed once the app opts in to the Android Auto form factor in the
+             Play Console (NS-27) — declaring it here triggers nothing. See
+             TrackAutoService and the NS-20 PR. -->
+        <service
+            android:name=".auto.TrackAutoService"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
+        <!-- Without this pair Android Auto never discovers the service. See the
+             comment in res/xml/automotive_app_desc.xml. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
     </application>
 </manifest>

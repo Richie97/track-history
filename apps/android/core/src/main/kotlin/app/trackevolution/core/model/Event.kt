@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import app.trackevolution.core.RemoteRecording
 
 /** One item of an event's prep checklist. */
 @Serializable
@@ -59,14 +60,14 @@ public data class Event(
     @SerialName("track_id") val trackId: Int,
     @SerialName("track_name") val trackName: String,
     /** ISO `yyyy-mm-dd`, the format every date column stores. */
-    @SerialName("start_date") val startDate: String,
+    @SerialName("start_date") override val startDate: String,
     /**
      * Track days, **fractional**: the column is `days REAL` and the web form's
      * input steps by 0.5, so a half-day event is 0.5 and a Saturday-plus-Sunday-
      * morning weekend is 1.5. Modelling this as `Int` fails the decode of the
      * entire events list for anyone who has ever logged one.
      */
-    val days: Double,
+    override val days: Double,
     val club: String? = null,
     @SerialName("run_group") val runGroup: String? = null,
     val car: String? = null,
@@ -97,7 +98,7 @@ public data class Event(
     val consistency: Double? = null,
     /** On-track hours: the override, else `max(days × 2h, logged lap time)`. */
     val hours: Double,
-)
+) : RemoteRecording.EventCandidate
 
 /**
  * `GET /api/events/:id` — an event plus its sessions and per-day setup sheets.
