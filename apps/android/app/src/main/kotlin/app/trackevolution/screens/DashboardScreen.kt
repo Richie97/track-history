@@ -17,7 +17,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import app.trackevolution.core.EventDates
+import app.trackevolution.core.Garage
+import app.trackevolution.core.label
+import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Track
@@ -32,6 +41,7 @@ import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.charts.ProgressChart
 import app.trackevolution.ui.charts.ProgressChartStyle
 import app.trackevolution.ui.charts.ProgressPoint
+import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 
 /**
@@ -45,6 +55,7 @@ fun DashboardScreen(
     model: DashboardModel,
     onOpenEvent: (Int) -> Unit,
     onOpenTrack: (Int) -> Unit,
+    onOpenVehicle: (Int) -> Unit,
     onNewEvent: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -76,6 +87,13 @@ fun DashboardScreen(
                         Text("Settings", style = TrackTheme.typography.sm, color = colors.textMuted)
                     }
                 }
+            }
+
+            // Above the fold, because it is the one thing here with a deadline.
+            // Collapsed to a count: on the dashboard maintenance is one section
+            // among many, and the vehicle page is where it is the point.
+            if (model.alerts.isNotEmpty()) {
+                item("maintenance") { MaintenanceStrip(model.alerts, onOpenVehicle) }
             }
 
             model.heroEvent?.let { hero ->
@@ -117,6 +135,13 @@ fun DashboardScreen(
                 }
             }
 
+            if (model.garage.isNotEmpty()) {
+                item("garage-header") { TESectionHeader("Garage") }
+                items(model.garage, key = { "veh-${it.id}" }) { vehicle ->
+                    VehicleRow(vehicle) { onOpenVehicle(vehicle.id) }
+                }
+            }
+
             if (model.recent.isNotEmpty()) {
                 item("recent-header") { TESectionHeader("Recent events") }
                 items(model.recent, key = { "ev-${it.id}" }) { event ->
@@ -141,6 +166,86 @@ fun DashboardScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The maintenance reminders, collapsed to a count until tapped.
+ *
+ * A `Column` that expands rather than a Material `ExposedDropdown` or an
+ * `AlertDialog`: the web app's `<details>` behaves this way, and a reminder you
+ * have to dismiss is one you learn to dismiss without reading.
+ */
+@Composable
+private fun MaintenanceStrip(alerts: List<Garage.Alert>, onOpenVehicle: (Int) -> Unit) {
+    val colors = TrackTheme.colors
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val due = alerts.count { it.status == Garage.PartStatus.DUE }
+
+    TrackCard(
+        modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+        border = if (due > 0) colors.danger else colors.borderHairline,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                fmtCount(alerts.size, "maintenance reminder"),
+                style = TrackTheme.typography.bodyStrong,
+                color = if (due > 0) colors.danger else colors.textStrong,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                if (expanded) "▾" else "▸",
+                style = TrackTheme.typography.sm,
+                color = colors.textFaint,
+            )
+        }
+        if (expanded) {
+            alerts.forEach { alert ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenVehicle(alert.vehicle.id) }
+                        .padding(top = 8.dp),
+                ) {
+                    Text(
+                        "${alert.part.kind.label} — " +
+                            if (alert.status == Garage.PartStatus.DUE) {
+                                "replace now"
+                            } else {
+                                Garage.fmtRemaining(alert.part.wear).orEmpty()
+                            },
+                        style = TrackTheme.typography.sm,
+                        color = if (alert.status == Garage.PartStatus.DUE) colors.danger else colors.textBody,
+                    )
+                    Text(
+                        alert.vehicle.name,
+                        style = TrackTheme.typography.xxs,
+                        color = colors.textMuted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A car, its accrued hours and how its consumables are doing. */
+@Composable
+private fun VehicleRow(vehicle: GarageVehicle, onClick: () -> Unit) {
+    val colors = TrackTheme.colors
+    val active = vehicle.parts.count { it.retiredOn == null }
+    TENavCard(onClick = onClick) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Text(vehicle.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+                TEMeta(
+                    listOf(
+                        Garage.fmtHours(vehicle.hours),
+                        fmtCount(vehicle.eventDays, "track day"),
+                        fmtCount(active, "consumable"),
+                    ),
+                )
             }
         }
     }

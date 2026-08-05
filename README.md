@@ -187,12 +187,11 @@ copied or uploaded. The setup notebook, the setup-vs-lap-times diff, year in
 review, compare and `.vbo` import stay web-only by design.
 
 The Android client now has the logbook too — dashboard, event detail, event form,
-track page and settings, plus the read-only page a
-`trackevolution.app/share/<slug>` link opens — on top of the lap recorder, the
-offline cache and write queue, and the charts. The garage is not there yet
-(Settings manages your cars; consumable wear stays on the web app for now), and
-the same desk-bound features are web-only as on iOS. Video import is iOS-only so
-far.
+track page, settings and the garage (vehicles, consumables, wear and
+measurements), plus the read-only page a `trackevolution.app/share/<slug>` link
+opens — on top of the lap recorder, the offline cache and write queue, and the
+charts. The same desk-bound features are web-only as on iOS. Video import is
+iOS-only so far.
 
 ```sh
 cd apps/ios/Packages/TrackEvolutionKit && swift test   # iOS pure logic, no simulator

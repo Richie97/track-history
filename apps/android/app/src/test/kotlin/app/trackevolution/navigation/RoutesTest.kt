@@ -40,11 +40,11 @@ class RoutesTest {
     }
 
     @Test
-    fun `sends a vehicle link to the dashboard rather than a blank screen`() {
-        // The garage is not built on Android, but the web app links to vehicle
-        // pages, so such a link can genuinely arrive. Landing on the logbook is
-        // the "no dead links" the spec asks for.
-        assertNull(routeFor(DeepLink.Vehicle(2)))
+    fun `sends a vehicle link to the car it names`() {
+        // This landed on the dashboard while the garage was deferred on Android;
+        // NS-31 built it, so a link shared from a desk browser now opens the same
+        // car it would there.
+        assertEquals(Route.Vehicle(2), routeFor(DeepLink.Vehicle(2)))
     }
 
     // ---- temp-id remapping -------------------------------------------------

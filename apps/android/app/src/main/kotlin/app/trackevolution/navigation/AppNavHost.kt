@@ -31,6 +31,8 @@ import app.trackevolution.screens.SharedLogbookModel
 import app.trackevolution.screens.SharedLogbookScreen
 import app.trackevolution.screens.TrackModel
 import app.trackevolution.screens.TrackScreen
+import app.trackevolution.screens.VehicleModel
+import app.trackevolution.screens.VehicleScreen
 import app.trackevolution.ui.theme.ThemeChoice
 
 /**
@@ -75,6 +77,7 @@ fun AppNavHost(
                 model = model,
                 onOpenEvent = { nav.navigate(Route.Event(it)) },
                 onOpenTrack = { nav.navigate(Route.Track(it)) },
+                onOpenVehicle = { nav.navigate(Route.Vehicle(it)) },
                 onNewEvent = { nav.navigate(Route.EventForm()) },
                 onOpenSettings = { nav.navigate(Route.Settings) },
             )
@@ -152,6 +155,7 @@ fun AppNavHost(
                 onThemeChange = onThemeChange,
                 serverUrl = serverUrl,
                 onOpenLink = openLink,
+                onOpenVehicle = { nav.navigate(Route.Vehicle(it)) },
                 onShare = share,
                 onSignOut = onSignOut,
             )
@@ -164,6 +168,15 @@ fun AppNavHost(
                 eventLabel = null,
                 onStart = { onStartRecording(route.eventId) },
                 onStop = onStopRecording,
+            )
+        }
+
+        composable<Route.Vehicle> { entry ->
+            val route = entry.toRoute<Route.Vehicle>()
+            val model = rememberScreenModel { scope, _ -> VehicleModel(scope, api, route.id) }
+            VehicleScreen(
+                model = model,
+                onOpenEvent = { nav.navigate(Route.Event(it)) },
             )
         }
 

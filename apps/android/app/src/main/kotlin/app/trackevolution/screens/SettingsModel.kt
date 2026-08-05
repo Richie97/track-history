@@ -152,6 +152,24 @@ class SettingsModel(
     }
 
     /**
+     * Rename a car, or change its notes. Both are always sent: the edit form
+     * shows what is stored, so a cleared field means cleared.
+     *
+     * Renaming matters more than it looks — `events.car` is free text matched to
+     * a vehicle **by name** server-side, so a car renamed away from what past
+     * events say stops accruing their hours. The form says so.
+     */
+    fun updateVehicle(id: Int, name: String, notes: String) = vehicleWrite {
+        api.updateVehicle(
+            id,
+            VehiclePatch(
+                name = Patch.Set(name.trim()),
+                notes = Patch.Set(notes.trim().ifEmpty { null }),
+            ),
+        )
+    }
+
+    /**
      * Cascades to the car's parts and measurements. Events keep the free-text car
      * name they were logged with and simply stop being linked.
      */
