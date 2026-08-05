@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
@@ -139,11 +140,18 @@ fun SignedInScaffold(
 
     // The insets live here, once: the app draws edge to edge behind the system
     // bars, and every screen below is laid out inside them.
+    //
+    // `imePadding` is not optional. Without it the keyboard draws *over* the
+    // content, and the submit button of any form long enough to need scrolling —
+    // the event form, a wear measurement — ends up behind it with no way to
+    // reach it. Shrinking the content area instead is also what lets a focused
+    // field scroll itself into view.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(TrackTheme.colors.bgPage)
-            .systemBarsPadding(),
+            .systemBarsPadding()
+            .imePadding(),
     ) {
         if (!reviewing && !onRecordScreen) {
             RecordingBanner(

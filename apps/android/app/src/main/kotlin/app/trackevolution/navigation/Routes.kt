@@ -34,6 +34,10 @@ public sealed interface Route {
     @Serializable
     public data object Settings : Route
 
+    /** A car's garage page: consumables, wear and the track-hours ledger. */
+    @Serializable
+    public data class Vehicle(val id: Int) : Route
+
     /** The recorder. Null [eventId] is a recording with no event yet (NS-18). */
     @Serializable
     public data class Record(val eventId: Int? = null) : Route
@@ -48,10 +52,10 @@ public sealed interface Route {
  * Null means the dashboard — an empty back stack rather than a screen pushed on
  * top of one, which is why it is not simply [Route.Dashboard].
  *
- * `DeepLink.Vehicle` maps to null **deliberately**: the garage is not built on
- * Android, and the web app links to vehicle pages, so a shared link could
- * reasonably arrive. Sending it to the dashboard is the "no dead links" the
- * spec asks for — the alternative is a blank screen or a crash.
+ * `DeepLink.Vehicle` sent people to the dashboard while the garage was deferred
+ * on Android; NS-31 built it, so it now lands on the car. An id that doesn't
+ * parse never becomes a `DeepLink.Vehicle` in the first place, so nothing here
+ * has to defend against one.
  */
 public fun routeFor(link: DeepLink): Route? = when (link) {
     is DeepLink.Dashboard -> null
@@ -61,5 +65,5 @@ public fun routeFor(link: DeepLink): Route? = when (link) {
     is DeepLink.Track -> Route.Track(link.id)
     is DeepLink.Settings -> Route.Settings
     is DeepLink.Shared -> Route.Shared(link.slug)
-    is DeepLink.Vehicle -> null
+    is DeepLink.Vehicle -> Route.Vehicle(link.id)
 }

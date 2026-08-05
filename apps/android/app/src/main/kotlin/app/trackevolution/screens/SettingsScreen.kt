@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +65,7 @@ fun SettingsScreen(
     onThemeChange: (ThemeChoice) -> Unit,
     serverUrl: String,
     onOpenLink: (String) -> Unit,
+    onOpenVehicle: (Int) -> Unit,
     onShare: (String) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
@@ -108,7 +110,7 @@ fun SettingsScreen(
 
             item("vehicles-header") { TESectionHeader("Vehicles") }
             item("vehicles") {
-                VehiclesCard(model, onOpenLink = onOpenLink, onDelete = { deleting = it })
+                VehiclesCard(model, onOpenVehicle = onOpenVehicle, onDelete = { deleting = it })
             }
 
             item("legal-header") { TESectionHeader("About & legal") }
@@ -372,23 +374,25 @@ private fun ChecklistTemplateCard(
 }
 
 /**
- * The cars an event's Car field is matched against.
+ * The cars an event's Car field is matched against, and the way into each one's
+ * garage page (NS-31).
  *
- * **There is no garage page to open.** Consumable wear tracking is web and iOS
- * only for now (NS-31), so this links out to the web app rather than offering a
- * row that goes nowhere.
+ * This screen owns the *list* — add, rename, make default, delete — while a
+ * car's consumables and wear live on its own page, because those are what you
+ * look at in the garage rather than in settings.
  */
 @Composable
 private fun VehiclesCard(
     model: SettingsModel,
-    onOpenLink: (String) -> Unit,
+    onOpenVehicle: (Int) -> Unit,
     onDelete: (Vehicle) -> Unit,
 ) {
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
         Text(
             "Your cars. The default one pre-fills new events, and an event's Car field is " +
-                "matched to a vehicle by name.",
+                "matched to a vehicle by name — so consumables accrue wear from the events you " +
+                "already log. Open a car to track pads, tires and fluid.",
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
             modifier = Modifier.padding(bottom = 10.dp),
@@ -398,30 +402,12 @@ private fun VehiclesCard(
             TEEmpty("No cars yet — add your first below.")
         } else {
             model.vehicles.forEach { vehicle ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            vehicle.name,
-                            style = TrackTheme.typography.bodyStrong,
-                            color = colors.textStrong,
-                        )
-                        if (vehicle.isDefault) {
-                            Text("Default", style = TrackTheme.typography.xxs, color = colors.accentInk)
-                        }
-                    }
-                    if (!vehicle.isDefault) {
-                        TextButton(onClick = { model.makeDefault(vehicle.id) }) {
-                            Text(
-                                "Make default",
-                                style = TrackTheme.typography.xs,
-                                color = colors.accentInk,
-                            )
-                        }
-                    }
-                    TextButton(onClick = { onDelete(vehicle) }) {
-                        Text("Delete", style = TrackTheme.typography.xs, color = colors.danger)
-                    }
-                }
+                VehicleRow(
+                    vehicle = vehicle,
+                    model = model,
+                    onOpen = { onOpenVehicle(vehicle.id) },
+                    onDelete = { onDelete(vehicle) },
+                )
             }
         }
 
@@ -438,14 +424,84 @@ private fun VehiclesCard(
             }
         }
         TEErrorBanner(model.vehicleError, modifier = Modifier.padding(top = 8.dp))
-        Text(
-            "Tracking pads, tires and fluid — the garage — is on the web app for now.",
-            style = TrackTheme.typography.xs,
-            color = colors.textFaint,
-            modifier = Modifier.padding(top = 10.dp),
-        )
-        TextButton(onClick = { onOpenLink("$DOCS_URL/docs/garage.html") }) {
-            Text("About the garage ↗", style = TrackTheme.typography.sm, color = colors.textMuted)
+    }
+}
+
+/** One car: a row that opens its garage page, with its list-level actions. */
+@Composable
+private fun VehicleRow(
+    vehicle: Vehicle,
+    model: SettingsModel,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = TrackTheme.colors
+    var editing by rememberSaveable(vehicle.id) { mutableStateOf(false) }
+    var name by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.name) }
+    var notes by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.notes.orEmpty()) }
+
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(vehicle.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+                if (vehicle.isDefault) {
+                    Text("Default", style = TrackTheme.typography.xxs, color = colors.accentInk)
+                }
+            }
+            Text("›", style = TrackTheme.typography.body, color = colors.textFaint)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (!vehicle.isDefault) {
+                TextButton(onClick = { model.makeDefault(vehicle.id) }) {
+                    Text("Make default", style = TrackTheme.typography.xs, color = colors.accentInk)
+                }
+            }
+            TextButton(onClick = { editing = !editing }) {
+                Text("Edit", style = TrackTheme.typography.xs, color = colors.textMuted)
+            }
+            TextButton(onClick = onDelete) {
+                Text("Delete", style = TrackTheme.typography.xs, color = colors.danger)
+            }
+        }
+        if (editing) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TEField(
+                    "Car",
+                    hint = "Past events match this car by name — renaming it away from what they " +
+                        "say stops their hours accruing here",
+                ) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                TEField("Modifications & notes") {
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        placeholder = {
+                            Text("Coilovers, pads, tires, alignment…", style = TrackTheme.typography.sm)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = { model.updateVehicle(vehicle.id, name, notes); editing = false },
+                        enabled = name.isNotBlank(),
+                    ) {
+                        Text("Save", style = TrackTheme.typography.bodyStrong, color = colors.accentInk)
+                    }
+                    TextButton(onClick = { editing = false }) {
+                        Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
+                    }
+                }
+            }
         }
     }
 }
