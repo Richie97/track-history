@@ -3,7 +3,7 @@
 # :app can never drift onto different versions of the same library.
 
 [versions]
-kotlin = "2.0.21"
+kotlin = "2.2.10"
 kotlinxSerialization = "1.7.3"
 kotlinxCoroutines = "1.9.0"
 # The HTTP client. Ktor rather than Retrofit/OkHttp directly because :core is a
@@ -13,7 +13,7 @@ ktor = "3.0.3"
 junit = "5.11.3"
 # The Compose compiler ships as a Kotlin plugin from Kotlin 2.0 on, so it has no
 # version of its own — it tracks `kotlin` above. Keep them moving together.
-agp = "8.7.3"
+agp = "9.2.0"
 androidxCore = "1.15.0"
 activityCompose = "1.9.3"
 lifecycle = "2.8.7"
@@ -37,12 +37,15 @@ securityCrypto = "1.1.0-alpha06"
 navigation = "2.8.5"
 # The offline cache and write queue (NS-22). Room rather than raw SQLite for the
 # suspend-aware `withTransaction`, which is what lets a queued write and its
-# optimistic cache patch commit together.
-room = "2.6.1"
-# KSP replaces kapt for Room's annotation processing. The version is a pair —
-# the suffix tracks the Kotlin version, so bumping `kotlin` above means bumping
-# this too or the plugin refuses to load.
-ksp = "2.0.21-1.0.28"
+# optimistic cache patch commit together. Must be 2.7.0+ while KSP is 2.x:
+# standalone KSP is KSP2-only, and Room 2.6.x under KSP2 dies with
+# "unexpected jvm signature V" in the annotation processor.
+room = "2.8.4"
+# KSP replaces kapt for Room's annotation processing. From 2.3.0 KSP versions
+# no longer embed a Kotlin version (it's KSP2, decoupled from the compiler), so
+# `kotlin` above and this move independently — but only Room 2.7.0+ can run
+# under it; see the note on `room`.
+ksp = "2.3.2"
 # Replay scheduling. A CoroutineWorker with a CONNECTED constraint survives
 # process death, which a coroutine in a ViewModel does not.
 work = "2.10.0"
