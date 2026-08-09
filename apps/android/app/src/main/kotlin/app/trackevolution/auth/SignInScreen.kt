@@ -1,6 +1,5 @@
 package app.trackevolution.auth
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,12 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,6 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.api.AuthProvider
 import app.trackevolution.core.api.AuthProviders
+import app.trackevolution.ui.theme.BrandMark
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -70,6 +66,9 @@ fun SignInScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // The mark leads, as on the web login card and the iOS screen — without
+        // it the page read as half-loaded rather than deliberately spare.
+        BrandMark(modifier = Modifier.padding(bottom = 16.dp))
         Text("Track Evolution", style = type.h1, color = colors.textStrong)
         Text(
             "Your track-day logbook.",
@@ -88,30 +87,22 @@ fun SignInScreen(
             }
         } else {
             // Narrow: a full-width button on a phone reads as a form field, and
-            // this is the only action on the screen.
-            val buttonModifier = Modifier.fillMaxWidth().widthIn(max = 320.dp).height(48.dp)
-            if (providers.google) {
-                Button(
-                    onClick = { onSignIn(AuthProvider.GOOGLE) },
-                    modifier = buttonModifier,
-                    shape = RoundedCornerShape(TrackTheme.radii.md),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colors.accent,
-                        contentColor = colors.accentContrast,
-                    ),
-                ) {
-                    Text("Continue with Google", style = type.bodyStrong)
+            // this is the only action on the screen. One modifier for every
+            // provider — the buttons carry their brands' colors, but size,
+            // radius and label are deliberately identical (ProviderButtons.kt).
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val buttonModifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().height(48.dp)
+                if (providers.google) {
+                    GoogleSignInButton(
+                        onClick = { onSignIn(AuthProvider.GOOGLE) },
+                        modifier = buttonModifier,
+                    )
                 }
-            }
-            if (providers.apple) {
-                OutlinedButton(
-                    onClick = { onSignIn(AuthProvider.APPLE) },
-                    modifier = buttonModifier.padding(top = 10.dp),
-                    shape = RoundedCornerShape(TrackTheme.radii.md),
-                    border = BorderStroke(1.dp, colors.borderStrong),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textStrong),
-                ) {
-                    Text("Continue with Apple", style = type.bodyStrong)
+                if (providers.apple) {
+                    AppleSignInButton(
+                        onClick = { onSignIn(AuthProvider.APPLE) },
+                        modifier = buttonModifier,
+                    )
                 }
             }
         }

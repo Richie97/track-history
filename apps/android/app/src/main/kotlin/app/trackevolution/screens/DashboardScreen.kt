@@ -1,10 +1,13 @@
 package app.trackevolution.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +26,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
@@ -41,6 +46,7 @@ import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.charts.ProgressChart
 import app.trackevolution.ui.charts.ProgressChartStyle
 import app.trackevolution.ui.charts.ProgressPoint
+import app.trackevolution.ui.theme.BrandMark
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 
@@ -65,109 +71,147 @@ fun DashboardScreen(
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
-    TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
-        ) {
-            item("actions") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onNewEvent,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = colors.accent,
-                            contentColor = colors.accentContrast,
-                        ),
-                    ) {
-                        Text("+ Add event", style = TrackTheme.typography.bodyStrong)
-                    }
-                    TextButton(onClick = onOpenSettings) {
-                        Text("Settings", style = TrackTheme.typography.sm, color = colors.textMuted)
-                    }
-                }
-            }
+    Column(modifier = modifier) {
+        DashboardTopBar(onOpenSettings = onOpenSettings)
 
-            // Above the fold, because it is the one thing here with a deadline.
-            // Collapsed to a count: on the dashboard maintenance is one section
-            // among many, and the vehicle page is where it is the point.
-            if (model.alerts.isNotEmpty()) {
-                item("maintenance") { MaintenanceStrip(model.alerts, onOpenVehicle) }
-            }
-
-            model.heroEvent?.let { hero ->
-                item("hero") { HeroCard(hero) { onOpenEvent(hero.id) } }
-            }
-
-            item("totals") {
-                TEStatRow(
-                    listOf(
-                        "Events" to model.totals.events.toString(),
-                        "Track days" to model.totals.trackDays.toString(),
-                        "Tracks" to model.tracksWithData.size.toString(),
-                    ),
-                )
-            }
-
-            if (model.alsoUpcoming.isNotEmpty()) {
-                item("also-header") { TESectionHeader("Also upcoming") }
-                items(model.alsoUpcoming, key = { "up-${it.id}" }) { event ->
-                    TENavCard(onClick = { onOpenEvent(event.id) }) {
-                        Text(event.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-                        TEMeta(
-                            listOf(
-                                EventDates.fmtCountdown(event.startDate),
-                                EventDates.fmtDate(event.startDate),
-                                event.club,
+        TELoadable(state = model.state, onRetry = model::load, modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
+            ) {
+                item("actions") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onNewEvent,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colors.accent,
+                                contentColor = colors.accentContrast,
                             ),
-                        )
+                        ) {
+                            Text("+ Add event", style = TrackTheme.typography.bodyStrong)
+                        }
                     }
                 }
-            }
 
-            item("tracks-header") { TESectionHeader("Tracks") }
-            if (model.tracksWithData.isEmpty()) {
-                item("tracks-empty") { TEEmpty("No events yet — add your first track day.") }
-            } else {
-                items(model.tracksWithData, key = { "tr-${it.id}" }) { track ->
-                    TrackRow(track) { onOpenTrack(track.id) }
+                // Above the fold, because it is the one thing here with a deadline.
+                // Collapsed to a count: on the dashboard maintenance is one section
+                // among many, and the vehicle page is where it is the point.
+                if (model.alerts.isNotEmpty()) {
+                    item("maintenance") { MaintenanceStrip(model.alerts, onOpenVehicle) }
                 }
-            }
 
-            if (model.garage.isNotEmpty()) {
-                item("garage-header") { TESectionHeader("Garage") }
-                items(model.garage, key = { "veh-${it.id}" }) { vehicle ->
-                    VehicleRow(vehicle) { onOpenVehicle(vehicle.id) }
+                model.heroEvent?.let { hero ->
+                    item("hero") { HeroCard(hero) { onOpenEvent(hero.id) } }
                 }
-            }
 
-            if (model.recent.isNotEmpty()) {
-                item("recent-header") { TESectionHeader("Recent events") }
-                items(model.recent, key = { "ev-${it.id}" }) { event ->
-                    TENavCard(onClick = { onOpenEvent(event.id) }) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Column(Modifier.weight(1f)) {
+                item("totals") {
+                    TEStatRow(
+                        listOf(
+                            "Events" to model.totals.events.toString(),
+                            "Track days" to model.totals.trackDays.toString(),
+                            "Tracks" to model.tracksWithData.size.toString(),
+                        ),
+                    )
+                }
+
+                if (model.alsoUpcoming.isNotEmpty()) {
+                    item("also-header") { TESectionHeader("Also upcoming") }
+                    items(model.alsoUpcoming, key = { "up-${it.id}" }) { event ->
+                        TENavCard(onClick = { onOpenEvent(event.id) }) {
+                            Text(event.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+                            TEMeta(
+                                listOf(
+                                    EventDates.fmtCountdown(event.startDate),
+                                    EventDates.fmtDate(event.startDate),
+                                    event.club,
+                                ),
+                            )
+                        }
+                    }
+                }
+
+                item("tracks-header") { TESectionHeader("Tracks") }
+                if (model.tracksWithData.isEmpty()) {
+                    item("tracks-empty") { TEEmpty("No events yet — add your first track day.") }
+                } else {
+                    items(model.tracksWithData, key = { "tr-${it.id}" }) { track ->
+                        TrackRow(track) { onOpenTrack(track.id) }
+                    }
+                }
+
+                if (model.garage.isNotEmpty()) {
+                    item("garage-header") { TESectionHeader("Garage") }
+                    items(model.garage, key = { "veh-${it.id}" }) { vehicle ->
+                        VehicleRow(vehicle) { onOpenVehicle(vehicle.id) }
+                    }
+                }
+
+                if (model.recent.isNotEmpty()) {
+                    item("recent-header") { TESectionHeader("Recent events") }
+                    items(model.recent, key = { "ev-${it.id}" }) { event ->
+                        TENavCard(onClick = { onOpenEvent(event.id) }) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        event.trackName,
+                                        style = TrackTheme.typography.bodyStrong,
+                                        color = colors.textStrong,
+                                    )
+                                    TEMeta(listOf(EventDates.fmtDate(event.startDate), event.club, event.runGroup))
+                                }
                                 Text(
-                                    event.trackName,
-                                    style = TrackTheme.typography.bodyStrong,
+                                    LapTime.fmtMs(event.bestMs),
+                                    style = TrackTheme.typography.lapTime,
                                     color = colors.textStrong,
                                 )
-                                TEMeta(listOf(EventDates.fmtDate(event.startDate), event.club, event.runGroup))
                             }
-                            Text(
-                                LapTime.fmtMs(event.bestMs),
-                                style = TrackTheme.typography.lapTime,
-                                color = colors.textStrong,
-                            )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * The brand bar: the mark and the wordmark, with Settings on the far side —
+ * the port of the web topbar's `.brand` (`appLogoHtml()` + "Track Evolution"
+ * in `shell()`), at the web header's 26px mark size. Only the dashboard draws
+ * it: inner screens lead with their own title and a back affordance, and a
+ * second identity row there would just push content down.
+ *
+ * Outside the loadable on purpose, so the app says who it is even while the
+ * first fetch is still in flight or has failed.
+ */
+@Composable
+private fun DashboardTopBar(onOpenSettings: () -> Unit) {
+    val colors = TrackTheme.colors
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BrandMark(size = 26.dp)
+            Text(
+                "Track Evolution",
+                style = TrackTheme.typography.h3,
+                color = colors.textStrong,
+                modifier = Modifier
+                    .padding(start = 10.dp)
+                    .weight(1f)
+                    .semantics { heading() },
+            )
+            TextButton(onClick = onOpenSettings) {
+                Text("Settings", style = TrackTheme.typography.sm, color = colors.textMuted)
+            }
+        }
+        // The topbar's hairline, same as the web's `border-bottom`.
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.borderHairline))
     }
 }
 
