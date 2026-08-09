@@ -96,6 +96,10 @@ not a follow-up:**
      privacy policy when data
      collection, storage, or sharing behavior changes, and bump the effective
      date on any substantive edit.
+   - `site/docs/account-deletion.html` — how to request account deletion
+     (a `mailto:eric@speedshift.io` request from the sign-in email). Exists as
+     a stable https URL for app-store listings that require one; keep it in
+     step with the privacy policy's retention/deletion section.
    - **The site is written for users, not developers** — keep implementation
      details (frameworks, chart internals, build tooling, service-worker
      mechanics) out of it; that material belongs in `README.md`/this file.
