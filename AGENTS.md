@@ -76,6 +76,14 @@ not a follow-up:**
      deliberately never mentions Cloudflare, self-hosting, or deployment** —
      developer setup and deploy instructions live in `README.md` only. Keep it
      that way when editing `site/**`.
+   - Download links point at the App Store listing
+     (`https://apps.apple.com/us/app/track-evolution/id6792941186`) — the
+     landing page's two CTA rows and "Works like an app"/"Record laps" cards,
+     `site/docs/index.html`'s *Get it on your phone*, and
+     `site/docs/lap-recording.html`'s callout, plus `appStoreLinkHtml` on the
+     web sign-in screen in `public/app.js`. **Android isn't published**, so all
+     of them say iOS only and the recording docs say so outright; add the Play
+     Store to that same set when it ships.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
    - `site/docs/lap-recording.html` — recording laps with the phone's GPS in

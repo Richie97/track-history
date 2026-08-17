@@ -400,6 +400,7 @@ const TIP_ITEMS = [
 const TIP_URL = "https://buymeacoffee.com/speedshift";
 const REPO_URL = "https://github.com/Richie97/track-history";
 const DOCS_URL = "https://docs.trackevolution.app";
+const APP_STORE_URL = "https://apps.apple.com/us/app/track-evolution/id6792941186";
 
 let tipIdx = 0;
 let tipTimer = null;
@@ -453,6 +454,18 @@ function footerHtml({ legal = false } = {}) {
 
 const APPLE_LOGO = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z"/></svg>`;
 
+// "Also on the App Store" under the sign-in buttons — web only: inside the
+// native apps it would point at the app you're already running (and on Android
+// at one you can't install). Deliberately not carrying APPLE_LOGO: it would sit
+// directly under the Apple sign-in button, where a second Apple mark reads as
+// another way to sign in.
+function appStoreLinkHtml() {
+  if (platform.native) return "";
+  return `<p class="login-store">
+    <a href="${APP_STORE_URL}" target="_blank" rel="noopener">Download for iPhone ↗</a>
+  </p>`;
+}
+
 // The login screen is static HTML but the Apple button depends on server
 // config (a self-hosted instance may not carry Apple credentials), so it's
 // injected only after the server says it offers the provider. Errors are
@@ -491,6 +504,7 @@ function renderLogin() {
               : `<a class="btn primary" href="/auth/login">Sign in with Google</a>`
           }
         </div>
+        ${appStoreLinkHtml()}
         ${footerHtml({ legal: true })}
       </div>
     </div>`;
