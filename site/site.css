@@ -179,9 +179,17 @@ pre code { background: none; border: none; padding: 0; }
   color: var(--accent-contrast);
 }
 .btn.primary:hover { background: var(--accent-hover); }
-/* App Store button: the Apple glyph sits beside the label. */
+/* Store buttons: the platform glyph sits beside the label. */
 .btn.store { display: inline-flex; align-items: center; gap: 8px; }
 .btn.store svg { position: relative; top: -1px; }
+/* An unreleased platform: same shape as a download button so the pair reads as
+   two platforms, but dashed and quiet so it doesn't look clickable. Rendered as
+   a <span>, so it isn't focusable or a dead link either. */
+.btn.soon {
+  border-style: dashed; border-color: var(--border-hairline);
+  color: var(--text-faint); font-weight: 400; cursor: default;
+}
+.btn.soon:hover { border-color: var(--border-hairline); }
 
 .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .cta-note { margin: 16px auto 0; font-size: 14px; color: var(--text-faint); }

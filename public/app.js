@@ -463,6 +463,7 @@ function appStoreLinkHtml() {
   if (platform.native) return "";
   return `<p class="login-store">
     <a href="${APP_STORE_URL}" target="_blank" rel="noopener">Download for iPhone ↗</a>
+    <span class="login-soon">Android coming soon</span>
   </p>`;
 }
 

@@ -615,6 +615,9 @@ button.ch-chip.on { background: var(--surface-raised); }
    so it doesn't compete with signing in. */
 .login-card .login-store { margin: 22px auto 0; font-size: var(--fs-sm); max-width: none; }
 .login-store a { color: var(--text-faint); }
+/* The unreleased platform is a plain label, not a link — dimmer still, and on
+   its own line so it never reads as part of the download link. */
+.login-soon { display: block; margin-top: 5px; color: var(--text-faint); opacity: 0.75; }
 @media (hover: hover) {
   .login-store a:hover { color: var(--text-strong); }
 }
