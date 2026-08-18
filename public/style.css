@@ -611,6 +611,16 @@ button.ch-chip.on { background: var(--surface-raised); }
 .login-card p { color: var(--text-muted); font-size: 15px; margin: 0 auto 26px; max-width: 260px; }
 .login-card .flag { display: flex; justify-content: center; }
 .login-buttons { display: grid; gap: 10px; margin: 0 auto; max-width: 260px; }
+/* App Store link under the sign-in buttons (web only) — quieter than a button
+   so it doesn't compete with signing in. */
+.login-card .login-store { margin: 22px auto 0; font-size: var(--fs-sm); max-width: none; }
+.login-store a { color: var(--text-faint); }
+/* The unreleased platform is a plain label, not a link — dimmer still, and on
+   its own line so it never reads as part of the download link. */
+.login-soon { display: block; margin-top: 5px; color: var(--text-faint); opacity: 0.75; }
+@media (hover: hover) {
+  .login-store a:hover { color: var(--text-strong); }
+}
 /* Apple-brand button: black in light mode, white in dark — the inverted
    text/surface tokens give exactly that in both themes. */
 .btn.apple { background: var(--text-strong); color: var(--surface-card); border-color: transparent; }
