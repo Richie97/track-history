@@ -408,6 +408,16 @@ scenes they bypass the `AppDelegate` callbacks).
   missing, runs `npm ci`, rebuilds `www/`, and runs `cap sync ios` (which runs
   `pod install`) before the archive step, since `node_modules/`, `www/`, and
   `Pods/` are all gitignored.
+- App version: Xcode Cloud manages the build number (`CFBundleVersion`), but the
+  marketing version is ours — `MARKETING_VERSION` in
+  `mobile/ios/App/App.xcodeproj/project.pbxproj` (both configurations). Once a
+  version has been approved on the App Store its train closes, and further
+  uploads are rejected at *Prepare Build for App Store Connect* with ITMS-90186
+  ("train version is closed") / ITMS-90062 ("must contain a higher version"), so
+  bump `MARKETING_VERSION` before the first upload of a new release. Keep
+  `apps/ios/project.yml` (and its generated
+  `apps/ios/TrackEvolution.xcodeproj`) on the same version — the native rewrite
+  ships as an in-place update under the same bundle id and the same train.
 
 ## Video / telemetry import
 
