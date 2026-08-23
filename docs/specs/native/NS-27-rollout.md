@@ -51,8 +51,21 @@ Do not change it.
    the release notes — and this is the release that finally documents it for users
    in `site/docs/lap-recording.html`, which has been deliberately silent about it
    until a CarPlay-enabled build shipped.
-6. **Android Auto** needs its own Play review against the declared category
-   (NS-20). Budget for a rejection round.
+6. **Android Auto: opt OUT in the Play Console, and confirm it before the first
+   release build.** The rejection round this used to budget for already happened.
+   Opting in to the Android Auto form factor put version code 1 through the car
+   app quality review, which failed under `PF-1` — NS-20 declared the POI
+   category for what is a lap timer, and no supported category permits a driving
+   task. Google's tooling labels that bucket "Parking and Charging", so the
+   rejection reads as a parking app.
+
+   **This blocks the whole rollout, not just the car screen.** A car review
+   failure in the production track rejects the entire submission, which is
+   exactly the in-place update this spec exists to ship. The code side is
+   handled — the car surface is debug-only and `:app:checkReleaseHasNoCarApp`
+   fails the build if a declaration returns to `src/main` — but **the Console
+   opt-in is manual and no build can guard it.** Removing it is a step in this
+   spec. See NS-20 for the full finding.
 7. **Then, and only then, retire `mobile/`:**
    - Delete `mobile/` entirely, including `CarPlayBridgePlugin.swift`,
      `PhoneSceneDelegate.swift`, `ViewController.swift`, and

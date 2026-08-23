@@ -117,11 +117,19 @@ dependencies {
     // no longer matches fails to compile rather than at a tap.
     implementation(libs.androidx.navigation.compose)
 
-    // Android Auto (NS-20). Lives in :app rather than a separate :auto module
-    // because the car screen drives the recorder directly and a library module
-    // cannot depend on an application one — see TrackAutoService.
-    implementation(libs.androidx.car.app)
-    implementation(libs.androidx.car.app.projected)
+    // Android Auto (NS-20) — DEBUG ONLY, and deliberately so. Shipping a
+    // car-compatible artifact to Play is what got the app rejected under the car
+    // app quality guidelines (PF-1: no meaningful POI functionality, because a
+    // lap timer is not a POI app and no driving-task category exists). Keeping
+    // these off the release classpath means a release APK cannot carry the Car
+    // App Library at all. The manifest half is in src/debug/AndroidManifest.xml;
+    // the sources are in src/debug/kotlin. See TrackAutoService.
+    //
+    // Still in :app rather than a separate :auto module because the car screen
+    // drives the recorder directly and a library module cannot depend on an
+    // application one.
+    debugImplementation(libs.androidx.car.app)
+    debugImplementation(libs.androidx.car.app.projected)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
@@ -144,8 +152,62 @@ dependencies {
     // Drives ApiClient without a server, so the form's track-name rule is
     // asserted against the bytes that would actually be sent.
     testImplementation(libs.ktor.client.mock)
-    testImplementation(libs.androidx.car.app.testing)
+    // Pairs with the debug-only car sources above: AutoRecordingTest lives in
+    // src/testDebug, so a release unit-test compile never needs this.
+    testDebugImplementation(libs.androidx.car.app.testing)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+/**
+ * A release build must not be an Android Auto app.
+ *
+ * Play rejected this app under the car app quality guidelines (`PF-1`) because
+ * NS-20 declared the POI category for what is a lap timer, and there is no car
+ * category a driving task fits. The car code still exists and is still tested,
+ * but only in the `debug` source set — because the car review fires on any
+ * submission carrying a car-compatible artifact while the Android Auto form
+ * factor is opted in, and a failure in the production track rejects the *whole*
+ * submission, freezing ordinary phone updates.
+ *
+ * That invariant is invisible: moving one <service> block back into
+ * src/main/AndroidManifest.xml compiles, tests, and ships — and is only caught
+ * weeks later by a store review. CI builds the debug variant only, so nothing
+ * else would notice. Hence this, in the spirit of :core's
+ * checkNoAndroidDependency.
+ */
+tasks.register("checkReleaseHasNoCarApp") {
+    // Pure file I/O on purpose: nothing to resolve, so this behaves identically
+    // with or without an Android SDK and cannot be broken by AGP creating its
+    // variant configurations later than this script is evaluated.
+    val mainManifest = layout.projectDirectory.file("src/main/AndroidManifest.xml").asFile
+    val mainRes = layout.projectDirectory.dir("src/main/res").asFile
+    val root = projectDir
+
+    doLast {
+        // Any one of these is enough to make the built artifact "Android Auto
+        // compatible" as far as the Play review pipeline is concerned.
+        val markers = listOf(
+            "androidx.car.app.CarAppService",
+            "androidx.car.app.category",
+            "com.google.android.gms.car.application",
+        )
+        val sources = (listOf(mainManifest) + mainRes.walkTopDown().filter {
+            it.isFile && it.extension == "xml"
+        }).filter { it.exists() }
+
+        val declaring = sources.mapNotNull { file ->
+            markers.firstOrNull { file.readText().contains(it) }
+                ?.let { "${file.relativeTo(root)} ($it)" }
+        }
+        check(declaring.isEmpty()) {
+            "A release build must not declare an Android Auto app. Play rejects it " +
+                "under car app quality PF-1, and a car rejection in the production " +
+                "track blocks phone updates too. Move these to src/debug:\n  " +
+                declaring.joinToString("\n  ")
+        }
+    }
+}
+
+tasks.named("check") { dependsOn("checkReleaseHasNoCarApp") }

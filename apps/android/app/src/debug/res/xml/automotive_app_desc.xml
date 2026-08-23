@@ -2,6 +2,12 @@
 <!--
   Declares this app to Android Auto as a templated (Car App Library) app.
 
+  DEBUG BUILDS ONLY. This file plus its meta-data is precisely what marks an
+  artifact as Android Auto compatible, which is what puts a Play submission
+  into the car app quality review — the review that rejected this app under
+  PF-1. It moved here from src/main/res/xml for that reason; see the comment in
+  src/debug/AndroidManifest.xml and TrackAutoService.
+
   Load-bearing and silent when wrong: without this file and the
   com.google.android.gms.car.application meta-data that points at it, Android
   Auto never discovers the CarAppService at all. Nothing fails to build and no

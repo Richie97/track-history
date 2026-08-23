@@ -25,8 +25,13 @@ to need a backend change, stop and raise it.
 The three clients are deliberately **not** at parity:
 
 - **Native apps own the on-track critical path** — recording, the logbook you
-  check between sessions, CarPlay/Android Auto. Fast, offline, reliable with the
-  screen off.
+  check between sessions, CarPlay. Fast, offline, reliable with the screen off.
+  **Android Auto is the one thing this list promised and cannot deliver:** it was
+  built (NS-20) and Google Play rejected it, because Android Auto has no category
+  a driving task fits and the POI category it was declared under demands POI
+  functionality a lap timer has none of. Apple granted the equivalent CarPlay
+  entitlement, Google has no equivalent to grant, and that asymmetry is now a
+  permanent feature of the split rather than a gap to close.
 - **The web app owns the desk-bound long tail** — `.vbo` and other logger-file
   import, year in review, the setup notebook and its lap-time correlation. Big
   screen, file drag-and-drop, ships instantly.
@@ -75,7 +80,7 @@ argument in full.
 | NS-17 | [Recording UI + review/save — iOS](NS-17-ios-recording-ui.md) | iOS | NS-15, NS-13, NS-08 |
 | NS-18 | [Recording UI + review/save — Android](NS-18-android-recording-ui.md) | Android | NS-16, NS-14, NS-09 |
 | NS-19 | [CarPlay driving-task scene](NS-19-carplay.md) | iOS | NS-15 |
-| NS-20 | [Android Auto](NS-20-android-auto.md) | Android | NS-16 |
+| NS-20 | [Android Auto](NS-20-android-auto.md) — **built, rejected by Play; debug-only** | Android | NS-16 |
 
 ### Phase 2 — Logbook + offline
 
