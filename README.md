@@ -223,13 +223,24 @@ either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
 `apps/android/local.properties` (gitignored; Android Studio writes it for you).
 `:core:test` deliberately still works without one.
 
-The Android app also carries an **Android Auto** surface: one screen with a
-Start/Stop control over the same recorder, so laps can be started from the head
-unit. Whether it reaches users depends on a Play Store category review that has
-not been attempted yet — Android Auto has no category for a driving-task app, so
-it is declared under Points of Interest. Nothing about the phone app depends on
-the outcome, and the review is only triggered by opting in to the Android Auto
-form factor at release time.
+The Android app also carries an **Android Auto** surface — one screen with a
+Start/Stop control over the same recorder — but it is built into **debug builds
+only** and does not ship. Google Play rejected it: Android Auto has no category
+for a driving-task app, so it was declared under Points of Interest, and the car
+app quality review judged it against that category (criterion `PF-1`, meaningful
+functionality relevant to driving). A lap timer has no point-of-interest
+functionality, and no other supported category fits either, so this is not a
+wording fix.
+
+That matters beyond the car screen: while the Android Auto form factor is opted
+in, the review fires on any submission carrying a car-compatible artifact, and a
+failure in the production track rejects the **whole** submission — blocking
+ordinary phone updates. So the release build carries none of it, and
+`./gradlew :app:checkReleaseHasNoCarApp` fails the build if a car declaration
+reappears under `src/main`. Starting a recording from the car is instead the
+recording notification's Stop action plus the driving-sized recording screen on
+the phone. (iOS is unaffected — Apple granted the CarPlay driving-task
+entitlement, which has no Android equivalent.)
 
 `:app`'s own tests are Robolectric rather than instrumentation, so they need the
 SDK but no emulator. They exist for one thing the `:core` tests cannot claim:

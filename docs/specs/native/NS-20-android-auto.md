@@ -1,5 +1,43 @@
 # NS-20 — Android Auto
 
+> **Outcome: shipped, then rejected by Google Play. The car surface is now
+> debug-only and does not reach users.**
+>
+> Requirement 8 asked for the category to be confirmed suitable *before*
+> building the UI. It was not — POI was declared as the least-bad fit on the
+> reasoning that the category is only reviewed at the Play Console opt-in
+> (NS-27). The opt-in happened, the review fired, and version code 1 was
+> **rejected** under car app quality `PF-1`: the app provided no meaningful
+> functionality in its declared category relevant to driving. Correct — a lap
+> timer is not a point-of-interest app. Google's review tooling still labels the
+> POI bucket "Parking and Charging Functionality" (the pre-Car-App-Library-1.3
+> category names), which is why the rejection reads as a parking app.
+>
+> **This is not fixable within the spec.** No supported category permits a
+> driving task; NAVIGATION would fail the same criterion. Android has no
+> equivalent of the CarPlay driving-task entitlement Apple granted for NS-19.
+>
+> **What shipped instead** is this spec's own documented fallback, which already
+> existed: the recording notification's Stop action (`RecordingNotification`)
+> plus the driving-sized `RecordScreen` on the phone.
+>
+> **What the code does now.** Everything car lives in the `debug` source set —
+> `app/src/debug/kotlin/.../auto/`, `app/src/debug/res/xml/automotive_app_desc.xml`,
+> the manifest block in `app/src/debug/AndroidManifest.xml`, the `androidx.car.app`
+> dependencies as `debugImplementation`, and `AutoRecordingTest` in
+> `src/testDebug`. It still builds, still tests, and still runs on the Desktop
+> Head Unit; a release APK simply does not contain it.
+>
+> **Why not merely unregistered.** The review fires on any submission carrying a
+> car-compatible artifact while the Android Auto form factor is opted in, and a
+> failure in the *production* track rejects the entire submission — freezing
+> ordinary phone updates. `:app:checkReleaseHasNoCarApp` guards it, because CI
+> only ever builds the debug variant and would not otherwise notice a `<service>`
+> block moved back into `src/main`.
+>
+> Re-promoting this needs a Play category that permits a driving task to exist
+> first. That is a policy change to watch for, not work to schedule.
+
 **Phase:** 1 · **Platform:** Android · **Depends on:** NS-16 · **Estimate:** 4–5 days
 
 ## Goal
@@ -52,8 +90,8 @@ substance of this spec. They are not repeated here.
 - [ ] No GPS → clear message, not a silent no-op.
 - [ ] `pickRecordingEvent` / `localTodayIso` shared with `:core` and covered by the tests ported from `test/unit/record-remote.test.js`, including a DST case.
 - [ ] Connect/disconnect mid-recording does not interrupt.
-- [ ] Verified on the Desktop Head Unit **and** a real head unit or phone-screen Android Auto.
-- [ ] Play policy category confirmed suitable, documented in the PR.
+- [ ] Verified on the Desktop Head Unit **and** a real head unit or phone-screen Android Auto. *(Never completed, and now moot for shipping — debug builds run on the DHU, but nothing reaches a user.)*
+- [x] ~~Play policy category confirmed suitable~~ — **confirmed unsuitable.** Reviewed and rejected under `PF-1`; see the banner above.
 - [ ] `git diff --stat public/ src/` is empty.
 
 ## Verification
