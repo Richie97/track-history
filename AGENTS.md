@@ -77,17 +77,16 @@ not a follow-up:**
      developer setup and deploy instructions live in `README.md` only. Keep it
      that way when editing `site/**`.
    - Download links point at the App Store listing
-     (`https://apps.apple.com/us/app/track-evolution/id6792941186`) — the
+     (`https://apps.apple.com/us/app/track-evolution/id6792941186`) **and** the
+     Play Store listing
+     (`https://play.google.com/store/apps/details?id=app.trackevolution`) — the
      landing page's two CTA rows and "Works like an app"/"Record laps" cards,
      `site/docs/index.html`'s *Get it on your phone*, and
      `site/docs/lap-recording.html`'s callout, plus `appStoreLinkHtml` on the
-     web sign-in screen in `public/app.js`. **Android isn't published**, so
-     every one of those places pairs the iOS link with an Android *coming soon*
-     placeholder — a dashed, non-clickable `.btn.store.soon` **span** beside the
-     iPhone button in the landing page's two CTA rows (a `<span>`, not a
-     disabled `<a>`, so it is neither focusable nor a dead link), and plain
-     text elsewhere. Turning those into the real Play Store link is the whole
-     change when it ships; don't advertise Android as available before then.
+     web sign-in screen in `public/app.js`. Both apps are published, so every
+     one of those places offers the pair; keep them in step — a place that
+     names only one platform is a bug, and the *coming soon* placeholders the
+     landing page used to carry beside the iPhone button are gone.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
    - `site/docs/lap-recording.html` — recording laps with the phone's GPS in
