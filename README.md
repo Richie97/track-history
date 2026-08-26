@@ -8,13 +8,12 @@ with Google (or Apple), and fits comfortably in Cloudflare's free tier.
 site points users. (This README covers development and deploying an instance;
 the public docs site intentionally doesn't.)
 
-**On the App Store:** https://apps.apple.com/us/app/track-evolution/id6792941186 —
-the iOS build of the hosted app (bundle id `app.trackevolution`). Android isn't
-published yet, so every download link in `site/` and the web sign-in screen
-(`appStoreLinkHtml` in `public/app.js`) offers iOS only, with Android shown as
-*coming soon* — a dashed, non-clickable `.btn.store.soon` span beside the iPhone
-button on the landing page, and plain text everywhere else. When the Play Store
-listing ships, those placeholders become the real link.
+**In the app stores:** https://apps.apple.com/us/app/track-evolution/id6792941186
+(iOS) and https://play.google.com/store/apps/details?id=app.trackevolution
+(Android) — both builds of the hosted app, sharing the bundle id / application id
+`app.trackevolution`. Every download link in `site/` and the web sign-in screen
+(`appStoreLinkHtml` in `public/app.js`) offers both platforms; keep the two in
+step when either listing moves.
 
 **Marketing & docs site:** https://docs.trackevolution.app (also served at
 https://richie97.github.io/track-history/) — static
