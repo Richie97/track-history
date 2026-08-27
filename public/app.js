@@ -32,8 +32,8 @@ import { initPullRefresh } from "./js/pull-refresh.js";
 
 const $app = document.getElementById("app");
 
-// Host shown in share URLs — the server's, not the WebView's (which would be
-// capacitor://localhost inside the native apps).
+// Host shown in share URLs — the server's, not the page's, which a native
+// shell could load from an origin of its own.
 const serverHost = () => new URL(platform.serverOrigin()).host;
 
 // Native shells open external links in the system browser; a plain WebView
@@ -2414,7 +2414,7 @@ async function route() {
 // Native-shell re-entry points: re-run the router after a system-browser
 // sign-in completes, and full-page navigate for /share/<slug> deep links
 // (SHARE_SLUG is read from location.pathname at module load, so a reload is
-// what re-evaluates it — Capacitor's local server SPA-falls-back like the Worker).
+// what re-evaluates it, which the Worker's SPA fallback makes safe).
 platform.onAuthed = () => {
   showSkeleton();
   route();

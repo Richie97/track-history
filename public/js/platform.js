@@ -1,7 +1,13 @@
-// Platform seam between the web app and the native shells (mobile/).
-// On the web these defaults apply and nothing changes; the Capacitor shell's
-// native.js mutates this object (API base, bearer token, native hooks) before
-// importing app.js. Node-import-safe: no top-level location/navigator access.
+// Platform seam between the web app and a native shell.
+//
+// This existed for the Capacitor shells, which mutated this object (API base,
+// bearer token, native hooks) before importing app.js. Those shells are
+// retired — the native apps in apps/ are first-party clients that don't load
+// this code — so nothing sets `native` or fills any hook in below, and the web
+// defaults are now the only behavior. The seam and its dependents are kept
+// rather than unwound; see the tracking issue for that cleanup.
+//
+// Node-import-safe: no top-level location/navigator access.
 
 export const platform = {
   native: false,
@@ -17,8 +23,8 @@ export const platform = {
   logout: () => fetch("/auth/logout", { method: "POST" }),
 
   // Small-value persistence that survives app restarts (recorder checkpoints,
-  // recovery state). localStorage on the web; the native shell swaps in
-  // Capacitor Preferences, which the OS never evicts. Async on both.
+  // recovery state). localStorage on the web; async so a shell could swap in
+  // storage the OS never evicts.
   prefGet: async (key) => {
     try {
       return localStorage.getItem(key);

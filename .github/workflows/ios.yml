@@ -42,15 +42,13 @@ jobs:
       # silently ship a build whose CarPlay scene never attaches, which no test
       # catches because the phone app is unaffected.
       #
-      # Both files are also linted. An entitlements file that doesn't parse is the
+      # The file is also linted. An entitlements file that doesn't parse is the
       # failure mode that actually happened here — a hand-edited `<key>` with no
-      # value left the Capacitor app's Release entitlements invalid, and nothing
-      # noticed.
+      # value left the retired Capacitor app's Release entitlements invalid, and
+      # nothing noticed.
       - name: The CarPlay entitlement stays in, and the entitlements parse
         run: |
-          for f in apps/ios/App/TrackEvolution.entitlements \
-                   mobile/ios/App/App/App.entitlements \
-                   mobile/ios/App/App/AppDebug.entitlements; do
+          for f in apps/ios/App/TrackEvolution.entitlements; do
             if ! plutil -lint "$f"; then
               echo "::error::$f is not a valid plist"
               exit 1

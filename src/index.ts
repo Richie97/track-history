@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "./types";
 import { requireSession } from "./middleware";
-import { appCors } from "./lib/cors";
 import { auth } from "./routes/auth";
 import { me } from "./routes/me";
 import { tracks } from "./routes/tracks";
@@ -21,11 +20,6 @@ for (const routes of [me, tracks, events, sessions, vehicles, share]) {
 }
 
 const app = new Hono<AppContext>();
-
-// CORS for the native apps' Capacitor WebView origins (see lib/cors.ts);
-// same-origin web traffic is untouched.
-app.use("/api/*", appCors);
-app.use("/auth/*", appCors);
 
 app.route("/auth", auth);
 app.route("/.well-known", wellKnown);
