@@ -13,7 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.toRoute
-import app.trackevolution.auth.AuthController
+import app.trackevolution.auth.ChecklistTemplateStore
 import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.offline.OfflineStore
@@ -51,13 +51,21 @@ import app.trackevolution.ui.theme.ThemeChoice
 fun AppNavHost(
     nav: NavHostController,
     api: ApiClient,
-    auth: AuthController,
+    /**
+     * Only ever reaches [SettingsModel], so this is typed as the narrow
+     * interface rather than `AuthController`: it lets the whole graph be
+     * composed in a Robolectric test without standing up an encrypted token
+     * store, which is what #108's dashboard → record test needs.
+     */
+    auth: ChecklistTemplateStore,
     checklistTemplate: List<String>,
     hasCustomChecklistTemplate: Boolean,
     themeChoice: ThemeChoice,
     onThemeChange: (ThemeChoice) -> Unit,
     serverUrl: String,
     recorderState: RecorderState,
+    /** Idle means no live recording and none waiting to be saved (#108). */
+    recorderIdle: Boolean,
     onStartRecording: (Int?) -> Unit,
     onStopRecording: () -> Unit,
     onSignOut: () -> Unit,
@@ -80,6 +88,8 @@ fun AppNavHost(
                 onOpenVehicle = { nav.navigate(Route.Vehicle(it)) },
                 onNewEvent = { nav.navigate(Route.EventForm()) },
                 onOpenSettings = { nav.navigate(Route.Settings) },
+                onRecord = { nav.navigate(Route.Record(eventId = it)) },
+                recorderIdle = recorderIdle,
             )
         }
 

@@ -181,6 +181,10 @@ fun SignedInScaffold(
                 onThemeChange = onThemeChange,
                 serverUrl = serverUrl,
                 recorderState = recorder,
+                // Idle is "nothing to say about a recording": none running, and
+                // none stopped-but-unsaved. Either of those already has a
+                // visible affordance above, so the dashboard's door stands down.
+                recorderIdle = !recorder.isRecording && pending == null,
                 onStartRecording = onStartRecording,
                 onStopRecording = { Recorder.stop(context) },
                 onSignOut = onSignOut,

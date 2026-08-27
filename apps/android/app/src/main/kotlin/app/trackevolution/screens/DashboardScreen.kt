@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,8 +28,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
@@ -64,6 +68,16 @@ fun DashboardScreen(
     onOpenVehicle: (Int) -> Unit,
     onNewEvent: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** Open the recorder, attached to today's event when there is one (#108). */
+    onRecord: (Int?) -> Unit,
+    /**
+     * Whether to draw the recorder's second door at all.
+     *
+     * Idle-only: a live recording already has the scaffold's always-visible
+     * banner and an unsaved one has its card, so a third control here would be a
+     * third answer to "what is the recorder doing".
+     */
+    recorderIdle: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -91,6 +105,27 @@ fun DashboardScreen(
                             ),
                         ) {
                             Text("+ Add event", style = TrackTheme.typography.bodyStrong)
+                        }
+
+                        // The recorder's second door (#108). On the web the only
+                        // way in is an event page, which means navigating into an
+                        // event while suiting up — the wrong friction in a paddock.
+                        if (recorderIdle) {
+                            val target = model.todaysEvent
+                            OutlinedButton(
+                                onClick = { onRecord(target?.id) },
+                                border = BorderStroke(1.dp, colors.borderHairline),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = colors.surfaceCard,
+                                    contentColor = colors.textStrong,
+                                ),
+                                modifier = Modifier.semantics {
+                                    testTag = "dashboardRecord"
+                                    contentDescription = recordLabel(target)
+                                },
+                            ) {
+                                Text("Record laps", style = TrackTheme.typography.bodyStrong)
+                            }
                         }
                     }
                 }
@@ -177,6 +212,21 @@ fun DashboardScreen(
         }
     }
 }
+
+/**
+ * Where the laps are going to land, said out loud (#108).
+ *
+ * The visible label can't carry a subtitle without pushing the fold down on
+ * every day that isn't a track day, but a screen reader can have the whole
+ * sentence for free. The wording is iOS's `recordLabel`, verbatim — the same
+ * button on two platforms should not describe itself two ways.
+ */
+internal fun recordLabel(event: Event?): String =
+    if (event == null) {
+        "Record laps. No event today — the recording is saved to one afterwards."
+    } else {
+        "Record laps at ${event.trackName}"
+    }
 
 /**
  * The brand bar: the mark and the wordmark, with Settings on the far side —
