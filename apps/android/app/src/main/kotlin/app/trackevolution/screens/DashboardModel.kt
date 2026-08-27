@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
+import app.trackevolution.core.RemoteRecording
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Event
@@ -95,4 +96,21 @@ class DashboardModel(
     /** The server returns newest first; six is what fits before it stops being a summary. */
     val recent: List<Event>
         get() = events.filterNot { EventDates.isUpcoming(it.startDate) }.take(6)
+
+    /**
+     * The event a recording started from the dashboard attaches to, or null to
+     * record unattached (#108).
+     *
+     * Deliberately [RemoteRecording.pickRecordingEvent] — the *same* rule the
+     * event page's door and Android Auto use, and the one iOS's `todaysEvent`
+     * calls, so no two ways into the recorder can disagree about where the laps
+     * belong. It reads the already-loaded [events], so the button costs no
+     * request and works offline.
+     *
+     * Null is a normal outcome rather than a failure: the event often doesn't
+     * exist until after the session is driven, and the scaffold's banner then
+     * offers the recording to the first event whose record screen opens it.
+     */
+    val todaysEvent: Event?
+        get() = RemoteRecording.pickRecordingEvent(events, RemoteRecording.localTodayIso())
 }

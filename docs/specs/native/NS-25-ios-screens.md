@@ -57,8 +57,8 @@ not half-build the garage.
    > is shown **only while the recorder is idle**: a live recording already has
    > the always-visible `RecordingBanner` and an unsaved one has the banner card,
    > and a third control would be a third answer to the same question. Android
-   > gets the same treatment separately, tracked in #108 — which also has to port
-   > `pickRecordingEvent` to `:core`, since nothing there has it yet.
+   > has the same button as of #108, on the same rule — `pickRecordingEvent`
+   > reached `:core` ahead of it with NS-20, so that work was just the button.
 3. **Event detail**: sessions with their laps, per-session stats (best-N average,
    pace slope, warmup — port `public/js/lap-stats.js`, 44 lines, with
    `test/unit/lap-stats.test.js`), the progress chart, the best-lap trackmap, and
