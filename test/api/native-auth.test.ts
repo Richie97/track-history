@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../../src/lib/session";
 import { createUser, sessionFor, signedInUser } from "./helpers";
 
-// The native-app auth surface: Bearer tokens on /api/*, CORS for the
-// Capacitor WebView origins, and the system-browser OAuth flow's one-time
-// code exchange (PKCE S256). Tests run with DEV_MODE=1, so
-// /auth/login?client=app mints the code without Google.
+// The native-app auth surface: Bearer tokens on /api/*, and the
+// system-browser OAuth flow's one-time code exchange (PKCE S256). Tests run
+// with DEV_MODE=1, so /auth/login?client=app mints the code without Google.
+//
+// There is deliberately no CORS here. The Capacitor shells loaded the
+// frontend from capacitor://localhost and called the API cross-origin, which
+// is what src/lib/cors.ts existed for; the native clients are HTTP clients
+// that send no Origin at all, and the web app is same-origin.
 
 async function pkcePair() {
   const verifier = crypto.randomUUID().replaceAll("-", "");
@@ -65,29 +69,15 @@ describe("Bearer token auth on /api/*", () => {
   });
 });
 
-describe("CORS for app origins", () => {
-  it("answers preflight for a Capacitor origin", async () => {
-    const res = await SELF.fetch("https://example.com/api/me", {
-      method: "OPTIONS",
-      headers: {
-        Origin: "capacitor://localhost",
-        "Access-Control-Request-Method": "GET",
-        "Access-Control-Request-Headers": "Authorization",
-      },
-    });
-    expect(res.headers.get("access-control-allow-origin")).toBe("capacitor://localhost");
-    expect(res.headers.get("access-control-allow-headers") ?? "").toMatch(/Authorization/i);
-  });
-
-  it("does not allow other origins", async () => {
-    const res = await SELF.fetch("https://example.com/api/me", {
-      method: "OPTIONS",
-      headers: {
-        Origin: "https://evil.example",
-        "Access-Control-Request-Method": "GET",
-      },
-    });
-    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+describe("no cross-origin access", () => {
+  it("does not answer CORS for any origin", async () => {
+    for (const origin of ["capacitor://localhost", "https://evil.example"]) {
+      const res = await SELF.fetch("https://example.com/api/me", {
+        method: "OPTIONS",
+        headers: { Origin: origin, "Access-Control-Request-Method": "GET" },
+      });
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    }
   });
 });
 

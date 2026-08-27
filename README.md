@@ -168,21 +168,23 @@ Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
 empty logbook.
 
-## Native apps (in progress)
+## Native apps
 
-The Capacitor shells are being replaced by first-party native clients —
-**SwiftUI** in [`apps/ios/`](apps/ios/) and **Jetpack Compose** in
-[`apps/android/`](apps/android/) — so that background GPS recording and
-CarPlay/Android Auto stop fighting a web view. The backend and the web app
-(`public/`) are unchanged by that work: the web app stays the feature frontier
-and keeps the desk-bound long tail (`.vbo` and other logger-file import, year in
-review, the setup notebook and its lap-time correlation), while the native apps
-own the on-track path — recording, the logbook you check between sessions, the
-garage you check before an event, CarPlay/Android Auto, and **video** import,
-which belongs on the device the footage is already on.
+The shipped iOS and Android apps are first-party native clients — **SwiftUI**
+in [`apps/ios/`](apps/ios/) and **Jetpack Compose** in
+[`apps/android/`](apps/android/) — which replaced the web-view shells that used
+to wrap `public/`, so that background GPS recording and CarPlay stop fighting a
+web view. The backend and the web app (`public/`) were unchanged by that work.
 
-The work breakdown lives in [`docs/specs/native/`](docs/specs/native/) as `NS-*`
-specs. The Capacitor apps below keep shipping until the native ones land.
+**There are three clients, and "add it everywhere" is not the default.** The
+web app is the feature frontier and keeps the desk-bound long tail (`.vbo` and
+other logger-file import, year in review, the setup notebook and its lap-time
+correlation); the native apps own the on-track path — recording, the logbook you
+check between sessions, the garage you check before an event, CarPlay, and
+**video** import, which belongs on the device the footage is already on. The
+split is deliberate and is recorded per feature in
+[`docs/specs/native/README.md`](docs/specs/native/README.md); the work breakdown
+is the `NS-*` specs beside it.
 
 The iOS client now carries the whole logbook natively — dashboard, event detail,
 event form, track page, settings and the garage (vehicles, consumables, wear and
@@ -247,10 +249,10 @@ the offline write queue is exercised against **real SQLite**, closing and
 reopening the database file, because the queue holds recorded lap sessions that
 exist nowhere else until they replay.
 
-`:core` currently holds the recorder core, the lap geometry, the domain models,
-the API client and the recording journal; `:app` holds the design system,
-sign-in and the lap recorder's foreground service. The logbook screens
-themselves are still to come. Four things worth knowing before touching either:
+`:core` holds the recorder core, the lap geometry, the domain models, the API
+client, the offline cache and write queue, the chart maths and the recording
+journal; `:app` holds the design system, sign-in, the lap recorder's foreground
+service, and the screens. Things worth knowing before touching either:
 
 - **Sign-in runs in a Chrome Custom Tab**, never a WebView — Google blocks OAuth
   in embedded web views, which is why the server grew a PKCE native-app flow.
@@ -262,11 +264,13 @@ themselves are still to come. Four things worth knowing before touching either:
   debug builds only.
 - **The recorder is a foreground service, and the service — not the activity —
   owns the recording.** That is what lets it keep taking fixes with the screen
-  off and after the app is swiped out of recents, and it is why the native app
-  needs none of the `useLegacyBridge` workaround the Capacitor shell carries.
+  off and after the app is swiped out of recents. The old web-view shell had to
+  fall back to a legacy bridge to stop Android halting its background location
+  after five minutes; a foreground service has no such limit and no such
+  workaround.
   Every accepted fix is appended to a journal on disk as it arrives
   (`RecordingJournal` in `:core`, so it unit-tests on the JVM), so a force-stop
-  loses nothing rather than the ~10 s the WebView recorder can, and the next
+  loses nothing rather than the ~10 s the WebView recorder could, and the next
   launch offers the recording back. Stopping hands it to a review screen: tap
   the driven trace where the start/finish line is, check the laps that fall out,
   pick the event, save. Nothing there is required for the recording to continue,
@@ -294,140 +298,90 @@ themselves are still to come. Four things worth knowing before touching either:
   also the performance case, since a stored lap is capped at 300 points and only
   a raw recording is that long.
 
-iOS specifics — the generated-but-committed Xcode project, the bundle id shared
-with the Capacitor app, Swift 6 concurrency, and why the CarPlay entitlement
-stays out of the checkout — are in [`apps/ios/README.md`](apps/ios/README.md).
+iOS specifics — the generated-but-committed Xcode project, Swift 6 concurrency,
+the recorder, the offline queue and the screens — are in
+[`apps/ios/README.md`](apps/ios/README.md).
 
-## Mobile apps (Capacitor)
+## CarPlay (iOS)
 
-[`mobile/`](mobile/) wraps the same frontend in native iOS/Android shells for
-the App Store / Play Store. `public/` stays the single source of truth:
-`mobile/scripts/sync-www.mjs` copies it into the Capacitor webDir, drops the
-service worker, and swaps the module entry to `overrides/native.js`, which
-configures the platform seam (`public/js/platform.js`) — bearer-token auth
-against a configurable server, Google/Apple sign-in via the system browser
-(PKCE + `POST /auth/exchange`), OS share sheet, haptics, status-bar theming — and then
-imports the untouched `app.js`.
+The iOS app ships a CarPlay **driving task** scene ([`apps/ios/App/CarPlay/`](apps/ios/App/CarPlay/))
+that remote-controls the lap recorder — one Start/Stop button plus a status line
+on the car screen, so you can start recording from the grid without touching the
+phone. There is no bridge layer: the scene drives the same recorder the phone UI
+does, reached through `AppServices`.
 
-**Prereqs:** Xcode (iOS) / Android Studio (Android), plus CocoaPods on macOS.
+Starting attaches to the event whose dates cover today; with no matching event
+(or offline, or signed out) it records anyway — recording is entirely on-device —
+and the dashboard shows a banner for the event-less recording. Create the event
+whenever you like and the recording is adopted the moment you open that event's
+record screen, feeding the usual review/line-picker/save flow. Stopping keeps the
+recording checkpointed on the phone until it's saved or discarded; the dashboard
+banner carries a Discard button for exactly that, so a recording you don't want
+doesn't need an event created just to reach one.
 
-```sh
-cd mobile
-npm install
-npm run ios        # sync www/ + cap sync + open Xcode
-npm run android    # sync www/ + cap sync + open Android Studio
-npm run assets     # regenerate icons/splash from resources/ (uses @capacitor/assets)
-```
-
-**Developing against a local server:** run `npm run dev` at the repo root with
-`DEV_MODE=1`, then open the app's server settings and point it at
-`http://localhost:8787` (iOS simulator) or `http://10.0.2.2:8787` (Android
-emulator — debug builds allow cleartext for this). The *Server:* link lives on
-the "Can't reach the server" screen (it's deliberately not shown on the normal
-sign-in screen) — get there by launching the app with networking off, e.g.
-airplane mode. Sign-in then uses the dev bypass, no Google config needed.
-
-**Users can also point the app at a self-hosted instance** via the same Server
-setting; the Worker ships CORS for the Capacitor shell origins, so a standard
-deploy of this repo works out of the box.
-
-**Live lap recording:** the native apps can record a session's laps straight
-from the phone's GPS (`public/js/record/` — the event page's *Record laps with
-your phone* panel, native-only). Recording runs with the screen locked via
-`@capacitor-community/background-geolocation` (Android: foreground service +
-persistent notification; iOS: the `location` background mode — both configured
-in the committed native projects, with `android.useLegacyBridge` set in
-`capacitor.config.json` per the plugin's docs so background updates aren't
-killed after 5 minutes). The recorder buffers ~1 Hz fixes in memory,
-checkpoints them through Capacitor Preferences every few seconds (a killed app
-recovers the recording on next launch), and auto-stops after the car has been
-parked for 15 minutes. Stopping feeds the trace into the same import review +
-start/finish line picker as a GoPro file — laps, best-lap racing line, and
-per-lap speed channels, saved through the normal sessions API. Nothing needs
-the server: the raw GPS trace never leaves the phone.
-
-**CarPlay (iOS):** the iOS shell ships a CarPlay "driving task" scene
-(`mobile/ios/App/App/CarPlaySceneDelegate.swift`) that remote-controls the lap
-recorder — one Start/Stop button plus a status line on the car screen, so you
-can start recording from the grid without touching the phone. Starting
-attaches to the event whose dates cover today; with no matching event (or
-offline, or signed out) it records anyway — recording is entirely on-device —
-and the dashboard shows a banner for the event-less recording: create the
-event whenever you like and the recording is adopted the moment you open that
-event's record screen, feeding the usual review/line-picker/save flow.
-Stopping keeps the recording checkpointed on the phone until it's saved or
-discarded — the dashboard banner carries a Discard button for exactly that,
-so a recording you don't want doesn't need an event created just to reach one.
-The scene talks to the web
-app through the app-local `CarPlayBridgePlugin.swift`
-(`Capacitor.Plugins.CarPlayBridge`), wired to `platform.recorderRemote` /
-`platform.onRecorderState` in `overrides/native.js`.
+The attachment rule is deliberately conservative — it never guesses past today —
+and is pinned across clients by `contracts/logic/remote-attach.json`.
 
 CarPlay apps require an Apple-granted entitlement.
 **`com.apple.developer.carplay-driving-task` has been granted** and is checked in
-— `mobile/ios/App/App/*.entitlements` for the Capacitor app, and
-`apps/ios/App/TrackEvolution.entitlements` for the native one.
-
-Two consequences worth knowing:
+at `apps/ios/App/TrackEvolution.entitlements`. Two consequences worth knowing:
 
 - **Removing the key doesn't break anything visibly.** The build still succeeds,
   the phone app is unaffected, and the CarPlay scene simply never attaches — so
   the feature disappears with nothing failing. CI asserts the key is present, and
-  lints every entitlements file, for exactly that reason.
+  lints the entitlements file, for exactly that reason.
 - **A device build that fails complaining about this key means a stale
   provisioning profile**, not a wrong key: refresh it (Xcode → Settings →
   Accounts → Download Manual Profiles). Signing fails for entitlements a profile
   doesn't carry, so a profile created before the grant won't do.
 
-Still outstanding: documenting the feature for users in
-`site/docs/lap-recording.html`. It is deliberately absent there until a
-CarPlay-enabled build actually ships — the docs site must not advertise
-features the shipped app doesn't have.
+**Testing it in the Simulator:** run on an iPhone simulator, then open **I/O →
+External Displays → CarPlay** in the Simulator app. Tap the app icon on the
+CarPlay home screen; use **Features → Location → Freeway Drive** for GPS fixes
+fast enough to arm the recorder. Real head units (and Apple's CarPlay Simulator
+from Additional Tools for Xcode, which runs a signed device build) need the
+granted entitlement and a matching profile.
 
-**Testing CarPlay in the iOS Simulator:** run on an iPhone simulator, then open
-**I/O → External Displays → CarPlay** in the Simulator app. Tap the app icon
-on the CarPlay home screen; use **Features → Location → Freeway Drive** for
-GPS fixes fast enough to arm the recorder. Real head units (and Apple's
-CarPlay Simulator from Additional Tools for Xcode, which runs a signed device
-build) need the granted entitlement and a matching profile.
+**Android has no equivalent, and won't.** See the Android Auto note above: the
+car surface exists but is debug-only, because Android has no category for a
+driving-task app and the Play car review rejects it under Points of Interest.
 
-Note the CarPlay scene manifest moved the iOS app onto the UIKit scene
-lifecycle: the iPhone window is now a scene (`PhoneSceneDelegate.swift`, which
-also forwards OAuth-callback and universal-link URLs to Capacitor — under
-scenes they bypass the `AppDelegate` callbacks).
+## Release checklist
 
-**Release checklist:**
-
-- iOS: set the real `<Team ID>.app.trackevolution` in `wrangler.jsonc`'s
-  `IOS_APP_ID` (served at `/.well-known/apple-app-site-association`) and
-  redeploy the Worker, so Universal Links to `/share/*` open the app.
-  The Associated Domains entitlement lives only in the **Release**
-  configuration (`App.entitlements`); Debug builds use the empty
-  `AppDebug.entitlements` so free personal Apple teams can run the app on
-  a device — don't add capabilities to the Debug side.
-- Android: replace the placeholder SHA-256 fingerprint in
-  `public/.well-known/assetlinks.json` with the one from Play Console → App
-  signing, and redeploy, so App Links verify. Until that lands,
-  `adb shell pm get-app-links app.trackevolution` reports `legacy_failure` and a
-  `/share/<slug>` link opens the browser rather than the app — the app's own
-  handling is in place and waiting on the file, not the other way round.
-- Store listings: sell the logbook features; the tip link is already hidden on
-  iOS builds (Apple 3.1.1) and external links open in the system browser.
-- Xcode Cloud: builds work out of the box —
-  `mobile/ios/App/ci_scripts/ci_post_clone.sh` installs Node/CocoaPods if
-  missing, runs `npm ci`, rebuilds `www/`, and runs `cap sync ios` (which runs
-  `pod install`) before the archive step, since `node_modules/`, `www/`, and
-  `Pods/` are all gitignored.
-- App version: Xcode Cloud manages the build number (`CFBundleVersion`), but the
-  marketing version is ours — `MARKETING_VERSION` in
-  `mobile/ios/App/App.xcodeproj/project.pbxproj` (both configurations). Once a
-  version has been approved on the App Store its train closes, and further
-  uploads are rejected at *Prepare Build for App Store Connect* with ITMS-90186
-  ("train version is closed") / ITMS-90062 ("must contain a higher version"), so
-  bump `MARKETING_VERSION` before the first upload of a new release. Keep
-  `apps/ios/project.yml` (and its generated
-  `apps/ios/TrackEvolution.xcodeproj`) on the same version — the native rewrite
-  ships as an in-place update under the same bundle id and the same train.
+- **iOS Universal Links:** set the real `<Team ID>.app.trackevolution` in
+  `wrangler.jsonc`'s `IOS_APP_ID` (served at
+  `/.well-known/apple-app-site-association`) and redeploy the Worker, so links
+  to `/share/*` open the app.
+- **Android App Links:** `public/.well-known/assetlinks.json` carries the
+  SHA-256 of the **Play app-signing** key (Play Console → *Test and release →
+  App integrity → App signing key certificate*). Confirm with
+  `adb shell pm get-app-links app.trackevolution`, which should report
+  `verified` — a locally-signed build never will, since the fingerprint is
+  Play's. If the signing key is ever reset, update this file and **redeploy the
+  Worker**; it is served from `public/`, so it doesn't need an app update.
+- **Android target API level — a recurring annual deadline.** Play enforces it
+  at *upload*: the target must stay within a year of the latest Android release,
+  so from 31 Aug 2026 an update targeting below API 36 (Android 16) is refused
+  outright. Raise `targetSdk` (and `compileSdk` with it — the check is on the
+  target, so moving `compileSdk` alone changes nothing) in
+  `apps/android/app/build.gradle.kts`, then read Android's behaviour-changes page
+  for what the new target now gates. Expect this again around Aug 2027.
+- **Android Auto form factor must stay opted out** in Play Console → *Advanced
+  settings → Form factors*. A car artifact in the production track fails review
+  and rejects the **whole** submission, blocking ordinary phone updates.
+  `./gradlew :app:checkReleaseHasNoCarApp` guards the build side; nothing can
+  guard the Console side.
+- **Store listings:** sell the logbook features; the tip link is hidden on iOS
+  builds (Apple 3.1.1) and external links open in the system browser.
+- **App version:** Xcode Cloud manages the build number (`CFBundleVersion`), but
+  the marketing version is ours — `MARKETING_VERSION` in
+  [`apps/ios/project.yml`](apps/ios/project.yml), followed by
+  `apps/ios/generate.sh`. Once a version has been approved on the App Store its
+  train closes, and further uploads are rejected at *Prepare Build for App Store
+  Connect* with ITMS-90186 ("train version is closed") / ITMS-90062 ("must
+  contain a higher version") — so bump it before the first upload of a new
+  release. On Android the equivalents are `versionCode` / `versionName` in
+  `apps/android/app/build.gradle.kts`.
 
 ## Video / telemetry import
 
