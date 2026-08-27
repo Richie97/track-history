@@ -429,6 +429,50 @@ scenes they bypass the `AppDelegate` callbacks).
   `apps/ios/TrackEvolution.xcodeproj`) on the same version — the native rewrite
   ships as an in-place update under the same bundle id and the same train.
 
+### Play Store test track
+
+The **Play Store test track** workflow
+([`.github/workflows/android-release.yml`](.github/workflows/android-release.yml))
+builds the native Android client — `apps/android`, not the Capacitor shell this
+section otherwise covers — signs it with the upload key and pushes the
+`.aab` to Play. Run it from the Actions tab — it is `workflow_dispatch` only,
+because a version code is burned the moment it is uploaded, even if the release
+is later discarded. Inputs: the track (`internal`, `alpha` or `beta` —
+production is deliberately absent, since that rollout is the staged,
+percentage-gated Console operation), optional `versionCode` / `versionName`
+overrides, and a dry run that builds and signs but uploads nothing, attaching
+the bundle to the run instead.
+
+It needs five repository secrets:
+
+| Secret | What it is |
+| --- | --- |
+| `PLAY_UPLOAD_KEYSTORE_BASE64` | the upload keystore, as `base64 -w0 upload.jks` |
+| `PLAY_UPLOAD_KEYSTORE_PASSWORD` | its store password |
+| `PLAY_UPLOAD_KEY_ALIAS` | the key alias inside it |
+| `PLAY_UPLOAD_KEY_PASSWORD` | that key's password |
+| `PLAY_SERVICE_ACCOUNT_JSON` | a Google Cloud service-account JSON, granted *Release manager* on the app under Play Console → Users and permissions |
+
+The keystore **must be the existing upload key**, or Play rejects the build as a
+different app; a lost upload key is a Play support process with a lead time, not
+a workaround. Locally the release variant builds *unsigned* rather than falling
+back to the debug key, so an artifact signed with anything else can't be
+produced by accident, and the workflow verifies the signature before uploading.
+`versionCode` and `versionName` come from `apps/android/app/build.gradle.kts`
+unless the workflow inputs override them — Play requires a `versionCode`
+strictly higher than anything it has ever received for `app.trackevolution`,
+including the Capacitor builds.
+
+Two things no build can check, both from NS-27: **Android Auto must be opted out
+in the Play Console** — the code side is guarded by
+`./gradlew :app:checkReleaseHasNoCarApp`, which the workflow runs before
+anything else, but the Console opt-in is manual, and a car review failure
+rejects the *entire* submission, ordinary phone updates included — and the
+recorder must survive a real track day before the rollout goes past 10%.
+
+The iOS side has no equivalent: those builds go through Xcode Cloud, which
+archives and uploads to TestFlight itself.
+
 ## Video / telemetry import
 
 On any event page, **Import video / telemetry…** turns recordings into sessions

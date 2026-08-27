@@ -1,0 +1,189 @@
+# Deploy the native Android client to a Play Store *test* track (spec: NS-27).
+#
+# Manual only. Pushing a build to a store is outward-facing and irreversible in
+# the sense that matters — a version code, once uploaded, is burned even if the
+# release is discarded — so nothing here fires off a merge.
+#
+# Test tracks only, deliberately. `production` is not in the choice list: this
+# workflow exists to get builds in front of testers, and the production rollout
+# is the staged, percentage-gated Console operation NS-27 describes, which
+# should not be one mis-click away in a dropdown.
+#
+# It builds apps/android (the native rewrite), not mobile/ (the Capacitor
+# shell). Both carry applicationId app.trackevolution on purpose, so this is an
+# in-place update to the existing listing.
+name: Play Store test track
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: Play test track to publish to
+        type: choice
+        options: [internal, alpha, beta]
+        default: internal
+      version_code:
+        description: versionCode override (must be higher than anything ever uploaded to Play)
+        type: string
+        required: false
+      version_name:
+        description: "versionName override, e.g. 2.0.0 (default: the value in build.gradle.kts)"
+        type: string
+        required: false
+      dry_run:
+        description: Build and sign, but do not upload — the .aab is attached to the run
+        type: boolean
+        default: false
+
+# Never cancel one of these in flight: a superseded run may already have opened
+# a Play edit, and killing it mid-upload leaves that edit dangling.
+concurrency:
+  group: play-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 21, matching android.yml's app job: :app depends on :core, whose
+      # toolchain is 21, so Gradle never has to go hunting for a second JDK.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Ahead of anything expensive, and well ahead of any upload. Play rejected
+      # this app once for shipping a car-compatible artifact under a category a
+      # lap timer cannot satisfy (NS-20), and a car review failure in the
+      # production track rejects the *whole* submission — freezing ordinary
+      # phone updates. The guard is cheap; the rejection round is not.
+      - name: A release build must not be an Android Auto app
+        working-directory: apps/android
+        run: ./gradlew :app:checkReleaseHasNoCarApp --no-daemon
+
+      # android.yml runs these on every PR, but a dispatch can name any ref,
+      # including one that never opened a PR. A store upload is the wrong place
+      # to discover that.
+      - name: Tests
+        working-directory: apps/android
+        run: ./gradlew :core:test :app:testDebugUnitTest --no-daemon
+
+      # Both secrets are checked here, before the build rather than after it: the
+      # upload action's own failure for a missing service account arrives ten
+      # minutes later and says less.
+      - name: Decode the upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::PLAY_UPLOAD_KEYSTORE_BASE64 is not set. See README → Play Store test track."
+            exit 1
+          fi
+          if [ -z "$SERVICE_ACCOUNT_JSON" ] && [ "${{ inputs.dry_run }}" != "true" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set, so this run cannot upload. Re-run with dry run to build only."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+
+      - name: Build the release bundle
+        working-directory: apps/android
+        env:
+          TE_UPLOAD_KEYSTORE: ${{ runner.temp }}/upload.jks
+          TE_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+          TE_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          TE_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+          # Empty when the input is omitted, which build.gradle.kts reads as
+          # "keep the checked-in value".
+          TE_VERSION_CODE: ${{ inputs.version_code }}
+          TE_VERSION_NAME: ${{ inputs.version_name }}
+        # An .aab, not an .apk: Play has required App Bundles for updates to
+        # existing listings since 2021.
+        run: ./gradlew :app:bundleRelease --no-daemon
+
+      # The signing config is conditional — absent the environment above, the
+      # release variant builds *unsigned* rather than failing. That is right on
+      # a laptop and wrong here, so confirm the bundle actually carries a
+      # signature before handing it to Play, which would otherwise reject it
+      # minutes later with a less obvious message.
+      - name: The bundle is signed, and by whom
+        run: |
+          AAB=apps/android/app/build/outputs/bundle/release/app-release.aab
+          # Matched on the output, not the exit code: `jarsigner -verify` prints
+          # "jar is unsigned" and exits 0, so a status check here would pass on
+          # exactly the artifact this step exists to catch. Captured rather than
+          # piped to grep, because the runner's shell sets `pipefail` and grep -q
+          # closing the pipe early would fail the pipeline on a *good* bundle.
+          verification=$(jarsigner -verify "$AAB")
+          echo "$verification"
+          case "$verification" in
+            *"jar verified"*) ;;
+            *)
+              echo "::error::$AAB is not signed — the keystore secrets did not reach the build."
+              exit 1
+              ;;
+          esac
+          # Logged on purpose: if Play ever rejects the upload as a different
+          # app, this fingerprint against Play Console → App signing → *upload*
+          # key certificate is the first thing to compare.
+          keytool -printcert -jarfile "$AAB" | grep -A1 'SHA256:' || true
+
+      # A warning rather than a failure: App Links verification is a property of
+      # the deployed site, not of this build, and a test-track build is worth
+      # shipping without it. But it fails silently on the device — a
+      # /share/<slug> link just opens the browser — so it is worth saying out
+      # loud on every release until the fingerprint lands.
+      - name: Check App Links can verify
+        run: |
+          if grep -q REPLACE_WITH_PLAY_APP_SIGNING public/.well-known/assetlinks.json; then
+            echo "::warning::public/.well-known/assetlinks.json still holds the placeholder fingerprint, so App Links will not verify. Replace it with the SHA-256 from Play Console → App signing → *app* signing key (not the upload key) and redeploy the Worker."
+          fi
+
+      # Attached whether or not the upload runs: it is the artifact a dry run
+      # exists to produce, and on a real release it is what you hand a tester
+      # who cannot wait for Play's processing.
+      - name: Attach the bundle to this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: apps/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+      # Pinned to a tag rather than a commit SHA, which is the weaker choice for
+      # a third-party action holding a Play service-account key — worth
+      # tightening if this workflow's reach ever grows past test tracks.
+      - name: Upload to Play
+        if: ${{ !inputs.dry_run }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.trackevolution
+          releaseFiles: apps/android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track }}
+          # No mapping file: the release build has minification off, so there is
+          # nothing to deobfuscate.
+          status: completed
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Play Store test track"
+            echo
+            echo "- ref: \`${{ github.ref_name }}\` (\`${{ github.sha }}\`)"
+            echo "- track: \`${{ inputs.track }}\`"
+            echo "- dry run: \`${{ inputs.dry_run }}\`"
+            echo "- versionCode: \`${{ inputs.version_code || 'from build.gradle.kts' }}\`"
+            echo "- versionName: \`${{ inputs.version_name || 'from build.gradle.kts' }}\`"
+            echo
+            echo "Before promoting past 10% (NS-27): the Android Auto form factor must be"
+            echo "**opted out** in the Play Console — no build can guard that, and a car"
+            echo "review failure rejects the whole submission — and the recorder must have"
+            echo "survived a real track day."
+          } >> "$GITHUB_STEP_SUMMARY"

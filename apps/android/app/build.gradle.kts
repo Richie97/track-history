@@ -16,6 +16,17 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Read through Gradle's provider API rather than System.getenv, so a value is a
+// tracked build input: changing a version override re-runs the build instead of
+// being served a stale one from the cache. Blank counts as unset — GitHub Actions
+// hands an omitted workflow input to the job as an empty string, not as nothing.
+//
+// An extension on Project rather than a plain top-level function: inside
+// android { } the innermost receiver is the Android extension, and hanging this
+// off Project is what makes it resolve against the script's own receiver.
+fun Project.env(name: String): String? =
+    providers.environmentVariable(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+
 android {
     // Identical to the Capacitor app in mobile/android — load-bearing. It makes
     // this an in-place Play Store update that keeps ratings, the install base
@@ -33,17 +44,43 @@ android {
         // Carried over from mobile/android/app/build.gradle. NS-27 owns the
         // rollout and must raise versionCode above whatever is live on Play
         // before the first upload, or it will be rejected.
-        versionCode = 1
-        versionName = "1.0"
+        //
+        // Both are overridable from the environment so the deploy workflow can
+        // raise the code past whatever Play already holds without a commit, and
+        // so a rejected upload is re-runnable with a higher number in seconds.
+        // Unset or blank keeps the checked-in value, which is what every local
+        // build gets.
+        versionCode = env("TE_VERSION_CODE")?.toInt() ?: 1
+        versionName = env("TE_VERSION_NAME") ?: "1.0"
+    }
+
+    signingConfigs {
+        // The release build must be signed with the *existing* upload key, or
+        // Play rejects the update as a different app (NS-27). So the key lives
+        // in neither a checkout nor a keystore.properties file: the deploy
+        // workflow writes it from a repository secret, and it dies with the
+        // runner.
+        val keystore = env("TE_UPLOAD_KEYSTORE")
+        if (keystore != null) {
+            create("upload") {
+                storeFile = file(keystore)
+                storePassword = env("TE_UPLOAD_KEYSTORE_PASSWORD")
+                keyAlias = env("TE_UPLOAD_KEY_ALIAS")
+                keyPassword = env("TE_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signing is deliberately unconfigured: the release build must use
-            // the *existing* upload key or Play rejects the update as a
-            // different app. NS-27 wires that up with the real keystore.
+            // Without that environment — every local build — the release variant
+            // stays *unsigned* rather than falling back to the debug key:
+            // `assembleRelease` still works on a laptop, and an artifact signed
+            // with anything but the real upload key cannot be produced by
+            // accident. The deploy workflow verifies the signer before uploading.
+            signingConfigs.findByName("upload")?.let { signingConfig = it }
         }
     }
 
