@@ -359,6 +359,13 @@ driving-task app and the Play car review rejects it under Points of Interest.
   `verified` — a locally-signed build never will, since the fingerprint is
   Play's. If the signing key is ever reset, update this file and **redeploy the
   Worker**; it is served from `public/`, so it doesn't need an app update.
+- **Android target API level — a recurring annual deadline.** Play enforces it
+  at *upload*: the target must stay within a year of the latest Android release,
+  so from 31 Aug 2026 an update targeting below API 36 (Android 16) is refused
+  outright. Raise `targetSdk` (and `compileSdk` with it — the check is on the
+  target, so moving `compileSdk` alone changes nothing) in
+  `apps/android/app/build.gradle.kts`, then read Android's behaviour-changes page
+  for what the new target now gates. Expect this again around Aug 2027.
 - **Android Auto form factor must stay opted out** in Play Console → *Advanced
   settings → Form factors*. A car artifact in the production track fails review
   and rejects the **whole** submission, blocking ordinary phone updates.
