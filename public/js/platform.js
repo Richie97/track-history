@@ -5,7 +5,9 @@
 // retired — the native apps in apps/ are first-party clients that don't load
 // this code — so nothing sets `native` or fills any hook in below, and the web
 // defaults are now the only behavior. The seam and its dependents are kept
-// rather than unwound; see the tracking issue for that cleanup.
+// rather than unwound — note js/record/core.js and remote.js are also the
+// reference the Swift and Kotlin recorder ports are pinned against, so this is
+// not a plain delete. Tracked in #139.
 //
 // Node-import-safe: no top-level location/navigator access.
 
