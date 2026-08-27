@@ -193,6 +193,16 @@ class DashboardRecordTest {
         compose.waitUntil(10_000) {
             compose.onAllNodesWithText("Start recording").fetchSemanticsNodes().isNotEmpty()
         }
+
+        // The screen must agree with the button that opened it. It used to say
+        // "Not attached to an event yet" here — the laps were filed correctly,
+        // but a driver reading this line was told the opposite of what the
+        // button's own label had just promised.
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("Laps will be saved to Summit Point (Shenandoah).")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
         compose.onNodeWithText("Start recording").assertIsDisplayed().performClick()
 
         assertEquals("the recording should attach to today's event", 7, startedWith)
