@@ -17,24 +17,34 @@ plugins {
 }
 
 android {
-    // Identical to the Capacitor app in mobile/android — load-bearing. It makes
+    // Inherited from the web-view shell this replaced — load-bearing. It makes
     // this an in-place Play Store update that keeps ratings, the install base
     // and the App Links association in public/.well-known/assetlinks.json,
     // rather than a second listing.
     namespace = "app.trackevolution"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "app.trackevolution"
         // 26 keeps notification channels and the modern location APIs available
         // without compat gymnastics.
         minSdk = 26
-        targetSdk = 35
-        // Carried over from mobile/android/app/build.gradle. NS-27 owns the
-        // rollout and must raise versionCode above whatever is live on Play
-        // before the first upload, or it will be rejected.
-        versionCode = 1
-        versionName = "1.0"
+        // Google Play requires the target to stay within a year of the latest
+        // Android release, and enforces it at *upload*: from 31 Aug 2026, an
+        // update targeting below 36 (Android 16) is simply refused. This is a
+        // recurring annual deadline, not a one-off — expect to raise it again
+        // around Aug 2027, and note the check is on the target, so bumping
+        // compileSdk alone does nothing.
+        targetSdk = 36
+        // versionCode must be strictly greater than the highest already
+        // uploaded to Play — including builds that were rejected, since a
+        // rejected submission still burns its code. That is why this is 3 and
+        // not 2: version code 1 was the Android Auto submission Play rejected,
+        // and 2 is what is live. Check the Console before uploading rather than
+        // trusting this number; it is the one release value the repo cannot
+        // verify for itself.
+        versionCode = 3
+        versionName = "1.0.1"
     }
 
     buildTypes {
