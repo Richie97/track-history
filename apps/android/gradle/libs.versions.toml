@@ -52,8 +52,15 @@ work = "2.10.0"
 # :app's JVM tests. Robolectric runs both Room against real SQLite and Compose
 # itself without an emulator — so CI proves the queue survives a restart (NS-22)
 # and the charts render their degenerate datasets (NS-24), on the same runner.
+#
+# Robolectric picks its SDK from targetSdk, so it is coupled to it: 4.14 knows
+# nothing of API 36 and every @Config-less test dies in DefaultSdkPicker with a
+# bare IllegalArgumentException rather than anything naming the version. 4.16 is
+# where API 36 landed. It also needs the runner on **Java 21** — the API 36
+# android-all jars are compiled with it — which is what CI's `app` job already
+# uses, for the unrelated reason that :core's toolchain is 21.
 junit4 = "4.13.2"
-robolectric = "4.14.1"
+robolectric = "4.16.1"
 # Android Auto (NS-20). The Car App Library renders our templates on the head
 # unit; `app-projected` is the half that talks to the phone-projected host, as
 # opposed to Automotive OS running in the car itself.
