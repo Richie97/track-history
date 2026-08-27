@@ -38,10 +38,12 @@ android {
         targetSdk = 36
         // versionCode must be strictly greater than the highest already
         // uploaded to Play — including builds that were rejected, since a
-        // rejected submission still burns its code. Check the Console before
-        // uploading rather than trusting this number: it is the one release
-        // value the repo cannot verify for itself.
-        versionCode = 2
+        // rejected submission still burns its code. That is why this is 3 and
+        // not 2: version code 1 was the Android Auto submission Play rejected,
+        // and 2 is what is live. Check the Console before uploading rather than
+        // trusting this number; it is the one release value the repo cannot
+        // verify for itself.
+        versionCode = 3
         versionName = "1.0.1"
     }
 
