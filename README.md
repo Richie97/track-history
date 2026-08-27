@@ -352,13 +352,13 @@ driving-task app and the Play car review rejects it under Points of Interest.
   `wrangler.jsonc`'s `IOS_APP_ID` (served at
   `/.well-known/apple-app-site-association`) and redeploy the Worker, so links
   to `/share/*` open the app.
-- **Android App Links:** replace the placeholder SHA-256 fingerprint in
-  `public/.well-known/assetlinks.json` with the one from Play Console → *Test and
-  release → App integrity → App signing key certificate*, and redeploy. Until
-  that lands, `adb shell pm get-app-links app.trackevolution` reports
-  `legacy_failure` and a `/share/<slug>` link opens the browser rather than the
-  app — the app's own handling is in place and waiting on the file, not the other
-  way round.
+- **Android App Links:** `public/.well-known/assetlinks.json` carries the
+  SHA-256 of the **Play app-signing** key (Play Console → *Test and release →
+  App integrity → App signing key certificate*). Confirm with
+  `adb shell pm get-app-links app.trackevolution`, which should report
+  `verified` — a locally-signed build never will, since the fingerprint is
+  Play's. If the signing key is ever reset, update this file and **redeploy the
+  Worker**; it is served from `public/`, so it doesn't need an app update.
 - **Android Auto form factor must stay opted out** in Play Console → *Advanced
   settings → Form factors*. A car artifact in the production track fails review
   and rejects the **whole** submission, blocking ordinary phone updates.
