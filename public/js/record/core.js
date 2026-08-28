@@ -1,12 +1,14 @@
-// Live lap-recording core: the pure logic behind the in-app GPS recorder.
-// The recorder collects fixes from the native background-geolocation watcher
-// (public/js/record/ui.js owns that lifecycle); everything here is plain data
-// in → data out so it unit-tests in Node. The output of toParsed() is shaped
-// exactly like a telemetry file parser's result (js/import/parse.js), so a
-// finished recording drops into the existing import review + line-picker
-// pipeline unchanged.
+// Live lap-recording core: the pure logic behind the GPS lap recorder. The
+// recorder itself is native-only (RecorderCore in the iOS and Android apps) —
+// this module is its reference implementation, kept so the ports have a JS
+// original to diff against and so contracts/logic/recorder.json can be
+// generated from it (contracts/logic.mjs); the web app doesn't load it.
+// Everything here is plain data in → data out so it unit-tests in Node. The
+// output of toParsed() is shaped exactly like a telemetry file parser's
+// result (js/import/parse.js), so a finished recording drops into the same
+// review + line-picker pipeline as a file import.
 //
-// Recording shape (also the checkpoint format persisted via platform.prefSet):
+// Recording shape (also the persisted checkpoint format):
 //   { v: 1, eventId, startedAtMs, fixes: [[tRelS, lat, lon, v|null, acc|null]] }
 // tRelS is seconds since startedAtMs; v is m/s; acc is reported accuracy in
 // meters. Tuples keep the checkpoint JSON small (~50 bytes/fix).

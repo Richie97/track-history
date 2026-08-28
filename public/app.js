@@ -6,10 +6,9 @@ import { lineChart, multiLineChart } from "./js/chart.js";
 import { bindChannelGraphs } from "./js/channel-graphs.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
-import { api as apiFetch, authFetch, ApiError } from "./js/api.js";
+import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
-import { platform } from "./js/platform.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { DEFAULT_CHECKLIST } from "./js/checklist.js";
 import { renderTrackMap } from "./js/trackmap.js";
@@ -19,34 +18,12 @@ import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS, WEAR_LIMIT_HINTS,
   diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, partKindLabel, partStatus,
 } from "./js/garage.js";
-import {
-  activeEventId,
-  bindRecorder,
-  discardPending,
-  isRecording,
-  pendingRecording,
-  recorderAvailable,
-} from "./js/record/ui.js";
-import { initRemoteRecorder } from "./js/record/remote.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 
 const $app = document.getElementById("app");
 
-// Host shown in share URLs — the server's, not the page's, which a native
-// shell could load from an origin of its own.
-const serverHost = () => new URL(platform.serverOrigin()).host;
-
-// Native shells open external links in the system browser; a plain WebView
-// navigation would replace the app with no way back. No-op on web
-// (openExternal is null) — the default target="_blank" behavior stands.
-document.addEventListener("click", (ev) => {
-  if (!platform.openExternal) return;
-  const a = ev.target.closest?.('a[target="_blank"]');
-  if (a && /^https?:\/\//.test(a.href)) {
-    ev.preventDefault();
-    platform.openExternal(a.href);
-  }
-});
+// Host shown in share URLs.
+const serverHost = () => location.host;
 
 // API wrapper: a 401 anywhere means the session is gone — show the login view.
 async function api(path, opts) {
@@ -423,10 +400,6 @@ function startTipRotator() {
 // pages (login, unreachable, share), where the account menu's Settings page
 // (which carries them for signed-in users) isn't reachable.
 function footerHtml({ legal = false } = {}) {
-  // The native apps skip the footer entirely: its links (repo, tip jar — the
-  // latter barred on iOS by Apple guideline 3.1.1, and the rest web-oriented
-  // chrome) don't belong in an app screen. Privacy/terms live in Settings.
-  if (platform.native) return "";
   startTipRotator();
   return `<footer class="site-footer">
     <span class="footer-left">
@@ -455,12 +428,10 @@ function footerHtml({ legal = false } = {}) {
 
 const APPLE_LOGO = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z"/></svg>`;
 
-// "Also in the app stores" under the sign-in buttons — web only: inside the
-// native apps both links would point at the app you're already running.
-// Deliberately not carrying APPLE_LOGO: it would sit directly under the Apple
-// sign-in button, where a second Apple mark reads as another way to sign in.
+// "Also in the app stores" under the sign-in buttons. Deliberately not
+// carrying APPLE_LOGO: it would sit directly under the Apple sign-in button,
+// where a second Apple mark reads as another way to sign in.
 function appStoreLinkHtml() {
-  if (platform.native) return "";
   return `<p class="login-store">
     <a href="${APP_STORE_URL}" target="_blank" rel="noopener">Download for iPhone ↗</a>
     <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Download for Android ↗</a>
@@ -473,20 +444,15 @@ function appStoreLinkHtml() {
 // swallowed: an unreachable server still gets a working Google-only screen.
 async function showAppleLoginIfAvailable() {
   try {
-    const res = await fetch(`${platform.apiBase}/auth/providers`);
+    const res = await fetch("/auth/providers");
     if (!res.ok) return;
     const { apple } = await res.json();
     const slot = document.querySelector(".login-buttons");
     if (!apple || !slot || document.getElementById("apple-login")) return;
     slot.insertAdjacentHTML(
       "beforeend",
-      platform.login
-        ? `<button class="btn apple" id="apple-login">${APPLE_LOGO} Sign in with Apple</button>`
-        : `<a class="btn apple" id="apple-login" href="/auth/apple/login">${APPLE_LOGO} Sign in with Apple</a>`
+      `<a class="btn apple" id="apple-login" href="/auth/apple/login">${APPLE_LOGO} Sign in with Apple</a>`
     );
-    if (platform.login) {
-      document.getElementById("apple-login").addEventListener("click", () => platform.login("apple"));
-    }
   } catch {}
 }
 
@@ -499,23 +465,17 @@ function renderLogin() {
         <h1>Track Evolution</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
         <div class="login-buttons">
-          ${
-            platform.login
-              ? `<button class="btn primary" id="native-login">Sign in with Google</button>`
-              : `<a class="btn primary" href="/auth/login">Sign in with Google</a>`
-          }
+          <a class="btn primary" href="/auth/login">Sign in with Google</a>
         </div>
         ${appStoreLinkHtml()}
         ${footerHtml({ legal: true })}
       </div>
     </div>`;
-  document.getElementById("native-login")?.addEventListener("click", () => platform.login());
   showAppleLoginIfAvailable();
 }
 
-// Rendered when the server can't be reached at all (offline, bad server URL
-// in the native app, or a server missing the app's API) — without this the
-// boot fetch failing would leave a blank page.
+// Rendered when the server can't be reached at all (offline and nothing
+// cached) — without this the boot fetch failing would leave a blank page.
 function renderUnreachable(err) {
   document.querySelector(".shell")?.remove();
   $app.innerHTML = `
@@ -526,20 +486,11 @@ function renderUnreachable(err) {
         <h1>Can't reach the server</h1>
         <p>${esc(serverHost())} didn't answer${err?.message ? ` (${esc(err.message)})` : ""}. Check your connection and try again.</p>
         <button class="btn primary" id="retry-connect">Try again</button>
-        ${
-          platform.openServerSettings
-            ? `<p class="hint" style="margin-top:12px"><a href="#" id="server-settings">Server: ${esc(serverHost())}</a></p>`
-            : ""
-        }
         ${footerHtml({ legal: true })}
       </div>
     </div>`;
   wireThemeToggle();
   document.getElementById("retry-connect").onclick = () => route();
-  document.getElementById("server-settings")?.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    platform.openServerSettings();
-  });
 }
 
 function shell(content) {
@@ -588,7 +539,7 @@ function shell(content) {
   };
   document.getElementById("logout").onclick = async () => {
     if (pendingCount() && !confirm("You have offline changes that haven't synced yet — signing out discards them. Sign out anyway?")) return;
-    await platform.logout();
+    await fetch("/auth/logout", { method: "POST" });
     // Delete the service worker's cached API responses (named th-data-* in
     // sw.js) so the logbook doesn't linger in Cache Storage on a shared device.
     if ("caches" in window) {
@@ -737,52 +688,8 @@ async function viewDashboard() {
     })
     .join("");
 
-  // Native apps: a recording that no event page can reach — active or stopped
-  // with no event attached (CarPlay can start one before the event exists), or
-  // stopped-but-unsaved — is surfaced here so it can't be forgotten.
-  let recBanner = "";
-  if (recorderAvailable()) {
-    const pending = isRecording() ? null : await pendingRecording();
-    // `discard` adds the way out: an unsaved recording you don't want an event
-    // for can be thrown away here, rather than only from an event's record
-    // screen — which the event-less case can't reach at all.
-    const banner = (title, hint, href, label, discard = false) => `<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:20px">
-      <span style="font-size:22px" aria-hidden="true">⏱️</span>
-      <div style="flex:1;min-width:200px"><strong>${title}</strong><div class="hint">${hint}</div></div>
-      <div class="btn-row" style="margin:0">
-        <a class="btn primary" href="${href}">${label}</a>
-        ${discard ? `<button class="btn danger" id="rec-banner-discard">Discard</button>` : ""}
-      </div>
-    </div>`;
-    if (isRecording() && activeEventId() == null) {
-      recBanner = banner(
-        "● Recording track session",
-        "No event for today yet — create it now or after you stop; the recording attaches when you open the event.",
-        "#/new",
-        "+ Add event"
-      );
-    } else if (pending && pending.eventId == null) {
-      recBanner = banner(
-        "Unsaved track recording",
-        "Create its event to pick the start/finish line and save the laps, or discard it.",
-        "#/new",
-        "+ Add event",
-        true
-      );
-    } else if (pending) {
-      recBanner = banner(
-        "Unsaved track recording",
-        "Review it to save the laps to its event, or discard it.",
-        `#/event/${esc(String(pending.eventId))}/record`,
-        "Review & save",
-        true
-      );
-    }
-  }
-
   const slug = state.me.share_slug || "";
   const view = shell(`
-    ${recBanner}
     <div class="btn-row" style="margin-top:20px">
       <a class="btn primary" href="#/new">+ Add event</a>
       <a class="btn" href="#/year">Year in review</a>
@@ -811,8 +718,7 @@ async function viewDashboard() {
         </span>
         <button class="btn small primary" id="share-save">${slug ? "Update path" : "Create link"}</button>
         ${slug ? `<button class="btn small" id="share-copy">Copy link</button>
-        ${platform.shareLink ? `<button class="btn small" id="share-sheet">Share…</button>` : ""}
-        <a class="btn small ghost" href="${esc(platform.serverOrigin())}/share/${esc(slug)}" target="_blank" rel="noopener">Open ↗</a>
+        <a class="btn small ghost" href="${esc(location.origin)}/share/${esc(slug)}" target="_blank" rel="noopener">Open ↗</a>
         <button class="btn small danger" id="share-disable">Disable</button>` : ""}
       </div>
       <div id="share-msg" class="hint" style="margin-top:6px"></div>
@@ -821,16 +727,6 @@ async function viewDashboard() {
   wireRowLinks(view);
   // Warm the offline cache in the background while we're on the dashboard.
   scheduleWarm();
-
-  // Throw away an unsaved recording without having to open (or invent) its event.
-  const recDiscard = view.querySelector("#rec-banner-discard");
-  if (recDiscard) {
-    recDiscard.onclick = async () => {
-      if (!confirm("Discard this recording and its GPS data?")) return;
-      await discardPending();
-      route();
-    };
-  }
 
   const shareMsg = view.querySelector("#share-msg");
   const shareInput = view.querySelector("#share-slug");
@@ -847,13 +743,11 @@ async function viewDashboard() {
     if (e.key === "Enter") view.querySelector("#share-save").click();
   });
   if (slug) {
-    const shareUrl = `${platform.serverOrigin()}/share/${slug}`;
+    const shareUrl = `${location.origin}/share/${slug}`;
     view.querySelector("#share-copy").onclick = async () => {
-      await platform.copyText(shareUrl);
+      await navigator.clipboard.writeText(shareUrl);
       shareMsg.textContent = "Link copied.";
     };
-    const shareSheet = view.querySelector("#share-sheet");
-    if (shareSheet) shareSheet.onclick = () => platform.shareLink(shareUrl);
     view.querySelector("#share-disable").onclick = async () => {
       if (!confirm("Disable your public share link? The URL will stop working.")) return;
       await api("/share", { method: "DELETE" });
@@ -1019,12 +913,9 @@ async function viewTrack(trackId, params) {
   const shareTrack = view.querySelector("#share-track");
   if (shareTrack)
     shareTrack.onclick = async () => {
-      const url = `${platform.serverOrigin()}/share/${state.me.share_slug}#/track/${track.id}`;
-      if (platform.shareLink) platform.shareLink(url);
-      else {
-        await platform.copyText(url);
-        view.querySelector("#track-msg").textContent = "Share link copied.";
-      }
+      const url = `${location.origin}/share/${state.me.share_slug}#/track/${track.id}`;
+      await navigator.clipboard.writeText(url);
+      view.querySelector("#track-msg").textContent = "Share link copied.";
     };
 
   wireRowLinks(view);
@@ -1122,34 +1013,6 @@ const setupNotebookOpen = new Set();
 
 async function viewEvent(eventId) {
   const [e, tracks, garage] = await Promise.all([api(`/events/${eventId}`), api("/tracks"), api("/garage")]);
-  // Live lap recorder entry (native apps only — recorderAvailable() is false
-  // on web). The button doubles as the way back into an active recording and
-  // the recovery path for an unsaved one.
-  let recCta = "";
-  if (recorderAvailable()) {
-    const pending = isRecording() ? null : await pendingRecording();
-    // An active recording with no event yet (started from CarPlay) is offered
-    // to this event — opening the record screen adopts it.
-    const otherEvent = isRecording() && activeEventId() != null && activeEventId() !== e.id;
-    const recLabel = isRecording()
-      ? otherEvent
-        ? "Recording (other event)"
-        : activeEventId() === e.id
-          ? "Recording — open"
-          : "Recording — attach to this event"
-      : pending
-        ? "Review unsaved recording"
-        : "Start recording";
-    const recHref = otherEvent ? `#/event/${activeEventId()}/record` : `#/event/${e.id}/record`;
-    recCta = `<div class="panel" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="font-size:22px" aria-hidden="true">⏱️</span>
-      <div style="flex:1;min-width:200px">
-        <strong>Record laps with your phone</strong>
-        <div class="hint">Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.</div>
-      </div>
-      <a class="btn ${isRecording() || pending ? "primary" : ""}" href="${recHref}">${recLabel}</a>
-    </div>`;
-  }
   const track = tracks.find((t) => t.id === e.track_id);
   const pb =
     pbWatch && track && pbWatch.trackId === track.id
@@ -1337,22 +1200,15 @@ async function viewEvent(eventId) {
     ${traceHtml}
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
-    ${recCta}
     <div class="pdr-dropzone" id="pdr-dropzone">
-      ${
-        // iOS Files maps accept= to UTIs and .vbo matches none, which would
-        // grey out VBO files entirely — so no accept filter on iOS.
-        platform.native && platform.os === "ios"
-          ? `<input type="file" id="pdr-files" multiple hidden>`
-          : `<input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>`
-      }
+      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
       <div class="pdr-dropzone-inner">
         <span class="pdr-dropzone-icon">📼</span>
         <div>
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
-          ${platform.native ? "" : `<span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> files here</span>`}
+          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your ${platform.native ? "device" : "computer"}</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your computer</span>
       </div>
     </div>
     <div id="pdr-review"></div>
@@ -1376,7 +1232,6 @@ async function viewEvent(eventId) {
     view.querySelector("#pb-dismiss").onclick = () => banner.remove();
     const r = banner.getBoundingClientRect();
     confettiBurst(r.left + r.width / 2, r.top + 40);
-    platform.hapticPB();
   }
 
   view.querySelector("#del-event").onclick = async () => {
@@ -1508,28 +1363,6 @@ async function viewEvent(eventId) {
   });
 
   bindTelemetryImport(view, e, route);
-}
-
-// --- live lap recorder (native apps) ---
-
-async function viewRecord(eventId) {
-  if (!recorderAvailable()) {
-    shell(`<div class="error-banner">Lap recording is only available in the iOS/Android app.</div>
-      <a href="#/event/${esc(eventId)}">Back to event</a>`);
-    return;
-  }
-  const e = await api(`/events/${eventId}`);
-  const view = shell(`
-    <h1>Record session</h1>
-    <p class="sub">${esc(e.track_name)} — ${fmtDate(e.start_date)}</p>
-    <div id="rec-panel"></div>
-    <div id="rec-review"></div>
-    <div class="btn-row" style="margin-top:16px"><a class="btn ghost" href="#/event/${e.id}">Back to event</a></div>
-  `);
-  // Saving lands the new session on the event page.
-  bindRecorder(view, e, () => {
-    location.hash = `#/event/${e.id}`;
-  });
 }
 
 // --- event form (new / edit) ---
@@ -2336,7 +2169,7 @@ function shareTrack(trackId) {
 
 async function shareRoute() {
   if (!shareData) {
-    const res = await authFetch(`/api/share/${encodeURIComponent(SHARE_SLUG)}`);
+    const res = await fetch(`/api/share/${encodeURIComponent(SHARE_SLUG)}`);
     if (!res.ok) {
       $app.innerHTML = `
         <div class="login-wrap">
@@ -2384,7 +2217,7 @@ async function route() {
     await ensureMe();
   } catch (err) {
     // A 401 already rendered the login view; anything else means the server
-    // never answered (offline, wrong server URL, CORS) — show that instead
+    // never answered (offline, server down) — show that instead
     // of a blank page.
     if (err.message !== "unauthorized") renderUnreachable(err);
     return;
@@ -2397,7 +2230,6 @@ async function route() {
     if (parts[0] === "track" && parts[1] && parts[2] === "compare") return await viewCompare(parts[1], params);
     if (parts[0] === "track" && parts[1]) return await viewTrack(parts[1], params);
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
-    if (parts[0] === "event" && parts[1] && parts[2] === "record") return await viewRecord(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
     if (parts[0] === "vehicle" && parts[1]) return await viewVehicle(parts[1]);
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
@@ -2410,22 +2242,6 @@ async function route() {
     }
   }
 }
-
-// Native-shell re-entry points: re-run the router after a system-browser
-// sign-in completes, and full-page navigate for /share/<slug> deep links
-// (SHARE_SLUG is read from location.pathname at module load, so a reload is
-// what re-evaluates it, which the Worker's SPA fallback makes safe).
-platform.onAuthed = () => {
-  showSkeleton();
-  route();
-};
-platform.navigate = (path) => {
-  history.pushState({}, "", path);
-  location.reload();
-};
-// Remote start/stop of the lap recorder (the CarPlay scene in the iOS shell).
-// Registers platform.recorderRemote; no-op on web, where there's no recorder.
-initRemoteRecorder();
 
 if (SHARE_SLUG) {
   window.addEventListener("hashchange", shareRoute);
