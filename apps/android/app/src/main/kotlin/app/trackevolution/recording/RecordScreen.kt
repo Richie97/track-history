@@ -47,6 +47,14 @@ private const val STALL_AFTER_MS = 8_000L
 @Composable
 fun RecordScreen(
     state: RecorderState,
+    /**
+     * Whether these laps have an event to land in. Separate from [eventLabel]
+     * because "attached, name not loaded" and "not attached at all" are
+     * different facts, and collapsing them is what made this screen tell a
+     * driver their laps were homeless when they weren't.
+     */
+    isAttached: Boolean,
+    /** The target event's track name, when it is known. */
     eventLabel: String?,
     onStart: () -> Unit,
     onStop: () -> Unit,
@@ -81,7 +89,7 @@ fun RecordScreen(
             color = colors.textStrong,
         )
         Text(
-            eventLabel ?: "Not attached to an event yet — you can create one after.",
+            attachmentText(isAttached, eventLabel),
             style = type.sm,
             color = colors.textMuted,
         )
@@ -165,6 +173,25 @@ fun RecordScreen(
             color = colors.textFaint,
         )
     }
+}
+
+/**
+ * Where these laps are going to land, in one line.
+ *
+ * Three states, not two. The screen used to have only the last of them and said
+ * it unconditionally, so a recording opened from the dashboard's "Record laps at
+ * Summit Point" button was met with "Not attached to an event yet" — the laps
+ * were filed correctly, but the screen said the opposite of what the button that
+ * opened it had just promised.
+ *
+ * The middle case is the honest answer while the name is still loading, or when
+ * it can't be loaded at all: we know there is an event, we just can't name it,
+ * and that is not the same as there being none.
+ */
+internal fun attachmentText(isAttached: Boolean, eventLabel: String?): String = when {
+    isAttached && eventLabel != null -> "Laps will be saved to $eventLabel."
+    isAttached -> "Laps will be saved to this event."
+    else -> "Not attached to an event yet — you can create one after."
 }
 
 @Composable

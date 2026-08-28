@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavBackStackEntry
@@ -173,9 +174,32 @@ fun AppNavHost(
 
         composable<Route.Record> { entry ->
             val route = entry.toRoute<Route.Record>()
+
+            // Which event this recording actually belongs to. A *running*
+            // recording carries its own attachment and outranks the route,
+            // because it may have been started somewhere the route knows
+            // nothing about — the notification, or the banner, both of which
+            // navigate here as `Route.Record()` with no id at all. Reading the
+            // route in that case is how the screen ends up describing an
+            // attachment that isn't the one in effect.
+            val targetId = recorderState.eventId?.toIntOrNull() ?: route.eventId
+
+            // The name is a lookup rather than something the route carries, for
+            // the same reason: the id in effect isn't always the id we were
+            // navigated with. `events()` is the offline layer's cached list the
+            // dashboard already warmed, so this is normally free, and null —
+            // offline with a cold cache — degrades to naming no track rather
+            // than to claiming there is no event.
+            val eventLabel by produceState<String?>(null, targetId) {
+                value = targetId?.let { id ->
+                    runCatching { api.events().firstOrNull { it.id == id }?.trackName }.getOrNull()
+                }
+            }
+
             RecordScreen(
                 state = recorderState,
-                eventLabel = null,
+                isAttached = targetId != null,
+                eventLabel = eventLabel,
                 onStart = { onStartRecording(route.eventId) },
                 onStop = onStopRecording,
             )
