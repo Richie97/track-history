@@ -548,6 +548,12 @@ doesn't retain the previous user's logbook.
 - Imported per-session bests (from a spreadsheet era) appear as one-lap sessions;
   full lap-by-lap data can be attached to any event via `RAW_SESSIONS` in the seed
   data or pasted into the UI.
+- Each track page shows a **Records** panel (web): personal best, best 3-lap
+  average, steadiest event and most laps in one event — each tile linking to
+  the event that set it — plus lifetime totals and the time found since your
+  first visit. Computed client-side (`public/js/track-records.js`) from data
+  the page already loads; when the track page's "Dry only" filter is on, the
+  records follow it.
 - **Prep checklists** hang off an upcoming event: tick items off as you pack,
   and the dashboard's countdown card shows how far through you are. The list a
   new checklist starts from is **yours to edit** — account menu → Settings → Prep

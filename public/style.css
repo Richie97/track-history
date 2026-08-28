@@ -407,6 +407,13 @@ h2 {
   color: var(--text-strong); font-variant-numeric: tabular-nums;
 }
 
+/* Track records: tiles that link to the event that set the record */
+.rec-tiles { margin: 12px 0 10px; }
+a.tile.rec { display: block; color: var(--text-body); transition: var(--transition); }
+@media (hover: hover) { a.tile.rec:hover { background: var(--surface-hover); opacity: 1; text-decoration: none; } }
+.tile.rec .rec-meta { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 10px; }
+.rec-totals { margin: 0 0 8px; }
+
 /* ---------- Track cards ---------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--grid-gap); }
 .card {

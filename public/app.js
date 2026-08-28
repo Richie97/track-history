@@ -6,6 +6,7 @@ import { lineChart, multiLineChart } from "./js/chart.js";
 import { bindChannelGraphs } from "./js/channel-graphs.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
+import { trackRecords } from "./js/track-records.js";
 import { api as apiFetch, authFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
@@ -945,6 +946,43 @@ async function viewTrack(trackId, params) {
     ? `<button class="btn" id="share-track">Copy share link</button>`
     : "";
 
+  // Personal records at this track. Lap-level records (best 3-lap average)
+  // need the events' laps, so pull the details of events that have any — the
+  // prefetcher usually has them cached already, and a miss just drops that
+  // record rather than the panel.
+  const lapDetails = await Promise.all(
+    events.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`).catch(() => null))
+  );
+  const sessionLaps = new Map(
+    lapDetails.filter(Boolean).map((d) => [d.id, d.sessions.map((s) => s.laps.map((l) => l.time_ms))])
+  );
+  const records = trackRecords(events, sessionLaps);
+  const recTile = (label, valueHtml, e) => `<a class="tile rec" href="#/event/${e.id}">
+      <div class="label">${label}</div>
+      <div class="value">${valueHtml}</div>
+      <div class="rec-meta">${fmtDate(e.start_date)}${e.club ? " · " + esc(e.club) : ""}</div>
+    </a>`;
+  const recTiles = records
+    ? [
+        records.best && recTile("Personal best", fmtMs(records.best.ms), records.best.event),
+        records.best3avg && recTile("Best 3-lap avg", fmtMs(records.best3avg.ms), records.best3avg.event),
+        records.consistency && recTile("Steadiest event", fmtConsistency(records.consistency.cv), records.consistency.event),
+        records.most_laps && recTile("Most laps, one event", `${records.most_laps.count}<span class="unit">laps</span>`, records.most_laps.event),
+      ].filter(Boolean)
+    : [];
+  const recTotals = records
+    ? `${records.totals.events} event${records.totals.events === 1 ? "" : "s"} · ${records.totals.days} day${records.totals.days === 1 ? "" : "s"} · ${records.totals.laps} lap${records.totals.laps === 1 ? "" : "s"} logged${records.totals.hours ? ` · ~${records.totals.hours} h on track` : ""}${
+        records.gained_ms != null
+          ? ` · <strong>${fmtDelta(records.gained_ms).replace("+", "")}</strong> found since your first visit (${fmtDate(records.first_date)})`
+          : ""
+      }`
+    : "";
+  const recordsHtml = recTiles.length
+    ? `<h2>Records${dryOnly ? " (dry only)" : ""}</h2>
+      <div class="tiles rec-tiles">${recTiles.join("")}</div>
+      <div class="rec-totals hint">${recTotals}</div>`
+    : "";
+
   const view = shell(`
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}</p>
@@ -954,6 +992,7 @@ async function viewTrack(trackId, params) {
       ${shareBtn}
       <span id="track-msg" class="goal-msg"></span>
     </div>
+    ${recordsHtml}
     <h2>Course notes</h2>
     <div class="panel">
       <div class="field"><label>Notes to reread the night before</label>
