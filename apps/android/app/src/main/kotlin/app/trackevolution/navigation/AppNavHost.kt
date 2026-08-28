@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavBackStackEntry
@@ -13,7 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.toRoute
-import app.trackevolution.auth.AuthController
+import app.trackevolution.auth.ChecklistTemplateStore
 import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.offline.OfflineStore
@@ -51,13 +52,21 @@ import app.trackevolution.ui.theme.ThemeChoice
 fun AppNavHost(
     nav: NavHostController,
     api: ApiClient,
-    auth: AuthController,
+    /**
+     * Only ever reaches [SettingsModel], so this is typed as the narrow
+     * interface rather than `AuthController`: it lets the whole graph be
+     * composed in a Robolectric test without standing up an encrypted token
+     * store, which is what #108's dashboard → record test needs.
+     */
+    auth: ChecklistTemplateStore,
     checklistTemplate: List<String>,
     hasCustomChecklistTemplate: Boolean,
     themeChoice: ThemeChoice,
     onThemeChange: (ThemeChoice) -> Unit,
     serverUrl: String,
     recorderState: RecorderState,
+    /** Idle means no live recording and none waiting to be saved (#108). */
+    recorderIdle: Boolean,
     onStartRecording: (Int?) -> Unit,
     onStopRecording: () -> Unit,
     onSignOut: () -> Unit,
@@ -80,6 +89,8 @@ fun AppNavHost(
                 onOpenVehicle = { nav.navigate(Route.Vehicle(it)) },
                 onNewEvent = { nav.navigate(Route.EventForm()) },
                 onOpenSettings = { nav.navigate(Route.Settings) },
+                onRecord = { nav.navigate(Route.Record(eventId = it)) },
+                recorderIdle = recorderIdle,
             )
         }
 
@@ -163,9 +174,32 @@ fun AppNavHost(
 
         composable<Route.Record> { entry ->
             val route = entry.toRoute<Route.Record>()
+
+            // Which event this recording actually belongs to. A *running*
+            // recording carries its own attachment and outranks the route,
+            // because it may have been started somewhere the route knows
+            // nothing about — the notification, or the banner, both of which
+            // navigate here as `Route.Record()` with no id at all. Reading the
+            // route in that case is how the screen ends up describing an
+            // attachment that isn't the one in effect.
+            val targetId = recorderState.eventId?.toIntOrNull() ?: route.eventId
+
+            // The name is a lookup rather than something the route carries, for
+            // the same reason: the id in effect isn't always the id we were
+            // navigated with. `events()` is the offline layer's cached list the
+            // dashboard already warmed, so this is normally free, and null —
+            // offline with a cold cache — degrades to naming no track rather
+            // than to claiming there is no event.
+            val eventLabel by produceState<String?>(null, targetId) {
+                value = targetId?.let { id ->
+                    runCatching { api.events().firstOrNull { it.id == id }?.trackName }.getOrNull()
+                }
+            }
+
             RecordScreen(
                 state = recorderState,
-                eventLabel = null,
+                isAttached = targetId != null,
+                eventLabel = eventLabel,
                 onStart = { onStartRecording(route.eventId) },
                 onStop = onStopRecording,
             )

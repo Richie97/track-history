@@ -9,9 +9,9 @@
 # is the staged, percentage-gated Console operation NS-27 describes, which
 # should not be one mis-click away in a dropdown.
 #
-# It builds apps/android (the native rewrite), not mobile/ (the Capacitor
-# shell). Both carry applicationId app.trackevolution on purpose, so this is an
-# in-place update to the existing listing.
+# It builds apps/android, whose applicationId is app.trackevolution — the id the
+# retired web-view shell used — so an upload lands on the existing listing rather
+# than creating a second one.
 name: Play Store test track
 
 on:
@@ -134,15 +134,18 @@ jobs:
           # key certificate is the first thing to compare.
           keytool -printcert -jarfile "$AAB" | grep -A1 'SHA256:' || true
 
-      # A warning rather than a failure: App Links verification is a property of
-      # the deployed site, not of this build, and a test-track build is worth
-      # shipping without it. But it fails silently on the device — a
-      # /share/<slug> link just opens the browser — so it is worth saying out
-      # loud on every release until the fingerprint lands.
-      - name: Check App Links can verify
+      # The real Play app-signing fingerprint has landed, so this is a
+      # regression guard rather than a standing warning: if the placeholder ever
+      # comes back, App Links stop verifying *silently* — a /share/<slug> link
+      # just opens the browser, and no build or test notices.
+      #
+      # A warning rather than a failure, because verification is a property of
+      # the deployed site rather than of this bundle, and a test-track build is
+      # still worth shipping without it.
+      - name: App Links still have a real fingerprint
         run: |
           if grep -q REPLACE_WITH_PLAY_APP_SIGNING public/.well-known/assetlinks.json; then
-            echo "::warning::public/.well-known/assetlinks.json still holds the placeholder fingerprint, so App Links will not verify. Replace it with the SHA-256 from Play Console → App signing → *app* signing key (not the upload key) and redeploy the Worker."
+            echo "::warning::public/.well-known/assetlinks.json is back to the placeholder fingerprint, so App Links will not verify. Restore the SHA-256 from Play Console → App signing → *app* signing key (not the upload key) and redeploy the Worker."
           fi
 
       # Attached whether or not the upload runs: it is the artifact a dry run

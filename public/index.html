@@ -34,13 +34,11 @@
   <div id="app"></div>
   <div id="tooltip" class="tooltip" hidden></div>
   <script type="module" src="/app.js"></script>
-  <!-- native:strip-start — removed by mobile/scripts/sync-www.mjs (no SW in the native shell) -->
   <script>
     // PWA: offline app shell + last-known API data (see sw.js).
     if ("serviceWorker" in navigator) {
       addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
     }
   </script>
-  <!-- native:strip-end -->
 </body>
 </html>
