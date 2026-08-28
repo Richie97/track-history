@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { EVENT_SELECT, tracksSummary, userTotals } from "../db";
+import { type TrackRow, eventSelect, summarizeTracks, trackRowsStmt, userTotalsStmt } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidSlug } from "../lib/validate";
 
@@ -45,19 +45,26 @@ publicShare.get("/:slug", async (c) => {
     .first<{ id: number; name: string | null }>();
   if (!owner) return c.json({ error: "not found" }, 404);
 
-  const [totals, tracks, eventRows] = await Promise.all([
-    userTotals(c.env.DB, owner.id),
-    tracksSummary(c.env.DB, owner.id),
-    c.env.DB.prepare(`${EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.start_date DESC`)
-      .bind(owner.id)
-      .all<EventRow>(),
+  // One batched round trip, and the event aggregation runs once: the track
+  // summaries are computed from the same event rows the page lists, instead
+  // of a second aggregate query inside tracksSummary.
+  const [totalsRes, tracksRes, eventsRes] = await c.env.DB.batch([
+    userTotalsStmt(c.env.DB, owner.id),
+    trackRowsStmt(c.env.DB, owner.id),
+    c.env.DB.prepare(eventSelect("WHERE e.user_id = ?", "ORDER BY e.start_date DESC")).bind(owner.id),
   ]);
+  const allEvents = (eventsRes.results as EventRow[]).map(withComputed);
+  // summarizeTracks wants past events in ascending date order — same UTC-today
+  // cutoff as the SQL date('now') the totals query uses.
+  const today = new Date().toISOString().slice(0, 10);
+  const pastAsc = allEvents
+    .filter((e) => e.start_date <= today)
+    .sort((a, b) => (a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : a.id - b.id));
+  const tracks = summarizeTracks(tracksRes.results as TrackRow[], pastAsc);
   // Strip private fields: event notes and prep checklists, per-track course
   // notes, and the garage linkage (setup sheets and parts are exactly the
   // data racers don't share — they live behind auth only).
-  const events = eventRows.results
-    .map(withComputed)
-    .map(({ notes, checklist, vehicle_id, track_hours, ...pub }) => pub);
+  const events = allEvents.map(({ notes, checklist, vehicle_id, track_hours, ...pub }) => pub);
   const publicTracks = tracks.map(({ notes, ...pub }) => pub);
-  return c.json({ name: owner.name, totals, tracks: publicTracks, events });
+  return c.json({ name: owner.name, totals: totalsRes.results[0], tracks: publicTracks, events });
 });

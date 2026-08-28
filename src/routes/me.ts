@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { userTotals } from "../db";
+import { userTotalsStmt } from "../db";
 import { sanitizeChecklistTemplate } from "../lib/validate";
 
 export const me = new Hono<AppContext>();
@@ -20,14 +20,16 @@ function parseTemplate(raw: unknown): string[] | null {
 
 me.get("/me", async (c) => {
   const userId = c.get("userId");
-  const row = await c.env.DB.prepare(
-    "SELECT id, email, name, picture, share_slug, checklist_template FROM users WHERE id = ?"
-  )
-    .bind(userId)
-    .first();
+  // The user row and the totals are independent — one batched round trip.
+  const [userRes, totalsRes] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      "SELECT id, email, name, picture, share_slug, checklist_template FROM users WHERE id = ?"
+    ).bind(userId),
+    userTotalsStmt(c.env.DB, userId),
+  ]);
+  const row = (userRes.results[0] ?? null) as Record<string, unknown> | null;
   const user = row && { ...row, checklist_template: parseTemplate(row.checklist_template) };
-  const totals = await userTotals(c.env.DB, userId);
-  return c.json({ user, totals });
+  return c.json({ user, totals: totalsRes.results[0] });
 });
 
 // Replace the prep-checklist template. Null — or an empty list — clears it,
