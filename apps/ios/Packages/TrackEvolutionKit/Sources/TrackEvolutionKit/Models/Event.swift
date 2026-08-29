@@ -29,7 +29,7 @@ public struct Conditions: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// A track day. The canonical shape is `ComputedEvent` in `src/lib/stats.ts`
-/// (`EVENT_SELECT` in `src/db.ts` for the columns).
+/// (`eventSelect` in `src/db.ts` for the columns).
 ///
 /// Optionality here is load-bearing and mirrors `withComputed`:
 /// - `bestMs` is nil when the event has neither a manual best nor any laps.

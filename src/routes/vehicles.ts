@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { ownedPart, vehicleHoursEvents } from "../db";
+import { type VehicleHoursEvent, vehicleHoursEventsStmt } from "../db";
 import { isValidDate, isValidPartKind } from "../lib/validate";
 import { wearEstimate } from "../lib/wear";
 
@@ -113,13 +113,13 @@ vehicles.get("/garage", async (c) => {
   const userId = c.get("userId");
   const db = c.env.DB;
   const today = todayISO();
-  const [vehicleRows, partRows, measurementRows, hoursEvents] = await Promise.all([
+  // Four independent reads, one batched round trip.
+  const [vehicleRes, partRes, measurementRes, hoursRes] = await db.batch([
     db
       .prepare(
         "SELECT id, name, notes, is_default, updated_at FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE"
       )
-      .bind(userId)
-      .all<{ id: number; name: string; notes: string | null; is_default: number; updated_at: number }>(),
+      .bind(userId),
     db
       .prepare(
         `SELECT p.id, p.vehicle_id, p.kind, p.name, p.installed_on, p.retired_on,
@@ -127,19 +127,7 @@ vehicles.get("/garage", async (c) => {
          FROM parts p JOIN vehicles v ON v.id = p.vehicle_id
          WHERE v.user_id = ? ORDER BY p.installed_on DESC, p.id DESC`
       )
-      .bind(userId)
-      .all<{
-        id: number;
-        vehicle_id: number;
-        kind: string;
-        name: string;
-        installed_on: string;
-        retired_on: string | null;
-        cost_cents: number | null;
-        expected_hours: number | null;
-        wear_limit: number | null;
-        notes: string | null;
-      }>(),
+      .bind(userId),
     db
       .prepare(
         `SELECT m.id, m.part_id, m.measured_on, m.value, m.unit
@@ -147,10 +135,30 @@ vehicles.get("/garage", async (c) => {
          JOIN parts p ON p.id = m.part_id JOIN vehicles v ON v.id = p.vehicle_id
          WHERE v.user_id = ? ORDER BY m.measured_on ASC, m.id ASC`
       )
-      .bind(userId)
-      .all<{ id: number; part_id: number; measured_on: string; value: number; unit: string }>(),
-    vehicleHoursEvents(db, userId),
+      .bind(userId),
+    vehicleHoursEventsStmt(db, userId),
   ]);
+  const vehicleRows = {
+    results: vehicleRes.results as { id: number; name: string; notes: string | null; is_default: number; updated_at: number }[],
+  };
+  const partRows = {
+    results: partRes.results as {
+      id: number;
+      vehicle_id: number;
+      kind: string;
+      name: string;
+      installed_on: string;
+      retired_on: string | null;
+      cost_cents: number | null;
+      expected_hours: number | null;
+      wear_limit: number | null;
+      notes: string | null;
+    }[],
+  };
+  const measurementRows = {
+    results: measurementRes.results as { id: number; part_id: number; measured_on: string; value: number; unit: string }[],
+  };
+  const hoursEvents = hoursRes.results as VehicleHoursEvent[];
 
   const garage = vehicleRows.results.map((v) => {
     const events = hoursEvents.filter((e) => e.vehicle_id === v.id);
@@ -182,14 +190,21 @@ async function retiredLifecycleAvg(
   vehicleId: number,
   kind: string
 ): Promise<number | null> {
-  const prior = await db
-    .prepare(
-      "SELECT installed_on, retired_on, expected_hours, wear_limit FROM parts WHERE vehicle_id = ? AND kind = ? AND retired_on IS NOT NULL"
-    )
-    .bind(vehicleId, kind)
-    .all<{ installed_on: string; retired_on: string; expected_hours: number | null; wear_limit: number | null }>();
+  // Both reads in one round trip; the hours ledger is only a filter away
+  // from being needed whenever there is any retired history.
+  const [priorRes, hoursRes] = await db.batch([
+    db
+      .prepare(
+        "SELECT installed_on, retired_on, expected_hours, wear_limit FROM parts WHERE vehicle_id = ? AND kind = ? AND retired_on IS NOT NULL"
+      )
+      .bind(vehicleId, kind),
+    vehicleHoursEventsStmt(db, userId),
+  ]);
+  const prior = {
+    results: priorRes.results as { installed_on: string; retired_on: string; expected_hours: number | null; wear_limit: number | null }[],
+  };
   if (!prior.results.length) return null;
-  const events = (await vehicleHoursEvents(db, userId)).filter((e) => e.vehicle_id === vehicleId);
+  const events = (hoursRes.results as VehicleHoursEvent[]).filter((e) => e.vehicle_id === vehicleId);
   const lives = prior.results
     .map((p) => wearEstimate(p, events, [], todayISO()).hours)
     .filter((h) => h > 0);
@@ -272,17 +287,19 @@ vehicles.post("/vehicles/:id/parts", async (c) => {
 vehicles.put("/parts/:id", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  if (!(await ownedPart(c.env.DB, userId, id))) return c.json({ error: "not found" }, 404);
   const body = await c.req.json<any>();
   const checked = validatePart(body, false);
   if ("error" in checked) return c.json({ error: checked.error }, 400);
   const entries = Object.entries(checked.values);
   if (!entries.length) return c.json({ error: "nothing to update" }, 400);
-  await c.env.DB.prepare(
-    `UPDATE parts SET ${entries.map(([k]) => `${k} = ?`).join(", ")} WHERE id = ?`
+  // Ownership is folded into the update — zero changed rows means the part
+  // isn't this user's (or doesn't exist).
+  const res = await c.env.DB.prepare(
+    `UPDATE parts SET ${entries.map(([k]) => `${k} = ?`).join(", ")} WHERE id = ? AND vehicle_id IN (SELECT id FROM vehicles WHERE user_id = ?)`
   )
-    .bind(...entries.map(([, v]) => v), id)
+    .bind(...entries.map(([, v]) => v), id, userId)
     .run();
+  if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
 });
 
@@ -345,35 +362,43 @@ vehicles.post("/parts/:id/refresh", async (c) => {
 });
 
 vehicles.delete("/parts/:id", async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
-  if (!(await ownedPart(c.env.DB, userId, id))) return c.json({ error: "not found" }, 404);
-  await c.env.DB.prepare("DELETE FROM parts WHERE id = ?").bind(id).run();
+  const res = await c.env.DB.prepare(
+    "DELETE FROM parts WHERE id = ? AND vehicle_id IN (SELECT id FROM vehicles WHERE user_id = ?)"
+  )
+    .bind(c.req.param("id"), c.get("userId"))
+    .run();
+  if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
 });
 
 vehicles.post("/parts/:id/measurements", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  if (!(await ownedPart(c.env.DB, userId, id))) return c.json({ error: "not found" }, 404);
   const body = await c.req.json<{ measured_on?: unknown; value?: unknown; unit?: unknown }>();
   if (!isValidDate(body.measured_on)) return c.json({ error: "invalid measured_on" }, 400);
   if (typeof body.value !== "number" || !Number.isFinite(body.value) || body.value < 0 || body.value > 10_000)
     return c.json({ error: "invalid value" }, 400);
   const unit = typeof body.unit === "string" && body.unit.trim() ? body.unit.trim().slice(0, 12) : "mm";
+  // Ownership check and insert in one statement: the SELECT yields no row
+  // for a part that isn't this user's, so nothing is inserted and we 404.
   const row = await c.env.DB.prepare(
-    "INSERT INTO part_measurements (part_id, measured_on, value, unit) VALUES (?, ?, ?, ?) RETURNING id"
+    `INSERT INTO part_measurements (part_id, measured_on, value, unit)
+     SELECT p.id, ?2, ?3, ?4 FROM parts p JOIN vehicles v ON v.id = p.vehicle_id
+     WHERE p.id = ?1 AND v.user_id = ?5
+     RETURNING id`
   )
-    .bind(id, body.measured_on, Math.round(body.value * 100) / 100, unit)
+    .bind(id, body.measured_on, Math.round(body.value * 100) / 100, unit, userId)
     .first<{ id: number }>();
-  return c.json({ id: row!.id }, 201);
+  if (!row) return c.json({ error: "not found" }, 404);
+  return c.json({ id: row.id }, 201);
 });
 
 vehicles.delete("/parts/:id/measurements/:mid", async (c) => {
-  const userId = c.get("userId");
-  if (!(await ownedPart(c.env.DB, userId, c.req.param("id")))) return c.json({ error: "not found" }, 404);
-  const res = await c.env.DB.prepare("DELETE FROM part_measurements WHERE id = ? AND part_id = ?")
-    .bind(c.req.param("mid"), c.req.param("id"))
+  const res = await c.env.DB.prepare(
+    `DELETE FROM part_measurements WHERE id = ?1 AND part_id = ?2
+       AND part_id IN (SELECT p.id FROM parts p JOIN vehicles v ON v.id = p.vehicle_id WHERE v.user_id = ?3)`
+  )
+    .bind(c.req.param("mid"), c.req.param("id"), c.get("userId"))
     .run();
   if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });

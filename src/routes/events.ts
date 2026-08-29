@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { EVENT_SELECT, listEvents, ownedEvent, resolveTrack, vehicleIdForCar } from "../db";
+import { eventSelect, listEvents, ownedEvent, resolveTrack, vehicleIdForCar } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidConditions, isValidTemp, sanitizeChecklist, sanitizeSetup } from "../lib/validate";
 
@@ -40,10 +40,16 @@ events.get("/events", async (c) => {
 events.post("/events", async (c) => {
   const body = await c.req.json<any>();
   if (!body.start_date) return c.json({ error: "start_date required" }, 400);
-  const trackId = await resolveTrack(c.env.DB, c.get("userId"), body);
-  if (!trackId) return c.json({ error: "track required" }, 400);
   const extras = validateExtras(body);
   if ("error" in extras) return c.json({ error: extras.error }, 400);
+  // car is free text; the garage link is matched by name so parts and setups
+  // can hang off a real vehicle row. Independent of the track lookup, so the
+  // two queries run concurrently.
+  const [trackId, vehicleId] = await Promise.all([
+    resolveTrack(c.env.DB, c.get("userId"), body),
+    vehicleIdForCar(c.env.DB, c.get("userId"), body.car),
+  ]);
+  if (!trackId) return c.json({ error: "track required" }, 400);
   const row = await c.env.DB.prepare(
     `INSERT INTO events (user_id, track_id, start_date, days, club, run_group, car, vehicle_id, notes,
                          conditions, temp_f, checklist, best_time_ms, track_hours)
@@ -57,9 +63,7 @@ events.post("/events", async (c) => {
       body.club ?? null,
       body.run_group ?? null,
       body.car ?? null,
-      // car is free text; the garage link is matched by name so parts and
-      // setups can hang off a real vehicle row.
-      await vehicleIdForCar(c.env.DB, c.get("userId"), body.car),
+      vehicleId,
       body.notes ?? null,
       extras.values.conditions ?? null,
       extras.values.temp_f ?? null,
@@ -74,39 +78,43 @@ events.post("/events", async (c) => {
 events.get("/events/:id", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  const event = await c.env.DB.prepare(`${EVENT_SELECT} WHERE e.user_id = ? AND e.id = ?`)
-    .bind(userId, id)
-    .first<EventRow>();
+  const db = c.env.DB;
+  // One round trip for the whole page; child rows are discarded on the 404
+  // path, so nothing leaks when the event isn't this user's.
+  const [eventRes, sessionRes, lapRes, setupRes] = await db.batch([
+    db.prepare(eventSelect("WHERE e.user_id = ? AND e.id = ?")).bind(userId, id),
+    db
+      .prepare(
+        "SELECT id, label, notes, sort, trace, channels FROM sessions WHERE event_id = ? ORDER BY sort, id"
+      )
+      .bind(id),
+    db
+      .prepare(
+        "SELECT l.id, l.session_id, l.lap_num, l.time_ms FROM laps l JOIN sessions s ON s.id = l.session_id WHERE s.event_id = ? ORDER BY l.session_id, l.lap_num"
+      )
+      .bind(id),
+    db.prepare("SELECT day, data FROM setups WHERE event_id = ? ORDER BY day").bind(id),
+  ]);
+  const event = eventRes.results[0] as EventRow | undefined;
   if (!event) return c.json({ error: "not found" }, 404);
 
   const sessions = (
-    await c.env.DB.prepare(
-      "SELECT id, label, notes, sort, trace, channels FROM sessions WHERE event_id = ? ORDER BY sort, id"
-    )
-      .bind(id)
-      .all<{ id: number; label: string | null; notes: string | null; sort: number; trace: string | null; channels: string | null }>()
-  ).results.map((s) => ({
+    sessionRes.results as { id: number; label: string | null; notes: string | null; sort: number; trace: string | null; channels: string | null }[]
+  ).map((s) => ({
     ...s,
     trace: s.trace ? JSON.parse(s.trace) : null,
     channels: s.channels ? JSON.parse(s.channels) : null,
   }));
-  const laps = (
-    await c.env.DB.prepare(
-      "SELECT l.id, l.session_id, l.lap_num, l.time_ms FROM laps l JOIN sessions s ON s.id = l.session_id WHERE s.event_id = ? ORDER BY l.session_id, l.lap_num"
-    )
-      .bind(id)
-      .all<{ id: number; session_id: number; lap_num: number; time_ms: number }>()
-  ).results;
+  const laps = lapRes.results as { id: number; session_id: number; lap_num: number; time_ms: number }[];
 
   const sessionsWithLaps = sessions.map((s) => ({
     ...s,
     laps: laps.filter((l) => l.session_id === s.id),
   }));
-  const setups = (
-    await c.env.DB.prepare("SELECT day, data FROM setups WHERE event_id = ? ORDER BY day")
-      .bind(id)
-      .all<{ day: number; data: string }>()
-  ).results.map((s) => ({ day: s.day, data: JSON.parse(s.data) }));
+  const setups = (setupRes.results as { day: number; data: string }[]).map((s) => ({
+    day: s.day,
+    data: JSON.parse(s.data),
+  }));
   return c.json({ ...withComputed(event), sessions: sessionsWithLaps, setups });
 });
 
@@ -115,8 +123,13 @@ events.put("/events/:id", async (c) => {
   const userId = c.get("userId");
   if (!(await ownedEvent(c.env.DB, userId, id))) return c.json({ error: "not found" }, 404);
   const body = await c.req.json<any>();
-  const trackId =
-    body.track_id || body.track_name ? await resolveTrack(c.env.DB, userId, body) : undefined;
+  // The track lookup and the garage-link re-match are independent — run them
+  // concurrently. A car change re-matches the garage link (clearing it when
+  // the name no longer names a garage vehicle).
+  const [trackId, vehicleId] = await Promise.all([
+    body.track_id || body.track_name ? resolveTrack(c.env.DB, userId, body) : undefined,
+    "car" in body ? vehicleIdForCar(c.env.DB, userId, body.car) : undefined,
+  ]);
   if (trackId === null) return c.json({ error: "invalid track" }, 400);
 
   const fields: string[] = [];
@@ -129,9 +142,7 @@ events.put("/events/:id", async (c) => {
   for (const col of ["start_date", "days", "club", "run_group", "car", "notes", "best_time_ms"]) {
     if (col in body) set(col, body[col]);
   }
-  // A car change re-matches the garage link (clearing it when the name no
-  // longer names a garage vehicle).
-  if ("car" in body) set("vehicle_id", await vehicleIdForCar(c.env.DB, userId, body.car));
+  if ("car" in body) set("vehicle_id", vehicleId ?? null);
   const extras = validateExtras(body);
   if ("error" in extras) return c.json({ error: extras.error }, 400);
   for (const [col, val] of Object.entries(extras.values)) set(col, val);
@@ -144,9 +155,10 @@ events.put("/events/:id", async (c) => {
 });
 
 events.delete("/events/:id", async (c) => {
-  const id = c.req.param("id");
-  if (!(await ownedEvent(c.env.DB, c.get("userId"), id))) return c.json({ error: "not found" }, 404);
-  await c.env.DB.prepare("DELETE FROM events WHERE id = ?").bind(id).run();
+  const res = await c.env.DB.prepare("DELETE FROM events WHERE id = ? AND user_id = ?")
+    .bind(c.req.param("id"), c.get("userId"))
+    .run();
+  if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
 });
 
@@ -159,28 +171,34 @@ const parseDay = (raw: string): number | null => {
 
 events.put("/events/:id/setups/:day", async (c) => {
   const id = c.req.param("id");
-  if (!(await ownedEvent(c.env.DB, c.get("userId"), id))) return c.json({ error: "not found" }, 404);
   const day = parseDay(c.req.param("day"));
   if (day == null) return c.json({ error: "invalid day" }, 400);
   const setup = sanitizeSetup(await c.req.json());
   if (setup === undefined) return c.json({ error: "invalid setup" }, 400);
   if (setup === null) return c.json({ error: "empty setup — delete it instead" }, 400);
-  await c.env.DB.prepare(
-    `INSERT INTO setups (event_id, day, data) VALUES (?, ?, ?)
+  // Ownership is folded into the upsert: the SELECT yields no row for an
+  // event that isn't this user's, so nothing is written and we 404.
+  const res = await c.env.DB.prepare(
+    `INSERT INTO setups (event_id, day, data)
+     SELECT id, ?2, ?3 FROM events WHERE id = ?1 AND user_id = ?4
      ON CONFLICT(event_id, day) DO UPDATE SET data = excluded.data`
   )
-    .bind(id, day, JSON.stringify(setup))
+    .bind(id, day, JSON.stringify(setup), c.get("userId"))
     .run();
+  if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
 });
 
 events.delete("/events/:id/setups/:day", async (c) => {
   const id = c.req.param("id");
-  if (!(await ownedEvent(c.env.DB, c.get("userId"), id))) return c.json({ error: "not found" }, 404);
   const day = parseDay(c.req.param("day"));
   if (day == null) return c.json({ error: "invalid day" }, 400);
-  const res = await c.env.DB.prepare("DELETE FROM setups WHERE event_id = ? AND day = ?")
-    .bind(id, day)
+  // Ownership-scoped like the upsert above; a foreign event and a missing
+  // sheet both leave changes at 0 and 404, same as before.
+  const res = await c.env.DB.prepare(
+    "DELETE FROM setups WHERE event_id = ?1 AND day = ?2 AND EXISTS (SELECT 1 FROM events WHERE id = ?1 AND user_id = ?3)"
+  )
+    .bind(id, day, c.get("userId"))
     .run();
   if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
@@ -193,19 +211,23 @@ events.delete("/events/:id/setups/:day", async (c) => {
 events.get("/events/:id/setups/prefill", async (c) => {
   const id = c.req.param("id");
   const userId = c.get("userId");
-  const event = await c.env.DB.prepare(
-    "SELECT id, vehicle_id, start_date FROM events WHERE id = ? AND user_id = ?"
-  )
-    .bind(id, userId)
-    .first<{ id: number; vehicle_id: number | null; start_date: string }>();
-  if (!event) return c.json({ error: "not found" }, 404);
   const day = parseDay(c.req.query("day") ?? "1") ?? 1;
+  // The event row and the same-event lookup are independent — one round trip.
+  const [eventRes, sameRes] = await c.env.DB.batch([
+    c.env.DB.prepare("SELECT id, vehicle_id, start_date FROM events WHERE id = ? AND user_id = ?").bind(
+      id,
+      userId
+    ),
+    c.env.DB.prepare(
+      "SELECT data FROM setups WHERE event_id = ? AND day < ? ORDER BY day DESC LIMIT 1"
+    ).bind(id, day),
+  ]);
+  const event = eventRes.results[0] as
+    | { id: number; vehicle_id: number | null; start_date: string }
+    | undefined;
+  if (!event) return c.json({ error: "not found" }, 404);
 
-  const sameEvent = await c.env.DB.prepare(
-    "SELECT data FROM setups WHERE event_id = ? AND day < ? ORDER BY day DESC LIMIT 1"
-  )
-    .bind(id, day)
-    .first<{ data: string }>();
+  const sameEvent = sameRes.results[0] as { data: string } | undefined;
   if (sameEvent) return c.json({ data: JSON.parse(sameEvent.data) });
 
   if (event.vehicle_id != null) {

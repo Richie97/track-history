@@ -22,7 +22,7 @@ any UI.
    `Track`, `Session`, `Lap`, `Vehicle`, `Part`, `Measurement`, `Setup`, `Me`,
    `CatalogTrack`, `ShareData`.
 2. **Field names and nullability must match the server exactly.** The canonical
-   shapes are `ComputedEvent` in `src/lib/stats.ts` and `EVENT_SELECT` in
+   shapes are `ComputedEvent` in `src/lib/stats.ts` and `eventSelect` in
    `src/db.ts`. Use `CodingKeys` to map `snake_case` → `camelCase`; do **not**
    rely on `.convertFromSnakeCase`, because it silently mangles keys like
    `best_time_ms` vs `best_ms` and makes mismatches hard to spot.
