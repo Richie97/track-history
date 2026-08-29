@@ -11,6 +11,7 @@
       "checklist_template": null,
       "email": "dev@example.com",
       "id": 1,
+      "leaderboard_opt_in": false,
       "name": "Dev User",
       "picture": null,
       "share_slug": "contract-fixture"

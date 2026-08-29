@@ -67,6 +67,11 @@ Features added after the rewrite shipped, and where they landed:
   `public/js/channel-graphs.js`) is pinned by `contracts/logic/lap-delta.json`,
   so the iOS (NS-23) and Android (NS-24) chart stacks can add it as one more
   chart when the ports are taken up.
+- **Per-track leaderboards** (2026-08) — **web UI first, models everywhere.**
+  Strictly opt-in (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard`
+  is in the golden contract and both native clients decode `TrackLeaderboard`,
+  so the native track pages/settings can grow the section without a contract
+  change.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 

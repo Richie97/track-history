@@ -51,6 +51,29 @@ public data class CatalogTrack(
 )
 
 /**
+ * The per-track community leaderboard (`GET /api/tracks/:id/leaderboard`):
+ * opted-in users' best laps at the same catalog track. [catalogId] is null for
+ * a track the catalog doesn't know — no cross-user identity, so no leaderboard.
+ * [optedIn] is the viewer's own flag, so the UI can offer the opt-in without a
+ * second request.
+ */
+@Serializable
+public data class TrackLeaderboard(
+    @SerialName("catalog_id") val catalogId: Int? = null,
+    @SerialName("opted_in") val optedIn: Boolean,
+    val entries: List<LeaderboardEntry>,
+)
+
+/** One leaderboard row. [you] marks the viewer's own entry. */
+@Serializable
+public data class LeaderboardEntry(
+    val name: String? = null,
+    @SerialName("best_ms") val bestMs: Int,
+    val date: String,
+    val you: Boolean,
+)
+
+/**
  * One row of "setup vs. lap times" for a track (`GET /api/tracks/:id/setups`):
  * a day's setup sheet paired with what the car did that day.
  */

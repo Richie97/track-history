@@ -29,6 +29,24 @@
       "source": "src/routes/me.ts"
     },
     {
+      "name": "leaderboard-opt-in",
+      "file": "leaderboard-opt-in.json",
+      "method": "PUT",
+      "path": "/me/leaderboard",
+      "status": 200,
+      "description": "Toggle the per-track leaderboard opt-in.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "track-leaderboard",
+      "file": "track-leaderboard.json",
+      "method": "GET",
+      "path": "/tracks/:id/leaderboard",
+      "status": 200,
+      "description": "The per-track community leaderboard: opted-in users' best laps at the same catalog track. `you` marks the viewer's own row.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
       "name": "events-list",
       "file": "events-list.json",
       "method": "GET",

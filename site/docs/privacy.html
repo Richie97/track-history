@@ -59,7 +59,7 @@
       Track Evolution (<a href="https://trackevolution.app">trackevolution.app</a>) is a
       free personal track-day logbook operated by Speedshift LLC. This policy
       explains, in plain language, what data the app collects and what happens
-      to it. <em>Effective August 26, 2026.</em>
+      to it. <em>Effective August 28, 2026.</em>
     </p>
 
     <div class="callout">
@@ -84,8 +84,10 @@
         times, notes, goals, car and conditions details you enter, the
         vehicles in your garage — including the consumable parts, costs, wear
         measurements and per-day setup sheets you record for them — and any
-        share slug you choose. This is stored so the app can show it back to
-        you. Garage and setup data is never included in share pages.</li>
+        share slug you choose, along with whether you've opted into the
+        per-track leaderboards. This is stored so the app can show it back to
+        you. Garage and setup data is never included in share pages or
+        leaderboards.</li>
       <li><strong>Location, only while recording laps.</strong> The mobile
         app's lap recorder uses your phone's GPS during a recording you start
         yourself — see <a href="#location">location data</a> below for exactly
@@ -149,12 +151,20 @@
 
     <h2 id="visibility">Who can see your logbook</h2>
     <p>
-      Your logbook is private to your account. The one exception is a
-      <a href="./data-model.html#sharing">share page</a>, which you create
-      yourself under a slug you choose: it shows stats and best times but
-      strips notes, your email, and per-lap data, and you can disable it at any
-      time.
+      Your logbook is private to your account. There are two exceptions, both
+      of which you turn on yourself and can turn off at any time:
     </p>
+    <ul>
+      <li>A <a href="./data-model.html#sharing">share page</a>, which you
+        create under a slug you choose: it shows stats and best times but
+        strips notes, your email, and per-lap data. Pasting its link into a
+        chat produces a preview built from the same public stats.</li>
+      <li><a href="./data-model.html#leaderboards">Per-track leaderboards</a>,
+        which are off by default: opting in shows your display name and your
+        best lap per track (with its date) to other signed-in users. Nothing
+        else — no notes, laps, garage or setup data — is included, and opting
+        out removes you from every leaderboard immediately.</li>
+    </ul>
 
     <h2 id="storage">Where your data lives</h2>
     <p>
