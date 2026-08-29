@@ -49,17 +49,16 @@ android {
         targetSdk = 36
         // versionCode must be strictly greater than the highest already
         // uploaded to Play — including builds that were rejected, since a
-        // rejected submission still burns its code. That is why this is 3 and
-        // not 2: version code 1 was the Android Auto submission Play rejected,
-        // and 2 is what is live. Check the Console before uploading rather than
-        // trusting this number; it is the one release value the repo cannot
-        // verify for itself.
+        // rejected submission still burns its code (version code 1 was the
+        // Android Auto submission Play rejected; 2 was the first accepted one).
         //
-        // Which is what TE_VERSION_CODE / TE_VERSION_NAME are for: the deploy
-        // workflow can raise either past what the Console actually holds
-        // without a commit, so a rejected upload is re-runnable with a higher
-        // number in seconds. Unset or blank keeps the value below, which is
-        // what every local build gets.
+        // Every uploaded build sets TE_VERSION_CODE: the deploy workflow
+        // (android-release.yml) derives it from main's commit count — strictly
+        // monotonic, already far past anything burned in the Console — so the
+        // per-merge internal-track uploads never need a human to mint numbers,
+        // and its dispatch input can still override past whatever the Console
+        // actually holds. The 3 below is only what local builds get; it is not
+        // kept in step with Play.
         versionCode = env("TE_VERSION_CODE")?.toInt() ?: 3
         versionName = env("TE_VERSION_NAME") ?: "1.0.1"
     }
