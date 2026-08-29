@@ -5,7 +5,9 @@
 // shared driven-distance axis so laps line up corner-for-corner. Unselected
 // laps draw as a dim context envelope; up to three laps at a time are
 // highlighted in the chart series colors, picked via the lap chips (which
-// double as the legend — identity is never color-alone).
+// double as the legend — identity is never color-alone). With two or more
+// laps highlighted, a time-delta chart (vs the fastest of the selection)
+// renders above the channels — see the "lap delta" section below.
 // Channel data shape is sessions.channels (see js/import/channels.js).
 //
 // Same conventions as chart.js: pure string building for the SVG, one bind
@@ -83,6 +85,111 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190 
   </svg>`;
 }
 
+// --- lap delta -----------------------------------------------------------
+// Time delta between laps on the shared distance grid. Every stored channel
+// lap carries a speed array (buildLapChannels synthesizes one when the source
+// had none), so elapsed time at each grid point can be integrated from speed
+// (trapezoidal dt per cell) and scaled so the total lands exactly on the
+// lap's timed duration — the speed integral alone drifts a little, and the
+// timed duration is the ground truth. Subtracting two laps' series gives the
+// classic "where is the time gained or lost" delta trace.
+
+// A 0 km/h sample would make its grid cell take near-forever; clamp the cell
+// average to walking pace instead. The end-scale to timeMs absorbs the error.
+const DELTA_MIN_KPH = 3;
+
+// Cumulative elapsed seconds at each grid point (d = 0, dStepM, 2*dStepM …)
+// from a lap's speed samples (km/h). Scaled so the last point equals
+// timeMs/1000 when a timed duration is given. Exported for unit tests.
+export function lapTimeSeries(speedKph, dStepM, timeMs) {
+  const t = new Array(speedKph.length);
+  t[0] = 0;
+  for (let k = 1; k < speedKph.length; k++) {
+    const vAvg = Math.max(DELTA_MIN_KPH, (speedKph[k - 1] + speedKph[k]) / 2) / 3.6; // m/s
+    t[k] = t[k - 1] + dStepM / vAvg;
+  }
+  const total = t[t.length - 1];
+  if (timeMs != null && Number.isFinite(timeMs) && total > 0) {
+    const scale = timeMs / 1000 / total;
+    for (let k = 0; k < t.length; k++) t[k] = t[k] * scale;
+  }
+  return t;
+}
+
+// Delta seconds (lap − ref, positive = lap is slower) at each shared grid
+// point, over the grid points both laps cover. null when either lap has no
+// speed data or the overlap is too short to mean anything.
+export function deltaSeries(lap, ref, dStepM) {
+  if (!Array.isArray(lap?.speed) || !Array.isArray(ref?.speed)) return null;
+  const a = lapTimeSeries(lap.speed, dStepM, lap.timeMs);
+  const b = lapTimeSeries(ref.speed, dStepM, ref.timeMs);
+  const n = Math.min(a.length, b.length);
+  if (n < 10) return null;
+  const out = new Array(n);
+  for (let k = 0; k < n; k++) out[k] = a[k] - b[k];
+  return out;
+}
+
+// The delta chart: highlighted laps vs the reference lap (the fastest of the
+// highlight selection), on the same distance axis as the channel charts.
+// Positive is slower than the reference, so a climbing trace is time slipping
+// away. refLabel is the reference's display lap number. Returns "" when
+// fewer than one comparable lap is highlighted. Exported for unit tests.
+export function deltaChartSvg(channels, lit, refIdx, refLabel, { width = 900, height = 190 } = {}) {
+  const dStep = channels.dStepM;
+  const laps = channels.laps;
+  const ref = laps[refIdx];
+  if (!Array.isArray(ref?.speed)) return "";
+  const rows = [...lit.entries()]
+    .filter(([i]) => i !== refIdx)
+    .map(([i, color]) => ({ i, color, d: deltaSeries(laps[i], ref, dStep) }))
+    .filter((r) => r.d);
+  if (!rows.length) return "";
+  const pad = { l: 56, r: 14, t: 20, b: 22 };
+
+  // Same x-axis as the channel charts (longest lap), so the charts align.
+  let maxN = 0;
+  for (const l of laps) if (Array.isArray(l.speed) && l.speed.length > maxN) maxN = l.speed.length;
+  let y0 = 0, y1 = 0;
+  for (const { d } of rows) {
+    for (const v of d) {
+      if (v < y0) y0 = v;
+      if (v > y1) y1 = v;
+    }
+  }
+  const ypad = Math.max((y1 - y0) * 0.08, 0.05);
+  y0 -= ypad;
+  y1 += ypad;
+  const x1 = (maxN - 1) * dStep;
+  const X = (d) => pad.l + (d / Math.max(1, x1)) * (width - pad.l - pad.r);
+  const Y = (v) => pad.t + ((y1 - v) / (y1 - y0)) * (height - pad.t - pad.b);
+
+  let grid = "", labels = "";
+  for (const tv of niceNumTicks(y0, y1, 3)) {
+    const y = Y(tv).toFixed(1);
+    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
+    labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${tv > 0 ? "+" : ""}${tv.toFixed(1)}</text>`;
+  }
+  for (const tv of niceNumTicks(0, x1, 6)) {
+    labels += `<text x="${X(tv).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(fmtDist(tv))}</text>`;
+  }
+  // The zero line is the reference lap — everything is measured against it.
+  const zy = Y(0).toFixed(1);
+  grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${zy}" y2="${zy}" stroke="var(--text-faint)" stroke-width="1" stroke-dasharray="4 3"/>`;
+  grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Delta (s) vs lap ${esc(String(refLabel))} — above the line is slower</text>`;
+
+  let paths = "";
+  for (const { color, d } of rows) {
+    const path = d.map((v, k) => `${k ? "L" : "M"}${X(k * dStep).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+    paths += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Time delta to lap ${esc(String(refLabel))} by distance — above the zero line is slower" data-channel="delta" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
+    ${grid}${labels}${paths}
+  </svg>`;
+}
+
 // Match the session's stored lap rows ({lap_num, time_ms}, chronological) to
 // the channel entries ({n, timeMs}, same order). Both come from the same
 // parsed laps at import time, but a lap can lack channel data (no distance
@@ -127,7 +234,7 @@ export function bindChannelGraphs(container, channels, sessionLaps) {
     <div class="laps ch-chips"></div>
     <details class="ch-details">
       <summary>Channel graphs <span class="hint">${chanNames} vs distance</span></summary>
-      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3)</div>
+      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3). With 2+ selected, the delta chart shows where time is gained or lost vs the fastest.</div>
       <div class="ch-graphs"></div>
     </details>`;
   const chipsEl = container.querySelector(".ch-chips");
@@ -169,7 +276,20 @@ export function bindChannelGraphs(container, channels, sessionLaps) {
   const renderCharts = () => {
     chartsDirty = false;
     const lit = litMap();
-    const charts = CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit)).filter(Boolean);
+    // Delta chart first when 2+ laps are highlighted: reference is the
+    // fastest of the selection, deltas cached for the tooltip.
+    let refIdx = null;
+    const deltaByIdx = new Map();
+    if (state.lit.length >= 2) {
+      refIdx = state.lit.reduce((a, b) => (chLaps[b].timeMs < chLaps[a].timeMs ? b : a));
+      for (const i of state.lit) {
+        if (i === refIdx) continue;
+        const d = deltaSeries(chLaps[i], chLaps[refIdx], channels.dStepM);
+        if (d) deltaByIdx.set(i, d);
+      }
+    }
+    const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx]) : "";
+    const charts = [deltaSvg, ...CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit))].filter(Boolean);
     chartsEl.innerHTML = charts.map((c) => `<div class="ch-chart">${c}</div>`).join("");
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
@@ -186,6 +306,12 @@ export function bindChannelGraphs(container, channels, sessionLaps) {
         const d = Math.round(k * channels.dStepM);
         const tipRows = state.lit
           .map((lapIdx, slot) => {
+            if (svgEl.dataset.channel === "delta") {
+              const arr = deltaByIdx.get(lapIdx);
+              if (!arr || k >= arr.length) return "";
+              const v = arr[k];
+              return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${v >= 0 ? "+" : ""}${v.toFixed(2)} s vs lap ${dispN[refIdx]}</div>`;
+            }
             const arr = chLaps[lapIdx]?.[def.key];
             if (!arr || k >= arr.length) return "";
             return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}</div>`;

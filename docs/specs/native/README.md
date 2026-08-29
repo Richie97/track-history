@@ -50,6 +50,16 @@ stick, both on the phone and usually before the laptop is opened. `vbo.js` stays
 web-only, and so does everything else on the deferred list. See NS-30 for the
 argument in full.
 
+### Post-rewrite feature decisions
+
+Features added after the rewrite shipped, and where they landed:
+
+- **Lap delta chart** (2026-08) — **web first.** Rides on the channel-graphs
+  panel; the math (`lapTimeSeries`/`deltaSeries` in
+  `public/js/channel-graphs.js`) is pinned by `contracts/logic/lap-delta.json`,
+  so the iOS (NS-23) and Android (NS-24) chart stacks can add it as one more
+  chart when the ports are taken up.
+
 ## Specs
 
 ### Phase 0 — Foundations

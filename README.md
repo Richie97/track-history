@@ -467,7 +467,13 @@ driven-distance grid (20 m) so laps overlay corner-for-corner. On the event
 page the session's lap list doubles as the chip picker for the expandable
 **channel graphs** below it: all laps as a dim context envelope, up to three
 laps highlighted at a time via the chips (best lap pre-selected), with a
-shared distance axis and hover readouts.
+shared distance axis and hover readouts. With two or more laps highlighted, a
+**delta chart** renders above the channels: cumulative time gained/lost vs.
+the fastest of the selection, by distance — elapsed time is integrated from
+each lap's speed samples and scaled so it lands exactly on the timed lap, so
+the trace shows *where* on track the difference lives (`lapTimeSeries` /
+`deltaSeries` in `public/js/channel-graphs.js`, pinned for ports by
+`contracts/logic/lap-delta.json`).
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.
