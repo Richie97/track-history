@@ -397,9 +397,10 @@ driving-task app and the Play car review rejects it under Points of Interest.
 The **Play Store test track** workflow
 ([`.github/workflows/android-release.yml`](.github/workflows/android-release.yml))
 builds the native Android client (`apps/android`), signs it with the upload key
-and pushes the `.aab` to Play. Run it from the Actions tab — it is
-`workflow_dispatch` only, because a version code is burned the moment it is uploaded, even if the release
-is later discarded. Inputs: the track (`internal`, `alpha` or `beta` —
+and pushes the `.aab` to Play. It fires two ways: **automatically on every merge
+to `main` that touches the Android client** (same path filter as `android.yml`),
+which uploads to the **internal** track, and manually from the Actions tab via
+`workflow_dispatch`. Dispatch inputs: the track (`internal`, `alpha` or `beta` —
 production is deliberately absent, since that rollout is the staged,
 percentage-gated Console operation), optional `versionCode` / `versionName`
 overrides, and a dry run that builds and signs but uploads nothing, attaching
@@ -420,11 +421,16 @@ different app; a lost upload key is a Play support process with a lead time, not
 a workaround. Locally the release variant builds *unsigned* rather than falling
 back to the debug key, so an artifact signed with anything else can't be
 produced by accident, and the workflow verifies the signature before uploading.
-`versionCode` and `versionName` come from `apps/android/app/build.gradle.kts`
-unless the workflow inputs override them — Play requires a `versionCode`
-strictly higher than anything it has ever received for `app.trackevolution` —
-including a rejected submission, which burns its code anyway. Check the Console
-rather than trusting the checked-in number.
+Play requires a `versionCode` strictly higher than anything it has ever
+received for `app.trackevolution` — including a rejected submission, which
+burns its code anyway. The workflow therefore derives the `versionCode` from
+the commit count of the ref it builds (strictly monotonic on `main`, and
+already far past every burned code), so the automatic per-merge uploads never
+collide; the dispatch input overrides it for the odd case, such as building an
+older ref whose count sits below a code `main` has already burned.
+`versionName` comes from `apps/android/app/build.gradle.kts` unless the
+dispatch input overrides it, and the `versionCode` checked in there is only
+what local builds get — it is not kept in step with Play.
 
 Two things no build can check, both from NS-27: **Android Auto must be opted out
 in the Play Console** — the code side is guarded by

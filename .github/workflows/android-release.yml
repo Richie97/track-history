@@ -1,8 +1,11 @@
 # Deploy the native Android client to a Play Store *test* track (spec: NS-27).
 #
-# Manual only. Pushing a build to a store is outward-facing and irreversible in
-# the sense that matters — a version code, once uploaded, is burned even if the
-# release is discarded — so nothing here fires off a merge.
+# Fires two ways: automatically on every merge to main that touches the Android
+# client (internal track, versionCode derived from the commit count so each
+# upload is strictly higher than the last), and manually via workflow_dispatch
+# for alpha/beta, version overrides, and dry runs. Version codes are burned on
+# upload even if the release is discarded — the commit count on main only ever
+# grows, which is what makes the automatic path safe to leave unattended.
 #
 # Test tracks only, deliberately. `production` is not in the choice list: this
 # workflow exists to get builds in front of testers, and the production rollout
@@ -15,6 +18,17 @@
 name: Play Store test track
 
 on:
+  # Same path filter as android.yml: a merge that only touches the Worker or
+  # the web app produces a byte-identical Android client, and uploading it
+  # would burn a version code for nothing.
+  push:
+    branches: [main]
+    paths:
+      [
+        "apps/android/**",
+        "contracts/**",
+        ".github/workflows/android-release.yml",
+      ]
   workflow_dispatch:
     inputs:
       track:
@@ -23,7 +37,7 @@ on:
         options: [internal, alpha, beta]
         default: internal
       version_code:
-        description: versionCode override (must be higher than anything ever uploaded to Play)
+        description: "versionCode override (default: the commit count of the ref; must be higher than anything ever uploaded to Play)"
         type: string
         required: false
       version_name:
@@ -49,6 +63,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the default versionCode is the ref's commit count,
+          # and a depth-1 clone would count 1 for every build.
+          fetch-depth: 0
+
+      # The default versionCode is the commit count of the ref being built.
+      # On main it is strictly monotonic (main is never force-pushed), so the
+      # automatic per-merge uploads need no human to mint numbers, and it is
+      # already far past every code burned in the Console. The dispatch input
+      # still overrides it — the escape hatch for building an older ref, whose
+      # commit count could sit below a code main has already burned.
+      - name: Resolve versionCode
+        id: version
+        run: |
+          override="${{ inputs.version_code }}"
+          if [ -n "$override" ]; then
+            code="$override"
+          else
+            code=$(git rev-list --count HEAD)
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "versionCode: $code"
+
       # 21, matching android.yml's app job: :app depends on :core, whose
       # toolchain is 21, so Gradle never has to go hunting for a second JDK.
       - uses: actions/setup-java@v4
@@ -67,9 +104,10 @@ jobs:
         working-directory: apps/android
         run: ./gradlew :app:checkReleaseHasNoCarApp --no-daemon
 
-      # android.yml runs these on every PR, but a dispatch can name any ref,
-      # including one that never opened a PR. A store upload is the wrong place
-      # to discover that.
+      # android.yml runs these on every PR, but a dispatch can name any ref —
+      # including one that never opened a PR — and a merge commit on main is
+      # not the commit the PR's CI tested. A store upload is the wrong place to
+      # discover either.
       - name: Tests
         working-directory: apps/android
         run: ./gradlew :core:test :app:testDebugUnitTest --no-daemon
@@ -99,9 +137,10 @@ jobs:
           TE_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
           TE_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
           TE_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
-          # Empty when the input is omitted, which build.gradle.kts reads as
-          # "keep the checked-in value".
-          TE_VERSION_CODE: ${{ inputs.version_code }}
+          # Always set: the override when given, else the ref's commit count
+          # (see Resolve versionCode above). Only versionName falls back to the
+          # checked-in value when its input is empty.
+          TE_VERSION_CODE: ${{ steps.version.outputs.code }}
           TE_VERSION_NAME: ${{ inputs.version_name }}
         # An .aab, not an .apk: Play has required App Bundles for updates to
         # existing listings since 2021.
@@ -168,7 +207,9 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: app.trackevolution
           releaseFiles: apps/android/app/build/outputs/bundle/release/app-release.aab
-          track: ${{ inputs.track }}
+          # `inputs` is empty on a push event, so a merge to main lands on the
+          # internal track; only a dispatch can choose alpha or beta.
+          track: ${{ inputs.track || 'internal' }}
           # No mapping file: the release build has minification off, so there is
           # nothing to deobfuscate.
           status: completed
@@ -179,10 +220,11 @@ jobs:
           {
             echo "### Play Store test track"
             echo
+            echo "- trigger: \`${{ github.event_name }}\`"
             echo "- ref: \`${{ github.ref_name }}\` (\`${{ github.sha }}\`)"
-            echo "- track: \`${{ inputs.track }}\`"
-            echo "- dry run: \`${{ inputs.dry_run }}\`"
-            echo "- versionCode: \`${{ inputs.version_code || 'from build.gradle.kts' }}\`"
+            echo "- track: \`${{ inputs.track || 'internal' }}\`"
+            echo "- dry run: \`${{ inputs.dry_run || 'false' }}\`"
+            echo "- versionCode: \`${{ steps.version.outputs.code }}\`${{ inputs.version_code && ' (override)' || ' (commit count)' }}"
             echo "- versionName: \`${{ inputs.version_name || 'from build.gradle.kts' }}\`"
             echo
             echo "Before promoting past 10% (NS-27): the Android Auto form factor must be"
