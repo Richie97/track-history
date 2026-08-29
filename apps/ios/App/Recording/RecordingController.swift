@@ -46,6 +46,10 @@ final class RecordingController {
     /// When the last fix arrived, so the UI can say the stream has stalled.
     /// Silence during a session is the worst outcome — it has to be visible.
     private(set) var lastFixAt: Date?
+    /// Live lap timing (lap counter, last/best lap, predictive delta), fed the
+    /// same accepted fixes as the journal. Kit logic, pinned to the web
+    /// implementation by contracts/logic/live-timing.json.
+    private(set) var liveTiming = LiveTiming()
 
     let location: LocationService
     private let journal: FixJournal
@@ -119,6 +123,7 @@ final class RecordingController {
         }
         recording = fresh
         lastFixAt = nil
+        liveTiming = LiveTiming()
         phase = .recording
         location.start()
         Self.log.notice("recording started for event \(eventId ?? -1, privacy: .public)")
@@ -231,6 +236,7 @@ final class RecordingController {
         recording = current
         lastFixAt = Date()
         journal.append(stored)
+        liveTiming.addTimingFix(stored)
 
         if let failure = location.failure {
             stop(reason: .locationFailure(failure))

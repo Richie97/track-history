@@ -202,6 +202,15 @@ opens — on top of the lap recorder, the offline cache and write queue, and the
 charts. The same desk-bound features are web-only as on iOS. Video import is
 iOS-only so far.
 
+Both recorders show **live lap timing** while you drive: a lap counter, last
+and best lap, and a predictive delta to the session's best. The recorder
+doesn't know the start/finish line during a session (that's picked at review
+time), so timing anchors its own gate at the first fix at track pace —
+in practice the pit exit, which is on the racing line and gets re-crossed
+every lap. Live times are unofficial (the saved laps still come from the
+review line pick); the logic is `public/js/record/live-timing.js`, ported to
+both apps and pinned by `contracts/logic/live-timing.json`.
+
 ```sh
 cd apps/ios/Packages/TrackEvolutionKit && swift test   # iOS pure logic, no simulator
 open apps/ios/TrackEvolution.xcodeproj                 # the iOS app
