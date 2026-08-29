@@ -201,3 +201,136 @@ struct ChannelsFixture: Decodable {
     var input: Input
     var expected: Expected
 }
+
+/// The port of the JS delta tests (`test/unit/channel-graphs.test.js`), plus the
+/// cross-language pin against `contracts/logic/lap-delta.json`.
+struct LapDeltaTests {
+    private func lap(_ speed: [Double]?, _ timeMs: Int) -> LapChannels {
+        LapChannels(n: 1, timeMs: timeMs, speed: speed, rpm: nil, latG: nil)
+    }
+
+    @Test func integratesElapsedTimeFromConstantSpeed() {
+        // One second per 20 m cell at 72 km/h.
+        let t = ChannelGraphs.lapTimeSeries([Double](repeating: 72, count: 11), 20, nil)
+        #expect(t[0] == 0)
+        #expect(abs(t[10] - 10) < 1e-9)
+        #expect(abs(t[3] - 3) < 1e-9)
+    }
+
+    @Test func scalesToTheTimedDuration() {
+        let t = ChannelGraphs.lapTimeSeries([Double](repeating: 72, count: 11), 20, 25_000)
+        #expect(abs(t[10] - 25) < 1e-9)
+        #expect(abs(t[5] - 12.5) < 1e-9)
+    }
+
+    @Test func clampsZeroSpeedInsteadOfProducingInfinity() {
+        let t = ChannelGraphs.lapTimeSeries([0, 0, 72, 72], 20, nil)
+        #expect(t.allSatisfy { $0.isFinite })
+        #expect(t[3] > t[2])
+    }
+
+    @Test func positiveWhereTheLapIsSlower() {
+        let ref = lap([Double](repeating: 144, count: 30), 0) // 0.5 s/cell
+        let slow = lap([Double](repeating: 72, count: 30), 0) // 1 s/cell
+        // timeMs of 0 would zero the scale; use the unscaled path via nil-like
+        // behavior by matching integral time to the timed one instead.
+        let d = ChannelGraphs.deltaSeries(
+            LapChannels(n: 1, timeMs: 30_000 - 1_000, speed: slow.speed, rpm: nil, latG: nil),
+            LapChannels(n: 2, timeMs: (30 - 1) * 500, speed: ref.speed, rpm: nil, latG: nil),
+            20
+        )
+        #expect(d != nil)
+        // Scaled so the ends land on the timed difference: 29 s vs 14.5 s.
+        #expect(abs(d![d!.count - 1] - 14.5) < 1e-9)
+        #expect(d![0] == 0)
+    }
+
+    @Test func rejectsLapsWithoutSpeedOrTooLittleOverlap() {
+        let ref = lap([Double](repeating: 100, count: 30), 30_000)
+        #expect(ChannelGraphs.deltaSeries(lap(nil, 30_000), ref, 20) == nil)
+        #expect(ChannelGraphs.deltaSeries(lap([Double](repeating: 100, count: 5), 5_000), ref, 20) == nil)
+        #expect(ChannelGraphs.deltaSeries(lap([Double](repeating: 100, count: 20), 20_000), ref, 20)?.count == 20)
+    }
+
+    @Test func referenceIsTheFastestOfTheSelection() {
+        let channels = SessionChannels(
+            v: 1,
+            dStepM: 20,
+            laps: [
+                LapChannels(n: 1, timeMs: 48_000, speed: [], rpm: nil, latG: nil),
+                LapChannels(n: 2, timeMs: 47_000, speed: [], rpm: nil, latG: nil),
+            ]
+        )
+        #expect(ChannelGraphs.deltaReference([0], in: channels) == nil)
+        #expect(ChannelGraphs.deltaReference([0, 1], in: channels) == 1)
+    }
+
+    @Test func deltaDomainAlwaysIncludesZero() {
+        let domain = ChannelGraphs.deltaDomain([[0.5, 1.2]])
+        #expect(domain != nil)
+        #expect(domain!.low < 0)
+        #expect(domain!.high > 1.2)
+    }
+
+    /// Cross-language agreement: the JS implementation's own output for a shared
+    /// input has to come back out of this port to within 1e-9.
+    @Test func matchesTheJavaScriptImplementationOnASharedFixture() throws {
+        let url = RepoRoot.path("contracts/logic/lap-delta.json")
+        let fixture = try JSONDecoder().decode(LapDeltaFixture.self, from: try Data(contentsOf: url))
+        let step = fixture.input.dStepM
+
+        func check(_ got: [Double]?, _ want: [Double]?, _ name: String) {
+            switch (got, want) {
+            case (nil, nil): break
+            case let (.some(g), .some(w)):
+                #expect(g.count == w.count, "\(name): \(g.count) vs \(w.count) points")
+                for (i, pair) in zip(g, w).enumerated() {
+                    #expect(abs(pair.0 - pair.1) < 1e-9, "\(name)[\(i)]: \(pair.0) != \(pair.1)")
+                }
+            default:
+                Issue.record("\(name): nil mismatch")
+            }
+        }
+
+        let ref = LapChannels(n: 1, timeMs: fixture.input.refLap.timeMs, speed: fixture.input.refLap.speed, rpm: nil, latG: nil)
+        let slow = LapChannels(n: 2, timeMs: fixture.input.slowLap.timeMs, speed: fixture.input.slowLap.speed, rpm: nil, latG: nil)
+        let clamp = LapChannels(n: 3, timeMs: fixture.input.zeroClampLap.timeMs, speed: fixture.input.zeroClampLap.speed, rpm: nil, latG: nil)
+
+        check(
+            ChannelGraphs.lapTimeSeries(fixture.input.refLap.speed, step, fixture.input.refLap.timeMs),
+            fixture.expected.refTimeSeries, "refTimeSeries"
+        )
+        check(
+            ChannelGraphs.lapTimeSeries(fixture.input.refLap.speed, step, nil),
+            fixture.expected.refTimeSeriesUnscaled, "refTimeSeriesUnscaled"
+        )
+        check(ChannelGraphs.deltaSeries(slow, ref, step), fixture.expected.slowVsRef, "slowVsRef")
+        check(ChannelGraphs.deltaSeries(clamp, ref, step), fixture.expected.zeroClampVsRef, "zeroClampVsRef")
+    }
+}
+
+/// `contracts/logic/lap-delta.json` — reference output captured from
+/// `public/js/channel-graphs.js`.
+struct LapDeltaFixture: Decodable {
+    struct FixtureLap: Decodable {
+        var timeMs: Int
+        var speed: [Double]
+    }
+
+    struct Input: Decodable {
+        var dStepM: Double
+        var refLap: FixtureLap
+        var slowLap: FixtureLap
+        var zeroClampLap: FixtureLap
+    }
+
+    struct Expected: Decodable {
+        var refTimeSeries: [Double]
+        var refTimeSeriesUnscaled: [Double]
+        var slowVsRef: [Double]
+        var zeroClampVsRef: [Double]
+    }
+
+    var input: Input
+    var expected: Expected
+}

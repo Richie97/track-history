@@ -185,3 +185,106 @@ class ChannelGraphsTest {
         assertEquals("1.5 km", ChannelGraphs.fmtDist(1500.0))
     }
 }
+
+/**
+ * The port of the JS delta tests (`test/unit/channel-graphs.test.js`), plus the
+ * cross-language pin against `contracts/logic/lap-delta.json`.
+ */
+class LapDeltaTest {
+
+    private fun lap(speed: List<Double>?, timeMs: Int, n: Int = 1) =
+        LapChannels(n = n, timeMs = timeMs, speed = speed)
+
+    @Test
+    fun `integrates elapsed time from constant speed`() {
+        // One second per 20 m cell at 72 km/h.
+        val t = ChannelGraphs.lapTimeSeries(List(11) { 72.0 }, 20.0, null)
+        assertEquals(0.0, t[0], 0.0)
+        assertEquals(10.0, t[10], 1e-9)
+        assertEquals(3.0, t[3], 1e-9)
+    }
+
+    @Test
+    fun `scales so the last point lands exactly on the timed duration`() {
+        val t = ChannelGraphs.lapTimeSeries(List(11) { 72.0 }, 20.0, 25_000)
+        assertEquals(25.0, t[10], 1e-9)
+        assertEquals(12.5, t[5], 1e-9)
+    }
+
+    @Test
+    fun `clamps zero-speed samples instead of producing infinity`() {
+        val t = ChannelGraphs.lapTimeSeries(listOf(0.0, 0.0, 72.0, 72.0), 20.0, null)
+        assertTrue(t.all { it.isFinite() })
+        assertTrue(t[3] > t[2])
+    }
+
+    @Test
+    fun `positive where the lap is slower, ending on the timed difference`() {
+        val ref = lap(List(30) { 100.0 }, 47_000, n = 1)
+        val slow = lap(List(30) { 100.0 }, 48_200, n = 2)
+        val d = ChannelGraphs.deltaSeries(slow, ref, 20.0)!!
+        assertEquals(1.2, d.last(), 1e-9)
+    }
+
+    @Test
+    fun `truncates to the shorter lap and rejects missing speed or short overlap`() {
+        val ref = lap(List(30) { 100.0 }, 30_000)
+        assertEquals(20, ChannelGraphs.deltaSeries(lap(List(20) { 100.0 }, 20_000), ref, 20.0)!!.size)
+        assertNull(ChannelGraphs.deltaSeries(lap(null, 30_000), ref, 20.0))
+        assertNull(ChannelGraphs.deltaSeries(lap(List(5) { 100.0 }, 5_000), ref, 20.0))
+    }
+
+    @Test
+    fun `reference is the fastest of a two-plus selection`() {
+        val ch = SessionChannels(
+            v = 1,
+            dStepM = 20.0,
+            laps = listOf(lap(emptyList(), 48_000, n = 1), lap(emptyList(), 47_000, n = 2)),
+        )
+        assertNull(ChannelGraphs.deltaReference(listOf(0), ch))
+        assertEquals(1, ChannelGraphs.deltaReference(listOf(0, 1), ch))
+    }
+
+    @Test
+    fun `delta domain always includes zero`() {
+        val domain = ChannelGraphs.deltaDomain(listOf(listOf(0.5, 1.2)))!!
+        assertTrue(domain.low < 0)
+        assertTrue(domain.high > 1.2)
+    }
+
+    @Test
+    fun `matches the web implementation's reference output`() {
+        val fixture = Json.parseToJsonElement(
+            RepoRoot.path("contracts/logic/lap-delta.json").readText(),
+        ).jsonObject
+        val input = fixture["input"]!!.jsonObject
+        val step = input["dStepM"]!!.jsonPrimitive.content.toDouble()
+
+        fun fixtureLap(key: String, n: Int): LapChannels {
+            val o = input[key]!!.jsonObject
+            return LapChannels(
+                n = n,
+                timeMs = o["timeMs"]!!.jsonPrimitive.content.toInt(),
+                speed = o["speed"]!!.jsonArray.map { it.jsonPrimitive.content.toDouble() },
+            )
+        }
+
+        val ref = fixtureLap("refLap", 1)
+        val slow = fixtureLap("slowLap", 2)
+        val clamp = fixtureLap("zeroClampLap", 3)
+        val expected = fixture["expected"]!!.jsonObject
+
+        fun check(got: List<Double>?, key: String) {
+            val want = expected[key]!!.jsonArray.map { it.jsonPrimitive.content.toDouble() }
+            assertEquals(want.size, got!!.size, "$key size")
+            want.forEachIndexed { i, w ->
+                assertTrue(kotlin.math.abs(got[i] - w) < 1e-9, "$key[$i]: ${got[i]} != $w")
+            }
+        }
+
+        check(ChannelGraphs.lapTimeSeries(ref.speed!!, step, ref.timeMs), "refTimeSeries")
+        check(ChannelGraphs.lapTimeSeries(ref.speed!!, step, null), "refTimeSeriesUnscaled")
+        check(ChannelGraphs.deltaSeries(slow, ref, step), "slowVsRef")
+        check(ChannelGraphs.deltaSeries(clamp, ref, step), "zeroClampVsRef")
+    }
+}
