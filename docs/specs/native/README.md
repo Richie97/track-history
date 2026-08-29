@@ -67,6 +67,8 @@ Features added after the rewrite shipped, and where they landed:
   `public/js/channel-graphs.js`) is pinned by `contracts/logic/lap-delta.json`,
   so the iOS (NS-23) and Android (NS-24) chart stacks can add it as one more
   chart when the ports are taken up.
+- **Share-page OG meta** (2026-08) — **server-side**, no client work: the
+  Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 
 ## Specs
 
