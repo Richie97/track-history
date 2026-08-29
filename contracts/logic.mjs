@@ -47,6 +47,11 @@ import {
   trimIdle,
 } from "../public/js/record/core.js";
 import { pickRecordingEvent } from "../public/js/record/remote.js";
+import {
+  addTimingFix,
+  createLiveTiming,
+  liveTimingDisplay,
+} from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
 import {
   LAP_S,
@@ -188,6 +193,74 @@ const recorderFixture = {
   },
 };
 
+
+// ---------------------------------------------------------------------------
+// Live lap timing (public/js/record/live-timing.js): the recorder's on-track
+// lap counter and predictive delta. The ports must agree fix-for-fix — a gate
+// anchored one fix later, or a delta interpolated differently, shows the
+// driver a different number at 130 mph — so the fixture pins the delta after
+// every fix, not just the end state.
+//
+// The input is a synthetic session on a 200 m circle at 5 Hz: a slow lead-in
+// below track pace (the disarmed phase), then laps at 25, 25, 20 and 28 m/s —
+// a repeat, a slower lap (positive delta), and a new best in progress.
+
+const LT_LAT0 = 36.56;
+const LT_LON0 = -79.2;
+const LT_KX = 111320 * Math.cos((LT_LAT0 * Math.PI) / 180);
+const LT_KY = 110540;
+const LT_R = 200;
+
+function liveTimingFixes() {
+  const fixes = [];
+  let t = 0;
+  let a = 0;
+  const dt = 1 / 5;
+  const push = (v) => {
+    fixes.push([
+      Math.round(t * 100) / 100,
+      Math.round((LT_LAT0 + (LT_R * Math.sin(a)) / LT_KY) * 1e6) / 1e6,
+      Math.round((LT_LON0 + (LT_R * Math.cos(a)) / LT_KX) * 1e6) / 1e6,
+      v,
+      5,
+    ]);
+    t += dt;
+    a += (v * dt) / LT_R;
+  };
+  // 10 s below ARM_MPS: the gate must not anchor here.
+  for (let i = 0; i < 50; i++) push(5);
+  for (const v of [25, 25, 20, 28]) {
+    const n = Math.round(((2 * Math.PI * LT_R) / v) * 5);
+    for (let i = 0; i < n; i++) push(v);
+  }
+  return fixes;
+}
+
+const ltFixes = liveTimingFixes();
+const lt = createLiveTiming();
+const ltDeltas = [];
+for (const f of ltFixes) {
+  addTimingFix(lt, f);
+  ltDeltas.push(lt.deltaS);
+}
+
+const liveTimingFixture = {
+  description:
+    "Live lap timing reference output from public/js/record/live-timing.js. " +
+    "Ports must reproduce the gate to 1e-9, lap times exactly, and every " +
+    "per-fix delta to 1e-9 (null included). Regenerate with `npm run contracts:logic`.",
+  source: "public/js/record/live-timing.js",
+  input: { fixes: ltFixes },
+  expected: {
+    gate: lt.gate,
+    lapCount: lt.lapCount,
+    lastLapMs: lt.lastLapMs,
+    bestLapMs: lt.bestLapMs,
+    // lt.deltaS after every addTimingFix call, in input order.
+    deltaAfterEachFix: ltDeltas,
+    finalDisplay: liveTimingDisplay(lt, ltFixes[ltFixes.length - 1][0]),
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Lap overlay: matching a session's stored lap rows to its channel entries.
@@ -623,6 +696,7 @@ writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null,
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "lap-delta.json"), JSON.stringify(lapDeltaFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
 console.log(
@@ -633,6 +707,9 @@ console.log(
 );
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
 console.log(`wrote contracts/logic/lap-delta.json (${lapDeltaFixture.expected.slowVsRef.length} grid points)`);
+console.log(
+  `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
+);
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);

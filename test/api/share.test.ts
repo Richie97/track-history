@@ -93,6 +93,54 @@ describe("DELETE /api/share", () => {
   });
 });
 
+describe("GET /share/:slug (the HTML share page)", () => {
+  async function sharePage(slug: string) {
+    const res = await SELF.fetch(`https://example.com/share/${slug}`);
+    return { status: res.status, html: await res.text(), headers: res.headers };
+  }
+
+  it("serves the SPA shell with per-slug OG meta for scrapers", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, {
+      track_name: "Road Atlanta",
+      best_time_ms: 98_760,
+      start_date: "2026-03-01",
+      days: 2,
+    });
+    await api("PUT", "/share", { slug: "og-driver" });
+
+    const { status, html, headers } = await sharePage("og-driver");
+    expect(status).toBe(200);
+    expect(headers.get("content-type")).toContain("text/html");
+    expect(html).toContain("<title>Test User&#39;s track logbook</title>");
+    expect(html).toContain('property="og:title" content="Test User&#39;s track logbook"');
+    expect(html).toContain("1 event · 2 track days · Road Atlanta 1:38.76");
+    expect(html).toContain('property="og:url" content="https://example.com/share/og-driver"');
+    // Still the real app shell — human visitors boot the SPA as before.
+    expect(html).toContain('<script type="module" src="/app.js"></script>');
+  });
+
+  it("serves the stock shell for unknown slugs (the SPA renders not-found)", async () => {
+    const { status, html } = await sharePage("no-such-driver");
+    expect(status).toBe(200);
+    expect(html).toContain("<title>Track Evolution</title>");
+    expect(html).toContain('content="Track Evolution"');
+  });
+
+  it("escapes a hostile display name instead of injecting it", async () => {
+    const user = await signedInUser();
+    const { env } = await import("cloudflare:test");
+    await env.DB.prepare("UPDATE users SET name = ? WHERE id = ?")
+      .bind(`<script>alert(1)</script>`, user.id)
+      .run();
+    await user.api("PUT", "/share", { slug: "xss-check" });
+
+    const { html } = await sharePage("xss-check");
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});
+
 describe("GET /api/share/:slug privacy for new fields", () => {
   it("shares conditions but strips course notes and checklists", async () => {
     const { api } = await signedInUser();

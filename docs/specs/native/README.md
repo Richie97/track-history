@@ -54,11 +54,21 @@ argument in full.
 
 Features added after the rewrite shipped, and where they landed:
 
+- **Live lap timing / predictive delta** (2026-08) — **native, both record
+  screens.** The recorder is native-only, so its readout is too. The logic is
+  `public/js/record/live-timing.js` (a reference module beside `core.js` and
+  `remote.js` — the web app doesn't load it), ported as `LiveTiming` to the
+  Kit and `:core` and pinned per-fix by `contracts/logic/live-timing.json`.
+  The CarPlay and Android Auto templates deliberately do **not** show the
+  delta yet: the phone mounted in view is the display, and the car templates
+  stay one-glance Start/Stop.
 - **Lap delta chart** (2026-08) — **web first.** Rides on the channel-graphs
   panel; the math (`lapTimeSeries`/`deltaSeries` in
   `public/js/channel-graphs.js`) is pinned by `contracts/logic/lap-delta.json`,
   so the iOS (NS-23) and Android (NS-24) chart stacks can add it as one more
   chart when the ports are taken up.
+- **Share-page OG meta** (2026-08) — **server-side**, no client work: the
+  Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 
 ## Specs
 

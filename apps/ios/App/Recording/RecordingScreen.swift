@@ -101,6 +101,10 @@ struct RecordingScreen: View {
                         .contentTransition(.numericText())
                 }
 
+                if recorder.isRecording {
+                    liveTimingRow
+                }
+
                 HStack(spacing: 24) {
                     stat("Fixes", value: "\(recorder.fixCount)")
                     stat("Speed", value: Self.speed(recorder.lastSpeedMps))
@@ -136,6 +140,41 @@ struct RecordingScreen: View {
                     }
                     .buttonStyle(TEButtonStyle(kind: .accent))
                 }
+            }
+        }
+    }
+
+    /// Live lap timing: lap counter, running lap, last/best, and the predictive
+    /// delta to the session's best lap. Times here are unofficial — the saved
+    /// laps come from the review line pick — but on track they're what matters.
+    @ViewBuilder
+    private var liveTimingRow: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+            let timing = recorder.liveTiming.display(nowS: recorder.elapsedS)
+            if let currentLapS = timing.currentLapS {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let deltaS = timing.deltaS {
+                        Text(Self.delta(deltaS))
+                            .teStyle(.lapTimeHero)
+                            .foregroundStyle(deltaS <= 0 ? Color(.accentInk) : Color(.dangerInk))
+                            .contentTransition(.numericText())
+                            .accessibilityLabel(String(
+                                format: "%.2f seconds %@ your best lap",
+                                abs(deltaS),
+                                deltaS <= 0 ? "ahead of" : "behind"
+                            ))
+                    }
+                    HStack(spacing: 24) {
+                        stat("Lap", value: "\(timing.lapCount + 1)")
+                        stat("Current", value: Self.elapsed(currentLapS))
+                        stat("Last", value: LapTime.fmtMs(timing.lastLapMs))
+                        stat("Best", value: LapTime.fmtMs(timing.bestLapMs))
+                    }
+                }
+            } else {
+                Text("Lap timing arms once you're at track pace; laps count from your first flying pass.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
             }
         }
     }
@@ -229,6 +268,11 @@ struct RecordingScreen: View {
     private static func elapsed(_ seconds: Double) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    /// "+0.42" / "−0.42": the sign is the message, so it is always shown.
+    private static func delta(_ seconds: Double) -> String {
+        String(format: "%@%.2f", seconds < 0 ? "−" : "+", abs(seconds))
     }
 
     private static func speed(_ mps: Double?) -> String {
