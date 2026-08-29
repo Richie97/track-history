@@ -54,6 +54,36 @@ public struct CatalogTrack: Codable, Hashable, Sendable, Identifiable {
     public var name: String
 }
 
+/// The per-track community leaderboard (`GET /api/tracks/:id/leaderboard`):
+/// opted-in users' best laps at the same catalog track. `catalogId` is nil for
+/// a track the catalog doesn't know — no cross-user identity, so no
+/// leaderboard. `optedIn` is the viewer's own flag, so the UI can offer the
+/// opt-in without a second request.
+public struct TrackLeaderboard: Codable, Hashable, Sendable {
+    public var catalogId: Int?
+    public var optedIn: Bool
+    public var entries: [LeaderboardEntry]
+
+    public enum CodingKeys: String, CodingKey {
+        case entries
+        case catalogId = "catalog_id"
+        case optedIn = "opted_in"
+    }
+}
+
+/// One leaderboard row. `you` marks the viewer's own entry.
+public struct LeaderboardEntry: Codable, Hashable, Sendable {
+    public var name: String?
+    public var bestMs: Int
+    public var date: String
+    public var you: Bool
+
+    public enum CodingKeys: String, CodingKey {
+        case name, date, you
+        case bestMs = "best_ms"
+    }
+}
+
 /// One row of "setup vs. lap times" for a track (`GET /api/tracks/:id/setups`):
 /// a day's setup sheet paired with what the car did that day.
 public struct TrackSetupRow: Codable, Hashable, Sendable {

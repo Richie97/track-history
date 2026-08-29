@@ -181,10 +181,24 @@ public actor APIClient {
     /// Stand-in body type for requests that don't have one.
     private struct NoBody: Encodable {}
 
+    /// Toggle the per-track leaderboard opt-in. Deliberately a live write, never
+    /// queued offline: publishing your name is not something to replay silently
+    /// later.
+    public func setLeaderboardOptIn(_ optIn: Bool) async throws {
+        _ = try await send("PUT", "/me/leaderboard", body: LeaderboardOptInDraft(optIn: optIn), as: OKResponse.self)
+    }
+
     // MARK: - Tracks
 
     public func tracks() async throws -> [Track] {
         try await get("/tracks", as: [Track].self)
+    }
+
+    /// The per-track community leaderboard: opted-in users' best laps at the same
+    /// catalog track. `catalogId` nil means the catalog doesn't know this track —
+    /// no cross-user identity, so no leaderboard.
+    public func trackLeaderboard(id: Int) async throws -> TrackLeaderboard {
+        try await get("/tracks/\(id)/leaderboard", as: TrackLeaderboard.self)
     }
 
     /// The seeded canonical catalog behind the event form's name suggestions.

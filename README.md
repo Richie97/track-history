@@ -202,6 +202,15 @@ opens — on top of the lap recorder, the offline cache and write queue, and the
 charts. The same desk-bound features are web-only as on iOS. Video import is
 iOS-only so far.
 
+Both recorders show **live lap timing** while you drive: a lap counter, last
+and best lap, and a predictive delta to the session's best. The recorder
+doesn't know the start/finish line during a session (that's picked at review
+time), so timing anchors its own gate at the first fix at track pace —
+in practice the pit exit, which is on the racing line and gets re-crossed
+every lap. Live times are unofficial (the saved laps still come from the
+review line pick); the logic is `public/js/record/live-timing.js`, ported to
+both apps and pinned by `contracts/logic/live-timing.json`.
+
 ```sh
 cd apps/ios/Packages/TrackEvolutionKit && swift test   # iOS pure logic, no simulator
 open apps/ios/TrackEvolution.xcodeproj                 # the iOS app
@@ -467,7 +476,13 @@ driven-distance grid (20 m) so laps overlay corner-for-corner. On the event
 page the session's lap list doubles as the chip picker for the expandable
 **channel graphs** below it: all laps as a dim context envelope, up to three
 laps highlighted at a time via the chips (best lap pre-selected), with a
-shared distance axis and hover readouts.
+shared distance axis and hover readouts. With two or more laps highlighted, a
+**delta chart** renders above the channels: cumulative time gained/lost vs.
+the fastest of the selection, by distance — elapsed time is integrated from
+each lap's speed samples and scaled so it lands exactly on the timed lap, so
+the trace shows *where* on track the difference lives (`lapTimeSeries` /
+`deltaSeries` in `public/js/channel-graphs.js`, pinned for ports by
+`contracts/logic/lap-delta.json`).
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.
@@ -605,6 +620,23 @@ spreadsheet and the paper setup notebook into the logbook:
   the event's best/consistency.
 - **Privacy** — parts, wear, spend and setup sheets are never included in the
   public share payload.
+
+## Sharing & leaderboards
+
+- **Share links** (`/share/<slug>`, claimed in the header's share button) serve
+  the SPA shell **with per-slug Open Graph meta** injected by the Worker
+  (`sharePage` in `src/routes/share.ts`; `/share/*` is in `run_worker_first`),
+  so a link pasted into iMessage/Slack previews with the driver's name, event
+  count and headline bests instead of the generic app card. Only data the
+  public share payload already exposes is used.
+- **Per-track leaderboards** are strictly **opt-in** (Settings → Leaderboards,
+  or the track page's join button; `users.leaderboard_opt_in`). Opting in
+  shares exactly two things with other signed-in users, per track: your display
+  name and your best lap (with its event date). Tracks are matched across
+  users by `tracks.catalog_id`, so leaderboards exist only for tracks the
+  seeded catalog knows, and never mix layouts. The endpoint
+  (`GET /api/tracks/:id/leaderboard`) computes each user's best with the same
+  `MIN(manual best, best logged lap)` rule as everywhere else.
 
 ## License
 

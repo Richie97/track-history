@@ -315,6 +315,16 @@ async function captureAll(api, anon, f) {
     "The signed-in user with a customized prep-checklist template.",
     "src/routes/me.ts", await api("GET", "/me"));
 
+  // Leaderboard opt-in before the leaderboard read, so the capture has a row.
+  record("leaderboard-opt-in", "PUT", "/me/leaderboard",
+    "Toggle the per-track leaderboard opt-in.", "src/routes/me.ts",
+    await api("PUT", "/me/leaderboard", { opt_in: true }));
+
+  record("track-leaderboard", "GET", "/tracks/:id/leaderboard",
+    "The per-track community leaderboard: opted-in users' best laps at the same " +
+    "catalog track. `you` marks the viewer's own row.",
+    "src/routes/tracks.ts", await api("GET", `/tracks/${track}/leaderboard`));
+
   record("events-list", "GET", "/events",
     "All events with lap aggregates and computed stats (withComputed).",
     "src/routes/events.ts", await api("GET", "/events"));
@@ -458,13 +468,13 @@ async function captureAll(api, anon, f) {
 // Every route registered under /api must appear in the manifest. A silently
 // uncovered endpoint is a silently unprotected client.
 const EXPECTED_ROUTES = [
-  "GET /me", "PUT /me/checklist-template",
+  "GET /me", "PUT /me/checklist-template", "PUT /me/leaderboard",
   "GET /events", "POST /events", "GET /events/:id", "PUT /events/:id", "DELETE /events/:id",
   "PUT /events/:id/setups/:day", "DELETE /events/:id/setups/:day", "GET /events/:id/setups/prefill",
   "POST /events/:id/sessions", "PUT /sessions/:id", "DELETE /sessions/:id",
   "POST /sessions/:id/laps", "DELETE /laps/:id",
   "GET /tracks", "POST /tracks", "PUT /tracks/:id", "DELETE /tracks/:id",
-  "GET /tracks/:id/setups", "GET /catalog",
+  "GET /tracks/:id/setups", "GET /tracks/:id/leaderboard", "GET /catalog",
   "GET /vehicles", "POST /vehicles", "PUT /vehicles/:id", "DELETE /vehicles/:id",
   "GET /garage",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",

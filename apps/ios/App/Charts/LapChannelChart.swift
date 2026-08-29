@@ -48,10 +48,11 @@ struct LapChannelChart: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values.")
+                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the delta chart shows where time is gained or lost vs the fastest.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
                 chips
+                deltaChart
                 ForEach(present, id: \.self) { channel in
                     channelChart(channel)
                 }
@@ -207,6 +208,155 @@ struct LapChannelChart: View {
             .accessibilityLabel("\(channel.label) by driven distance, per lap")
             .accessibilityValue(summary(channel))
         }
+    }
+
+    // MARK: - Lap delta
+
+    /// The delta chart: highlighted laps vs the fastest of the selection, on
+    /// the same distance axis as the channels below it. Positive is slower, so
+    /// a climbing trace is time slipping away. The reference lap draws no
+    /// trace — it *is* the zero line. The maths is `ChannelGraphs.deltaSeries`,
+    /// pinned to the web implementation by `contracts/logic/lap-delta.json`.
+    @ViewBuilder
+    private var deltaChart: some View {
+        if let refIdx = ChannelGraphs.deltaReference(lit, in: channels) {
+            let deltas: [(chIdx: Int, series: [Double])] = lit
+                .filter { $0 != refIdx && channels.laps.indices.contains($0) }
+                .compactMap { chIdx in
+                    ChannelGraphs.deltaSeries(channels.laps[chIdx], channels.laps[refIdx], channels.dStepM)
+                        .map { (chIdx, $0) }
+                }
+            if !deltas.isEmpty, let domain = ChannelGraphs.deltaDomain(deltas.map(\.series)) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Delta (s) vs lap \(String(lapNumber(forLapIndex: refIdx))) — above the line is slower")
+                            .teStyle(.eyebrow)
+                            .foregroundStyle(Color(.textMuted))
+                        Spacer()
+                        if let readout {
+                            Text(deltaReadoutText(deltas, refIdx: refIdx, at: readout))
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textStrong))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                    }
+                    // Same one-homogeneous-ForEach rule as the channel charts
+                    // (see the comment there): the zero line and the read-out
+                    // rule are two-point series inside the same sample array.
+                    Chart {
+                        ForEach(deltaSamples(deltas, domain), id: \.id) { sample in
+                            LineMark(
+                                x: .value("Distance", sample.distance),
+                                y: .value("Delta", sample.value),
+                                series: .value("Lap", sample.lapIndex)
+                            )
+                            .foregroundStyle(sample.color)
+                            .lineStyle(.init(lineWidth: sample.lineWidth, lineCap: .round, lineJoin: .round))
+                            .interpolationMethod(.linear)
+                            .accessibilityHidden(true)
+                        }
+                    }
+                    .chartYScale(domain: domain.low...domain.high)
+                    .chartXScale(domain: 0...max(1, ChannelGraphs.distanceSpan(.speed, in: channels)))
+                    .chartYAxis {
+                        AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                            AxisGridLine().foregroundStyle(Color(.chartGrid))
+                            AxisValueLabel {
+                                if let v = value.as(Double.self) {
+                                    Text(Self.fmtDelta(v, decimals: 1)).teStyle(.xxs)
+                                }
+                            }
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                            AxisGridLine().foregroundStyle(Color(.chartGrid))
+                            AxisValueLabel {
+                                if let d = value.as(Double.self) {
+                                    Text(ChannelGraphs.fmtDist(d)).teStyle(.xxs)
+                                }
+                            }
+                        }
+                    }
+                    .foregroundStyle(Color(.textMuted))
+                    .frame(height: 150)
+                    .chartOverlay { proxy in
+                        GeometryReader { geometry in
+                            Rectangle().fill(.clear).contentShape(.rect)
+                                .onTapGesture { location in
+                                    readOut(at: location, .speed, proxy: proxy, geometry: geometry)
+                                }
+                        }
+                    }
+                    .accessibilityHidden(true)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Time delta to lap \(String(lapNumber(forLapIndex: refIdx))) by driven distance — above the zero line is slower")
+                .accessibilityValue(deltaSummary(deltas, refIdx: refIdx))
+            }
+        }
+    }
+
+    /// Delta traces in painter's order plus the zero line (the reference lap)
+    /// and, last, the read-out's vertical rule — all in one homogeneous array.
+    private func deltaSamples(
+        _ deltas: [(chIdx: Int, series: [Double])], _ domain: (low: Double, high: Double)
+    ) -> [Sample] {
+        var out: [Sample] = []
+        let span = max(1, ChannelGraphs.distanceSpan(.speed, in: channels))
+        for (k, x) in [0.0, span].enumerated() {
+            out.append(Sample(id: -10 - k, lapIndex: -2, distance: x, value: 0, color: Color(.textFaint), lineWidth: 1))
+        }
+        for (chIdx, series) in deltas {
+            let color = color(forLapIndex: chIdx) ?? Color(.chartDim)
+            for (k, v) in series.enumerated() {
+                out.append(
+                    Sample(
+                        id: chIdx * 100_000 + k,
+                        lapIndex: chIdx,
+                        distance: Double(k) * channels.dStepM,
+                        value: v,
+                        color: color,
+                        lineWidth: 2
+                    )
+                )
+            }
+        }
+        if let readout {
+            let x = Double(readout) * channels.dStepM
+            for (k, y) in [domain.low, domain.high].enumerated() {
+                out.append(Sample(id: -1 - k, lapIndex: -1, distance: x, value: y, color: Color(.textFaint), lineWidth: 1))
+            }
+        }
+        return out
+    }
+
+    /// "1.2 km · L3 +0.42 s" — the distance once, then each lap's delta to the
+    /// reference at that point.
+    private func deltaReadoutText(_ deltas: [(chIdx: Int, series: [Double])], refIdx: Int, at index: Int) -> String {
+        let values = deltas.compactMap { (chIdx, series) -> String? in
+            guard series.indices.contains(index) else { return nil }
+            return "L\(String(lapNumber(forLapIndex: chIdx))) \(Self.fmtDelta(series[index], decimals: 2)) s"
+        }
+        let distance = ChannelGraphs.fmtDist(Double(index) * channels.dStepM)
+        return values.isEmpty ? distance : "\(distance) · \(values.joined(separator: " · "))"
+    }
+
+    /// What VoiceOver gets: where each lap ends up against the reference.
+    private func deltaSummary(_ deltas: [(chIdx: Int, series: [Double])], refIdx: Int) -> String {
+        let parts = deltas.compactMap { (chIdx, series) -> String? in
+            guard let last = series.last else { return nil }
+            return "Lap \(String(lapNumber(forLapIndex: chIdx))), \(Self.fmtDelta(last, decimals: 2)) seconds vs lap \(String(lapNumber(forLapIndex: refIdx)))"
+        }
+        return parts.isEmpty ? "No comparable laps" : parts.joined(separator: ". ")
+    }
+
+    /// "+0.4" / "−0.4" — the sign is the message, so it is always shown.
+    private static func fmtDelta(_ value: Double, decimals: Int) -> String {
+        let rounded = (value * pow(10, Double(decimals))).rounded() / pow(10, Double(decimals))
+        let magnitude = String(format: "%.\(decimals)f", abs(rounded))
+        return rounded < 0 ? "−\(magnitude)" : "+\(magnitude)"
     }
 
     /// One point of one lap's trace, ready to plot.

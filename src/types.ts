@@ -2,6 +2,9 @@ import type { Context } from "hono";
 
 export type Env = {
   DB: D1Database;
+  // The static-assets binding (wrangler.jsonc "assets"). Used by the share
+  // page route to read index.html and inject per-slug OG meta.
+  ASSETS: Fetcher;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   // Sign in with Apple — all four required for the feature to be enabled

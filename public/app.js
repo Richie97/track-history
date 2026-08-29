@@ -759,12 +759,44 @@ async function viewDashboard() {
 
 // --- track detail ---
 
+// The per-track community leaderboard section. Only catalog tracks have one
+// (catalog_id gives the same physical track an identity across users), and it
+// is strictly opt-in: drivers who haven't opted in — the viewer included —
+// simply aren't on it. Returns "" when there's nothing to show at all.
+function leaderboardHtml(lb) {
+  if (!lb || lb.catalog_id == null) return "";
+  const rows = lb.entries
+    .map(
+      (en, i) => `<tr${en.you ? ` class="you-row"` : ""}>
+        <td class="num">${i + 1}</td>
+        <td>${esc(en.name ?? "Driver")}${en.you ? ` <span class="hint">(you)</span>` : ""}</td>
+        <td class="num">${fmtMs(en.best_ms)}</td>
+        <td class="date">${fmtDate(en.date)}</td>
+      </tr>`
+    )
+    .join("");
+  const optControl = lb.opted_in
+    ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
+    : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
+  return `<h2>Leaderboard</h2>
+    <div class="hint" style="margin:0 0 4px">Best laps by Track Evolution drivers at this track — opt-in only.</div>
+    ${
+      rows
+        ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : `<div class="empty">No opted-in drivers here yet${lb.opted_in ? "" : " — be the first"}.</div>`
+    }
+    ${optControl}
+    <span id="lb-msg" class="goal-msg"></span>`;
+}
+
 async function viewTrack(trackId, params) {
-  const [tracks, allEvents, trackSetups, garage] = await Promise.all([
+  const [tracks, allEvents, trackSetups, garage, leaderboard] = await Promise.all([
     api("/tracks"),
     api(`/events?track_id=${trackId}`),
     api(`/tracks/${trackId}/setups`).catch(() => []),
     api("/garage").catch(() => []),
+    // Older server or offline: no leaderboard section rather than a broken page.
+    api(`/tracks/${trackId}/leaderboard`).catch(() => null),
   ]);
   const track = tracks.find((t) => String(t.id) === String(trackId));
   if (!track) return viewNotFound();
@@ -861,6 +893,7 @@ async function viewTrack(trackId, params) {
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
+    ${leaderboardHtml(leaderboard)}
     ${setupHistoryHtml(trackSetups, garagePartsById(garage))}
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
@@ -909,6 +942,25 @@ async function viewTrack(trackId, params) {
       msg.textContent = err.message;
     }
   };
+
+  // Leaderboard opt-in/out — a live server write on purpose (not queueable):
+  // publishing your name is not something to replay silently later.
+  const lbToggle = (optIn) => async () => {
+    try {
+      await api("/me/leaderboard", { method: "PUT", body: { opt_in: optIn } });
+      state.me.leaderboard_opt_in = optIn;
+      route();
+    } catch (err) {
+      view.querySelector("#lb-msg").textContent = err.message;
+    }
+  };
+  const lbJoin = view.querySelector("#lb-join");
+  if (lbJoin) lbJoin.onclick = lbToggle(true);
+  const lbLeave = view.querySelector("#lb-leave");
+  if (lbLeave)
+    lbLeave.onclick = () => {
+      if (confirm("Leave the leaderboards? Your name and times disappear from every track's leaderboard.")) lbToggle(false)();
+    };
 
   const shareTrack = view.querySelector("#share-track");
   if (shareTrack)
@@ -1608,6 +1660,15 @@ async function viewSettings() {
       }</div>
       <div id="tmpl-error"></div>
     </div>
+    <h2>Leaderboards</h2>
+    <div class="panel">
+      <label class="dry-toggle" style="display:block">
+        <input type="checkbox" id="lb-opt" ${state.me?.leaderboard_opt_in ? "checked" : ""}>
+        Appear on per-track leaderboards
+      </label>
+      <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best lap (with its date). Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
+      <div id="lb-error"></div>
+    </div>
     <h2>About &amp; legal</h2>
     <div class="panel">
       <div class="btn-row">
@@ -1668,6 +1729,19 @@ async function viewSettings() {
   });
   const tmplReset = view.querySelector("#tmpl-reset");
   if (tmplReset) tmplReset.onclick = () => saveTemplate([]);
+
+  // --- leaderboard opt-in ---
+  const lbOpt = view.querySelector("#lb-opt");
+  lbOpt.onchange = async () => {
+    try {
+      await api("/me/leaderboard", { method: "PUT", body: { opt_in: lbOpt.checked } });
+      state.me.leaderboard_opt_in = lbOpt.checked;
+      view.querySelector("#lb-error").innerHTML = "";
+    } catch (err) {
+      lbOpt.checked = !lbOpt.checked; // the write failed — don't lie about the state
+      view.querySelector("#lb-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+    }
+  };
 
   view.querySelector("#veh-add").onsubmit = async (evt) => {
     evt.preventDefault();

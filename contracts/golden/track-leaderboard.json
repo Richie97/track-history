@@ -1,0 +1,17 @@
+{
+  "method": "GET",
+  "path": "/tracks/:id/leaderboard",
+  "status": 200,
+  "body": {
+    "catalog_id": 1,
+    "entries": [
+      {
+        "best_ms": 121500,
+        "date": "2026-04-10",
+        "name": "Dev User",
+        "you": true
+      }
+    ],
+    "opted_in": true
+  }
+}

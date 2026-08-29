@@ -7,7 +7,7 @@ import { tracks } from "./routes/tracks";
 import { events } from "./routes/events";
 import { sessions } from "./routes/sessions";
 import { vehicles } from "./routes/vehicles";
-import { share, publicShare } from "./routes/share";
+import { share, publicShare, sharePage } from "./routes/share";
 import { wellKnown } from "./routes/wellKnown";
 
 export type { Env, AppContext } from "./types";
@@ -23,6 +23,9 @@ const app = new Hono<AppContext>();
 
 app.route("/auth", auth);
 app.route("/.well-known", wellKnown);
+// The share *page* (HTML with per-slug OG meta for link scrapers) — /share/*
+// is in run_worker_first (wrangler.jsonc) so these requests reach the Worker.
+app.route("/share", sharePage);
 // Registered before the authed /api router so GET /api/share/:slug stays public;
 // PUT/DELETE /api/share (no slug) fall through to the authed router below.
 app.route("/api/share", publicShare);

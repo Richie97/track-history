@@ -25,6 +25,11 @@ public data class User(
      * a template is what a checklist starts *from*, so it carries no done flags.
      */
     @SerialName("checklist_template") val checklistTemplate: List<String>? = null,
+    /**
+     * Whether the user appears on per-track community leaderboards. Defaults to
+     * false so a cached response from an older server still decodes.
+     */
+    @SerialName("leaderboard_opt_in") val leaderboardOptIn: Boolean = false,
 )
 
 /** Headline counts shown on the dashboard and the public share page. */

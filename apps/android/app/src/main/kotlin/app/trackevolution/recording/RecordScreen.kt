@@ -20,7 +20,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.LapTime
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.coroutines.delay
@@ -110,6 +113,44 @@ fun RecordScreen(
             }
         }
 
+        // Live lap timing: unofficial (the saved laps come from the review line
+        // pick), but on track it's what matters. Arms once the car reaches
+        // track pace; laps count from the first pass of the timing point.
+        if (state.isRecording) {
+            val timing = state.timing
+            if (timing?.currentLapS != null) {
+                TrackCard {
+                    val delta = timing.deltaS
+                    if (delta != null) {
+                        Text(
+                            formatDelta(delta),
+                            style = type.lapTimeHero,
+                            color = if (delta <= 0) colors.accentInk else colors.dangerInk,
+                            modifier = Modifier.semantics {
+                                contentDescription = "%.2f seconds %s your best lap"
+                                    .format(kotlin.math.abs(delta), if (delta <= 0) "ahead of" else "behind")
+                            },
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Stat("Lap", (timing.lapCount + 1).toString())
+                        Stat("Current", RecordingNotification.formatElapsed(timing.currentLapS!!))
+                        Stat("Last", LapTime.fmtMs(timing.lastLapMs))
+                        Stat("Best", LapTime.fmtMs(timing.bestLapMs))
+                    }
+                }
+            } else {
+                Text(
+                    "Lap timing arms once you're at track pace; laps count from your first flying pass.",
+                    style = type.xs,
+                    color = colors.textFaint,
+                )
+            }
+        }
+
         if (stalled) {
             // Said out loud rather than left to a frozen number: a silent stall
             // mid-session is the failure this screen exists to make impossible.
@@ -188,6 +229,10 @@ fun RecordScreen(
  * it can't be loaded at all: we know there is an event, we just can't name it,
  * and that is not the same as there being none.
  */
+/** "+0.42" / "−0.42": the sign is the message, so it is always shown. */
+internal fun formatDelta(seconds: Double): String =
+    "%s%.2f".format(if (seconds < 0) "−" else "+", kotlin.math.abs(seconds))
+
 internal fun attachmentText(isAttached: Boolean, eventLabel: String?): String = when {
     isAttached && eventLabel != null -> "Laps will be saved to $eventLabel."
     isAttached -> "Laps will be saved to this event."

@@ -18,11 +18,16 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// and `EventDates.DEFAULT_CHECKLIST` applies. Strings, not `ChecklistItem`s:
     /// a template is what a checklist starts *from*, so it carries no done flags.
     public var checklistTemplate: [String]?
+    /// Whether the user appears on per-track community leaderboards. Optional
+    /// so a cached response from an older server still decodes; absent means
+    /// false.
+    public var leaderboardOptIn: Bool?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
         case shareSlug = "share_slug"
         case checklistTemplate = "checklist_template"
+        case leaderboardOptIn = "leaderboard_opt_in"
     }
 
     /// The list "Use my list" actually uses.
