@@ -15,6 +15,7 @@ import app.trackevolution.core.model.SetupPrefill
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
+import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackSetupRow
 import app.trackevolution.core.model.Vehicle
 import kotlinx.serialization.KSerializer
@@ -77,6 +78,7 @@ class GoldenContractTest {
             "event-setups-prefill" -> roundTrip(entry.name, SetupPrefill.serializer())
             "tracks-list" -> roundTrip(entry.name, ListSerializer(Track.serializer()))
             "track-setups" -> roundTrip(entry.name, ListSerializer(TrackSetupRow.serializer()))
+            "track-leaderboard" -> roundTrip(entry.name, TrackLeaderboard.serializer())
             "catalog" -> roundTrip(entry.name, ListSerializer(CatalogTrack.serializer()))
             "vehicles-list" -> roundTrip(entry.name, ListSerializer(Vehicle.serializer()))
             "garage" -> roundTrip(entry.name, ListSerializer(GarageVehicle.serializer()))
@@ -90,7 +92,7 @@ class GoldenContractTest {
             "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
             "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
-            "checklist-template-set",
+            "checklist-template-set", "leaderboard-opt-in",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(

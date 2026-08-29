@@ -621,7 +621,7 @@ spreadsheet and the paper setup notebook into the logbook:
 - **Privacy** — parts, wear, spend and setup sheets are never included in the
   public share payload.
 
-## Sharing
+## Sharing & leaderboards
 
 - **Share links** (`/share/<slug>`, claimed in the header's share button) serve
   the SPA shell **with per-slug Open Graph meta** injected by the Worker
@@ -629,6 +629,14 @@ spreadsheet and the paper setup notebook into the logbook:
   so a link pasted into iMessage/Slack previews with the driver's name, event
   count and headline bests instead of the generic app card. Only data the
   public share payload already exposes is used.
+- **Per-track leaderboards** are strictly **opt-in** (Settings → Leaderboards,
+  or the track page's join button; `users.leaderboard_opt_in`). Opting in
+  shares exactly two things with other signed-in users, per track: your display
+  name and your best lap (with its event date). Tracks are matched across
+  users by `tracks.catalog_id`, so leaderboards exist only for tracks the
+  seeded catalog knows, and never mix layouts. The endpoint
+  (`GET /api/tracks/:id/leaderboard`) computes each user's best with the same
+  `MIN(manual best, best logged lap)` rule as everywhere else.
 
 ## License
 

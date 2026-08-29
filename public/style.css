@@ -452,6 +452,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.date { white-space: nowrap; }
 tr.rowlink { cursor: pointer; }
 @media (hover: hover) { tr.rowlink:hover td { background: var(--surface-hover); } }
+/* The viewer's own leaderboard row. */
+tr.you-row td { background: var(--accent-tint); }
 
 /* ---------- Chart ---------- */
 .chart-card {

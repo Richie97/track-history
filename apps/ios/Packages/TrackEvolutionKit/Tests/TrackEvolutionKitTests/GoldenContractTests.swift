@@ -29,6 +29,7 @@ struct GoldenContractTests {
         case "event-setups-prefill": try roundTrip(SetupPrefill.self, entry.name)
         case "tracks-list": try roundTrip([Track].self, entry.name)
         case "track-setups": try roundTrip([TrackSetupRow].self, entry.name)
+        case "track-leaderboard": try roundTrip(TrackLeaderboard.self, entry.name)
         case "catalog": try roundTrip([CatalogTrack].self, entry.name)
         case "vehicles-list": try roundTrip([Vehicle].self, entry.name)
         case "garage": try roundTrip([GarageVehicle].self, entry.name)
@@ -42,7 +43,7 @@ struct GoldenContractTests {
         case "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
              "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
              "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
-             "checklist-template-set":
+             "checklist-template-set", "leaderboard-opt-in":
             try roundTrip(OKResponse.self, entry.name)
         default:
             Issue.record("""

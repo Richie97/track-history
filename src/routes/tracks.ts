@@ -50,6 +50,69 @@ tracks.get("/tracks", async (c) => {
   return c.json(await tracksSummary(c.env.DB, c.get("userId")));
 });
 
+// The per-track community leaderboard: every opted-in user's best lap at the
+// same physical track, matched across users by tracks.catalog_id (a track the
+// catalog doesn't know has no cross-user identity, so no leaderboard). Strictly
+// opt-in on both sides of the data: only leaderboard_opt_in users appear, and
+// only their display name, best lap and its event date — never notes, laps or
+// anything else user-entered. `opted_in` is the viewer's own flag so the UI
+// can offer the opt-in without a second request.
+tracks.get("/tracks/:id/leaderboard", async (c) => {
+  const userId = c.get("userId");
+  // The owned-track row and the viewer's flag are independent — one round trip.
+  const [trackRes, meRes] = await c.env.DB.batch([
+    c.env.DB.prepare("SELECT catalog_id FROM tracks WHERE id = ? AND user_id = ?").bind(
+      c.req.param("id"),
+      userId
+    ),
+    c.env.DB.prepare("SELECT leaderboard_opt_in FROM users WHERE id = ?").bind(userId),
+  ]);
+  const track = (trackRes.results[0] ?? null) as { catalog_id: number | null } | null;
+  if (!track) return c.json({ error: "not found" }, 404);
+  const optedIn = Boolean(
+    (meRes.results[0] as { leaderboard_opt_in?: number } | undefined)?.leaderboard_opt_in
+  );
+  if (track.catalog_id == null) return c.json({ catalog_id: null, opted_in: optedIn, entries: [] });
+
+  // Best per user = MIN over manual event bests and logged laps — the same
+  // rule as withComputed (src/lib/stats.ts), pushed into SQL so one query
+  // covers every user. The bare `d` column rides along with MIN(ms):
+  // SQLite's documented min/max behavior picks it from the winning row.
+  const rows = await c.env.DB.prepare(
+    `SELECT b.user_id, u.name, MIN(b.ms) AS best_ms, b.d AS date
+     FROM (
+       SELECT t.user_id AS user_id, e.best_time_ms AS ms, e.start_date AS d
+         FROM tracks t JOIN events e ON e.track_id = t.id
+        WHERE t.catalog_id = ?1 AND e.best_time_ms IS NOT NULL
+       UNION ALL
+       SELECT t.user_id, l.time_ms, e.start_date
+         FROM tracks t
+         JOIN events e ON e.track_id = t.id
+         JOIN sessions s ON s.event_id = e.id
+         JOIN laps l ON l.session_id = s.id
+        WHERE t.catalog_id = ?1
+     ) b
+     JOIN users u ON u.id = b.user_id
+     WHERE u.leaderboard_opt_in = 1
+     GROUP BY b.user_id
+     ORDER BY best_ms ASC
+     LIMIT 100`
+  )
+    .bind(track.catalog_id)
+    .all<{ user_id: number; name: string | null; best_ms: number; date: string }>();
+
+  return c.json({
+    catalog_id: track.catalog_id,
+    opted_in: optedIn,
+    entries: rows.results.map((r) => ({
+      name: r.name,
+      best_ms: r.best_ms,
+      date: r.date,
+      you: r.user_id === userId,
+    })),
+  });
+});
+
 // The seeded track catalog — backs the track-name suggestions in the event form.
 tracks.get("/catalog", async (c) => {
   const rows = await c.env.DB.prepare("SELECT id, name FROM track_catalog ORDER BY name").all<{
