@@ -13,6 +13,7 @@ import app.trackevolution.core.model.SessionPatch
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
+import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.core.model.VehicleDraft
@@ -191,6 +192,16 @@ public class ApiClient(
         send("PUT", "/me/checklist-template", body = body, deserializer = OkResponse.serializer())
     }
 
+    /**
+     * Toggles the per-track leaderboard opt-in. Deliberately a live write,
+     * never queued offline: publishing your name is not something to replay
+     * silently later.
+     */
+    public suspend fun setLeaderboardOptIn(optIn: Boolean) {
+        val body = buildJsonObject { put("opt_in", JsonPrimitive(optIn)) }
+        send("PUT", "/me/leaderboard", body = body, deserializer = OkResponse.serializer())
+    }
+
     // ---- Events -----------------------------------------------------------
 
     public suspend fun events(trackId: Int? = null): List<Event> = get(
@@ -261,6 +272,14 @@ public class ApiClient(
     /** The seeded canonical catalog behind the event form's name suggestions. */
     public suspend fun catalog(): List<CatalogTrack> =
         get("/catalog", ListSerializer(CatalogTrack.serializer()))
+
+    /**
+     * The per-track community leaderboard: opted-in users' best laps at the
+     * same catalog track. `catalogId` null means the catalog doesn't know this
+     * track — no cross-user identity, so no leaderboard.
+     */
+    public suspend fun trackLeaderboard(id: Int): TrackLeaderboard =
+        get("/tracks/$id/leaderboard", TrackLeaderboard.serializer())
 
     public suspend fun updateTrack(id: Int, patch: TrackPatch) {
         send("PUT", "/tracks/$id", encode(TrackPatch.serializer(), patch), OkResponse.serializer())

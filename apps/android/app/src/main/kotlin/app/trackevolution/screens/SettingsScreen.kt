@@ -13,6 +13,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -102,6 +104,9 @@ fun SettingsScreen(
                     onDisable = { confirmDisableShare = true },
                 )
             }
+
+            item("leaderboards-header") { TESectionHeader("Leaderboards") }
+            item("leaderboards") { LeaderboardOptInCard(model) }
 
             item("checklist-header") { TESectionHeader("Prep checklist") }
             item("checklist") {
@@ -212,6 +217,47 @@ private fun ThemeCard(choice: ThemeChoice, onChange: (ThemeChoice) -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The per-track leaderboard opt-in — the same privacy posture as the web's
+ * Settings section: exactly two things are shared per track, and everything
+ * else stays private.
+ */
+@Composable
+private fun LeaderboardOptInCard(model: SettingsModel) {
+    val colors = TrackTheme.colors
+    TrackCard(Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = model.leaderboardOptIn,
+                onCheckedChange = { model.updateLeaderboardOptIn(it) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.accentInk,
+                    checkedTrackColor = colors.accentTint,
+                ),
+            )
+            Text(
+                "Appear on per-track leaderboards",
+                style = TrackTheme.typography.body,
+                color = colors.textBody,
+            )
+        }
+        Text(
+            "Opting in shares exactly two things with other signed-in drivers, per track: " +
+                "your name and your best lap (with its date). Your events, notes, laps and " +
+                "garage stay private. Leaderboards exist only for tracks the app's catalog knows.",
+            style = TrackTheme.typography.xs,
+            color = colors.textFaint,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        model.leaderboardError?.let {
+            TEErrorBanner(it, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

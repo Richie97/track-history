@@ -11,6 +11,7 @@ import app.trackevolution.core.model.Conditions
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.Track
+import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.charts.ProgressPoint
@@ -100,6 +101,37 @@ class TrackModel(
                 return@launch
             }
             shareSlug = runCatching { api.me() }.getOrNull()?.user?.shareSlug
+            // Non-fatal on purpose: an older server or a failed fetch costs the
+            // leaderboard section, never the track page.
+            leaderboard = runCatching { api.trackLeaderboard(trackId) }.getOrNull()
+        }
+    }
+
+    // ---- Leaderboard ---------------------------------------------------------
+
+    /**
+     * The per-track community leaderboard, or null when it couldn't be loaded
+     * (older server, offline) — the section simply doesn't render then.
+     */
+    var leaderboard by mutableStateOf<TrackLeaderboard?>(null)
+        private set
+
+    var leaderboardError by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Join or leave the leaderboards. A live write on purpose — never queued
+     * offline: publishing your name shouldn't replay silently later.
+     */
+    fun setLeaderboardOptIn(optIn: Boolean) {
+        scope.launch {
+            leaderboardError = null
+            try {
+                api.setLeaderboardOptIn(optIn)
+                leaderboard = runCatching { api.trackLeaderboard(trackId) }.getOrNull() ?: leaderboard
+            } catch (e: ApiException) {
+                leaderboardError = e.message
+            }
         }
     }
 

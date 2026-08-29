@@ -104,6 +104,9 @@ struct SettingsScreen: View {
             TESectionHeader("Share your history")
             shareCard(model)
 
+            TESectionHeader("Leaderboards")
+            leaderboardCard(model)
+
             TESectionHeader("Prep checklist")
             checklistTemplateCard(model)
 
@@ -381,6 +384,39 @@ struct SettingsScreen: View {
         .padding(.vertical, 4)
     }
 
+    // MARK: - Leaderboards
+
+    /// The per-track leaderboard opt-in — the same privacy posture as the web's
+    /// Settings section: exactly two things are shared per track, and everything
+    /// else stays private.
+    private func leaderboardCard(_ model: SettingsModel) -> some View {
+        @Bindable var model = model
+        return TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(
+                    "Appear on per-track leaderboards",
+                    isOn: Binding(
+                        get: { model.leaderboardOptIn },
+                        set: { newValue in Task { await model.setLeaderboardOptIn(newValue) } }
+                    )
+                )
+                .teStyle(.body)
+                .foregroundStyle(Color(.textBody))
+                .tint(Color(.accent))
+                Text("""
+                    Opting in shares exactly two things with other signed-in drivers, per track: your \
+                    name and your best lap (with its date). Your events, notes, laps and garage stay \
+                    private. Leaderboards exist only for tracks the app's catalog knows.
+                    """)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                if let error = model.leaderboardError {
+                    TEErrorBanner(message: error)
+                }
+            }
+        }
+    }
+
     // MARK: - Share link
 
     private func shareCard(_ model: SettingsModel) -> some View {
@@ -469,6 +505,10 @@ final class SettingsModel {
     var newChecklistItem = ""
     var checklistError: String?
 
+    /// The per-track leaderboard opt-in, mirrored from `/me`.
+    private(set) var leaderboardOptIn = false
+    var leaderboardError: String?
+
     init(api: APIClient, auth: AuthController) {
         self.api = api
         self.auth = auth
@@ -525,6 +565,7 @@ final class SettingsModel {
             user = me.user
             slug = me.user.shareSlug
             slugDraft = me.user.shareSlug ?? ""
+            leaderboardOptIn = me.user.leaderboardOptIn ?? false
             hasUnsyncedChanges = (await api.syncStatus()?.pending ?? 0) > 0
             state = .ready
         } catch let error as APIError {
@@ -575,6 +616,25 @@ final class SettingsModel {
         } catch {
             vehicleError = error.localizedDescription
             Haptics.warn()
+        }
+    }
+
+    /// Join or leave the per-track leaderboards. A live write on purpose — never
+    /// queued offline: publishing your name shouldn't replay silently later. On
+    /// failure the toggle snaps back rather than lying about the state.
+    func setLeaderboardOptIn(_ optIn: Bool) async {
+        leaderboardError = nil
+        let previous = leaderboardOptIn
+        leaderboardOptIn = optIn
+        do {
+            try await api.setLeaderboardOptIn(optIn)
+            Haptics.select()
+        } catch let error as APIError {
+            leaderboardOptIn = previous
+            leaderboardError = error.message
+        } catch {
+            leaderboardOptIn = previous
+            leaderboardError = error.localizedDescription
         }
     }
 

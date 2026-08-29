@@ -14,6 +14,7 @@ struct TrackScreen: View {
     @Environment(AppRouter.self) private var router
 
     @State private var model: TrackModel?
+    @State private var confirmingLeaveLeaderboard = false
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -95,6 +96,10 @@ struct TrackScreen: View {
                 }
             }
 
+            if let leaderboard = model.leaderboard, leaderboard.catalogId != nil {
+                leaderboardSection(model, leaderboard)
+            }
+
             TESectionHeader("Events", detail: model.dryOnly ? "dry only" : nil)
             if model.events.isEmpty {
                 TEEmpty(model.dryOnly ? "No dry events logged here." : "No events at this track yet.")
@@ -137,6 +142,95 @@ struct TrackScreen: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Leaderboard
+
+    /// The per-track community leaderboard — the port of the web track page's
+    /// section. Strictly opt-in: drivers who haven't opted in, the viewer
+    /// included, simply aren't on it. Only rendered for catalog tracks (the
+    /// caller checks `catalogId`), since only those have a cross-user identity.
+    private func leaderboardSection(_ model: TrackModel, _ leaderboard: TrackLeaderboard) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TESectionHeader("Leaderboard", detail: "opt-in only")
+            Text("Best laps by Track Evolution drivers at this track.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textFaint))
+            if leaderboard.entries.isEmpty {
+                TEEmpty("No opted-in drivers here yet\(leaderboard.optedIn ? "" : " — be the first").")
+            } else {
+                TECard {
+                    VStack(spacing: 0) {
+                        ForEach(Array(leaderboard.entries.enumerated()), id: \.offset) { index, entry in
+                            HStack(spacing: 10) {
+                                Text("\(String(index + 1))")
+                                    .teStyle(.lapTime)
+                                    .foregroundStyle(Color(.textFaint))
+                                    .frame(width: 24, alignment: .trailing)
+                                Text(entry.name ?? "Driver")
+                                    .teStyle(entry.you ? .bodyStrong : .body)
+                                    .foregroundStyle(Color(.textBody))
+                                    .lineLimit(1)
+                                if entry.you {
+                                    Text("you")
+                                        .teStyle(.xxs)
+                                        .foregroundStyle(Color(.accentInk))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 2)
+                                        .background(Color(.accentTint), in: .capsule)
+                                }
+                                Spacer(minLength: 8)
+                                TETime(ms: entry.bestMs)
+                                Text(EventDates.fmtDate(entry.date))
+                                    .teStyle(.xxs)
+                                    .foregroundStyle(Color(.textFaint))
+                            }
+                            .padding(.vertical, 8)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(
+                                "Rank \(index + 1), \(entry.name ?? "Driver")\(entry.you ? ", you" : ""), "
+                                    + "\(LapTime.fmtMs(entry.bestMs)), \(EventDates.fmtDate(entry.date))"
+                            )
+                            if index < leaderboard.entries.count - 1 {
+                                Divider().overlay(Color(.borderHairline))
+                            }
+                        }
+                    }
+                }
+            }
+            if let error = model.leaderboardError {
+                TEErrorBanner(message: error)
+            }
+            if leaderboard.optedIn {
+                HStack(spacing: 8) {
+                    Text("You're on the leaderboards — your name and best lap per track are visible to other signed-in drivers.")
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textFaint))
+                    Spacer(minLength: 4)
+                    Button("Leave") { confirmingLeaveLeaderboard = true }
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.dangerInk))
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best lap.")
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textFaint))
+                    Button("Join leaderboards") { Task { await model.setLeaderboardOptIn(true) } }
+                        .buttonStyle(TEButtonStyle(kind: .quiet))
+                }
+            }
+        }
+        .confirmationDialog(
+            "Leave the leaderboards? Your name and times disappear from every track's leaderboard.",
+            isPresented: $confirmingLeaveLeaderboard,
+            titleVisibility: .visible
+        ) {
+            Button("Leave leaderboards", role: .destructive) {
+                Task { await model.setLeaderboardOptIn(false) }
+            }
+            Button("Stay on them", role: .cancel) {}
         }
     }
 
@@ -246,6 +340,9 @@ final class TrackModel {
             notes = savedNotes
             state = .ready
             shareSlug = (try? await api.me())?.user.shareSlug
+            // Non-fatal on purpose: an older server or a failed fetch costs the
+            // leaderboard section, never the track page.
+            leaderboard = try? await api.trackLeaderboard(id: trackId)
         } catch let error as APIError {
             state = .failed(error.message)
         } catch {
@@ -355,4 +452,28 @@ final class TrackModel {
     /// The share slug from `/me`. Read separately from the page's own load, because a
     /// missing slug must not cost you the track page.
     private(set) var shareSlug: String?
+
+    // MARK: - Leaderboard
+
+    /// The per-track community leaderboard, or nil when it couldn't be loaded
+    /// (older server, offline) — the section simply doesn't render then.
+    private(set) var leaderboard: TrackLeaderboard?
+    var leaderboardError: String?
+
+    /// Join or leave the leaderboards. A live write on purpose — never queued
+    /// offline: publishing your name shouldn't replay silently later.
+    func setLeaderboardOptIn(_ optIn: Bool) async {
+        leaderboardError = nil
+        do {
+            try await api.setLeaderboardOptIn(optIn)
+            leaderboard = try? await api.trackLeaderboard(id: trackId)
+            Haptics.confirm()
+        } catch let error as APIError {
+            leaderboardError = error.message
+            Haptics.warn()
+        } catch {
+            leaderboardError = error.localizedDescription
+            Haptics.warn()
+        }
+    }
 }
