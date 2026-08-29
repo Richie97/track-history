@@ -69,11 +69,12 @@ Features added after the rewrite shipped, and where they landed:
   `:core`, drawn by each platform's `LapChannelChart`) — the delta renders
   above the channels once two laps are highlighted, with the reference lap as
   the zero line.
-- **Per-track leaderboards** (2026-08) — **web UI first, models everywhere.**
-  Strictly opt-in (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard`
-  is in the golden contract and both native clients decode `TrackLeaderboard`,
-  so the native track pages/settings can grow the section without a contract
-  change.
+- **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
+  (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
+  contract, and every client renders the track page's leaderboard section and
+  the Settings opt-in with the same privacy copy. The opt-in write stays off
+  the offline queue everywhere — publishing your name shouldn't replay
+  silently later.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 

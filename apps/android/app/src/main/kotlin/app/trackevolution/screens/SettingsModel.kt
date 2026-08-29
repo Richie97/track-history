@@ -67,6 +67,13 @@ class SettingsModel(
     var checklistError by mutableStateOf<String?>(null)
         private set
 
+    /** The per-track leaderboard opt-in, mirrored from `/me`. */
+    var leaderboardOptIn by mutableStateOf(false)
+        private set
+
+    var leaderboardError by mutableStateOf<String?>(null)
+        private set
+
     var newChecklistItem by mutableStateOf("")
 
     /** Writes still waiting to reach the server — signing out discards them. */
@@ -80,6 +87,7 @@ class SettingsModel(
                 user = me.user
                 slug = me.user.shareSlug
                 slugDraft = me.user.shareSlug.orEmpty()
+                leaderboardOptIn = me.user.leaderboardOptIn
                 pendingWrites = api.syncStatus.value.pending
                 state = LoadState.Ready
             } catch (e: ApiException) {
@@ -89,6 +97,29 @@ class SettingsModel(
             // A section, not the screen: an empty or failing garage must not take
             // the account and the legal links down with it.
             vehicles = runCatching { api.vehicles() }.getOrDefault(vehicles)
+        }
+    }
+
+    // ---- Leaderboards --------------------------------------------------------
+
+    /**
+     * Join or leave the per-track leaderboards. A live write on purpose — never
+     * queued offline: publishing your name shouldn't replay silently later. On
+     * failure the toggle snaps back rather than lying about the state.
+     */
+    // Not `setLeaderboardOptIn`: that JVM signature already belongs to the
+    // property's generated setter, and the clash fails the build.
+    fun updateLeaderboardOptIn(optIn: Boolean) {
+        scope.launch {
+            leaderboardError = null
+            val previous = leaderboardOptIn
+            leaderboardOptIn = optIn
+            try {
+                api.setLeaderboardOptIn(optIn)
+            } catch (e: ApiException) {
+                leaderboardOptIn = previous
+                leaderboardError = e.message
+            }
         }
     }
 

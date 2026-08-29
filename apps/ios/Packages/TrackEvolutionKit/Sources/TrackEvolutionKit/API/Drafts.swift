@@ -363,3 +363,16 @@ public struct TrackPatch: Encodable, Hashable, Sendable {
         try c.encode(notes, forKey: .notes)
     }
 }
+
+/// `PUT /api/me/leaderboard` — the per-track leaderboard opt-in.
+public struct LeaderboardOptInDraft: Encodable, Hashable, Sendable {
+    public var optIn: Bool
+
+    public init(optIn: Bool) {
+        self.optIn = optIn
+    }
+
+    public enum CodingKeys: String, CodingKey {
+        case optIn = "opt_in"
+    }
+}
