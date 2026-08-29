@@ -6,9 +6,14 @@
   "assets": {
     "directory": "public",
     "not_found_handling": "single-page-application",
+    // The Worker reads index.html through this binding to serve share pages
+    // with per-slug OG meta tags (src/routes/share.ts sharePage).
+    "binding": "ASSETS",
     // apple-app-site-association is extensionless, so the Worker must serve
     // it to get Content-Type: application/json (see src/routes/wellKnown.ts).
-    "run_worker_first": ["/api/*", "/auth/*", "/.well-known/apple-app-site-association"],
+    // /share/* hits the Worker so link scrapers get per-slug OG meta instead
+    // of the SPA shell's generic tags.
+    "run_worker_first": ["/api/*", "/auth/*", "/share/*", "/.well-known/apple-app-site-association"],
   },
   "vars": {
     // <Apple Team ID>.<bundle id> for iOS Universal Links (mobile/ apps).
