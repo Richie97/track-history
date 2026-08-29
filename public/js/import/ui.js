@@ -75,8 +75,10 @@ export function bindTelemetryImport(view, event, onDone) {
 }
 
 // Entry into the review panel for already-parsed results — the file-import
-// path above and the live lap recorder (public/js/record/ui.js) both land
-// here. results: [{file, parsed}|{file, error}].
+// path above lands here. results: [{file, parsed}|{file, error}]. The
+// kind:"live" branches below cover the same shape the native apps' lap
+// recorder produces (public/js/record/core.js toParsed); on the web nothing
+// feeds a live parse in, but the copy stays with the shape it describes.
 export function reviewResults(box, event, results, onDone) {
   // Shared coordinate frame for all line-picking traces (same track), so one
   // picked line applies to every trace in the batch.
