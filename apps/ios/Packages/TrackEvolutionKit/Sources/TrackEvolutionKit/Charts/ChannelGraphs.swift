@@ -194,4 +194,73 @@ public enum ChannelGraphs {
         guard m >= 1000 else { return "\(m) m" }
         return String(format: m % 1000 != 0 ? "%.1f km" : "%.0f km", Double(m) / 1000)
     }
+
+    // MARK: - Lap delta
+
+    /// A 0 km/h sample would make its grid cell take near-forever; clamp the
+    /// cell average to walking pace instead. The end-scale to the timed lap
+    /// absorbs the error. `DELTA_MIN_KPH` in the JS.
+    public static let DELTA_MIN_KPH: Double = 3
+
+    /// Cumulative elapsed seconds at each grid point (d = 0, dStepM, 2·dStepM…)
+    /// from a lap's speed samples (km/h): trapezoidal dt per cell, then scaled
+    /// so the last point equals `timeMs / 1000` when a timed duration is given
+    /// — the integral alone drifts, and the timer is ground truth.
+    ///
+    /// `lapTimeSeries` in the JS, pinned by `contracts/logic/lap-delta.json`.
+    public static func lapTimeSeries(_ speedKph: [Double], _ dStepM: Double, _ timeMs: Int?) -> [Double] {
+        guard !speedKph.isEmpty else { return [] }
+        var t = [Double](repeating: 0, count: speedKph.count)
+        for k in 1..<speedKph.count {
+            let vAvg = Swift.max(DELTA_MIN_KPH, (speedKph[k - 1] + speedKph[k]) / 2) / 3.6 // m/s
+            t[k] = t[k - 1] + dStepM / vAvg
+        }
+        if let timeMs, let total = t.last, total > 0 {
+            let scale = Double(timeMs) / 1000 / total
+            for k in t.indices { t[k] *= scale }
+        }
+        return t
+    }
+
+    /// Delta seconds (lap − ref, positive = the lap is slower) at each shared
+    /// grid point, over the points both laps cover. nil when either lap has no
+    /// speed data or the overlap is too short to mean anything.
+    ///
+    /// `deltaSeries` in the JS, pinned by `contracts/logic/lap-delta.json`.
+    public static func deltaSeries(_ lap: LapChannels, _ ref: LapChannels, _ dStepM: Double) -> [Double]? {
+        guard let lapSpeed = lap.speed, let refSpeed = ref.speed else { return nil }
+        let a = lapTimeSeries(lapSpeed, dStepM, lap.timeMs)
+        let b = lapTimeSeries(refSpeed, dStepM, ref.timeMs)
+        let n = Swift.min(a.count, b.count)
+        guard n >= 10 else { return nil }
+        return (0..<n).map { a[$0] - b[$0] }
+    }
+
+    /// The reference the delta measures against: the fastest of the highlight
+    /// selection. nil until two or more laps are highlighted — a delta of one
+    /// lap against itself says nothing.
+    public static func deltaReference(_ lit: [Int], in channels: SessionChannels) -> Int? {
+        guard lit.count >= 2 else { return nil }
+        return lit.min { a, b in
+            guard channels.laps.indices.contains(a), channels.laps.indices.contains(b) else { return a < b }
+            return channels.laps[a].timeMs < channels.laps[b].timeMs
+        }
+    }
+
+    /// The y window for a delta chart: always includes zero (the reference lap
+    /// *is* the zero line), padded by 8% of the range with the JS's 0.05 s
+    /// floor so a near-identical pair of laps still draws a readable band.
+    public static func deltaDomain(_ deltas: [[Double]]) -> (low: Double, high: Double)? {
+        guard !deltas.isEmpty else { return nil }
+        var low = 0.0
+        var high = 0.0
+        for series in deltas {
+            for v in series {
+                low = Swift.min(low, v)
+                high = Swift.max(high, v)
+            }
+        }
+        let pad = Swift.max((high - low) * 0.08, 0.05)
+        return (low - pad, high + pad)
+    }
 }

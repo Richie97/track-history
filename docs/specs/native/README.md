@@ -62,11 +62,13 @@ Features added after the rewrite shipped, and where they landed:
   The CarPlay and Android Auto templates deliberately do **not** show the
   delta yet: the phone mounted in view is the display, and the car templates
   stay one-glance Start/Stop.
-- **Lap delta chart** (2026-08) — **web first.** Rides on the channel-graphs
+- **Lap delta chart** (2026-08) — **all three.** Rides on the channel-graphs
   panel; the math (`lapTimeSeries`/`deltaSeries` in
   `public/js/channel-graphs.js`) is pinned by `contracts/logic/lap-delta.json`,
-  so the iOS (NS-23) and Android (NS-24) chart stacks can add it as one more
-  chart when the ports are taken up.
+  and both chart stacks carry the port (`ChannelGraphs` in the Kit and in
+  `:core`, drawn by each platform's `LapChannelChart`) — the delta renders
+  above the channels once two laps are highlighted, with the reference lap as
+  the zero line.
 - **Per-track leaderboards** (2026-08) — **web UI first, models everywhere.**
   Strictly opt-in (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard`
   is in the golden contract and both native clients decode `TrackLeaderboard`,

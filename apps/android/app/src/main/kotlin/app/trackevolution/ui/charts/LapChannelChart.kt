@@ -106,10 +106,16 @@ fun LapChannelChart(
         }
 
         Text(
-            "Laps on a shared distance axis — tap laps to compare (up to ${ChannelGraphs.SLOT_COUNT})",
+            "Laps on a shared distance axis — tap laps to compare (up to ${ChannelGraphs.SLOT_COUNT}). " +
+                "With 2+ selected, the delta chart shows where time is gained or lost vs the fastest.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
         )
+
+        val refIdx = ChannelGraphs.deltaReference(lit, channels)
+        if (refIdx != null) {
+            DeltaPlot(channels = channels, matches = matches, lit = lit, refIdx = refIdx, slots = slots)
+        }
 
         for (channel in present) {
             ChannelPlot(channel = channel, channels = channels, matches = matches, lit = lit, slots = slots)
@@ -155,6 +161,134 @@ private fun LapChip(
             color = if (enabled) colors.textStrong else colors.textFaint,
         )
     }
+}
+
+/**
+ * The delta chart: highlighted laps vs the fastest of the selection ([refIdx]),
+ * on the same distance axis as the channels below it. Positive is slower, so a
+ * climbing trace is time slipping away. The reference lap draws no trace — it
+ * *is* the zero line. The maths is `ChannelGraphs.deltaSeries` in `:core`,
+ * pinned to the web implementation by `contracts/logic/lap-delta.json`.
+ */
+@Composable
+private fun DeltaPlot(
+    channels: SessionChannels,
+    matches: List<ChannelGraphs.LapMatch>,
+    lit: List<Int>,
+    refIdx: Int,
+    slots: List<Color>,
+) {
+    val colors = TrackTheme.colors
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val labelStyle = TrackTheme.typography.xxs.copy(color = colors.textFaint)
+    val titleStyle = TrackTheme.typography.xxs.copy(color = colors.textMuted)
+
+    fun lapNumber(chIdx: Int): Int =
+        matches.firstOrNull { it.chIdx == chIdx }?.lap?.lapNum ?: channels.laps[chIdx].n
+
+    val deltas = lit
+        .filter { it != refIdx && it in channels.laps.indices }
+        .mapNotNull { chIdx ->
+            ChannelGraphs.deltaSeries(channels.laps[chIdx], channels.laps[refIdx], channels.dStepM)
+                ?.let { chIdx to it }
+        }
+    if (deltas.isEmpty()) return
+    val domain = ChannelGraphs.deltaDomain(deltas.map { it.second }) ?: return
+    val span = ChannelGraphs.distanceSpan(ChannelGraphs.Channel.SPEED, channels)
+    if (span <= 0.0) return
+
+    val gutter = with(density) { 5.dp.toPx() }
+    val padRight = with(density) { 10.dp.toPx() }
+    val padTop = with(density) { 18.dp.toPx() }
+    val padBottom = with(density) { 18.dp.toPx() }
+    val litWidth = with(density) { 2.dp.toPx() }
+
+    val refN = lapNumber(refIdx)
+    val summary = buildString {
+        append("Time delta to lap $refN by driven distance — above the zero line is slower. ")
+        append(
+            deltas.joinToString(". ") { (chIdx, series) ->
+                "Lap ${lapNumber(chIdx)}, ${formatDelta(series.last(), 2)} seconds vs lap $refN"
+            },
+        )
+    }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .semantics {
+                testTag = "channelChart:delta"
+                contentDescription = summary
+            },
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val yTicks = ChartScale.niceNumTicks(domain.low, domain.high, 3)
+            val yLabels = yTicks.map { it to measurer.measure(formatDelta(it, 1), labelStyle) }
+            val padLeft = (yLabels.maxOfOrNull { it.second.size.width }?.toFloat() ?: 0f) + gutter * 2
+
+            val plotW = size.width - padLeft - padRight
+            val plotH = size.height - padTop - padBottom
+            if (plotW <= 0f || plotH <= 0f) return@Canvas
+
+            fun px(distance: Double) = padLeft + (distance / span).toFloat() * plotW
+            fun py(value: Double) = padTop + ChartScale.plottedFraction(value, domain).toFloat() * plotH
+
+            for ((tick, text) in yLabels) {
+                val y = py(tick)
+                drawLine(colors.chartGrid, Offset(padLeft, y), Offset(size.width - padRight, y), strokeWidth = 1f)
+                drawText(text, topLeft = Offset(padLeft - gutter - text.size.width, y - text.size.height / 2f))
+            }
+            for (tick in ChartScale.niceNumTicks(0.0, span, 6)) {
+                val text = measurer.measure(ChannelGraphs.fmtDist(tick), labelStyle)
+                drawText(
+                    text,
+                    topLeft = Offset(
+                        (px(tick) - text.size.width / 2f).coerceIn(0f, size.width - text.size.width),
+                        size.height - text.size.height,
+                    ),
+                )
+            }
+            // The zero line is the reference lap — everything is measured
+            // against it, so it gets the strong stroke, not the axis.
+            val zy = py(0.0)
+            drawLine(colors.textFaint, Offset(padLeft, zy), Offset(size.width - padRight, zy), strokeWidth = 1f)
+            drawLine(
+                colors.borderStrong,
+                Offset(padLeft, size.height - padBottom),
+                Offset(size.width - padRight, size.height - padBottom),
+                strokeWidth = 1f,
+            )
+
+            val title = measurer.measure("Delta (s) vs lap $refN — above the line is slower", titleStyle)
+            drawText(title, topLeft = Offset(padLeft, 0f))
+
+            for ((chIdx, series) in deltas) {
+                if (series.size < 2) continue
+                val slot = lit.indexOf(chIdx)
+                val path = Path()
+                series.forEachIndexed { k, v ->
+                    val x = px(k * channels.dStepM)
+                    val y = py(v)
+                    if (k == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(
+                    path,
+                    color = slots[(if (slot >= 0) slot else 0) % slots.size],
+                    style = Stroke(width = litWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                )
+            }
+        }
+    }
+}
+
+/** `+0.4` / `−0.4` — the sign is the message, so it is always shown. */
+internal fun formatDelta(value: Double, decimals: Int): String {
+    val factor = Math.pow(10.0, decimals.toDouble())
+    val rounded = kotlin.math.round(value * factor) / factor
+    val magnitude = String.format("%.${decimals}f", abs(rounded))
+    return if (rounded < 0) "−$magnitude" else "+$magnitude"
 }
 
 @Composable
