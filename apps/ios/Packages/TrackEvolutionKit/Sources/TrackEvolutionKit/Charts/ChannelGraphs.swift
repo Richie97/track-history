@@ -25,12 +25,18 @@ public enum ChannelGraphs {
     /// charts stack in.
     public enum Channel: String, CaseIterable, Sendable {
         case speed
+        case throttle
+        case brake
+        case steering
         case rpm
         case latG
 
         public var label: String {
             switch self {
             case .speed: "Speed"
+            case .throttle: "Throttle"
+            case .brake: "Brake"
+            case .steering: "Steering"
             case .rpm: "RPM"
             case .latG: "Lateral G"
             }
@@ -39,6 +45,8 @@ public enum ChannelGraphs {
         public var unit: String {
             switch self {
             case .speed: "mph"
+            case .throttle, .brake: "%"
+            case .steering: "°"
             case .rpm: "rpm"
             case .latG: "G"
             }
@@ -47,15 +55,21 @@ public enum ChannelGraphs {
         /// Decimal places a readout of this channel shows.
         public var decimals: Int {
             switch self {
-            case .speed, .rpm: 0
+            case .speed, .throttle, .brake, .steering, .rpm: 0
             case .latG: 2
             }
         }
 
         /// Whether the axis is pinned at zero rather than padded below the minimum.
-        /// Lateral G is a magnitude — an axis starting at 0.3 G reads as if the car
-        /// never went straight.
-        public var floorAtZero: Bool { self == .latG }
+        /// Lateral G and the pedals are magnitudes — an axis starting at 0.3 G (or
+        /// 20% throttle) reads as if the car never went straight (or lifted).
+        /// Steering is signed, so it keeps the padded axis.
+        public var floorAtZero: Bool {
+            switch self {
+            case .throttle, .brake, .latG: true
+            case .speed, .steering, .rpm: false
+            }
+        }
 
         /// Stored units → displayed units. Speed is stored in km/h.
         public func convert(_ raw: Double) -> Double {
@@ -66,6 +80,9 @@ public enum ChannelGraphs {
         public func series(of lap: LapChannels) -> [Double]? {
             switch self {
             case .speed: lap.speed
+            case .throttle: lap.throttle
+            case .brake: lap.brake
+            case .steering: lap.steering
             case .rpm: lap.rpm
             case .latG: lap.latG
             }

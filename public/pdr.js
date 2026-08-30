@@ -256,6 +256,9 @@ export async function parsePdrFile(fileBlob) {
       else if (name === "Speed") tags.speed = tagId;
       else if (name === "RPM") tags.rpm = tagId;
       else if (name === "Lateral Acceleration") tags.latAcc = tagId;
+      else if (name === "Accel Pos") tags.throttle = tagId;
+      else if (name === "Brake Pos") tags.brake = tagId;
+      else if (name === "Steering Angle") tags.steering = tagId;
     }
   }
   // raw -> display units (deg, km/h, rpm, G) via the dictionary entry.
@@ -279,6 +282,7 @@ export async function parsePdrFile(fileBlob) {
   // value / timestamp; delta records adjust the running state (which persists
   // across samples). Values accumulate in raw (pre-multiplier) units.
   const beacons = [], odoPts = [], latPts = [], lonPts = [], speedPts = [], rpmPts = [], latAccPts = [];
+  const throttlePts = [], brakePts = [], steeringPts = [];
   const buckets = new Map([
     [tags.odometer, odoPts],
     [tags.latitude, latPts],
@@ -287,6 +291,9 @@ export async function parsePdrFile(fileBlob) {
   if (tags.speed != null) buckets.set(tags.speed, speedPts);
   if (tags.rpm != null) buckets.set(tags.rpm, rpmPts);
   if (tags.latAcc != null) buckets.set(tags.latAcc, latAccPts);
+  if (tags.throttle != null) buckets.set(tags.throttle, throttlePts);
+  if (tags.brake != null) buckets.set(tags.brake, brakePts);
+  if (tags.steering != null) buckets.set(tags.steering, steeringPts);
 
   const MAX_TICKS = 864000000000; // 24h in 100ns units: anything above is corrupt
   let lastTicks = 0;
@@ -345,6 +352,16 @@ export async function parsePdrFile(fileBlob) {
   const speed = scaleAll(speedPts, scaler(tags.speed)); // km/h
   const rpm = scaleAll(rpmPts, scaler(tags.rpm));
   const latAcc = scaleAll(latAccPts, scaler(tags.latAcc)); // G
+  const throttle = scaleAll(throttlePts, scaler(tags.throttle)); // % (dict units "%" -> x100)
+  const brake = scaleAll(brakePts, scaler(tags.brake)); // %
+  // Real firmware stores steering wheel angle in radians with an *empty* units
+  // string, so UNIT_SCALE's deg conversion never fires — apply it here unless
+  // the dictionary already declared degrees.
+  const steeringRad = dict.get(tags.steering)?.units !== "deg";
+  const steering = scaleAll(steeringPts, scaler(tags.steering)).map((p) => ({
+    t: p.t,
+    v: steeringRad ? (p.v * 180) / Math.PI : p.v,
+  })); // deg, signed
   const maxOf = (pts, cap) => {
     let m = -Infinity;
     for (const p of pts) if (p.v > m) m = p.v;
@@ -445,12 +462,15 @@ export async function parsePdrFile(fileBlob) {
     gps,                        // [{t, lat, lon, v?}] in degrees, or null
     metrics,                    // {topSpeedKph, maxRpm, maxLatG} — each null when unavailable
     channels: { latPts, odoPts }, // raw series for lap recovery (pdr-laps.js)
-    // scaled car channels ([{t, v}] in km/h / rpm / G) for per-lap channel
-    // graphs (js/import/channels.js); each null when the file lacks them
+    // scaled car channels ([{t, v}] in km/h / rpm / G / % / deg) for per-lap
+    // channel graphs (js/import/channels.js); each null when the file lacks them
     carChannels: {
       speed: speed.length > 10 ? speed : null,
       rpm: rpm.length > 10 ? rpm : null,
       latG: latAcc.length > 10 ? latAcc.map((p) => ({ t: p.t, v: Math.abs(p.v) })) : null,
+      throttle: throttle.length > 10 ? throttle : null,
+      brake: brake.length > 10 ? brake : null,
+      steering: steering.length > 10 ? steering : null,
     },
   };
 }

@@ -50,14 +50,27 @@ export function sanitizeTrace(v: unknown): [number, number, number][] | null | u
 // shape — keep the two in sync): channel arrays on a uniform driven-distance
 // grid, one entry per lap. null clears it; valid data is re-rounded so the
 // stored JSON stays small. Returns undefined when the input isn't plausible.
-export type LapChannelEntry = { n: number; timeMs: number; speed?: number[]; rpm?: number[]; latG?: number[] };
+export type LapChannelEntry = {
+  n: number;
+  timeMs: number;
+  speed?: number[];
+  rpm?: number[];
+  latG?: number[];
+  throttle?: number[];
+  brake?: number[];
+  steering?: number[];
+};
 export type LapChannels = { v: 1; dStepM: number; laps: LapChannelEntry[] };
 
-const CHANNEL_SPECS: ["speed" | "rpm" | "latG", number, number, number][] = [
+const CHANNEL_SPECS: ["speed" | "rpm" | "latG" | "throttle" | "brake" | "steering", number, number, number][] = [
   // name, max plausible value, rounding factor, min plausible value
   ["speed", 500, 10, 0],
   ["rpm", 25000, 1, 0],
   ["latG", 10, 1000, 0],
+  ["throttle", 100, 10, 0],
+  ["brake", 100, 10, 0],
+  // steering-wheel degrees, signed; PDR's dictionary encodes at most ±2048°
+  ["steering", 2048, 10, -2048],
 ];
 
 export function sanitizeChannels(v: unknown): LapChannels | null | undefined {
@@ -93,9 +106,11 @@ export function sanitizeChannels(v: unknown): LapChannels | null | undefined {
     if (!len) return undefined; // a lap entry with no channels isn't data
     laps.push(entry);
   }
-  // Hard budget on stored size: 60k values is roughly 400KB of JSON; real
-  // sessions (25 laps × 3 channels × ~150 points) land far under it.
-  if (points > 60000) return undefined;
+  // Hard budget on stored size: 120k values is roughly 800KB of JSON — well
+  // under D1's 2MB per-value cap; real sessions (25 laps × 6 channels × ~150
+  // points) land far under it. Mirrored by MAX_TOTAL_VALUES in
+  // public/js/import/channels.js.
+  if (points > 120000) return undefined;
   return { v: 1, dStepM, laps };
 }
 

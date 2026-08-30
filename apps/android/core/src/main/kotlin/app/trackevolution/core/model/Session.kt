@@ -87,6 +87,9 @@ public data class SessionChannels(
 /**
  * One lap's channel series. All present channels share the same length —
  * `sanitizeChannels` rejects ragged data.
+ *
+ * Units follow `public/js/import/channels.js`: speed km/h, latG G,
+ * throttle/brake percent (0–100), steering signed steering-wheel degrees.
  */
 @Serializable
 public data class LapChannels(
@@ -96,4 +99,7 @@ public data class LapChannels(
     val speed: List<Double>? = null,
     val rpm: List<Double>? = null,
     val latG: List<Double>? = null,
+    val throttle: List<Double>? = null,
+    val brake: List<Double>? = null,
+    val steering: List<Double>? = null,
 )

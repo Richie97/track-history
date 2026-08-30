@@ -479,7 +479,7 @@ struct LapChannelChart: View {
 extension LapChannelChart {
     /// The panel on synthetic data, for `-channelGraphs` (see `RootView`) and for
     /// previews. Shaped like a real import: three laps of a 2.4 km circuit on the
-    /// importer's 20 m grid, all three channels.
+    /// importer's 20 m grid, all six channels.
     static var demoScreen: some View {
         let times = [118_400, 116_900, 117_600]
         let channels = SessionChannels(
@@ -491,7 +491,15 @@ extension LapChannelChart {
                 let speed: [Double] = wave.map { v in 90 + 60 * v }
                 let rpm: [Double] = wave.map { v in 3000 + 3500 * (1 + v) / 2 }
                 let latG: [Double] = (0..<120).map { k in abs(cos(Double(k) / 9 + phase)) * 1.2 }
-                return LapChannels(n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG)
+                // Pedals alternate: throttle on the wave's positive half, brake
+                // on the negative; steering swings signed degrees.
+                let throttle: [Double] = wave.map { v in max(0, v) * 100 }
+                let brake: [Double] = wave.map { v in max(0, -v) * 100 }
+                let steering: [Double] = (0..<120).map { k in cos(Double(k) / 9 + phase) * 120 }
+                return LapChannels(
+                    n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG,
+                    throttle: throttle, brake: brake, steering: steering
+                )
             }
         )
         return LapChannelChart(

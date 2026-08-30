@@ -116,8 +116,17 @@ struct LapChannelsTests {
         #expect(speed.count > 80)
         #expect(lap.rpm?.count == speed.count)
         #expect(lap.latG?.count == speed.count)
+        #expect(lap.throttle?.count == speed.count)
+        #expect(lap.brake?.count == speed.count)
+        #expect(lap.steering?.count == speed.count)
         #expect((speed.max() ?? 0) < 160)  // ~151 km/h peak
         #expect((lap.rpm?.max() ?? 0) <= 6000)
+        // pedals within 0-100%, steering signed degrees (±28.6° in the fixture)
+        #expect((lap.throttle?.min() ?? -1) >= 0)
+        #expect((lap.throttle?.max() ?? 999) <= 100)
+        #expect((lap.brake?.max() ?? 999) <= 100)
+        #expect((lap.steering?.min() ?? 0) < -20)
+        #expect((lap.steering?.max() ?? 999) < 29.2)
     }
 
     @Test func channelDataForPicksTheOdometerForPDRAndTheTraceForGPSSources() throws {

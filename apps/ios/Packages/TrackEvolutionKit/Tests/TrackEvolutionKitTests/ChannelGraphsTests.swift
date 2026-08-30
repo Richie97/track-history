@@ -160,7 +160,10 @@ struct ChannelGraphsTests {
         let detail = try Goldens.decode(EventDetail.self, "event-detail")
         let session = try #require(detail.sessions.first { $0.channels != nil })
         let channels = try #require(session.channels)
-        #expect(ChannelGraphs.presentChannels(channels) == [.speed, .rpm, .latG])
+        #expect(
+            ChannelGraphs.presentChannels(channels)
+                == [.speed, .throttle, .brake, .steering, .rpm, .latG]
+        )
         let matches = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps)
         #expect(matches.filter(\.hasChannels).count == matches.count)
         #expect(ChannelGraphs.initialSelection(matches) == [0])

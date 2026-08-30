@@ -78,8 +78,17 @@ describe("end-to-end lapChannels on parsed imports", () => {
     expect(lap.speed.length).toBeGreaterThan(80);
     expect(lap.rpm.length).toBe(lap.speed.length);
     expect(lap.latG.length).toBe(lap.speed.length);
+    expect(lap.throttle.length).toBe(lap.speed.length);
+    expect(lap.brake.length).toBe(lap.speed.length);
+    expect(lap.steering.length).toBe(lap.speed.length);
     expect(Math.max(...lap.speed)).toBeLessThan(160); // ~151 km/h peak
     expect(Math.max(...lap.rpm)).toBeLessThanOrEqual(6000);
+    // pedals within 0-100%, steering signed degrees (±28.6° in the fixture)
+    expect(Math.min(...lap.throttle)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...lap.throttle)).toBeLessThanOrEqual(100);
+    expect(Math.max(...lap.brake)).toBeLessThanOrEqual(100);
+    expect(Math.min(...lap.steering)).toBeLessThan(-20);
+    expect(Math.max(...lap.steering)).toBeLessThan(29.2);
   });
 
   it("channelDataFor picks the odometer for PDR and the trace for GPS sources", async () => {

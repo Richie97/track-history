@@ -171,6 +171,9 @@ struct VideoContractTests {
             assertSeries(lap.speed, want.speed, "\(file): lap \(want.n) speed")
             assertSeries(lap.rpm, want.rpm, "\(file): lap \(want.n) rpm")
             assertSeries(lap.latG, want.latG, "\(file): lap \(want.n) latG")
+            assertSeries(lap.throttle, want.throttle, "\(file): lap \(want.n) throttle")
+            assertSeries(lap.brake, want.brake, "\(file): lap \(want.n) brake")
+            assertSeries(lap.steering, want.steering, "\(file): lap \(want.n) steering")
         }
     }
 

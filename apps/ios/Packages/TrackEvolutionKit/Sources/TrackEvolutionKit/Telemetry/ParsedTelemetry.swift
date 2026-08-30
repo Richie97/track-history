@@ -114,19 +114,28 @@ public struct ParsedTelemetry: Sendable {
         }
     }
 
-    /// Car channels in display units: speed km/h, latG in G. nil where the file
-    /// lacks the channel.
+    /// Car channels in display units: speed km/h, latG in G, throttle/brake in %,
+    /// steering in signed steering-wheel degrees. nil where the file lacks the
+    /// channel.
     public struct CarChannels: Hashable, Sendable {
         public var speed: [ChannelPoint]?
         public var rpm: [ChannelPoint]?
         public var latG: [ChannelPoint]?
+        public var throttle: [ChannelPoint]?
+        public var brake: [ChannelPoint]?
+        public var steering: [ChannelPoint]?
 
         public init(
-            speed: [ChannelPoint]? = nil, rpm: [ChannelPoint]? = nil, latG: [ChannelPoint]? = nil
+            speed: [ChannelPoint]? = nil, rpm: [ChannelPoint]? = nil, latG: [ChannelPoint]? = nil,
+            throttle: [ChannelPoint]? = nil, brake: [ChannelPoint]? = nil,
+            steering: [ChannelPoint]? = nil
         ) {
             self.speed = speed
             self.rpm = rpm
             self.latG = latG
+            self.throttle = throttle
+            self.brake = brake
+            self.steering = steering
         }
     }
 

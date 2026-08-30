@@ -1,15 +1,18 @@
 // Per-lap channel data for imported telemetry sessions: each lap's speed
-// (and, for PDR, RPM and lateral G) resampled onto a uniform driven-distance
-// grid, so laps overlay corner-for-corner in the channel graphs regardless of
-// lap time. Built at import time — telemetry files never leave the browser,
-// so anything to graph later must be derived here and stored with the
-// session. Pure functions, unit-tested.
+// (and, for PDR, RPM, lateral G, throttle, brake and steering angle)
+// resampled onto a uniform driven-distance grid, so laps overlay
+// corner-for-corner in the channel graphs regardless of lap time. Built at
+// import time — telemetry files never leave the browser, so anything to
+// graph later must be derived here and stored with the session. Pure
+// functions, unit-tested.
 //
 // Stored shape (sessions.channels, sanitized server-side in
 // src/lib/validate.ts — keep the two in sync):
-//   { v: 1, dStepM, laps: [{ n, timeMs, speed: [...], rpm?: [...], latG?: [...] }] }
+//   { v: 1, dStepM, laps: [{ n, timeMs, speed: [...], rpm?: [...], latG?: [...],
+//                            throttle?: [...], brake?: [...], steering?: [...] }] }
 // Arrays hold one value per grid point at d = 0, dStepM, 2*dStepM… from the
-// lap's start. speed is km/h, latG is G.
+// lap's start. speed is km/h, latG is G, throttle/brake are %, steering is
+// steering-wheel degrees (signed).
 
 import { series } from "../../pdr.js";
 import { projectTrace } from "./geo.js";
@@ -20,7 +23,18 @@ export const MAX_LAP_POINTS = 700; // guards degenerate "laps" (also capped serv
 // server reject a whole session over its optional graph data, an outsized
 // session (marathon enduro) simply stores no channels.
 export const MAX_LAPS = 80;
-export const MAX_TOTAL_VALUES = 60000;
+export const MAX_TOTAL_VALUES = 120000;
+
+// Every channel a lap entry can carry, with its rounding factor (decimal
+// places worth keeping in the stored JSON). Order is the stored/render order.
+export const CHANNEL_NAMES = [
+  ["speed", 10],
+  ["rpm", 1],
+  ["latG", 1000],
+  ["throttle", 10],
+  ["brake", 10],
+  ["steering", 10],
+];
 
 const round = (v, f) => Math.round(v * f) / f;
 
@@ -78,15 +92,14 @@ export function attachLapChannels(parsed) {
 // nothing survives, so callers can store the absence as-is.
 //   laps:  [{lapNumber?, timeMs, startT?, endT?}]
 //   dist:  [{t, v: meters}] cumulative, same clock as the series
-//   chans: {speed?, rpm?, latG?} as [{t, v}] — speed km/h, latG G
+//   chans: {speed?, rpm?, latG?, throttle?, brake?, steering?} as [{t, v}] —
+//          speed km/h, latG G, throttle/brake %, steering deg
 export function buildLapChannels(laps, dist, chans, dStepM = D_STEP_M) {
   if (!laps?.length || !dist || dist.length < 10) return null;
   const distS = series(dist);
-  const named = [
-    ["speed", chans.speed, 10],
-    ["rpm", chans.rpm, 1],
-    ["latG", chans.latG, 1000],
-  ].filter(([, pts]) => pts && pts.length >= 10);
+  const named = CHANNEL_NAMES.map(([name, f]) => [name, chans[name], f]).filter(
+    ([, pts]) => pts && pts.length >= 10
+  );
   const chanS = named.map(([name, pts, f]) => [name, series(pts), f]);
 
   const out = [];
@@ -117,7 +130,7 @@ export function buildLapChannels(laps, dist, chans, dStepM = D_STEP_M) {
   }
   if (!out.length || out.length > MAX_LAPS) return null;
   const totalValues = out.reduce(
-    (s, e) => s + ["speed", "rpm", "latG"].reduce((c, k) => c + (e[k]?.length ?? 0), 0),
+    (s, e) => s + CHANNEL_NAMES.reduce((c, [k]) => c + (e[k]?.length ?? 0), 0),
     0
   );
   return totalValues <= MAX_TOTAL_VALUES ? { v: 1, dStepM, laps: out } : null;
