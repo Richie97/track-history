@@ -94,12 +94,23 @@ public struct LapChannels: Codable, Hashable, Sendable {
     public var speed: [Double]?
     public var rpm: [Double]?
     public var latG: [Double]?
+    /// Pedal positions in percent (0–100); PDR imports only.
+    public var throttle: [Double]?
+    public var brake: [Double]?
+    /// Steering-wheel angle in degrees, signed; PDR imports only.
+    public var steering: [Double]?
 
-    public init(n: Int, timeMs: Int, speed: [Double]? = nil, rpm: [Double]? = nil, latG: [Double]? = nil) {
+    public init(
+        n: Int, timeMs: Int, speed: [Double]? = nil, rpm: [Double]? = nil, latG: [Double]? = nil,
+        throttle: [Double]? = nil, brake: [Double]? = nil, steering: [Double]? = nil
+    ) {
         self.n = n
         self.timeMs = timeMs
         self.speed = speed
         self.rpm = rpm
         self.latG = latG
+        self.throttle = throttle
+        self.brake = brake
+        self.steering = steering
     }
 }

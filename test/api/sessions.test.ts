@@ -71,7 +71,16 @@ describe("POST /api/events/:id/sessions", () => {
       v: 1,
       dStepM: 20,
       laps: [
-        { n: 1, timeMs: 121000, speed: arr(100), rpm: arr(4000), latG: arr(0.2).map((x) => x / 100) },
+        {
+          n: 1,
+          timeMs: 121000,
+          speed: arr(100),
+          rpm: arr(4000),
+          latG: arr(0.2).map((x) => x / 100),
+          throttle: arr(50),
+          brake: arr(10),
+          steering: arr(0).map((x) => x - 30), // signed
+        },
         { n: 2, timeMs: 119500, speed: arr(105) },
       ],
     };
@@ -82,7 +91,11 @@ describe("POST /api/events/:id/sessions", () => {
     expect(ch.laps).toHaveLength(2);
     expect(ch.laps[0].speed[0]).toBe(100.1); // rounded to 0.1 km/h
     expect(ch.laps[0].rpm[0]).toBe(4000); // rounded to whole rpm
+    expect(ch.laps[0].throttle[0]).toBe(50.1); // rounded to 0.1 %
+    expect(ch.laps[0].brake[0]).toBe(10.1);
+    expect(ch.laps[0].steering[0]).toBe(-29.9); // signed degrees survive
     expect(ch.laps[1].rpm).toBeUndefined();
+    expect(ch.laps[1].throttle).toBeUndefined();
   });
 
   it("leaves channels null when omitted and rejects implausible channel data", async () => {
@@ -99,6 +112,9 @@ describe("POST /api/events/:id/sessions", () => {
       { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(9999) }] }, // implausible
       { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100), rpm: Array(13).fill(1) }] }, // grid mismatch
       { v: 1, dStepM: 1000, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100) }] }, // bad grid step
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, throttle: Array(12).fill(101) }] }, // throttle over 100%
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, brake: Array(12).fill(-1) }] }, // negative brake
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, steering: Array(12).fill(3000) }] }, // beyond full lock
     ];
     for (const channels of cases) {
       const bad = await api("POST", `/events/${eventId}/sessions`, { laps: [121000], channels });

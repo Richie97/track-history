@@ -1,7 +1,8 @@
 // Lap chips + per-lap channel graphs for an imported session. The chips are
 // the session's lap list (rendered from the stored lap rows), and stacked
-// small-multiple SVG charts (speed / rpm / lateral G, whichever the session
-// stored) sit under them in a collapsible <details>, every lap overlaid on a
+// small-multiple SVG charts (speed / throttle / brake / steering / rpm /
+// lateral G, whichever the session stored — a channel no lap carries renders
+// no chart) sit under them in a collapsible <details>, every lap overlaid on a
 // shared driven-distance axis so laps line up corner-for-corner. Unselected
 // laps draw as a dim context envelope; up to three laps at a time are
 // highlighted in the chart series colors, picked via the lap chips (which
@@ -21,6 +22,9 @@ const KPH_TO_MPH = 0.621371;
 
 const CHANNEL_DEFS = [
   { key: "speed", label: "Speed", unit: "mph", conv: (v) => v * KPH_TO_MPH, dp: 0, floor0: false },
+  { key: "throttle", label: "Throttle", unit: "%", conv: (v) => v, dp: 0, floor0: true },
+  { key: "brake", label: "Brake", unit: "%", conv: (v) => v, dp: 0, floor0: true },
+  { key: "steering", label: "Steering", unit: "°", conv: (v) => v, dp: 0, floor0: false },
   { key: "rpm", label: "RPM", unit: "rpm", conv: (v) => v, dp: 0, floor0: false },
   { key: "latG", label: "Lateral G", unit: "G", conv: (v) => v, dp: 2, floor0: true },
 ];
@@ -227,8 +231,8 @@ export function bindChannelGraphs(container, channels, sessionLaps) {
 
   const litMap = () => new Map(state.lit.map((lapIdx, slot) => [lapIdx, SLOTS[slot]]));
 
-  const chanNames = ["speed", chLaps.some((l) => l.rpm) && "rpm", chLaps.some((l) => l.latG) && "lateral G"]
-    .filter(Boolean)
+  const chanNames = CHANNEL_DEFS.filter((def) => chLaps.some((l) => l[def.key]))
+    .map((def) => def.label.toLowerCase())
     .join(" · ");
   container.innerHTML = `
     <div class="laps ch-chips"></div>

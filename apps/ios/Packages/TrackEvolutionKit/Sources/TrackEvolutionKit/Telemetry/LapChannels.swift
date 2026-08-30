@@ -1,8 +1,9 @@
 import Foundation
 
 /// Per-lap channel data for imported telemetry sessions: each lap's speed (and,
-/// for PDR, RPM and lateral G) resampled onto a uniform driven-distance grid, so
-/// laps overlay corner-for-corner in the channel graphs regardless of lap time.
+/// for PDR, RPM, lateral G, throttle, brake and steering angle) resampled onto a
+/// uniform driven-distance grid, so laps overlay corner-for-corner in the
+/// channel graphs regardless of lap time.
 ///
 /// A port of `public/js/import/channels.js` — same function names, same
 /// constants — with its test cases (`test/unit/channels.test.js` →
@@ -23,14 +24,25 @@ public enum TelemetryChannels {
     /// the server reject a whole session over its optional graph data, an
     /// outsized session (marathon enduro) simply stores no channels.
     public static let MAX_LAPS = 80
-    public static let MAX_TOTAL_VALUES = 60000
+    public static let MAX_TOTAL_VALUES = 120000
+
+    /// Every channel a lap entry can carry, with its rounding factor (decimal
+    /// places worth keeping in the stored JSON). `CHANNEL_NAMES` in the JS.
+    public static let CHANNEL_NAMES: [(String, Double)] = [
+        ("speed", 10),
+        ("rpm", 1),
+        ("latG", 1000),
+        ("throttle", 10),
+        ("brake", 10),
+        ("steering", 10),
+    ]
 
     /// Where a lap's channel arrays are cut from: cumulative distance, plus
     /// whichever value channels the source recorded.
     public struct ChannelData: Sendable {
         /// `[{t, v: metres}]` cumulative.
         public var dist: [ChannelPoint]
-        /// Speed km/h, latG in G.
+        /// Speed km/h, latG in G, throttle/brake in %, steering in degrees.
         public var series: ParsedTelemetry.CarChannels
 
         public init(dist: [ChannelPoint], series: ParsedTelemetry.CarChannels) {
@@ -89,7 +101,10 @@ public enum TelemetryChannels {
             series: ParsedTelemetry.CarChannels(
                 speed: car.speed ?? base.series.speed,
                 rpm: car.rpm ?? base.series.rpm,
-                latG: car.latG ?? base.series.latG
+                latG: car.latG ?? base.series.latG,
+                throttle: car.throttle ?? base.series.throttle,
+                brake: car.brake ?? base.series.brake,
+                steering: car.steering ?? base.series.steering
             )
         )
     }
@@ -110,7 +125,7 @@ public enum TelemetryChannels {
     /// returns nil when nothing survives, so callers can store the absence as-is.
     ///   - `laps`: the parsed laps
     ///   - `dist`: `[{t, v: metres}]` cumulative, on the same clock as the series
-    ///   - `chans`: speed km/h, latG in G
+    ///   - `chans`: speed km/h, latG in G, throttle/brake %, steering deg
     public static func buildLapChannels(
         _ laps: [ParsedLap],
         _ dist: [ChannelPoint],
@@ -119,13 +134,22 @@ public enum TelemetryChannels {
     ) -> SessionChannels? {
         if laps.isEmpty || dist.count < 10 { return nil }
         let distS = series(dist)
-        // Order and rounding factors are the JS's, and the order is the order the
-        // charts stack in.
-        let named: [(String, [ChannelPoint], Double)] = [
-            ("speed", chans.speed ?? [], 10),
-            ("rpm", chans.rpm ?? [], 1),
-            ("latG", chans.latG ?? [], 1000),
-        ].filter { $0.1.count >= 10 }
+        // `chans[name]` in the JS.
+        func channelPoints(_ name: String) -> [ChannelPoint]? {
+            switch name {
+            case "speed": chans.speed
+            case "rpm": chans.rpm
+            case "latG": chans.latG
+            case "throttle": chans.throttle
+            case "brake": chans.brake
+            case "steering": chans.steering
+            default: nil
+            }
+        }
+        // Names, order and rounding factors are the JS's `CHANNEL_NAMES`.
+        let named: [(String, [ChannelPoint], Double)] = CHANNEL_NAMES.map {
+            ($0.0, channelPoints($0.0) ?? [], $0.1)
+        }.filter { $0.1.count >= 10 }
         let chanS = named.map { ($0.0, series($0.1), $0.2) }
 
         var out: [LapChannels] = []
@@ -152,7 +176,10 @@ public enum TelemetryChannels {
                 switch name {
                 case "speed": entry.speed = values
                 case "rpm": entry.rpm = values
-                default: entry.latG = values
+                case "latG": entry.latG = values
+                case "throttle": entry.throttle = values
+                case "brake": entry.brake = values
+                default: entry.steering = values
                 }
                 any = true
             }
@@ -171,6 +198,7 @@ public enum TelemetryChannels {
         if out.isEmpty || out.count > MAX_LAPS { return nil }
         let totalValues = out.reduce(0) {
             $0 + ($1.speed?.count ?? 0) + ($1.rpm?.count ?? 0) + ($1.latG?.count ?? 0)
+                + ($1.throttle?.count ?? 0) + ($1.brake?.count ?? 0) + ($1.steering?.count ?? 0)
         }
         return totalValues <= MAX_TOTAL_VALUES
             ? SessionChannels(v: 1, dStepM: dStepM, laps: out)

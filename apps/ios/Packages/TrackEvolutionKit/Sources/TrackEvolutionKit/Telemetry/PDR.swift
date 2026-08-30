@@ -218,6 +218,9 @@ public enum PDR {
         var speedTag: Int?
         var rpmTag: Int?
         var latAccTag: Int?
+        var throttleTag: Int?
+        var brakeTag: Int?
+        var steeringTag: Int?
 
         var dict: [Int: ChannelDef] = [:]
         if let mrld {
@@ -245,6 +248,9 @@ public enum PDR {
                 case "Speed": speedTag = tagId
                 case "RPM": rpmTag = tagId
                 case "Lateral Acceleration": latAccTag = tagId
+                case "Accel Pos": throttleTag = tagId
+                case "Brake Pos": brakeTag = tagId
+                case "Steering Angle": steeringTag = tagId
                 default: break
                 }
                 e += STRIDE
@@ -281,6 +287,9 @@ public enum PDR {
         var speedPts: [ChannelPoint] = []
         var rpmPts: [ChannelPoint] = []
         var latAccPts: [ChannelPoint] = []
+        var throttlePts: [ChannelPoint] = []
+        var brakePts: [ChannelPoint] = []
+        var steeringPts: [ChannelPoint] = []
 
         var lastTicks = 0
         var vals: [Int: Int] = [:]  // running raw value per channel
@@ -288,14 +297,18 @@ public enum PDR {
         var ticks = -1
 
         // The JS keeps a Map from tag id to the array it fills, built odometer →
-        // latitude → longitude → speed → rpm → latAcc; a later `set` with a
-        // duplicate id wins, and the beacon test runs before the lookup. This
-        // switch is that precedence, read bottom-up, which is why the order looks
-        // backwards. A channel the file doesn't define gets a tag no record can
-        // carry (ids come from a u32, so they are never negative).
+        // latitude → longitude → speed → rpm → latAcc → throttle → brake →
+        // steering; a later `set` with a duplicate id wins, and the beacon test
+        // runs before the lookup. This switch is that precedence, read bottom-up,
+        // which is why the order looks backwards. A channel the file doesn't
+        // define gets a tag no record can carry (ids come from a u32, so they
+        // are never negative).
         let speedCase = speedTag ?? Int.min
         let rpmCase = rpmTag ?? Int.min + 1
         let latAccCase = latAccTag ?? Int.min + 2
+        let throttleCase = throttleTag ?? Int.min + 3
+        let brakeCase = brakeTag ?? Int.min + 4
+        let steeringCase = steeringTag ?? Int.min + 5
 
         func emit(_ ch: Int, _ v: Int, _ tk: Int) {
             if tk < 0 || tk > MAX_TICKS { return }
@@ -303,6 +316,9 @@ public enum PDR {
             let point = ChannelPoint(t: Double(tk) / 1e7, v: Double(v))
             switch ch {
             case beaconTag: beacons.append(point)
+            case steeringCase: steeringPts.append(point)
+            case brakeCase: brakePts.append(point)
+            case throttleCase: throttlePts.append(point)
             case latAccCase: latAccPts.append(point)
             case rpmCase: rpmPts.append(point)
             case speedCase: speedPts.append(point)
@@ -366,6 +382,9 @@ public enum PDR {
         speedPts = stableSortedByT(speedPts)
         rpmPts = stableSortedByT(rpmPts)
         latAccPts = stableSortedByT(latAccPts)
+        throttlePts = stableSortedByT(throttlePts)
+        brakePts = stableSortedByT(brakePts)
+        steeringPts = stableSortedByT(steeringPts)
 
         // Scale the car channels to display units and take session maxima.
         func scaleAll(_ pts: [ChannelPoint], _ conv: (@Sendable (Int) -> Double)?) -> [ChannelPoint] {
@@ -375,6 +394,15 @@ public enum PDR {
         let speed = scaleAll(speedPts, scaler(speedTag))  // km/h
         let rpm = scaleAll(rpmPts, scaler(rpmTag))
         let latAcc = scaleAll(latAccPts, scaler(latAccTag))  // G
+        let throttle = scaleAll(throttlePts, scaler(throttleTag))  // % (dict units "%" -> x100)
+        let brake = scaleAll(brakePts, scaler(brakeTag))  // %
+        // Real firmware stores steering wheel angle in radians with an *empty*
+        // units string, so UNIT_SCALE's deg conversion never fires — apply it
+        // here unless the dictionary already declared degrees.
+        let steeringRad = steeringTag.flatMap { dict[$0] }?.units != "deg"
+        let steering = scaleAll(steeringPts, scaler(steeringTag)).map {
+            ChannelPoint(t: $0.t, v: steeringRad ? $0.v * 180 / .pi : $0.v)
+        }  // deg, signed
         func maxOf(_ pts: [ChannelPoint], _ cap: Double) -> Double? {
             var m = -Double.infinity
             for p in pts where p.v > m { m = p.v }
@@ -503,7 +531,10 @@ public enum PDR {
             carChannels: ParsedTelemetry.CarChannels(
                 speed: speed.count > 10 ? speed : nil,
                 rpm: rpm.count > 10 ? rpm : nil,
-                latG: latAcc.count > 10 ? latAcc.map { ChannelPoint(t: $0.t, v: abs($0.v)) } : nil
+                latG: latAcc.count > 10 ? latAcc.map { ChannelPoint(t: $0.t, v: abs($0.v)) } : nil,
+                throttle: throttle.count > 10 ? throttle : nil,
+                brake: brake.count > 10 ? brake : nil,
+                steering: steering.count > 10 ? steering : nil
             )
         )
     }

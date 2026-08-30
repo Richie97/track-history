@@ -477,7 +477,9 @@ pass across it (interpolated between 10–18 Hz fixes — accurate to roughly
 batch.
 
 Imported sessions also store **per-lap channel data** — speed for every
-source, plus RPM and lateral G for PDR — resampled onto a uniform
+source, plus RPM, lateral G, throttle, brake and steering angle for PDR
+(whichever channels the recording carries; a channel the file lacks simply
+draws no graph) — resampled onto a uniform
 driven-distance grid (20 m) so laps overlay corner-for-corner. On the event
 page the session's lap list doubles as the chip picker for the expandable
 **channel graphs** below it: all laps as a dim context envelope, up to three
@@ -509,8 +511,8 @@ telemetry track and validated against Cosworth Toolbox lap times):
   8-byte diff records against the decoder's running state. Decoding the
   deltas is what yields the GPS trace (lat/lon at ~11Hz, stored as radians
   scaled by the file's channel dictionary) plus the car channels — Speed,
-  RPM, accelerations — from which the import reports **top speed, max RPM
-  and max lateral G**. (An earlier parser version read only full records,
+  RPM, accelerations, throttle/brake pedal position, steering angle — from
+  which the import reports **top speed, max RPM and max lateral G**. (An earlier parser version read only full records,
   which made it look like PDR firmware recorded no GPS: longitude gets
   exactly one full record, at recording start.) All decoded coordinates
   still sit behind plausibility checks before they become a trace.

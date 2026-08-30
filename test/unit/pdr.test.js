@@ -127,6 +127,24 @@ describe("parsePdrFile with a delta-encoded stream (real firmware shape)", () =>
     expect(out.metrics.maxLatG).toBeGreaterThan(0.5);
     expect(out.metrics.maxLatG).toBeLessThan(0.65);
   });
+
+  it("decodes throttle, brake and steering car channels", async () => {
+    const out = await parse();
+    // pedals are raw 0-255 scaled by the dictionary's "%" units to 0-100,
+    // alternating (throttle on the sine's positive half, brake the negative)
+    const th = out.carChannels.throttle.map((p) => p.v);
+    const br = out.carChannels.brake.map((p) => p.v);
+    expect(Math.min(...th)).toBe(0);
+    expect(Math.max(...th)).toBeGreaterThan(99);
+    expect(Math.max(...th)).toBeLessThanOrEqual(100);
+    expect(Math.max(...br)).toBeGreaterThan(99);
+    // steering is stored in radians with an empty units string (the real
+    // firmware shape); pdr.js converts to degrees itself: ±0.5 rad = ±28.6°
+    const st = out.carChannels.steering.map((p) => p.v);
+    expect(Math.max(...st)).toBeGreaterThan(28);
+    expect(Math.max(...st)).toBeLessThan(29.2);
+    expect(Math.min(...st)).toBeLessThan(-28);
+  });
 });
 
 describe("boxes", () => {

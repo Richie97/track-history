@@ -207,8 +207,8 @@ async function build(api) {
   // sanitizeTrace / sanitizeChannels shapes are pinned. Values are synthetic
   // but structurally identical to what an import produces: sanitizeTrace wants
   // 10-600 [x, y, speed] points, and sanitizeChannels wants
-  // { dStepM, laps: [{ n, timeMs, speed?/rpm?/latG? }] } with 10-800 samples
-  // per channel, all channels on the same grid length.
+  // { dStepM, laps: [{ n, timeMs, speed?/rpm?/latG?/throttle?/brake?/steering? }] }
+  // with 10-800 samples per channel, all channels on the same grid length.
   const N = 12;
   const ring = (i) => {
     const a = (i / N) * 2 * Math.PI;
@@ -227,6 +227,9 @@ async function build(api) {
           speed: Array.from({ length: N }, (_, i) => 30 + i * 2),
           rpm: Array.from({ length: N }, (_, i) => 3000 + i * 150),
           latG: Array.from({ length: N }, (_, i) => Math.round((i % 4) * 0.4 * 1000) / 1000),
+          throttle: Array.from({ length: N }, (_, i) => Math.round((i / (N - 1)) * 1000) / 10),
+          brake: Array.from({ length: N }, (_, i) => Math.round(Math.max(0, 60 - i * 6) * 10) / 10),
+          steering: Array.from({ length: N }, (_, i) => Math.round((i - N / 2) * 85) / 10), // signed deg
         },
       ],
     },

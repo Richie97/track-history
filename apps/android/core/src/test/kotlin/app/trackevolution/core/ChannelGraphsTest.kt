@@ -133,6 +133,31 @@ class ChannelGraphsTest {
     }
 
     @Test
+    fun `floors throttle and brake at zero so an idle pedal reads as idle`() {
+        // floor0: true in the JS CHANNEL_DEFS — the axis starts at 0 even when
+        // the lap never fully lifts (throttle) or never fully releases (brake).
+        val ch = channels(
+            LapChannels(n = 1, timeMs = 1, throttle = listOf(20.0, 100.0), brake = listOf(10.0, 80.0)),
+        )
+        val throttle = ChannelGraphs.valueDomain(ChannelGraphs.Channel.THROTTLE, ch)!!
+        assertEquals(0.0, throttle.low)
+        assertTrue(throttle.high > 100.0, "the top is still padded")
+        val brake = ChannelGraphs.valueDomain(ChannelGraphs.Channel.BRAKE, ch)!!
+        assertEquals(0.0, brake.low)
+        assertTrue(brake.high > 80.0, "the top is still padded")
+    }
+
+    @Test
+    fun `pads a signed steering trace on both sides`() {
+        // Steering is floor0: false in the JS — signed degrees, padded both
+        // ways so neither lock touches the frame.
+        val ch = channels(LapChannels(n = 1, timeMs = 1, steering = listOf(-90.0, 110.0)))
+        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.STEERING, ch)!!
+        assertEquals(-106.0, domain.low)
+        assertEquals(126.0, domain.high)
+    }
+
+    @Test
     fun `pads both ends for a channel that does not floor at zero`() {
         val ch = channels(LapChannels(n = 1, timeMs = 1, rpm = listOf(2000.0, 7000.0)))
         val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.RPM, ch)!!
@@ -154,6 +179,34 @@ class ChannelGraphsTest {
         )
         assertEquals(
             listOf(ChannelGraphs.Channel.SPEED, ChannelGraphs.Channel.LAT_G),
+            ChannelGraphs.presentChannels(ch),
+        )
+    }
+
+    @Test
+    fun `lists a full PDR import in the web's render order`() {
+        // CHANNEL_DEFS order: speed, throttle, brake, steering, rpm, latG.
+        val ch = channels(
+            LapChannels(
+                n = 1,
+                timeMs = 1,
+                speed = listOf(1.0),
+                rpm = listOf(3000.0),
+                latG = listOf(0.1),
+                throttle = listOf(50.0),
+                brake = listOf(0.0),
+                steering = listOf(-12.0),
+            ),
+        )
+        assertEquals(
+            listOf(
+                ChannelGraphs.Channel.SPEED,
+                ChannelGraphs.Channel.THROTTLE,
+                ChannelGraphs.Channel.BRAKE,
+                ChannelGraphs.Channel.STEERING,
+                ChannelGraphs.Channel.RPM,
+                ChannelGraphs.Channel.LAT_G,
+            ),
             ChannelGraphs.presentChannels(ch),
         )
     }

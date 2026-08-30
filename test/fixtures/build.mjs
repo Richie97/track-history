@@ -315,7 +315,7 @@ export function buildPdrDeltaMp4({
   lat0 = 36.56,
   lon0 = -79.2,
 } = {}) {
-  const CH = { speed: 40, rpm: 41, latAcc: 42, lat: 49, lon: 50, beacon: 54, odo: 66 };
+  const CH = { speed: 40, rpm: 41, latAcc: 42, throttle: 43, brake: 44, steering: 45, lat: 49, lon: 50, beacon: 54, odo: 66 };
   const RAD = Math.PI / 180;
   const kx = 111320 * Math.cos(lat0 * RAD);
   const ky = 110540;
@@ -329,6 +329,14 @@ export function buildPdrDeltaMp4({
     events.push({ ch: CH.speed, v: Math.round(v * 100), t });
     events.push({ ch: CH.rpm, v: Math.round(4500 + 1500 * Math.sin(t / 10)), t });
     events.push({ ch: CH.latAcc, v: Math.round(((v * v) / radius) * 1000), t });
+    // pedals as raw 0-255 (dict mult 1/255 -> fraction, "%" units -> 0-100),
+    // alternating so both see their full-ish range; steering in milliradians
+    // with an EMPTY units string, the real-firmware shape pdr.js must convert
+    // to degrees itself.
+    const pedal = Math.sin(t / 8);
+    events.push({ ch: CH.throttle, v: Math.round(Math.max(0, pedal) * 255), t });
+    events.push({ ch: CH.brake, v: Math.round(Math.max(0, -pedal) * 255), t });
+    events.push({ ch: CH.steering, v: Math.round(500 * Math.sin(t / 6)), t });
   }
   for (let t = 0; t <= totalS; t += 0.15) {
     events.push({ ch: CH.odo, v: Math.round(speed * t), t });
@@ -344,6 +352,9 @@ export function buildPdrDeltaMp4({
     mrldEntry({ id: CH.speed, name: "Speed", units: "kph", mult: 0.01 }),
     mrldEntry({ id: CH.rpm, name: "RPM", units: "rpm", mult: 0.1 }),
     mrldEntry({ id: CH.latAcc, name: "Lateral Acceleration", units: "G", mult: 0.001 }),
+    mrldEntry({ id: CH.throttle, name: "Accel Pos", units: "%", min: 0, max: 255, mult: 1 / 255 }),
+    mrldEntry({ id: CH.brake, name: "Brake Pos", units: "%", min: 0, max: 255, mult: 1 / 255 }),
+    mrldEntry({ id: CH.steering, name: "Steering Angle", min: -1000, max: 1000, mult: 0.001 }),
     mrldEntry({ id: CH.lat, name: "Latitude", units: "°", mult: 1e-9, min: -1571000000, max: 1571000000 }),
     mrldEntry({ id: CH.lon, name: "Longitude", units: "°", mult: 1e-9, min: -2000000000, max: 2000000000 }),
     mrldEntry({ id: CH.beacon, name: "Beacon" }),

@@ -26,11 +26,13 @@ public object ChannelGraphs {
     private const val KPH_TO_MPH = 0.621371
 
     /**
-     * The channels a session can carry, in display order.
+     * The channels a session can carry, in display order — `CHANNEL_DEFS` in
+     * the JS, same order (speed, throttle, brake, steering, rpm, lateral G).
      *
-     * [floorAtZero] is not cosmetic: lateral G is signed and its axis has to
-     * include zero for left and right to be comparable, while speed and RPM
-     * would waste half the plot doing the same.
+     * [floorAtZero] is not cosmetic: lateral G, throttle and brake floor their
+     * axis at zero so an idle pedal reads as idle and left/right G compare,
+     * while speed and RPM would waste half the plot doing the same. Steering
+     * is signed and pads both sides, like the JS's `floor0: false`.
      */
     public enum class Channel(
         public val key: String,
@@ -40,6 +42,9 @@ public object ChannelGraphs {
         public val floorAtZero: Boolean,
     ) {
         SPEED("speed", "Speed", "mph", 0, false),
+        THROTTLE("throttle", "Throttle", "%", 0, true),
+        BRAKE("brake", "Brake", "%", 0, true),
+        STEERING("steering", "Steering", "°", 0, false),
         RPM("rpm", "RPM", "rpm", 0, false),
         LAT_G("latG", "Lateral G", "G", 2, true),
         ;
@@ -50,6 +55,9 @@ public object ChannelGraphs {
         /** This channel's series for one lap, or null when the lap lacks it. */
         public fun series(of: LapChannels): List<Double>? = when (this) {
             SPEED -> of.speed
+            THROTTLE -> of.throttle
+            BRAKE -> of.brake
+            STEERING -> of.steering
             RPM -> of.rpm
             LAT_G -> of.latG
         }

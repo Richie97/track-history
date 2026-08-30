@@ -191,6 +191,34 @@ class ChartRenderingTest {
     }
 
     @Test
+    fun `renders the PDR driver-input channels in the web's order, and only when carried`() {
+        compose.setContent {
+            TrackTheme {
+                LapChannelChart(
+                    channels = SessionChannels(
+                        v = 1,
+                        dStepM = 20.0,
+                        laps = listOf(
+                            LapChannels(
+                                1,
+                                121_900,
+                                speed = ramp(40),
+                                throttle = ramp(40),
+                                brake = ramp(40),
+                            ),
+                        ),
+                    ),
+                    laps = listOf(lap(1, 121_900)),
+                )
+            }
+        }
+        compose.onNodeWithTag("channelChart:throttle").assertIsDisplayed()
+        compose.onNodeWithTag("channelChart:brake").assertIsDisplayed()
+        // Steering is absent from every lap, so it must not draw an empty axis.
+        compose.onNodeWithTag("channelChart:steering").assertDoesNotExist()
+    }
+
+    @Test
     fun `shows a clean empty state when the session has no channels`() {
         compose.setContent {
             TrackTheme {
