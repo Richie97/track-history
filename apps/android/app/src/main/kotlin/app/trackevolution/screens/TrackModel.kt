@@ -25,7 +25,8 @@ import kotlinx.coroutines.launch
  *
  * `viewTrack` in `public/app.js` is the reference. The **setup-vs-lap-times
  * table** and the **two-event lap overlay** (`viewCompare`) stay web-only per the
- * product split, and are absent rather than stubbed.
+ * product split, and are absent rather than stubbed. The two-lap telemetry
+ * compare (`viewLapCompare`, #165) *is* here — see [CompareLapsModel].
  */
 class TrackModel(
     private val scope: CoroutineScope,
@@ -62,6 +63,14 @@ class TrackModel(
 
     var notesSaved by mutableStateOf(false)
         private set
+
+    /**
+     * Whether the two-lap compare is worth offering: any event here has laps.
+     * Channel data can't be known from the event list — the compare screen's
+     * empty state covers a track whose laps carry none, same as the web.
+     */
+    val hasComparableLaps: Boolean
+        get() = allEvents.any { it.lapCount > 0 }
 
     /**
      * The share slug, read separately from the page's own load: a missing or

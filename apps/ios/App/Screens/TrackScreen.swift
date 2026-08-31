@@ -6,7 +6,8 @@ import TrackEvolutionKit
 ///
 /// `viewTrack` in `public/app.js` is the reference. The **setup-vs-lap-times table
 /// is deferred** with the rest of the garage feature and is absent rather than
-/// stubbed; so is the two-event lap overlay (`viewCompare`).
+/// stubbed; so is the two-event lap overlay (`viewCompare`). The two-lap telemetry
+/// compare (`viewLapCompare`, #165) *is* here, as a sheet.
 struct TrackScreen: View {
     let trackId: Int
 
@@ -15,6 +16,7 @@ struct TrackScreen: View {
 
     @State private var model: TrackModel?
     @State private var confirmingLeaveLeaderboard = false
+    @State private var showingCompareLaps = false
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -56,6 +58,14 @@ struct TrackScreen: View {
 
             chartCard(model, track)
             goalCard(model, track)
+
+            // Web parity: offered whenever any event here has laps — the screen
+            // explains itself when none of them stored telemetry channels.
+            if model.hasComparableLaps {
+                Button("Compare two laps") { showingCompareLaps = true }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityHint("Pick two laps with telemetry and see where the time is gained or lost")
+            }
 
             // The page title already says which track, so the button doesn't repeat
             // it — a circuit name with a layout suffix wraps to three lines.
@@ -131,6 +141,9 @@ struct TrackScreen: View {
             }
         }
         .refreshable { await model.load() }
+        .sheet(isPresented: $showingCompareLaps) {
+            CompareLapsScreen(trackId: trackId)
+        }
         .toolbar {
             if let url = model.shareURL(serverURL: auth.server.url) {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -357,6 +370,13 @@ final class TrackModel {
 
     var hasWetData: Bool {
         allEvents.contains { $0.conditions != nil && $0.conditions != .dry }
+    }
+
+    /// Whether the two-lap compare is worth offering: any event here has laps.
+    /// Channel data can't be known from the list — the compare screen's empty
+    /// state covers a track whose laps carry none, same as the web.
+    var hasComparableLaps: Bool {
+        allEvents.contains { $0.lapCount > 0 }
     }
 
     var personalBest: Int? {

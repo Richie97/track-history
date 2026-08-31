@@ -26,6 +26,32 @@ struct LapChannelChart: View {
     let channels: SessionChannels
     let laps: [Lap]
 
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the delta chart shows where time is gained or lost vs the fastest.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                LapChannelPanel(channels: channels, laps: laps)
+            }
+            .padding(TESpacing.pageGutter)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(.bgPage))
+    }
+}
+
+/// The chips, the delta chart and the stacked channel charts, embeddable in any
+/// scroller — `LapChannelChart` above wraps it as the event page's sheet, and
+/// `CompareLapsScreen` embeds it under the head-to-head table with both laps of
+/// the pair pre-highlighted.
+struct LapChannelPanel: View {
+    let channels: SessionChannels
+    let laps: [Lap]
+    /// Channel-lap indexes to start highlighted, in slot order. nil means the
+    /// fastest lap, which is what the event page's overlay wants.
+    var preselect: [Int]? = nil
+
     /// Channel-lap indexes in slot order — oldest first, so the eviction in
     /// `ChannelGraphs.toggle` drops the one you selected longest ago.
     @State private var lit: [Int] = []
@@ -46,23 +72,15 @@ struct LapChannelChart: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the delta chart shows where time is gained or lost vs the fastest.")
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textFaint))
-                chips
-                deltaChart
-                ForEach(present, id: \.self) { channel in
-                    channelChart(channel)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            chips
+            deltaChart
+            ForEach(present, id: \.self) { channel in
+                channelChart(channel)
             }
-            .padding(TESpacing.pageGutter)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color(.bgPage))
         .onAppear {
-            if lit.isEmpty { lit = ChannelGraphs.initialSelection(matches) }
+            if lit.isEmpty { lit = preselect ?? ChannelGraphs.initialSelection(matches) }
         }
     }
 

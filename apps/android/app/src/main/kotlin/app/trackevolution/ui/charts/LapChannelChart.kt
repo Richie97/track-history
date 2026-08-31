@@ -67,6 +67,12 @@ fun LapChannelChart(
     channels: SessionChannels,
     laps: List<Lap>,
     modifier: Modifier = Modifier,
+    /**
+     * Channel-lap indexes to start highlighted, in slot order. Null means the
+     * fastest lap — what the event page's overlay wants. The compare-laps
+     * screen passes both laps of its pair.
+     */
+    initialSelection: List<Int>? = null,
 ) {
     val colors = TrackTheme.colors
     val matches = remember(channels, laps) { ChannelGraphs.matchLapsToChannels(laps, channels.laps) }
@@ -74,7 +80,9 @@ fun LapChannelChart(
 
     // Survives rotation: losing a three-lap comparison to a screen turn would
     // mean rebuilding it by hand.
-    var lit by rememberSaveable(channels) { mutableStateOf(ChannelGraphs.initialSelection(matches)) }
+    var lit by rememberSaveable(channels) {
+        mutableStateOf(initialSelection ?: ChannelGraphs.initialSelection(matches))
+    }
 
     if (present.isEmpty()) {
         // A session imported without channel data is normal — a hand-entered

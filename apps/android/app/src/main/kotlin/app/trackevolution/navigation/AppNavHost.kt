@@ -20,6 +20,8 @@ import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.offline.OfflineStore
 import app.trackevolution.recording.RecordScreen
 import app.trackevolution.recording.RecorderState
+import app.trackevolution.screens.CompareLapsModel
+import app.trackevolution.screens.CompareLapsScreen
 import app.trackevolution.screens.DashboardModel
 import app.trackevolution.screens.DashboardScreen
 import app.trackevolution.screens.EventFormModel
@@ -151,9 +153,16 @@ fun AppNavHost(
                 model = model,
                 onOpenEvent = { nav.navigate(Route.Event(it)) },
                 onAddEvent = { name -> nav.navigate(Route.EventForm(presetTrack = name)) },
+                onCompareLaps = { nav.navigate(Route.CompareLaps(route.id)) },
                 onShare = share,
                 serverUrl = serverUrl,
             )
+        }
+
+        composable<Route.CompareLaps> { entry ->
+            val route = entry.toRoute<Route.CompareLaps>()
+            val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
+            CompareLapsScreen(model = model)
         }
 
         composable<Route.Settings> {
