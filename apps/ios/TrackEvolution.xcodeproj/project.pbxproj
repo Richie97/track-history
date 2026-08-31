@@ -28,6 +28,7 @@
 		48E955F21551B6D82C3AB62C /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 380D4BFFDADBA70827336888 /* RecordingController.swift */; };
 		499E0DD4FB9A41DF0B97A880 /* BrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E3F0A72B7C7860B19B1ED6 /* BrandMark.swift */; };
 		49A0B66026E0F7DC363FFBA6 /* VehicleScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE140B76E79AB433F9FA1E96 /* VehicleScreen.swift */; };
+		E58D1F7A2B9C4E6D80A3F514 /* CompareLapsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B7F2A91C4D8E6053A1B9C42 /* CompareLapsScreen.swift */; };
 		4D5846D926BDEF1D48B78043 /* LinePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA73ABB4BB40CF826F60AF4 /* LinePickerView.swift */; };
 		4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A61B2645926992E00FFAD3 /* Shape.swift */; };
 		51CF45A0E84DE89AA15DB4D7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF43C9F27E545AD049BEA61F /* Router.swift */; };
@@ -122,6 +123,7 @@
 		C11E4CD1582ACC54710F446D /* LapChannelChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapChannelChart.swift; sourceTree = "<group>"; };
 		CA9909D90A12012D6F62C72B /* DevServerSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevServerSignIn.swift; sourceTree = "<group>"; };
 		CE140B76E79AB433F9FA1E96 /* VehicleScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleScreen.swift; sourceTree = "<group>"; };
+		3B7F2A91C4D8E6053A1B9C42 /* CompareLapsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompareLapsScreen.swift; sourceTree = "<group>"; };
 		CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormScreen.swift; sourceTree = "<group>"; };
 		CF43C9F27E545AD049BEA61F /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
 		D10939598E67F796CA22FCE3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -192,6 +194,7 @@
 		665A300ABA9EBC0413EB48F9 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
+				3B7F2A91C4D8E6053A1B9C42 /* CompareLapsScreen.swift */,
 				490360DEB9D237C16354DD63 /* Components.swift */,
 				8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */,
 				CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */,
@@ -472,6 +475,7 @@
 				0C6C6E94CEE1F31E72BB6A12 /* TrackScreen.swift in Sources */,
 				34446D1A60916C974D7DCF59 /* Typography.swift in Sources */,
 				49A0B66026E0F7DC363FFBA6 /* VehicleScreen.swift in Sources */,
+				E58D1F7A2B9C4E6D80A3F514 /* CompareLapsScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

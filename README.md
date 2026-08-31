@@ -192,15 +192,19 @@ measurements), plus the read-only page a `trackevolution.app/share/<slug>` link
 opens — on top of the lap recorder, the offline cache and write queue, and the
 charts. **Video telemetry import is native too**: a PDR or GoPro clip picked from
 Files or Photos is parsed on the phone, laps and all, without the video being
-copied or uploaded. The setup notebook, the setup-vs-lap-times diff, year in
-review, compare and `.vbo` import stay web-only by design.
+copied or uploaded. The **two-lap telemetry compare** is native as well — the
+track page's "Compare two laps" opens the same delta-and-channels comparison the
+web renders, on the same `CompareLaps` maths pinned by
+`contracts/logic/compare-laps.json`. The setup notebook, the setup-vs-lap-times
+diff, year in review, the two-event overlay and `.vbo` import stay web-only by
+design.
 
 The Android client now has the logbook too — dashboard, event detail, event form,
 track page, settings and the garage (vehicles, consumables, wear and
 measurements), plus the read-only page a `trackevolution.app/share/<slug>` link
 opens — on top of the lap recorder, the offline cache and write queue, and the
-charts. The same desk-bound features are web-only as on iOS. Video import is
-iOS-only so far.
+charts, including the two-lap telemetry compare. The same desk-bound features
+are web-only as on iOS. Video import is iOS-only so far.
 
 Both recorders show **live lap timing** while you drive: a lap counter, last
 and best lap, and a predictive delta to the session's best. The recorder
@@ -494,6 +498,17 @@ the trace shows *where* on track the difference lives (`lapTimeSeries` /
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.
+
+Any two stored laps at a track can also be compared **across sessions and
+events**: the track page's **Compare two laps** view (`#/track/:id/lap-compare`)
+pairs any two laps with channel data — defaulting to the best lap of your most
+recent event vs. your all-time best — and shows a head-to-head table (lap time,
+top/min/avg speed, max RPM, max lateral G, full-throttle and braking shares),
+the delta chart, and the channel overlays on one distance grid, resampling when
+two sessions stored different grid spacings and warning when the driven lengths
+diverge enough to suggest a different layout or start line (the pure logic is
+`public/js/compare-laps.js`, pinned for the native ports by
+`contracts/logic/compare-laps.json`).
 
 How PDR lap times are derived (reverse-engineered from the `ctbx`/`marl`
 telemetry track and validated against Cosworth Toolbox lap times):

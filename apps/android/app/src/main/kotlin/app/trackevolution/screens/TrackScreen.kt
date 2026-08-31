@@ -58,6 +58,7 @@ fun TrackScreen(
     model: TrackModel,
     onOpenEvent: (Int) -> Unit,
     onAddEvent: (String) -> Unit,
+    onCompareLaps: () -> Unit,
     onShare: (String) -> Unit,
     serverUrl: String,
     modifier: Modifier = Modifier,
@@ -118,6 +119,20 @@ fun TrackScreen(
                         // The heading above already says which track — a circuit
                         // name with a layout suffix wraps to three lines here.
                         Text("+ Add event here", style = TrackTheme.typography.bodyStrong)
+                    }
+                    // Web parity (#165): offered whenever any event here has laps —
+                    // the compare screen explains itself when none of them stored
+                    // telemetry channels.
+                    if (model.hasComparableLaps) {
+                        TextButton(
+                            onClick = onCompareLaps,
+                            modifier = Modifier.semantics {
+                                contentDescription = "Compare two laps: pick two laps with telemetry " +
+                                    "and see where the time is gained or lost"
+                            },
+                        ) {
+                            Text("Compare laps", style = TrackTheme.typography.sm, color = colors.accentInk)
+                        }
                     }
                     model.shareUrl(serverUrl)?.let { url ->
                         TextButton(onClick = { onShare(url) }) {

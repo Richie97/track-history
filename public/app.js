@@ -3,7 +3,11 @@
 
 import { esc, fmtMs, parseTime, parseLapList, fmtDate, fmtConsistency, fmtDelta } from "./js/format.js";
 import { lineChart, multiLineChart } from "./js/chart.js";
-import { bindChannelGraphs } from "./js/channel-graphs.js";
+import { CHANNEL_DEFS, bindChannelGraphs, deltaChartSvg, deltaSeries, channelChartSvg } from "./js/channel-graphs.js";
+import {
+  LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
+  lengthMismatchRatio,
+} from "./js/compare-laps.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
@@ -857,15 +861,17 @@ async function viewTrack(trackId, params) {
     <span id="goal-msg" class="goal-msg"></span>
   </div>`;
 
-  // Comparing two events lap-by-lap needs recorded laps on both sides.
-  // Event selection lives on the compare screen itself.
+  // Comparing two events lap-by-lap needs recorded laps on both sides; the
+  // two-lap telemetry compare needs laps at all (it explains itself when no
+  // lap has channel data). Selection lives on the compare screens themselves.
   const comparable = allEvents.filter((e) => e.lap_count > 0);
-  const compareControl =
-    comparable.length >= 2
-      ? `<div class="btn-row" style="margin-top:10px">
-          <a class="btn small" href="#/track/${trackId}/compare">Compare two events</a>
-        </div>`
-      : "";
+  const compareBtns = [
+    comparable.length >= 2 ? `<a class="btn small" href="#/track/${trackId}/compare">Compare two events</a>` : "",
+    comparable.length >= 1 ? `<a class="btn small" href="#/track/${trackId}/lap-compare">Compare two laps</a>` : "",
+  ].join("");
+  const compareControl = compareBtns.trim()
+    ? `<div class="btn-row" style="margin-top:10px">${compareBtns}</div>`
+    : "";
 
   const shareBtn = state.me.share_slug
     ? `<button class="btn" id="share-track">Copy share link</button>`
@@ -1035,6 +1041,9 @@ async function viewCompare(trackId, params) {
       ${statRow("Laps", (v) => v ?? "—", (s) => s.laps.length, plainDelta)}
       ${statRow("Consistency", fmtConsistency, (s) => s.e.consistency, ppDelta)}
     </tbody></table></div>
+    <div class="btn-row" style="margin-top:10px">
+      <a class="btn small" href="#/track/${trackId}/lap-compare">Compare two laps' telemetry</a>
+    </div>
   `);
   if (chart.svg) chart.bind(view.querySelector("#chart"));
 
@@ -1049,6 +1058,167 @@ async function viewCompare(trackId, params) {
   };
   selB.onchange = () => {
     if (selA.value === selB.value) selA.value = idB;
+    go();
+  };
+}
+
+// --- compare two laps: full telemetry for any two laps at one track (#165) ---
+
+const KPH_TO_MPH = 0.621371;
+
+async function viewLapCompare(trackId, params) {
+  const allEvents = await api(`/events?track_id=${trackId}`);
+  // Channel data lives on event details. The prefetcher warms these after any
+  // dashboard visit, so this is mostly cache reads — and works offline.
+  const details = await Promise.all(
+    allEvents.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`))
+  );
+  const rows = comparableLaps(details);
+  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(details[0]?.track_name ?? "Back to track")}</a></p>`;
+  if (rows.length < 2) {
+    shell(`${backHtml}
+      <h1>Compare two laps</h1>
+      <div class="empty">Comparing laps needs two laps with telemetry at this track — import a session (or record laps in the app) first.</div>`);
+    return;
+  }
+
+  const sessionsById = new Map(details.flatMap((e) => e.sessions.map((s) => [String(s.id), s])));
+  const keyOf = (r) => `${r.sessionId}:${r.lapNum}`;
+  const picks = defaultComparePicks(rows);
+  const rowA = rows.find((r) => keyOf(r) === params.get("a")) ?? rows[picks.a];
+  let rowB = rows.find((r) => keyOf(r) === params.get("b")) ?? rows[picks.b];
+  if (rowB === rowA) rowB = rows[picks.a === rows.indexOf(rowA) ? picks.b : picks.a];
+  if (rowB === rowA) rowB = rows.find((r) => r !== rowA);
+
+  const chanFor = (r) => sessionsById.get(String(r.sessionId)).channels;
+  const [entryA, entryB] = [chanFor(rowA).laps[rowA.chIdx], chanFor(rowB).laps[rowB.chIdx]];
+  const [stepA, stepB] = [chanFor(rowA).dStepM, chanFor(rowB).dStepM];
+  const aligned = alignLapPair(entryA, stepA, entryB, stepB);
+  const mismatch = lengthMismatchRatio(entryA, stepA, entryB, stepB);
+  const sideColors = ["var(--chart-line)", "var(--chart-line-b)"];
+  const sideLabels = [rowA, rowB].map((r) => `Lap ${r.lapNum} (${fmtDate(r.date)})`);
+  const lit = new Map(sideColors.map((c, i) => [i, c]));
+  const refIdx = aligned.laps[0].timeMs <= aligned.laps[1].timeMs ? 0 : 1;
+  const delta = deltaSeries(aligned.laps[1 - refIdx], aligned.laps[refIdx], aligned.dStepM);
+
+  // Head-to-head numbers come from the *unresampled* entries.
+  const [mA, mB] = [lapMetrics(entryA), lapMetrics(entryB)];
+  const mphFmt = (v) => (v == null ? "—" : `${Math.round(v * KPH_TO_MPH)} mph`);
+  const metricRow = (label, fmt, va, vb, deltaFmt) => {
+    const d = va != null && vb != null ? deltaFmt(vb - va) : "—";
+    return `<tr><td>${label}</td><td class="num">${fmt(va)}</td><td class="num">${fmt(vb)}</td><td class="num">${d}</td></tr>`;
+  };
+  const signed = (fmt) => (d) => `${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))}`;
+  const mphDelta = signed((d) => `${Math.round(d * KPH_TO_MPH)} mph`);
+  const tableHtml = `<div class="table-wrap"><table>
+    <thead><tr><th></th><th class="num">${esc(sideLabels[0])}</th><th class="num">${esc(sideLabels[1])}</th><th class="num">Δ</th></tr></thead>
+    <tbody>
+      ${metricRow("Lap time", fmtMs, mA.timeMs, mB.timeMs, fmtDelta)}
+      ${metricRow("Top speed", mphFmt, mA.topSpeedKph, mB.topSpeedKph, mphDelta)}
+      ${metricRow("Min speed", mphFmt, mA.minSpeedKph, mB.minSpeedKph, mphDelta)}
+      ${metricRow("Avg speed", mphFmt, mA.avgSpeedKph, mB.avgSpeedKph, mphDelta)}
+      ${metricRow("Max RPM", (v) => (v == null ? "—" : Math.round(v)), mA.maxRpm, mB.maxRpm, signed((d) => `${Math.round(d)}`))}
+      ${metricRow("Max lateral G", (v) => (v == null ? "—" : v.toFixed(2)), mA.maxLatG, mB.maxLatG, signed((d) => d.toFixed(2)))}
+      ${metricRow("Full throttle", (v) => (v == null ? "—" : `${v.toFixed(0)}% of lap`), mA.fullThrottlePct, mB.fullThrottlePct, signed((d) => `${d.toFixed(1)}pp`))}
+      ${metricRow("On the brakes", (v) => (v == null ? "—" : `${v.toFixed(0)}% of lap`), mA.brakingPct, mB.brakingPct, signed((d) => `${d.toFixed(1)}pp`))}
+    </tbody></table></div>`;
+
+  const pickerOpts = (selKey) => {
+    let html = "", lastGroup = null;
+    for (const r of rows) {
+      const g = `${fmtDate(r.date)}${r.club ? " · " + esc(r.club) : ""}${r.sessionLabel ? " — " + esc(r.sessionLabel) : ""}`;
+      if (g !== lastGroup) {
+        html += `${lastGroup != null ? "</optgroup>" : ""}<optgroup label="${g}">`;
+        lastGroup = g;
+      }
+      html += `<option value="${keyOf(r)}" ${keyOf(r) === selKey ? "selected" : ""}>Lap ${r.lapNum} — ${fmtMs(r.timeMs)}</option>`;
+    }
+    return `${html}</optgroup>`;
+  };
+
+  // Distance is measured from each lap's own start line, so laps from
+  // different imports can be shifted relative to each other; a big length gap
+  // means the comparison probably isn't corner-for-corner.
+  const warnHtml =
+    mismatch > LENGTH_MISMATCH_WARN
+      ? `<div class="hint" style="margin:8px 0">⚠️ These laps cover driven distances ${Math.round(mismatch * 100)}% apart — likely a different layout or start/finish line, so the distance alignment may be off.</div>`
+      : "";
+
+  const chartsHtml = [
+    deltaChartSvg(aligned, lit, refIdx, `${[rowA, rowB][refIdx].lapNum} (${fmtDate([rowA, rowB][refIdx].date)})`),
+    ...CHANNEL_DEFS.map((def) => channelChartSvg(def, aligned, lit)),
+  ]
+    .filter(Boolean)
+    .map((c) => `<div class="ch-chart">${c}</div>`)
+    .join("");
+
+  const view = shell(`
+    ${backHtml}
+    <h1>Compare two laps</h1>
+    <p class="sub">
+      <span class="swatch" style="background:${sideColors[0]}"></span> <select id="lap-a">${pickerOpts(keyOf(rowA))}</select>
+      &nbsp;vs&nbsp;
+      <span class="swatch" style="background:${sideColors[1]}"></span> <select id="lap-b">${pickerOpts(keyOf(rowB))}</select>
+    </p>
+    ${warnHtml}
+    <h2>Head to head</h2>
+    ${tableHtml}
+    <div class="chart-card">
+      <div class="chart-title">Telemetry — shared driven-distance axis</div>
+      <div class="hint" style="margin:2px 0 6px">The delta chart shows where time is gained or lost vs the faster lap; the channels below show why.</div>
+      <div class="ch-graphs" id="cmp-charts">${chartsHtml}</div>
+    </div>
+  `);
+
+  // Tooltip: nearest grid point by x, one row per side — the two-lap version
+  // of the readout in bindChannelGraphs.
+  const $tooltip = document.getElementById("tooltip");
+  view.querySelectorAll("#cmp-charts svg[data-channel]").forEach((svgEl) => {
+    const def = CHANNEL_DEFS.find((d) => d.key === svgEl.dataset.channel);
+    const x1 = Number(svgEl.dataset.x1);
+    const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
+    const vbW = svgEl.viewBox.baseVal.width;
+    const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
+    svgEl.addEventListener("mousemove", (evt) => {
+      const rect = svgEl.getBoundingClientRect();
+      const frac = (((evt.clientX - rect.left) / rect.width) * vbW - padL) / (vbW - padL - padR);
+      const k = Math.round((Math.max(0, Math.min(1, frac)) * x1) / aligned.dStepM);
+      const d = Math.round(k * aligned.dStepM);
+      const tipRows = [0, 1]
+        .map((i) => {
+          if (svgEl.dataset.channel === "delta") {
+            if (i === refIdx || !delta || k >= delta.length) return "";
+            const v = delta[k];
+            return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${v >= 0 ? "+" : ""}${v.toFixed(2)} s</div>`;
+          }
+          const arr = aligned.laps[i]?.[def.key];
+          if (!arr || k >= arr.length) return "";
+          return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}</div>`;
+        })
+        .join("");
+      if (!tipRows) { $tooltip.hidden = true; return; }
+      $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${tipRows}`;
+      $tooltip.hidden = false;
+      const tw = $tooltip.offsetWidth;
+      let left = evt.clientX + 14;
+      if (left + tw > window.innerWidth - 8) left = evt.clientX - tw - 14;
+      $tooltip.style.left = `${left}px`;
+      $tooltip.style.top = `${evt.clientY - 12}px`;
+    });
+    svgEl.addEventListener("mouseleave", () => ($tooltip.hidden = true));
+  });
+
+  const [selA, selB] = [view.querySelector("#lap-a"), view.querySelector("#lap-b")];
+  const go = () => {
+    location.hash = `#/track/${trackId}/lap-compare?a=${encodeURIComponent(selA.value)}&b=${encodeURIComponent(selB.value)}`;
+  };
+  // Picking the same lap on both sides swaps instead of comparing it to itself.
+  selA.onchange = () => {
+    if (selA.value === selB.value) selB.value = keyOf(rowA);
+    go();
+  };
+  selB.onchange = () => {
+    if (selA.value === selB.value) selA.value = keyOf(rowB);
     go();
   };
 }
@@ -2302,6 +2472,7 @@ async function route() {
   try {
     if (parts.length === 0) return await viewDashboard();
     if (parts[0] === "track" && parts[1] && parts[2] === "compare") return await viewCompare(parts[1], params);
+    if (parts[0] === "track" && parts[1] && parts[2] === "lap-compare") return await viewLapCompare(parts[1], params);
     if (parts[0] === "track" && parts[1]) return await viewTrack(parts[1], params);
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);

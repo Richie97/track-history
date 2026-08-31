@@ -31,6 +31,10 @@ public sealed interface Route {
     @Serializable
     public data class Track(val id: Int) : Route
 
+    /** Compare any two laps with telemetry at one track (#165). */
+    @Serializable
+    public data class CompareLaps(val trackId: Int) : Route
+
     @Serializable
     public data object Settings : Route
 

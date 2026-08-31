@@ -139,10 +139,10 @@ Features added after the rewrite shipped, and where they landed:
 ## Deferred — not in this programme
 
 Available on web throughout, ported to native later or never: the setup notebook,
-the setup-vs-lap-times diff, year in review, the compare view, and **`.vbo`
-telemetry file import**.
+the setup-vs-lap-times diff, year in review, the **two-event** compare view
+(`viewCompare`), and **`.vbo` telemetry file import**.
 
-Two things were on this list and came off it, both for the reason the split
+Three things were on this list and came off it, all for the reason the split
 predicts — the work happens where the web app isn't:
 
 - **The garage** (vehicles, parts, wear, measurements) — NS-29 on iOS, NS-31 on
@@ -155,6 +155,15 @@ predicts — the work happens where the web app isn't:
 - **Video import** (GoPro and Corvette PDR) — NS-30. The footage is already on the
   phone that shot or received it. `.vbo` import, which really does arrive on an SD
   card at a desk, stays deferred.
+- **The two-lap telemetry compare**
+  ([#165](https://github.com/Richie97/track-history/issues/165)) — pick any two
+  laps with stored channels at a track and see the delta and channel overlays.
+  Built on all three clients at once: the charts it needs (NS-23/NS-24) already
+  exist natively, reviewing yesterday's lap against your best happens in the
+  paddock, and the reads come through the offline cache. Its pure half is
+  `public/js/compare-laps.js`, ported as `CompareLaps` to the Kit and `:core`
+  and pinned by `contracts/logic/compare-laps.json`. The *two-event* overlay
+  (`viewCompare`) stays web-only — it is a season-review tool, not a paddock one.
 
 ## Conventions for every spec
 

@@ -30,6 +30,15 @@ import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
 import { attachLapChannels } from "../public/js/import/channels.js";
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
 import {
+  alignLapPair,
+  comparableLaps,
+  defaultComparePicks,
+  drivenLengthM,
+  lapMetrics,
+  lengthMismatchRatio,
+  resampleChannelLap,
+} from "../public/js/compare-laps.js";
+import {
   PART_KINDS,
   WEAR_LIMIT_HINTS,
   fmtCost,
@@ -339,6 +348,130 @@ const lapDeltaFixture = {
     refTimeSeriesUnscaled: lapTimeSeries(deltaRefLap.speed, 20, null),
     slowVsRef: deltaSeries(deltaSlowLap, deltaRefLap, 20),
     zeroClampVsRef: deltaSeries(deltaZeroClampLap, deltaRefLap, 20),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Compare two laps (#165): the pure half of the cross-event lap comparison
+// (public/js/compare-laps.js). What is worth pinning: the picker flattening
+// (which rides on matchLapsToChannels, so hand-added laps drop out), the
+// "current me vs best me" default picks, the linear resample that puts two
+// sessions' grids together (exercised at a non-integer ratio), and the
+// head-to-head reductions with their inclusive thresholds.
+
+const cmpRound1 = (v) => Math.round(v * 10) / 10;
+const cmpSpeed = (len, phase) =>
+  Array.from({ length: len }, (_, k) => cmpRound1(120 + 45 * Math.sin(k / 7 + phase)));
+
+const cmpEvents = [
+  {
+    id: 71,
+    start_date: "2026-05-02",
+    club: "NASA",
+    sessions: [
+      {
+        id: 401,
+        label: "Sat AM",
+        laps: [
+          { lap_num: 1, time_ms: 92150 },
+          { lap_num: 2, time_ms: 90480 },
+          // Hand-added after the import: no channel entry, must not be pickable.
+          { lap_num: 3, time_ms: 90100 },
+        ],
+        channels: {
+          v: 1,
+          dStepM: 20,
+          laps: [
+            { n: 1, timeMs: 92150, speed: cmpSpeed(90, 0) },
+            { n: 2, timeMs: 90480, speed: cmpSpeed(90, 0.1) },
+          ],
+        },
+      },
+      // A session with laps but no stored channels contributes nothing.
+      { id: 402, label: "Sat PM", laps: [{ lap_num: 1, time_ms: 91000 }], channels: null },
+    ],
+  },
+  {
+    id: 72,
+    start_date: "2026-07-11",
+    club: null,
+    sessions: [
+      {
+        id: 410,
+        label: null,
+        laps: [
+          { lap_num: 1, time_ms: 93400 },
+          { lap_num: 2, time_ms: 91020 },
+        ],
+        // A coarser grid than the May session, so the pair needs resampling.
+        channels: {
+          v: 1,
+          dStepM: 25,
+          laps: [
+            { n: 1, timeMs: 93400, speed: cmpSpeed(72, 0.2) },
+            { n: 2, timeMs: 91020, speed: cmpSpeed(72, 0.3) },
+          ],
+        },
+      },
+    ],
+  },
+];
+
+const cmpRows = comparableLaps(cmpEvents);
+const cmpPicks = defaultComparePicks(cmpRows);
+
+// The overall best is also the latest event's best: the fallback case.
+// defaultComparePicks reads only date and timeMs, so the rows carry no more.
+const cmpFallbackRows = [
+  { date: "2026-05-01", timeMs: 95000 },
+  { date: "2026-07-01", timeMs: 90000 },
+  { date: "2026-07-01", timeMs: 91000 },
+];
+
+// A fully-instrumented entry (every channel a PDR import stores) for the
+// metrics and resample expectations. Values rounded exactly as
+// buildLapChannels would store them.
+const cmpFullEntry = {
+  n: 2,
+  timeMs: 90480,
+  speed: cmpSpeed(90, 0),
+  rpm: Array.from({ length: 90 }, (_, k) => Math.round(4500 + 1800 * Math.sin(k / 5))),
+  latG: Array.from({ length: 90 }, (_, k) => Math.round(1.1 * Math.abs(Math.sin(k / 9)) * 1000) / 1000),
+  throttle: Array.from({ length: 90 }, (_, k) => cmpRound1(50 + 50 * Math.sin(k / 4))),
+  brake: Array.from({ length: 90 }, (_, k) => cmpRound1(Math.max(0, 80 * Math.sin(k / 3)))),
+  steering: Array.from({ length: 90 }, (_, k) => cmpRound1(120 * Math.sin(k / 8))),
+};
+const cmpSpeedOnlyEntry = { n: 1, timeMs: 93400, speed: cmpSpeed(72, 0.2) };
+
+const cmpPairA = cmpEvents[0].sessions[0].channels.laps[1];
+const cmpPairB = cmpEvents[1].sessions[0].channels.laps[1];
+
+const compareLapsFixture = {
+  description:
+    "Cross-event lap comparison reference output from public/js/compare-laps.js. " +
+    "Ports must reproduce the rows and picks exactly, and every resampled or " +
+    "reduced value to within 1e-9 (null included). Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/compare-laps.js",
+  input: {
+    events: cmpEvents,
+    fallbackRows: cmpFallbackRows,
+    fullEntry: cmpFullEntry,
+    speedOnlyEntry: cmpSpeedOnlyEntry,
+  },
+  expected: {
+    comparableLaps: cmpRows,
+    defaultComparePicks: cmpPicks,
+    defaultPicksFallback: defaultComparePicks(cmpFallbackRows),
+    // 25 m → 20 m is a non-integer ratio, so every interior point interpolates.
+    resampledTo20: resampleChannelLap(cmpPairB, 25, 20),
+    resampledTo50: resampleChannelLap(cmpFullEntry, 20, 50),
+    alignedPair: alignLapPair(cmpPairA, 20, cmpPairB, 25),
+    drivenLengthA: drivenLengthM(cmpPairA, 20),
+    drivenLengthB: drivenLengthM(cmpPairB, 25),
+    lengthMismatchRatio: lengthMismatchRatio(cmpPairA, 20, cmpPairB, 25),
+    metricsFull: lapMetrics(cmpFullEntry),
+    metricsSpeedOnly: lapMetrics(cmpSpeedOnlyEntry),
   },
 };
 
@@ -696,6 +829,7 @@ writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null,
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "lap-delta.json"), JSON.stringify(lapDeltaFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "compare-laps.json"), JSON.stringify(compareLapsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
@@ -707,6 +841,7 @@ console.log(
 );
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
 console.log(`wrote contracts/logic/lap-delta.json (${lapDeltaFixture.expected.slowVsRef.length} grid points)`);
+console.log(`wrote contracts/logic/compare-laps.json (${cmpRows.length} pickable laps)`);
 console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );

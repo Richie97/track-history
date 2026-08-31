@@ -20,7 +20,10 @@ import { niceNumTicks } from "./chart.js";
 const SLOTS = ["var(--chart-line)", "var(--chart-line-b)", "var(--chart-line-c)"];
 const KPH_TO_MPH = 0.621371;
 
-const CHANNEL_DEFS = [
+// Exported for the cross-event compare view (app.js viewLapCompare), which
+// renders these charts outside bindChannelGraphs and needs the defs for its
+// own tooltip readouts.
+export const CHANNEL_DEFS = [
   { key: "speed", label: "Speed", unit: "mph", conv: (v) => v * KPH_TO_MPH, dp: 0, floor0: false },
   { key: "throttle", label: "Throttle", unit: "%", conv: (v) => v, dp: 0, floor0: true },
   { key: "brake", label: "Brake", unit: "%", conv: (v) => v, dp: 0, floor0: true },
