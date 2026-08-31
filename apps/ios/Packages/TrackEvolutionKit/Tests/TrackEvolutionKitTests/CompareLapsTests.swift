@@ -227,8 +227,8 @@ struct CompareLapsTests {
         }
 
         func checkLap(_ got: LapChannels, _ want: LapChannels, _ name: String) {
-            #expect(got.n == want.n, name)
-            #expect(got.timeMs == want.timeMs, name)
+            #expect(got.n == want.n, "\(name).n")
+            #expect(got.timeMs == want.timeMs, "\(name).timeMs")
             checkArr(got.speed, want.speed, "\(name).speed")
             checkArr(got.rpm, want.rpm, "\(name).rpm")
             checkArr(got.latG, want.latG, "\(name).latG")
@@ -262,7 +262,7 @@ struct CompareLapsTests {
         }
 
         func checkMetrics(_ got: CompareLaps.Metrics, _ want: CompareLapsFixture.Metrics, _ name: String) {
-            #expect(got.timeMs == want.timeMs, name)
+            #expect(got.timeMs == want.timeMs, "\(name).timeMs")
             checkOpt(got.topSpeedKph, want.topSpeedKph, "\(name).topSpeedKph")
             checkOpt(got.minSpeedKph, want.minSpeedKph, "\(name).minSpeedKph")
             checkOpt(got.avgSpeedKph, want.avgSpeedKph, "\(name).avgSpeedKph")
