@@ -60,7 +60,7 @@ android {
         // actually holds. The 3 below is only what local builds get; it is not
         // kept in step with Play.
         versionCode = env("TE_VERSION_CODE")?.toInt() ?: 3
-        versionName = env("TE_VERSION_NAME") ?: "1.3"
+        versionName = env("TE_VERSION_NAME") ?: "1.4"
     }
 
     signingConfigs {
