@@ -77,6 +77,18 @@ Features added after the rewrite shipped, and where they landed:
   silently later.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
+- **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
+  server-owned.** The $1 up-front purchase becomes Track Evolution Pro at
+  $1.99/month or $19.99/year, sold through StoreKit 2 and Play Billing and
+  verified by the Worker, which is the only thing that decides tier. Freemium,
+  not a hard paywall: **Free is the logbook, Pro is the analysis** (recorder,
+  telemetry import and channel data, garage consumables, setup notebook, year
+  in review) — the tier table in NS-32 is where every later feature gets its
+  row before merging. Existing buyers are Pro for life. **No write route ever
+  checks entitlement**, so a lapse can't make the offline queue drop a
+  recording. This is the deliberate exception to the rewrite's *`src/` must not
+  change* rule: the rewrite is closed, and this is a product change that lands
+  in `src/` first.
 
 ## Specs
 
@@ -135,6 +147,15 @@ Features added after the rewrite shipped, and where they landed:
 | NS-29 | [Garage — iOS](NS-29-ios-garage.md) | iOS | NS-25 |
 | NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
 | NS-31 | [Garage — Android](NS-31-android-garage.md) | Android | NS-26 |
+
+### Post-rewrite product changes
+
+Not part of the rewrite programme, and the one place the *`src/` must not
+change* rule does not apply — see the spec for why.
+
+| ID | Spec | Platform | Depends on |
+|---|---|---|---|
+| NS-32 | [Subscriptions (Track Evolution Pro)](NS-32-subscriptions.md) | Shared | NS-25, NS-26, NS-27 |
 
 ## Deferred — not in this programme
 
