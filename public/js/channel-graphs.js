@@ -8,7 +8,9 @@
 // highlighted in the chart series colors, picked via the lap chips (which
 // double as the legend — identity is never color-alone). With two or more
 // laps highlighted, a time-delta chart (vs the fastest of the selection)
-// renders above the channels — see the "lap delta" section below.
+// renders above the channels — see the "lap delta" section below. The caller
+// can slot extra markup above the charts that re-renders with the selection
+// (`renderExtras`): app.js uses it for the sector table from js/sectors.js.
 // Channel data shape is sessions.channels (see js/import/channels.js).
 //
 // Same conventions as chart.js: pure string building for the SVG, one bind
@@ -217,8 +219,10 @@ export function matchLapsToChannels(sessionLaps, chLaps) {
 // visible — they are the session's lap list) and the charts inside a
 // collapsible <details>, rendered lazily on first expand. Chips toggle laps
 // into the highlight slots (max 3 at once; oldest is evicted). The fastest
-// lap starts highlighted.
-export function bindChannelGraphs(container, channels, sessionLaps) {
+// lap starts highlighted. `renderExtras(litMap, dispN)` — litMap being
+// Map(chIdx -> slot color) and dispN the display lap number per channel lap —
+// returns HTML rendered above the charts and re-rendered with them.
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras } = {}) {
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
   const bestMs = Math.min(...sessionLaps.map((l) => l.time_ms));
@@ -297,7 +301,8 @@ export function bindChannelGraphs(container, channels, sessionLaps) {
     }
     const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx]) : "";
     const charts = [deltaSvg, ...CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit))].filter(Boolean);
-    chartsEl.innerHTML = charts.map((c) => `<div class="ch-chart">${c}</div>`).join("");
+    const extras = renderExtras ? renderExtras(lit, dispN) : "";
+    chartsEl.innerHTML = extras + charts.map((c) => `<div class="ch-chart">${c}</div>`).join("");
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
     const $tooltip = document.getElementById("tooltip");

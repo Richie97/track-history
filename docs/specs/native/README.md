@@ -69,6 +69,17 @@ Features added after the rewrite shipped, and where they landed:
   `:core`, drawn by each platform's `LapChannelChart`) — the delta renders
   above the channels once two laps are highlighted, with the reference lap as
   the zero line.
+- **Sector splits + theoretical best lap**
+  ([#146](https://github.com/Richie97/track-history/issues/146), 2026-09) —
+  **all three.** Rides on the channel-graphs panel like the delta chart: each
+  lap is split into thirds of its own driven distance off the same
+  elapsed-time series, the highlighted laps' splits are tabulated with the
+  session's best per sector marked, and the best sectors sum to a theoretical
+  best shown in the session's stats line. The pure half is
+  `public/js/sectors.js`, ported as `Sectors` to the Kit and `:core` and
+  pinned by `contracts/logic/sectors.json`; the compare-laps screens reuse
+  the panel, so the pair's sectors come for free. Built on all three at once
+  because the paddock is where "where did the time go" gets asked.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and

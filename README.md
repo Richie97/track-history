@@ -195,7 +195,9 @@ Files or Photos is parsed on the phone, laps and all, without the video being
 copied or uploaded. The **two-lap telemetry compare** is native as well — the
 track page's "Compare two laps" opens the same delta-and-channels comparison the
 web renders, on the same `CompareLaps` maths pinned by
-`contracts/logic/compare-laps.json`. The setup notebook, the setup-vs-lap-times
+`contracts/logic/compare-laps.json`, and so are the **sector splits and
+theoretical best** in the channel-graphs panel (`Sectors`, pinned by
+`contracts/logic/sectors.json`). The setup notebook, the setup-vs-lap-times
 diff, year in review, the two-event overlay and `.vbo` import stay web-only by
 design.
 
@@ -494,7 +496,15 @@ the fastest of the selection, by distance — elapsed time is integrated from
 each lap's speed samples and scaled so it lands exactly on the timed lap, so
 the trace shows *where* on track the difference lives (`lapTimeSeries` /
 `deltaSeries` in `public/js/channel-graphs.js`, pinned for ports by
-`contracts/logic/lap-delta.json`).
+`contracts/logic/lap-delta.json`). The same elapsed-time series yields
+**sector splits and a theoretical best lap** without any setup: each lap is
+cut into three equal slices of its own driven distance (so every lap's splits
+add up to exactly its lap time), the panel tabulates the highlighted laps'
+sectors with the session's best in each sector marked and the gap otherwise,
+and the best sectors across the session sum to the theoretical best — shown
+beside the actual best in the session's stats line when it's quicker, so the
+gap quantifies what consistency was worth (`public/js/sectors.js`, pinned for
+the native ports by `contracts/logic/sectors.json`).
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.
@@ -504,6 +514,7 @@ events**: the track page's **Compare two laps** view (`#/track/:id/lap-compare`)
 pairs any two laps with channel data — defaulting to the best lap of your most
 recent event vs. your all-time best — and shows a head-to-head table (lap time,
 top/min/avg speed, max RPM, max lateral G, full-throttle and braking shares),
+the pair's sector splits with their combined theoretical best,
 the delta chart, and the channel overlays on one distance grid, resampling when
 two sessions stored different grid spacings and warning when the driven lengths
 diverge enough to suggest a different layout or start line (the pure logic is

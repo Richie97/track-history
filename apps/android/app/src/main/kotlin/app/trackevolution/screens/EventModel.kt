@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.core.LapStats
+import app.trackevolution.core.LapTime
+import app.trackevolution.core.Sectors
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.ChecklistItem
@@ -164,5 +166,18 @@ val Session.lapTimesMs: List<Int> get() = laps.map { it.timeMs }
 
 val Session.bestLapMs: Int? get() = laps.minOfOrNull { it.timeMs }
 
-/** The one-line pace summary under a session header. */
-val Session.statsSummary: String? get() = LapStats.summary(lapTimesMs)
+/**
+ * The one-line pace summary under a session header, plus — for a session with
+ * channel data — the theoretical best lap from its sector splits (`Sectors`,
+ * #146), when stringing the best sectors together would beat the best lap.
+ * The splits themselves are in the channel panel below.
+ */
+val Session.statsSummary: String?
+    get() {
+        val sec = channels?.let { Sectors.sessionSectors(it) }
+        val theoretical = sec?.takeIf { it.laps.size >= 2 && it.gapMs > 0 }
+            ?.let { "theoretical best ${LapTime.fmtMs(it.theoreticalBestMs)}" }
+        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical)
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString(" · ")
+    }
