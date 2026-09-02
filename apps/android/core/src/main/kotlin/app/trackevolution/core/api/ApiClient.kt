@@ -1,5 +1,6 @@
 package app.trackevolution.core.api
 
+import app.trackevolution.core.model.BillingResponse
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.Event
@@ -75,6 +76,13 @@ public class ApiClient(
      * server, which is what the contract tests want.
      */
     private val offline: OfflineStore? = null,
+    /**
+     * Sent on **every** request, `/api` and `/auth` alike. How `:app` adds
+     * `X-TE-Client: android/<versionCode>` — the transitional build's
+     * identification for the legacy claim (NS-32 requirement 6) — without
+     * `:core` learning about `BuildConfig`.
+     */
+    private val defaultHeaders: Map<String, String> = emptyMap(),
 ) {
     private val client = HttpClient(engine) {
         // Non-2xx is mapped by hand below, into the server's own message.
@@ -381,6 +389,38 @@ public class ApiClient(
     public suspend fun sharedLogbook(slug: String): ShareData =
         get("/share/$slug", ShareData.serializer(), authenticated = false)
 
+    // ---- Billing (NS-32) --------------------------------------------------
+    //
+    // The phone is a purchase terminal for its store; the server is the only
+    // thing that decides tier. Both writes answer with the fresh entitlement.
+    // Neither is on the offline queue (a purchase token replayed later is the
+    // wrong shape of durability — Play keeps the purchase, and every cold start
+    // re-posts anything the server doesn't yet know), so offline they fail with
+    // a Transport error the caller retries on the next launch.
+
+    /**
+     * Posts a Play purchase. **Acknowledge the purchase only after this returns**
+     * — Play refunds an unacknowledged subscription after three days, so
+     * acknowledging first is how a paying user ends up free, and never
+     * acknowledging is how they end up refunded. A 409 means the token is bound
+     * to another account and must not be acknowledged from this one.
+     */
+    public suspend fun postGooglePurchase(purchaseToken: String, productId: String): BillingResponse {
+        val body = buildJsonObject {
+            put("purchase_token", JsonPrimitive(purchaseToken))
+            put("product_id", JsonPrimitive(productId))
+        }
+        return send("POST", "/billing/google", body, BillingResponse.serializer())
+    }
+
+    /**
+     * The transitional build's grandfathering claim (requirement 6): no body
+     * fields, identified by the `X-TE-Client` header [defaultHeaders] carries.
+     * `403 legacy claim window closed` after the server's `LEGACY_CUTOFF`.
+     */
+    public suspend fun claimGoogleLegacy(): BillingResponse =
+        send("POST", "/billing/google/legacy", buildJsonObject { }, BillingResponse.serializer())
+
     // ---- Sign-in (NS-09) --------------------------------------------------
     //
     // These live under /auth rather than /api and are what the sign-in screen
@@ -576,6 +616,7 @@ public class ApiClient(
                     takeFrom(serverUrl + prefix + path)
                     query.forEach { (name, value) -> parameters.append(name, value) }
                 }
+                defaultHeaders.forEach { (name, value) -> header(name, value) }
                 if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
                 if (body != null) {
                     contentType(ContentType.Application.Json)

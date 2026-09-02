@@ -35,9 +35,103 @@ public data class Entitlement(
         @SerialName("google") GOOGLE,
     }
 
+    /** What a client-side gate decides: carry on, or show the paywall instead. */
+    public enum class Gate { PROCEED, PAYWALL }
+
+    /**
+     * The tier predicates — the port of `public/js/entitlement.js`, under the
+     * same names, pinned case for case by `contracts/logic/entitlement.json`
+     * (the fixture the iOS Kit asserts against too, so the two ports are checked
+     * against the web implementation rather than against each other).
+     *
+     * Every one of these takes the entitlement object and **never consults the
+     * clock**: expiry is the server's call, made when it answered `/api/me`.
+     * Offline, the cached answer stands — a driver who was Pro at the last sync
+     * records (NS-32 rule 5) — which is why a cached `expires_at` already in the
+     * past on the phone's clock is still Pro here.
+     */
     public companion object {
         /** What a signed-out or never-fetched client has: free. */
         public val FREE: Entitlement = Entitlement(tier = Tier.FREE)
+
+        /**
+         * **Phase D flips this.** While false, every client-side gate answers
+         * [Gate.PROCEED] regardless of tier, so the purchase flow, the paywall
+         * and the Settings row ship dark (phase C) and the flip is a one-line
+         * change with its tests already green. The gates take the flag as a
+         * parameter defaulting to this, so the tests exercise both values.
+         */
+        public const val GATES_ENABLED: Boolean = false
+
+        public const val APPLE_MANAGE_URL: String = "https://apps.apple.com/account/subscriptions"
+        public const val GOOGLE_MANAGE_URL: String =
+            "https://play.google.com/store/account/subscriptions?package=app.trackevolution"
+
+        /** An entitlement, or nothing at all (signed out, never fetched) — the latter is free, never Pro. */
+        public fun isPro(entitlement: Entitlement?): Boolean = entitlement?.tier == Tier.PRO
+
+        /** The GPS lap recorder, live timing and predictive delta. */
+        public fun canRecord(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /** Telemetry import — video on the phones, video + `.vbo` on the web. */
+        public fun canImport(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /**
+         * Channel graphs, the lap delta chart, the two-lap compare and sector
+         * splits all read `channels`, which the server strips for a free account
+         * (rule 4); this only decides whether the resulting empty state carries
+         * the paywall copy.
+         */
+        public fun canViewChannels(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /** Garage consumables, the setup notebook and year in review. */
+        public fun canUseGarage(entitlement: Entitlement?): Boolean = isPro(entitlement)
+        public fun canUseSetups(entitlement: Entitlement?): Boolean = isPro(entitlement)
+        public fun canViewYearInReview(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /**
+         * Where "Manage subscription" goes, by the store that sold it. Legacy has
+         * no subscription to manage and free has nothing yet — both null. A lapsed
+         * subscriber keeps their source, so Manage still targets the right store.
+         */
+        public fun manageUrl(entitlement: Entitlement?): String? = when (entitlement?.source) {
+            Source.APPLE -> APPLE_MANAGE_URL
+            Source.GOOGLE -> GOOGLE_MANAGE_URL
+            Source.LEGACY, null -> null
+        }
+
+        /**
+         * One line for Settings: "Pro · renews Mar 4, 2027", "Pro · ends …",
+         * "Pro · lifetime", "Free". [fmtDate] is injected, as in the JS, so the
+         * rule stays locale-free and the fixture can pin the wording without the
+         * date text; the default matches the JS default (an ISO date, UTC).
+         */
+        public fun entitlementSummary(
+            entitlement: Entitlement?,
+            fmtDate: (Long) -> String = ::isoDate,
+        ): String {
+            if (!isPro(entitlement)) return "Free"
+            val expiresAt = entitlement!!.expiresAt
+            if (entitlement.source == Source.LEGACY || expiresAt == null) return "Pro · lifetime"
+            val when_ = fmtDate(expiresAt)
+            return if (entitlement.autoRenew == false) "Pro · ends $when_" else "Pro · renews $when_"
+        }
+
+        /**
+         * The recorder's start gate (rule 5): a paywall sheet, never a disabled
+         * button, and only when the gates are on. Pure so the decision is tested
+         * with the flag injected before phase D flips [GATES_ENABLED].
+         */
+        public fun recordGate(entitlement: Entitlement?, gatesEnabled: Boolean = GATES_ENABLED): Gate =
+            if (!gatesEnabled || canRecord(entitlement)) Gate.PROCEED else Gate.PAYWALL
+
+        /** The importer's gate, at the point of import — same rule as [recordGate]. */
+        public fun importGate(entitlement: Entitlement?, gatesEnabled: Boolean = GATES_ENABLED): Gate =
+            if (!gatesEnabled || canImport(entitlement)) Gate.PROCEED else Gate.PAYWALL
+
+        /** `new Date(ms).toISOString().slice(0, 10)` — the JS module's default. */
+        private fun isoDate(ms: Long): String =
+            java.time.Instant.ofEpochMilli(ms).atOffset(java.time.ZoneOffset.UTC).toLocalDate().toString()
     }
 }
 

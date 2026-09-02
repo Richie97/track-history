@@ -66,6 +66,13 @@ robolectric = "4.16.1"
 # opposed to Automotive OS running in the car itself.
 carApp = "1.7.0"
 androidxTestCore = "1.6.1"
+# Play Billing (NS-32 phase C). `:app` only — `:core` carries the entitlement
+# model, the `/billing` client methods and the tier predicates, and its
+# checkNoAndroidDependency task is what keeps the store SDK out of it. 8.x is
+# the current major; 8.0 changed queryProductDetailsAsync's listener to hand
+# back a QueryProductDetailsResult (fetched + unfetched lists), which
+# BillingController speaks.
+playBilling = "8.3.0"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
@@ -124,6 +131,10 @@ androidx-car-app-projected = { module = "androidx.car.app:app-projected", versio
 # TestCarContext + ScreenController: drives the head-unit screen under
 # Robolectric, which is the only way this surface gets tested without a car.
 androidx-car-app-testing = { module = "androidx.car.app:app-testing", version.ref = "carApp" }
+# The store. The -ktx artifact adds the suspend wrappers (queryPurchasesAsync,
+# acknowledgePurchase) over the callback API; the flow itself is
+# billing/BillingController in :app.
+play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBilling" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

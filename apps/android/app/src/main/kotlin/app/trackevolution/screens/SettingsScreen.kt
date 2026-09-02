@@ -26,10 +26,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import app.trackevolution.BuildConfig
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.TEConfirmDialog
@@ -41,6 +43,8 @@ import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
+import java.text.DateFormat
+import java.util.Date
 
 /** Where the legal pages live. The app links out; it does not embed them. */
 private const val DOCS_URL = "https://docs.trackevolution.app"
@@ -70,6 +74,10 @@ fun SettingsScreen(
     onOpenVehicle: (Int) -> Unit,
     onShare: (String) -> Unit,
     onSignOut: () -> Unit,
+    /** The account's tier, as the server last said it (NS-32). */
+    entitlement: Entitlement = Entitlement.FREE,
+    /** Opens the paywall sheet. */
+    onSubscribe: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -90,6 +98,11 @@ fun SettingsScreen(
             }
 
             item("account") { AccountCard(model, serverUrl) }
+
+            item("subscription-header") { TESectionHeader("Subscription") }
+            item("subscription") {
+                SubscriptionCard(entitlement = entitlement, onSubscribe = onSubscribe, onOpenLink = onOpenLink)
+            }
 
             item("appearance-header") { TESectionHeader("Appearance") }
             item("appearance") { ThemeCard(themeChoice, onThemeChange) }
@@ -194,6 +207,80 @@ private fun AccountCard(model: SettingsModel, serverUrl: String) {
             )
         }
     }
+}
+
+/**
+ * Tier and source, and the one action that fits it (NS-32 phase C): Subscribe
+ * when free, Manage when a store sold it, nothing for a legacy grant — there is
+ * no subscription behind it to manage. The wording comes from `:core`'s
+ * `entitlementSummary`, pinned to the web's by `contracts/logic/entitlement.json`;
+ * only the date is formatted here, in the device's locale.
+ */
+@Composable
+private fun SubscriptionCard(
+    entitlement: Entitlement,
+    onSubscribe: () -> Unit,
+    onOpenLink: (String) -> Unit,
+) {
+    val colors = TrackTheme.colors
+    val pro = Entitlement.isPro(entitlement)
+    val manageUrl = Entitlement.manageUrl(entitlement)
+    val summary = Entitlement.entitlementSummary(entitlement) { ms ->
+        DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(ms))
+    }
+    TrackCard(Modifier.fillMaxWidth().testTag("subscription")) {
+        Text(summary, style = TrackTheme.typography.h3, color = if (pro) colors.accentInk else colors.textStrong)
+        Text(
+            entitlementDetail(entitlement),
+            style = TrackTheme.typography.xs,
+            color = colors.textMuted,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Row(
+            modifier = Modifier.padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (!pro) {
+                Button(
+                    onClick = onSubscribe,
+                    modifier = Modifier.testTag("subscribe"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = colors.accentContrast,
+                    ),
+                ) {
+                    Text("Subscribe", style = TrackTheme.typography.bodyStrong)
+                }
+            }
+            if (manageUrl != null) {
+                TextButton(onClick = { onOpenLink(manageUrl) }, modifier = Modifier.testTag("manageSubscription")) {
+                    Text(
+                        if (pro) "Manage subscription ↗" else "Manage in Google Play ↗",
+                        style = TrackTheme.typography.sm,
+                        color = if (pro) colors.accentInk else colors.textMuted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The line under the summary: where the tier came from, or what Pro would add. */
+private fun entitlementDetail(entitlement: Entitlement): String = when {
+    entitlement.source == Entitlement.Source.LEGACY ->
+        "Pro (legacy) — you bought Track Evolution before subscriptions, so Pro is yours for life."
+    Entitlement.isPro(entitlement) && entitlement.source == Entitlement.Source.GOOGLE ->
+        "Subscribed through Google Play. Renewal and cancellation are handled there."
+    Entitlement.isPro(entitlement) && entitlement.source == Entitlement.Source.APPLE ->
+        "Subscribed through the App Store. Manage it from your iPhone's Settings, or the link below."
+    Entitlement.isPro(entitlement) -> "Track Evolution Pro."
+    entitlement.source != null ->
+        "Your subscription has ended. The logbook is yours for free; Pro brings back the recorder, " +
+            "telemetry import, channel graphs and garage consumables."
+    else ->
+        "The logbook is free. Pro adds the GPS lap recorder, telemetry import, channel graphs " +
+            "and garage consumables — $1.99 a month or $19.99 a year."
 }
 
 @Composable

@@ -20,6 +20,13 @@ class TrackEvolutionApp : Application() {
         // point: writes queued in a paddock must replay on reconnect even if
         // the app was launched by the recording notification and never showed
         // the logbook at all.
-        AppServices.get(this).sync.start()
+        val services = AppServices.get(this)
+        services.sync.start()
+        // Every cold start asks Play what this Google account owns and re-posts
+        // anything the server doesn't know about or hasn't had acknowledged
+        // (NS-32 req. 8). From here rather than the activity for the same
+        // reason as the scheduler: the purchase → server → acknowledge chain
+        // must not depend on the logbook ever being shown.
+        services.billing.start()
     }
 }

@@ -175,6 +175,12 @@ dependencies {
     // Version floor only; see the note in libs.versions.toml.
     implementation(libs.androidx.fragment)
 
+    // Play Billing (NS-32 phase C) — the Android purchase terminal. Here and
+    // never in :core: the server owns the entitlement, so :core only needs the
+    // model and the `/billing` client methods, and checkNoAndroidDependency
+    // fails the build if the store SDK leaks across. See billing/BillingController.
+    implementation(libs.play.billing.ktx)
+
     // The engine :core's ApiClient is constructed with. Choosing it here rather
     // than there is what keeps :core a plain JVM module.
     implementation(libs.ktor.client.okhttp)
