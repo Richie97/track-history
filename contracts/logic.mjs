@@ -64,6 +64,17 @@ import {
 } from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
 import {
+  canImport,
+  canRecord,
+  canUseGarage,
+  canUseSetups,
+  canViewChannels,
+  canViewYearInReview,
+  entitlementSummary,
+  isPro,
+  manageUrl,
+} from "../public/js/entitlement.js";
+import {
   LAP_S,
   buildGpmfMp4,
   buildPdrDeltaMp4,
@@ -857,7 +868,51 @@ const checklistFixture = {
   DEFAULT_CHECKLIST,
 };
 
+// ---------------------------------------------------------------------------
+// entitlement predicates (NS-32): the `entitlement` object on GET /api/me → every
+// client-side tier decision. Both ports must agree with public/js/entitlement.js
+// case for case, including that a stale-but-pro cached answer still records.
+// ---------------------------------------------------------------------------
+
+const FIXED_EXPIRY = 1_800_000_000_000;
+const entitlementCases = [
+  { name: "free, never subscribed", entitlement: { tier: "free", source: null, expires_at: null, auto_renew: null } },
+  { name: "nothing cached (signed out / never fetched)", entitlement: null },
+  { name: "pro via apple, renewing", entitlement: { tier: "pro", source: "apple", expires_at: FIXED_EXPIRY, auto_renew: true } },
+  { name: "pro via google, cancelled but paid up", entitlement: { tier: "pro", source: "google", expires_at: FIXED_EXPIRY, auto_renew: false } },
+  { name: "pro via apple, auto_renew unknown", entitlement: { tier: "pro", source: "apple", expires_at: FIXED_EXPIRY, auto_renew: null } },
+  { name: "legacy (paid app)", entitlement: { tier: "pro", source: "legacy", expires_at: null, auto_renew: null } },
+  { name: "lapsed apple subscriber", entitlement: { tier: "free", source: "apple", expires_at: 1_700_000_000_000, auto_renew: false } },
+  { name: "lapsed google subscriber", entitlement: { tier: "free", source: "google", expires_at: 1_700_000_000_000, auto_renew: false } },
+  { name: "stale cached pro — expires_at already past on the client's clock", entitlement: { tier: "pro", source: "apple", expires_at: 1, auto_renew: true } },
+].map((c) => ({
+  ...c,
+  expected: {
+    isPro: isPro(c.entitlement),
+    canRecord: canRecord(c.entitlement),
+    canImport: canImport(c.entitlement),
+    canViewChannels: canViewChannels(c.entitlement),
+    canUseGarage: canUseGarage(c.entitlement),
+    canUseSetups: canUseSetups(c.entitlement),
+    canViewYearInReview: canViewYearInReview(c.entitlement),
+    manageUrl: manageUrl(c.entitlement),
+    // The date text is locale work; the fixture pins the shape around it.
+    summary: entitlementSummary(c.entitlement, (ms) => `<${ms}>`),
+  },
+}));
+
+const entitlementFixture = {
+  description:
+    "Tier predicates from public/js/entitlement.js over the `entitlement` object GET /api/me " +
+    "returns. Ports (Entitlement in the iOS Kit and Android :core) must match every expected " +
+    "value; the summary's date is rendered as <ms> so the ports pin the wording without a locale. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/entitlement.js",
+  cases: entitlementCases,
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
@@ -885,6 +940,7 @@ console.log(
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
+console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);
 console.log(
   `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`
 );

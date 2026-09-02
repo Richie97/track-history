@@ -23,7 +23,8 @@ struct GoldenContractTests {
         }
 
         switch entry.name {
-        case "me", "me-checklist-template": try roundTrip(Me.self, entry.name)
+        case "me", "me-checklist-template", "me-pro-legacy": try roundTrip(Me.self, entry.name)
+        case "billing-legacy-claim": try roundTrip(BillingResponse.self, entry.name)
         case "events-list": try roundTrip([Event].self, entry.name)
         case "event-detail", "event-detail-no-laps": try roundTrip(EventDetail.self, entry.name)
         case "event-setups-prefill": try roundTrip(SetupPrefill.self, entry.name)

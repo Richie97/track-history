@@ -1,6 +1,7 @@
 package app.trackevolution.core
 
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.model.BillingResponse
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.CreatedTrack
@@ -71,7 +72,8 @@ class GoldenContractTest {
         }
 
         when (entry.name) {
-            "me", "me-checklist-template" -> roundTrip(entry.name, Me.serializer())
+            "me", "me-checklist-template", "me-pro-legacy" -> roundTrip(entry.name, Me.serializer())
+            "billing-legacy-claim" -> roundTrip(entry.name, BillingResponse.serializer())
             "events-list" -> roundTrip(entry.name, ListSerializer(Event.serializer()))
             "event-detail", "event-detail-no-laps" ->
                 roundTrip(entry.name, EventDetail.serializer())

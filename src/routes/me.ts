@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { userTotalsStmt } from "../db";
 import { sanitizeChecklistTemplate } from "../lib/validate";
+import { entitlementResponse, type SubscriptionRow } from "../lib/entitlement";
+import { subscriptionsForUserStmt } from "../lib/billing/store";
 
 export const me = new Hono<AppContext>();
 
@@ -20,12 +22,14 @@ function parseTemplate(raw: unknown): string[] | null {
 
 me.get("/me", async (c) => {
   const userId = c.get("userId");
-  // The user row and the totals are independent — one batched round trip.
-  const [userRes, totalsRes] = await c.env.DB.batch([
+  // The user row, the totals and the subscription rows are independent — one
+  // batched round trip.
+  const [userRes, totalsRes, subsRes] = await c.env.DB.batch([
     c.env.DB.prepare(
       "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in FROM users WHERE id = ?"
     ).bind(userId),
     userTotalsStmt(c.env.DB, userId),
+    subscriptionsForUserStmt(c.env.DB, userId),
   ]);
   const row = (userRes.results[0] ?? null) as Record<string, unknown> | null;
   const user = row && {
@@ -33,7 +37,10 @@ me.get("/me", async (c) => {
     checklist_template: parseTemplate(row.checklist_template),
     leaderboard_opt_in: Boolean(row.leaderboard_opt_in),
   };
-  return c.json({ user, totals: totalsRes.results[0] });
+  // Tier comes from entitled_until as loaded with the session; the rows only
+  // say where it came from (NS-32 requirement 1).
+  const entitlement = entitlementResponse(c.get("entitledUntil"), subsRes.results as SubscriptionRow[], Date.now());
+  return c.json({ user, totals: totalsRes.results[0], entitlement });
 });
 
 // Toggle the per-track leaderboard opt-in. Off (the default) means nothing

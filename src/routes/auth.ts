@@ -3,6 +3,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { AppContext, Env } from "../types";
 import { decodeIdTokenPayload, isEmailVerified } from "../lib/oidc";
 import { APPLE_ISSUER, appleClientSecret, appleUserName } from "../lib/apple";
+import { isDevHost } from "../lib/dev";
 import {
   SESSION_COOKIE,
   bearerToken,
@@ -41,9 +42,7 @@ async function createAuthCode(
 // wrangler dev's loopback addresses plus 10.0.2.2, the Android emulator's
 // alias for the host machine. A DEV_MODE=1 that leaks into a deployed
 // environment then fails closed — login falls through to real OAuth.
-const DEV_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "10.0.2.2"]);
-const isDevLogin = (env: Env, url: string) =>
-  env.DEV_MODE === "1" && DEV_HOSTS.has(new URL(url).hostname);
+const isDevLogin = (env: Env, url: string) => isDevHost(env, url);
 
 // Find the user for an OIDC identity: an existing sub match on the provider's
 // column, an account claimed by email (pre-seeded rows, and accounts created

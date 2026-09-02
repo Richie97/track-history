@@ -109,6 +109,13 @@ your events, and re-run `npm run seed:generate`.
 
 ## Deploying to Cloudflare (one-time setup)
 
+> **Migrate before you deploy.** Every authenticated request reads
+> `users.entitled_until` in the same statement as the session, so a Worker
+> deployed ahead of its migrations answers 500 on all of `/api/*`, not just the
+> new routes. `npm run db:migrate:remote` first, `npm run deploy` second — on
+> the first deploy and on every upgrade.
+
+
 1. **Login & create the database**
 
    ```sh
@@ -163,6 +170,26 @@ your events, and re-run `npm run seed:generate`.
    npx wrangler secret put APPLE_PRIVATE_KEY  # paste the .p8 file's full PEM contents
    npm run deploy
    ```
+
+6. **(Optional) Enable subscriptions — Track Evolution Pro**
+
+   The billing server side (spec `docs/specs/native/NS-32-subscriptions.md`)
+   ships dark: without these secrets every account is free, the store routes
+   answer 503, and nothing a user can see changes. See
+   [Subscriptions](#subscriptions-track-evolution-pro) for what each piece is.
+
+   ```sh
+   npx wrangler secret put APPLE_IAP_KEY_ID            # App Store Connect → Users and Access → Integrations → In-App Purchase
+   npx wrangler secret put APPLE_IAP_ISSUER_ID
+   npx wrangler secret put APPLE_IAP_PRIVATE_KEY       # that key's .p8 PEM (a different key from Sign in with Apple)
+   npx wrangler secret put GOOGLE_PLAY_SERVICE_ACCOUNT # the service account's JSON key file, whole
+   npm run deploy
+   ```
+
+   `LEGACY_CUTOFF` (phase D) belongs with these, as a **secret** rather than a
+   `wrangler.jsonc` var: the contract harness starts the Worker from that file
+   and pins the entitlement shapes through the Android legacy claim, which the
+   cutoff would turn into a 403 and make `npm run contracts:check` fail.
 
 Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
@@ -687,6 +714,75 @@ spreadsheet and the paper setup notebook into the logbook:
   the event's best/consistency.
 - **Privacy** — parts, wear, spend and setup sheets are never included in the
   public share payload.
+
+## Subscriptions (Track Evolution Pro)
+
+Track Evolution is freemium: the **logbook is free** (tracks, events, sessions,
+lap times, best laps, progress charts, sharing, leaderboards, the vehicle list),
+and **Pro** is the analysis — the GPS lap recorder, telemetry import and channel
+data, garage consumables, the setup notebook and year in review. Pro is
+**$1.99/month or $19.99/year**, sold through the App Store and Google Play; the
+web app shows the tier and points at the phone apps to subscribe. Anyone who
+bought the $1 app before subscriptions is **Pro for life**. The full tier table,
+and the reasoning, is `docs/specs/native/NS-32-subscriptions.md`.
+
+The entitlement is **owned by the server**. One account spans three clients and
+Apple can't restore a Play purchase, so the Worker is the only thing that
+decides tier: `users.entitled_until` plus a `subscriptions` table (migration
+`0017`), exposed as `entitlement { tier, source, expires_at, auto_renew }` on
+`GET /api/me`. It rides along in the same D1 statement as the session lookup, so
+a Pro gate costs no extra round trip.
+
+**How a purchase becomes an entitlement**
+
+| Route | Who calls it | What it does |
+|---|---|---|
+| `POST /api/billing/apple` `{ jws, renewal_jws? }` | the iOS app, for every verified transaction | Verifies StoreKit 2's JWS *locally* — x5c chain to the pinned Apple Root CA G3, ES256 signature, bundle id, the WWDR and receipt-signing extension OIDs — and upserts the row by `originalTransactionId`. No network beyond the POST itself. |
+| `POST /api/billing/google` `{ purchase_token, product_id }` | the Android app | Reads the purchase from the Play Developer API (`purchases.subscriptionsv2.get`) with the service account and upserts by `purchaseToken`. **The app acknowledges the purchase only after this returns 200** — Play refunds unacknowledged subscriptions after three days. |
+| `POST /api/billing/apple/legacy` `{ jws }` | iOS, once, on launch | The `AppTransaction` JWS proves the app was bought before subscriptions; writes a permanent `legacy` row. |
+| `POST /api/billing/google/legacy` (header `X-TE-Client: android/<versionCode>`) | the Android transitional release, once per install | Play can't tell a client whether the app was bought, so the claim is trusted until `LEGACY_CUTOFF` (an env var, set to the flip date). Unset ⇒ every claim succeeds. |
+| `POST /billing/apple/notifications` | App Store Server Notifications V2 | Public, outside `/api`. Signature-verified like a purchase; re-derives the row's state from the signed transaction + renewal info inside. Unknown types are acked and logged. |
+| `POST /billing/google/rtdn` | Real-Time Developer Notifications, as a Pub/Sub **push** subscription | Public. Verifies the push's OIDC bearer (Google's JWKS; `aud` = this URL; `email` = the service account) before decoding anything, then re-reads the token from the API — RTDN says *something* changed, the API says *what*. |
+| cron `17 9 * * *` | Cloudflare | Re-verifies every Apple/Google row expiring in the next 48 h or expired in the last 7 days against its store, so a missed webhook costs a day, not a customer. |
+
+Every billing route answers `{ ok, entitlement }` so the client can update at
+once. The same purchase posted from a second device updates the row; posted
+from a *second account* it is a **409** and nothing moves. A revoked or refunded
+purchase drops Pro immediately; an expiry gets **three days of slack** on top of
+the store's own grace period, so webhook lag never reads as a lapse.
+
+**A lapse never destroys laps.** No `POST`/`PUT`/`DELETE` on events, sessions,
+laps or tracks checks entitlement, ever — the offline layer drops rejected
+writes, and a recording made under Pro and replayed after a lapse would be
+deleted. The recorder and importer gate *at start*, on the phone, against the
+cached entitlement; the server gates the Pro *reads* (garage consumables, setup
+sheets) and strips one field (`sessions.channels`) from session payloads. None
+of those gates are wired yet (phase A ships dark); phase D turns them on.
+
+**Store setup checklist** (phase B/C/D; nothing here is needed to deploy the
+server):
+
+- *App Store Connect:* one subscription group "Track Evolution Pro" with
+  `app.trackevolution.pro.monthly` and `.yearly`; an In-App Purchase key (the
+  `APPLE_IAP_*` secrets); Server Notifications V2 URLs for sandbox **and**
+  production both set to `https://trackevolution.app/billing/apple/notifications`;
+  privacy-policy and terms links in the metadata; Small Business Program
+  enrolment.
+- *Play Console:* one subscription with monthly and yearly base plans; a
+  service account with *View financial data* and *Manage orders and
+  subscriptions* (its JSON key is `GOOGLE_PLAY_SERVICE_ACCOUNT`); an RTDN
+  Pub/Sub topic with a **push** subscription to
+  `https://trackevolution.app/billing/google/rtdn` that authenticates as that
+  same service account (or set `GOOGLE_RTDN_EMAIL` to the one it uses). Android
+  Auto stays opted out.
+- Optional: `APPLE_FIRST_SUBSCRIPTION_BUILD` makes the server also check that a
+  legacy claim's `originalApplicationVersion` predates the first subscription
+  build, on top of the app's own check.
+
+Local testing needs no store: `test/api/billing.test.ts` signs payloads with a
+synthetic certificate chain (`test/fixtures/billing/`, rebuilt by `build.sh`)
+that the Worker trusts only under `DEV_MODE` via `APPLE_IAP_TEST_ROOT_PEM`, and
+mocks the Apple and Google APIs in `vitest.workers.config.mts`.
 
 ## Sharing & leaderboards
 
