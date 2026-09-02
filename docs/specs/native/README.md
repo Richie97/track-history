@@ -43,7 +43,7 @@ is the design, not a gap. `js/import/geo.js` *is* ported (NS-13/NS-14) because t
 live recorder needs start/finish line crossing to time laps.
 
 The exception is **video** — `public/pdr.js`, `js/import/gpmf.js`, `channels.js`
-and `pdr-laps.js`, ported by NS-30. The split was right about the shape of import
+and `pdr-laps.js`, ported by NS-30 (iOS) and NS-32 (Android). The split was right about the shape of import
 and wrong about that one input: a `.vbo` reaches a laptop on an SD card, but a
 GoPro clip arrives in Photos over Wi-Fi and a PDR clip lands in Files off a USB
 stick, both on the phone and usually before the laptop is opened. `vbo.js` stays
@@ -146,6 +146,7 @@ Features added after the rewrite shipped, and where they landed:
 | NS-29 | [Garage — iOS](NS-29-ios-garage.md) | iOS | NS-25 |
 | NS-30 | [Video telemetry import — iOS](NS-30-ios-video-import.md) | iOS | NS-13, NS-17, NS-23, NS-25 |
 | NS-31 | [Garage — Android](NS-31-android-garage.md) | Android | NS-26 |
+| NS-32 | [Video telemetry import — Android](NS-32-android-video-import.md) | Android | NS-14, NS-18, NS-24, NS-26, NS-30 |
 
 ## Deferred — not in this programme
 
@@ -163,9 +164,10 @@ predicts — the work happens where the web app isn't:
   notebook and the setup-vs-lap-times diff — stays deferred on both platforms,
   and that division is deliberate rather than a stopping point someone ran out of
   time at.
-- **Video import** (GoPro and Corvette PDR) — NS-30. The footage is already on the
-  phone that shot or received it. `.vbo` import, which really does arrive on an SD
-  card at a desk, stays deferred.
+- **Video import** (GoPro and Corvette PDR) — NS-30 on iOS, NS-32 on Android. The
+  footage is already on the phone that shot or received it, and the argument was
+  never platform-specific. `.vbo` import, which really does arrive on an SD card at
+  a desk, stays deferred.
 - **The two-lap telemetry compare**
   ([#165](https://github.com/Richie97/track-history/issues/165)) — pick any two
   laps with stored channels at a track and see the delta and channel overlays.

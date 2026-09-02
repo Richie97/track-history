@@ -27,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.EventDates
@@ -51,9 +52,12 @@ import app.trackevolution.ui.theme.TrackTheme
  * One event: its sessions, laps, prep checklist and best-lap trace (NS-26).
  *
  * Deliberately absent, and not by omission: the per-day **setup notebook** and
- * the **telemetry import dropzone**. Both stay web-only per the product split —
- * a `.vbo` reaches a laptop on an SD card, and the setup notebook is desk work.
- * Video import is native on iOS only (NS-30).
+ * `.vbo` import. Both stay web-only per the product split — a `.vbo` reaches a
+ * laptop on an SD card, and the setup notebook is desk work. **Video** import is
+ * here, though: a PDR or GoPro clip is already on the phone that shot or
+ * received it, which is the argument NS-30 made for iOS and it was never
+ * platform-specific. The card below opens the chooser; the review that follows
+ * is the recorder's.
  */
 @Composable
 fun EventScreen(
@@ -62,6 +66,7 @@ fun EventScreen(
     onEdit: (Int) -> Unit,
     onOpenTrack: (Int) -> Unit,
     onRecord: (Int) -> Unit,
+    onImport: (Int) -> Unit,
     onDeleted: () -> Unit,
     recorderAvailable: Boolean,
     modifier: Modifier = Modifier,
@@ -188,6 +193,27 @@ fun EventScreen(
                         ) {
                             Text("Start recording", style = TrackTheme.typography.bodyStrong)
                         }
+                    }
+                }
+            }
+
+            item("import") {
+                TrackCard(Modifier.fillMaxWidth()) {
+                    Text(
+                        "Import video",
+                        style = TrackTheme.typography.bodyStrong,
+                        color = colors.textStrong,
+                    )
+                    Text(
+                        "Corvette PDR or GoPro clips already on this phone — laps, racing line and " +
+                            "channel graphs come out of the telemetry track. The video is read in " +
+                            "place, never copied or uploaded.",
+                        style = TrackTheme.typography.xs,
+                        color = colors.textMuted,
+                        modifier = Modifier.padding(vertical = 6.dp),
+                    )
+                    TextButton(onClick = { onImport(model.eventId) }, modifier = Modifier.testTag("eventImportVideo")) {
+                        Text("Import video…", style = TrackTheme.typography.sm, color = colors.accentInk)
                     }
                 }
             }

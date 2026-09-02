@@ -9,12 +9,13 @@ package app.trackevolution.core
  * the three implementations can be diffed by eye — see
  * `docs/specs/native/NS-14-android-lap-geometry.md`.
  *
- * This is the one piece of the telemetry-import code that *is* ported to native.
- * It is not really part of the import feature: [RecorderCore.toParsed] emits
+ * This was the first piece of the telemetry-import code ported to native, and
+ * it is not really part of the import feature: [RecorderCore.toParsed] emits
  * `needsLine = true`, meaning a live recording has no lap markers and its laps
  * are timed by the user picking a start/finish line. Without this, a native
- * recording could not become laps at all. The file parsers (PDR, GoPro, VBO)
- * deliberately stay web-only.
+ * recording could not become laps at all. The video parsers (PDR, GoPro) followed
+ * in `telemetry/` (NS-32) and time line-picked laps through this same code; the
+ * `.vbo` parser deliberately stays web-only.
  *
  * Sign conventions do not matter. Everything here is relative geometry within
  * one trace, so a self-consistent source works unchanged — including Racelogic's
