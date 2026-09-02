@@ -1,6 +1,7 @@
 package app.trackevolution
 
 import android.app.Activity
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,7 @@ import app.trackevolution.recording.RecordingFlow
 import app.trackevolution.recording.ReviewScreen
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.TrackTheme
+import app.trackevolution.videoimport.ImportedClip
 
 /**
  * The signed-in shell: the recording banner, the navigation graph, and the
@@ -70,6 +72,9 @@ fun SignedInScaffold(
     onConsumedStartOnRecord: () -> Unit,
     onStartRecording: (Int?) -> Unit,
     onSignOut: () -> Unit,
+    /** Videos the share sheet handed the app, waiting for the import chooser. */
+    incomingImport: List<Uri>? = null,
+    onConsumedIncomingImport: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val nav = rememberNavController()
@@ -122,9 +127,21 @@ fun SignedInScaffold(
     LaunchedEffect(saved) {
         if (saved) {
             reviewing = false
+            val importedInto = if (review.isImport) flow.savedEventId else null
             nav.popBackStack(Route.Dashboard, inclusive = false)
+            // An import came from an event's page and its sessions are now on
+            // it, so that is where it lands — on a fresh destination, which is
+            // what makes the page re-fetch and show them. A recording keeps
+            // landing on the dashboard, as it always has.
+            if (importedInto != null) nav.navigate(Route.Event(importedInto))
             flow.acknowledgeSaved()
         }
+    }
+
+    // Videos shared into the app open the chooser, which parses them on arrival.
+    // Signed-out arrivals park here until there is a graph to send them to.
+    LaunchedEffect(incomingImport) {
+        if (incomingImport != null) nav.navigate(Route.Import())
     }
 
     // Leaving review does not stop or discard anything: the recording stays
@@ -188,12 +205,23 @@ fun SignedInScaffold(
                 onStartRecording = onStartRecording,
                 onStopRecording = { Recorder.stop(context) },
                 onSignOut = onSignOut,
+                onImportParsed = { eventId, clips: List<ImportedClip> ->
+                    // Same shape as a recording stopping: the review covers the
+                    // graph, and the chooser comes off the stack underneath it
+                    // so backing out of the review lands on the event page.
+                    flow.beginImport(clips, eventId)
+                    reviewing = true
+                    nav.popBackStack()
+                },
+                incomingImport = incomingImport,
+                onConsumedIncomingImport = onConsumedIncomingImport,
             )
             if (reviewing) {
                 ReviewScreen(
                     state = review,
                     onPick = flow::pick,
                     onLabelChange = flow::setLabel,
+                    onIncludeChange = flow::setInclude,
                     onNotesChange = flow::setNotes,
                     onSelectEvent = flow::selectEvent,
                     onSave = { flow.save(context) },

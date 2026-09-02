@@ -1,6 +1,7 @@
 package app.trackevolution
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.IntentCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -77,6 +79,15 @@ class MainActivity : ComponentActivity() {
      * must land on the recording rather than the dashboard.
      */
     private var openRecorder by mutableStateOf(false)
+
+    /**
+     * Videos shared into the app ("Send to Track Evolution" from Files, Photos or
+     * the camera app), parked until the signed-in graph can open the import
+     * chooser on them. The read grant travels with this task, which is why the
+     * activity is `singleTask` and the URIs are read from here rather than
+     * persisted.
+     */
+    private var incomingImport by mutableStateOf<List<Uri>?>(null)
 
     /**
      * Fine location and notifications, asked for at the moment the user asks to
@@ -148,8 +159,11 @@ class MainActivity : ComponentActivity() {
                             // A deep link parked for a session that no longer
                             // exists must not fire under the next one.
                             router.clear()
+                            incomingImport = null
                             auth.signOut()
                         },
+                        incomingImport = incomingImport,
+                        onConsumedIncomingImport = { incomingImport = null },
                     )
                     AuthState.Loading -> LoadingScreen()
                     else -> SignInScreen(
@@ -218,6 +232,10 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(RecordingService.EXTRA_OPEN_RECORDER, false) == true) {
             openRecorder = true
         }
+        sharedVideos(intent)?.let {
+            incomingImport = it
+            return
+        }
         val uri = intent?.data ?: return
         if (auth.handleRedirect(uri)) return
         // Parked rather than navigated to: the nav graph consumes it once it
@@ -225,6 +243,19 @@ class MainActivity : ComponentActivity() {
         DeepLink.parse(uri.toString())?.let(router::offer)
     }
 }
+
+/**
+ * The videos an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent carries, or null
+ * when the intent is anything else. `IntentCompat` rather than the typed
+ * `getParcelableExtra`, which is API 33+.
+ */
+private fun sharedVideos(intent: Intent?): List<Uri>? = when (intent?.action) {
+    Intent.ACTION_SEND ->
+        listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+    Intent.ACTION_SEND_MULTIPLE ->
+        IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)?.toList()
+    else -> null
+}?.takeIf { it.isNotEmpty() }
 
 @Composable
 private fun LoadingScreen() {

@@ -206,7 +206,11 @@ track page, settings and the garage (vehicles, consumables, wear and
 measurements), plus the read-only page a `trackevolution.app/share/<slug>` link
 opens — on top of the lap recorder, the offline cache and write queue, and the
 charts, including the two-lap telemetry compare. The same desk-bound features
-are web-only as on iOS. Video import is iOS-only so far.
+are web-only as on iOS. Video import is native on Android as well: the event page's
+**Import video…** opens the system file picker or the photo picker (or a clip is
+shared in from Files or Photos), the same PDR/GoPro parsers run on the phone against
+the same `contracts/logic/video-parsers.json` fixture the iOS port is pinned to, and
+the review — line picker, laps, channels, save — is the recorder's own screen.
 
 Both recorders show **live lap timing** while you drive: a lap counter, last
 and best lap, and a predictive delta to the session's best. The recorder

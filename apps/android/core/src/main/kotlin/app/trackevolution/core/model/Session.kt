@@ -68,9 +68,9 @@ public object TracePointSerializer : KSerializer<TracePoint> {
 
 /**
  * `sessions.channels` — every lap's channels resampled onto one driven-distance
- * grid. Produced by the *web* importer and (on iOS) NS-30's video import; this
- * client reads it and never writes it, since `.vbo`/video import is not part of
- * the Android programme.
+ * grid. Produced by the web importer and by the native video importers — NS-30
+ * on iOS, NS-32 here (`core/telemetry/LapChannels.kt` builds it) — and, since the
+ * review flow became shared, by a saved phone recording too.
  *
  * The keys really are camelCase on the wire — `sanitizeChannels` in
  * `src/lib/validate.ts` writes them that way, unlike every other API shape.

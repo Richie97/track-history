@@ -46,6 +46,14 @@ public sealed interface Route {
     @Serializable
     public data class Record(val eventId: Int? = null) : Route
 
+    /**
+     * Video telemetry import: the chooser half. [eventId] is the event whose
+     * page it was opened from, pre-selected in the review that follows; null
+     * for a clip handed in by the share sheet.
+     */
+    @Serializable
+    public data class Import(val eventId: Int? = null) : Route
+
     @Serializable
     public data class Shared(val slug: String) : Route
 }

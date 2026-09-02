@@ -1,5 +1,6 @@
 package app.trackevolution.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -37,6 +38,9 @@ import app.trackevolution.screens.TrackScreen
 import app.trackevolution.screens.VehicleModel
 import app.trackevolution.screens.VehicleScreen
 import app.trackevolution.ui.theme.ThemeChoice
+import app.trackevolution.videoimport.ImportModel
+import app.trackevolution.videoimport.ImportScreen
+import app.trackevolution.videoimport.ImportedClip
 
 /**
  * The logbook's navigation graph (NS-26).
@@ -72,6 +76,15 @@ fun AppNavHost(
     onStartRecording: (Int?) -> Unit,
     onStopRecording: () -> Unit,
     onSignOut: () -> Unit,
+    /**
+     * Parsed clips leaving the import chooser for the review overlay, with the
+     * event they were imported from. Defaulted so a test composing the graph
+     * for something else need not care.
+     */
+    onImportParsed: (Int?, List<ImportedClip>) -> Unit = { _, _ -> },
+    /** Videos handed in by the share sheet, waiting for the import chooser. */
+    incomingImport: List<Uri>? = null,
+    onConsumedIncomingImport: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -105,6 +118,7 @@ fun AppNavHost(
                 onEdit = { nav.navigate(Route.EventForm(editId = it)) },
                 onOpenTrack = { nav.navigate(Route.Track(it)) },
                 onRecord = { nav.navigate(Route.Record(eventId = it)) },
+                onImport = { nav.navigate(Route.Import(eventId = it)) },
                 onDeleted = { nav.popBackStack() },
                 // Always: the recorder is built into this app, unlike the web
                 // build where `platform.bgLocation` is null and it is hidden.
@@ -214,6 +228,18 @@ fun AppNavHost(
             )
         }
 
+        composable<Route.Import> { entry ->
+            val route = entry.toRoute<Route.Import>()
+            val resolver = context.applicationContext.contentResolver
+            val model = rememberScreenModel { scope, _ -> ImportModel(scope, resolver) }
+            ImportScreen(
+                model = model,
+                incoming = incomingImport,
+                onConsumedIncoming = onConsumedIncomingImport,
+                onParsed = { clips -> onImportParsed(route.eventId, clips) },
+            )
+        }
+
         composable<Route.Vehicle> { entry ->
             val route = entry.toRoute<Route.Vehicle>()
             val model = rememberScreenModel { scope, _ -> VehicleModel(scope, api, route.id) }
@@ -268,6 +294,7 @@ private fun NavBackStackEntry.routeOrNull(): Route? = when {
     destination.hasRoute(Route.Event::class) -> toRoute<Route.Event>()
     destination.hasRoute(Route.EventForm::class) -> toRoute<Route.EventForm>()
     destination.hasRoute(Route.Record::class) -> toRoute<Route.Record>()
+    destination.hasRoute(Route.Import::class) -> toRoute<Route.Import>()
     else -> null
 }
 
@@ -277,6 +304,7 @@ private fun Route.tempId(): Int? {
         is Route.Event -> id
         is Route.EventForm -> editId
         is Route.Record -> eventId
+        is Route.Import -> eventId
         else -> null
     } ?: return null
     return id.takeIf { OfflineStore.isTemp(it) }
