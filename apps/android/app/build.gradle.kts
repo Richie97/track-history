@@ -82,7 +82,25 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 on: shrink, optimize and obfuscate. Not optional — Google Play
+            // scores every app's "app optimization" (obfuscation, code and
+            // resource shrinking) and warns that a category under 25% "may
+            // impact your visibility and publishing capabilities"; an
+            // unminified bundle scored 1% on obfuscation and drew exactly that
+            // notice. It also makes the release the size Play expects and
+            // strips the debug-only surfaces' dependencies for good measure.
+            //
+            // Two consequences to keep in view. Stack traces from a release
+            // build are obfuscated, so the deploy workflow uploads
+            // build/outputs/mapping/release/mapping.txt with the bundle and
+            // Play deobfuscates crashes in the Console. And anything reached by
+            // reflection needs a keep rule in proguard-rules.pro — the libraries
+            // in use (Room, WorkManager, kotlinx.serialization, Tink) ship their
+            // own consumer rules, so that file only carries what they don't.
+            // A missing class fails the build rather than the app: R8 lists it
+            // in build/outputs/mapping/release/missing_rules.txt.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Without that environment — every local build — the release variant
             // stays *unsigned* rather than falling back to the debug key:

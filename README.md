@@ -449,6 +449,25 @@ anything else, but the Console opt-in is manual, and a car review failure
 rejects the *entire* submission, ordinary phone updates included — and the
 recorder must survive a real track day before the rollout goes past 10%.
 
+The release build is **minified and shrunk by R8** (`isMinifyEnabled` /
+`isShrinkResources` in `apps/android/app/build.gradle.kts`). Google Play scores
+every app's obfuscation and code/resource shrinking and warns that a category
+under 25% can affect the listing's visibility and publishing — an unminified
+bundle scored 1% on obfuscation and drew that notice — so this is a store
+requirement, not a size optimization. Its consequence is the mapping file:
+release stack traces are obfuscated, so the workflow refuses to upload a bundle
+with no `mapping.txt`, sends the mapping to Play alongside the bundle (crashes
+and ANRs deobfuscate in the Console) and attaches it to the run for sideloaded
+test builds. Keep rules live in `apps/android/app/proguard-rules.pro`; the
+libraries in use ship their own, so that file stays small, and a class R8 can't
+find fails the build with the missing rules listed in
+`app/build/outputs/mapping/release/missing_rules.txt`. To reproduce the
+shippable artifact locally (unsigned):
+
+```sh
+cd apps/android && ./gradlew :app:bundleRelease
+```
+
 The iOS side has no equivalent: those builds go through Xcode Cloud, which
 archives and uploads to TestFlight itself.
 
