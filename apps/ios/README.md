@@ -9,11 +9,13 @@ directory is the home of every `NS-*` spec marked **iOS**.
 ```
 apps/ios/
   project.yml                  XcodeGen source of truth for the project
+  Configuration.storekit       local StoreKit products for the TrackEvolution scheme
   generate.sh                  regenerates TrackEvolution.xcodeproj
   Schemes/                     hand-written shared schemes copied in by generate.sh
   TrackEvolution.xcodeproj      generated, but COMMITTED (see below)
   App/                         app target — SwiftUI views, scenes, platform services
     Import/                    video telemetry import: pickers, file byte source
+    Billing/                   StoreKit 2: purchase, restore, listener, paywall (NS-32)
     Info.plist                 hand-maintained (GENERATE_INFOPLIST_FILE is off)
     TrackEvolution.entitlements
     Assets.xcassets/
@@ -21,6 +23,7 @@ apps/ios/
     Sources/TrackEvolutionKit/
       Models/                  Codable models + LapTime formatting
       API/                     APIClient, APIError, request bodies
+      Billing/                 tier predicates and gates (port of public/js/entitlement.js)
       Recorder/                lap geometry, recorder core
       Telemetry/               PDR + GoPro parsers, per-lap channels, lap recovery
     Tests/TrackEvolutionKitTests/
@@ -666,6 +669,78 @@ the laptop is the kind of drift nobody files a bug about.
 Editing the template never rewrites a checklist already on an event. Those are a
 copy taken when the list was started, and rewriting one would untick items the
 driver had already dealt with — `ChecklistTemplateUITests` asserts exactly that.
+
+## Subscriptions: the phone is a purchase terminal
+
+`App/Billing/` is NS-32 phase B — Track Evolution Pro sold through StoreKit 2,
+with the **server** owning the entitlement. `StoreController` loads the two
+products (`Entitlement.APPLE_PRODUCT_IDS`), sells them, restores them
+(`AppStore.sync()`), opens the system Manage sheet, and listens to
+`Transaction.updates` from `TrackEvolutionApp.init` for the life of the process.
+`PaywallSheet` is what a free account sees; the Settings screen carries the tier
+row. Nothing in the app decides tier: every billing route answers with the fresh
+entitlement, `AuthController.applyEntitlement` writes it into `me`, and the Kit's
+predicates (`Entitlement.isPro`, `canRecord`, `canImport`, …, the port of
+`public/js/entitlement.js`) read it.
+
+Three rules are load-bearing, and each one is the difference between a paying
+user and a paying user who reads as free:
+
+- **Finish after 200.** A transaction is `finish()`ed only once
+  `POST /api/billing/apple` has accepted it. StoreKit never redelivers a finished
+  transaction, so finishing first and posting second makes a failed post the last
+  anyone hears of that purchase. Unfinished, it comes back through
+  `Transaction.updates` and `Transaction.unfinished` on the next launch — a better
+  queue than ours, since it survives a reinstall. A 400 or 409 from the server
+  *is* finished (neither changes on retry) and its message is shown.
+- **The listener is not a view's.** Renewals, Ask to Buy approvals and purchases
+  made on another device arrive with no paywall on screen. Start it from a
+  `.task` and it dies with the view that started it.
+- **Signed out is held, not dropped.** A transaction with no account to land on
+  waits — in memory, and in StoreKit — and posts when someone signs in
+  (`withObservationTracking` over `auth.state`), with a retry on every return to
+  the foreground.
+
+**Grandfathering** is `AppTransaction.shared` on launch: a paid install posts the
+app transaction's JWS to `/api/billing/apple/legacy` once per account per server
+(`LegacyClaimRecord`, a `UserDefaults` flag; 409 and 400 also count as done, and
+Restore Purchases re-runs it past the flag). The cutoff,
+`Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD`, ships **`nil`** — "the app is still
+a paid download, so every install bought it" — and mirrors the Worker's unset
+`APPLE_FIRST_SUBSCRIPTION_BUILD`. It can't be set earlier: the build number is
+Xcode Cloud's, not `CURRENT_PROJECT_VERSION`'s, so phase D reads it off the first
+free archive and sets both. Sandbox reports `originalAppVersion` as `1.0`
+regardless, which nil treats as paid, so sandbox testers see the legacy path.
+
+**The gates are off.** `Entitlement.gatesEnabled` is `false` until phase D. The
+record screen's Start, `ImportScreen` and CarPlay's `RemoteRecorder` all ask
+`ProGate.decide(_:entitlement:)` against the *cached* entitlement — offline, the
+last `/api/me` stands, so a driver who was Pro at the last sync records — and
+`EntitlementTests` covers both states with the constant injected. A 402 is
+`APIError.proRequired`, its own case like 401, so a gated read can show the
+paywall instead of the sync banner.
+
+### Testing it locally
+
+The `TrackEvolution` scheme runs against `Configuration.storekit` — one group,
+the two products at $1.99 / $19.99 with a 14-day free trial, pinned to the Kit's
+ids by `EntitlementTests`. That exercises the **UI**: Settings → Subscribe, the
+sheet, the purchase confirmation, Restore, Manage. It does not exercise the
+server: Xcode's local store signs the transactions, the Worker rejects them
+with `400 invalid receipt`, and the app finishes them and shows that message —
+which is the correct behaviour for an unverifiable payload, not a bug. The
+legacy claim is skipped outright in that environment (`AppTransaction.environment
+== .xcode`). Use Xcode's transaction manager (Debug → StoreKit → Manage
+Transactions) to refund, expire or approve an Ask to Buy and watch the listener
+react.
+
+The **server round trip** needs the sandbox: a TestFlight build, or a device
+signed into a Sandbox Apple ID (Settings → App Store → Sandbox Account), with the
+products created in App Store Connect and the `APPLE_IAP_*` secrets on the
+Worker. Sandbox renewals run in minutes, which is how the renewal → row path is
+checked before the price flips. `UITests/CoreScreensUITests` covers the Settings
+row and the sheet's mandatory parts (Restore, both legal links) against the dev
+server; it needs no store because none of those depend on a product loading.
 
 ## The project file is generated *and* committed
 

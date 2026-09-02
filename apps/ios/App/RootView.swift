@@ -164,8 +164,10 @@ struct RootView: View {
 }
 
 #Preview {
+    let auth = AuthController()
     RootView()
         .environment(ThemeStore())
         .environment(RecordingController())
-        .environment(AuthController())
+        .environment(auth)
+        .environment(StoreController(auth: auth))
 }

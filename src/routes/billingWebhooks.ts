@@ -10,23 +10,11 @@
 import { Hono } from "hono";
 import type { AppContext, Env } from "../types";
 import { JwsError, peekJwsPayload, verifyX5cJws } from "../lib/billing/jws";
-import {
-  APPLE_HANDLED_NOTIFICATIONS,
-  type AppleRenewalInfo,
-  appleBundleId,
-  appleRootsDer,
-  appleSubscriptionState,
-  verifyAppleRenewalInfo,
-  verifyAppleTransaction,
-} from "../lib/billing/apple";
-import {
-  decodePubSubMessage,
-  fetchGoogleSubscription,
-  googleSubscriptionState,
-  parseServiceAccount,
-  verifyGoogleOidcToken,
-} from "../lib/billing/google";
-import { applyStoreState, findSubscription, retireSubscription } from "../lib/billing/store";
+import { APPLE_HANDLED_NOTIFICATIONS, appleBundleId, appleRootsDer } from "../lib/billing/apple";
+import { decodePubSubMessage, parseServiceAccount, verifyGoogleOidcToken } from "../lib/billing/google";
+import { syncAppleRow, syncGoogleRow } from "../lib/billing/sync";
+import { findSubscription } from "../lib/billing/store";
+import { bearerToken } from "../lib/session";
 
 export const billingWebhooks = new Hono<AppContext>();
 
@@ -35,7 +23,7 @@ billingWebhooks.post("/billing/apple/notifications", async (c) => {
   const body = (await c.req.json().catch(() => null)) as { signedPayload?: unknown } | null;
   if (!body || typeof body.signedPayload !== "string") return c.json({ error: "signedPayload required" }, 400);
   const nowMs = Date.now();
-  const rootsDer = appleRootsDer(c.env);
+  const rootsDer = appleRootsDer(c.env, c.req.url);
 
   let payload: Record<string, unknown>;
   try {
@@ -54,19 +42,27 @@ billingWebhooks.post("/billing/apple/notifications", async (c) => {
   if (data.bundleId !== appleBundleId(c.env)) return c.json({ error: "wrong bundle id" }, 401);
 
   try {
-    const tx = await verifyAppleTransaction(data.signedTransactionInfo, { bundleId: appleBundleId(c.env), rootsDer });
-    const renewal: AppleRenewalInfo | null = data.signedRenewalInfo
-      ? await verifyAppleRenewalInfo(data.signedRenewalInfo, { rootsDer, originalTransactionId: tx.originalTransactionId })
-      : null;
-    const row = await findSubscription(c.env.DB, "apple", tx.originalTransactionId);
+    const claimed = peekJwsPayload(data.signedTransactionInfo)?.originalTransactionId;
+    const row = typeof claimed === "string" ? await findSubscription(c.env.DB, "apple", claimed) : null;
     if (!row) {
       // The client's own POST attributes a purchase to a user; a notification
       // that arrives first has nobody to attach to yet, and the POST will.
-      console.log("apple notification for unknown transaction:", type, tx.originalTransactionId);
+      console.log("apple notification for unknown transaction:", type, claimed);
       return c.json({ ok: true, handled: false });
     }
-    const state = appleSubscriptionState(tx, renewal, nowMs);
-    await applyStoreState(c.env.DB, row, { ...state, productId: tx.productId, raw: { transaction: tx, renewal, notificationType: type } }, nowMs);
+    const outcome = await syncAppleRow(
+      c.env.DB,
+      row,
+      { transactionJws: data.signedTransactionInfo, renewalJws: data.signedRenewalInfo, tag: { notificationType: type } },
+      { bundleId: appleBundleId(c.env), rootsDer, nowMs }
+    );
+    if (outcome === "stale") {
+      // Apple retries a failed delivery for days with its original payload.
+      // The row already holds something signed later, so there is nothing to
+      // correct — acking is what stops the retries.
+      console.log("apple notification ignored as stale:", type, row.external_id);
+      return c.json({ ok: true, handled: false });
+    }
     return c.json({ ok: true, handled: true });
   } catch (err) {
     if (err instanceof JwsError) return c.json({ error: "unverified" }, 401);
@@ -79,7 +75,7 @@ billingWebhooks.post("/billing/google/rtdn", async (c) => {
   const sa = parseServiceAccount(c.env.GOOGLE_PLAY_SERVICE_ACCOUNT);
   if (!sa) return c.json({ error: "billing not configured" }, 401);
   const nowMs = Date.now();
-  const bearer = c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") ?? null;
+  const bearer = bearerToken(c.req.header("Authorization"));
   try {
     await verifyGoogleOidcToken(bearer, {
       audience: rtdnAudience(c.env, c.req.url),
@@ -101,12 +97,11 @@ billingWebhooks.post("/billing/google/rtdn", async (c) => {
     console.log("rtdn for unknown purchase token:", note.subscriptionNotification?.notificationType);
     return c.json({ ok: true, handled: false });
   }
-  const sub = await fetchGoogleSubscription(sa, token, nowMs);
-  if (!sub) return c.json({ ok: true, handled: false });
-  const state = googleSubscriptionState(sub, nowMs);
-  await applyStoreState(c.env.DB, row, { ...state, raw: { purchase: sub, notificationType: note.subscriptionNotification?.notificationType } }, nowMs);
-  if (state.linkedPurchaseToken) await retireSubscription(c.env.DB, row.user_id, "google", state.linkedPurchaseToken, nowMs);
-  return c.json({ ok: true, handled: true });
+  const outcome = await syncGoogleRow(c.env.DB, row, sa, {
+    nowMs,
+    tag: { notificationType: note.subscriptionNotification?.notificationType },
+  });
+  return c.json({ ok: true, handled: outcome === "updated" });
 });
 
 // The OIDC audience Pub/Sub was configured with is this route's public URL.

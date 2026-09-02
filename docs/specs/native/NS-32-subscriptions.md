@@ -86,7 +86,11 @@ section applies to the web/native split.
     account must update the row, never duplicate it, and a token already bound
     to a different `user_id` is a 409, not a transfer.
   - `users.entitled_until INTEGER` — the denormalised answer, recomputed from the
-    user's subscriptions on every write to the table. `NULL` is free; a far-future
+    user's subscriptions on every write to the table. **Implemented as triggers**
+    (phase A deviation): the spec said "recomputed on every write", which route
+    code can only achieve by remembering to; triggers are how every other
+    derived column in this schema works (`updated_at`, migrations 0011/0012),
+    and they hold for a support script or a backfill too. `NULL` is free; a far-future
     sentinel is legacy; otherwise it is the latest `expires_at` plus the grace
     below.
 - **Zero extra round trips.** `sessionUserId` in `src/lib/session.ts` already
@@ -135,7 +139,13 @@ section applies to the web/native split.
 - `POST /billing/apple/notifications` — App Store Server Notifications V2. Public
   route, **outside `/api`** (no session), added to `run_worker_first`. The
   `signedPayload` is verified with the same chain code; unknown notification
-  types are logged and acked with 200. Handled: `SUBSCRIBED`, `DID_RENEW`,
+  types are logged and acked with 200. **A payload signed before the one the row
+  already holds is acked and ignored** (phase A addition, `subscriptions.signed_date`):
+  Apple retries a failed delivery for days with its *original* payload, so
+  without the guard a stale `EXPIRED` redelivered after the user resubscribed
+  would put a paying account on free — and the same guard stops a client
+  replaying a pre-refund transaction JWS to undo a revocation. Handled:
+  `SUBSCRIBED`, `DID_RENEW`,
   `DID_CHANGE_RENEWAL_STATUS`, `EXPIRED`, `GRACE_PERIOD_EXPIRED`, `REFUND`,
   `REVOKE`, `DID_FAIL_TO_RENEW`. Sandbox and production notification URLs both
   point at this route; `environment` on the row keeps them from colliding.
@@ -148,6 +158,11 @@ section applies to the web/native split.
   `GOOGLE_PLAY_SERVICE_ACCOUNT` holding the JSON key). Reads
   `subscriptionState` and the line item's `expiryTime`; `linkedPurchaseToken`
   (an upgrade/downgrade) retires the old row.
+- A `linkedPurchaseToken` is retired **regardless of which account holds it**
+  (phase A addition): one Google account can be signed in to two Track
+  Evolution accounts, and Play has ended the superseded subscription either
+  way, so scoping the retire to the upgrading user would leave the other
+  account Pro on a subscription that no longer exists.
 - **The client acknowledges only after this route returns 200.** Play refunds
   an unacknowledged subscription after three days, so acknowledging before the
   server has the token is how a paying user ends up free, and acknowledging
@@ -204,7 +219,41 @@ the one irreplaceable thing in the system. Therefore:
   posted to `POST /api/billing/apple/legacy` with the app transaction's JWS;
   the server verifies it exactly like a purchase and writes a `legacy` row.
   This works for a user who installs the app for the first time in two years
-  from a purchase made today.
+  from a purchase made today. **Production receipts only** (phase A addition):
+  a sandbox `AppTransaction` is signed by the same real Apple chain and always
+  reports `originalApplicationVersion` `"1.0"`, so without a `receiptType`
+  check every TestFlight tester would claim a permanent entitlement for an app
+  they never bought. Sandbox receipts are accepted only on a local dev host.
+
+  **Accepted risk, stated once:** when `appTransactionId` is absent (it is
+  iOS 18.4+), the row's `external_id` falls back to the *account's* id, so the
+  `(provider, external_id)` uniqueness that makes a second claim a 409 cannot
+  bind to the purchase — the same physical purchase can be claimed from more
+  than one account. Apple exposes no stable per-purchase identifier on older
+  payloads, and the alternative is refusing legitimate grandfathering, so this
+  is deliberate. The Android claim below has the same shape for the same
+  reason.
+
+  > **Phase B deviation (2026-09): the cutoff is a nullable constant, and it
+  > ships `nil`.** "The first subscription build" cannot be named by the phase
+  > that ships the purchase flow, for two reasons found while building it. The
+  > iOS build number is **Xcode Cloud's** (`CFBundleVersion` is overwritten per
+  > archive — README → App version), so `CURRENT_PROJECT_VERSION` in
+  > `project.yml` is not what any install's `originalAppVersion` reports, and
+  > the number is only known once the build exists. And the app stays a paid
+  > download through phases B and C — an install made from the phase B or C
+  > build *also* paid, and grandfathering it is correct, not a leak. So the
+  > constant is `Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD: String? = nil` in
+  > the Kit, mirroring the Worker's already-optional
+  > `APPLE_FIRST_SUBSCRIPTION_BUILD`: nil reads as "every install bought it" and
+  > every install claims. **Phase D sets both to the first free build's Xcode
+  > Cloud number**, in the same change that flips the price; until then the
+  > server's rule and the app's are identical (`compareVersions` is ported), and
+  > a claim from a not-yet-known build cannot happen because no such build
+  > exists. The claim is skipped in the Xcode StoreKit environment (the Worker
+  > can't verify its signatures) and is retried past its once-only flag by
+  > Restore Purchases, so a paid-app buyer whose launch-time claim failed has a
+  > button to press.
 - **Android has no equivalent.** Play cannot tell a client whether the app was
   bought. The path is a **transitional release** (phase C, shipped *before* the
   price flips): the app sends `X-TE-Client: android/<versionCode>` and calls
@@ -255,6 +304,13 @@ the one irreplaceable thing in the system. Therefore:
   is listened to from app launch for the app's whole life, and every verified
   transaction — purchase, renewal, restore — is posted to the server before it
   is `finish()`ed.
+
+  > **Phase B note.** CarPlay gets the same gate as the phone's Start button,
+  > decided from the same cached entitlement, but a head unit can't present a
+  > sheet — so `RemoteRecorder` answers with a `.pro` refusal whose message says
+  > to subscribe on the phone. Both gates read `Entitlement.gatesEnabled`, which
+  > ships `false`; the decision logic (`ProGate`) is tested in both states with
+  > the constant injected, so phase D's flip is one line with green tests.
 - Android: Play Billing goes in `:app` (`billing-ktx`); `:core` gets the
   `Entitlement` model, the client methods and the predicates, and
   `checkNoAndroidDependency` keeps it that way. `queryPurchasesAsync` runs on
@@ -322,6 +378,11 @@ is what lets it be small enough to review the day it matters.
 
 - [ ] Purchase, restore and a sandbox renewal each produce a server row; the
       transaction is finished only after the server's 200.
+- [ ] The purchase POST carries an `appAccountToken` set at purchase time, and
+      the server binds the row to that account rather than to whoever posts the
+      JWS first — without it, a leaked `jwsRepresentation` binds the purchase to
+      the wrong account and locks the buyer out with a 409 (raised in phase A
+      review; the server side is a one-field check once the client sends it).
 - [ ] `originalAppVersion` below the subscription build yields a `legacy` row on
       first launch, once.
 - [ ] Paywall shows product title, term, localised price, privacy + terms links,

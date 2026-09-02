@@ -109,6 +109,13 @@ your events, and re-run `npm run seed:generate`.
 
 ## Deploying to Cloudflare (one-time setup)
 
+> **Migrate before you deploy.** Every authenticated request reads
+> `users.entitled_until` in the same statement as the session, so a Worker
+> deployed ahead of its migrations answers 500 on all of `/api/*`, not just the
+> new routes. `npm run db:migrate:remote` first, `npm run deploy` second — on
+> the first deploy and on every upgrade.
+
+
 1. **Login & create the database**
 
    ```sh
@@ -178,6 +185,11 @@ your events, and re-run `npm run seed:generate`.
    npx wrangler secret put GOOGLE_PLAY_SERVICE_ACCOUNT # the service account's JSON key file, whole
    npm run deploy
    ```
+
+   `LEGACY_CUTOFF` (phase D) belongs with these, as a **secret** rather than a
+   `wrangler.jsonc` var: the contract harness starts the Worker from that file
+   and pins the entitlement shapes through the Android legacy claim, which the
+   cutoff would turn into a 403 and make `npm run contracts:check` fail.
 
 Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
@@ -785,8 +797,13 @@ server):
   same service account (or set `GOOGLE_RTDN_EMAIL` to the one it uses). Android
   Auto stays opted out.
 - Optional: `APPLE_FIRST_SUBSCRIPTION_BUILD` makes the server also check that a
-  legacy claim's `originalApplicationVersion` predates the first subscription
-  build, on top of the app's own check.
+  legacy claim's `originalApplicationVersion` predates the first **free** build,
+  on top of the app's own check (`Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD` in
+  the iOS Kit, the same `compareVersions` rule). Both stay unset through phases
+  B and C, when the app is still a paid download and every install legitimately
+  claims; phase D sets both to the first free build's number — which is **Xcode
+  Cloud's** build number, not `CURRENT_PROJECT_VERSION`, so it can only be read
+  off that archive once it exists.
 
 Local testing needs no store: `test/api/billing.test.ts` signs payloads with a
 synthetic certificate chain (`test/fixtures/billing/`, rebuilt by `build.sh`)
