@@ -366,20 +366,6 @@ async function captureAll(api, anon, f) {
     "src/routes/vehicles.ts", await api("GET", "/garage"));
 
   // --- public share (unauthenticated) -------------------------------------
-  // --- billing (NS-32) ----------------------------------------------------
-  // The store routes need signed payloads a Node harness can't mint against the
-  // pinned Apple root, so the entitlement shapes are pinned through the one
-  // route that needs no store: the Android transitional legacy claim. Captured
-  // last among the /me reads so `me` above stays what a fresh account gets.
-  record("billing-legacy-claim", "POST", "/billing/google/legacy",
-    "The Android transitional build's paid-app claim (X-TE-Client required; honoured before " +
-    "LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
-    "src/routes/billing.ts",
-    await api("POST", "/billing/google/legacy", {}, { "X-TE-Client": "android/1" }));
-  record("me-pro-legacy", "GET", "/me",
-    "The signed-in user once entitled: tier pro, source legacy, no expiry.",
-    "src/routes/me.ts", await api("GET", "/me"));
-
   record("share-public", "GET", "/share/:slug",
     "Public share page data. Deliberately reduced: no notes, email, per-lap data or garage/setup linkage.",
     "src/routes/share.ts", await anon("GET", `/share/${f.slug}`));
@@ -477,6 +463,26 @@ async function captureAll(api, anon, f) {
 
   record("error-404", "GET", "/events/:id", "404: not found, or owned by another user.",
     "src/routes/events.ts", await api("GET", "/events/99999"));
+
+  // --- billing (NS-32) ----------------------------------------------------
+  // Deliberately last: the claim makes the harness user Pro for life, and
+  // phase D puts requireEntitlement in front of /garage and the setups routes.
+  // Anything captured after this point would be captured as a *different* tier
+  // from the reads above, so the goldens would pin two inconsistent stories.
+  //
+  // The three store routes need payloads signed by Apple or an answer from
+  // Play, which this harness cannot mint against the pinned root, so they are
+  // exercised by test/api/billing.test.ts instead. All four answer with the
+  // same { ok, entitlement } shape, pinned here through the one route that
+  // needs no store.
+  record("billing-legacy-claim", "POST", "/billing/google/legacy",
+    "The Android transitional build's paid-app claim (X-TE-Client required; honoured before " +
+    "LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
+    "src/routes/billing.ts",
+    await api("POST", "/billing/google/legacy", {}, { "X-TE-Client": "android/1" }));
+  record("me-pro-legacy", "GET", "/me",
+    "The signed-in user once entitled: tier pro, source legacy, no expiry.",
+    "src/routes/me.ts", await api("GET", "/me"));
 }
 
 // ---------------------------------------------------------------------------

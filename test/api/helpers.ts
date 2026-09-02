@@ -25,13 +25,26 @@ export async function sessionFor(userId: number, expiresAt = Date.now() + 86_400
 export type ApiResponse = { status: number; body: any; headers: Headers };
 
 // JSON client for /api/* as a given session token (or anonymous).
-export function apiClient(token?: string) {
-  return async (method: string, path: string, body?: unknown): Promise<ApiResponse> => {
-    const res = await SELF.fetch(`https://example.com/api${path}`, {
+//
+// `origin` exists for the billing tests: the DEV_MODE shortcuts (the login
+// bypass, and the extra Apple trust anchor whose private key is committed in
+// test/fixtures) answer only on a local dev host, so a test that needs one has
+// to arrive on localhost the way wrangler dev does.
+export const DEV_ORIGIN = "http://localhost:8787";
+
+export function apiClient(token?: string, origin = "https://example.com") {
+  return async (
+    method: string,
+    path: string,
+    body?: unknown,
+    headers: Record<string, string> = {}
+  ): Promise<ApiResponse> => {
+    const res = await SELF.fetch(`${origin}/api${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Cookie: `session=${token}` } : {}),
+        ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -40,10 +53,10 @@ export function apiClient(token?: string) {
 }
 
 // A fresh user with a live session, plus a bound client.
-export async function signedInUser() {
+export async function signedInUser(origin?: string) {
   const user = await createUser();
   const token = await sessionFor(user.id);
-  return { ...user, token, api: apiClient(token) };
+  return { ...user, token, api: apiClient(token, origin) };
 }
 
 // Convenience: create an event (find-or-creating its track by name).

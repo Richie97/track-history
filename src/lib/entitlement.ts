@@ -33,8 +33,6 @@ export type SubscriptionStatus =
   | "paused"
   | "pending";
 
-export const ENTITLING_STATUSES: readonly SubscriptionStatus[] = ["active", "grace", "legacy"];
-
 export type SubscriptionRow = {
   provider: Provider;
   status: SubscriptionStatus | string;
@@ -42,8 +40,10 @@ export type SubscriptionRow = {
   auto_renew: number | boolean | null;
 };
 
-// What one row contributes to entitled_until, or null for nothing. The SQL in
-// ENTITLED_UNTIL_SUBQUERY is the same rule; keep the two in step.
+// What one row contributes to entitled_until, or null for nothing. The
+// database computes this itself, in the triggers migration 0017 installs — this
+// is the readable statement of the same rule, and what the unit tests pin.
+// Keep the two in step.
 export function entitledUntilContribution(row: SubscriptionRow): number | null {
   if (row.status === "legacy") return LEGACY_ENTITLED_UNTIL_MS;
   if (row.status === "active" || row.status === "grace") {
@@ -51,17 +51,6 @@ export function entitledUntilContribution(row: SubscriptionRow): number | null {
   }
   return null;
 }
-
-// Recomputes users.entitled_until for one user from their subscription rows.
-// Bind the user id once. MAX ignores NULLs, so a user with no entitling row
-// lands on NULL — free.
-export const RECOMPUTE_ENTITLED_UNTIL_SQL = `UPDATE users SET entitled_until = (
-  SELECT MAX(CASE
-    WHEN status = 'legacy' THEN ${LEGACY_ENTITLED_UNTIL_MS}
-    WHEN status IN ('active', 'grace') THEN expires_at + ${ENTITLEMENT_SLACK_MS}
-    ELSE NULL END)
-  FROM subscriptions WHERE user_id = users.id
-) WHERE id = ?`;
 
 export function isEntitled(entitledUntil: number | null | undefined, nowMs: number): boolean {
   return entitledUntil != null && entitledUntil > nowMs;
@@ -85,13 +74,22 @@ export function entitlementResponse(
   nowMs: number
 ): EntitlementResponse {
   const tier = isEntitled(entitledUntil, nowMs) ? "pro" : "free";
+  // Rank each row as [tier of answer, tie-break]. An entitling *store* row
+  // outranks legacy deliberately: a grandfathered user who also subscribed is
+  // being charged, and reporting `legacy` would leave the client with no store
+  // to point "Manage" at and no way to cancel from the app. Among lapsed rows
+  // the one that ran out most recently wins, so a lapsed subscriber still
+  // learns which store to manage.
+  const rank = (row: SubscriptionRow): [number, number] => {
+    const contribution = entitledUntilContribution(row);
+    if (contribution == null) return [0, row.expires_at ?? -Infinity];
+    return row.provider === "legacy" ? [1, 0] : [2, contribution];
+  };
   let winner: SubscriptionRow | null = null;
-  let best = -Infinity;
+  let best: [number, number] = [-1, -Infinity];
   for (const row of rows) {
-    // Entitling rows rank by contribution; the rest by their own expiry, so
-    // among lapsed rows the latest wins and any entitling row beats them all.
-    const score = entitledUntilContribution(row) ?? (row.expires_at ?? 0) - Number.MAX_SAFE_INTEGER;
-    if (score > best) {
+    const score = rank(row);
+    if (score[0] > best[0] || (score[0] === best[0] && score[1] > best[1])) {
       best = score;
       winner = row;
     }
@@ -121,7 +119,14 @@ export function stripProFields<T extends { channels?: unknown }>(row: T, entitle
 export function legacyClaimOpen(cutoff: string | undefined, nowMs: number): boolean {
   if (cutoff == null || cutoff.trim() === "") return true;
   const trimmed = cutoff.trim();
-  const at = /^\d+$/.test(trimmed) ? Number(trimmed) : Date.parse(trimmed);
+  // Digits are ambiguous, so each form is read as what an operator can only
+  // have meant. Epoch milliseconds are 13 digits; a basic ISO date like
+  // "20261231" is 20,261,231 ms after 1970 — read as epoch it would slam the
+  // window shut the moment it was set, and Date.parse rejects it outright.
+  const basicDate = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed);
+  const at = /^\d{12,}$/.test(trimmed)
+    ? Number(trimmed)
+    : Date.parse(basicDate ? `${basicDate[1]}-${basicDate[2]}-${basicDate[3]}` : trimmed);
   if (!Number.isFinite(at)) return false;
   return nowMs < at;
 }

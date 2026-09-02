@@ -160,6 +160,20 @@ struct EntitlementTests {
         #expect(Entitlement.isLegacyInstall(originalAppVersion: "1.0", firstSubscriptionBuild: "120"))
     }
 
+    @Test("a sandbox receipt is only claimable against a dev server")
+    func legacyClaimEnvironment() {
+        // Production always claims, wherever it is pointed.
+        #expect(Entitlement.legacyClaimIsAccepted(isProductionReceipt: true, serverHost: "trackevolution.app"))
+        #expect(Entitlement.legacyClaimIsAccepted(isProductionReceipt: true, serverHost: "localhost"))
+        // Sandbox (TestFlight) against a deployed server must not ask: the
+        // server refuses it, and the refusal is final.
+        #expect(!Entitlement.legacyClaimIsAccepted(isProductionReceipt: false, serverHost: "trackevolution.app"))
+        #expect(!Entitlement.legacyClaimIsAccepted(isProductionReceipt: false, serverHost: nil))
+        // …but a dev server is exactly where exercising the flow is the point.
+        #expect(Entitlement.legacyClaimIsAccepted(isProductionReceipt: false, serverHost: "localhost"))
+        #expect(Entitlement.legacyClaimIsAccepted(isProductionReceipt: false, serverHost: "127.0.0.1"))
+    }
+
     // MARK: - The StoreKit configuration file
 
     /// `apps/ios/Configuration.storekit` drives local testing; App Store Connect

@@ -355,6 +355,18 @@ final class StoreController {
             Self.log.notice("legacy claim skipped in the Xcode StoreKit environment")
             return false
         }
+        guard Entitlement.legacyClaimIsAccepted(
+            isProductionReceipt: app.environment == .production,
+            serverHost: auth.server.url.host()
+        ) else {
+            // A sandbox receipt against a deployed server: the Worker refuses it
+            // (it would otherwise hand every TestFlight tester a lifetime
+            // entitlement), and its 400 is final — asking would burn the
+            // once-per-account flag and cost a real buyer their grant on the
+            // App Store install that follows.
+            Self.log.notice("legacy claim skipped: sandbox receipt against a deployed server")
+            return false
+        }
         guard Entitlement.isLegacyInstall(originalAppVersion: app.originalAppVersion) else {
             // First downloaded after the app went free: nothing to claim, ever.
             legacyClaims.markClaimed(key)

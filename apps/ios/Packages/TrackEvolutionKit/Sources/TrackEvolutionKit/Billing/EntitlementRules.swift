@@ -122,6 +122,27 @@ public extension Entitlement {
         return compareVersions(originalAppVersion, firstSubscriptionBuild) < 0
     }
 
+    /// Hosts the Worker treats as local development (`src/lib/dev.ts`).
+    static let DEV_HOSTS: Set<String> = ["localhost", "127.0.0.1", "::1", "10.0.2.2"]
+
+    /// Whether a legacy claim signed in this environment can be accepted by the
+    /// server this app is pointed at — the client-side mirror of the Worker's
+    /// rule in `POST /api/billing/apple/legacy`.
+    ///
+    /// A sandbox `AppTransaction` is signed by the same real Apple chain and
+    /// always reports `originalAppVersion` "1.0", so the Worker refuses one
+    /// unless the request arrived on a dev host; without that, every TestFlight
+    /// tester would hold a lifetime entitlement for an app they never bought.
+    /// Asking anyway is worse than not asking: the 400 is final, so the
+    /// once-per-account flag would be set in TestFlight and a tester who
+    /// *did* buy the app would never claim from their eventual App Store
+    /// install. Restore Purchases still forces a retry either way.
+    static func legacyClaimIsAccepted(isProductionReceipt: Bool, serverHost: String?) -> Bool {
+        if isProductionReceipt { return true }
+        guard let serverHost else { return false }
+        return DEV_HOSTS.contains(serverHost)
+    }
+
     /// Dotted build strings ("1.4.2" vs "2"), numerically per segment — the port
     /// of `compareVersions` in `src/routes/billing.ts`, so the app and the server
     /// draw the line in the same place. A segment that isn't a number reads as 0,

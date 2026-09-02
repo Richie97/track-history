@@ -20,14 +20,32 @@ export class JwsError extends Error {}
 // base64 helpers
 // ---------------------------------------------------------------------------
 
+// atob throws a DOMException on an illegal character; every decode here is of
+// attacker-supplied text, so it is converted to JwsError — the one error type
+// the callers map to a 400/401 rather than letting it escape as a 500.
 export function base64UrlDecode(input: string): Uint8Array {
   const b64 = input.replaceAll("-", "+").replaceAll("_", "/");
   const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-  return Uint8Array.from(atob(padded), (ch) => ch.charCodeAt(0));
+  try {
+    return Uint8Array.from(atob(padded), (ch) => ch.charCodeAt(0));
+  } catch {
+    throw new JwsError("malformed base64url");
+  }
 }
 
 export function base64Decode(input: string): Uint8Array {
-  return Uint8Array.from(atob(input), (ch) => ch.charCodeAt(0));
+  try {
+    return Uint8Array.from(atob(input), (ch) => ch.charCodeAt(0));
+  } catch {
+    throw new JwsError("malformed base64");
+  }
+}
+
+// PKCS#8 PEM (a .p8 file's contents, or a service account's private_key) → DER
+// bytes for WebCrypto import. One definition, shared by both stores' key
+// loading — Apple's P-256 and Google's RSA keys are the same armour.
+export function pemToDer(pem: string): Uint8Array {
+  return base64Decode(pem.replace(/-----(BEGIN|END)[^-]+-----/g, "").replace(/\s+/g, ""));
 }
 
 export function base64UrlEncode(bytes: Uint8Array): string {

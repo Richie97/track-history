@@ -5,7 +5,7 @@
 
 import type { Env } from "../../types";
 import type { SubscriptionStatus } from "../entitlement";
-import { JwsError, base64UrlDecode, base64UrlEncode } from "./jws";
+import { JwsError, base64UrlDecode, base64UrlEncode, pemToDer } from "./jws";
 
 export const ANDROID_PACKAGE_NAME = "app.trackevolution";
 export const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
@@ -23,11 +23,6 @@ export function parseServiceAccount(json: string | undefined): ServiceAccount | 
   } catch {
     return null;
   }
-}
-
-function pemToDer(pem: string): Uint8Array {
-  const body = pem.replace(/-----(BEGIN|END)[^-]+-----/g, "").replace(/\s+/g, "");
-  return Uint8Array.from(atob(body), (ch) => ch.charCodeAt(0));
 }
 
 const encodeJson = (v: unknown) => base64UrlEncode(new TextEncoder().encode(JSON.stringify(v)));
@@ -86,9 +81,12 @@ export async function fetchGoogleSubscription(
   sa: ServiceAccount,
   purchaseToken: string,
   nowMs: number,
+  // An access token minted once for a whole cron pass; it outlives the run, so
+  // exchanging one per row is a round trip bought for nothing.
+  accessToken?: string,
   packageName = ANDROID_PACKAGE_NAME
 ): Promise<GoogleSubscriptionPurchase | null> {
-  const token = await googleAccessToken(sa, nowMs);
+  const token = accessToken ?? (await googleAccessToken(sa, nowMs));
   const url =
     `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(packageName)}` +
     `/purchases/subscriptionsv2/tokens/${encodeURIComponent(purchaseToken)}`;
@@ -164,6 +162,27 @@ export function googleSubscriptionState(sub: GoogleSubscriptionPurchase, nowMs: 
 
 type Jwk = { kid?: string; kty: string; n: string; e: string; alg?: string };
 
+// Google's signing keys rotate slowly and every RTDN push needs them, so they
+// are cached for the isolate's life with a short TTL rather than re-fetched per
+// delivery. A key id the cache doesn't know forces one refetch (below), so a
+// rotation is picked up immediately rather than after the TTL.
+const JWKS_TTL_MS = 60 * 60 * 1000;
+let jwksCache: { url: string; keys: Jwk[]; fetchedAt: number } | null = null;
+
+async function googleJwks(url: string, nowMs: number, force = false): Promise<Jwk[]> {
+  if (!force && jwksCache && jwksCache.url === url && nowMs - jwksCache.fetchedAt < JWKS_TTL_MS)
+    return jwksCache.keys;
+  const res = await fetch(url);
+  if (!res.ok) {
+    if (jwksCache?.url === url) return jwksCache.keys; // stale beats nothing
+    throw new JwsError("could not fetch Google keys");
+  }
+  const body = (await res.json().catch(() => null)) as { keys?: Jwk[] } | null;
+  if (!body?.keys) throw new JwsError("could not fetch Google keys");
+  jwksCache = { url, keys: body.keys, fetchedAt: nowMs };
+  return body.keys;
+}
+
 // Verifies the OIDC token Pub/Sub attaches to a push delivery: RS256 under
 // Google's published keys, issued by Google, for this URL, from the expected
 // service account. Throws JwsError on any failure.
@@ -184,10 +203,13 @@ export async function verifyGoogleOidcToken(
   }
   if (header.alg !== "RS256") throw new JwsError("unsupported token algorithm");
 
-  const res = await fetch(opts.jwksUrl ?? GOOGLE_JWKS_URL);
-  if (!res.ok) throw new JwsError("could not fetch Google keys");
-  const { keys } = (await res.json()) as { keys: Jwk[] };
-  const jwk = keys.find((k) => k.kid === header.kid) ?? (keys.length === 1 ? keys[0] : undefined);
+  const keys = await googleJwks(opts.jwksUrl ?? GOOGLE_JWKS_URL, opts.nowMs);
+  let jwk = keys.find((k) => k.kid === header.kid) ?? (keys.length === 1 ? keys[0] : undefined);
+  if (!jwk) {
+    // Unknown kid: the cache may predate a rotation. One forced refetch.
+    const fresh = await googleJwks(opts.jwksUrl ?? GOOGLE_JWKS_URL, opts.nowMs, true);
+    jwk = fresh.find((k) => k.kid === header.kid) ?? (fresh.length === 1 ? fresh[0] : undefined);
+  }
   if (!jwk) throw new JwsError("unknown signing key");
   const key = await crypto.subtle.importKey(
     "jwk",
