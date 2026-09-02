@@ -1,0 +1,14 @@
+{
+  "method": "POST",
+  "path": "/billing/google/legacy",
+  "status": 200,
+  "body": {
+    "entitlement": {
+      "auto_renew": null,
+      "expires_at": null,
+      "source": "legacy",
+      "tier": "pro"
+    },
+    "ok": true
+  }
+}

@@ -6,18 +6,22 @@
     "entitlement": {
       "auto_renew": null,
       "expires_at": null,
-      "source": null,
-      "tier": "free"
+      "source": "legacy",
+      "tier": "pro"
     },
     "totals": {
       "events": 3,
       "track_days": 4
     },
     "user": {
-      "checklist_template": null,
+      "checklist_template": [
+        "Purchase Track insurance",
+        "Torque lug nuts",
+        "Set tire pressures"
+      ],
       "email": "dev@example.com",
       "id": 1,
-      "leaderboard_opt_in": false,
+      "leaderboard_opt_in": true,
       "name": "Dev User",
       "picture": null,
       "share_slug": "contract-fixture"

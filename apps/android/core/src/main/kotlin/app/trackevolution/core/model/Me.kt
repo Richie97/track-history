@@ -8,6 +8,11 @@ import kotlinx.serialization.Serializable
 public data class Me(
     val user: User,
     val totals: Totals,
+    /**
+     * The account's tier (NS-32). Defaults to free so a cached response from a
+     * server that predates subscriptions still decodes.
+     */
+    val entitlement: Entitlement = Entitlement.FREE,
 )
 
 @Serializable

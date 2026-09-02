@@ -4,6 +4,9 @@ import Foundation
 public struct Me: Codable, Hashable, Sendable {
     public var user: User
     public var totals: Totals
+    /// The account's tier (NS-32). Optional so a cached response from a server
+    /// that predates subscriptions still decodes; absent reads as free.
+    public var entitlement: Entitlement?
 }
 
 public struct User: Codable, Hashable, Sendable, Identifiable {

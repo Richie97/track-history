@@ -3,6 +3,12 @@
   "path": "/me",
   "status": 200,
   "body": {
+    "entitlement": {
+      "auto_renew": null,
+      "expires_at": null,
+      "source": null,
+      "tier": "free"
+    },
     "totals": {
       "events": 3,
       "track_days": 4

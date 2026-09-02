@@ -1,0 +1,181 @@
+{
+  "description": "Tier predicates from public/js/entitlement.js over the `entitlement` object GET /api/me returns. Ports (Entitlement in the iOS Kit and Android :core) must match every expected value; the summary's date is rendered as <ms> so the ports pin the wording without a locale. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/entitlement.js",
+  "cases": [
+    {
+      "name": "free, never subscribed",
+      "entitlement": {
+        "tier": "free",
+        "source": null,
+        "expires_at": null,
+        "auto_renew": null
+      },
+      "expected": {
+        "isPro": false,
+        "canRecord": false,
+        "canImport": false,
+        "canViewChannels": false,
+        "canUseGarage": false,
+        "canUseSetups": false,
+        "canViewYearInReview": false,
+        "manageUrl": null,
+        "summary": "Free"
+      }
+    },
+    {
+      "name": "nothing cached (signed out / never fetched)",
+      "entitlement": null,
+      "expected": {
+        "isPro": false,
+        "canRecord": false,
+        "canImport": false,
+        "canViewChannels": false,
+        "canUseGarage": false,
+        "canUseSetups": false,
+        "canViewYearInReview": false,
+        "manageUrl": null,
+        "summary": "Free"
+      }
+    },
+    {
+      "name": "pro via apple, renewing",
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "expected": {
+        "isPro": true,
+        "canRecord": true,
+        "canImport": true,
+        "canViewChannels": true,
+        "canUseGarage": true,
+        "canUseSetups": true,
+        "canViewYearInReview": true,
+        "manageUrl": "https://apps.apple.com/account/subscriptions",
+        "summary": "Pro · renews <1800000000000>"
+      }
+    },
+    {
+      "name": "pro via google, cancelled but paid up",
+      "entitlement": {
+        "tier": "pro",
+        "source": "google",
+        "expires_at": 1800000000000,
+        "auto_renew": false
+      },
+      "expected": {
+        "isPro": true,
+        "canRecord": true,
+        "canImport": true,
+        "canViewChannels": true,
+        "canUseGarage": true,
+        "canUseSetups": true,
+        "canViewYearInReview": true,
+        "manageUrl": "https://play.google.com/store/account/subscriptions?package=app.trackevolution",
+        "summary": "Pro · ends <1800000000000>"
+      }
+    },
+    {
+      "name": "pro via apple, auto_renew unknown",
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": null
+      },
+      "expected": {
+        "isPro": true,
+        "canRecord": true,
+        "canImport": true,
+        "canViewChannels": true,
+        "canUseGarage": true,
+        "canUseSetups": true,
+        "canViewYearInReview": true,
+        "manageUrl": "https://apps.apple.com/account/subscriptions",
+        "summary": "Pro · renews <1800000000000>"
+      }
+    },
+    {
+      "name": "legacy (paid app)",
+      "entitlement": {
+        "tier": "pro",
+        "source": "legacy",
+        "expires_at": null,
+        "auto_renew": null
+      },
+      "expected": {
+        "isPro": true,
+        "canRecord": true,
+        "canImport": true,
+        "canViewChannels": true,
+        "canUseGarage": true,
+        "canUseSetups": true,
+        "canViewYearInReview": true,
+        "manageUrl": null,
+        "summary": "Pro · lifetime"
+      }
+    },
+    {
+      "name": "lapsed apple subscriber",
+      "entitlement": {
+        "tier": "free",
+        "source": "apple",
+        "expires_at": 1700000000000,
+        "auto_renew": false
+      },
+      "expected": {
+        "isPro": false,
+        "canRecord": false,
+        "canImport": false,
+        "canViewChannels": false,
+        "canUseGarage": false,
+        "canUseSetups": false,
+        "canViewYearInReview": false,
+        "manageUrl": "https://apps.apple.com/account/subscriptions",
+        "summary": "Free"
+      }
+    },
+    {
+      "name": "lapsed google subscriber",
+      "entitlement": {
+        "tier": "free",
+        "source": "google",
+        "expires_at": 1700000000000,
+        "auto_renew": false
+      },
+      "expected": {
+        "isPro": false,
+        "canRecord": false,
+        "canImport": false,
+        "canViewChannels": false,
+        "canUseGarage": false,
+        "canUseSetups": false,
+        "canViewYearInReview": false,
+        "manageUrl": "https://play.google.com/store/account/subscriptions?package=app.trackevolution",
+        "summary": "Free"
+      }
+    },
+    {
+      "name": "stale cached pro — expires_at already past on the client's clock",
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1,
+        "auto_renew": true
+      },
+      "expected": {
+        "isPro": true,
+        "canRecord": true,
+        "canImport": true,
+        "canViewChannels": true,
+        "canUseGarage": true,
+        "canUseSetups": true,
+        "canViewYearInReview": true,
+        "manageUrl": "https://apps.apple.com/account/subscriptions",
+        "summary": "Pro · renews <1>"
+      }
+    }
+  ]
+}
