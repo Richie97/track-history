@@ -219,6 +219,13 @@ jobs:
       # Pinned to a tag rather than a commit SHA, which is the weaker choice for
       # a third-party action holding a Play service-account key — worth
       # tightening if this workflow's reach ever grows past test tracks.
+      #
+      # If this step fails with "A change was made to the application outside
+      # of this Edit", nothing is wrong with the build: Play refuses to commit
+      # an edit when the app changed under it, which happens when someone is
+      # saving in the Play Console while the upload runs (or two uploads
+      # overlap — the concurrency group above prevents the second). The edit
+      # is discarded, so the version code is not burned; re-run the job.
       - name: Upload to Play
         if: ${{ !inputs.dry_run }}
         uses: r0adkll/upload-google-play@v1
@@ -233,6 +240,11 @@ jobs:
           # crash and ANR stack traces itself. Without it every release crash
           # reads as a.b.c.
           mappingFile: apps/android/app/build/outputs/mapping/release/mapping.txt
+          # No `debugSymbols`: Play also warns that the bundle "contains native
+          # code" without symbols, but that code is AndroidX's, shipped already
+          # stripped, so AGP's debugSymbolLevel yields no zip (see the release
+          # build type in build.gradle.kts). The warning stays; it is not a
+          # rejection.
           status: completed
 
       - name: Summary
