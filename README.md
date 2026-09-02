@@ -441,6 +441,11 @@ older ref whose count sits below a code `main` has already burned.
 `versionName` comes from `apps/android/app/build.gradle.kts` unless the
 dispatch input overrides it, and the `versionCode` checked in there is only
 what local builds get — it is not kept in step with Play.
+If the upload step fails with *"A change was made to the application outside
+of this Edit"*, the build is fine: Play refuses to commit an edit when the app
+changed under it, typically because someone was saving in the Play Console
+while the workflow ran. The edit is discarded, so its version code is not
+burned; re-run the job.
 
 Two things no build can check, both from NS-27: **Android Auto must be opted out
 in the Play Console** — the code side is guarded by
@@ -458,7 +463,12 @@ requirement, not a size optimization. Its consequence is the mapping file:
 release stack traces are obfuscated, so the workflow refuses to upload a bundle
 with no `mapping.txt`, sends the mapping to Play alongside the bundle (crashes
 and ANRs deobfuscate in the Console) and attaches it to the run for sideloaded
-test builds. Keep rules live in `apps/android/app/proguard-rules.pro`; the
+test builds. Play shows a second warning on every bundle — *"contains native
+code, and you've not uploaded debug symbols"* — that is **not actionable**: the
+only native code is AndroidX's (`graphics-path`, DataStore's shared counter),
+shipped in its AARs already stripped, so AGP's `ndk.debugSymbolLevel` produces
+no symbol file to upload. It is a warning, not a rejection; leave it.
+Keep rules live in `apps/android/app/proguard-rules.pro`; the
 libraries in use ship their own, so that file stays small, and a class R8 can't
 find fails the build with the missing rules listed in
 `app/build/outputs/mapping/release/missing_rules.txt`. To reproduce the

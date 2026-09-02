@@ -102,6 +102,15 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Deliberately no `ndk { debugSymbolLevel = … }`. Play warns on
+            // every bundle that it "contains native code, and you've not
+            // uploaded debug symbols" — the native code is AndroidX's
+            // (graphics-path, datastore's shared counter; the app has none of
+            // its own), and those .so files ship in their AARs already
+            // stripped. Setting debugSymbolLevel makes AGP log "native debug
+            // metadata has already been stripped" for each one and emit no
+            // zip, so there is nothing to upload and the warning cannot be
+            // cleared from this side. It is a warning, not a rejection.
             // Without that environment — every local build — the release variant
             // stays *unsigned* rather than falling back to the debug key:
             // `assembleRelease` still works on a laptop, and an artifact signed
