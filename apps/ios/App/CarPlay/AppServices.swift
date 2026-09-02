@@ -22,4 +22,7 @@ enum AppServices {
     /// Start/stop for callers with no UI — today CarPlay, tomorrow anything else that
     /// has to record without a screen.
     static let remote = RemoteRecorder(recorder: recorder, auth: auth)
+    /// The App Store (NS-32): one listener on `Transaction.updates` for the life of
+    /// the process, started by `TrackEvolutionApp.init` rather than by any view.
+    static let store = StoreController(auth: auth)
 }

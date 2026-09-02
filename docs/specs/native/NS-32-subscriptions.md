@@ -233,6 +233,27 @@ the one irreplaceable thing in the system. Therefore:
   payloads, and the alternative is refusing legitimate grandfathering, so this
   is deliberate. The Android claim below has the same shape for the same
   reason.
+
+  > **Phase B deviation (2026-09): the cutoff is a nullable constant, and it
+  > ships `nil`.** "The first subscription build" cannot be named by the phase
+  > that ships the purchase flow, for two reasons found while building it. The
+  > iOS build number is **Xcode Cloud's** (`CFBundleVersion` is overwritten per
+  > archive — README → App version), so `CURRENT_PROJECT_VERSION` in
+  > `project.yml` is not what any install's `originalAppVersion` reports, and
+  > the number is only known once the build exists. And the app stays a paid
+  > download through phases B and C — an install made from the phase B or C
+  > build *also* paid, and grandfathering it is correct, not a leak. So the
+  > constant is `Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD: String? = nil` in
+  > the Kit, mirroring the Worker's already-optional
+  > `APPLE_FIRST_SUBSCRIPTION_BUILD`: nil reads as "every install bought it" and
+  > every install claims. **Phase D sets both to the first free build's Xcode
+  > Cloud number**, in the same change that flips the price; until then the
+  > server's rule and the app's are identical (`compareVersions` is ported), and
+  > a claim from a not-yet-known build cannot happen because no such build
+  > exists. The claim is skipped in the Xcode StoreKit environment (the Worker
+  > can't verify its signatures) and is retried past its once-only flag by
+  > Restore Purchases, so a paid-app buyer whose launch-time claim failed has a
+  > button to press.
 - **Android has no equivalent.** Play cannot tell a client whether the app was
   bought. The path is a **transitional release** (phase C, shipped *before* the
   price flips): the app sends `X-TE-Client: android/<versionCode>` and calls
@@ -283,6 +304,13 @@ the one irreplaceable thing in the system. Therefore:
   is listened to from app launch for the app's whole life, and every verified
   transaction — purchase, renewal, restore — is posted to the server before it
   is `finish()`ed.
+
+  > **Phase B note.** CarPlay gets the same gate as the phone's Start button,
+  > decided from the same cached entitlement, but a head unit can't present a
+  > sheet — so `RemoteRecorder` answers with a `.pro` refusal whose message says
+  > to subscribe on the phone. Both gates read `Entitlement.gatesEnabled`, which
+  > ships `false`; the decision logic (`ProGate`) is tested in both states with
+  > the constant injected, so phase D's flip is one line with green tests.
 - Android: Play Billing goes in `:app` (`billing-ktx`); `:core` gets the
   `Entitlement` model, the client methods and the predicates, and
   `checkNoAndroidDependency` keeps it that way. `queryPurchasesAsync` runs on

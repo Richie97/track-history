@@ -10,9 +10,14 @@ import TrackEvolutionKit
 /// the view tree and keeps going with this screen closed and the phone locked.
 struct RecordingScreen: View {
     @Environment(RecordingController.self) private var recorder
+    @Environment(AuthController.self) private var auth
 
     /// The event a saved session will hang off, when it's already known.
     let eventId: Int?
+
+    /// The Pro gate's answer to a Start tap (NS-32 rule 5). Off the button, not
+    /// the screen: the screen already presents an alert.
+    @State private var showingPaywall = false
 
     /// Where "done with this recording" leads once it has been discarded.
     ///
@@ -130,17 +135,37 @@ struct RecordingScreen: View {
                     }
                     .buttonStyle(TEButtonStyle(kind: .danger))
                 } else {
-                    Button("Start recording") {
-                        do {
-                            try recorder.start(eventId: eventId)
-                            if recorder.isRecording { Haptics.confirm() }
-                        } catch {
-                            Haptics.warn()
-                        }
-                    }
-                    .buttonStyle(TEButtonStyle(kind: .accent))
+                    startButton
                 }
             }
+        }
+    }
+
+    /// Start — behind the Pro gate, which is a paywall sheet rather than a disabled
+    /// button (NS-32 rule 5). Decided from the **cached** entitlement, so a driver
+    /// who was Pro at the last sync records in a paddock with no signal; and
+    /// `Entitlement.gatesEnabled` is off until phase D, so today everyone starts.
+    ///
+    /// The sheet hangs off this button, not the screen: the screen's root already
+    /// presents the "Can't record" alert, and two presentations on one view is a
+    /// documented way to wedge SwiftUI here.
+    private var startButton: some View {
+        Button("Start recording") {
+            switch ProGate.decide(.record, entitlement: auth.entitlement) {
+            case .paywall:
+                showingPaywall = true
+            case .proceed:
+                do {
+                    try recorder.start(eventId: eventId)
+                    if recorder.isRecording { Haptics.confirm() }
+                } catch {
+                    Haptics.warn()
+                }
+            }
+        }
+        .buttonStyle(TEButtonStyle(kind: .accent))
+        .sheet(isPresented: $showingPaywall) {
+            PaywallSheet(context: .record)
         }
     }
 
