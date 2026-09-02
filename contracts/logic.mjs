@@ -29,6 +29,7 @@ import { applyGate } from "../public/js/import/ui.js";
 import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
 import { attachLapChannels } from "../public/js/import/channels.js";
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
+import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import {
   alignLapPair,
   comparableLaps,
@@ -348,6 +349,40 @@ const lapDeltaFixture = {
     refTimeSeriesUnscaled: lapTimeSeries(deltaRefLap.speed, 20, null),
     slowVsRef: deltaSeries(deltaSlowLap, deltaRefLap, 20),
     zeroClampVsRef: deltaSeries(deltaZeroClampLap, deltaRefLap, 20),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Sectors and the theoretical best lap (#146): public/js/sectors.js. What is
+// worth pinning: the fractional-of-own-distance boundaries with their linear
+// interpolation of the time series, the round-then-residual rule that makes
+// every lap's splits sum exactly to its lap time (a port that rounds all n
+// sectors is off by a millisecond and disagrees with the lap timer), and the
+// best-per-sector reduction with its earliest-lap tie rule. The laps are the
+// delta fixture's, plus a lap with no speed series that must be skipped.
+const sectorLaps = [
+  deltaRefLap,
+  deltaSlowLap,
+  deltaZeroClampLap,
+  { timeMs: 92000, rpm: Array.from({ length: 90 }, () => 5000) }, // no speed: left out
+  { timeMs: 91200, speed: deltaRefLap.speed }, // ties every sector with lap 0: the earlier lap keeps it
+];
+const sectorChannels = { v: 1, dStepM: 20, laps: sectorLaps.map((l, i) => ({ n: i + 1, ...l })) };
+const sectorsFixture = {
+  description:
+    "Sector-split reference output from public/js/sectors.js (sectorTimes / " +
+    "sessionSectors). Ports must reproduce every integer exactly. Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/sectors.js",
+  input: { channels: sectorChannels, n: 3, microsectorN: 6 },
+  expected: {
+    session: sessionSectors(sectorChannels, 3),
+    // A finer split of one lap (microsectors), and the degenerate single sector.
+    refMicrosectors: sectorTimes(deltaRefLap, 20, 6),
+    refSingleSector: sectorTimes(deltaRefLap, 20, 1),
+    // An untimed lap falls back to the integrated duration.
+    untimedSectors: sectorTimes({ speed: deltaRefLap.speed, timeMs: null }, 20, 3),
+    noSpeed: sectorTimes(sectorLaps[3], 20, 3),
   },
 };
 
@@ -830,6 +865,7 @@ writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixtur
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "lap-delta.json"), JSON.stringify(lapDeltaFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "compare-laps.json"), JSON.stringify(compareLapsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "sectors.json"), JSON.stringify(sectorsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
@@ -842,6 +878,7 @@ console.log(
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
 console.log(`wrote contracts/logic/lap-delta.json (${lapDeltaFixture.expected.slowVsRef.length} grid points)`);
 console.log(`wrote contracts/logic/compare-laps.json (${cmpRows.length} pickable laps)`);
+console.log(`wrote contracts/logic/sectors.json (${sectorsFixture.expected.session.laps.length} laps split)`);
 console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );

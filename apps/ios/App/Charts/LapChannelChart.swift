@@ -74,6 +74,9 @@ struct LapChannelPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             chips
+            // Sector splits + theoretical best for the highlighted laps (#146),
+            // above the charts as on the web.
+            SectorTable(channels: channels, lit: lit, slots: Self.slots, lapNumber: lapNumber(forLapIndex:))
             deltaChart
             ForEach(present, id: \.self) { channel in
                 channelChart(channel)

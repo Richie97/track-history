@@ -9,6 +9,7 @@ import {
   lengthMismatchRatio,
 } from "./js/compare-laps.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
+import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -1144,6 +1145,9 @@ async function viewLapCompare(trackId, params) {
       ? `<div class="hint" style="margin:8px 0">⚠️ These laps cover driven distances ${Math.round(mismatch * 100)}% apart — likely a different layout or start/finish line, so the distance alignment may be off.</div>`
       : "";
 
+  // Sector splits for the pair, on the same aligned grid the charts use; the
+  // "best sectors" row is the theoretical best of the two.
+  const sectorsHtml = sectorTableHtml(aligned, lit, (i) => sideLabels[i]);
   const chartsHtml = [
     deltaChartSvg(aligned, lit, refIdx, `${[rowA, rowB][refIdx].lapNum} (${fmtDate([rowA, rowB][refIdx].date)})`),
     ...CHANNEL_DEFS.map((def) => channelChartSvg(def, aligned, lit)),
@@ -1163,6 +1167,7 @@ async function viewLapCompare(trackId, params) {
     ${warnHtml}
     <h2>Head to head</h2>
     ${tableHtml}
+    ${sectorsHtml}
     <div class="chart-card">
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
       <div class="hint" style="margin:2px 0 6px">The delta chart shows where time is gained or lost vs the faster lap; the channels below show why.</div>
@@ -1268,6 +1273,12 @@ async function viewEvent(eventId) {
         stats.push(
           `pace ${fmtDelta(slope)}/lap${slope > 150 ? " — fading (tires? heat?)" : slope < -150 ? " — still improving" : ""}`
         );
+      // Sector analysis (js/sectors.js): what stringing the session's best
+      // sectors together would have been worth. The splits themselves are in
+      // the channel panel below.
+      const sec = s.channels?.laps?.length ? sessionSectors(s.channels) : null;
+      if (sec && sec.laps.length >= 2 && sec.gapMs > 0)
+        stats.push(`theoretical best <span class="t">${fmtMs(sec.theoreticalBestMs)}</span>`);
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
@@ -1564,7 +1575,11 @@ async function viewEvent(eventId) {
   // inside it render lazily on first expand.
   view.querySelectorAll("[data-channel-graphs]").forEach((el) => {
     const s = e.sessions.find((x) => String(x.id) === el.dataset.channelGraphs);
-    if (s) bindChannelGraphs(el, s.channels, s.laps);
+    if (s)
+      bindChannelGraphs(el, s.channels, s.laps, {
+        // Sector splits + theoretical best for the highlighted laps, above the charts.
+        renderExtras: (lit, dispN) => sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+      });
   });
 
   view.querySelectorAll("[data-del-session]").forEach((btn) => {

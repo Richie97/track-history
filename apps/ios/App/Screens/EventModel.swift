@@ -183,6 +183,12 @@ extension Session {
             let trend = slope > 150 ? " — fading (tires? heat?)" : slope < -150 ? " — still improving" : ""
             parts.append("pace \(LapTime.fmtDelta(Int(slope.rounded())))/lap\(trend)")
         }
+        // Sector analysis (`Sectors`): what stringing the session's best sectors
+        // together would have been worth. The splits themselves are in the
+        // channel-graphs sheet.
+        if let channels, let sec = Sectors.sessionSectors(channels), sec.laps.count >= 2, sec.gapMs > 0 {
+            parts.append("theoretical best \(LapTime.fmtMs(sec.theoreticalBestMs))")
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
