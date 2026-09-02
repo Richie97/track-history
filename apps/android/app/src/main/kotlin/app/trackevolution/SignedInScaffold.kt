@@ -25,9 +25,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthState
+import app.trackevolution.auth.CustomTabs
 import app.trackevolution.auth.checklistTemplate
+import app.trackevolution.auth.entitlement
 import app.trackevolution.auth.hasCustomChecklistTemplate
+import app.trackevolution.billing.BillingController
+import app.trackevolution.billing.PaywallSheet
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.navigation.AppNavHost
 import app.trackevolution.navigation.Route
 import app.trackevolution.navigation.Router
@@ -63,6 +68,8 @@ fun SignedInScaffold(
     api: ApiClient,
     auth: AuthController,
     authState: AuthState,
+    /** The purchase terminal behind the paywall sheet (NS-32 phase C). */
+    billing: BillingController,
     router: Router,
     flow: RecordingFlow,
     serverUrl: String,
@@ -88,6 +95,15 @@ fun SignedInScaffold(
     // Saveable: the system killing the app mid-review must not lose the fact
     // that there is a recording waiting to be saved.
     var reviewing by rememberSaveable { mutableStateOf(false) }
+
+    // The paywall (NS-32 rule 5): a sheet over whatever asked for Pro — the
+    // recorder's Start, the importer, Settings' Subscribe — never a disabled
+    // control. The gates themselves are decided in :core (`Entitlement.recordGate`
+    // / `importGate`) against the entitlement on the auth state, which offline
+    // is the cached `/api/me`; they answer PROCEED for everyone until phase D
+    // flips `Entitlement.GATES_ENABLED`.
+    var paywall by rememberSaveable { mutableStateOf(false) }
+    val entitlement = authState.entitlement
 
     val onRecordScreen = entry?.destination?.hasRoute(Route.Record::class) == true
     val atRoot = entry?.destination?.hasRoute(Route.Dashboard::class) == true
@@ -139,9 +155,17 @@ fun SignedInScaffold(
     }
 
     // Videos shared into the app open the chooser, which parses them on arrival.
-    // Signed-out arrivals park here until there is a graph to send them to.
+    // Signed-out arrivals park here until there is a graph to send them to. The
+    // share sheet is a third door into the importer, so it meets the same gate
+    // as the event page's button.
     LaunchedEffect(incomingImport) {
-        if (incomingImport != null) nav.navigate(Route.Import())
+        if (incomingImport == null) return@LaunchedEffect
+        if (Entitlement.importGate(entitlement) == Entitlement.Gate.PAYWALL) {
+            onConsumedIncomingImport()
+            paywall = true
+        } else {
+            nav.navigate(Route.Import())
+        }
     }
 
     // Leaving review does not stop or discard anything: the recording stays
@@ -205,6 +229,8 @@ fun SignedInScaffold(
                 onStartRecording = onStartRecording,
                 onStopRecording = { Recorder.stop(context) },
                 onSignOut = onSignOut,
+                entitlement = entitlement,
+                onRequirePro = { paywall = true },
                 onImportParsed = { eventId, clips: List<ImportedClip> ->
                     // Same shape as a recording stopping: the review covers the
                     // graph, and the chooser comes off the stack underneath it
@@ -229,5 +255,13 @@ fun SignedInScaffold(
                 )
             }
         }
+    }
+
+    if (paywall) {
+        PaywallSheet(
+            billing = billing,
+            onDismiss = { paywall = false; billing.clearMessage() },
+            onOpenLink = { CustomTabs.open(context, it) },
+        )
     }
 }

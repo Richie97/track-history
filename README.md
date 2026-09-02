@@ -311,6 +311,27 @@ service, and the screens. Things worth knowing before touching either:
   and back never stops one. A debug build also keeps a "TE Recorder" launcher
   icon for driving the service directly; feed either with
   `adb emu geo fix <lon> <lat>` on an emulator.
+- **Pro is sold through Play Billing** (the server side is under
+  [Subscriptions](#subscriptions-track-evolution-pro) below). The purchase
+  flow is `billing/` in `:app`; `:core` holds only the entitlement model and
+  the tier predicates, and its no-Android-dependency check keeps the store SDK
+  out. Testing it needs the **internal track**, not a local build: Play only
+  vends products to an app it installed, so add your Google account as a
+  **licence tester** (Play Console → *Settings → License testing*), install the
+  build from the internal-testing opt-in link, and subscribe from Settings →
+  *Subscription* — licence testers are charged nothing, and test subscriptions
+  renew on a minutes-long clock, so a cancel or lapse can be watched land in
+  Settings within the hour. Point the app at the hosted server, not
+  `wrangler dev`: the token is verified against the Play Developer API with
+  `GOOGLE_PLAY_SERVICE_ACCOUNT`, which a dev server doesn't carry (it answers
+  `503 billing not configured`, and the purchase then stays *unacknowledged*
+  until a server does accept it — deliberately, since Play refunds an
+  unacknowledged subscription after three days rather than leaving a paying
+  user on Free). This build is also the **transitional release** for
+  grandfathering: it sends `X-TE-Client: android/<versionCode>` on every
+  request and claims the legacy grant once per install on launch, which shows
+  in Settings as *Pro · lifetime*. The tier gates themselves stay off until
+  phase D.
 - **The palette is generated, not typed.** `public/style.css` is the source of
   truth for the design system, and `node apps/android/tools/generate-tokens.mjs`
   turns its dark and light token blocks into

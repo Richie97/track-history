@@ -18,6 +18,7 @@ import androidx.navigation.toRoute
 import app.trackevolution.auth.ChecklistTemplateStore
 import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.offline.OfflineStore
 import app.trackevolution.recording.RecordScreen
 import app.trackevolution.recording.RecorderState
@@ -85,6 +86,18 @@ fun AppNavHost(
     /** Videos handed in by the share sheet, waiting for the import chooser. */
     incomingImport: List<Uri>? = null,
     onConsumedIncomingImport: () -> Unit = {},
+    /**
+     * The account's tier as the server last said it (NS-32) — offline, the
+     * cached `/api/me`. Null is "no session", which the gates treat as free.
+     * Defaulted so a test composing the graph for something else need not care,
+     * and because the gates are off until phase D anyway.
+     */
+    entitlement: Entitlement? = null,
+    /**
+     * A Pro surface was asked for by a free account with the gates on, or
+     * Settings' Subscribe was tapped: the scaffold shows the paywall sheet.
+     */
+    onRequirePro: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -118,7 +131,16 @@ fun AppNavHost(
                 onEdit = { nav.navigate(Route.EventForm(editId = it)) },
                 onOpenTrack = { nav.navigate(Route.Track(it)) },
                 onRecord = { nav.navigate(Route.Record(eventId = it)) },
-                onImport = { nav.navigate(Route.Import(eventId = it)) },
+                // Gated at the point of import (NS-32 rule 5) — the review and
+                // the save behind it never are, so a clip that took an hour to
+                // line up can't be lost to a lapse.
+                onImport = { id ->
+                    if (Entitlement.importGate(entitlement) == Entitlement.Gate.PAYWALL) {
+                        onRequirePro()
+                    } else {
+                        nav.navigate(Route.Import(eventId = id))
+                    }
+                },
                 onDeleted = { nav.popBackStack() },
                 // Always: the recorder is built into this app, unlike the web
                 // build where `platform.bgLocation` is null and it is hidden.
@@ -192,6 +214,8 @@ fun AppNavHost(
                 onOpenVehicle = { nav.navigate(Route.Vehicle(it)) },
                 onShare = share,
                 onSignOut = onSignOut,
+                entitlement = entitlement ?: Entitlement.FREE,
+                onSubscribe = onRequirePro,
             )
         }
 
@@ -223,7 +247,16 @@ fun AppNavHost(
                 state = recorderState,
                 isAttached = targetId != null,
                 eventLabel = eventLabel,
-                onStart = { onStartRecording(route.eventId) },
+                // The recorder's gate is at *start* (NS-32 rule 5): a free account
+                // with the gates on sees the paywall here instead of a disabled
+                // button, and a cached Pro proceeds offline. Stop is never gated.
+                onStart = {
+                    if (Entitlement.recordGate(entitlement) == Entitlement.Gate.PAYWALL) {
+                        onRequirePro()
+                    } else {
+                        onStartRecording(route.eventId)
+                    }
+                },
                 onStop = onStopRecording,
             )
         }

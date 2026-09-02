@@ -25,6 +25,14 @@ public sealed class ApiException(
     /** 401. Distinct so the app can drop straight to re-auth. */
     public class Unauthorized(message: String) : ApiException(401, message)
 
+    /**
+     * 402 `{ error: "pro required" }` — a Pro read the account isn't entitled
+     * to (NS-32 rule 5). Its own case, like [Unauthorized], so the UI can show
+     * the paywall rather than the sync banner's generic "server rejected".
+     * No write route ever answers this; phase D wires the reads that do.
+     */
+    public class PaymentRequired(message: String) : ApiException(402, message)
+
     /** Any other non-2xx, carrying the server's status and message. */
     public class Server(status: Int, message: String) : ApiException(status, message)
 
@@ -41,6 +49,8 @@ public sealed class ApiException(
 
     public val isUnauthorized: Boolean get() = this is Unauthorized
 
+    public val isPaymentRequired: Boolean get() = this is PaymentRequired
+
     public companion object {
         /**
          * Maps a non-2xx response to an exception, preferring the server's own
@@ -51,7 +61,11 @@ public sealed class ApiException(
             val message = runCatching {
                 LENIENT.decodeFromString(ServerErrorBody.serializer(), body).error
             }.getOrNull() ?: "Request failed ($status)"
-            return if (status == 401) Unauthorized(message) else Server(status, message)
+            return when (status) {
+                401 -> Unauthorized(message)
+                402 -> PaymentRequired(message)
+                else -> Server(status, message)
+            }
         }
 
         /** Error bodies are parsed leniently: a truncated one must still yield a status. */

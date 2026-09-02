@@ -29,6 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthProvidersStore
@@ -128,6 +132,20 @@ class MainActivity : ComponentActivity() {
         )
         flow = RecordingFlow(scope = lifecycleScope, api = api)
         auth.start()
+        // Billing follows the session (NS-32 phase C). Each time the app becomes
+        // signed in — at launch on a stored token, or after the browser hop — the
+        // once-per-install legacy claim runs and any purchase held while signed
+        // out is posted. Thirty-day sessions mean this cannot hang off the code
+        // exchange: an already-signed-in user never passes through it again.
+        lifecycleScope.launch {
+            auth.state.map { it is AuthState.SignedIn }.distinctUntilChanged().filter { it }
+                .collect { services.billing.onSignedIn() }
+        }
+        // Every billing answer carries the fresh entitlement; it lands on the auth
+        // state so the gates, Settings and the paywall read one value.
+        lifecycleScope.launch {
+            services.billing.entitlement.filterNotNull().collect(auth::setEntitlement)
+        }
         // A recording a previous launch never finished is offered back rather
         // than left on disk unmentioned.
         Recorder.recoverPending(this)
@@ -145,6 +163,7 @@ class MainActivity : ComponentActivity() {
                         api = api,
                         auth = auth,
                         authState = state,
+                        billing = services.billing,
                         router = router,
                         flow = flow,
                         serverUrl = server,
