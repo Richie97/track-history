@@ -764,8 +764,13 @@ server):
   same service account (or set `GOOGLE_RTDN_EMAIL` to the one it uses). Android
   Auto stays opted out.
 - Optional: `APPLE_FIRST_SUBSCRIPTION_BUILD` makes the server also check that a
-  legacy claim's `originalApplicationVersion` predates the first subscription
-  build, on top of the app's own check.
+  legacy claim's `originalApplicationVersion` predates the first **free** build,
+  on top of the app's own check (`Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD` in
+  the iOS Kit, the same `compareVersions` rule). Both stay unset through phases
+  B and C, when the app is still a paid download and every install legitimately
+  claims; phase D sets both to the first free build's number — which is **Xcode
+  Cloud's** build number, not `CURRENT_PROJECT_VERSION`, so it can only be read
+  off that archive once it exists.
 
 Local testing needs no store: `test/api/billing.test.ts` signs payloads with a
 synthetic certificate chain (`test/fixtures/billing/`, rebuilt by `build.sh`)

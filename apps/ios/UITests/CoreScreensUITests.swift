@@ -212,6 +212,43 @@ final class CoreScreensUITests: XCTestCase {
         attach(app, named: "settings")
     }
 
+    /// The subscription row (NS-32 phase B) and the paywall behind it.
+    ///
+    /// The dev account is free, so Settings must say so and offer the way in; the
+    /// sheet must carry what App Store guideline 3.1.2 checks for regardless of
+    /// whether any product loaded — Restore Purchases and both legal links — which
+    /// is why this needs no store: the scheme's `.storekit` file may or may not be
+    /// in play under `xcodebuild test`, and the assertions don't depend on it.
+    func testSettingsOffersTheSubscriptionAndThePaywallCarriesTheLegalLinks() throws {
+        let app = try launchSignedIn()
+
+        app.buttons["Account"].tap()
+
+        let summary = app.staticTexts["subscriptionSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15), "Settings should carry the subscription row")
+        XCTAssertEqual(summary.label, "Free", "the dev account has no entitlement")
+
+        let subscribe = app.buttons["subscribeButton"]
+        XCTAssertTrue(scrollTo(subscribe, in: app), "a free account should be offered Pro")
+        subscribe.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["Track Evolution Pro"].waitForExistence(timeout: 10),
+            "Subscribe should open the paywall sheet"
+        )
+        XCTAssertTrue(app.buttons["paywallRestore"].waitForExistence(timeout: 10), "Restore Purchases is mandatory")
+        XCTAssertTrue(app.links["paywallPrivacy"].exists || app.buttons["paywallPrivacy"].exists, "with the privacy policy")
+        XCTAssertTrue(app.links["paywallTerms"].exists || app.buttons["paywallTerms"].exists, "and the terms")
+        XCTAssertTrue(
+            app.staticTexts["Free is the logbook. Pro is the analysis."].exists,
+            "and the tier boundary in one line"
+        )
+        attach(app, named: "paywall")
+
+        app.buttons["paywallDone"].tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), "Done should return to Settings")
+    }
+
     // MARK: - Helpers
 
     /// Create an event through the form and land on it.

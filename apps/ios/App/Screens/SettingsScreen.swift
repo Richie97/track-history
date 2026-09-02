@@ -20,8 +20,10 @@ struct SettingsScreen: View {
     @Environment(AuthController.self) private var auth
     @Environment(ThemeStore.self) private var theme
     @Environment(AppRouter.self) private var router
+    @Environment(StoreController.self) private var store
 
     @State private var model: SettingsModel?
+    @State private var showingPaywall = false
     @State private var confirmingSignOut = false
     @State private var confirmingDisableShare = false
     @State private var deletingVehicle: Vehicle?
@@ -90,6 +92,9 @@ struct SettingsScreen: View {
         @Bindable var model = model
         return TEPage {
             accountCard(model)
+
+            TESectionHeader("Subscription")
+            subscriptionCard
 
             TESectionHeader("Appearance")
             TECard {
@@ -211,6 +216,82 @@ struct SettingsScreen: View {
                 .foregroundStyle(Color(.accentContrast))
                 .frame(width: 44, height: 44)
                 .background(Color(.accent), in: .circle)
+        }
+    }
+
+    // MARK: - Subscription
+
+    /// Tier and source, as the server last said them (NS-32): "Pro · renews Mar 4,
+    /// 2027", "Pro · lifetime" for a paid-app buyer, or "Free" with the way in.
+    /// Manage goes to the store that sold it — the system sheet for the App Store,
+    /// a link for Google Play — and legacy has nothing to manage.
+    ///
+    /// The paywall hangs off its button. This screen already presents three
+    /// confirmation dialogs, and a fourth presentation on its root is the SwiftUI
+    /// hazard the README documents.
+    private var subscriptionCard: some View {
+        let entitlement = auth.entitlement
+        return TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Entitlement.entitlementSummary(entitlement, fmtDate: PaywallSheet.fmtDate))
+                    .teStyle(.h3)
+                    .foregroundStyle(Color(.textStrong))
+                    .accessibilityIdentifier("subscriptionSummary")
+                Text(subscriptionDetail(entitlement))
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+
+                if Entitlement.isPro(entitlement) {
+                    manageControl(entitlement)
+                } else {
+                    Button("Subscribe to Pro") { showingPaywall = true }
+                        .buttonStyle(TEButtonStyle(kind: .accent))
+                        .accessibilityIdentifier("subscribeButton")
+                        .sheet(isPresented: $showingPaywall) {
+                            PaywallSheet(context: .general)
+                        }
+                    if let url = Entitlement.manageUrl(entitlement), entitlement?.source == .google {
+                        // Lapsed on Android: the way back is Play's, not ours.
+                        Link("Manage on Google Play", destination: url)
+                            .buttonStyle(TEButtonStyle(kind: .quiet))
+                    }
+                }
+
+                if let error = store.error {
+                    TEErrorBanner(message: error)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func manageControl(_ entitlement: Entitlement?) -> some View {
+        switch entitlement?.source {
+        case .apple:
+            Button("Manage subscription") { Task { await store.showManageSubscriptions() } }
+                .buttonStyle(TEButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("manageSubscription")
+        case .google:
+            if let url = Entitlement.manageUrl(entitlement) {
+                Link("Manage on Google Play", destination: url)
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("manageSubscription")
+            }
+        case .legacy, nil:
+            EmptyView()
+        }
+    }
+
+    private func subscriptionDetail(_ entitlement: Entitlement?) -> String {
+        guard Entitlement.isPro(entitlement) else {
+            return "Free is the logbook. Pro adds the GPS lap recorder, video telemetry import, "
+                + "channel graphs and garage wear tracking — on every device you sign in on."
+        }
+        switch entitlement?.source {
+        case .legacy: return "You bought the app before subscriptions — Pro is yours for life."
+        case .apple: return "Billed through the App Store. Cancel or switch plans in your Apple ID subscriptions."
+        case .google: return "Billed through Google Play. Cancel or switch plans there."
+        case nil: return "Track Evolution Pro is active on this account."
         }
     }
 

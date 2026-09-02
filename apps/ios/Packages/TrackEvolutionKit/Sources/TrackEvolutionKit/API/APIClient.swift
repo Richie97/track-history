@@ -280,6 +280,31 @@ public actor APIClient {
         )
     }
 
+    // MARK: - Billing (NS-32)
+
+    /// Hand a verified StoreKit transaction to the server, which verifies the JWS
+    /// itself and upserts the subscription row. **The caller finishes the
+    /// transaction only after this returns** — a `finish()` before the server has
+    /// the row is how a paying user ends up free. Every billing route answers with
+    /// the fresh entitlement so the UI can update without a second round trip.
+    ///
+    /// Never queued offline: a purchase the server hasn't seen is redelivered by
+    /// StoreKit (`Transaction.updates`, `Transaction.unfinished`) until it is
+    /// finished, which is a better queue than ours — it survives reinstalls.
+    public func verifyAppleTransaction(jws: String, renewalJws: String? = nil) async throws -> BillingResponse {
+        try await send(
+            "POST", "/billing/apple",
+            body: AppleTransactionBody(jws: jws, renewalJws: renewalJws), as: BillingResponse.self
+        )
+    }
+
+    /// The paid-app grandfather claim: the `AppTransaction` JWS, once per account.
+    /// A 409 means the app transaction is already bound to another account, which
+    /// the caller treats as done rather than retrying.
+    public func claimAppleLegacy(jws: String) async throws -> BillingResponse {
+        try await send("POST", "/billing/apple/legacy", body: AppleLegacyBody(jws: jws), as: BillingResponse.self)
+    }
+
     // MARK: - Sharing
 
     public func shareSlug(_ slug: String) async throws -> String {

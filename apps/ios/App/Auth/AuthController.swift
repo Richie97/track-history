@@ -40,6 +40,37 @@ final class AuthController {
         return nil
     }
 
+    /// A token exists, whether or not the account has loaded. What `StoreController`
+    /// asks before posting a transaction: a purchase needs an account to land on.
+    var isSignedIn: Bool {
+        if case .signedIn = state { return true }
+        return false
+    }
+
+    /// The account's tier as the server last said it (NS-32). Nil when nothing has
+    /// loaded, which the Kit's predicates read as free. Offline, this is the cached
+    /// `/api/me` — and the value the recorder and import gates deliberately trust.
+    var entitlement: Entitlement? {
+        me?.entitlement
+    }
+
+    /// A billing route answered with the fresh entitlement: keep the account in step
+    /// without a round trip, so Settings and the gates agree at once.
+    func applyEntitlement(_ entitlement: Entitlement) {
+        guard var current = me else { return }
+        current.entitlement = entitlement
+        state = .signedIn(current)
+    }
+
+    /// Re-fetch the account, best effort. Failing leaves whatever was there — the
+    /// caller has usually just applied a fresher entitlement than the cache holds.
+    /// The fetch itself writes the offline cache, which is the point: the paddock
+    /// gate reads the cached `/api/me`.
+    func refreshAccount() async {
+        guard isSignedIn, let fresh = try? await api.me() else { return }
+        state = .signedIn(fresh)
+    }
+
     /// The prep list a new event's checklist starts from: the user's own when they
     /// have edited one in Settings, else the app's built-in default.
     ///
