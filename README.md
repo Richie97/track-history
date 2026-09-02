@@ -109,6 +109,13 @@ your events, and re-run `npm run seed:generate`.
 
 ## Deploying to Cloudflare (one-time setup)
 
+> **Migrate before you deploy.** Every authenticated request reads
+> `users.entitled_until` in the same statement as the session, so a Worker
+> deployed ahead of its migrations answers 500 on all of `/api/*`, not just the
+> new routes. `npm run db:migrate:remote` first, `npm run deploy` second — on
+> the first deploy and on every upgrade.
+
+
 1. **Login & create the database**
 
    ```sh
@@ -178,6 +185,11 @@ your events, and re-run `npm run seed:generate`.
    npx wrangler secret put GOOGLE_PLAY_SERVICE_ACCOUNT # the service account's JSON key file, whole
    npm run deploy
    ```
+
+   `LEGACY_CUTOFF` (phase D) belongs with these, as a **secret** rather than a
+   `wrangler.jsonc` var: the contract harness starts the Worker from that file
+   and pins the entitlement shapes through the Android legacy claim, which the
+   cutoff would turn into a 403 and make `npm run contracts:check` fail.
 
 Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,

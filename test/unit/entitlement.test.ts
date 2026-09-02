@@ -9,7 +9,7 @@ import {
   parseClientHeader,
   stripProFields,
 } from "../../src/lib/entitlement";
-import { appleSubscriptionState } from "../../src/lib/billing/apple";
+import { appleBundleId, appleSubscriptionState } from "../../src/lib/billing/apple";
 import { googleSubscriptionState } from "../../src/lib/billing/google";
 import { compareVersions } from "../../src/routes/billing";
 
@@ -43,12 +43,33 @@ describe("entitlementResponse", () => {
       entitlementResponse(NOW + DAY + ENTITLEMENT_SLACK_MS, [{ provider: "apple", status: "active", expires_at: NOW + DAY, auto_renew: 1 }], NOW)
     ).toEqual({ tier: "pro", source: "apple", expires_at: NOW + DAY, auto_renew: true });
   });
-  it("legacy has no expiry and beats a store row", () => {
+  it("legacy has no expiry, and is the answer when it is the only entitling row", () => {
     const rows = [
-      { provider: "google" as const, status: "active", expires_at: NOW + DAY, auto_renew: 0 },
+      { provider: "google" as const, status: "expired", expires_at: NOW - DAY, auto_renew: 0 },
       { provider: "legacy" as const, status: "legacy", expires_at: null, auto_renew: null },
     ];
     expect(entitlementResponse(LEGACY_ENTITLED_UNTIL_MS, rows, NOW)).toEqual({ tier: "pro", source: "legacy", expires_at: null, auto_renew: null });
+  });
+
+  it("a live store subscription outranks legacy — a grandfathered user who is being charged must be able to cancel", () => {
+    const rows = [
+      { provider: "legacy" as const, status: "legacy", expires_at: null, auto_renew: null },
+      { provider: "google" as const, status: "active", expires_at: NOW + DAY, auto_renew: 1 },
+    ];
+    expect(entitlementResponse(LEGACY_ENTITLED_UNTIL_MS, rows, NOW)).toEqual({
+      tier: "pro",
+      source: "google",
+      expires_at: NOW + DAY,
+      auto_renew: true,
+    });
+  });
+
+  it("among two entitling store rows the later expiry wins", () => {
+    const rows = [
+      { provider: "apple" as const, status: "active", expires_at: NOW + DAY, auto_renew: 1 },
+      { provider: "google" as const, status: "active", expires_at: NOW + 30 * DAY, auto_renew: 0 },
+    ];
+    expect(entitlementResponse(NOW + 30 * DAY, rows, NOW)).toMatchObject({ source: "google", expires_at: NOW + 30 * DAY });
   });
   it("a lapsed user still learns which store to manage", () => {
     const rows = [
@@ -88,6 +109,14 @@ describe("legacyClaimOpen", () => {
     expect(legacyClaimOpen(String(NOW), NOW)).toBe(false);
     expect(legacyClaimOpen("soon", NOW)).toBe(false);
   });
+
+  it("reads a basic ISO date as a date, not as epoch milliseconds", () => {
+    // NOW is 2027-01-15. "20271231" is 20,271,231 ms after 1970 — read as
+    // epoch ms it would slam the window shut the moment an operator set it,
+    // with nothing to see; read as a date it is still months away.
+    expect(legacyClaimOpen("20271231", NOW)).toBe(true);
+    expect(legacyClaimOpen("20260101", NOW)).toBe(false);
+  });
 });
 
 describe("parseClientHeader", () => {
@@ -99,6 +128,20 @@ describe("parseClientHeader", () => {
     for (const h of [undefined, "", "android", "android/", "android/x", "Android/1", "android/1/2"]) {
       expect(parseClientHeader(h), String(h)).toBeNull();
     }
+  });
+});
+
+describe("appleBundleId", () => {
+  it("strips a Team ID prefix but leaves a bare bundle id alone", () => {
+    expect(appleBundleId({ IOS_APP_ID: "L3NS86NMXZ.app.trackevolution" })).toBe("app.trackevolution");
+    // A fork that sets the bundle id without a team prefix must not lose its
+    // first segment and then fail every receipt with "wrong bundle id".
+    expect(appleBundleId({ IOS_APP_ID: "app.trackevolution" })).toBe("app.trackevolution");
+    expect(appleBundleId({ IOS_APP_ID: "com.example.my.app" })).toBe("com.example.my.app");
+  });
+  it("is empty when unset, which the routes report as not configured", () => {
+    expect(appleBundleId({})).toBe("");
+    expect(appleBundleId({ IOS_APP_ID: "  " })).toBe("");
   });
 });
 

@@ -13,11 +13,11 @@ import {
   appleBundleId,
   appleEnvironment,
   appleRootsDer,
-  appleSubscriptionState,
+  appleSignedDate,
   verifyAppleAppTransaction,
-  verifyAppleRenewalInfo,
-  verifyAppleTransaction,
+  verifyAppleTransactionPair,
 } from "../lib/billing/apple";
+import { isDevHost } from "../lib/dev";
 import { fetchGoogleSubscription, googleSubscriptionState, parseServiceAccount } from "../lib/billing/google";
 import { SubscriptionConflict, retireSubscription, subscriptionsForUserStmt, upsertSubscription } from "../lib/billing/store";
 import { entitlementResponse, legacyClaimOpen, parseClientHeader, type SubscriptionRow } from "../lib/entitlement";
@@ -59,17 +59,17 @@ async function recordPurchase(c: Ctx, nowMs: number, work: () => Promise<void>) 
 billing.post("/billing/apple", async (c) => {
   const body = await jsonBody(c);
   if (!body || typeof body.jws !== "string") return c.json({ error: "jws required" }, 400);
-  const nowMs = Date.now();
-  const rootsDer = appleRootsDer(c.env);
   const bundleId = appleBundleId(c.env);
+  if (!bundleId) return c.json({ error: "billing not configured" }, 503);
+  const nowMs = Date.now();
+  const rootsDer = appleRootsDer(c.env, c.req.url);
   return recordPurchase(c, nowMs, async () => {
-    const tx = await verifyAppleTransaction(body.jws, { bundleId, rootsDer });
+    const { tx, renewal, state, signedDate } = await verifyAppleTransactionPair(body.jws, body.renewal_jws, {
+      bundleId,
+      rootsDer,
+      nowMs,
+    });
     if (tx.type != null && tx.type !== APPLE_SUBSCRIPTION_TYPE) throw new JwsError("not a subscription");
-    const renewal =
-      typeof body.renewal_jws === "string"
-        ? await verifyAppleRenewalInfo(body.renewal_jws, { rootsDer, originalTransactionId: tx.originalTransactionId })
-        : null;
-    const state = appleSubscriptionState(tx, renewal, nowMs);
     await upsertSubscription(
       c.env.DB,
       {
@@ -81,6 +81,10 @@ billing.post("/billing/apple", async (c) => {
         expiresAt: state.expiresAt,
         autoRenew: state.autoRenew,
         environment: appleEnvironment(tx.environment),
+        // Ordering guard: a client can re-post any JWS it still holds, and a
+        // pre-refund transaction re-posted after a REVOKE would otherwise
+        // restore the entitlement Apple just took away.
+        signedDate,
         raw: { transaction: tx, renewal },
       },
       nowMs
@@ -94,9 +98,20 @@ billing.post("/billing/apple", async (c) => {
 billing.post("/billing/apple/legacy", async (c) => {
   const body = await jsonBody(c);
   if (!body || typeof body.jws !== "string") return c.json({ error: "jws required" }, 400);
+  const bundleId = appleBundleId(c.env);
+  if (!bundleId) return c.json({ error: "billing not configured" }, 503);
   const nowMs = Date.now();
+  const rootsDer = appleRootsDer(c.env, c.req.url);
+  // A sandbox AppTransaction is signed by the same real Apple chain, and in
+  // the sandbox originalApplicationVersion is always "1.0" — so without this
+  // every TestFlight tester would claim a permanent lifetime entitlement for
+  // an app they never bought. Sandbox receipts are honoured only on a dev
+  // host, where the whole point is to exercise the flow.
+  const sandboxOk = isDevHost(c.env, c.req.url);
   return recordPurchase(c, nowMs, async () => {
-    const app = await verifyAppleAppTransaction(body.jws, { bundleId: appleBundleId(c.env), rootsDer: appleRootsDer(c.env) });
+    const app = await verifyAppleAppTransaction(body.jws, { bundleId, rootsDer });
+    if (!sandboxOk && appleEnvironment(app.receiptType) !== "production")
+      throw new JwsError("app transaction is not from the App Store");
     const firstSubscriptionBuild = c.env.APPLE_FIRST_SUBSCRIPTION_BUILD;
     if (firstSubscriptionBuild && compareVersions(app.originalApplicationVersion, firstSubscriptionBuild) >= 0)
       throw new JwsError("app was first bought after subscriptions launched");
@@ -114,6 +129,7 @@ billing.post("/billing/apple/legacy", async (c) => {
         expiresAt: null,
         autoRenew: null,
         environment: appleEnvironment(app.receiptType),
+        signedDate: appleSignedDate(app),
         raw: app,
       },
       nowMs
@@ -163,7 +179,7 @@ billing.post("/billing/google", async (c) => {
       },
       nowMs
     );
-    if (state.linkedPurchaseToken) await retireSubscription(c.env.DB, userId, "google", state.linkedPurchaseToken, nowMs);
+    if (state.linkedPurchaseToken) await retireSubscription(c.env.DB, "google", state.linkedPurchaseToken, nowMs);
   });
 });
 

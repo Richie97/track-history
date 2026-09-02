@@ -128,24 +128,6 @@
       "source": "src/routes/vehicles.ts"
     },
     {
-      "name": "billing-legacy-claim",
-      "file": "billing-legacy-claim.json",
-      "method": "POST",
-      "path": "/billing/google/legacy",
-      "status": 200,
-      "description": "The Android transitional build's paid-app claim (X-TE-Client required; honoured before LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
-      "source": "src/routes/billing.ts"
-    },
-    {
-      "name": "me-pro-legacy",
-      "file": "me-pro-legacy.json",
-      "method": "GET",
-      "path": "/me",
-      "status": 200,
-      "description": "The signed-in user once entitled: tier pro, source legacy, no expiry.",
-      "source": "src/routes/me.ts"
-    },
-    {
       "name": "share-public",
       "file": "share-public.json",
       "method": "GET",
@@ -396,6 +378,24 @@
       "status": 404,
       "description": "404: not found, or owned by another user.",
       "source": "src/routes/events.ts"
+    },
+    {
+      "name": "billing-legacy-claim",
+      "file": "billing-legacy-claim.json",
+      "method": "POST",
+      "path": "/billing/google/legacy",
+      "status": 200,
+      "description": "The Android transitional build's paid-app claim (X-TE-Client required; honoured before LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
+      "source": "src/routes/billing.ts"
+    },
+    {
+      "name": "me-pro-legacy",
+      "file": "me-pro-legacy.json",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "description": "The signed-in user once entitled: tier pro, source legacy, no expiry.",
+      "source": "src/routes/me.ts"
     }
   ]
 }

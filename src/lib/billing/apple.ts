@@ -9,30 +9,54 @@
 import type { Env } from "../../types";
 import { signES256 } from "../apple";
 import { APPLE_ROOTS_DER_B64 } from "./apple-roots";
-import { JwsError, base64Decode, verifyX5cJws } from "./jws";
+import { JwsError, base64Decode, pemToDer, verifyX5cJws } from "./jws";
+import { isDevHost } from "../dev";
 import type { SubscriptionStatus } from "../entitlement";
 
 export const APPLE_SUBSCRIPTION_TYPE = "Auto-Renewable Subscription";
 
-// The bundle id is the part of IOS_APP_ID after the Team ID prefix
-// ("L3NS86NMXZ.app.trackevolution" → "app.trackevolution").
+// The bundle id is IOS_APP_ID without its Team ID prefix
+// ("L3NS86NMXZ.app.trackevolution" → "app.trackevolution"). A Team ID is
+// exactly ten upper-case alphanumerics, so a value that is already a bare
+// bundle id ("app.trackevolution", as a fork might set) is left alone rather
+// than losing its first segment. Returns "" when IOS_APP_ID is unset, which
+// the routes treat as "billing not configured" instead of failing every
+// receipt with "wrong bundle id".
 export function appleBundleId(env: Pick<Env, "IOS_APP_ID">): string {
-  const id = env.IOS_APP_ID ?? "";
+  const id = (env.IOS_APP_ID ?? "").trim();
   const dot = id.indexOf(".");
-  return dot >= 0 ? id.slice(dot + 1) : id;
+  if (dot < 0) return id;
+  return /^[A-Z0-9]{10}$/.test(id.slice(0, dot)) ? id.slice(dot + 1) : id;
 }
 
-function pemToDer(pem: string): Uint8Array {
-  const body = pem.replace(/-----(BEGIN|END)[^-]+-----/g, "").replace(/\s+/g, "");
-  return base64Decode(body);
+// The pinned roots, decoded once — the value never changes.
+const PINNED_ROOTS: readonly Uint8Array[] = APPLE_ROOTS_DER_B64.map(base64Decode);
+
+// Trust anchors. The extra test root exists so the API tests can verify a
+// chain they hold the key to, and its private key is *committed* under
+// test/fixtures/ — so it is gated on the request having arrived on a local dev
+// host, exactly like the DEV_MODE login bypass (lib/dev.ts). A DEV_MODE=1 that
+// leaks into a deployed environment therefore grants nothing. `requestUrl` is
+// omitted by the cron, which has no request and so never trusts the test root.
+export function appleRootsDer(
+  env: Pick<Env, "DEV_MODE" | "APPLE_IAP_TEST_ROOT_PEM">,
+  requestUrl: string
+): readonly Uint8Array[] {
+  if (!env.APPLE_IAP_TEST_ROOT_PEM || !isDevHost(env, requestUrl)) return PINNED_ROOTS;
+  return [...PINNED_ROOTS, pemToDer(env.APPLE_IAP_TEST_ROOT_PEM)];
 }
 
-// Trust anchors: the pinned Apple roots, plus — under DEV_MODE only — a test
-// root so the API tests can verify a chain they hold the key to.
-export function appleRootsDer(env: Pick<Env, "DEV_MODE" | "APPLE_IAP_TEST_ROOT_PEM">): Uint8Array[] {
-  const roots = APPLE_ROOTS_DER_B64.map(base64Decode);
-  if (env.DEV_MODE === "1" && env.APPLE_IAP_TEST_ROOT_PEM) roots.push(pemToDer(env.APPLE_IAP_TEST_ROOT_PEM));
-  return roots;
+// Trust anchors for payloads the *cron* fetched from Apple's own Server API.
+// Here DEV_MODE alone is enough, and the hostname gate would be meaningless:
+// there is no request and nothing user-supplied in the path — the JWS came
+// from api.storekit.itunes.apple.com over TLS. A leaked DEV_MODE therefore
+// grants nothing, because no attacker can make Apple's API answer with a
+// payload signed by the test key.
+export function appleStoreApiRootsDer(
+  env: Pick<Env, "DEV_MODE" | "APPLE_IAP_TEST_ROOT_PEM">
+): readonly Uint8Array[] {
+  if (env.DEV_MODE !== "1" || !env.APPLE_IAP_TEST_ROOT_PEM) return PINNED_ROOTS;
+  return [...PINNED_ROOTS, pemToDer(env.APPLE_IAP_TEST_ROOT_PEM)];
 }
 
 // JWSTransactionDecodedPayload — the fields we read.
@@ -69,6 +93,12 @@ export type AppleAppTransaction = {
 };
 
 type VerifyOpts = { bundleId: string; rootsDer: readonly Uint8Array[]; nowMs?: number };
+
+// A signed payload's own signing instant, used to order Apple's writes: a
+// notification Apple retries for days carries the payload it was issued with,
+// so an older one must never overwrite newer state (see store.ts).
+export const appleSignedDate = (p: { signedDate?: number }): number | null =>
+  typeof p.signedDate === "number" ? p.signedDate : null;
 
 async function verifyFor(jws: unknown, opts: VerifyOpts): Promise<Record<string, unknown>> {
   if (typeof jws !== "string" || !jws) throw new JwsError("missing JWS");
@@ -125,6 +155,34 @@ export function appleSubscriptionState(
   if (grace != null && grace > nowMs) return { status: "grace", expiresAt: grace, autoRenew };
   if (renewal?.isInBillingRetryPeriod) return { status: "billing_retry", expiresAt: expires, autoRenew };
   return { status: "expired", expiresAt: expires, autoRenew };
+}
+
+export type VerifiedAppleTransaction = {
+  tx: AppleTransaction;
+  renewal: AppleRenewalInfo | null;
+  state: StoreState;
+  signedDate: number | null;
+};
+
+// Verify a transaction and (when present) its renewal info, then derive the
+// row state — the sequence every Apple write path needs, in one place so the
+// purchase POST, the notification webhook and the cron cannot drift apart on
+// what a payload means.
+export async function verifyAppleTransactionPair(
+  jws: unknown,
+  renewalJws: unknown,
+  opts: VerifyOpts & { nowMs: number }
+): Promise<VerifiedAppleTransaction> {
+  const tx = await verifyAppleTransaction(jws, opts);
+  const renewal =
+    typeof renewalJws === "string" && renewalJws
+      ? await verifyAppleRenewalInfo(renewalJws, {
+          rootsDer: opts.rootsDer,
+          nowMs: opts.nowMs,
+          originalTransactionId: tx.originalTransactionId,
+        })
+      : null;
+  return { tx, renewal, state: appleSubscriptionState(tx, renewal, opts.nowMs), signedDate: appleSignedDate(tx) };
 }
 
 export const appleEnvironment = (value: string | undefined): string =>
@@ -188,11 +246,14 @@ export async function fetchAppleSubscription(
   cfg: AppleIapConfig,
   originalTransactionId: string,
   environment: string,
-  nowMs: number
+  nowMs: number,
+  // A token minted once for a whole cron pass. It is valid for five minutes,
+  // so re-signing one per row is pure work.
+  token?: string
 ): Promise<AppleLastTransaction | null> {
   const base = environment === "sandbox" ? APPLE_SERVER_API.sandbox : APPLE_SERVER_API.production;
   const res = await fetch(`${base}/inApps/v1/subscriptions/${encodeURIComponent(originalTransactionId)}`, {
-    headers: { Authorization: `Bearer ${await appleServerApiToken(cfg, nowMs)}` },
+    headers: { Authorization: `Bearer ${token ?? (await appleServerApiToken(cfg, nowMs))}` },
   });
   if (!res.ok) return null;
   const body = (await res.json().catch(() => null)) as {

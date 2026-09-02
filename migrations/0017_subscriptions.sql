@@ -20,6 +20,12 @@ CREATE TABLE subscriptions (
   expires_at INTEGER,
   auto_renew INTEGER,
   environment TEXT,
+  -- The signing instant of the store payload this row was last written from.
+  -- Apple retries a failed notification for days carrying its *original*
+  -- payload, so an older one must never overwrite newer state; every Apple
+  -- write is guarded on this (src/lib/billing/store.ts). Google writes come
+  -- from a live API read and simply carry the write's own clock.
+  signed_date INTEGER,
   raw TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -29,3 +35,44 @@ CREATE INDEX idx_subscriptions_user ON subscriptions(user_id);
 CREATE INDEX idx_subscriptions_expires ON subscriptions(provider, expires_at);
 
 ALTER TABLE users ADD COLUMN entitled_until INTEGER;
+
+-- entitled_until is derived, so it is maintained by triggers rather than by
+-- route code — the same rule every other derived column in this schema follows
+-- (updated_at, migrations 0011/0012). A direct write to `subscriptions` from a
+-- support script or a backfill then cannot leave a user's tier stale, which is
+-- exactly the drift a recompute-at-each-call-site would allow.
+--
+-- The rule: legacy is a far-future sentinel; an active or grace row entitles
+-- until its expiry plus three days of slack for webhook lag; anything else
+-- contributes nothing, and MAX over no contribution is NULL — free. This
+-- mirrors entitledUntilContribution in src/lib/entitlement.ts; keep the two in
+-- step.
+CREATE TRIGGER subscriptions_entitled_ai AFTER INSERT ON subscriptions BEGIN
+  UPDATE users SET entitled_until = (
+    SELECT MAX(CASE
+      WHEN status = 'legacy' THEN 4102444800000
+      WHEN status IN ('active', 'grace') THEN expires_at + 259200000
+      ELSE NULL END)
+    FROM subscriptions WHERE user_id = NEW.user_id
+  ) WHERE id = NEW.user_id;
+END;
+
+CREATE TRIGGER subscriptions_entitled_au AFTER UPDATE ON subscriptions BEGIN
+  UPDATE users SET entitled_until = (
+    SELECT MAX(CASE
+      WHEN status = 'legacy' THEN 4102444800000
+      WHEN status IN ('active', 'grace') THEN expires_at + 259200000
+      ELSE NULL END)
+    FROM subscriptions WHERE user_id = NEW.user_id
+  ) WHERE id = NEW.user_id;
+END;
+
+CREATE TRIGGER subscriptions_entitled_ad AFTER DELETE ON subscriptions BEGIN
+  UPDATE users SET entitled_until = (
+    SELECT MAX(CASE
+      WHEN status = 'legacy' THEN 4102444800000
+      WHEN status IN ('active', 'grace') THEN expires_at + 259200000
+      ELSE NULL END)
+    FROM subscriptions WHERE user_id = OLD.user_id
+  ) WHERE id = OLD.user_id;
+END;
