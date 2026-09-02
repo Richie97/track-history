@@ -63,3 +63,14 @@ jobs:
       - name: App unit tests
         working-directory: apps/android
         run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+      # The release variant runs R8 (Play scores obfuscation and shrinking, and
+      # flags an unminified app), and R8 is where a debug build's success stops
+      # meaning anything: a class it can't resolve, or a library that needs a
+      # keep rule the debug variant never exercised, fails *this* build and no
+      # other. Without this step that failure would first surface in the deploy
+      # workflow, after the merge. Unsigned here — no keystore in the
+      # environment — which is exactly what build.gradle.kts does on a laptop.
+      - name: Assemble the minified release bundle
+        working-directory: apps/android
+        run: ./gradlew :app:bundleRelease --no-daemon
