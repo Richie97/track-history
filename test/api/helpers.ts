@@ -59,6 +59,23 @@ export async function signedInUser(origin?: string) {
   return { ...user, token, api: apiClient(token, origin) };
 }
 
+// The same, entitled. Pro is a `subscriptions` row like any other — a `legacy`
+// one here, because it never expires and needs no store payload, so a test
+// about the garage or a setup sheet doesn't have to sign a receipt to get past
+// requireEntitlement. `users.entitled_until` follows from the triggers in
+// migration 0017, exactly as it would in production.
+export async function signedInProUser(origin?: string) {
+  const user = await signedInUser(origin);
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO subscriptions (user_id, provider, product_id, external_id, status, expires_at, auto_renew, environment, created_at, updated_at)
+     VALUES (?, 'legacy', 'apple-paid-app', ?, 'legacy', NULL, NULL, 'production', ?, ?)`
+  )
+    .bind(user.id, `test-legacy-${user.id}-${now}`, now, now)
+    .run();
+  return user;
+}
+
 // Convenience: create an event (find-or-creating its track by name).
 export async function createEvent(
   api: ReturnType<typeof apiClient>,

@@ -6,8 +6,8 @@
     "entitlement": {
       "auto_renew": null,
       "expires_at": null,
-      "source": null,
-      "tier": "free"
+      "source": "legacy",
+      "tier": "pro"
     },
     "totals": {
       "events": 3,

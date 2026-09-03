@@ -55,13 +55,12 @@ public data class Entitlement(
         public val FREE: Entitlement = Entitlement(tier = Tier.FREE)
 
         /**
-         * **Phase D flips this.** While false, every client-side gate answers
-         * [Gate.PROCEED] regardless of tier, so the purchase flow, the paywall
-         * and the Settings row ship dark (phase C) and the flip is a one-line
-         * change with its tests already green. The gates take the flag as a
+         * On since phase D. Phase C shipped the purchase flow, the paywall and
+         * the Settings row dark behind this one constant; flipping it is what
+         * turned the recorder and import gates on. The gates take the flag as a
          * parameter defaulting to this, so the tests exercise both values.
          */
-        public const val GATES_ENABLED: Boolean = false
+        public const val GATES_ENABLED: Boolean = true
 
         public const val APPLE_MANAGE_URL: String = "https://apps.apple.com/account/subscriptions"
         public const val GOOGLE_MANAGE_URL: String =
@@ -88,6 +87,13 @@ public data class Entitlement(
         public fun canUseGarage(entitlement: Entitlement?): Boolean = isPro(entitlement)
         public fun canUseSetups(entitlement: Entitlement?): Boolean = isPro(entitlement)
         public fun canViewYearInReview(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /**
+         * The web's two-event lap overlay. Ported for name parity with
+         * `public/js/entitlement.js` and the shared fixture, though no Android
+         * screen reads it — the overlay is web-only (docs/specs/native/README.md).
+         */
+        public fun canCompareEvents(entitlement: Entitlement?): Boolean = isPro(entitlement)
 
         /**
          * Where "Manage subscription" goes, by the store that sold it. Legacy has

@@ -40,6 +40,11 @@ export const canUseGarage = (entitlement) => isPro(entitlement);
 export const canUseSetups = (entitlement) => isPro(entitlement);
 export const canViewYearInReview = (entitlement) => isPro(entitlement);
 
+// The two-event lap overlay — one track, two events, lap by lap. Separate from
+// canViewChannels because it reads no channel data at all, only lap times, so
+// the two would move independently if the tier boundary ever did.
+export const canCompareEvents = (entitlement) => isPro(entitlement);
+
 // Where "Manage subscription" goes, by the store that sold it. Legacy has no
 // subscription to manage; free has nothing yet — both return null.
 export const APPLE_MANAGE_URL = "https://apps.apple.com/account/subscriptions";

@@ -36,6 +36,15 @@ sealed interface LoadState {
 
     /** Carries the server's own message — the API contract is `{ error }`. */
     data class Failed(val message: String) : LoadState
+
+    /**
+     * The 402 (NS-32 rule 5). Its own case rather than a [Failed] carrying
+     * "pro required": a Pro-gated *read* has to look like an offer, not like a
+     * server error, which is the same reason `ApiException.PaymentRequired` is
+     * distinct from `Server`. The screen supplies the words, since only it
+     * knows which feature the reader was reaching for.
+     */
+    data class Paywall(val title: String, val blurb: String) : LoadState
 }
 
 /**
@@ -49,6 +58,7 @@ fun TELoadable(
     state: LoadState,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onSubscribe: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     when (state) {
@@ -69,6 +79,33 @@ fun TELoadable(
             )
             TextButton(onClick = onRetry) {
                 Text("Retry", style = TrackTheme.typography.bodyStrong, color = TrackTheme.colors.accentInk)
+            }
+        }
+
+        is LoadState.Paywall -> Column(
+            modifier = modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                state.title,
+                style = TrackTheme.typography.h3,
+                color = TrackTheme.colors.textStrong,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                state.blurb,
+                style = TrackTheme.typography.sm,
+                color = TrackTheme.colors.textMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            TextButton(onClick = onSubscribe) {
+                Text(
+                    "See Track Evolution Pro",
+                    style = TrackTheme.typography.bodyStrong,
+                    color = TrackTheme.colors.accentInk,
+                )
             }
         }
 

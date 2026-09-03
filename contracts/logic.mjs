@@ -70,6 +70,7 @@ import {
   canUseSetups,
   canViewChannels,
   canViewYearInReview,
+  canCompareEvents,
   entitlementSummary,
   isPro,
   manageUrl,
@@ -895,6 +896,7 @@ const entitlementCases = [
     canUseGarage: canUseGarage(c.entitlement),
     canUseSetups: canUseSetups(c.entitlement),
     canViewYearInReview: canViewYearInReview(c.entitlement),
+    canCompareEvents: canCompareEvents(c.entitlement),
     manageUrl: manageUrl(c.entitlement),
     // The date text is locale work; the fixture pins the shape around it.
     summary: entitlementSummary(c.entitlement, (ms) => `<${ms}>`),

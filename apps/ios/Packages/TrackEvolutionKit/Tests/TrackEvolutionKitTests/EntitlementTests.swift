@@ -27,6 +27,7 @@ struct EntitlementTests {
             #expect(Entitlement.canUseGarage(e) == c.expected.canUseGarage, Comment(rawValue: c.name))
             #expect(Entitlement.canUseSetups(e) == c.expected.canUseSetups, Comment(rawValue: c.name))
             #expect(Entitlement.canViewYearInReview(e) == c.expected.canViewYearInReview, Comment(rawValue: c.name))
+            #expect(Entitlement.canCompareEvents(e) == c.expected.canCompareEvents, Comment(rawValue: c.name))
             #expect(Entitlement.manageUrl(e)?.absoluteString == c.expected.manageUrl, Comment(rawValue: c.name))
             #expect(Entitlement.entitlementSummary(e, fmtDate: fmt) == c.expected.summary, Comment(rawValue: c.name))
         }
@@ -93,11 +94,14 @@ struct EntitlementTests {
 
     // MARK: - Gates
 
-    @Test func theGatesShipOff() {
-        #expect(!Entitlement.gatesEnabled, "phase D flips this; until then nothing is gated")
-        // With the constant as shipped, a free account proceeds everywhere.
-        #expect(ProGate.decide(.record, entitlement: nil) == .proceed)
-        #expect(ProGate.decide(.videoImport, entitlement: Entitlement.FREE_ENTITLEMENT) == .proceed)
+    @Test func theGatesAreOn() {
+        #expect(Entitlement.gatesEnabled, "phase D turned these on")
+        // With the constant as shipped, a free account meets the paywall and a
+        // Pro one doesn't — the default-argument path, which is what every
+        // screen actually calls.
+        #expect(ProGate.decide(.record, entitlement: nil) == .paywall)
+        #expect(ProGate.decide(.videoImport, entitlement: Entitlement.FREE_ENTITLEMENT) == .paywall)
+        #expect(ProGate.decide(.record, entitlement: pro()) == .proceed)
     }
 
     @Test func gatesOffLetEveryoneThrough() {
@@ -218,6 +222,7 @@ struct EntitlementFixture: Decodable {
         let canUseGarage: Bool
         let canUseSetups: Bool
         let canViewYearInReview: Bool
+        let canCompareEvents: Bool
         let manageUrl: String?
         let summary: String
     }

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
+import { requireEntitlement } from "../middleware";
 import { type VehicleHoursEvent, vehicleHoursEventsStmt } from "../db";
 import { isValidDate, isValidPartKind } from "../lib/validate";
 import { wearEstimate } from "../lib/wear";
@@ -109,7 +110,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 // hours and its parts, each carrying measurements and a wear estimate
 // (lib/wear.ts). One round trip backs both the vehicle page and the
 // dashboard's "due soon" strip, and caches cleanly for offline reads.
-vehicles.get("/garage", async (c) => {
+vehicles.get("/garage", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const db = c.env.DB;
   const today = todayISO();
@@ -249,7 +250,7 @@ function validatePart(body: any, creating: boolean): { error: string } | { value
   return { values };
 }
 
-vehicles.post("/vehicles/:id/parts", async (c) => {
+vehicles.post("/vehicles/:id/parts", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const vehicleId = c.req.param("id");
   const owned = await c.env.DB.prepare("SELECT id FROM vehicles WHERE id = ? AND user_id = ?")
@@ -284,7 +285,7 @@ vehicles.post("/vehicles/:id/parts", async (c) => {
   return c.json({ id: row!.id }, 201);
 });
 
-vehicles.put("/parts/:id", async (c) => {
+vehicles.put("/parts/:id", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const body = await c.req.json<any>();
@@ -308,7 +309,7 @@ vehicles.put("/parts/:id", async (c) => {
 // reset without re-entering the part. The old row keeps its measurements and
 // history; the successor's expected life recomputes from retired lifecycles
 // (which now include the old part), falling back to the old part's value.
-vehicles.post("/parts/:id/refresh", async (c) => {
+vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const old = await c.env.DB.prepare(
     `SELECT p.id, p.vehicle_id, p.kind, p.name, p.installed_on, p.retired_on,
@@ -361,7 +362,7 @@ vehicles.post("/parts/:id/refresh", async (c) => {
   return c.json({ id: row!.id, retired_id: old.id }, 201);
 });
 
-vehicles.delete("/parts/:id", async (c) => {
+vehicles.delete("/parts/:id", requireEntitlement, async (c) => {
   const res = await c.env.DB.prepare(
     "DELETE FROM parts WHERE id = ? AND vehicle_id IN (SELECT id FROM vehicles WHERE user_id = ?)"
   )
@@ -371,7 +372,7 @@ vehicles.delete("/parts/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-vehicles.post("/parts/:id/measurements", async (c) => {
+vehicles.post("/parts/:id/measurements", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const body = await c.req.json<{ measured_on?: unknown; value?: unknown; unit?: unknown }>();
@@ -393,7 +394,7 @@ vehicles.post("/parts/:id/measurements", async (c) => {
   return c.json({ id: row.id }, 201);
 });
 
-vehicles.delete("/parts/:id/measurements/:mid", async (c) => {
+vehicles.delete("/parts/:id/measurements/:mid", requireEntitlement, async (c) => {
   const res = await c.env.DB.prepare(
     `DELETE FROM part_measurements WHERE id = ?1 AND part_id = ?2
        AND part_id IN (SELECT p.id FROM parts p JOIN vehicles v ON v.id = p.vehicle_id WHERE v.user_id = ?3)`

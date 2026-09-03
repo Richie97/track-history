@@ -57,6 +57,11 @@ class EntitlementTest {
                 Entitlement.canViewYearInReview(entitlement),
                 "$name: canViewYearInReview",
             )
+            assertEquals(
+                flag("canCompareEvents"),
+                Entitlement.canCompareEvents(entitlement),
+                "$name: canCompareEvents",
+            )
 
             val manage = expected["manageUrl"]!!
             assertEquals(
@@ -86,17 +91,19 @@ class EntitlementTest {
         assertEquals("Pro · renews 2027-01-15", Entitlement.entitlementSummary(pro))
     }
 
-    // ---- The gates (phase D flips GATES_ENABLED) --------------------------
+    // ---- The gates (on since phase D) -------------------------------------
 
     private val free = Entitlement.FREE
     private val pro = Entitlement(tier = Entitlement.Tier.PRO, source = Entitlement.Source.GOOGLE, expiresAt = 1L, autoRenew = true)
 
     @Test
-    fun `gates ship off in this phase`() {
-        assertFalse(Entitlement.GATES_ENABLED, "phase C ships the gates dark; phase D flips this")
-        assertEquals(Gate.PROCEED, Entitlement.recordGate(free))
-        assertEquals(Gate.PROCEED, Entitlement.importGate(free))
-        assertEquals(Gate.PROCEED, Entitlement.recordGate(null))
+    fun `the gates are on in this phase`() {
+        assertTrue(Entitlement.GATES_ENABLED, "phase D turned the gates on")
+        // The default-argument path, which is what every screen actually calls.
+        assertEquals(Gate.PAYWALL, Entitlement.recordGate(free))
+        assertEquals(Gate.PAYWALL, Entitlement.importGate(free))
+        assertEquals(Gate.PAYWALL, Entitlement.recordGate(null))
+        assertEquals(Gate.PROCEED, Entitlement.recordGate(pro))
     }
 
     @Test

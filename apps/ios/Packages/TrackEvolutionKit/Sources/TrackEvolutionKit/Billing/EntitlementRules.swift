@@ -40,6 +40,11 @@ public extension Entitlement {
     static func canUseSetups(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
     static func canViewYearInReview(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
+    /// The web's two-event lap overlay. Ported for name parity with
+    /// `public/js/entitlement.js` and the shared fixture, though no native screen
+    /// reads it — the overlay is web-only (`docs/specs/native/README.md`).
+    static func canCompareEvents(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
+
     /// Where "Manage subscription" goes, by the store that sold it.
     static let APPLE_MANAGE_URL = URL(string: "https://apps.apple.com/account/subscriptions")!
     static let GOOGLE_MANAGE_URL = URL(
@@ -82,12 +87,11 @@ public extension Entitlement {
 
     // MARK: - Gates
 
-    /// **Phase D flips this to `true`.** Until then every Pro surface is reachable
-    /// by every account: the purchase flow ships dark (NS-32 phase B), and this
-    /// one constant is what turns the recorder-start and import gates on. The
-    /// decision logic behind it (`ProGate`) is tested with the value injected, so
-    /// the flip is a one-line change whose tests are already green.
-    static let gatesEnabled = false
+    /// On since phase D. Phases B and C shipped the purchase flow dark behind
+    /// this one constant; flipping it is what turned the recorder-start and
+    /// import gates on. The decision logic behind it (`ProGate`) is tested with
+    /// the value injected, so both states stay covered.
+    static let gatesEnabled = true
 
     // MARK: - The App Store
 

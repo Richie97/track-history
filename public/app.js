@@ -24,6 +24,10 @@ import {
   diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, partKindLabel, partStatus,
 } from "./js/garage.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
+import {
+  canCompareEvents, canImport, canUseGarage, canUseSetups, canViewChannels,
+  canViewYearInReview, entitlementSummary, isPro, manageUrl,
+} from "./js/entitlement.js";
 
 const $app = document.getElementById("app");
 
@@ -54,6 +58,38 @@ const CONDITIONS = [
 const condLabel = (c) => (CONDITIONS.find(([v]) => v === c) || [])[1] ?? "";
 const fmtConditions = (e) =>
   [condLabel(e.conditions), e.temp_f != null ? `${e.temp_f}°F` : ""].filter(Boolean).join(" · ");
+
+// ---------- tier / paywall ---------------------------------------------------
+
+// Everything the client decides about tier goes through js/entitlement.js
+// (ported under the same names to both apps). `state.entitlement` is whatever
+// GET /api/me last said — read, never recomputed from the clock, so the cached
+// answer stands offline: a driver who was Pro at the last sync keeps their
+// analysis in a paddock with no signal.
+const pro = () => isPro(state.entitlement);
+
+const PRO_PRICE = "$1.99/month or $19.99/year";
+
+// The web app has no purchase surface on purpose (NS-32 fixed decisions): it
+// is the one client with no store behind it, so every paywall here points at
+// the phone apps rather than offering a button that cannot charge anyone.
+// `underHeading` is for the whole-page gates, where the route's own <h1>
+// already names the feature and a second heading just says it twice.
+function proPanelHtml(heading, what, { underHeading = false } = {}) {
+  return `<div class="panel pro-panel">
+    <div class="pro-badge">Pro</div>
+    ${underHeading ? "" : `<h3>${esc(heading)}</h3>`}
+    <p>${what}</p>
+    <p class="hint">Track Evolution Pro is ${PRO_PRICE}, and it covers all three apps and this
+      site — your logbook, sharing and lap times stay free forever.</p>
+    <div class="btn-row">
+      <a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
+      <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>
+    </div>
+    <p class="hint" style="margin-top:8px">Already subscribed? Sign in to the app with this
+      account — the subscription follows the account, not the device.</p>
+  </div>`;
+}
 
 // ---------- garage & setup-sheet renderers -----------------------------------
 
@@ -558,7 +594,7 @@ function shell(content) {
   return document.getElementById("view");
 }
 
-const state = { me: null, totals: null };
+const state = { me: null, totals: null, entitlement: null };
 
 // ---------- offline / sync status --------------------------------------------
 
@@ -618,12 +654,21 @@ async function ensureMe() {
   const data = await api("/me");
   state.me = data.user;
   state.totals = data.totals;
+  // Free until the server says otherwise — an older server that carries no
+  // entitlement field must not read as Pro.
+  state.entitlement = data.entitlement ?? null;
 }
 
 // --- dashboard ---
 
 async function viewDashboard() {
-  const [tracks, events, garage] = await Promise.all([api("/tracks"), api("/events"), api("/garage")]);
+  const [tracks, events, garage] = await Promise.all([
+    api("/tracks"),
+    api("/events"),
+    // Pro since phase D, and offline on any tier — either way the dashboard
+    // renders without a garage rather than failing whole.
+    api("/garage").catch(() => []),
+  ]);
   const withData = tracks.filter((t) => t.event_count > 0).sort((a, b) => (b.last_date || "").localeCompare(a.last_date || ""));
   const upcoming = events.filter(isUpcoming).sort((a, b) => a.start_date.localeCompare(b.start_date));
   const recent = events.filter((e) => !isUpcoming(e)).slice(0, 6);
@@ -901,7 +946,15 @@ async function viewTrack(trackId, params) {
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
     ${leaderboardHtml(leaderboard)}
-    ${setupHistoryHtml(trackSetups, garagePartsById(garage))}
+    ${
+      canUseSetups(state.entitlement)
+        ? setupHistoryHtml(trackSetups, garagePartsById(garage))
+        : proPanelHtml(
+            "Setup vs. lap times",
+            "Every setup sheet you have logged at this track, oldest first, with what changed " +
+              "between sheets beside what it did to your best and your consistency."
+          )
+    }
   `);
   if (chart) chart.bind(view.querySelector("#chart"));
 
@@ -980,9 +1033,23 @@ async function viewTrack(trackId, params) {
   wireRowLinks(view);
 }
 
+// A Pro-only page rendered as the paywall rather than as its content. The
+// route still resolves — a shared or bookmarked link has to land somewhere
+// that explains itself, not on "not found".
+function viewProGate(trackId, heading, what) {
+  shell(`
+    <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← Back to track</a></p>
+    <h1>${esc(heading)}</h1>
+    ${proPanelHtml(heading, what, { underHeading: true })}
+  `);
+}
+
 // --- lap overlay: two events at one track, lap-by-lap ---
 
 async function viewCompare(trackId, params) {
+  if (!canCompareEvents(state.entitlement)) return viewProGate(trackId, "Lap overlay",
+    "Put two track days at the same circuit on one chart, lap by lap, and see where the " +
+      "second one actually gained.");
   const allEvents = await api(`/events?track_id=${trackId}`);
   // Only events with recorded laps can be overlaid; list is most recent first.
   const comparable = allEvents.filter((e) => e.lap_count > 0);
@@ -1068,6 +1135,9 @@ async function viewCompare(trackId, params) {
 const KPH_TO_MPH = 0.621371;
 
 async function viewLapCompare(trackId, params) {
+  if (!canViewChannels(state.entitlement)) return viewProGate(trackId, "Compare two laps",
+    "Any two laps at this track, head to head: the time delta as it builds through the lap, " +
+      "speed, throttle, brake and steering side by side, and sector splits.");
   const allEvents = await api(`/events?track_id=${trackId}`);
   // Channel data lives on event details. The prefetcher warms these after any
   // dashboard visit, so this is mostly cache reads — and works offline.
@@ -1239,7 +1309,11 @@ let pbWatch = null;
 const setupNotebookOpen = new Set();
 
 async function viewEvent(eventId) {
-  const [e, tracks, garage] = await Promise.all([api(`/events/${eventId}`), api("/tracks"), api("/garage")]);
+  const [e, tracks, garage] = await Promise.all([
+    api(`/events/${eventId}`),
+    api("/tracks"),
+    api("/garage").catch(() => []),
+  ]);
   const track = tracks.find((t) => t.id === e.track_id);
   const pb =
     pbWatch && track && pbWatch.trackId === track.id
@@ -1349,21 +1423,34 @@ async function viewEvent(eventId) {
     </div>`;
   };
   const sheetCount = e.setups?.length ?? 0;
+  const setupsAllowed = canUseSetups(state.entitlement);
   const setupNotebookHtml = `
     <details class="setup-notebook" id="setup-notebook"${setupNotebookOpen.has(e.id) ? " open" : ""}>
       <summary>
         <h2>Setup notebook</h2>
         <span class="ga-count">${
-          sheetCount
-            ? `${sheetCount} day sheet${sheetCount === 1 ? "" : "s"}`
-            : "pressures, alignment, dampers…"
+          !setupsAllowed
+            ? "Pro"
+            : sheetCount
+              ? `${sheetCount} day sheet${sheetCount === 1 ? "" : "s"}`
+              : "pressures, alignment, dampers…"
         }</span>
         <span class="ga-caret" aria-hidden="true">▸</span>
       </summary>
-      ${sheetCount && setupDays.length > 1 ? `<div class="hint" style="margin:0 0 4px">Values <span class="sv changed">highlighted</span> changed from the previous day.</div>` : ""}
-      ${setupDays.map(setupDayHtml).join("")}
       ${
-        !e.vehicle_id && garage.length
+        !setupsAllowed
+          ? proPanelHtml(
+              "Setup notebook",
+              "One sheet per event day — pressures, alignment, dampers and which consumables " +
+                "were on the car — copied forward from the last one so only the changes need typing, " +
+                "and diffed against your lap times on the track page."
+            )
+          : ""
+      }
+      ${setupsAllowed && sheetCount && setupDays.length > 1 ? `<div class="hint" style="margin:0 0 4px">Values <span class="sv changed">highlighted</span> changed from the previous day.</div>` : ""}
+      ${setupsAllowed ? setupDays.map(setupDayHtml).join("") : ""}
+      ${
+        setupsAllowed && !e.vehicle_id && garage.length
           ? `<div class="hint" style="margin:6px 0 0">Tip: set this event's Car to one of your garage vehicles and setups will carry over between its events.</div>`
           : ""
       }
@@ -1433,7 +1520,9 @@ async function viewEvent(eventId) {
     ${traceHtml}
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
-    <div class="pdr-dropzone" id="pdr-dropzone">
+    ${
+      canImport(state.entitlement)
+        ? `<div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
       <div class="pdr-dropzone-inner">
         <span class="pdr-dropzone-icon">📼</span>
@@ -1443,7 +1532,15 @@ async function viewEvent(eventId) {
         </div>
         <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your computer</span>
       </div>
-    </div>
+    </div>`
+        : proPanelHtml(
+            "Telemetry import",
+            "Drop a Corvette PDR or GoPro video, or a Racelogic <code>.vbo</code>, and get lap times, " +
+              "the racing line and speed, throttle, brake, steering and RPM traces for every lap — " +
+              "with sector splits and a theoretical best. Parsing happens in this browser; the video " +
+              "never leaves your computer."
+          )
+    }
     <div id="pdr-review"></div>
     <form class="panel" id="add-session">
       <div class="form-grid">
@@ -1599,7 +1696,7 @@ async function viewEvent(eventId) {
     };
   });
 
-  bindTelemetryImport(view, e, route);
+  if (canImport(state.entitlement)) bindTelemetryImport(view, e, route);
 }
 
 // --- event form (new / edit) ---
@@ -1778,6 +1875,51 @@ async function viewEventForm(eventId, presetTrack) {
 
 // --- settings (garage + legal) ---
 
+// Settings' tier card: what the account has, where it came from, and the one
+// action that makes sense for it. There is no Subscribe button here on
+// purpose — the web app has no store behind it, so the honest control is a
+// pointer at the app that sold, or can sell, the subscription.
+function subscriptionPanelHtml() {
+  const e = state.entitlement;
+  const manage = manageUrl(e);
+  const summary = entitlementSummary(e, (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10)));
+  const detail = !isPro(e)
+    ? e?.source
+      ? `Your ${e.source === "apple" ? "App Store" : "Google Play"} subscription has ended. Resubscribe in the app to turn Pro back on — nothing was deleted.`
+      : "The logbook, your lap times, charts and sharing are free and stay that way. Pro adds the lap recorder, telemetry import, channel graphs, the garage's consumables, the setup notebook and year in review."
+    : e.source === "legacy"
+      ? "You bought the app before it became a subscription, so Pro is yours for life. There is nothing to renew and nothing to cancel."
+      : `Billed through ${e.source === "apple" ? "the App Store" : "Google Play"}.${
+          e.auto_renew === false ? " Auto-renew is off — Pro runs until the date above." : ""
+        }`;
+  return `<div class="panel sub-panel">
+    <div class="sub-head">
+      <span class="sub-tier${isPro(e) ? " pro" : ""}">${esc(summary)}</span>
+    </div>
+    <div class="hint" style="margin:8px 0 0">${esc(detail)}</div>
+    <div class="btn-row" style="margin-top:12px">
+      ${
+        manage
+          ? `<a class="btn small" href="${manage}" target="_blank" rel="noopener">Manage subscription ↗</a>`
+          : ""
+      }
+      ${
+        isPro(e) && e.source === "legacy"
+          ? ""
+          : `<a class="btn small${isPro(e) ? "" : " primary"}" href="${APP_STORE_URL}" target="_blank" rel="noopener">iPhone app ↗</a>
+             <a class="btn small${isPro(e) ? "" : " primary"}" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android app ↗</a>`
+      }
+    </div>
+    ${
+      isPro(e)
+        ? ""
+        : `<div class="hint" style="margin:10px 0 0">Subscriptions are sold in the phone apps —
+             ${PRO_PRICE}, covering all three apps and this site. Sign in there with this account
+             and Pro appears here within a minute.</div>`
+    }
+  </div>`;
+}
+
 async function viewSettings() {
   const vehicles = await api("/vehicles");
   // The user's own list, or the built-in one shown as the starting point.
@@ -1854,6 +1996,8 @@ async function viewSettings() {
       <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best lap (with its date). Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
       <div id="lb-error"></div>
     </div>
+    <h2>Subscription</h2>
+    ${subscriptionPanelHtml()}
     <h2>About &amp; legal</h2>
     <div class="panel">
       <div class="btn-row">
@@ -1989,6 +2133,19 @@ async function viewSettings() {
 // --- vehicle / garage page ---
 
 async function viewVehicle(vehicleId) {
+  if (!canUseGarage(state.entitlement)) {
+    shell(`
+      <p style="margin:22px 0 0"><a class="backlink" href="#/settings">← Settings</a></p>
+      <h1>Garage</h1>
+      ${proPanelHtml(
+        "Consumable tracking",
+        "Pads, tires, rotors and fluid, each with the hours it has actually done — accrued from " +
+          "your own track days — a wear projection from your measurements, and what it cost per hour " +
+          "once you replace it. Your cars themselves stay free."
+      )}
+    `);
+    return;
+  }
   const [garage, events] = await Promise.all([api("/garage"), api("/events")]);
   const v = garage.find((x) => String(x.id) === String(vehicleId));
   if (!v) return viewNotFound();
@@ -2287,6 +2444,19 @@ function yearReviewHtml(events, year, hashBase) {
 }
 
 async function viewYear(params) {
+  if (!canViewYearInReview(state.entitlement)) {
+    shell(`
+      <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
+      <h1>Year in review</h1>
+      ${proPanelHtml(
+        "Year in review",
+        "Your season in one page: events, track days and laps logged, tracks visited, and how " +
+          "much time you found at each of them against every year before.",
+        { underHeading: true }
+      )}
+    `);
+    return;
+  }
   const events = await api("/events");
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>

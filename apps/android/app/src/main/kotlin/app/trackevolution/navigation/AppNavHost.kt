@@ -279,6 +279,7 @@ fun AppNavHost(
             VehicleScreen(
                 model = model,
                 onOpenEvent = { nav.navigate(Route.Event(it)) },
+                onRequirePro = onRequirePro,
             )
         }
 

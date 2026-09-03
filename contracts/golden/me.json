@@ -10,8 +10,8 @@
       "tier": "free"
     },
     "totals": {
-      "events": 3,
-      "track_days": 4
+      "events": 0,
+      "track_days": 0
     },
     "user": {
       "checklist_template": null,
@@ -20,7 +20,7 @@
       "leaderboard_opt_in": false,
       "name": "Dev User",
       "picture": null,
-      "share_slug": "contract-fixture"
+      "share_slug": null
     }
   }
 }

@@ -632,7 +632,10 @@ final class VehicleModel {
             events = loaded.events
             state = .ready
         } catch let error as APIError {
-            state = .failed(error.message)
+            // A 402 is an offer, not a failure: GET /api/garage is Pro since
+            // phase D, and "Couldn't load this — pro required" would read as a
+            // bug rather than as a price.
+            state = error.isProRequired ? .paywall : .failed(error.message)
         } catch {
             state = .failed(error.localizedDescription)
         }

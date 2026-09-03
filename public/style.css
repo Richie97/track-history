@@ -530,6 +530,25 @@ form.panel, .panel {
   font-size: var(--fs-xs); font-weight: var(--weight-semibold);
 }
 .vehicle .notes-block { margin-top: 12px; color: var(--text-body); font-size: var(--fs-sm); }
+
+/* Pro paywall (NS-32). One panel shape for every gated surface: what the
+   feature is, then where to buy it — the web app has no store of its own, so
+   the buttons are app-store links rather than a checkout. */
+.pro-panel { border-color: var(--border-strong); }
+.pro-panel h3 { margin: 10px 0 6px; font-size: var(--fs-h3); color: var(--text-strong); }
+.pro-panel p { margin: 0 0 10px; color: var(--text-body); font-size: var(--fs-sm); line-height: 1.55; }
+.pro-panel p.hint { color: var(--text-muted); }
+.pro-panel code { font-family: var(--font-mono); font-size: 0.92em; }
+.pro-badge {
+  display: inline-block; padding: 2px 9px; border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--accent-contrast);
+  font-size: var(--fs-xs); font-weight: var(--weight-semibold); letter-spacing: 0.02em;
+}
+/* Settings' tier card. */
+.sub-tier {
+  font-size: var(--fs-h2); font-weight: var(--weight-semibold); color: var(--text-muted);
+}
+.sub-tier.pro { color: var(--text-strong); }
 .vehicle .vehicle-edit { margin-top: 14px; }
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
