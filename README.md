@@ -662,6 +662,15 @@ story for the native apps, which don't run the service worker):
   Vehicle, garage-part and share-link management need a live server answer and
   simply fail offline with the normal error (garage *reads* still work from
   the cache).
+- **One gap worth knowing about:** an event created offline **at a track with no
+  history** has no card on the dashboard until it syncs. The front page lists
+  upcoming events and tracks, the queued write patches the cached `/events` list
+  but not `/tracks` (a track invented offline has no id the server would agree
+  with), and an event dated today isn't "upcoming" — so it is unreachable from
+  the front page in the meantime. It is not lost: the write is queued and
+  replays, and a lap recording started in that window still attaches to it
+  (`pickRecordingEvent` reads the in-memory event list, not the dashboard).
+  Creating the event at a track you've driven before avoids the gap entirely.
 - `updated_at` columns (migration `0011_updated_at.sql`, maintained by SQLite
   triggers so nested writes bump their parents — laps → session → event) drive
   the staleness checks, and are the groundwork for real delta sync later.

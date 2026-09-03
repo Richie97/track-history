@@ -12,7 +12,8 @@ import TrackEvolutionKit
 /// Out of scope here, and absent rather than stubbed: the per-day setup notebook,
 /// the setup-vs-lap-times diff, and telemetry file import — all web-only
 /// (`docs/specs/native/README.md`). The lap *recorder* is native, and its entry
-/// point is the panel near the bottom.
+/// point is the "Add a session" card at the bottom, alongside video import and hand
+/// entry — one card, because they are three answers to one question.
 struct EventScreen: View {
     let eventId: Int
 
@@ -29,6 +30,12 @@ struct EventScreen: View {
     @State private var appendLapText: [Int: String] = [:]
     /// The session whose lap overlay is open, if any.
     @State private var channelSession: Session?
+    /// Whether the "Add a session" card's hand-entry form is expanded.
+    ///
+    /// Collapsed by default: recording and importing are the two ways laps normally
+    /// arrive, and an always-open three-field form under them made the card read as a
+    /// form with two buttons above it rather than as three ways in.
+    @State private var showingManualEntry = false
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -121,9 +128,7 @@ struct EventScreen: View {
             if detail.sessions.isEmpty {
                 row { TEEmpty("No sessions recorded yet.") }
             }
-            recorderSection(detail.event)
-            importSection(detail.event)
-            addSessionSection(model)
+            addSessionSection(model, detail.event)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -512,32 +517,53 @@ struct EventScreen: View {
         }
     }
 
+    // MARK: - Add a session
+
+    /// The one place laps get into an event, with the three ways side by side:
+    /// record them, pull them out of a video, or type them in.
+    ///
+    /// These used to be three stacked cards, which made "how do I add a session" a
+    /// question with three separate-looking answers spread down the page. Hand entry
+    /// is collapsed because it is the fallback of the three — and because an open
+    /// three-field form pushed the other two options out of one screenful.
+    private func addSessionSection(_ model: EventModel, _ event: Event) -> some View {
+        Section {
+            row {
+                TECard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        recorderOption(event)
+                        Divider().overlay(Color(.borderHairline))
+                        importOption(event)
+                        Divider().overlay(Color(.borderHairline))
+                        manualOption(model)
+                    }
+                }
+            }
+        } header: {
+            header("Add a session")
+        }
+    }
+
     // MARK: - Recorder entry point
 
     /// The live lap recorder (NS-17). Doubles as the way back into a running
     /// recording and the recovery path for an unsaved one — and opening it from this
     /// event is what adopts an event-less recording into it.
-    private func recorderSection(_ event: Event) -> some View {
-        Section {
-            row {
-                TECard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Record laps with your phone")
-                            .teStyle(.h3)
-                            .foregroundStyle(Color(.textStrong))
-                        Text("Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.")
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.textMuted))
-                        Button(recorderCallToAction(event)) {
-                            router.push(.record(eventId: recorderTargetEvent(event)))
-                        }
-                        .buttonStyle(TEButtonStyle(kind: recorderIsBusy ? .accent : .quiet))
-                        // The label changes with the recorder's state, so tests reach
-                        // it by identifier instead.
-                        .accessibilityIdentifier("recordEntry")
-                    }
-                }
+    private func recorderOption(_ event: Event) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Record laps with your phone")
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            Text("Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+            Button(recorderCallToAction(event)) {
+                router.push(.record(eventId: recorderTargetEvent(event)))
             }
+            .buttonStyle(TEButtonStyle(kind: recorderIsBusy ? .accent : .quiet))
+            // The label changes with the recorder's state, so tests reach
+            // it by identifier instead.
+            .accessibilityIdentifier("recordEntry")
         }
     }
 
@@ -574,69 +600,70 @@ struct EventScreen: View {
     /// Lap times out of a video already on the phone (NS-30). Only *video* import
     /// is native — `.vbo` and the rest of the desk-bound long tail stay on the web
     /// app (`docs/specs/native/README.md`).
-    private func importSection(_ event: Event) -> some View {
-        Section {
-            row {
-                TECard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Import a video")
-                            .teStyle(.h3)
-                            .foregroundStyle(Color(.textStrong))
-                        Text("PDR and GoPro clips carry telemetry. Pick one from Files or Photos and the laps come out of it — the video stays on this phone.")
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.textMuted))
-                        Button("Import video") {
-                            router.push(.importVideo(eventId: event.id, incoming: nil))
-                        }
-                        .buttonStyle(TEButtonStyle(kind: .quiet))
-                        .accessibilityIdentifier("importEntry")
-                    }
-                }
+    private func importOption(_ event: Event) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Import a video")
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            Text("PDR and GoPro clips carry telemetry. Pick one from Files or Photos and the laps come out of it — the video stays on this phone.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+            Button("Import video") {
+                router.push(.importVideo(eventId: event.id, incoming: nil))
             }
+            .buttonStyle(TEButtonStyle(kind: .quiet))
+            .accessibilityIdentifier("importEntry")
         }
     }
 
-    // MARK: - Add a session
+    // MARK: - Hand entry
 
-    private func addSessionSection(_ model: EventModel) -> some View {
-        Section {
-            row {
-                TECard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        TEField(label: "Session label") {
-                            TextField("Day 1 — Session 2", text: $newSession.label)
-                                .teInput()
-                        }
-                        TEField(
-                            label: "Lap times",
-                            hint: "Comma, space or newline separated. Formats: 2:01.24 · 2:01 · 121.24 (seconds)"
+    @ViewBuilder
+    private func manualOption(_ model: EventModel) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Enter lap times by hand")
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            if showingManualEntry {
+                TEField(label: "Session label") {
+                    TextField("Day 1 — Session 2", text: $newSession.label)
+                        .teInput()
+                }
+                TEField(
+                    label: "Lap times",
+                    hint: "Comma, space or newline separated. Formats: 2:01.24 · 2:01 · 121.24 (seconds)"
+                ) {
+                    TextField("2:03.55, 2:01.24, 2:02.61", text: $newSession.laps, axis: .vertical)
+                        .teInput()
+                        .keyboardType(.numbersAndPunctuation)
+                        .autocorrectionDisabled()
+                        .lineLimit(2...5)
+                }
+                TEField(label: "Session notes") {
+                    TextField("Traffic, tire pressures, line changes…", text: $newSession.notes)
+                        .teInput()
+                }
+                Button("Add session") {
+                    Task {
+                        if await model.addSession(
+                            label: newSession.label, notes: newSession.notes, laps: newSession.laps
                         ) {
-                            TextField("2:03.55, 2:01.24, 2:02.61", text: $newSession.laps, axis: .vertical)
-                                .teInput()
-                                .keyboardType(.numbersAndPunctuation)
-                                .autocorrectionDisabled()
-                                .lineLimit(2...5)
+                            newSession = SessionFormFields()
+                            showingManualEntry = false
+                            Haptics.confirm()
                         }
-                        TEField(label: "Session notes") {
-                            TextField("Traffic, tire pressures, line changes…", text: $newSession.notes)
-                                .teInput()
-                        }
-                        Button("Add session") {
-                            Task {
-                                if await model.addSession(
-                                    label: newSession.label, notes: newSession.notes, laps: newSession.laps
-                                ) {
-                                    newSession = SessionFormFields()
-                                    Haptics.confirm()
-                                }
-                            }
-                        }
-                        .buttonStyle(TEButtonStyle(kind: .accent))
                     }
                 }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .accessibilityIdentifier("addSessionSubmit")
+            } else {
+                Text("Timing sheet from the instructor, or laps off a stopwatch.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+                Button("Enter lap times") { showingManualEntry = true }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("manualEntry")
             }
-        } header: {
-            header("Add session")
         }
     }
 

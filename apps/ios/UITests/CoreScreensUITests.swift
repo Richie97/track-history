@@ -38,7 +38,6 @@ final class CoreScreensUITests: XCTestCase {
         )
         attach(app, named: "dashboard")
         XCTAssertTrue(app.staticTexts["Track days"].exists, "the totals tiles should be there")
-        XCTAssertTrue(app.buttons["recentEventCard"].firstMatch.exists, "with recent events under them")
         // Matched among any descendants: the hero is one combined accessibility
         // element, which SwiftUI doesn't necessarily publish as a button. Needs the
         // example seed, whose last event is in the future.
@@ -120,11 +119,17 @@ final class CoreScreensUITests: XCTestCase {
 
         try createEvent(app, named: "Summit Point (Shenandoah)")
 
-        // Add a session with laps. These four are chosen so every line of
-        // `LapStats` has something to say: an out-lap outside the 107% cutoff, then a
-        // clean improving run.
+        // Hand entry is the third option in the event page's "Add a session" card, and
+        // it is collapsed until asked for — recording and importing are the two ways
+        // laps normally arrive.
+        let manual = app.buttons["manualEntry"]
+        XCTAssertTrue(scrollTo(manual, in: app), "the Add a session card should offer hand entry")
+        manual.tap()
+
+        // The laps are chosen so every line of `LapStats` has something to say: an
+        // out-lap outside the 107% cutoff, then a clean improving run.
         let label = app.textFields["Day 1 — Session 2"]
-        XCTAssertTrue(label.waitForExistence(timeout: 15), "the add-session form should be on the event page")
+        XCTAssertTrue(label.waitForExistence(timeout: 15), "the add-session form should open")
         label.tap()
         label.typeText("Session 1")
 

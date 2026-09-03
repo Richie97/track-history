@@ -23,9 +23,7 @@ final class GestureUITests: XCTestCase {
     func testTheEventPageScrollsWhenTheSwipeStartsOnTheChart() throws {
         let app = try launchSignedIn()
 
-        let event = app.buttons["recentEventCard"].firstMatch
-        XCTAssertTrue(event.waitForExistence(timeout: 20))
-        event.tap()
+        XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Lap times"].waitForExistence(timeout: 10), "the chart should be on screen")
 
@@ -67,17 +65,17 @@ final class GestureUITests: XCTestCase {
     func testSwipeBackFromTheEventPageOverTheLapList() throws {
         let app = try launchSignedIn()
 
-        let event = app.buttons["recentEventCard"].firstMatch
-        XCTAssertTrue(event.waitForExistence(timeout: 20))
-        event.tap()
+        XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 15))
 
         // Low on the screen, across the `List` whose rows carry `swipeActions`.
         swipeBack(app, atHeight: 0.75)
 
+        // Back to the track page, which is the step the event was reached from —
+        // the dashboard no longer opens an event directly.
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 10),
-            "an edge swipe over the lap list should still pop back to the dashboard"
+            app.staticTexts["Personal best"].waitForExistence(timeout: 10),
+            "an edge swipe over the lap list should still pop back a step"
         )
     }
 

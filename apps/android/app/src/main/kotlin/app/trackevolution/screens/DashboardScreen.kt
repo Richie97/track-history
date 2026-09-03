@@ -182,32 +182,6 @@ fun DashboardScreen(
                         VehicleRow(vehicle) { onOpenVehicle(vehicle.id) }
                     }
                 }
-
-                if (model.recent.isNotEmpty()) {
-                    item("recent-header") { TESectionHeader("Recent events") }
-                    items(model.recent, key = { "ev-${it.id}" }) { event ->
-                        TENavCard(onClick = { onOpenEvent(event.id) }) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        event.trackName,
-                                        style = TrackTheme.typography.bodyStrong,
-                                        color = colors.textStrong,
-                                    )
-                                    TEMeta(listOf(EventDates.fmtDate(event.startDate), event.club, event.runGroup))
-                                }
-                                Text(
-                                    LapTime.fmtMs(event.bestMs),
-                                    style = TrackTheme.typography.lapTime,
-                                    color = colors.textStrong,
-                                )
-                            }
-                        }
-                    }
-                }
             }
         }
     }
