@@ -13,11 +13,11 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
         "canViewYearInReview": false,
+        "canCompareEvents": false,
         "manageUrl": null,
         "summary": "Free"
       }
@@ -28,11 +28,11 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
         "canViewYearInReview": false,
+        "canCompareEvents": false,
         "manageUrl": null,
         "summary": "Free"
       }
@@ -48,11 +48,11 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
         "canViewYearInReview": true,
+        "canCompareEvents": true,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Pro · renews <1800000000000>"
       }
@@ -68,11 +68,11 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
         "canViewYearInReview": true,
+        "canCompareEvents": true,
         "manageUrl": "https://play.google.com/store/account/subscriptions?package=app.trackevolution",
         "summary": "Pro · ends <1800000000000>"
       }
@@ -88,11 +88,11 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
         "canViewYearInReview": true,
+        "canCompareEvents": true,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Pro · renews <1800000000000>"
       }
@@ -108,11 +108,11 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
         "canViewYearInReview": true,
+        "canCompareEvents": true,
         "manageUrl": null,
         "summary": "Pro · lifetime"
       }
@@ -128,11 +128,11 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
         "canViewYearInReview": false,
+        "canCompareEvents": false,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Free"
       }
@@ -148,11 +148,11 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
         "canViewYearInReview": false,
+        "canCompareEvents": false,
         "manageUrl": "https://play.google.com/store/account/subscriptions?package=app.trackevolution",
         "summary": "Free"
       }
@@ -168,11 +168,11 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
         "canViewYearInReview": true,
+        "canCompareEvents": true,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Pro · renews <1>"
       }

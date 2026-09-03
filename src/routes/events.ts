@@ -3,6 +3,8 @@ import type { AppContext } from "../types";
 import { eventSelect, listEvents, ownedEvent, resolveTrack, vehicleIdForCar } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidConditions, isValidTemp, sanitizeChecklist, sanitizeSetup } from "../lib/validate";
+import { requireEntitlement } from "../middleware";
+import { isEntitled, stripProFields } from "../lib/entitlement";
 
 export const events = new Hono<AppContext>();
 
@@ -98,13 +100,23 @@ events.get("/events/:id", async (c) => {
   const event = eventRes.results[0] as EventRow | undefined;
   if (!event) return c.json({ error: "not found" }, 404);
 
+  // `channels` is the one Pro field (NS-32 rule 4): a free account gets the
+  // session, its laps and its `trace` — the track map is free — with the
+  // per-lap channel arrays nulled, which is exactly the shape every client
+  // already renders as "no channel data".
+  const entitled = isEntitled(c.get("entitledUntil"), Date.now());
   const sessions = (
     sessionRes.results as { id: number; label: string | null; notes: string | null; sort: number; trace: string | null; channels: string | null }[]
-  ).map((s) => ({
-    ...s,
-    trace: s.trace ? JSON.parse(s.trace) : null,
-    channels: s.channels ? JSON.parse(s.channels) : null,
-  }));
+  ).map((s) =>
+    stripProFields(
+      {
+        ...s,
+        trace: s.trace ? JSON.parse(s.trace) : null,
+        channels: s.channels ? JSON.parse(s.channels) : null,
+      },
+      entitled
+    )
+  );
   const laps = lapRes.results as { id: number; session_id: number; lap_num: number; time_ms: number }[];
 
   const sessionsWithLaps = sessions.map((s) => ({
@@ -169,7 +181,7 @@ const parseDay = (raw: string): number | null => {
   return Number.isInteger(day) && day >= 1 && day <= 14 ? day : null;
 };
 
-events.put("/events/:id/setups/:day", async (c) => {
+events.put("/events/:id/setups/:day", requireEntitlement, async (c) => {
   const id = c.req.param("id");
   const day = parseDay(c.req.param("day"));
   if (day == null) return c.json({ error: "invalid day" }, 400);
@@ -189,7 +201,7 @@ events.put("/events/:id/setups/:day", async (c) => {
   return c.json({ ok: true });
 });
 
-events.delete("/events/:id/setups/:day", async (c) => {
+events.delete("/events/:id/setups/:day", requireEntitlement, async (c) => {
   const id = c.req.param("id");
   const day = parseDay(c.req.param("day"));
   if (day == null) return c.json({ error: "invalid day" }, 400);
@@ -208,7 +220,7 @@ events.delete("/events/:id/setups/:day", async (c) => {
 // same event, else the most recent sheet from an earlier event on the same
 // vehicle. Nobody re-types an alignment every session — the form starts from
 // the last known state and the user edits what changed.
-events.get("/events/:id/setups/prefill", async (c) => {
+events.get("/events/:id/setups/prefill", requireEntitlement, async (c) => {
   const id = c.req.param("id");
   const userId = c.get("userId");
   const day = parseDay(c.req.query("day") ?? "1") ?? 1;

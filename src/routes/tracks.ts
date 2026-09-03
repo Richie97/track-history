@@ -3,6 +3,7 @@ import type { AppContext } from "../types";
 import { catalogIdForName, eventListStmt, tracksSummary } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidGoal } from "../lib/validate";
+import { requireEntitlement } from "../middleware";
 
 export const tracks = new Hono<AppContext>();
 
@@ -10,7 +11,7 @@ export const tracks = new Hono<AppContext>();
 // outcome stats — the raw material for the track page's "setup vs. lap
 // times" table. One row per event-day sheet; outcome columns repeat per
 // event since laps aren't attributed to days.
-tracks.get("/tracks/:id/setups", async (c) => {
+tracks.get("/tracks/:id/setups", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const trackId = c.req.param("id");
   // The event list and the setup sheets are independent — one round trip.

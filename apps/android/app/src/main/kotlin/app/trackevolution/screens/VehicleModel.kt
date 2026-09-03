@@ -72,7 +72,19 @@ class VehicleModel(
                 }
                 state = LoadState.Ready
             } catch (e: ApiException) {
-                if (vehicle == null) state = LoadState.Failed(e.message ?: "Couldn't load this car.")
+                if (vehicle != null) return@launch
+                // GET /api/garage is Pro since phase D. "Couldn't load this car
+                // — pro required" would read as a bug rather than as a price.
+                state = if (e.isPaymentRequired) {
+                    LoadState.Paywall(
+                        title = "Garage wear tracking is Pro",
+                        blurb = "Pads, tires, rotors and fluid, each with the hours it has actually " +
+                            "done — accrued from your own track days — and what's left of them " +
+                            "before the next event. Your cars themselves stay free.",
+                    )
+                } else {
+                    LoadState.Failed(e.message ?: "Couldn't load this car.")
+                }
             }
         }
     }

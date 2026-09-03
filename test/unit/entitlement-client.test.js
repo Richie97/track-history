@@ -3,10 +3,12 @@ import {
   APPLE_MANAGE_URL,
   FREE_ENTITLEMENT,
   GOOGLE_MANAGE_URL,
-  canImport,
+  canCompareEvents,
   canRecord,
   canUseGarage,
+  canUseSetups,
   canViewChannels,
+  canViewYearInReview,
   entitlementSummary,
   isPro,
   manageUrl,
@@ -25,7 +27,9 @@ describe("isPro and the feature predicates", () => {
   it("every Pro feature follows the tier, not the clock", () => {
     // Expired by the wall clock but still `pro` — the cached answer stands offline.
     const stale = pro({ expires_at: 1 });
-    for (const can of [canRecord, canImport, canViewChannels, canUseGarage]) {
+    const every = [canRecord, canViewChannels, canUseGarage, canUseSetups,
+      canViewYearInReview, canCompareEvents];
+    for (const can of every) {
       expect(can(stale)).toBe(true);
       expect(can(FREE_ENTITLEMENT)).toBe(false);
       expect(can(null)).toBe(false);

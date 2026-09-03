@@ -99,7 +99,13 @@ Features added after the rewrite shipped, and where they landed:
   checks entitlement**, so a lapse can't make the offline queue drop a
   recording. This is the deliberate exception to the rewrite's *`src/` must not
   change* rule: the rewrite is closed, and this is a product change that lands
-  in `src/` first.
+  in `src/` first. The gates went live in phase D: `requireEntitlement` on the
+  garage consumables and the setups routes, `stripProFields` on the one field
+  (`sessions.channels`), and the client gates on the recorder and the importer.
+  The web-only Pro features — the two-event overlay, year in review, the setup
+  notebook — gate on the client through `public/js/entitlement.js`, whose
+  predicates both ports carry under the same names even where no native screen
+  reads them.
 
 ## Specs
 

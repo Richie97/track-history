@@ -64,6 +64,7 @@ fun VehicleScreen(
     model: VehicleModel,
     onOpenEvent: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onRequirePro: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     var confirmRetire by remember { mutableStateOf<Part?>(null) }
@@ -72,7 +73,7 @@ fun VehicleScreen(
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
-    TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
+    TELoadable(state = model.state, onRetry = model::load, modifier = modifier, onSubscribe = onRequirePro) {
         val vehicle = model.vehicle ?: return@TELoadable
 
         LazyColumn(

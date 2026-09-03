@@ -26,8 +26,12 @@ export function isPro(entitlement) {
 // The GPS lap recorder, live timing and predictive delta (native only).
 export const canRecord = (entitlement) => isPro(entitlement);
 
-// Telemetry import — video on the phones, video + .vbo on the web.
-export const canImport = (entitlement) => isPro(entitlement);
+// Telemetry import is **free** on every client and has no predicate, on
+// purpose: there is no decision to make, and a `canImport` that always answered
+// true would read as a gate that had been forgotten. What an import yields for
+// free is lap times, the racing line and the car metrics; the per-lap channel
+// arrays it also writes are the Pro half, and the server is what withholds them
+// (`stripProFields`) — see canViewChannels.
 
 // Channel graphs, the lap delta chart, the two-lap compare and sector splits
 // all read `channels`, which the server strips for a free account (rule 4); the
@@ -39,6 +43,11 @@ export const canViewChannels = (entitlement) => isPro(entitlement);
 export const canUseGarage = (entitlement) => isPro(entitlement);
 export const canUseSetups = (entitlement) => isPro(entitlement);
 export const canViewYearInReview = (entitlement) => isPro(entitlement);
+
+// The two-event lap overlay — one track, two events, lap by lap. Separate from
+// canViewChannels because it reads no channel data at all, only lap times, so
+// the two would move independently if the tier boundary ever did.
+export const canCompareEvents = (entitlement) => isPro(entitlement);
 
 // Where "Manage subscription" goes, by the store that sold it. Legacy has no
 // subscription to manage; free has nothing yet — both return null.

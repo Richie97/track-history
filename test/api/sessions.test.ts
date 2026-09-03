@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEvent, signedInUser } from "./helpers";
+import { createEvent, signedInProUser, signedInUser } from "./helpers";
 
 async function eventWithSession(api: any, laps: number[] = [123000, 121000]) {
   const eventId = await createEvent(api);
@@ -63,8 +63,11 @@ describe("POST /api/events/:id/sessions", () => {
     expect(bad.status).toBe(400);
   });
 
+  // Pro, because `channels` is the one field the event detail strips for a
+  // free account (NS-32 rule 4) — the *write* stays open to everyone, which
+  // test/api/entitlement-gates.test.ts is what asserts.
   it("stores per-lap channels, re-rounded, and returns them with the event", async () => {
-    const { api } = await signedInUser();
+    const { api } = await signedInProUser();
     const eventId = await createEvent(api);
     const arr = (v: number) => Array.from({ length: 12 }, (_, i) => v + i + 0.123);
     const channels = {

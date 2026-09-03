@@ -7,8 +7,26 @@
       "method": "GET",
       "path": "/me",
       "status": 200,
-      "description": "The signed-in user. checklist_template is null — the common case, where the client falls back to its built-in DEFAULT_CHECKLIST.",
+      "description": "A fresh account: tier free, and checklist_template null — the common case, where the client falls back to its built-in DEFAULT_CHECKLIST.",
       "source": "src/routes/me.ts"
+    },
+    {
+      "name": "error-402",
+      "file": "error-402.json",
+      "method": "GET",
+      "path": "/garage",
+      "status": 402,
+      "description": "402: the Pro gate (requireEntitlement). Returned by GET /garage, the parts/measurements routes and the setups routes for a free account; every client maps this one body to its paywall rather than to a sync error.",
+      "source": "src/middleware.ts"
+    },
+    {
+      "name": "billing-legacy-claim",
+      "file": "billing-legacy-claim.json",
+      "method": "POST",
+      "path": "/billing/google/legacy",
+      "status": 200,
+      "description": "The Android transitional build's paid-app claim (X-TE-Client required; honoured before LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
+      "source": "src/routes/billing.ts"
     },
     {
       "name": "checklist-template-set",
@@ -378,15 +396,6 @@
       "status": 404,
       "description": "404: not found, or owned by another user.",
       "source": "src/routes/events.ts"
-    },
-    {
-      "name": "billing-legacy-claim",
-      "file": "billing-legacy-claim.json",
-      "method": "POST",
-      "path": "/billing/google/legacy",
-      "status": 200,
-      "description": "The Android transitional build's paid-app claim (X-TE-Client required; honoured before LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
-      "source": "src/routes/billing.ts"
     },
     {
       "name": "me-pro-legacy",

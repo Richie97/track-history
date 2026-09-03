@@ -131,16 +131,12 @@ fun AppNavHost(
                 onEdit = { nav.navigate(Route.EventForm(editId = it)) },
                 onOpenTrack = { nav.navigate(Route.Track(it)) },
                 onRecord = { nav.navigate(Route.Record(eventId = it)) },
-                // Gated at the point of import (NS-32 rule 5) — the review and
-                // the save behind it never are, so a clip that took an hour to
-                // line up can't be lost to a lapse.
-                onImport = { id ->
-                    if (Entitlement.importGate(entitlement) == Entitlement.Gate.PAYWALL) {
-                        onRequirePro()
-                    } else {
-                        nav.navigate(Route.Import(eventId = id))
-                    }
-                },
+                // Not gated: importing is free (NS-32). What a free account
+                // gets out of a clip is the lap times, the racing line and the
+                // car metrics — the per-lap channels the same import writes are
+                // withheld by the server on the way back out, not by a paywall
+                // on the way in.
+                onImport = { id -> nav.navigate(Route.Import(eventId = id)) },
                 onDeleted = { nav.popBackStack() },
                 // Always: the recorder is built into this app, unlike the web
                 // build where `platform.bgLocation` is null and it is hidden.
@@ -279,6 +275,7 @@ fun AppNavHost(
             VehicleScreen(
                 model = model,
                 onOpenEvent = { nav.navigate(Route.Event(it)) },
+                onRequirePro = onRequirePro,
             )
         }
 

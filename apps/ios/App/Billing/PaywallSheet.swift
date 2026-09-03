@@ -8,8 +8,8 @@ import TrackEvolutionKit
 /// for. A sheet, not a disabled control: it names the price and lets you buy on
 /// the spot.
 ///
-/// Presented from a *button* — the record screen's Start, the import chooser's,
-/// Settings' Subscribe — never from a screen's root. Those screens already carry
+/// Presented from a *button* — the record screen's Start, Settings' Subscribe —
+/// never from a screen's root. Those screens already carry
 /// a modal, and two presentations on one view is a documented way to wedge
 /// SwiftUI here (`apps/ios/README.md`).
 ///
@@ -20,7 +20,6 @@ struct PaywallSheet: View {
     enum Context {
         case general
         case record
-        case videoImport
     }
 
     var context: Context = .general
@@ -92,7 +91,6 @@ struct PaywallSheet: View {
         switch context {
         case .general: "Turn lap times into analysis"
         case .record: "Recording laps is a Pro feature"
-        case .videoImport: "Importing telemetry is a Pro feature"
         }
     }
 
@@ -101,6 +99,7 @@ struct PaywallSheet: View {
             VStack(alignment: .leading, spacing: 14) {
                 tier("Free", items: [
                     "Tracks, events, sessions and lap times — unlimited",
+                    "Lap times out of PDR and GoPro video, with the racing line",
                     "Best laps, progress charts and consistency",
                     "Public share pages and leaderboards",
                     "Works offline, on every device"
@@ -108,8 +107,8 @@ struct PaywallSheet: View {
                 Divider().overlay(Color(.borderHairline))
                 tier("Pro", accent: true, items: [
                     "GPS lap recorder with live timing and predictive delta",
-                    "Video telemetry import — Corvette PDR and GoPro",
-                    "Channel graphs, lap delta and two-lap compare",
+                    "Channel graphs: speed, throttle, brake, steering, RPM",
+                    "Sector splits, theoretical best and two-lap compare",
                     "Garage consumables: pad, tire and fluid wear"
                 ])
             }

@@ -166,6 +166,34 @@ const FIXTURE = {
 };
 
 async function build(api) {
+  // --- the free tier, before anything else --------------------------------
+  // Phase D put requireEntitlement in front of the garage and the setups
+  // routes, and this harness builds the fixture through those routes — so it
+  // has to be Pro before it can create a part or a setup sheet, and every
+  // capture after the claim below is a Pro one. The two captures that have to
+  // be free therefore happen here, first: a fresh account's /me, and the 402
+  // body every client maps to its paywall.
+  record("me", "GET", "/me",
+    "A fresh account: tier free, and checklist_template null — the common case, " +
+    "where the client falls back to its built-in DEFAULT_CHECKLIST.",
+    "src/routes/me.ts", await api("GET", "/me"));
+
+  record("error-402", "GET", "/garage",
+    "402: the Pro gate (requireEntitlement). Returned by GET /garage, the " +
+    "parts/measurements routes and the setups routes for a free account; every " +
+    "client maps this one body to its paywall rather than to a sync error.",
+    "src/middleware.ts", await api("GET", "/garage"));
+
+  // The Android transitional build's paid-app claim — the one billing route
+  // that needs no store payload, so it is where the { ok, entitlement } shape
+  // every billing route answers with gets pinned. It also makes this user Pro
+  // for life, which is what lets the rest of the fixture be built.
+  record("billing-legacy-claim", "POST", "/billing/google/legacy",
+    "The Android transitional build's paid-app claim (X-TE-Client required; honoured before " +
+    "LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
+    "src/routes/billing.ts",
+    await api("POST", "/billing/google/legacy", {}, { "X-TE-Client": "android/1" }));
+
   // --- tracks -------------------------------------------------------------
   // Created via an event so resolveTrack's find-or-create path is exercised and
   // catalog_id gets matched by name where the catalog has an entry.
@@ -303,13 +331,12 @@ async function captureAll(api, anon, f) {
   const track = f.trackId;
 
   // --- reads --------------------------------------------------------------
-  record("me", "GET", "/me",
-    "The signed-in user. checklist_template is null — the common case, where the " +
-    "client falls back to its built-in DEFAULT_CHECKLIST.",
-    "src/routes/me.ts", await api("GET", "/me"));
-
-  // The other branch: a user who edited their prep list in Settings. Captured
-  // second so the null case above is what a fresh account really looks like.
+  // Everything from here on is captured as a Pro account (see build()), which
+  // is the tier that produces the fullest response shapes — a free account's
+  // event detail is the same thing with `channels` nulled.
+  //
+  // The other branch of the prep list: a user who edited theirs in Settings.
+  // The null case is `me`, captured before the claim.
   record("checklist-template-set", "PUT", "/me/checklist-template",
     "Replace the prep-checklist template. Null or [] clears it.", "src/routes/me.ts",
     await api("PUT", "/me/checklist-template", {
@@ -465,21 +492,11 @@ async function captureAll(api, anon, f) {
     "src/routes/events.ts", await api("GET", "/events/99999"));
 
   // --- billing (NS-32) ----------------------------------------------------
-  // Deliberately last: the claim makes the harness user Pro for life, and
-  // phase D puts requireEntitlement in front of /garage and the setups routes.
-  // Anything captured after this point would be captured as a *different* tier
-  // from the reads above, so the goldens would pin two inconsistent stories.
-  //
-  // The three store routes need payloads signed by Apple or an answer from
-  // Play, which this harness cannot mint against the pinned root, so they are
-  // exercised by test/api/billing.test.ts instead. All four answer with the
-  // same { ok, entitlement } shape, pinned here through the one route that
-  // needs no store.
-  record("billing-legacy-claim", "POST", "/billing/google/legacy",
-    "The Android transitional build's paid-app claim (X-TE-Client required; honoured before " +
-    "LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
-    "src/routes/billing.ts",
-    await api("POST", "/billing/google/legacy", {}, { "X-TE-Client": "android/1" }));
+  // The claim itself is in build(), because the fixture cannot be built
+  // without it. The three store routes need payloads signed by Apple or an
+  // answer from Play, which this harness cannot mint against the pinned root,
+  // so they are exercised by test/api/billing.test.ts instead; all four answer
+  // with the same { ok, entitlement } shape as the claim.
   record("me-pro-legacy", "GET", "/me",
     "The signed-in user once entitled: tier pro, source legacy, no expiry.",
     "src/routes/me.ts", await api("GET", "/me"));

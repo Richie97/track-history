@@ -23,14 +23,11 @@ struct ImportScreen: View {
     @State private var model = ImportModel()
     @State private var showingFileImporter = false
     @State private var showingPhotoPicker = false
-    @State private var showingPaywall = false
 
-    /// The Pro gate (NS-32 rule 5), from the cached entitlement, so an import in a
-    /// paddock with no signal proceeds for a driver who was Pro at the last sync.
-    /// Off until phase D flips `Entitlement.gatesEnabled`.
-    private var gate: ProGate.Decision {
-        ProGate.decide(.videoImport, entitlement: auth.entitlement)
-    }
+    /// There is no gate here. Importing is free on every client (NS-32): what a
+    /// free account gets out of a clip is the lap times, the racing line and the
+    /// car metrics, and the per-lap channels the same import writes are withheld
+    /// by the server on the way back out, not by a paywall on the way in.
 
     var body: some View {
         Group {
@@ -38,51 +35,17 @@ struct ImportScreen: View {
                 ReviewScreen(source: .imported(clips), preferredEventId: eventId, onFinish: { router.popToRoot() })
             } else {
                 ScrollView {
-                    if gate == .paywall {
-                        gated
-                            .padding(TESpacing.pageGutter)
-                    } else {
-                        chooser
-                            .padding(TESpacing.pageGutter)
-                    }
+                    chooser
+                        .padding(TESpacing.pageGutter)
                 }
                 .background(Color(.bgPage))
                 .navigationTitle("Import video")
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
-        // Keyed on the gate: a clip handed over by Files while free is parsed the
-        // moment a subscription made from the sheet lands, not lost.
-        .task(id: gate) {
-            if gate == .proceed, let incoming, model.clips == nil, !model.isParsing {
+        .task {
+            if let incoming, model.clips == nil, !model.isParsing {
                 await model.parse([PickedVideo(name: incoming.lastPathComponent, url: incoming)])
-            }
-        }
-    }
-
-    /// What a free account sees instead of the pickers: the paywall, one tap away,
-    /// rather than disabled buttons that explain nothing.
-    private var gated: some View {
-        VStack(alignment: .leading, spacing: TESpacing.gridGap) {
-            TECard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Telemetry import is a Pro feature")
-                        .teStyle(.h3)
-                        .foregroundStyle(Color(.textStrong))
-                    Text("""
-                        Corvette PDR and GoPro clips carry telemetry alongside the picture. Track \
-                        Evolution Pro reads it on this phone — the video never leaves it — and turns \
-                        it into lap times and channel graphs.
-                        """)
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.textMuted))
-                    Button("See Track Evolution Pro") { showingPaywall = true }
-                        .buttonStyle(TEButtonStyle(kind: .accent))
-                        .accessibilityIdentifier("importPaywall")
-                        .sheet(isPresented: $showingPaywall) {
-                            PaywallSheet(context: .videoImport)
-                        }
-                }
             }
         }
     }

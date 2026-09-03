@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.navigation.compose.rememberNavController
 import app.trackevolution.auth.ChecklistTemplateStore
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.navigation.AppNavHost
 import app.trackevolution.recording.RecorderState
 import app.trackevolution.ui.LoadState
@@ -181,6 +182,10 @@ class DashboardRecordTest {
                     onStartRecording = { startedWith = it; started = true },
                     onStopRecording = {},
                     onSignOut = {},
+                    // Pro: the recorder's Start is gated since phase D, and
+                    // this test is about where the laps get filed, not about
+                    // the paywall (which EntitlementTest covers).
+                    entitlement = PRO,
                 )
             }
         }
@@ -210,6 +215,8 @@ class DashboardRecordTest {
     }
 
     // ---- helpers -----------------------------------------------------------
+
+    private val PRO = Entitlement(tier = Entitlement.Tier.PRO, source = Entitlement.Source.GOOGLE, expiresAt = null)
 
     private fun setDashboard(model: DashboardModel, recorderIdle: Boolean) {
         compose.setContent {

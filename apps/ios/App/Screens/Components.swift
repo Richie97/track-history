@@ -6,12 +6,18 @@ import TrackEvolutionKit
 /// reads as layout rather than as styling.
 
 /// What a screen's data is doing. Every screen model exposes one of these, so the
-/// three cases are handled once rather than reinvented per screen — and "failed"
+/// cases are handled once rather than reinvented per screen — and "failed"
 /// always carries the server's own message.
+///
+/// `paywall` is the 402 (NS-32 rule 5): a Pro-gated *read* has to look like an
+/// offer, not like a server error, so it is its own case rather than a `failed`
+/// carrying "pro required" — the same reason `APIError.proRequired` is distinct
+/// from the rest.
 enum LoadState: Equatable {
     case loading
     case ready
     case failed(String)
+    case paywall
 }
 
 /// A page of cards on the app background.
@@ -62,8 +68,50 @@ struct TELoadable<Content: View>: View {
                     }
                 }
             }
+        case .paywall:
+            TEPage {
+                ProUpsellCard(
+                    title: "Garage wear tracking is Pro",
+                    blurb: """
+                        Pads, tires, rotors and fluid, each with the hours it has actually done — \
+                        accrued from your own track days — and what's left of them before the next \
+                        event. Your cars themselves stay free.
+                        """
+                )
+            }
         case .ready:
             content()
+        }
+    }
+}
+
+/// The paywall as a page element: what the feature is, and one button to the
+/// sheet. The sheet hangs off the *button*, never off the screen — a second
+/// `.sheet` on a view that already presents one is the SwiftUI hazard documented
+/// on `VehicleScreen`.
+struct ProUpsellCard: View {
+    let title: String
+    let blurb: String
+    var context: PaywallSheet.Context = .general
+
+    @State private var showingPaywall = false
+
+    var body: some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .teStyle(.h3)
+                    .foregroundStyle(Color(.textStrong))
+                Text(blurb)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                Button("See Track Evolution Pro") { showingPaywall = true }
+                    .buttonStyle(TEButtonStyle(kind: .accent))
+                    .accessibilityIdentifier("proUpsell")
+                    .sheet(isPresented: $showingPaywall) {
+                        PaywallSheet(context: context)
+                    }
+            }
         }
     }
 }

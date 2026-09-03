@@ -27,7 +27,12 @@ public extension Entitlement {
     static func canRecord(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
     /// Telemetry import — video on the phones, video + `.vbo` on the web.
-    static func canImport(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
+    // Telemetry import is **free** and has no predicate, on purpose: there is no
+    // decision to make, and a `canImport` that always answered true would read
+    // as a gate someone had forgotten to wire. An import yields lap times, the
+    // racing line and the car metrics for free; the per-lap channel arrays it
+    // also writes are the Pro half, withheld by the server — see
+    // `canViewChannels`.
 
     /// Channel graphs, the lap delta chart, the two-lap compare and sector splits
     /// all read `channels`, which the server strips for a free account (rule 4);
@@ -39,6 +44,11 @@ public extension Entitlement {
     static func canUseGarage(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
     static func canUseSetups(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
     static func canViewYearInReview(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
+
+    /// The web's two-event lap overlay. Ported for name parity with
+    /// `public/js/entitlement.js` and the shared fixture, though no native screen
+    /// reads it — the overlay is web-only (`docs/specs/native/README.md`).
+    static func canCompareEvents(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
     /// Where "Manage subscription" goes, by the store that sold it.
     static let APPLE_MANAGE_URL = URL(string: "https://apps.apple.com/account/subscriptions")!
@@ -82,12 +92,11 @@ public extension Entitlement {
 
     // MARK: - Gates
 
-    /// **Phase D flips this to `true`.** Until then every Pro surface is reachable
-    /// by every account: the purchase flow ships dark (NS-32 phase B), and this
-    /// one constant is what turns the recorder-start and import gates on. The
-    /// decision logic behind it (`ProGate`) is tested with the value injected, so
-    /// the flip is a one-line change whose tests are already green.
-    static let gatesEnabled = false
+    /// On since phase D. Phases B and C shipped the purchase flow dark behind
+    /// this one constant; flipping it is what turned the recorder-start and
+    /// import gates on. The decision logic behind it (`ProGate`) is tested with
+    /// the value injected, so both states stay covered.
+    static let gatesEnabled = true
 
     // MARK: - The App Store
 
@@ -168,14 +177,16 @@ public extension Entitlement {
 /// rather than a disabled control, decided from the **cached** entitlement so a
 /// driver who was Pro at the last sync records in a paddock with no signal.
 ///
-/// The decision is separated from the constant that arms it so the logic is
-/// tested in both states today, while the app ships with `gatesEnabled == false`.
+/// The decision is separated from the constant that arms it so the logic stays
+/// tested in both states, whatever the constant currently is.
 public enum ProGate {
     public enum Feature: Hashable, Sendable {
         /// Starting the GPS lap recorder — from the record screen, or from CarPlay.
+        ///
+        /// The only one. Video import was gated here until the tier line moved:
+        /// importing is free, and what it yields for free stops at the lap times
+        /// and the racing line, because the server strips the channels.
         case record
-        /// Parsing a video for its telemetry, including one handed over by Files.
-        case videoImport
     }
 
     public enum Decision: Hashable, Sendable {
@@ -196,7 +207,6 @@ public enum ProGate {
         guard gatesEnabled else { return .proceed }
         let allowed = switch feature {
         case .record: Entitlement.canRecord(entitlement)
-        case .videoImport: Entitlement.canImport(entitlement)
         }
         return allowed ? .proceed : .paywall
     }

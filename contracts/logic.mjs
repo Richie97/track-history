@@ -64,12 +64,12 @@ import {
 } from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
 import {
-  canImport,
   canRecord,
   canUseGarage,
   canUseSetups,
   canViewChannels,
   canViewYearInReview,
+  canCompareEvents,
   entitlementSummary,
   isPro,
   manageUrl,
@@ -890,11 +890,11 @@ const entitlementCases = [
   expected: {
     isPro: isPro(c.entitlement),
     canRecord: canRecord(c.entitlement),
-    canImport: canImport(c.entitlement),
     canViewChannels: canViewChannels(c.entitlement),
     canUseGarage: canUseGarage(c.entitlement),
     canUseSetups: canUseSetups(c.entitlement),
     canViewYearInReview: canViewYearInReview(c.entitlement),
+    canCompareEvents: canCompareEvents(c.entitlement),
     manageUrl: manageUrl(c.entitlement),
     // The date text is locale work; the fixture pins the shape around it.
     summary: entitlementSummary(c.entitlement, (ms) => `<${ms}>`),

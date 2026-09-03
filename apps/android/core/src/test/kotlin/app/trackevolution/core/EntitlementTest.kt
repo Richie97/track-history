@@ -48,7 +48,6 @@ class EntitlementTest {
             fun flag(key: String) = expected[key]!!.jsonPrimitive.content.toBooleanStrict()
             assertEquals(flag("isPro"), Entitlement.isPro(entitlement), "$name: isPro")
             assertEquals(flag("canRecord"), Entitlement.canRecord(entitlement), "$name: canRecord")
-            assertEquals(flag("canImport"), Entitlement.canImport(entitlement), "$name: canImport")
             assertEquals(flag("canViewChannels"), Entitlement.canViewChannels(entitlement), "$name: canViewChannels")
             assertEquals(flag("canUseGarage"), Entitlement.canUseGarage(entitlement), "$name: canUseGarage")
             assertEquals(flag("canUseSetups"), Entitlement.canUseSetups(entitlement), "$name: canUseSetups")
@@ -56,6 +55,11 @@ class EntitlementTest {
                 flag("canViewYearInReview"),
                 Entitlement.canViewYearInReview(entitlement),
                 "$name: canViewYearInReview",
+            )
+            assertEquals(
+                flag("canCompareEvents"),
+                Entitlement.canCompareEvents(entitlement),
+                "$name: canCompareEvents",
             )
 
             val manage = expected["manageUrl"]!!
@@ -86,23 +90,23 @@ class EntitlementTest {
         assertEquals("Pro · renews 2027-01-15", Entitlement.entitlementSummary(pro))
     }
 
-    // ---- The gates (phase D flips GATES_ENABLED) --------------------------
+    // ---- The gates (on since phase D) -------------------------------------
 
     private val free = Entitlement.FREE
     private val pro = Entitlement(tier = Entitlement.Tier.PRO, source = Entitlement.Source.GOOGLE, expiresAt = 1L, autoRenew = true)
 
     @Test
-    fun `gates ship off in this phase`() {
-        assertFalse(Entitlement.GATES_ENABLED, "phase C ships the gates dark; phase D flips this")
-        assertEquals(Gate.PROCEED, Entitlement.recordGate(free))
-        assertEquals(Gate.PROCEED, Entitlement.importGate(free))
-        assertEquals(Gate.PROCEED, Entitlement.recordGate(null))
+    fun `the gates are on in this phase`() {
+        assertTrue(Entitlement.GATES_ENABLED, "phase D turned the gates on")
+        // The default-argument path, which is what every screen actually calls.
+        assertEquals(Gate.PAYWALL, Entitlement.recordGate(free))
+        assertEquals(Gate.PAYWALL, Entitlement.recordGate(null))
+        assertEquals(Gate.PROCEED, Entitlement.recordGate(pro))
     }
 
     @Test
     fun `with the gates on, a free account meets the paywall instead of starting`() {
         assertEquals(Gate.PAYWALL, Entitlement.recordGate(free, gatesEnabled = true))
-        assertEquals(Gate.PAYWALL, Entitlement.importGate(free, gatesEnabled = true))
         // Nothing cached at all — signed out, or never fetched — is free too.
         assertEquals(Gate.PAYWALL, Entitlement.recordGate(null, gatesEnabled = true))
     }
@@ -112,7 +116,6 @@ class EntitlementTest {
         // expires_at = 1 ms after the epoch: long past, and still Pro, because
         // the server said so at the last sync and the phone may be offline now.
         assertEquals(Gate.PROCEED, Entitlement.recordGate(pro, gatesEnabled = true))
-        assertEquals(Gate.PROCEED, Entitlement.importGate(pro, gatesEnabled = true))
         assertTrue(Entitlement.isPro(pro))
     }
 }

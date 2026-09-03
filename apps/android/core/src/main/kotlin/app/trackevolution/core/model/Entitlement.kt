@@ -55,13 +55,12 @@ public data class Entitlement(
         public val FREE: Entitlement = Entitlement(tier = Tier.FREE)
 
         /**
-         * **Phase D flips this.** While false, every client-side gate answers
-         * [Gate.PROCEED] regardless of tier, so the purchase flow, the paywall
-         * and the Settings row ship dark (phase C) and the flip is a one-line
-         * change with its tests already green. The gates take the flag as a
+         * On since phase D. Phase C shipped the purchase flow, the paywall and
+         * the Settings row dark behind this one constant; flipping it is what
+         * turned the recorder and import gates on. The gates take the flag as a
          * parameter defaulting to this, so the tests exercise both values.
          */
-        public const val GATES_ENABLED: Boolean = false
+        public const val GATES_ENABLED: Boolean = true
 
         public const val APPLE_MANAGE_URL: String = "https://apps.apple.com/account/subscriptions"
         public const val GOOGLE_MANAGE_URL: String =
@@ -73,8 +72,12 @@ public data class Entitlement(
         /** The GPS lap recorder, live timing and predictive delta. */
         public fun canRecord(entitlement: Entitlement?): Boolean = isPro(entitlement)
 
-        /** Telemetry import — video on the phones, video + `.vbo` on the web. */
-        public fun canImport(entitlement: Entitlement?): Boolean = isPro(entitlement)
+        // Telemetry import is **free** and has no predicate, on purpose: there
+        // is no decision to make, and a `canImport` that always answered true
+        // would read as a gate someone had forgotten to wire. An import yields
+        // lap times, the racing line and the car metrics for free; the per-lap
+        // channel arrays it also writes are the Pro half, withheld by the
+        // server — see [canViewChannels].
 
         /**
          * Channel graphs, the lap delta chart, the two-lap compare and sector
@@ -88,6 +91,13 @@ public data class Entitlement(
         public fun canUseGarage(entitlement: Entitlement?): Boolean = isPro(entitlement)
         public fun canUseSetups(entitlement: Entitlement?): Boolean = isPro(entitlement)
         public fun canViewYearInReview(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /**
+         * The web's two-event lap overlay. Ported for name parity with
+         * `public/js/entitlement.js` and the shared fixture, though no Android
+         * screen reads it — the overlay is web-only (docs/specs/native/README.md).
+         */
+        public fun canCompareEvents(entitlement: Entitlement?): Boolean = isPro(entitlement)
 
         /**
          * Where "Manage subscription" goes, by the store that sold it. Legacy has
@@ -119,15 +129,12 @@ public data class Entitlement(
 
         /**
          * The recorder's start gate (rule 5): a paywall sheet, never a disabled
-         * button, and only when the gates are on. Pure so the decision is tested
-         * with the flag injected before phase D flips [GATES_ENABLED].
+         * button, and only when the gates are on. The only client-side gate
+         * there is — importing is free. Pure so the decision stays tested with
+         * the flag injected, whatever [GATES_ENABLED] currently is.
          */
         public fun recordGate(entitlement: Entitlement?, gatesEnabled: Boolean = GATES_ENABLED): Gate =
             if (!gatesEnabled || canRecord(entitlement)) Gate.PROCEED else Gate.PAYWALL
-
-        /** The importer's gate, at the point of import — same rule as [recordGate]. */
-        public fun importGate(entitlement: Entitlement?, gatesEnabled: Boolean = GATES_ENABLED): Gate =
-            if (!gatesEnabled || canImport(entitlement)) Gate.PROCEED else Gate.PAYWALL
 
         /** `new Date(ms).toISOString().slice(0, 10)` — the JS module's default. */
         private fun isoDate(ms: Long): String =

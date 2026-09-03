@@ -97,11 +97,10 @@ fun SignedInScaffold(
     var reviewing by rememberSaveable { mutableStateOf(false) }
 
     // The paywall (NS-32 rule 5): a sheet over whatever asked for Pro — the
-    // recorder's Start, the importer, Settings' Subscribe — never a disabled
-    // control. The gates themselves are decided in :core (`Entitlement.recordGate`
-    // / `importGate`) against the entitlement on the auth state, which offline
-    // is the cached `/api/me`; they answer PROCEED for everyone until phase D
-    // flips `Entitlement.GATES_ENABLED`.
+    // recorder's Start, Settings' Subscribe, a Pro-gated read that came back
+    // 402 — never a disabled control. The gate itself is decided in :core
+    // (`Entitlement.recordGate`) against the entitlement on the auth state,
+    // which offline is the cached `/api/me`.
     var paywall by rememberSaveable { mutableStateOf(false) }
     val entitlement = authState.entitlement
 
@@ -155,17 +154,11 @@ fun SignedInScaffold(
     }
 
     // Videos shared into the app open the chooser, which parses them on arrival.
-    // Signed-out arrivals park here until there is a graph to send them to. The
-    // share sheet is a third door into the importer, so it meets the same gate
-    // as the event page's button.
+    // Signed-out arrivals park here until there is a graph to send them to.
+    // Ungated, like the event page's button — importing is free.
     LaunchedEffect(incomingImport) {
         if (incomingImport == null) return@LaunchedEffect
-        if (Entitlement.importGate(entitlement) == Entitlement.Gate.PAYWALL) {
-            onConsumedIncomingImport()
-            paywall = true
-        } else {
-            nav.navigate(Route.Import())
-        }
+        nav.navigate(Route.Import())
     }
 
     // Leaving review does not stop or discard anything: the recording stays
