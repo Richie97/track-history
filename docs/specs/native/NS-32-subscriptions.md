@@ -349,6 +349,38 @@ Phase D is the only irreversible step (Play's free-forever), and it is a
 config-plus-wiring PR: everything it turns on was already shipped dark, which
 is what lets it be small enough to review the day it matters.
 
+> **Phase D notes (2026-09).** Four things the flip settled that the spec left
+> open:
+>
+> - **The tier table needed one more predicate.** The two-event lap overlay is
+>   listed as Pro/Client but no predicate covered it — `canViewChannels` would
+>   have been a lie, since the overlay reads lap times and no channel data. So
+>   `canCompareEvents` was added to `public/js/entitlement.js`, the fixture and
+>   both ports, even though no native screen reads it: the rule that a Pro
+>   decision gets a predicate *first* is what keeps the table enforceable.
+> - **`APPLE_FIRST_SUBSCRIPTION_BUILD` is set on the server only**, and
+>   `Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD` stays `nil` — a deviation from
+>   "phase D sets both". The app constant would have to be the Xcode Cloud build
+>   number of the archive that contains it, which cannot be known before that
+>   archive exists. The server is the authority; leaving the app's own check open
+>   costs one wasted claim per install, which the route answers 400 and
+>   `LegacyClaimRecord` treats as done.
+> - **Grandfathering closes on its own schedule, not the flip's.** Both claim
+>   paths must be shut before either price goes free, but a platform with no paid
+>   buyers to grandfather should close immediately rather than wait: an open
+>   claim with no legitimate claimant is only a way to hand out permanent
+>   entitlements. The Android soak in requirement 6 exists to give real buyers
+>   time to open the transitional build — with none, there is nothing to soak.
+> - **A 402 is its own load state**, not a `failed` carrying "pro required":
+>   `LoadState.paywall` on iOS and `LoadState.Paywall` on Android, rendering an
+>   upsell rather than "Couldn't load this". Same reason `proRequired` /
+>   `PaymentRequired` are distinct API errors — a price is not a fault.
+>
+> One harness consequence: `contracts/generate.mjs` now claims legacy **before**
+> it builds its fixture, since it builds through the very routes phase D gated.
+> The free-tier `/me` and the 402 body are captured in the window before that
+> claim, and everything after it is a Pro capture.
+
 ## Acceptance criteria
 
 **Server (phase A)**
@@ -407,20 +439,20 @@ is what lets it be small enough to review the day it matters.
 
 **Flip (phase D)**
 
-- [ ] `requireEntitlement` guards `GET /garage`, the parts/measurements routes
+- [x] `requireEntitlement` guards `GET /garage`, the parts/measurements routes
       and the setups routes, and nothing else; a test enumerates the guarded
       routes so an accidental addition fails.
-- [ ] A 402 renders the paywall on all three clients, not the sync banner.
-- [ ] Web Settings shows tier, source and expiry; "Manage" targets the right
+- [x] A 402 renders the paywall on all three clients, not the sync banner.
+- [x] Web Settings shows tier, source and expiry; "Manage" targets the right
       store.
-- [ ] Terms (new billing section), privacy (no longer "free", transaction data
+- [x] Terms (new billing section), privacy (no longer "free", transaction data
       disclosed), account-deletion (does not cancel the sub) updated with bumped
       effective dates; landing + docs carry the tier table; README lists the
       secrets and store setup; AGENTS.md carries the routes and the
       no-write-gate convention.
 - [ ] `LEGACY_CUTOFF` set in production **before** either store price changes.
 - [ ] Both store prices set to free; both submissions reference the legal URLs.
-- [ ] Every row in the tier table above is enforced where the table says.
+- [x] Every row in the tier table above is enforced where the table says.
 
 ## Verification
 
