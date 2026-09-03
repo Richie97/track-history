@@ -93,10 +93,6 @@ class DashboardModel(
     val alsoUpcoming: List<Event>
         get() = upcoming.drop(1)
 
-    /** The server returns newest first; six is what fits before it stops being a summary. */
-    val recent: List<Event>
-        get() = events.filterNot { EventDates.isUpcoming(it.startDate) }.take(6)
-
     /**
      * The event a recording started from the dashboard attaches to, or null to
      * record unattached (#108).

@@ -15,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -170,54 +171,6 @@ fun EventScreen(
                 }
             }
 
-            if (recorderAvailable) {
-                item("recorder") {
-                    TrackCard(Modifier.fillMaxWidth()) {
-                        Text(
-                            "Record laps with your phone",
-                            style = TrackTheme.typography.bodyStrong,
-                            color = colors.textStrong,
-                        )
-                        Text(
-                            "Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.",
-                            style = TrackTheme.typography.xs,
-                            color = colors.textMuted,
-                            modifier = Modifier.padding(vertical = 6.dp),
-                        )
-                        Button(
-                            onClick = { onRecord(model.eventId) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = colors.accent,
-                                contentColor = colors.accentContrast,
-                            ),
-                        ) {
-                            Text("Start recording", style = TrackTheme.typography.bodyStrong)
-                        }
-                    }
-                }
-            }
-
-            item("import") {
-                TrackCard(Modifier.fillMaxWidth()) {
-                    Text(
-                        "Import video",
-                        style = TrackTheme.typography.bodyStrong,
-                        color = colors.textStrong,
-                    )
-                    Text(
-                        "Corvette PDR or GoPro clips already on this phone — laps, racing line and " +
-                            "channel graphs come out of the telemetry track. The video is read in " +
-                            "place, never copied or uploaded.",
-                        style = TrackTheme.typography.xs,
-                        color = colors.textMuted,
-                        modifier = Modifier.padding(vertical = 6.dp),
-                    )
-                    TextButton(onClick = { onImport(model.eventId) }, modifier = Modifier.testTag("eventImportVideo")) {
-                        Text("Import video…", style = TrackTheme.typography.sm, color = colors.accentInk)
-                    }
-                }
-            }
-
             bestLapTrace(detail.sessions)?.let { (trace, lapMs) ->
                 item("trace") {
                     Column {
@@ -251,7 +204,12 @@ fun EventScreen(
             }
 
             item("add-session") {
-                AddSessionCard { label, notes, laps -> model.addSession(label, notes, laps) }
+                AddSessionCard(
+                    recorderAvailable = recorderAvailable,
+                    onRecord = { onRecord(model.eventId) },
+                    onImport = { onImport(model.eventId) },
+                    onAdd = { label, notes, laps -> model.addSession(label, notes, laps) },
+                )
             }
         }
     }
@@ -483,56 +441,139 @@ private fun SessionCard(
     }
 }
 
+/**
+ * The one place laps get into an event, with the three ways side by side: record
+ * them, pull them out of a video, or type them in.
+ *
+ * These used to be three stacked cards, which made "how do I add a session" a
+ * question with three separate-looking answers spread down the page. Hand entry is
+ * collapsed because it is the fallback of the three — and because an always-open
+ * three-field form pushed the other two out of one screenful.
+ */
 @Composable
-private fun AddSessionCard(onAdd: (String?, String?, List<Int>) -> Unit) {
+private fun AddSessionCard(
+    recorderAvailable: Boolean,
+    onRecord: () -> Unit,
+    onImport: () -> Unit,
+    onAdd: (String?, String?, List<Int>) -> Unit,
+) {
     val colors = TrackTheme.colors
     var label by rememberSaveable { mutableStateOf("") }
     var laps by rememberSaveable { mutableStateOf("") }
     var notes by rememberSaveable { mutableStateOf("") }
+    var manual by rememberSaveable { mutableStateOf(false) }
     val parsed = LapTime.parseLapList(laps)
 
     TrackCard(Modifier.fillMaxWidth()) {
-        TESectionHeader("Add session")
-        OutlinedTextField(
-            value = label,
-            onValueChange = { label = it },
-            placeholder = { Text("Day 1 — Session 2", style = TrackTheme.typography.sm) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        TESectionHeader("Add a session")
+
+        if (recorderAvailable) {
+            Text(
+                "Record laps with your phone",
+                style = TrackTheme.typography.bodyStrong,
+                color = colors.textStrong,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                "Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.",
+                style = TrackTheme.typography.xs,
+                color = colors.textMuted,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+            Button(
+                onClick = onRecord,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accent,
+                    contentColor = colors.accentContrast,
+                ),
+            ) {
+                Text("Start recording", style = TrackTheme.typography.bodyStrong)
+            }
+            HorizontalDivider(
+                color = colors.borderHairline,
+                modifier = Modifier.padding(vertical = 14.dp),
+            )
+        }
+
+        Text(
+            "Import a video",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
         )
-        OutlinedTextField(
-            value = laps,
-            onValueChange = { laps = it },
-            placeholder = { Text("2:01.24, 2:03.1 …", style = TrackTheme.typography.sm) },
-            supportingText = {
-                Text(
-                    "Formats: 2:01.24 · 2:01 · 121.24 (seconds)",
-                    style = TrackTheme.typography.xxs,
-                    color = colors.textFaint,
-                )
-            },
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        Text(
+            "Corvette PDR or GoPro clips already on this phone — laps, racing line and " +
+                "channel graphs come out of the telemetry track. The video is read in " +
+                "place, never copied or uploaded.",
+            style = TrackTheme.typography.xs,
+            color = colors.textMuted,
+            modifier = Modifier.padding(vertical = 6.dp),
         )
-        OutlinedTextField(
-            value = notes,
-            onValueChange = { notes = it },
-            placeholder = {
-                Text("Traffic, tire pressures, line changes…", style = TrackTheme.typography.sm)
-            },
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        TextButton(onClick = onImport, modifier = Modifier.testTag("eventImportVideo")) {
+            Text("Import video…", style = TrackTheme.typography.sm, color = colors.accentInk)
+        }
+
+        HorizontalDivider(
+            color = colors.borderHairline,
+            modifier = Modifier.padding(vertical = 14.dp),
         )
-        Button(
-            onClick = {
-                onAdd(label.ifBlank { null }, notes.ifBlank { null }, parsed)
-                label = ""; laps = ""; notes = ""
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.accent,
-                contentColor = colors.accentContrast,
-            ),
-            modifier = Modifier.padding(top = 8.dp),
-        ) {
-            Text("Add session", style = TrackTheme.typography.bodyStrong)
+
+        Text(
+            "Enter lap times by hand",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
+        )
+        if (!manual) {
+            Text(
+                "Timing sheet from the instructor, or laps off a stopwatch.",
+                style = TrackTheme.typography.xs,
+                color = colors.textMuted,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+            TextButton(onClick = { manual = true }, modifier = Modifier.testTag("eventEnterLapsByHand")) {
+                Text("Enter lap times…", style = TrackTheme.typography.sm, color = colors.accentInk)
+            }
+        } else {
+            OutlinedTextField(
+                value = label,
+                onValueChange = { label = it },
+                placeholder = { Text("Day 1 — Session 2", style = TrackTheme.typography.sm) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+            OutlinedTextField(
+                value = laps,
+                onValueChange = { laps = it },
+                placeholder = { Text("2:01.24, 2:03.1 …", style = TrackTheme.typography.sm) },
+                supportingText = {
+                    Text(
+                        "Formats: 2:01.24 · 2:01 · 121.24 (seconds)",
+                        style = TrackTheme.typography.xxs,
+                        color = colors.textFaint,
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                placeholder = {
+                    Text("Traffic, tire pressures, line changes…", style = TrackTheme.typography.sm)
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+            Button(
+                onClick = {
+                    onAdd(label.ifBlank { null }, notes.ifBlank { null }, parsed)
+                    label = ""; laps = ""; notes = ""; manual = false
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accent,
+                    contentColor = colors.accentContrast,
+                ),
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Text("Add session", style = TrackTheme.typography.bodyStrong)
+            }
         }
     }
 }

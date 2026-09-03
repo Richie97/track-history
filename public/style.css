@@ -492,6 +492,12 @@ form.panel, .panel {
   background: var(--surface-card); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg); padding: var(--card-pad); margin: 16px 0;
 }
+/* Sub-heading inside a panel that is one option among several — the manual
+   lap-entry form under the event page's "Add a session". */
+.add-session-head {
+  font-size: var(--fs-xs); font-weight: var(--weight-medium);
+  color: var(--text-muted); margin-bottom: 12px;
+}
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: var(--fs-xs); font-weight: var(--weight-medium); color: var(--text-muted); margin-bottom: 6px; }
 .field input, .field textarea, .field select {

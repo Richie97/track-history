@@ -41,9 +41,7 @@ final class RecordAndSaveUITests: XCTestCase {
 
         // The recorder's entry point is an event page (NS-25): the recording is saved
         // as one of that event's sessions, so this is where it's started from.
-        let event = app.buttons["recentEventCard"].firstMatch
-        XCTAssertTrue(event.waitForExistence(timeout: 20), "the seeded logbook should have an event")
-        event.tap()
+        XCTAssertTrue(openADrivenEvent(app), "the seeded logbook should have a driven event")
 
         let entry = app.buttons["recordEntry"]
         XCTAssertTrue(scrollTo(entry, in: app), "the event page carries the recorder entry point")
@@ -120,9 +118,7 @@ final class RecordAndSaveUITests: XCTestCase {
     func testDiscardingARecordingReturnsToTheDashboard() throws {
         let app = try launchSignedIn()
 
-        let event = app.buttons["recentEventCard"].firstMatch
-        XCTAssertTrue(event.waitForExistence(timeout: 20))
-        event.tap()
+        XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(
             app.staticTexts["Best time"].waitForExistence(timeout: 20),
             "should have navigated to the event page"

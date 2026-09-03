@@ -435,6 +435,17 @@ struct OfflineStoreTests {
         #expect(try await reopened.pendingCount() == 1, "the queue is still there; the count has to be too")
         #expect(try await reopened.queuedWrites().count == 1)
 
+        // And the optimistic patch the write made, which commits in the same
+        // transaction as the queue entry. The dashboard no longer lists recent events,
+        // so this is where "an offline write is still there after a relaunch" is
+        // asserted — the UI test above it can only see the sync banner.
+        let cached = try await reopened.cachedGet("/events")
+        #expect(cached != nil, "the patched cache has to survive the process too")
+        #expect(
+            String(decoding: cached ?? Data(), as: UTF8.self).contains("Chin Track Days"),
+            "and still carry the offline edit"
+        )
+
         let recorder = Recorder()
         let status = try await reopened.flush { method, path, _ in
             recorder.record(method: method, path: path)
