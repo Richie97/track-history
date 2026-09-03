@@ -4,6 +4,11 @@ A personal HPDE/track-day logbook: events, sessions, lap times and notes per tra
 with progress charts over time. Runs on Cloudflare Workers + D1 (SQLite), signs in
 with Google (or Apple), and fits comfortably in Cloudflare's free tier.
 
+Freemium since NS-32: the logbook is free and the analysis is
+[Track Evolution Pro](#subscriptions-track-evolution-pro) — see the tier table
+in `docs/specs/native/NS-32-subscriptions.md` before adding a feature, since
+every one of them gets a row there.
+
 **The app:** https://trackevolution.app — the hosted instance, and where the docs
 site points users. (This README covers development and deploying an instance;
 the public docs site intentionally doesn't.)
@@ -186,10 +191,14 @@ your events, and re-run `npm run seed:generate`.
    npm run deploy
    ```
 
-   `LEGACY_CUTOFF` (phase D) belongs with these, as a **secret** rather than a
+   `LEGACY_CUTOFF` belongs with these, as a **secret** rather than a
    `wrangler.jsonc` var: the contract harness starts the Worker from that file
    and pins the entitlement shapes through the Android legacy claim, which the
-   cutoff would turn into a 403 and make `npm run contracts:check` fail.
+   cutoff would turn into a 403 and make `npm run contracts:check` fail. Set it
+   (any ISO date, `YYYYMMDD`, or epoch ms) to close the Android transitional
+   paid-app claim — a value in the past closes it immediately, and anything that
+   doesn't parse is treated as closed, since a misconfigured cutoff must fail
+   towards *not* granting lifetime Pro.
 
 Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
@@ -776,9 +785,22 @@ the store's own grace period, so webhook lag never reads as a lapse.
 laps or tracks checks entitlement, ever — the offline layer drops rejected
 writes, and a recording made under Pro and replayed after a lapse would be
 deleted. The recorder and importer gate *at start*, on the phone, against the
-cached entitlement; the server gates the Pro *reads* (garage consumables, setup
-sheets) and strips one field (`sessions.channels`) from session payloads. None
-of those gates are wired yet (phase A ships dark); phase D turns them on.
+cached entitlement; the server gates the Pro *reads* and strips one field
+(`sessions.channels`) from the event detail.
+
+**What the gates actually are** (phase D wired them; before that everything
+shipped dark):
+
+| Gate | Where |
+|---|---|
+| `requireEntitlement` | `GET /garage`, the parts/measurements routes, and the setups routes (`PUT`/`DELETE /events/:id/setups/:day`, `GET /events/:id/setups/prefill`, `GET /tracks/:id/setups`) — and nothing else. `test/api/entitlement-gates.test.ts` enumerates the set by handler identity, so a gate added anywhere else fails a test. |
+| `stripProFields` | `GET /events/:id`, the only response carrying `sessions.channels`. `trace` is kept — the track map is free, and a session with a trace and no channels is what a recorder save looks like. |
+| Client | The recorder's Start and the importer on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`), and on the web the import dropzone, setup notebook, setup-vs-lap-times table, garage page, year in review and both compare routes. |
+
+A 402 renders the paywall on every client, never the sync banner — that is why
+`APIError.proRequired` and `ApiException.PaymentRequired` are their own cases.
+The setups *writes* are the one entitlement-checked write, and the spec says why:
+a rejected setup sheet drops a form, not a session.
 
 **Store setup checklist** (phase B/C/D; nothing here is needed to deploy the
 server):
@@ -796,14 +818,30 @@ server):
   `https://trackevolution.app/billing/google/rtdn` that authenticates as that
   same service account (or set `GOOGLE_RTDN_EMAIL` to the one it uses). Android
   Auto stays opted out.
-- Optional: `APPLE_FIRST_SUBSCRIPTION_BUILD` makes the server also check that a
-  legacy claim's `originalApplicationVersion` predates the first **free** build,
-  on top of the app's own check (`Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD` in
-  the iOS Kit, the same `compareVersions` rule). Both stay unset through phases
-  B and C, when the app is still a paid download and every install legitimately
-  claims; phase D sets both to the first free build's number — which is **Xcode
-  Cloud's** build number, not `CURRENT_PROJECT_VERSION`, so it can only be read
-  off that archive once it exists.
+- `APPLE_FIRST_SUBSCRIPTION_BUILD` makes the server check that a legacy claim's
+  `originalApplicationVersion` predates the first **free** build, alongside the
+  app's own check (`Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD` in the iOS Kit,
+  the same ported `compareVersions` rule). It stayed unset through phases B and
+  C, when the app was still a paid download and every install legitimately
+  claimed. **Set the Worker secret, and leave the Kit constant `nil`:** the app
+  constant would have to be the **Xcode Cloud** build number of the archive that
+  contains it, which cannot be known before that archive exists. The server is
+  the authority anyway, and the cost of leaving the app's check open is one
+  wasted claim per install — the route answers 400, which `StoreController`
+  records as done and never retries.
+
+**Closing grandfathering** is the pair of settings above: `LEGACY_CUTOFF` for
+Android, `APPLE_FIRST_SUBSCRIPTION_BUILD` for iOS. Both stay open while the app
+is a paid download and both must be closed **before** either store price goes to
+free, or anyone who installs the free app claims Pro for life. If a platform has
+no paid buyers to grandfather at all, close it there straight away rather than
+waiting for the flip — an open claim with no legitimate claimant is only a way
+to hand out permanent entitlements. Anyone who paid and misses the window is a
+support case: `eric@speedshift.io`, documented on the docs site.
+
+**Order for the price flip.** Both cutoffs set in production → verify against a
+sandbox/test-track purchase → App Store and Play prices to free. Play's is
+**permanent** (a free app can never be made paid again); Apple's is not.
 
 Local testing needs no store: `test/api/billing.test.ts` signs payloads with a
 synthetic certificate chain (`test/fixtures/billing/`, rebuilt by `build.sh`)
