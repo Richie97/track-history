@@ -626,7 +626,6 @@ async function viewDashboard() {
   const [tracks, events, garage] = await Promise.all([api("/tracks"), api("/events"), api("/garage")]);
   const withData = tracks.filter((t) => t.event_count > 0).sort((a, b) => (b.last_date || "").localeCompare(a.last_date || ""));
   const upcoming = events.filter(isUpcoming).sort((a, b) => a.start_date.localeCompare(b.start_date));
-  const recent = events.filter((e) => !isUpcoming(e)).slice(0, 6);
 
   const cards = withData
     .map((t) => {
@@ -657,17 +656,6 @@ async function viewDashboard() {
         <div class="meta">${fmtDate(e.start_date)}${e.club ? " · " + esc(e.club) : ""}${cl.length ? ` · checklist ${done}/${cl.length}` : ""}</div>
       </a>`;
     })
-    .join("");
-
-  const recentRows = recent
-    .map(
-      (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td class="date">${fmtDate(e.start_date)}</td>
-        <td>${esc(e.track_name)}</td>
-        <td>${esc(e.club ?? "")}</td>
-        <td class="num">${fmtMs(e.best_ms)}</td>
-      </tr>`
-    )
     .join("");
 
   // Garage cards: hours accrued, what's in service, and the loudest wear
@@ -710,9 +698,6 @@ async function viewDashboard() {
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events yet — add your first track day.</div>`}
     ${garageCards ? `<h2>Garage</h2><div class="cards">${garageCards}</div>` : ""}
-    ${recent.length ? `<h2>Recent events</h2>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Club</th><th class="num">Best</th></tr></thead>
-    <tbody>${recentRows}</tbody></table></div>` : ""}
     <h2>Share your history</h2>
     <div class="panel share-panel">
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
@@ -729,7 +714,6 @@ async function viewDashboard() {
       <div id="share-msg" class="hint" style="margin-top:6px"></div>
     </div>
   `);
-  wireRowLinks(view);
   // Warm the offline cache in the background while we're on the dashboard.
   scheduleWarm();
 
@@ -1433,6 +1417,8 @@ async function viewEvent(eventId) {
     ${traceHtml}
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
+    <h2>Add a session</h2>
+    <div class="hint" style="margin:-4px 0 10px">Pull the laps out of a video or logger file, or type them in by hand.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
       <div class="pdr-dropzone-inner">
@@ -1446,6 +1432,7 @@ async function viewEvent(eventId) {
     </div>
     <div id="pdr-review"></div>
     <form class="panel" id="add-session">
+      <div class="add-session-head">Or enter lap times by hand</div>
       <div class="form-grid">
         <div class="field"><label>Session label</label><input name="label" placeholder="Day 1 — Session 2"></div>
       </div>

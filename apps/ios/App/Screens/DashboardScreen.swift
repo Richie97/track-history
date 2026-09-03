@@ -121,24 +121,6 @@ struct DashboardScreen: View {
                     garageCard(vehicle)
                 }
             }
-
-            if !model.recent.isEmpty {
-                TESectionHeader("Recent events")
-                ForEach(model.recent) { event in
-                    TENavCard(route: .event(event.id), identifier: "recentEventCard") {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(event.trackName)
-                                    .teStyle(.bodyStrong)
-                                    .foregroundStyle(Color(.textStrong))
-                                TEMeta([EventDates.fmtDate(event.startDate), event.club])
-                            }
-                            Spacer(minLength: 8)
-                            TETime(ms: event.bestMs)
-                        }
-                    }
-                }
-            }
         }
         .refreshable { await model.load() }
     }
@@ -485,9 +467,4 @@ final class DashboardModel {
         RemoteRecording.pickRecordingEvent(events, todayIso: RemoteRecording.localTodayIso())
     }
     var alsoUpcoming: [Event] { Array(upcoming.dropFirst()) }
-
-    /// The server already returns events newest-first.
-    var recent: [Event] {
-        Array(events.filter { !EventDates.isUpcoming($0.startDate) }.prefix(6))
-    }
 }

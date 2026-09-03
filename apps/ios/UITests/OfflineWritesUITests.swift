@@ -26,7 +26,7 @@ final class OfflineWritesUITests: XCTestCase {
     func testAnEventLoggedOfflineIsVisibleAndQueued() throws {
         // Online first: sign in, and let the dashboard warm the cache.
         let app = try launchSignedIn()
-        XCTAssertTrue(app.buttons["recentEventCard"].firstMatch.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["trackCard"].firstMatch.waitForExistence(timeout: 20))
         // The warm-up runs after first paint; give it a moment to pull event details.
         let warmed = expectation(description: "cache warms")
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { warmed.fulfill() }
@@ -40,7 +40,7 @@ final class OfflineWritesUITests: XCTestCase {
         // The cached logbook still reads. This is the part that makes the app usable
         // at a track at all.
         XCTAssertTrue(
-            app.buttons["recentEventCard"].firstMatch.waitForExistence(timeout: 30),
+            app.buttons["trackCard"].firstMatch.waitForExistence(timeout: 30),
             "the cached logbook should still render with no server"
         )
 
@@ -60,6 +60,9 @@ final class OfflineWritesUITests: XCTestCase {
 
         // And a session with laps on top of it — a write against a row the server has
         // never seen, which is the case that needs temp-id substitution on replay.
+        let manual = app.buttons["manualEntry"]
+        XCTAssertTrue(scrollTo(manual, in: app), "the Add a session card should offer hand entry")
+        manual.tap()
         let label = app.textFields["Day 1 — Session 2"]
         XCTAssertTrue(label.waitForExistence(timeout: 15))
         label.tap()
@@ -91,6 +94,12 @@ final class OfflineWritesUITests: XCTestCase {
 
         // Leaving and coming back must not lose any of it: the queue and its cache
         // patch commit in one transaction, so both survive a relaunch.
+        //
+        // What a *screen* can check here is the queue, via the banner. The cached
+        // patch has no dashboard surface any more — the front page lists tracks, and
+        // a track invented offline isn't in the cached `/tracks` — so the patch's own
+        // survival is asserted one level down, by `OfflineStoreTests`'
+        // `aQueueSurvivesTheProcessThatMadeIt`.
         app.terminate()
         app.launch()
         XCTAssertTrue(
@@ -99,9 +108,9 @@ final class OfflineWritesUITests: XCTestCase {
         )
         XCTAssertTrue(
             app.staticTexts.containing(
-                NSPredicate(format: "label CONTAINS 'Paddock Offline Test'")
+                NSPredicate(format: "label CONTAINS 'Offline' OR label CONTAINS 'sync'")
             ).firstMatch.waitForExistence(timeout: 20),
-            "an event created offline should survive a relaunch, still unsent"
+            "the writes queued offline should still be waiting after a relaunch"
         )
     }
 }

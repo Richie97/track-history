@@ -112,6 +112,49 @@ extension XCTestCase {
         return app
     }
 
+    /// Open an event with a chartable number of laps, from the dashboard, via its
+    /// track page.
+    ///
+    /// The dashboard used to list recent events directly; it doesn't any more — the
+    /// Tracks grid already carries recency, and the table under it was the same
+    /// logbook said twice. So the route into a past event is one hop longer, and
+    /// every test that needs one goes through here rather than repeating it.
+    ///
+    /// "Driven" means **three or more laps**, which is what the event page needs
+    /// before it draws its pace chart and what these tests are all about. The track
+    /// page's event cards carry a consistency figure, and `fmtConsistency` renders one
+    /// only with 3+ laps — so a card whose label has a percentage in it is the
+    /// predicate, read without opening anything or scrolling anywhere. The seed's
+    /// newest track may have no such event, hence the walk across tracks.
+    ///
+    /// Returns false when the logbook has nothing driven in it, which is a skip
+    /// condition rather than a failure.
+    @discardableResult
+    func openADrivenEvent(_ app: XCUIApplication) -> Bool {
+        let tracks = app.buttons.matching(identifier: "trackCard")
+        guard tracks.firstMatch.waitForExistence(timeout: 20) else { return false }
+        // Snapshotted: once we navigate into a track the query matches nothing.
+        let trackCount = tracks.count
+
+        for index in 0..<trackCount {
+            let track = tracks.element(boundBy: index)
+            guard track.exists, track.isHittable else { continue }
+            track.tap()
+
+            let events = app.buttons.matching(identifier: "trackEventCard")
+            if events.firstMatch.waitForExistence(timeout: 15) {
+                if let driven = events.allElementsBoundByIndex.first(where: { $0.label.contains("%") }) {
+                    driven.tap()
+                    return app.staticTexts["Best time"].waitForExistence(timeout: 15)
+                }
+            }
+
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            _ = tracks.firstMatch.waitForExistence(timeout: 15)
+        }
+        return false
+    }
+
     // MARK: - Talking to the dev server directly
 
     /// One dev-server call, signed in through the `DEV_MODE` bypass.
