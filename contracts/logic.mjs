@@ -64,7 +64,6 @@ import {
 } from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
 import {
-  canImport,
   canRecord,
   canUseGarage,
   canUseSetups,
@@ -891,7 +890,6 @@ const entitlementCases = [
   expected: {
     isPro: isPro(c.entitlement),
     canRecord: canRecord(c.entitlement),
-    canImport: canImport(c.entitlement),
     canViewChannels: canViewChannels(c.entitlement),
     canUseGarage: canUseGarage(c.entitlement),
     canUseSetups: canUseSetups(c.entitlement),

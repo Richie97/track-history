@@ -550,6 +550,13 @@ form.panel, .panel {
   background: var(--accent); color: var(--accent-contrast);
   font-size: var(--fs-xs); font-weight: var(--weight-semibold); letter-spacing: 0.02em;
 }
+/* A one-line Pro note, where the full panel would be too loud. */
+.pro-note {
+  margin: -4px 0 16px;
+  color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.55;
+}
+.pro-note .pro-badge { margin-right: 6px; vertical-align: 1px; }
+
 /* Settings' tier card. */
 .sub-tier {
   font-size: var(--fs-h2); font-weight: var(--weight-semibold); color: var(--text-muted);

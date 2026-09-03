@@ -48,7 +48,6 @@ class EntitlementTest {
             fun flag(key: String) = expected[key]!!.jsonPrimitive.content.toBooleanStrict()
             assertEquals(flag("isPro"), Entitlement.isPro(entitlement), "$name: isPro")
             assertEquals(flag("canRecord"), Entitlement.canRecord(entitlement), "$name: canRecord")
-            assertEquals(flag("canImport"), Entitlement.canImport(entitlement), "$name: canImport")
             assertEquals(flag("canViewChannels"), Entitlement.canViewChannels(entitlement), "$name: canViewChannels")
             assertEquals(flag("canUseGarage"), Entitlement.canUseGarage(entitlement), "$name: canUseGarage")
             assertEquals(flag("canUseSetups"), Entitlement.canUseSetups(entitlement), "$name: canUseSetups")
@@ -101,7 +100,6 @@ class EntitlementTest {
         assertTrue(Entitlement.GATES_ENABLED, "phase D turned the gates on")
         // The default-argument path, which is what every screen actually calls.
         assertEquals(Gate.PAYWALL, Entitlement.recordGate(free))
-        assertEquals(Gate.PAYWALL, Entitlement.importGate(free))
         assertEquals(Gate.PAYWALL, Entitlement.recordGate(null))
         assertEquals(Gate.PROCEED, Entitlement.recordGate(pro))
     }
@@ -109,7 +107,6 @@ class EntitlementTest {
     @Test
     fun `with the gates on, a free account meets the paywall instead of starting`() {
         assertEquals(Gate.PAYWALL, Entitlement.recordGate(free, gatesEnabled = true))
-        assertEquals(Gate.PAYWALL, Entitlement.importGate(free, gatesEnabled = true))
         // Nothing cached at all — signed out, or never fetched — is free too.
         assertEquals(Gate.PAYWALL, Entitlement.recordGate(null, gatesEnabled = true))
     }
@@ -119,7 +116,6 @@ class EntitlementTest {
         // expires_at = 1 ms after the epoch: long past, and still Pro, because
         // the server said so at the last sync and the phone may be offline now.
         assertEquals(Gate.PROCEED, Entitlement.recordGate(pro, gatesEnabled = true))
-        assertEquals(Gate.PROCEED, Entitlement.importGate(pro, gatesEnabled = true))
         assertTrue(Entitlement.isPro(pro))
     }
 }

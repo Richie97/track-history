@@ -83,9 +83,10 @@ fun PaywallSheet(
             Text("Turn lap times into analysis", style = type.h1, color = colors.textStrong)
             Text(
                 "The logbook is free — tracks, events, sessions, lap times, best laps, progress " +
-                    "charts, sharing and leaderboards, with no limit. Pro is the analysis: the GPS lap " +
-                    "recorder with live timing, telemetry import from Corvette PDR and GoPro video, " +
-                    "channel graphs and the lap delta, and the garage's consumable wear tracking.",
+                    "charts, sharing and leaderboards, with no limit, and lap times out of Corvette " +
+                    "PDR and GoPro video. Pro is the analysis: the GPS lap recorder with live timing, " +
+                    "the per-lap channel graphs and sector splits inside those same videos, and the " +
+                    "garage's consumable wear tracking.",
                 style = type.sm,
                 color = colors.textMuted,
             )

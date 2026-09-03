@@ -25,7 +25,7 @@ import {
 } from "./js/garage.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 import {
-  canCompareEvents, canImport, canUseGarage, canUseSetups, canViewChannels,
+  canCompareEvents, canUseGarage, canUseSetups, canViewChannels,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
 
@@ -81,7 +81,7 @@ function proPanelHtml(heading, what, { underHeading = false } = {}) {
     ${underHeading ? "" : `<h3>${esc(heading)}</h3>`}
     <p>${what}</p>
     <p class="hint">Track Evolution Pro is ${PRO_PRICE}, and it covers all three apps and this
-      site — your logbook, sharing and lap times stay free forever.</p>
+      site — your logbook, sharing, lap times and telemetry import stay free forever.</p>
     <div class="btn-row">
       <a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
       <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>
@@ -89,6 +89,15 @@ function proPanelHtml(heading, what, { underHeading = false } = {}) {
     <p class="hint" style="margin-top:8px">Already subscribed? Sign in to the app with this
       account — the subscription follows the account, not the device.</p>
   </div>`;
+}
+
+// A one-line Pro note, for places where the full panel would be too loud —
+// import is free, so the dropzone is not a paywall, but a free account should
+// learn *before* importing that the channel graphs inside the file are the Pro
+// half. The client can't tell a session that never had channels from one whose
+// channels were stripped, so the honest place to say it is next to the import.
+function proNoteHtml(text) {
+  return `<div class="pro-note"><span class="pro-badge">Pro</span> ${text}</div>`;
 }
 
 // ---------- garage & setup-sheet renderers -----------------------------------
@@ -1505,14 +1514,8 @@ async function viewEvent(eventId) {
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
     <h2>Add a session</h2>
-    <div class="hint" style="margin:-4px 0 10px">${
-      canImport(state.entitlement)
-        ? "Pull the laps out of a video or logger file, or type them in by hand."
-        : "Type the laps in by hand — or subscribe and pull them out of a video or logger file."
-    }</div>
-    ${
-      canImport(state.entitlement)
-        ? `<div class="pdr-dropzone" id="pdr-dropzone">
+    <div class="hint" style="margin:-4px 0 10px">Pull the laps out of a video or logger file, or type them in by hand.</div>
+    <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
       <div class="pdr-dropzone-inner">
         <span class="pdr-dropzone-icon">📼</span>
@@ -1522,13 +1525,14 @@ async function viewEvent(eventId) {
         </div>
         <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your computer</span>
       </div>
-    </div>`
-        : proPanelHtml(
-            "Telemetry import",
-            "Drop a Corvette PDR or GoPro video, or a Racelogic <code>.vbo</code>, and get lap times, " +
-              "the racing line and speed, throttle, brake, steering and RPM traces for every lap — " +
-              "with sector splits and a theoretical best. Parsing happens in this browser; the video " +
-              "never leaves your computer."
+    </div>
+    ${
+      canViewChannels(state.entitlement)
+        ? ""
+        : proNoteHtml(
+            "Importing is free — you get the lap times, the racing line and top speed, RPM and lateral G. " +
+              "The per-lap speed, throttle, brake and steering traces in the same file, with sector splits and " +
+              "lap-vs-lap deltas, need a subscription."
           )
     }
     <div id="pdr-review"></div>
@@ -1687,7 +1691,7 @@ async function viewEvent(eventId) {
     };
   });
 
-  if (canImport(state.entitlement)) bindTelemetryImport(view, e, route);
+  bindTelemetryImport(view, e, route);
 }
 
 // --- event form (new / edit) ---
@@ -1877,7 +1881,7 @@ function subscriptionPanelHtml() {
   const detail = !isPro(e)
     ? e?.source
       ? `Your ${e.source === "apple" ? "App Store" : "Google Play"} subscription has ended. Resubscribe in the app to turn Pro back on — nothing was deleted.`
-      : "The logbook, your lap times, charts and sharing are free and stay that way. Pro adds the lap recorder, telemetry import, channel graphs, the garage's consumables, the setup notebook and year in review."
+      : "The logbook, your lap times, charts, sharing and telemetry import are free and stay that way. Pro adds the lap recorder, the channel graphs and sector splits inside an imported session, the garage's consumables, the setup notebook and year in review."
     : e.source === "legacy"
       ? "You bought the app before it became a subscription, so Pro is yours for life. There is nothing to renew and nothing to cancel."
       : `Billed through ${e.source === "apple" ? "the App Store" : "Google Play"}.${

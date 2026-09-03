@@ -4,7 +4,6 @@ import {
   FREE_ENTITLEMENT,
   GOOGLE_MANAGE_URL,
   canCompareEvents,
-  canImport,
   canRecord,
   canUseGarage,
   canUseSetups,
@@ -28,7 +27,7 @@ describe("isPro and the feature predicates", () => {
   it("every Pro feature follows the tier, not the clock", () => {
     // Expired by the wall clock but still `pro` — the cached answer stands offline.
     const stale = pro({ expires_at: 1 });
-    const every = [canRecord, canImport, canViewChannels, canUseGarage, canUseSetups,
+    const every = [canRecord, canViewChannels, canUseGarage, canUseSetups,
       canViewYearInReview, canCompareEvents];
     for (const can of every) {
       expect(can(stale)).toBe(true);

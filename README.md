@@ -757,9 +757,11 @@ spreadsheet and the paper setup notebook into the logbook:
 ## Subscriptions (Track Evolution Pro)
 
 Track Evolution is freemium: the **logbook is free** (tracks, events, sessions,
-lap times, best laps, progress charts, sharing, leaderboards, the vehicle list),
-and **Pro** is the analysis — the GPS lap recorder, telemetry import and channel
-data, garage consumables, the setup notebook and year in review. Pro is
+lap times, best laps, progress charts, sharing, leaderboards, the vehicle list —
+and telemetry import, which yields lap times, the racing line and the car
+metrics), and **Pro** is the analysis — the GPS lap recorder, the per-lap
+`channels` an import also writes, garage consumables, the setup notebook and
+year in review. Pro is
 **$1.99/month or $19.99/year**, sold through the App Store and Google Play; the
 web app shows the tier and points at the phone apps to subscribe. Anyone who
 bought the $1 app before subscriptions is **Pro for life**. The full tier table,
@@ -804,7 +806,7 @@ shipped dark):
 |---|---|
 | `requireEntitlement` | `GET /garage`, the parts/measurements routes, and the setups routes (`PUT`/`DELETE /events/:id/setups/:day`, `GET /events/:id/setups/prefill`, `GET /tracks/:id/setups`) — and nothing else. `test/api/entitlement-gates.test.ts` enumerates the set by handler identity, so a gate added anywhere else fails a test. |
 | `stripProFields` | `GET /events/:id`, the only response carrying `sessions.channels`. `trace` is kept — the track map is free, and a session with a trace and no channels is what a recorder save looks like. |
-| Client | The recorder's Start and the importer on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`), and on the web the import dropzone, setup notebook, setup-vs-lap-times table, garage page, year in review and both compare routes. |
+| Client | The recorder's Start on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`), and on the web the setup notebook, setup-vs-lap-times table, garage page, year in review and both compare routes. **Import is not gated on any client** — it is free, and `channels` above is what the tier actually costs. |
 
 A 402 renders the paywall on every client, never the sync banner — that is why
 `APIError.proRequired` and `ApiException.PaymentRequired` are their own cases.

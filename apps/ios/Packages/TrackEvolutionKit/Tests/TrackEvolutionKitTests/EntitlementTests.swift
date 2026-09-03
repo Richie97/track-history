@@ -22,7 +22,6 @@ struct EntitlementTests {
             let e = c.entitlement
             #expect(Entitlement.isPro(e) == c.expected.isPro, Comment(rawValue: c.name))
             #expect(Entitlement.canRecord(e) == c.expected.canRecord, Comment(rawValue: c.name))
-            #expect(Entitlement.canImport(e) == c.expected.canImport, Comment(rawValue: c.name))
             #expect(Entitlement.canViewChannels(e) == c.expected.canViewChannels, Comment(rawValue: c.name))
             #expect(Entitlement.canUseGarage(e) == c.expected.canUseGarage, Comment(rawValue: c.name))
             #expect(Entitlement.canUseSetups(e) == c.expected.canUseSetups, Comment(rawValue: c.name))
@@ -54,7 +53,7 @@ struct EntitlementTests {
         // Expired by the wall clock but still `pro` — the cached answer stands offline.
         let stale = pro(expiresAt: 1)
         let predicates: [(Entitlement?) -> Bool] = [
-            Entitlement.canRecord, Entitlement.canImport, Entitlement.canViewChannels, Entitlement.canUseGarage
+            Entitlement.canRecord, Entitlement.canViewChannels, Entitlement.canUseGarage
         ]
         for can in predicates {
             #expect(can(stale))
@@ -100,12 +99,12 @@ struct EntitlementTests {
         // Pro one doesn't — the default-argument path, which is what every
         // screen actually calls.
         #expect(ProGate.decide(.record, entitlement: nil) == .paywall)
-        #expect(ProGate.decide(.videoImport, entitlement: Entitlement.FREE_ENTITLEMENT) == .paywall)
+        #expect(ProGate.decide(.record, entitlement: Entitlement.FREE_ENTITLEMENT) == .paywall)
         #expect(ProGate.decide(.record, entitlement: pro()) == .proceed)
     }
 
     @Test func gatesOffLetEveryoneThrough() {
-        for feature in [ProGate.Feature.record, .videoImport] {
+        for feature in [ProGate.Feature.record] {
             #expect(ProGate.decide(feature, entitlement: nil, gatesEnabled: false) == .proceed)
             #expect(ProGate.decide(feature, entitlement: .FREE_ENTITLEMENT, gatesEnabled: false) == .proceed)
             #expect(ProGate.decide(feature, entitlement: pro(), gatesEnabled: false) == .proceed)
@@ -113,7 +112,7 @@ struct EntitlementTests {
     }
 
     @Test func gatesOnShowAFreeAccountThePaywall() {
-        for feature in [ProGate.Feature.record, .videoImport] {
+        for feature in [ProGate.Feature.record] {
             #expect(ProGate.decide(feature, entitlement: nil, gatesEnabled: true) == .paywall)
             #expect(ProGate.decide(feature, entitlement: .FREE_ENTITLEMENT, gatesEnabled: true) == .paywall)
             let lapsed = Entitlement(tier: .free, source: .apple, expiresAt: 1, autoRenew: false)
@@ -124,7 +123,7 @@ struct EntitlementTests {
     @Test func gatesOnLetACachedProThroughEvenWhenTheClockSaysItExpired() {
         // Offline, the last /api/me stands: the phone's clock has no say (rule 5).
         let stale = pro(expiresAt: 1)
-        for feature in [ProGate.Feature.record, .videoImport] {
+        for feature in [ProGate.Feature.record] {
             #expect(ProGate.decide(feature, entitlement: pro(), gatesEnabled: true) == .proceed)
             #expect(ProGate.decide(feature, entitlement: stale, gatesEnabled: true) == .proceed)
             #expect(
@@ -217,7 +216,6 @@ struct EntitlementFixture: Decodable {
     struct Expected: Decodable {
         let isPro: Bool
         let canRecord: Bool
-        let canImport: Bool
         let canViewChannels: Bool
         let canUseGarage: Bool
         let canUseSetups: Bool

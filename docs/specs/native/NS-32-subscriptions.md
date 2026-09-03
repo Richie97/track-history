@@ -53,12 +53,29 @@ turns lap times into analysis.
 | Offline reads and writes, prep checklist, themes, Settings | Free | — |
 | The garage's **vehicle list** (pre-fills the car field) | Free | — |
 | GPS lap recorder, live timing, predictive delta | **Pro** | Client, at *start* (rule 5) |
-| Telemetry import — video on iOS, video + `.vbo` on web | **Pro** | Client, at the point of import |
-| Channel graphs, lap delta chart, two-lap compare | **Pro** | Server: `channels` stripped from session payloads (rule 4) |
+| Telemetry import — video on the phones, video + `.vbo` on web | Free | — (revised after phase D; see the note below) |
+| Channel graphs, lap delta chart, sector splits, two-lap compare | **Pro** | Server: `channels` stripped from session payloads (rule 4) |
 | Two-event lap overlay (web) | **Pro** | Client |
 | Garage **consumables**: parts, wear, measurements, refresh, ledger | **Pro** | Server: `requireEntitlement` on the parts/measurements routes and `GET /garage` |
 | Setup notebook + setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes |
 | Year in review (web) | **Pro** | Client |
+
+> **Revised after phase D: telemetry import is free.** It was `Pro`, gated on
+> the client at the point of import. The gate is gone on all three clients and
+> `canImport` is deleted rather than left answering `true`, because a gate that
+> cannot refuse is a trap for the next reader. The line now falls entirely on
+> the row below it: an import writes `laps`, `trace`, the metrics note **and**
+> `channels`, and `channels` is the field the server withholds — so a free
+> account gets its lap times, its racing line and its top speed / max RPM /
+> max lateral G out of a PDR or GoPro clip, and the per-lap traces, sector
+> splits and lap-vs-lap deltas inside the same file need a subscription.
+>
+> Two things make this a better boundary than the one it replaced. The gate no
+> longer sits where the file's kind is unknown — `.mp4` is both PDR and GoPro,
+> so any "this format but not that one" rule would have had to move to the
+> review step and refuse *after* a parse. And a free import is a hook rather
+> than a wall: it saves the driver typing lap times they could have entered by
+> hand anyway, and shows them the empty channel panel they'd be buying.
 
 Two consequences of that table are the reason it is shaped this way:
 
@@ -199,10 +216,11 @@ the one irreplaceable thing in the system. Therefore:
   laps, tracks stay free for every signed-in account, forever. `channels` on a
   session POST is accepted from anyone — an imported session that took an hour
   to line up is as irreplaceable as a recording.
-- The recorder and importer are gated **at start**, client-side, against the
-  cached `entitlement` from `/api/me`. Offline, the cached value stands: a
-  driver who was Pro at the last sync records. The gate is a paywall sheet, not
-  a disabled button — it names the price, the term, and the two legal links.
+- The recorder is gated **at start**, client-side, against the cached
+  `entitlement` from `/api/me`. Offline, the cached value stands: a driver who
+  was Pro at the last sync records. The gate is a paywall sheet, not a disabled
+  button — it names the price, the term, and the two legal links. (The importer
+  was gated the same way until phase D; it is free now — see the tier table.)
 - The garage's Pro routes are all reads or live-server-only writes (already
   off the queue, NS-29/NS-31), so `requireEntitlement` on them cannot drop a
   queued write. The setups routes *are* queueable on the web; they stay
@@ -325,8 +343,10 @@ the one irreplaceable thing in the system. Therefore:
 - Offline: the `/api/me` response is already cached; `entitlement` rides along.
   Nothing new is persisted client-side about tier.
 - Ported logic keeps its JS names; every pure predicate (`isPro`, `canRecord`,
-  `canImport`) exists once in `public/js/entitlement.js` and is pinned to both
-  ports by `contracts/logic/entitlement.json`.
+  `canViewChannels`…) exists once in `public/js/entitlement.js` and is pinned to
+  both ports by `contracts/logic/entitlement.json`. A feature that turns out to
+  need no decision loses its predicate rather than keeping one that always
+  answers true — `canImport` went that way when import became free.
 
 ## Phases
 
@@ -420,8 +440,9 @@ is what lets it be small enough to review the day it matters.
 - [ ] Paywall shows product title, term, localised price, privacy + terms links,
       Restore. Both legal links are in the App Store metadata.
 - [ ] Nothing StoreKit in the Kit; `swift test` passes on macOS.
-- [ ] Recorder start and video import, when gated, show the paywall rather than
-      a disabled control; offline with a cached Pro entitlement they proceed.
+- [ ] Recorder start, when gated, shows the paywall rather than a disabled
+      control; offline with a cached Pro entitlement it proceeds. (Video import
+      was gated here too until phase D made importing free.)
 - [ ] Manage subscription opens the system sheet.
 
 **Android (phase C)**

@@ -13,7 +13,6 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
@@ -29,7 +28,6 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
@@ -50,7 +48,6 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
@@ -71,7 +68,6 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
@@ -92,7 +88,6 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
@@ -113,7 +108,6 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,
@@ -134,7 +128,6 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
@@ -155,7 +148,6 @@
       "expected": {
         "isPro": false,
         "canRecord": false,
-        "canImport": false,
         "canViewChannels": false,
         "canUseGarage": false,
         "canUseSetups": false,
@@ -176,7 +168,6 @@
       "expected": {
         "isPro": true,
         "canRecord": true,
-        "canImport": true,
         "canViewChannels": true,
         "canUseGarage": true,
         "canUseSetups": true,

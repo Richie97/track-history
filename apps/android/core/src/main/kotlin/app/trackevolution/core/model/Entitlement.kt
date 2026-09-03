@@ -72,8 +72,12 @@ public data class Entitlement(
         /** The GPS lap recorder, live timing and predictive delta. */
         public fun canRecord(entitlement: Entitlement?): Boolean = isPro(entitlement)
 
-        /** Telemetry import — video on the phones, video + `.vbo` on the web. */
-        public fun canImport(entitlement: Entitlement?): Boolean = isPro(entitlement)
+        // Telemetry import is **free** and has no predicate, on purpose: there
+        // is no decision to make, and a `canImport` that always answered true
+        // would read as a gate someone had forgotten to wire. An import yields
+        // lap times, the racing line and the car metrics for free; the per-lap
+        // channel arrays it also writes are the Pro half, withheld by the
+        // server — see [canViewChannels].
 
         /**
          * Channel graphs, the lap delta chart, the two-lap compare and sector
@@ -125,15 +129,12 @@ public data class Entitlement(
 
         /**
          * The recorder's start gate (rule 5): a paywall sheet, never a disabled
-         * button, and only when the gates are on. Pure so the decision is tested
-         * with the flag injected before phase D flips [GATES_ENABLED].
+         * button, and only when the gates are on. The only client-side gate
+         * there is — importing is free. Pure so the decision stays tested with
+         * the flag injected, whatever [GATES_ENABLED] currently is.
          */
         public fun recordGate(entitlement: Entitlement?, gatesEnabled: Boolean = GATES_ENABLED): Gate =
             if (!gatesEnabled || canRecord(entitlement)) Gate.PROCEED else Gate.PAYWALL
-
-        /** The importer's gate, at the point of import — same rule as [recordGate]. */
-        public fun importGate(entitlement: Entitlement?, gatesEnabled: Boolean = GATES_ENABLED): Gate =
-            if (!gatesEnabled || canImport(entitlement)) Gate.PROCEED else Gate.PAYWALL
 
         /** `new Date(ms).toISOString().slice(0, 10)` — the JS module's default. */
         private fun isoDate(ms: Long): String =
