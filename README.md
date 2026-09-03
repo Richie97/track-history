@@ -820,8 +820,23 @@ server):
   `app.trackevolution.pro.monthly` and `.yearly`; an In-App Purchase key (the
   `APPLE_IAP_*` secrets); Server Notifications V2 URLs for sandbox **and**
   production both set to `https://trackevolution.app/billing/apple/notifications`;
-  privacy-policy and terms links in the metadata; Small Business Program
-  enrolment.
+  Small Business Program enrolment.
+- *The two legal links, twice.* Guideline 3.1.2 wants them **in the app** (the
+  paywall has both) **and on the App Store product page** — and the second one
+  is not a checkbox. The privacy policy has its own URL field under *App
+  Information* and renders on the page; the **Terms of Use (EULA) does not**,
+  unless you supply a custom license agreement, so the link has to go in the
+  **App Description** as plain URLs on their own lines:
+
+  ```
+  Terms of Use (EULA): https://docs.trackevolution.app/docs/terms.html
+  Privacy Policy: https://docs.trackevolution.app/docs/privacy.html
+  ```
+
+  Missing that is a metadata rejection, not a build one — the fix is a
+  description edit and a resubmission of the same binary. (It cost us a review
+  cycle on the first subscription submission, which is why it is spelled out
+  here rather than left as "links in the metadata".)
 - *Play Console:* one subscription with monthly and yearly base plans; a
   service account with *View financial data* and *Manage orders and
   subscriptions* (its JSON key is `GOOGLE_PLAY_SERVICE_ACCOUNT`); an RTDN
