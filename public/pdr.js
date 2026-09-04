@@ -133,19 +133,113 @@ export function gpsFromChannels(latPts, lonPts, odo = null, { dictConv = null, s
   return null;
 }
 
-// Factors from the SI value (raw * multiplier + offset) to the unit named in
-// the channel dictionary — mirrors ExifTool GM.pm's conversions for the units
-// this app surfaces (lat/lon in radians -> degrees, m/s -> km/h, m/s² -> G,
-// and Cosworth's factor-of-10 rpm).
-const UNIT_SCALE = {
-  "deg": 180 / Math.PI,
-  "deg/sec": 180 / Math.PI,
-  "kph": 3.6,
-  "G": 1 / 9.80665,
-  "rpm": 10,
-  "%": 100,
+// Conversions from the SI value (raw * multiplier + offset) to the unit named
+// in the channel dictionary, as [factor, offset] — mirrors ExifTool GM.pm's
+// conversions for the units this app surfaces (lat/lon in radians -> degrees,
+// m/s -> km/h, m/s² -> G, and Cosworth's factor-of-10 rpm).
+//
+// Three of these are units the dictionary *labels* in display terms while
+// storing SI, and getting them wrong is silent rather than obvious:
+//   - "°C" channels are Kelvin (the channel's own `off` carries 233.15/253.15),
+//     so the conversion is additive — which is why this table holds an offset
+//     and not just a factor. Ship a temperature without it and 130°C oil
+//     reports as 403°C.
+//   - "kPa" channels hold Pascals.
+//   - "km" channels hold metres. Note the odometer is deliberately *not* run
+//     through this table: `odoPts` stays raw because it is the driven-distance
+//     axis (js/import/channels.js), not a displayed value.
+const UNIT_CONV = {
+  "deg": [180 / Math.PI, 0],
+  "deg/sec": [180 / Math.PI, 0],
+  "kph": [3.6, 0],
+  "G": [1 / 9.80665, 0],
+  "rpm": [10, 0],
+  "%": [100, 0],
+  "degC": [1, -273.15],
+  "kPa": [0.001, 0],
+  "km": [0.001, 0],
 };
-const normUnits = (u) => (u === "°" ? "deg" : u === "°/sec" ? "deg/sec" : u);
+const normUnits = (u) =>
+  u === "°" ? "deg" : u === "°/sec" ? "deg/sec" : u === "°C" ? "degC" : u;
+
+// Channel-dictionary name -> the key this parser knows it by. Every entry
+// here becomes a `tags.<key>` id and a raw sample bucket; what happens to the
+// bucket afterwards is decided below (gridded trace, per-lap scalar, or a
+// session-level number). The names are the strings real firmware writes into
+// the 'mrld' table — a file that spells one differently simply yields no
+// samples for it, which every consumer already treats as "the file lacks it".
+//
+// Channels deliberately left out: the recorder's own CPU/disk housekeeping,
+// values that are constant across a session (Corner Exit Setting, Engine Speed
+// Request, GPS Fix), Boost Pressure Ind (redundant with Intake Boost
+// Pressure), Vertical Acceleration, Heading (derivable from the trace),
+// Engine Torque Req (a request, not measured output), and the four suspension
+// displacements plus Clutch Pos, which are real data whose scaling needs a
+// second car to validate before it is worth storing.
+const CHANNEL_TAGS = {
+  "Beacon": "beacon",
+  "Recording Event Odometer": "odometer",
+  "Latitude": "latitude",
+  "Longitude": "longitude",
+  // gridded traces
+  "Speed": "speed",
+  "RPM": "rpm",
+  "Lateral Acceleration": "latAcc",
+  "Accel Pos": "throttle",
+  "Brake Pos": "brake",
+  "Steering Angle": "steering",
+  "Longitudinal Acceleration": "longAcc",
+  "Yaw Rate": "yaw",
+  "Gear": "gear",
+  "Intake Boost Pressure": "boost",
+  "Wheelspeed Left Non-Driven": "wsLN",
+  "Wheelspeed Right Non-Driven": "wsRN",
+  "Wheelspeed Left Driven": "wsLD",
+  "Wheelspeed Right Driven": "wsRD",
+  "ABS Active": "absActive",
+  "Traction Control Active": "tcActive",
+  "Vehicle Stability Active": "vscActive",
+  // per-lap scalars
+  "Oil Temp": "oilC",
+  "Oil Pressure": "oilKpa",
+  "Coolant Temp": "coolantC",
+  "Trans Oil Temp": "transC",
+  "Fuel Level": "fuelPct",
+  "Battery Voltage": "battV",
+  "LF Tyre Pressure": "tyreKpaLF",
+  "RF Tyre Pressure": "tyreKpaRF",
+  "LR Tyre Pressure": "tyreKpaLR",
+  "RR Tyre Pressure": "tyreKpaRR",
+  "LF Tyre Temp": "tyreCLF",
+  "RF Tyre Temp": "tyreCRF",
+  "LR Tyre Temp": "tyreCLR",
+  "RR Tyre Temp": "tyreCRR",
+  // session-level
+  "Outside Air Temperature": "ambientC",
+  "Intake Air Temperature": "intakeC",
+  "Altitude": "altitude",
+  "Distance": "carOdo", // the car's lifetime odometer, not the recording's
+};
+
+// The CHANNEL_TAGS keys that become one value per lap rather than a trace.
+// The reduction (max / min / value at lap end) belongs to the lap window, so
+// it lives in js/import/channels.js — this parser only hands over the series.
+export const SCALAR_CHANNEL_KEYS = [
+  "oilC",
+  "oilKpa",
+  "coolantC",
+  "transC",
+  "fuelPct",
+  "battV",
+  "tyreKpaLF",
+  "tyreKpaRF",
+  "tyreKpaLR",
+  "tyreKpaRR",
+  "tyreCLF",
+  "tyreCRF",
+  "tyreCLR",
+  "tyreCRR",
+];
 
 // Interpolating accessor over a sorted [{t, v}] series. Exported for unit tests.
 export function series(arr) {
@@ -249,24 +343,16 @@ export async function parsePdrFile(fileBlob) {
       };
       const tagId = moov.getUint32(e);
       dict.set(tagId, ch);
-      if (name === "Beacon") tags.beacon = tagId;
-      else if (name === "Recording Event Odometer") tags.odometer = tagId;
-      else if (name === "Latitude") tags.latitude = tagId;
-      else if (name === "Longitude") tags.longitude = tagId;
-      else if (name === "Speed") tags.speed = tagId;
-      else if (name === "RPM") tags.rpm = tagId;
-      else if (name === "Lateral Acceleration") tags.latAcc = tagId;
-      else if (name === "Accel Pos") tags.throttle = tagId;
-      else if (name === "Brake Pos") tags.brake = tagId;
-      else if (name === "Steering Angle") tags.steering = tagId;
+      const key = CHANNEL_TAGS[name];
+      if (key) tags[key] = tagId;
     }
   }
   // raw -> display units (deg, km/h, rpm, G) via the dictionary entry.
   const scaler = (tagId) => {
     const ch = dict.get(tagId);
     if (!ch || !Number.isFinite(ch.mult) || ch.mult === 0) return null;
-    const f = UNIT_SCALE[ch.units] ?? 1;
-    return (v) => (v * ch.mult + ch.off) * f;
+    const [f, add] = UNIT_CONV[ch.units] ?? [1, 0];
+    return (v) => (v * ch.mult + ch.off) * f + add;
   };
 
   let date = null, time = null;
@@ -281,19 +367,16 @@ export async function parsePdrFile(fileBlob) {
   // 4. Decode the telemetry samples. Full records carry an absolute channel /
   // value / timestamp; delta records adjust the running state (which persists
   // across samples). Values accumulate in raw (pre-multiplier) units.
-  const beacons = [], odoPts = [], latPts = [], lonPts = [], speedPts = [], rpmPts = [], latAccPts = [];
-  const throttlePts = [], brakePts = [], steeringPts = [];
-  const buckets = new Map([
-    [tags.odometer, odoPts],
-    [tags.latitude, latPts],
-    [tags.longitude, lonPts],
-  ]);
-  if (tags.speed != null) buckets.set(tags.speed, speedPts);
-  if (tags.rpm != null) buckets.set(tags.rpm, rpmPts);
-  if (tags.latAcc != null) buckets.set(tags.latAcc, latAccPts);
-  if (tags.throttle != null) buckets.set(tags.throttle, throttlePts);
-  if (tags.brake != null) buckets.set(tags.brake, brakePts);
-  if (tags.steering != null) buckets.set(tags.steering, steeringPts);
+  // One raw sample bucket per known channel, keyed by the name CHANNEL_TAGS
+  // gave it. Beacons are the exception: they are events, not a series.
+  const beacons = [];
+  const pts = {};
+  const buckets = new Map();
+  for (const [key, tagId] of Object.entries(tags)) {
+    if (key === "beacon") continue;
+    buckets.set(tagId, (pts[key] = []));
+  }
+  const odoPts = pts.odometer, latPts = pts.latitude, lonPts = pts.longitude;
 
   const MAX_TICKS = 864000000000; // 24h in 100ns units: anything above is corrupt
   let lastTicks = 0;
@@ -345,23 +428,79 @@ export async function parsePdrFile(fileBlob) {
     }
   }
   beacons.sort((a, b) => a.t - b.t);
-  for (const pts of buckets.values()) pts.sort((a, b) => a.t - b.t);
+  for (const arr of buckets.values()) arr.sort((a, b) => a.t - b.t);
 
   // Scale the car channels to display units and take session maxima.
-  const scaleAll = (pts, conv) => (conv ? pts.map((p) => ({ t: p.t, v: conv(p.v) })) : []);
-  const speed = scaleAll(speedPts, scaler(tags.speed)); // km/h
-  const rpm = scaleAll(rpmPts, scaler(tags.rpm));
-  const latAcc = scaleAll(latAccPts, scaler(tags.latAcc)); // G
-  const throttle = scaleAll(throttlePts, scaler(tags.throttle)); // % (dict units "%" -> x100)
-  const brake = scaleAll(brakePts, scaler(tags.brake)); // %
+  const scaleAll = (arr, conv) => (conv ? arr.map((p) => ({ t: p.t, v: conv(p.v) })) : []);
+  // `scaled("speed")` -> that channel's samples in display units, [] when the
+  // file lacks it (no dictionary entry, or no samples).
+  const scaled = (key) => scaleAll(pts[key] ?? [], scaler(tags[key]));
+  const speed = scaled("speed"); // km/h
+  const rpm = scaled("rpm");
+  const latAcc = scaled("latAcc"); // G
+  const throttle = scaled("throttle"); // % (dict units "%" -> x100)
+  const brake = scaled("brake"); // %
+  const longAcc = scaled("longAcc"); // G, signed: negative under braking
+  const yaw = scaled("yaw"); // deg/s, signed
+  const boost = scaled("boost"); // kPa gauge (dict units "kPa" -> Pascals /1000)
   // Real firmware stores steering wheel angle in radians with an *empty* units
-  // string, so UNIT_SCALE's deg conversion never fires — apply it here unless
+  // string, so UNIT_CONV's deg conversion never fires — apply it here unless
   // the dictionary already declared degrees.
   const steeringRad = dict.get(tags.steering)?.units !== "deg";
-  const steering = scaleAll(steeringPts, scaler(tags.steering)).map((p) => ({
+  const steering = scaled("steering").map((p) => ({
     t: p.t,
     v: steeringRad ? (p.v * 180) / Math.PI : p.v,
   })); // deg, signed
+
+  // Gear is an enum, not a measurement: 1-8 are gears, and every other value
+  // (13 on a real C7 — 653 samples spread across every speed, with the clutch
+  // pedal down) means "in transition / no gear". Stored as 0 rather than
+  // dropped, so the array stays on the grid with its neighbours.
+  const gear = scaled("gear").map((p) => ({ t: p.t, v: p.v >= 1 && p.v <= 8 ? Math.round(p.v) : 0 }));
+
+  // Wheel slip from the four wheelspeeds, as one channel rather than four:
+  // (driven - non-driven) / non-driven, positive under wheelspin and negative
+  // under lockup. Below 5 km/h the ratio is noise over a near-zero divisor.
+  const wheel = ["wsLN", "wsRN", "wsLD", "wsRD"].map(scaled);
+  const wheelSlip =
+    wheel.every((w) => w.length > 10)
+      ? (() => {
+          const [ln, rn, ld, rd] = wheel.map(series);
+          return wheel[0].map((p) => {
+            const nd = (ln.at(p.t) + rn.at(p.t)) / 2;
+            const dr = (ld.at(p.t) + rd.at(p.t)) / 2;
+            const v = nd < 5 ? 0 : ((dr - nd) / nd) * 100;
+            return { t: p.t, v: Math.max(-100, Math.min(100, v)) };
+          });
+        })()
+      : [];
+
+  // ABS / traction control / stability control packed into one bitfield
+  // (bit 0 / 1 / 2), since three near-always-zero channels are not worth three
+  // slots in the storage budget. Anchored on ABS's timestamps: the three ship
+  // together at the same rate, and ABS is the one that fires on a track.
+  const absPts = scaled("absActive");
+  const tcS = scaled("tcActive"), vscS = scaled("vscActive");
+  const flags = absPts.length > 10
+    ? (() => {
+        const tc = tcS.length > 10 ? series(tcS) : null;
+        const vsc = vscS.length > 10 ? series(vscS) : null;
+        return absPts.map((p) => ({
+          t: p.t,
+          v: (p.v > 0.5 ? 1 : 0) | (tc && tc.at(p.t) > 0.5 ? 2 : 0) | (vsc && vsc.at(p.t) > 0.5 ? 4 : 0),
+        }));
+      })()
+    : [];
+  // Slow housekeeping channels (0.5-1.4 Hz). At one real sample every 40-90 m
+  // these cannot fill a 20 m distance grid, so they are reduced to one value
+  // per lap instead (js/import/channels.js SCALAR_NAMES).
+  const lapScalarChannels = {};
+  for (const key of SCALAR_CHANNEL_KEYS) {
+    const arr = scaled(key);
+    lapScalarChannels[key] = arr.length ? arr : null;
+  }
+  const oilC = lapScalarChannels.oilC ?? [];
+
   const maxOf = (pts, cap) => {
     let m = -Infinity;
     for (const p of pts) if (p.v > m) m = p.v;
@@ -376,10 +515,36 @@ export async function parsePdrFile(fileBlob) {
     for (let t = odoS.first.t + 2; t <= odoS.last.t - 2; t += 1) m = Math.max(m, odoS.rate(t));
     topSpeedKph = m * 3.6 >= 30 && m * 3.6 < 500 ? m * 3.6 : null;
   }
+  const absSeries = (arr) => arr.map((p) => ({ t: p.t, v: Math.abs(p.v) }));
   const metrics = {
     topSpeedKph,
     maxRpm: maxOf(rpm, 20000),
-    maxLatG: maxOf(latAcc.map((p) => ({ t: p.t, v: Math.abs(p.v) })), 5),
+    maxLatG: maxOf(absSeries(latAcc), 5),
+    // Braking is the negative half of longitudinal G; reported positive, the
+    // way a driver talks about it.
+    maxBrakeG: maxOf(longAcc.map((p) => ({ t: p.t, v: -p.v })), 5),
+    maxBoostKpa: maxOf(boost, 400),
+    maxOilC: maxOf(oilC, 250),
+  };
+
+  // Session-level numbers: one value each for the whole recording. Stored
+  // inside the channels blob's `meta` (js/import/channels.js) rather than in
+  // their own columns — they are context for the graphs, not queryable facts.
+  const median = (arr) => {
+    if (arr.length < 3) return null;
+    const v = arr.map((p) => p.v).sort((a, b) => a - b);
+    return v[v.length >> 1];
+  };
+  const altitude = scaled("altitude");
+  const carOdo = scaled("carOdo"); // km, the car's lifetime odometer
+  const sessionMeta = {
+    ambientC: median(scaled("ambientC")),
+    intakeC: median(scaled("intakeC")),
+    elevationM:
+      altitude.length > 10
+        ? Math.max(...altitude.map((p) => p.v)) - Math.min(...altitude.map((p) => p.v))
+        : null,
+    odometerKm: carOdo.length ? Math.max(...carOdo.map((p) => p.v)) : null,
   };
 
   // GPS trace: dictionary conversion first (radians -> degrees), then the
@@ -390,6 +555,10 @@ export async function parsePdrFile(fileBlob) {
     dictConv: latConv && lonConv ? { lat: latConv, lon: lonConv } : null,
     speedS: speed.length > 10 ? series(speed.map((p) => ({ t: p.t, v: p.v / 3.6 }))) : null,
   });
+
+  // A channel is worth handing on only when it actually has a series behind
+  // it; ten samples is the same floor buildLapChannels applies.
+  const dense = (arr) => (arr.length > 10 ? arr : null);
 
   // 5. Build the full crossing list.
   const crossings = beacons.map((b) => ({ v: b.v, t: b.t, exact: true }));
@@ -460,17 +629,26 @@ export async function parsePdrFile(fileBlob) {
     beaconCount: beacons.length,
     laps,                       // [{lapNumber, timeMs, estimated, startT, endT}]
     gps,                        // [{t, lat, lon, v?}] in degrees, or null
-    metrics,                    // {topSpeedKph, maxRpm, maxLatG} — each null when unavailable
+    metrics,                    // session maxima — each null when unavailable
+    sessionMeta,                // {ambientC, intakeC, elevationM, odometerKm}
     channels: { latPts, odoPts }, // raw series for lap recovery (pdr-laps.js)
-    // scaled car channels ([{t, v}] in km/h / rpm / G / % / deg) for per-lap
-    // channel graphs (js/import/channels.js); each null when the file lacks them
+    lapScalarChannels,          // slow series reduced per lap by channels.js
+    // scaled car channels ([{t, v}] in km/h / rpm / G / % / deg / kPa) for
+    // per-lap channel graphs (js/import/channels.js); each null when the file
+    // lacks them. Keys and order match CHANNEL_NAMES there.
     carChannels: {
-      speed: speed.length > 10 ? speed : null,
-      rpm: rpm.length > 10 ? rpm : null,
-      latG: latAcc.length > 10 ? latAcc.map((p) => ({ t: p.t, v: Math.abs(p.v) })) : null,
-      throttle: throttle.length > 10 ? throttle : null,
-      brake: brake.length > 10 ? brake : null,
-      steering: steering.length > 10 ? steering : null,
+      speed: dense(speed),
+      rpm: dense(rpm),
+      latG: dense(absSeries(latAcc)),
+      throttle: dense(throttle),
+      brake: dense(brake),
+      steering: dense(steering),
+      longG: dense(longAcc),
+      yaw: dense(yaw),
+      gear: dense(gear),
+      wheelSlip: dense(wheelSlip),
+      boost: dense(boost),
+      flags: dense(flags),
     },
   };
 }

@@ -74,6 +74,9 @@ enum VideoFixtures {
         var topSpeedKph: Double?
         var maxRpm: Double?
         var maxLatG: Double?
+        var maxBrakeG: Double?
+        var maxBoostKpa: Double?
+        var maxOilC: Double?
     }
 
     struct GPSSample: Decodable {

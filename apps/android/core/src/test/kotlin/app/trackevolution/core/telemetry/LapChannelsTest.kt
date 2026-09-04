@@ -4,6 +4,7 @@ import app.trackevolution.core.GeoTrace
 import app.trackevolution.core.GpsPoint
 import app.trackevolution.core.JsMath
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -154,5 +155,33 @@ class LapChannelsTest {
         val channels = given(parsed.lapChannels)
         assertEquals(3, channels.laps.size)
         assertTrue(given(channels.laps[0].speed).size > 80)
+    }
+
+    @Test
+    fun `drops the lowest-priority channels rather than storing nothing`() {
+        // 40 laps of a 14km circuit x 12 channels x ~700 points is ~336k
+        // values, nearly three times the cap. The video contract fixture is far
+        // too small to reach this path, so it is only checked here.
+        val longDist = List(2000) { i -> ChannelPoint(t = i * 7.0, v = i * 280.0) }
+        val flat = List(2000) { i -> ChannelPoint(t = i * 7.0, v = 1.0) }
+        var chans = ParsedTelemetry.CarChannels()
+        for ((name, _) in TelemetryChannels.CHANNEL_NAMES) chans = chans.with(name, flat)
+        val laps = List(40) { i ->
+            ParsedLap(
+                lapNumber = i + 1,
+                timeMs = 349_000,
+                estimated = false,
+                startT = i * 349.0,
+                endT = (i + 1) * 349.0,
+            )
+        }
+        val out = given(TelemetryChannels.buildLapChannels(laps, longDist, chans))
+        val total = out.laps.sumOf { e ->
+            TelemetryChannels.CHANNEL_NAMES.sumOf { e.channel(it.first)?.size ?: 0 }
+        }
+        assertTrue(total <= TelemetryChannels.MAX_TOTAL_VALUES)
+        // speed survives; the tail of CHANNEL_NAMES is what went
+        assertNotNull(out.laps[0].speed)
+        assertNull(out.laps[0].flags)
     }
 }

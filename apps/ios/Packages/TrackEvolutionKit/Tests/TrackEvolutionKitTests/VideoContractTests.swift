@@ -103,6 +103,11 @@ struct VideoContractTests {
             #expect(closeOrBothNil(metrics?.topSpeedKph, expectedMetrics.topSpeedKph), "\(file): topSpeedKph")
             #expect(closeOrBothNil(metrics?.maxRpm, expectedMetrics.maxRpm), "\(file): maxRpm")
             #expect(closeOrBothNil(metrics?.maxLatG, expectedMetrics.maxLatG), "\(file): maxLatG")
+            #expect(closeOrBothNil(metrics?.maxBrakeG, expectedMetrics.maxBrakeG), "\(file): maxBrakeG")
+            #expect(
+                closeOrBothNil(metrics?.maxBoostKpa, expectedMetrics.maxBoostKpa),
+                "\(file): maxBoostKpa")
+            #expect(closeOrBothNil(metrics?.maxOilC, expectedMetrics.maxOilC), "\(file): maxOilC")
         } else {
             #expect(parsed.metrics == nil, "\(file): metrics should be absent")
         }
@@ -165,15 +170,26 @@ struct VideoContractTests {
         #expect(channels.v == expected.v, "\(file): channels version")
         #expect(channels.dStepM == expected.dStepM, "\(file): dStepM")
         #expect(channels.laps.count == expected.laps.count, "\(file): channel lap count")
+        // Walk the name lists rather than a hand-written set of fields: a
+        // channel added to CHANNEL_NAMES and never produced by the port would
+        // otherwise pass this test by simply not being looked at.
         for (lap, want) in zip(channels.laps, expected.laps) {
             #expect(lap.n == want.n, "\(file): channel lap \(want.n) number")
             #expect(lap.timeMs == want.timeMs, "\(file): channel lap \(want.n) timeMs")
-            assertSeries(lap.speed, want.speed, "\(file): lap \(want.n) speed")
-            assertSeries(lap.rpm, want.rpm, "\(file): lap \(want.n) rpm")
-            assertSeries(lap.latG, want.latG, "\(file): lap \(want.n) latG")
-            assertSeries(lap.throttle, want.throttle, "\(file): lap \(want.n) throttle")
-            assertSeries(lap.brake, want.brake, "\(file): lap \(want.n) brake")
-            assertSeries(lap.steering, want.steering, "\(file): lap \(want.n) steering")
+            for (name, _) in TelemetryChannels.CHANNEL_NAMES {
+                assertSeries(
+                    lap[channel: name], want[channel: name], "\(file): lap \(want.n) \(name)")
+            }
+            for (name, _, _) in TelemetryChannels.SCALAR_NAMES {
+                #expect(
+                    closeOrBothNil(lap[scalar: name], want[scalar: name]),
+                    "\(file): lap \(want.n) \(name)")
+            }
+        }
+        for (name, _) in TelemetryChannels.META_NAMES {
+            #expect(
+                closeOrBothNil(channels.meta?[name], expected.meta?[name]),
+                "\(file): meta \(name)")
         }
     }
 

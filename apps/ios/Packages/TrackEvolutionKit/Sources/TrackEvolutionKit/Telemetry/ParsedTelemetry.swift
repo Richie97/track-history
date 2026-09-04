@@ -54,6 +54,12 @@ public struct ParsedTelemetry: Sendable {
     public var channels: RawChannels?
     /// Scaled car channels for the per-lap graphs.
     public var carChannels: CarChannels
+    /// The slow channels, keyed by `SCALAR_NAMES`, before they are reduced to
+    /// one value per lap. A dictionary rather than a struct because nothing
+    /// reads an individual one — `buildLapChannels` walks the whole list.
+    public var lapScalarChannels: [String: [ChannelPoint]]
+    /// Session-level numbers, stored as the channel blob's `meta`.
+    public var sessionMeta: SessionMeta?
     /// Set when laps came from lat-vs-distance periodicity rather than beacons.
     public var lapRecovery: LapRecovery?
 
@@ -71,6 +77,8 @@ public struct ParsedTelemetry: Sendable {
         beaconCount: Int = 0,
         channels: RawChannels? = nil,
         carChannels: CarChannels = CarChannels(),
+        lapScalarChannels: [String: [ChannelPoint]] = [:],
+        sessionMeta: SessionMeta? = nil,
         lapRecovery: LapRecovery? = nil
     ) {
         self.kind = kind
@@ -86,6 +94,8 @@ public struct ParsedTelemetry: Sendable {
         self.beaconCount = beaconCount
         self.channels = channels
         self.carChannels = carChannels
+        self.lapScalarChannels = lapScalarChannels
+        self.sessionMeta = sessionMeta
         self.lapRecovery = lapRecovery
     }
 
@@ -95,11 +105,22 @@ public struct ParsedTelemetry: Sendable {
         public var topSpeedKph: Double?
         public var maxRpm: Double?
         public var maxLatG: Double?
+        /// Peak braking, reported positive the way a driver talks about it —
+        /// it is the negative half of longitudinal G.
+        public var maxBrakeG: Double?
+        public var maxBoostKpa: Double?
+        public var maxOilC: Double?
 
-        public init(topSpeedKph: Double? = nil, maxRpm: Double? = nil, maxLatG: Double? = nil) {
+        public init(
+            topSpeedKph: Double? = nil, maxRpm: Double? = nil, maxLatG: Double? = nil,
+            maxBrakeG: Double? = nil, maxBoostKpa: Double? = nil, maxOilC: Double? = nil
+        ) {
             self.topSpeedKph = topSpeedKph
             self.maxRpm = maxRpm
             self.maxLatG = maxLatG
+            self.maxBrakeG = maxBrakeG
+            self.maxBoostKpa = maxBoostKpa
+            self.maxOilC = maxOilC
         }
     }
 
@@ -124,11 +145,26 @@ public struct ParsedTelemetry: Sendable {
         public var throttle: [ChannelPoint]?
         public var brake: [ChannelPoint]?
         public var steering: [ChannelPoint]?
+        /// Signed: negative under braking.
+        public var longG: [ChannelPoint]?
+        /// Degrees per second, signed.
+        public var yaw: [ChannelPoint]?
+        /// 1–8, or 0 for the clutch-in / no-gear state.
+        public var gear: [ChannelPoint]?
+        /// (driven − non-driven) wheelspeed, %.
+        public var wheelSlip: [ChannelPoint]?
+        /// Manifold gauge pressure, kPa.
+        public var boost: [ChannelPoint]?
+        /// ABS | traction control << 1 | stability control << 2.
+        public var flags: [ChannelPoint]?
 
         public init(
             speed: [ChannelPoint]? = nil, rpm: [ChannelPoint]? = nil, latG: [ChannelPoint]? = nil,
             throttle: [ChannelPoint]? = nil, brake: [ChannelPoint]? = nil,
-            steering: [ChannelPoint]? = nil
+            steering: [ChannelPoint]? = nil, longG: [ChannelPoint]? = nil,
+            yaw: [ChannelPoint]? = nil, gear: [ChannelPoint]? = nil,
+            wheelSlip: [ChannelPoint]? = nil, boost: [ChannelPoint]? = nil,
+            flags: [ChannelPoint]? = nil
         ) {
             self.speed = speed
             self.rpm = rpm
@@ -136,6 +172,73 @@ public struct ParsedTelemetry: Sendable {
             self.throttle = throttle
             self.brake = brake
             self.steering = steering
+            self.longG = longG
+            self.yaw = yaw
+            self.gear = gear
+            self.wheelSlip = wheelSlip
+            self.boost = boost
+            self.flags = flags
+        }
+
+        /// `chans[name]` in the JS, which indexes a plain object. Every caller
+        /// walks `TelemetryChannels.CHANNEL_NAMES`, so keeping one lookup here
+        /// is what stops a channel from being added to the list and silently
+        /// never read.
+        public subscript(name: String) -> [ChannelPoint]? {
+            get {
+                switch name {
+                case "speed": speed
+                case "rpm": rpm
+                case "latG": latG
+                case "throttle": throttle
+                case "brake": brake
+                case "steering": steering
+                case "longG": longG
+                case "yaw": yaw
+                case "gear": gear
+                case "wheelSlip": wheelSlip
+                case "boost": boost
+                case "flags": flags
+                default: nil
+                }
+            }
+            set {
+                switch name {
+                case "speed": speed = newValue
+                case "rpm": rpm = newValue
+                case "latG": latG = newValue
+                case "throttle": throttle = newValue
+                case "brake": brake = newValue
+                case "steering": steering = newValue
+                case "longG": longG = newValue
+                case "yaw": yaw = newValue
+                case "gear": gear = newValue
+                case "wheelSlip": wheelSlip = newValue
+                case "boost": boost = newValue
+                case "flags": flags = newValue
+                default: break
+                }
+            }
+        }
+    }
+
+    /// Session-level numbers from a PDR file, carried into the stored blob's
+    /// `meta`. `SessionMeta` is the JS's `sessionMeta`.
+    public struct SessionMeta: Hashable, Sendable {
+        public var ambientC: Double?
+        public var intakeC: Double?
+        public var elevationM: Double?
+        /// The car's lifetime odometer, not this session's distance.
+        public var odometerKm: Double?
+
+        public init(
+            ambientC: Double? = nil, intakeC: Double? = nil, elevationM: Double? = nil,
+            odometerKm: Double? = nil
+        ) {
+            self.ambientC = ambientC
+            self.intakeC = intakeC
+            self.elevationM = elevationM
+            self.odometerKm = odometerKm
         }
     }
 

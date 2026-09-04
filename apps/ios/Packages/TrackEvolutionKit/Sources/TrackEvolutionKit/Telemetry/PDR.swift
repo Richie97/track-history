@@ -3,7 +3,7 @@ import Foundation
 /// Corvette PDR (Cosworth "Marlin PDR") video telemetry parser.
 ///
 /// A port of `public/pdr.js`, line for line and name for name (`gpsFromChannels`,
-/// `UNIT_SCALE`, `parsePdrFile`), with its test cases (`test/unit/pdr.test.js` →
+/// `UNIT_CONV`, `parsePdrFile`), with its test cases (`test/unit/pdr.test.js` →
 /// `PDRTests`) and a cross-language fixture (`contracts/logic/video-parsers.json`)
 /// pinning lap times to the JS implementation's to the millisecond.
 ///
@@ -51,22 +51,107 @@ import Foundation
 /// (radians for lat/lon, m/s for speed); a per-unit factor converts to display
 /// units. Session local date/time is in `mrlv`.
 public enum PDR {
-    /// Factors from the SI value (raw · multiplier + offset) to the unit named in
-    /// the channel dictionary — mirrors ExifTool GM.pm's conversions for the
-    /// units this app surfaces (lat/lon in radians → degrees, m/s → km/h, m/s²
-    /// → G, and Cosworth's factor-of-10 rpm).
-    public static let UNIT_SCALE: [String: Double] = [
-        "deg": 180 / .pi,
-        "deg/sec": 180 / .pi,
-        "kph": 3.6,
-        "G": 1 / 9.80665,
-        "rpm": 10,
-        "%": 100,
+    /// Conversions from the SI value (raw · multiplier + offset) to the unit
+    /// named in the channel dictionary, as (factor, offset) — mirrors ExifTool
+    /// GM.pm's conversions for the units this app surfaces (lat/lon in radians
+    /// → degrees, m/s → km/h, m/s² → G, and Cosworth's factor-of-10 rpm).
+    ///
+    /// Three of these are units the dictionary *labels* in display terms while
+    /// storing SI, and getting them wrong is silent rather than obvious:
+    /// `"°C"` channels are Kelvin (the channel's own `off` carries
+    /// 233.15/253.15), which is why this table holds an offset and not just a
+    /// factor; `"kPa"` channels hold Pascals; `"km"` channels hold metres. The
+    /// odometer is deliberately not run through this table — it stays raw
+    /// because it is the driven-distance axis, not a displayed value.
+    public static let UNIT_CONV: [String: (f: Double, off: Double)] = [
+        "deg": (180 / .pi, 0),
+        "deg/sec": (180 / .pi, 0),
+        "kph": (3.6, 0),
+        "G": (1 / 9.80665, 0),
+        "rpm": (10, 0),
+        "%": (100, 0),
+        "degC": (1, -273.15),
+        "kPa": (0.001, 0),
+        "km": (0.001, 0),
     ]
 
     static func normUnits(_ u: String) -> String {
-        u == "°" ? "deg" : (u == "°/sec" ? "deg/sec" : u)
+        u == "°" ? "deg" : (u == "°/sec" ? "deg/sec" : (u == "°C" ? "degC" : u))
     }
+
+    /// Channel-dictionary name → the key this parser knows it by. `CHANNEL_TAGS`
+    /// in the JS, kept as an ordered array because the JS builds its bucket map
+    /// by walking the keys in insertion order and letting a later one win.
+    ///
+    /// Channels deliberately left out: the recorder's own CPU/disk
+    /// housekeeping, values constant across a session, Boost Pressure Ind
+    /// (redundant with Intake Boost Pressure), Vertical Acceleration, Heading,
+    /// Engine Torque Req, and the four suspension displacements plus Clutch
+    /// Pos, whose scaling needs a second car to validate.
+    public static let CHANNEL_TAGS: [(name: String, key: String)] = [
+        ("Beacon", "beacon"),
+        ("Recording Event Odometer", "odometer"),
+        ("Latitude", "latitude"),
+        ("Longitude", "longitude"),
+        ("Speed", "speed"),
+        ("RPM", "rpm"),
+        ("Lateral Acceleration", "latAcc"),
+        ("Accel Pos", "throttle"),
+        ("Brake Pos", "brake"),
+        ("Steering Angle", "steering"),
+        ("Longitudinal Acceleration", "longAcc"),
+        ("Yaw Rate", "yaw"),
+        ("Gear", "gear"),
+        ("Intake Boost Pressure", "boost"),
+        ("Wheelspeed Left Non-Driven", "wsLN"),
+        ("Wheelspeed Right Non-Driven", "wsRN"),
+        ("Wheelspeed Left Driven", "wsLD"),
+        ("Wheelspeed Right Driven", "wsRD"),
+        ("ABS Active", "absActive"),
+        ("Traction Control Active", "tcActive"),
+        ("Vehicle Stability Active", "vscActive"),
+        ("Oil Temp", "oilC"),
+        ("Oil Pressure", "oilKpa"),
+        ("Coolant Temp", "coolantC"),
+        ("Trans Oil Temp", "transC"),
+        ("Fuel Level", "fuelPct"),
+        ("Battery Voltage", "battV"),
+        ("LF Tyre Pressure", "tyreKpaLF"),
+        ("RF Tyre Pressure", "tyreKpaRF"),
+        ("LR Tyre Pressure", "tyreKpaLR"),
+        ("RR Tyre Pressure", "tyreKpaRR"),
+        ("LF Tyre Temp", "tyreCLF"),
+        ("RF Tyre Temp", "tyreCRF"),
+        ("LR Tyre Temp", "tyreCLR"),
+        ("RR Tyre Temp", "tyreCRR"),
+        ("Outside Air Temperature", "ambientC"),
+        ("Intake Air Temperature", "intakeC"),
+        ("Altitude", "altitude"),
+        ("Distance", "carOdo"),  // the car's lifetime odometer
+    ]
+
+    /// The `CHANNEL_TAGS` keys reduced to one value per lap rather than a
+    /// trace. `SCALAR_CHANNEL_KEYS` in the JS.
+    public static let SCALAR_CHANNEL_KEYS = [
+        "oilC", "oilKpa", "coolantC", "transC", "fuelPct", "battV",
+        "tyreKpaLF", "tyreKpaRF", "tyreKpaLR", "tyreKpaRR",
+        "tyreCLF", "tyreCRF", "tyreCLR", "tyreCRR",
+    ]
+
+    /// The insertion order of the JS's `tags` object: the four observed
+    /// defaults, then whatever the dictionary named. Two keys resolving to one
+    /// tag id is pathological but possible (a file with no Latitude entry, and
+    /// another channel at 0x31), and the JS's Map lets the later key win — so
+    /// the bucket table below is built in this order for the same reason.
+    static let TAG_KEY_ORDER: [String] = {
+        var out = ["beacon", "odometer", "latitude", "longitude"]
+        for (_, key) in CHANNEL_TAGS where !out.contains(key) { out.append(key) }
+        return out
+    }()
+
+    static let CHANNEL_TAG_BY_NAME: [String: String] = Dictionary(
+        uniqueKeysWithValues: CHANNEL_TAGS.map { ($0.name, $0.key) }
+    )
 
     /// 24 h in 100 ns units: anything above is corrupt.
     static let MAX_TICKS = 864_000_000_000
@@ -211,16 +296,9 @@ public enum PDR {
         let mrlv = subs.first { $0.type == "mrlv" }
 
         // Observed defaults, overridden by the dictionary when the file has one.
-        var beaconTag = 0x36
-        var odometerTag = 0x42
-        var latitudeTag = 0x31
-        var longitudeTag = 0x32
-        var speedTag: Int?
-        var rpmTag: Int?
-        var latAccTag: Int?
-        var throttleTag: Int?
-        var brakeTag: Int?
-        var steeringTag: Int?
+        var tags: [String: Int] = [
+            "beacon": 0x36, "odometer": 0x42, "latitude": 0x31, "longitude": 0x32,
+        ]
 
         var dict: [Int: ChannelDef] = [:]
         if let mrld {
@@ -240,29 +318,23 @@ public enum PDR {
                 )
                 let tagId = moov.getUint32(e)
                 dict[tagId] = ch
-                switch name {
-                case "Beacon": beaconTag = tagId
-                case "Recording Event Odometer": odometerTag = tagId
-                case "Latitude": latitudeTag = tagId
-                case "Longitude": longitudeTag = tagId
-                case "Speed": speedTag = tagId
-                case "RPM": rpmTag = tagId
-                case "Lateral Acceleration": latAccTag = tagId
-                case "Accel Pos": throttleTag = tagId
-                case "Brake Pos": brakeTag = tagId
-                case "Steering Angle": steeringTag = tagId
-                default: break
-                }
+                if let key = CHANNEL_TAG_BY_NAME[name] { tags[key] = tagId }
                 e += STRIDE
             }
         }
-        // raw -> display units (deg, km/h, rpm, G) via the dictionary entry.
+        let beaconTag = tags["beacon"] ?? 0x36
+        let odometerTag = tags["odometer"] ?? 0x42
+        let latitudeTag = tags["latitude"] ?? 0x31
+        let longitudeTag = tags["longitude"] ?? 0x32
+        // raw -> display units (deg, km/h, rpm, G, °C, kPa) via the dictionary
+        // entry. The conversion carries an offset as well as a factor, which is
+        // what temperatures need.
         func scaler(_ tagId: Int?) -> (@Sendable (Int) -> Double)? {
             guard let tagId, let ch = dict[tagId], ch.mult.isFinite, ch.mult != 0 else { return nil }
-            let f = UNIT_SCALE[ch.units] ?? 1
+            let conv = UNIT_CONV[ch.units] ?? (f: 1, off: 0)
             let mult = ch.mult
             let off = ch.off
-            return { (Double($0) * mult + off) * f }
+            return { (Double($0) * mult + off) * conv.f + conv.off }
         }
 
         var date: String?
@@ -281,51 +353,35 @@ public enum PDR {
         // (which persists across samples). Values accumulate in raw
         // (pre-multiplier) units.
         var beacons: [ChannelPoint] = []
-        var odoPts: [ChannelPoint] = []
-        var latPts: [ChannelPoint] = []
-        var lonPts: [ChannelPoint] = []
-        var speedPts: [ChannelPoint] = []
-        var rpmPts: [ChannelPoint] = []
-        var latAccPts: [ChannelPoint] = []
-        var throttlePts: [ChannelPoint] = []
-        var brakePts: [ChannelPoint] = []
-        var steeringPts: [ChannelPoint] = []
+        // One bucket per known channel. The JS keys a Map by tag id; here the
+        // map goes to a slot index instead, so the decode loop does one
+        // Int-keyed lookup per sample rather than hashing a name.
+        var slotOfKey: [String: Int] = [:]
+        for (i, key) in TAG_KEY_ORDER.enumerated() { slotOfKey[key] = i }
+        var slotOfTag: [Int: Int] = [:]
+        for key in TAG_KEY_ORDER where key != "beacon" {
+            if let id = tags[key], let slot = slotOfKey[key] { slotOfTag[id] = slot }
+        }
+        var buckets = [[ChannelPoint]](repeating: [], count: TAG_KEY_ORDER.count)
+        /// The raw samples of a named channel, [] when the file lacks it.
+        func rawPts(_ key: String) -> [ChannelPoint] {
+            slotOfKey[key].map { buckets[$0] } ?? []
+        }
 
         var lastTicks = 0
         var vals: [Int: Int] = [:]  // running raw value per channel
         var chan: Int?
         var ticks = -1
 
-        // The JS keeps a Map from tag id to the array it fills, built odometer →
-        // latitude → longitude → speed → rpm → latAcc → throttle → brake →
-        // steering; a later `set` with a duplicate id wins, and the beacon test
-        // runs before the lookup. This switch is that precedence, read bottom-up,
-        // which is why the order looks backwards. A channel the file doesn't
-        // define gets a tag no record can carry (ids come from a u32, so they
-        // are never negative).
-        let speedCase = speedTag ?? Int.min
-        let rpmCase = rpmTag ?? Int.min + 1
-        let latAccCase = latAccTag ?? Int.min + 2
-        let throttleCase = throttleTag ?? Int.min + 3
-        let brakeCase = brakeTag ?? Int.min + 4
-        let steeringCase = steeringTag ?? Int.min + 5
-
         func emit(_ ch: Int, _ v: Int, _ tk: Int) {
             if tk < 0 || tk > MAX_TICKS { return }
             if tk > lastTicks { lastTicks = tk }
             let point = ChannelPoint(t: Double(tk) / 1e7, v: Double(v))
-            switch ch {
-            case beaconTag: beacons.append(point)
-            case steeringCase: steeringPts.append(point)
-            case brakeCase: brakePts.append(point)
-            case throttleCase: throttlePts.append(point)
-            case latAccCase: latAccPts.append(point)
-            case rpmCase: rpmPts.append(point)
-            case speedCase: speedPts.append(point)
-            case longitudeTag: lonPts.append(point)
-            case latitudeTag: latPts.append(point)
-            case odometerTag: odoPts.append(point)
-            default: break
+            // The beacon test runs before the bucket lookup, as the JS's does.
+            if ch == beaconTag {
+                beacons.append(point)
+            } else if let slot = slotOfTag[ch] {
+                buckets[slot].append(point)
             }
         }
 
@@ -376,33 +432,88 @@ public enum PDR {
             }
         }
         beacons = stableSortedByT(beacons)
-        odoPts = stableSortedByT(odoPts)
-        latPts = stableSortedByT(latPts)
-        lonPts = stableSortedByT(lonPts)
-        speedPts = stableSortedByT(speedPts)
-        rpmPts = stableSortedByT(rpmPts)
-        latAccPts = stableSortedByT(latAccPts)
-        throttlePts = stableSortedByT(throttlePts)
-        brakePts = stableSortedByT(brakePts)
-        steeringPts = stableSortedByT(steeringPts)
+        for i in buckets.indices { buckets[i] = stableSortedByT(buckets[i]) }
+        let odoPts = rawPts("odometer")
+        let latPts = rawPts("latitude")
+        let lonPts = rawPts("longitude")
 
         // Scale the car channels to display units and take session maxima.
         func scaleAll(_ pts: [ChannelPoint], _ conv: (@Sendable (Int) -> Double)?) -> [ChannelPoint] {
             guard let conv else { return [] }
             return pts.map { ChannelPoint(t: $0.t, v: conv(Int($0.v))) }
         }
-        let speed = scaleAll(speedPts, scaler(speedTag))  // km/h
-        let rpm = scaleAll(rpmPts, scaler(rpmTag))
-        let latAcc = scaleAll(latAccPts, scaler(latAccTag))  // G
-        let throttle = scaleAll(throttlePts, scaler(throttleTag))  // % (dict units "%" -> x100)
-        let brake = scaleAll(brakePts, scaler(brakeTag))  // %
+        /// `scaled("speed")` — that channel's samples in display units.
+        func scaled(_ key: String) -> [ChannelPoint] {
+            scaleAll(rawPts(key), scaler(tags[key]))
+        }
+        let speed = scaled("speed")  // km/h
+        let rpm = scaled("rpm")
+        let latAcc = scaled("latAcc")  // G
+        let throttle = scaled("throttle")  // % (dict units "%" -> x100)
+        let brake = scaled("brake")  // %
+        let longAcc = scaled("longAcc")  // G, signed: negative under braking
+        let yaw = scaled("yaw")  // deg/s, signed
+        let boost = scaled("boost")  // kPa gauge
         // Real firmware stores steering wheel angle in radians with an *empty*
-        // units string, so UNIT_SCALE's deg conversion never fires — apply it
+        // units string, so UNIT_CONV's deg conversion never fires — apply it
         // here unless the dictionary already declared degrees.
-        let steeringRad = steeringTag.flatMap { dict[$0] }?.units != "deg"
-        let steering = scaleAll(steeringPts, scaler(steeringTag)).map {
+        let steeringRad = tags["steering"].flatMap { dict[$0] }?.units != "deg"
+        let steering = scaled("steering").map {
             ChannelPoint(t: $0.t, v: steeringRad ? $0.v * 180 / .pi : $0.v)
         }  // deg, signed
+
+        // Gear is an enum, not a measurement: 1-8 are gears, and every other
+        // value (13 on a real C7, with the clutch down) means "in transition /
+        // no gear". Stored as 0 rather than dropped, so the array stays on the
+        // grid with its neighbours.
+        let gear = scaled("gear").map {
+            ChannelPoint(t: $0.t, v: $0.v >= 1 && $0.v <= 8 ? $0.v.rounded() : 0)
+        }
+
+        // Wheel slip from the four wheelspeeds, as one channel rather than
+        // four: (driven − non-driven) / non-driven, positive under wheelspin
+        // and negative under lockup. Below 5 km/h the ratio is noise over a
+        // near-zero divisor.
+        let wheel = ["wsLN", "wsRN", "wsLD", "wsRD"].map(scaled)
+        var wheelSlip: [ChannelPoint] = []
+        if wheel.allSatisfy({ $0.count > 10 }) {
+            let ln = series(wheel[0]), rn = series(wheel[1])
+            let ld = series(wheel[2]), rd = series(wheel[3])
+            wheelSlip = wheel[0].map { p in
+                let nd = (ln.at(p.t) + rn.at(p.t)) / 2
+                let dr = (ld.at(p.t) + rd.at(p.t)) / 2
+                let v = nd < 5 ? 0 : ((dr - nd) / nd) * 100
+                return ChannelPoint(t: p.t, v: Swift.max(-100, Swift.min(100, v)))
+            }
+        }
+
+        // ABS / traction control / stability control packed into one bitfield
+        // (bit 0 / 1 / 2) — three near-always-zero channels are not worth three
+        // slots in the storage budget. Anchored on ABS's timestamps: the three
+        // ship together at the same rate, and ABS is the one that fires.
+        let absPts = scaled("absActive")
+        let tcPts = scaled("tcActive")
+        let vscPts = scaled("vscActive")
+        var flags: [ChannelPoint] = []
+        if absPts.count > 10 {
+            let tc = tcPts.count > 10 ? series(tcPts) : nil
+            let vsc = vscPts.count > 10 ? series(vscPts) : nil
+            flags = absPts.map { p in
+                var bits = p.v > 0.5 ? 1 : 0
+                if let tc, tc.at(p.t) > 0.5 { bits |= 2 }
+                if let vsc, vsc.at(p.t) > 0.5 { bits |= 4 }
+                return ChannelPoint(t: p.t, v: Double(bits))
+            }
+        }
+
+        // Slow housekeeping (0.5-1.4 Hz). At one real sample every 40-90 m
+        // these cannot fill a 20 m distance grid, so they are reduced to one
+        // value per lap instead (`TelemetryChannels.SCALAR_NAMES`).
+        var lapScalarChannels: [String: [ChannelPoint]] = [:]
+        for key in SCALAR_CHANNEL_KEYS {
+            let arr = scaled(key)
+            if !arr.isEmpty { lapScalarChannels[key] = arr }
+        }
         func maxOf(_ pts: [ChannelPoint], _ cap: Double) -> Double? {
             var m = -Double.infinity
             for p in pts where p.v > m { m = p.v }
@@ -421,22 +532,53 @@ public enum PDR {
             }
             topSpeedKph = m * 3.6 >= 30 && m * 3.6 < 500 ? m * 3.6 : nil
         }
+        func absSeries(_ arr: [ChannelPoint]) -> [ChannelPoint] {
+            arr.map { ChannelPoint(t: $0.t, v: abs($0.v)) }
+        }
         let metrics = ParsedTelemetry.Metrics(
             topSpeedKph: topSpeedKph,
             maxRpm: maxOf(rpm, 20000),
-            maxLatG: maxOf(latAcc.map { ChannelPoint(t: $0.t, v: abs($0.v)) }, 5)
+            maxLatG: maxOf(absSeries(latAcc), 5),
+            // Braking is the negative half of longitudinal G; reported
+            // positive, the way a driver talks about it.
+            maxBrakeG: maxOf(longAcc.map { ChannelPoint(t: $0.t, v: -$0.v) }, 5),
+            maxBoostKpa: maxOf(boost, 400),
+            maxOilC: maxOf(lapScalarChannels["oilC"] ?? [], 250)
+        )
+
+        // Session-level numbers: one value each for the whole recording,
+        // stored inside the channel blob's `meta` rather than in their own
+        // columns — they are context for the graphs, not queryable facts.
+        func median(_ arr: [ChannelPoint]) -> Double? {
+            guard arr.count >= 3 else { return nil }
+            let v = arr.map(\.v).sorted()
+            return v[v.count >> 1]
+        }
+        let altitude = scaled("altitude")
+        let carOdo = scaled("carOdo")  // km, the car's lifetime odometer
+        let sessionMeta = ParsedTelemetry.SessionMeta(
+            ambientC: median(scaled("ambientC")),
+            intakeC: median(scaled("intakeC")),
+            elevationM: altitude.count > 10
+                ? (altitude.map(\.v).max() ?? 0) - (altitude.map(\.v).min() ?? 0)
+                : nil,
+            odometerKm: carOdo.isEmpty ? nil : carOdo.map(\.v).max()
         )
 
         // GPS trace: dictionary conversion first (radians -> degrees), then the
         // heuristic decoders. Speed channel (km/h -> m/s) beats odometer slope
         // for the racing-line speeds.
-        let latConv = scaler(latitudeTag)
-        let lonConv = scaler(longitudeTag)
+        let latConv = scaler(tags["latitude"])
+        let lonConv = scaler(tags["longitude"])
         let gps = gpsFromChannels(
             latPts, lonPts, odoS,
             dictConv: latConv.flatMap { l in lonConv.map { Decoder(lat: l, lon: $0) } },
             speedS: speed.count > 10 ? series(speed.map { ChannelPoint(t: $0.t, v: $0.v / 3.6) }) : nil
         )
+
+        // A channel is worth handing on only when it actually has a series
+        // behind it; ten samples is the same floor buildLapChannels applies.
+        func dense(_ arr: [ChannelPoint]) -> [ChannelPoint]? { arr.count > 10 ? arr : nil }
 
         // 5. Build the full crossing list.
         var crossings = beacons.map { Crossing(v: $0.v, t: $0.t, exact: true) }
@@ -529,13 +671,21 @@ public enum PDR {
             beaconCount: beacons.count,
             channels: ParsedTelemetry.RawChannels(latPts: latPts, odoPts: odoPts),
             carChannels: ParsedTelemetry.CarChannels(
-                speed: speed.count > 10 ? speed : nil,
-                rpm: rpm.count > 10 ? rpm : nil,
-                latG: latAcc.count > 10 ? latAcc.map { ChannelPoint(t: $0.t, v: abs($0.v)) } : nil,
-                throttle: throttle.count > 10 ? throttle : nil,
-                brake: brake.count > 10 ? brake : nil,
-                steering: steering.count > 10 ? steering : nil
-            )
+                speed: dense(speed),
+                rpm: dense(rpm),
+                latG: dense(absSeries(latAcc)),
+                throttle: dense(throttle),
+                brake: dense(brake),
+                steering: dense(steering),
+                longG: dense(longAcc),
+                yaw: dense(yaw),
+                gear: dense(gear),
+                wheelSlip: dense(wheelSlip),
+                boost: dense(boost),
+                flags: dense(flags)
+            ),
+            lapScalarChannels: lapScalarChannels,
+            sessionMeta: sessionMeta
         )
     }
 

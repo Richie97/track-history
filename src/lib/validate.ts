@@ -50,20 +50,26 @@ export function sanitizeTrace(v: unknown): [number, number, number][] | null | u
 // shape — keep the two in sync): channel arrays on a uniform driven-distance
 // grid, one entry per lap. null clears it; valid data is re-rounded so the
 // stored JSON stays small. Returns undefined when the input isn't plausible.
-export type LapChannelEntry = {
-  n: number;
-  timeMs: number;
-  speed?: number[];
-  rpm?: number[];
-  latG?: number[];
-  throttle?: number[];
-  brake?: number[];
-  steering?: number[];
-};
-export type LapChannels = { v: 1; dStepM: number; laps: LapChannelEntry[] };
+export type ChannelName =
+  | "speed" | "rpm" | "latG" | "throttle" | "brake" | "steering"
+  | "longG" | "yaw" | "gear" | "wheelSlip" | "boost" | "flags";
+export type ScalarName =
+  | "oilC" | "oilKpa" | "coolantC" | "transC" | "fuelPct" | "battV"
+  | "tyreKpaLF" | "tyreKpaRF" | "tyreKpaLR" | "tyreKpaRR"
+  | "tyreCLF" | "tyreCRF" | "tyreCLR" | "tyreCRR";
+export type MetaName = "ambientC" | "intakeC" | "elevationM" | "odometerKm";
 
-const CHANNEL_SPECS: ["speed" | "rpm" | "latG" | "throttle" | "brake" | "steering", number, number, number][] = [
-  // name, max plausible value, rounding factor, min plausible value
+export type LapChannelEntry = { n: number; timeMs: number } & Partial<
+  Record<ChannelName, number[]>
+> &
+  Partial<Record<ScalarName, number>>;
+export type ChannelMeta = Partial<Record<MetaName, number>>;
+export type LapChannels = { v: 1; dStepM: number; meta?: ChannelMeta; laps: LapChannelEntry[] };
+
+// name, max plausible value, rounding factor, min plausible value. Order
+// mirrors CHANNEL_NAMES in public/js/import/channels.js, whose tail the
+// importer drops first when a session overruns the value budget.
+const CHANNEL_SPECS: [ChannelName, number, number, number][] = [
   ["speed", 500, 10, 0],
   ["rpm", 25000, 1, 0],
   ["latG", 10, 1000, 0],
@@ -71,6 +77,47 @@ const CHANNEL_SPECS: ["speed" | "rpm" | "latG" | "throttle" | "brake" | "steerin
   ["brake", 100, 10, 0],
   // steering-wheel degrees, signed; PDR's dictionary encodes at most ±2048°
   ["steering", 2048, 10, -2048],
+  // longitudinal G, signed: negative under braking
+  ["longG", 10, 1000, -10],
+  ["yaw", 360, 10, -360],
+  // gear 1-8; 0 is the clutch-in / no-gear state, not a gear
+  ["gear", 8, 1, 0],
+  // (driven - non-driven) wheelspeed as a percentage: + wheelspin, - lockup
+  ["wheelSlip", 100, 10, -100],
+  // boost is gauge pressure, so full vacuum is about -100 kPa
+  ["boost", 400, 10, -110],
+  // bitfield: ABS | traction control << 1 | stability control << 2
+  ["flags", 7, 1, 0],
+];
+
+// Slow channels reduced to one value per lap (SCALAR_NAMES in channels.js).
+// Same tuple shape; these are single numbers, so they cost nothing against
+// the array budget and are validated only for plausibility.
+const SCALAR_SPECS: [ScalarName, number, number, number][] = [
+  ["oilC", 250, 10, -60],
+  ["oilKpa", 1500, 1, 0],
+  ["coolantC", 250, 10, -60],
+  ["transC", 250, 10, -60],
+  ["fuelPct", 100, 10, 0],
+  ["battV", 40, 10, 0],
+  ["tyreKpaLF", 700, 1, 0],
+  ["tyreKpaRF", 700, 1, 0],
+  ["tyreKpaLR", 700, 1, 0],
+  ["tyreKpaRR", 700, 1, 0],
+  ["tyreCLF", 250, 10, -60],
+  ["tyreCRF", 250, 10, -60],
+  ["tyreCLR", 250, 10, -60],
+  ["tyreCRR", 250, 10, -60],
+];
+
+// One value for the whole session (META_NAMES in channels.js). `odometerKm`
+// is the car's lifetime odometer as the recorder saw it, not the session's
+// distance.
+const META_SPECS: [MetaName, number, number, number][] = [
+  ["ambientC", 70, 10, -60],
+  ["intakeC", 150, 10, -60],
+  ["elevationM", 3000, 1, 0],
+  ["odometerKm", 3000000, 1, 0],
 ];
 
 export function sanitizeChannels(v: unknown): LapChannels | null | undefined {
@@ -104,6 +151,12 @@ export function sanitizeChannels(v: unknown): LapChannels | null | undefined {
       points += vals.length;
     }
     if (!len) return undefined; // a lap entry with no channels isn't data
+    for (const [name, max, f, min] of SCALAR_SPECS) {
+      const x = l[name];
+      if (x == null) continue;
+      if (typeof x !== "number" || !Number.isFinite(x) || x < min || x > max) return undefined;
+      entry[name] = Math.round(x * f) / f;
+    }
     laps.push(entry);
   }
   // Hard budget on stored size: 120k values is roughly 800KB of JSON — well
@@ -111,7 +164,20 @@ export function sanitizeChannels(v: unknown): LapChannels | null | undefined {
   // points) land far under it. Mirrored by MAX_TOTAL_VALUES in
   // public/js/import/channels.js.
   if (points > 120000) return undefined;
-  return { v: 1, dStepM, laps };
+  const out: LapChannels = { v: 1, dStepM, laps };
+  if (o.meta != null) {
+    if (typeof o.meta !== "object" || Array.isArray(o.meta)) return undefined;
+    const raw = o.meta as Record<string, unknown>;
+    const meta: ChannelMeta = {};
+    for (const [name, max, f, min] of META_SPECS) {
+      const x = raw[name];
+      if (x == null) continue;
+      if (typeof x !== "number" || !Number.isFinite(x) || x < min || x > max) return undefined;
+      meta[name] = Math.round(x * f) / f;
+    }
+    if (Object.keys(meta).length) out.meta = meta;
+  }
+  return out;
 }
 
 // ISO yyyy-mm-dd, the format every date column stores.

@@ -315,7 +315,16 @@ export function buildPdrDeltaMp4({
   lat0 = 36.56,
   lon0 = -79.2,
 } = {}) {
-  const CH = { speed: 40, rpm: 41, latAcc: 42, throttle: 43, brake: 44, steering: 45, lat: 49, lon: 50, beacon: 54, odo: 66 };
+  const CH = {
+    speed: 40, rpm: 41, latAcc: 42, throttle: 43, brake: 44, steering: 45,
+    longAcc: 46, yaw: 47, gear: 48, lat: 49, lon: 50, boost: 51,
+    wsLN: 52, wsRN: 53, beacon: 54, wsLD: 55, wsRD: 56,
+    abs: 57, tc: 58, vsc: 59,
+    oilC: 60, oilKpa: 61, coolantC: 62, transC: 63, fuelPct: 64, battV: 65, odo: 66,
+    tyreKpaLF: 67, tyreKpaRF: 68, tyreKpaLR: 69, tyreKpaRR: 70,
+    tyreCLF: 71, tyreCRF: 72, tyreCLR: 73, tyreCRR: 74,
+    ambientC: 75, intakeC: 76, altitude: 77, carOdo: 78,
+  };
   const RAD = Math.PI / 180;
   const kx = 111320 * Math.cos(lat0 * RAD);
   const ky = 110540;
@@ -337,6 +346,51 @@ export function buildPdrDeltaMp4({
     events.push({ ch: CH.throttle, v: Math.round(Math.max(0, pedal) * 255), t });
     events.push({ ch: CH.brake, v: Math.round(Math.max(0, -pedal) * 255), t });
     events.push({ ch: CH.steering, v: Math.round(500 * Math.sin(t / 6)), t });
+    // longitudinal accel in m/s² (the "G" dict unit is SI); yaw rate is v/r
+    // in rad/s, which "°/sec" converts to degrees.
+    events.push({ ch: CH.longAcc, v: Math.round(8 * Math.sin(t / 7) * 1000), t });
+    events.push({ ch: CH.yaw, v: Math.round((v / radius) * 1000), t });
+    // an enum, cycling 1-5 with the 13 = "in transition" state the parser
+    // must map to 0 rather than plot as a thirteenth gear
+    events.push({ ch: CH.gear, v: t % 60 < 3 ? 13 : 1 + (Math.floor(t / 7) % 5), t });
+    // raw 0-255 against mult 1000 / off -128000 -> Pascals gauge, which the
+    // "kPa" unit divides down: ±128 kPa
+    events.push({ ch: CH.boost, v: Math.round(128 + 60 * Math.sin(t / 9)), t });
+    // driven wheels turn ~2% faster than non-driven under power -> wheelSlip
+    events.push({ ch: CH.wsLN, v: Math.round(v * 100), t });
+    events.push({ ch: CH.wsRN, v: Math.round(v * 100), t });
+    events.push({ ch: CH.wsLD, v: Math.round(v * 1.02 * 100), t });
+    events.push({ ch: CH.wsRD, v: Math.round(v * 1.02 * 100), t });
+    // ABS fires in short bursts — narrower than the 20 m grid spacing, so a
+    // point sample would miss them and only the window sampler sees them
+    events.push({ ch: CH.abs, v: Math.sin(t / 7) < -0.98 ? 1 : 0, t });
+    events.push({ ch: CH.tc, v: 0, t });
+    events.push({ ch: CH.vsc, v: 0, t });
+  }
+  // Slow housekeeping at 0.5Hz — too sparse for the distance grid, so these
+  // become per-lap scalars. Raw values here are what real firmware stores:
+  // Kelvin behind the channel's own offset, Pascals behind "kPa".
+  // Raw values and spans here are the ones a real C7 PDR writes (measured off
+  // a VIR session), so a test can assert the display-unit range and be
+  // asserting something true about the format.
+  for (let t = 0; t <= totalS; t += 2) {
+    const warm = Math.min(1, t / 120); // saturates inside the fixture's length
+    events.push({ ch: CH.oilC, v: Math.round(83 + 87 * warm), t });          // 43 -> 130°C
+    events.push({ ch: CH.oilKpa, v: Math.round(70 + 14 * Math.sin(t / 11)), t }); // 224-336 kPa
+    events.push({ ch: CH.coolantC, v: Math.round(110 + 35 * warm), t });     // 70 -> 105°C
+    events.push({ ch: CH.transC, v: Math.round(59 + 79 * warm), t });        // 19 -> 98°C
+    events.push({ ch: CH.fuelPct, v: Math.round(248 - 61 * warm), t });      // 97 -> 73%
+    events.push({ ch: CH.battV, v: Math.round(140 + 12 * Math.sin(t / 13)), t }); // 12.8-15.2V
+    for (const [ch, base] of [[CH.tyreKpaLF, 36], [CH.tyreKpaRF, 37], [CH.tyreKpaLR, 38], [CH.tyreKpaRR, 39]]) {
+      events.push({ ch, v: Math.round(base + 19 * warm), t });               // 144 -> 220 kPa
+    }
+    for (const [ch, base] of [[CH.tyreCLF, 37], [CH.tyreCRF, 38], [CH.tyreCLR, 39], [CH.tyreCRR, 40]]) {
+      events.push({ ch, v: Math.round(base + 57 * warm), t });               // 17 -> 74°C
+    }
+    events.push({ ch: CH.ambientC, v: 55, t });                              // 15°C
+    events.push({ ch: CH.intakeC, v: 57, t });                               // 17°C
+    events.push({ ch: CH.altitude, v: Math.round(11260 + 3800 * Math.abs(Math.sin(t / 40))), t });
+    events.push({ ch: CH.carOdo, v: Math.round(4549603 + (speed * t) / 15.625), t });
   }
   for (let t = 0; t <= totalS; t += 0.15) {
     events.push({ ch: CH.odo, v: Math.round(speed * t), t });
@@ -358,7 +412,39 @@ export function buildPdrDeltaMp4({
     mrldEntry({ id: CH.lat, name: "Latitude", units: "°", mult: 1e-9, min: -1571000000, max: 1571000000 }),
     mrldEntry({ id: CH.lon, name: "Longitude", units: "°", mult: 1e-9, min: -2000000000, max: 2000000000 }),
     mrldEntry({ id: CH.beacon, name: "Beacon" }),
-    mrldEntry({ id: CH.odo, name: "Recording Event Odometer", units: "km" })
+    mrldEntry({ id: CH.odo, name: "Recording Event Odometer", units: "km" }),
+    mrldEntry({ id: CH.longAcc, name: "Longitudinal Acceleration", units: "G", mult: 0.001 }),
+    mrldEntry({ id: CH.yaw, name: "Yaw Rate", units: "°/sec", mult: 0.001 }),
+    mrldEntry({ id: CH.gear, name: "Gear", min: 0, max: 15, mult: 1 }),
+    mrldEntry({ id: CH.boost, name: "Intake Boost Pressure", units: "kPa", min: 0, max: 255, mult: 1000, off: -128000 }),
+    mrldEntry({ id: CH.wsLN, name: "Wheelspeed Left Non-Driven", units: "kph", mult: 0.01 }),
+    mrldEntry({ id: CH.wsRN, name: "Wheelspeed Right Non-Driven", units: "kph", mult: 0.01 }),
+    mrldEntry({ id: CH.wsLD, name: "Wheelspeed Left Driven", units: "kph", mult: 0.01 }),
+    mrldEntry({ id: CH.wsRD, name: "Wheelspeed Right Driven", units: "kph", mult: 0.01 }),
+    mrldEntry({ id: CH.abs, name: "ABS Active", min: 0, max: 1, mult: 1 }),
+    mrldEntry({ id: CH.tc, name: "Traction Control Active", min: 0, max: 1, mult: 1 }),
+    mrldEntry({ id: CH.vsc, name: "Vehicle Stability Active", min: 0, max: 1, mult: 1 }),
+    // "°C" channels hold Kelvin, with the K->C offset baked into the
+    // channel's own `off` — the shape that needs an additive unit conversion.
+    mrldEntry({ id: CH.oilC, name: "Oil Temp", units: "°C", min: 0, max: 255, mult: 1, off: 233.15 }),
+    mrldEntry({ id: CH.oilKpa, name: "Oil Pressure", units: "kPa", min: 0, max: 255, mult: 4000 }),
+    mrldEntry({ id: CH.coolantC, name: "Coolant Temp", units: "°C", min: 0, max: 255, mult: 1, off: 233.15 }),
+    mrldEntry({ id: CH.transC, name: "Trans Oil Temp", units: "°C", min: 0, max: 255, mult: 1, off: 233.15 }),
+    mrldEntry({ id: CH.fuelPct, name: "Fuel Level", units: "%", min: 0, max: 255, mult: 1 / 255 }),
+    mrldEntry({ id: CH.battV, name: "Battery Voltage", units: "V", min: 0, max: 255, mult: 0.1 }),
+    mrldEntry({ id: CH.tyreKpaLF, name: "LF Tyre Pressure", units: "kPa", min: 0, max: 255, mult: 4000 }),
+    mrldEntry({ id: CH.tyreKpaRF, name: "RF Tyre Pressure", units: "kPa", min: 0, max: 255, mult: 4000 }),
+    mrldEntry({ id: CH.tyreKpaLR, name: "LR Tyre Pressure", units: "kPa", min: 0, max: 255, mult: 4000 }),
+    mrldEntry({ id: CH.tyreKpaRR, name: "RR Tyre Pressure", units: "kPa", min: 0, max: 255, mult: 4000 }),
+    mrldEntry({ id: CH.tyreCLF, name: "LF Tyre Temp", units: "°C", min: 0, max: 255, mult: 1, off: 253.15 }),
+    mrldEntry({ id: CH.tyreCRF, name: "RF Tyre Temp", units: "°C", min: 0, max: 255, mult: 1, off: 253.15 }),
+    mrldEntry({ id: CH.tyreCLR, name: "LR Tyre Temp", units: "°C", min: 0, max: 255, mult: 1, off: 253.15 }),
+    mrldEntry({ id: CH.tyreCRR, name: "RR Tyre Temp", units: "°C", min: 0, max: 255, mult: 1, off: 253.15 }),
+    mrldEntry({ id: CH.ambientC, name: "Outside Air Temperature", units: "°C", min: 0, max: 255, mult: 1, off: 233.15 }),
+    mrldEntry({ id: CH.intakeC, name: "Intake Air Temperature", units: "°C", min: 0, max: 255, mult: 1, off: 233.15 }),
+    mrldEntry({ id: CH.altitude, name: "Altitude", units: "m", min: -3000000, max: 3000000, mult: 0.01 }),
+    // the car's lifetime odometer: "km" holding metres
+    mrldEntry({ id: CH.carOdo, name: "Distance", units: "km", min: 0, max: 2147483647, mult: 15.625 })
   );
   return buildTelemetryMp4({
     handler: "ctbx",

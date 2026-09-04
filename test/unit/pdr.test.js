@@ -145,6 +145,72 @@ describe("parsePdrFile with a delta-encoded stream (real firmware shape)", () =>
     expect(Math.max(...st)).toBeLessThan(29.2);
     expect(Math.min(...st)).toBeLessThan(-28);
   });
+
+  it("converts the units the dictionary labels in display terms but stores as SI", async () => {
+    const out = await parse();
+    // "°C" channels hold Kelvin behind the channel's own offset — the one
+    // conversion that is additive rather than a factor. Oil warms 43 -> 130°C.
+    const oil = out.lapScalarChannels.oilC.map((p) => p.v);
+    expect(Math.min(...oil)).toBeCloseTo(43, 0);
+    expect(Math.max(...oil)).toBeCloseTo(130, 0);
+    // "kPa" channels hold Pascals: raw 84 * 4000 Pa = 336 kPa, not 336000.
+    const oilP = out.lapScalarChannels.oilKpa.map((p) => p.v);
+    expect(Math.max(...oilP)).toBeCloseTo(336, 0);
+    expect(Math.min(...oilP)).toBeCloseTo(224, 0);
+    // tyre pressures rise across the session the way real ones do
+    const tyre = out.lapScalarChannels.tyreKpaLF.map((p) => p.v);
+    expect(Math.min(...tyre)).toBeCloseTo(144, 0);
+    expect(Math.max(...tyre)).toBeCloseTo(220, 0);
+    // "km" channels hold metres: the car's lifetime odometer, ~71,090 km.
+    expect(out.sessionMeta.odometerKm).toBeGreaterThan(71000);
+    expect(out.sessionMeta.odometerKm).toBeLessThan(71200);
+    expect(out.sessionMeta.ambientC).toBeCloseTo(15, 1);
+    expect(out.sessionMeta.intakeC).toBeCloseTo(17, 1);
+    expect(out.sessionMeta.elevationM).toBeCloseTo(38, 0);
+  });
+
+  it("decodes the added gridded channels", async () => {
+    const out = await parse();
+    const vals = (k) => out.carChannels[k].map((p) => p.v);
+    // longitudinal accel: ±8 m/s² = ±0.816 G, signed (negative = braking)
+    expect(Math.max(...vals("longG"))).toBeCloseTo(0.816, 2);
+    expect(Math.min(...vals("longG"))).toBeCloseTo(-0.816, 2);
+    // yaw rate v/r in rad/s -> degrees: 40/300 rad/s ≈ 7.6°/s
+    expect(Math.max(...vals("yaw"))).toBeGreaterThan(7);
+    expect(Math.max(...vals("yaw"))).toBeLessThan(8.1);
+    // boost is gauge pressure either side of zero
+    expect(Math.max(...vals("boost"))).toBeCloseTo(60, 0);
+    expect(Math.min(...vals("boost"))).toBeCloseTo(-60, 0);
+    // driven wheels turn 2% faster than non-driven throughout
+    const slip = vals("wheelSlip");
+    expect(Math.max(...slip)).toBeCloseTo(2, 1);
+    expect(Math.min(...slip)).toBeCloseTo(2, 1);
+  });
+
+  it("maps the gear channel's transition sentinel to 0 rather than a gear", async () => {
+    const out = await parse();
+    const gears = new Set(out.carChannels.gear.map((p) => p.v));
+    // the fixture emits 13 ("in transition") for 3s out of every 60
+    expect(gears.has(13)).toBe(false);
+    expect(gears.has(0)).toBe(true);
+    expect(Math.max(...gears)).toBe(5);
+  });
+
+  it("packs ABS, traction and stability control into one bitfield", async () => {
+    const out = await parse();
+    const flags = out.carChannels.flags.map((p) => p.v);
+    // the fixture fires ABS in short bursts and leaves TC/VSC off, so only
+    // bit 0 is ever set
+    expect(new Set(flags)).toEqual(new Set([0, 1]));
+    expect(flags.filter((v) => v & 1).length).toBeGreaterThan(0);
+  });
+
+  it("reports braking G, peak boost and max oil temperature as session metrics", async () => {
+    const out = await parse();
+    expect(out.metrics.maxBrakeG).toBeCloseTo(0.816, 2);
+    expect(out.metrics.maxBoostKpa).toBeCloseTo(60, 0);
+    expect(out.metrics.maxOilC).toBeGreaterThan(60);
+  });
 });
 
 describe("boxes", () => {
