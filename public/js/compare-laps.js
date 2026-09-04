@@ -13,8 +13,12 @@
 
 import { matchLapsToChannels } from "./channel-graphs.js";
 
-// Every channel a stored lap entry can carry — mirrors CHANNEL_NAMES in
-// js/import/channels.js (keep in sync; order is irrelevant here).
+// The channels this view resamples and draws. Deliberately a *subset* of
+// CHANNEL_NAMES in js/import/channels.js: a session now stores longG, yaw,
+// gear, wheelSlip, boost and flags too, and nothing renders those yet.
+// Adding one here adds it to the compare charts on all three clients and
+// regenerates contracts/logic/compare-laps.json — so this list grows when the
+// visualization does, not when the storage does.
 const CHANNEL_KEYS = ["speed", "rpm", "latG", "throttle", "brake", "steering"];
 
 // "Flat out" / "on the brakes" thresholds for lapMetrics' percentages.

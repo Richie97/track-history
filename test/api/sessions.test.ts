@@ -101,6 +101,51 @@ describe("POST /api/events/:id/sessions", () => {
     expect(ch.laps[1].throttle).toBeUndefined();
   });
 
+  it("stores the added channels, per-lap scalars and session meta", async () => {
+    const { api } = await signedInProUser();
+    const eventId = await createEvent(api);
+    const arr = (v: number) => Array.from({ length: 12 }, (_, i) => v + i + 0.123);
+    const channels = {
+      v: 1,
+      dStepM: 20,
+      meta: { ambientC: 15.04, intakeC: 17, elevationM: 38.4, odometerKm: 71087.6 },
+      laps: [
+        {
+          n: 1,
+          timeMs: 121000,
+          speed: arr(100),
+          longG: arr(0).map((x) => x / 100 - 1), // signed, negative under braking
+          yaw: arr(0).map((x) => x - 30),
+          gear: Array(12).fill(4),
+          wheelSlip: arr(0).map((x) => x - 5),
+          boost: arr(0).map((x) => x - 60),
+          flags: Array(12).fill(5), // ABS + stability control
+          // per-lap scalars: single numbers, not arrays
+          oilC: 118.44,
+          oilKpa: 336.6,
+          coolantC: 98,
+          transC: 91,
+          fuelPct: 73.34,
+          battV: 13.88,
+          tyreKpaLF: 220.6,
+          tyreCLF: 74.05,
+        },
+      ],
+    };
+    await api("POST", `/events/${eventId}/sessions`, { laps: [121000], channels });
+    const ch = (await api("GET", `/events/${eventId}`)).body.sessions[0].channels;
+    const lap = ch.laps[0];
+    expect(ch.meta).toEqual({ ambientC: 15, intakeC: 17, elevationM: 38, odometerKm: 71088 });
+    expect(lap.gear[0]).toBe(4);
+    expect(lap.flags[0]).toBe(5);
+    expect(lap.longG[0]).toBeCloseTo(-0.999, 3);
+    expect(lap.boost[0]).toBe(-59.9);
+    expect(lap.oilC).toBe(118.4); // scalars round like their channel
+    expect(lap.oilKpa).toBe(337);
+    expect(lap.tyreCLF).toBe(74.1);
+    expect(lap.battV).toBe(13.9);
+  });
+
   it("leaves channels null when omitted and rejects implausible channel data", async () => {
     const { api } = await signedInUser();
     const eventId = await createEvent(api);
@@ -118,6 +163,21 @@ describe("POST /api/events/:id/sessions", () => {
       { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, throttle: Array(12).fill(101) }] }, // throttle over 100%
       { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, brake: Array(12).fill(-1) }] }, // negative brake
       { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, steering: Array(12).fill(3000) }] }, // beyond full lock
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, gear: Array(12).fill(9) }] }, // no ninth gear
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, flags: Array(12).fill(8) }] }, // a fourth flag bit
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, wheelSlip: Array(12).fill(500) }] },
+      // a scalar alone is not graphable data
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, oilC: 90 }] },
+      // scalars are numbers, not arrays, and are range-checked too
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100), oilC: [90] }] },
+      { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100), fuelPct: 140 }] },
+      { v: 1, dStepM: 20, meta: "nope", laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100) }] },
+      {
+        v: 1,
+        dStepM: 20,
+        meta: { ambientC: 900 },
+        laps: [{ n: 1, timeMs: 121000, speed: Array(12).fill(100) }],
+      },
     ];
     for (const channels of cases) {
       const bad = await api("POST", `/events/${eventId}/sessions`, { laps: [121000], channels });

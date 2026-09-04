@@ -155,10 +155,20 @@
         import preview also reads the car channels and shows each session's
         <strong>top speed, max RPM and max lateral&nbsp;G</strong>, saved into
         the session notes.</li>
+      <li>A PDR recording also carries slow readings that change over a lap
+        rather than through one — oil, coolant and transmission temperatures,
+        oil pressure, fuel level, tyre pressures and temperatures, battery
+        voltage — so those are kept as <strong>one figure per lap</strong>,
+        along with the ambient temperature, the track's elevation range and
+        the car's odometer reading for the session. Nothing on screen uses
+        them yet; they are saved at import because the video stays on your
+        device and is never uploaded, so a reading not taken now is gone.</li>
       <li>Each imported session also stores <strong>per-lap channel data</strong> —
-        speed for every source, plus RPM, lateral&nbsp;G, throttle, brake and
-        steering angle for PDR (whichever channels the recording carries — a
-        channel the file lacks simply draws no graph) — sampled
+        speed for every source, plus, from a PDR recording, RPM, lateral and
+        longitudinal&nbsp;G, throttle, brake, steering angle, yaw rate, gear,
+        wheel slip, boost and whether ABS or traction control was active
+        (whichever channels the recording carries — a channel the file lacks
+        simply draws no graph) — sampled
         along the lap's driven distance. On the event page the session's lap
         chips double as the picker for the expandable
         <strong>channel graphs</strong>: laps overlaid on a shared distance

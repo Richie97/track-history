@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHANNEL_NAMES,
+  MAX_TOTAL_VALUES,
   buildLapChannels,
   channelDataFor,
   distFromTrace,
@@ -121,5 +123,90 @@ describe("end-to-end lapChannels on parsed imports", () => {
     expect(parsed.laps).toHaveLength(3);
     expect(parsed.lapChannels.laps).toHaveLength(3);
     expect(parsed.lapChannels.laps[0].speed.length).toBeGreaterThan(80);
+  });
+});
+
+describe("state channels are sampled by rule, not interpolated", () => {
+  // 400 grid points of distance, one lap covering the lot
+  const laps = [{ lapNumber: 1, timeMs: 47120, startT: 0, endT: 100 }];
+
+  it("holds the last gear rather than interpolating a fractional one", () => {
+    // gear steps 3 -> 4 halfway; interpolation would emit 3.5 in between
+    const gear = Array.from({ length: 400 }, (_, i) => ({ t: i * 0.5, v: i < 100 ? 3 : 4 }));
+    const out = buildLapChannels(laps, dist, { speed, gear });
+    const vals = new Set(out.laps[0].gear);
+    expect(vals).toEqual(new Set([3, 4]));
+  });
+
+  it("catches a flag event narrower than the grid spacing", () => {
+    // ABS on for a single 0.5s sample — between two 20m grid points at 40 m/s,
+    // so a point sample sees it only by luck and the OR-over-the-window
+    // sampler always does
+    const flags = Array.from({ length: 400 }, (_, i) => ({ t: i * 0.5, v: i === 61 ? 1 : 0 }));
+    const out = buildLapChannels(laps, dist, { speed, flags });
+    expect(out.laps[0].flags.some((v) => v === 1)).toBe(true);
+    expect(new Set(out.laps[0].flags)).toEqual(new Set([0, 1]));
+  });
+});
+
+describe("per-lap scalars and session meta", () => {
+  const laps = [
+    { lapNumber: 1, timeMs: 47120, startT: 0, endT: 47.12 },
+    { lapNumber: 2, timeMs: 47120, startT: 47.12, endT: 94.24 },
+  ];
+  // 0.5Hz, rising steadily — one sample every 80m at 40 m/s
+  const slow = (f) => Array.from({ length: 60 }, (_, i) => ({ t: i * 2, v: f(i * 2) }));
+
+  it("reduces each scalar by its own rule", () => {
+    const out = buildLapChannels(laps, dist, { speed }, 20, {
+      scalars: {
+        oilC: slow((t) => 40 + t),       // max over the lap
+        oilKpa: slow((t) => 300 - t),    // min over the lap
+        fuelPct: slow((t) => 100 - t),   // value at the lap's end
+      },
+    });
+    const [a, b] = out.laps;
+    expect(a.oilC).toBeCloseTo(86, 0);   // last sample at or before 47.12s
+    expect(b.oilC).toBeCloseTo(134, 0);
+    expect(a.oilKpa).toBeCloseTo(254, 0);
+    expect(b.oilKpa).toBeCloseTo(206, 0);
+    expect(a.fuelPct).toBeCloseTo(52.9, 0); // interpolated at the finish
+    expect(b.fuelPct).toBeLessThan(a.fuelPct);
+  });
+
+  it("stores session meta only when the source had some", () => {
+    const withMeta = buildLapChannels(laps, dist, { speed }, 20, {
+      meta: { ambientC: 15.04, odometerKm: 71087.6, elevationM: null },
+    });
+    expect(withMeta.meta).toEqual({ ambientC: 15, odometerKm: 71088 });
+    expect(buildLapChannels(laps, dist, { speed }).meta).toBeUndefined();
+  });
+});
+
+describe("storage budget", () => {
+  it("drops the lowest-priority channels rather than storing nothing", () => {
+    // 40 laps of a 14km circuit x 12 channels x ~700 points is ~336k values,
+    // nearly three times the cap
+    const longDist = Array.from({ length: 2000 }, (_, i) => ({ t: i * 7, v: i * 280 }));
+    const chans = {};
+    for (const [name] of CHANNEL_NAMES) {
+      chans[name] = Array.from({ length: 2000 }, (_, i) => ({ t: i * 7, v: 1 }));
+    }
+    const laps = Array.from({ length: 40 }, (_, i) => ({
+      lapNumber: i + 1,
+      timeMs: 349000,
+      startT: i * 349,
+      endT: (i + 1) * 349,
+    }));
+    const out = buildLapChannels(laps, longDist, chans);
+    expect(out).not.toBeNull();
+    const total = out.laps.reduce(
+      (s, e) => s + CHANNEL_NAMES.reduce((c, [k]) => c + (e[k]?.length ?? 0), 0),
+      0
+    );
+    expect(total).toBeLessThanOrEqual(MAX_TOTAL_VALUES);
+    // speed survives; the tail of CHANNEL_NAMES is what went
+    expect(out.laps[0].speed).toBeDefined();
+    expect(out.laps[0].flags).toBeUndefined();
   });
 });

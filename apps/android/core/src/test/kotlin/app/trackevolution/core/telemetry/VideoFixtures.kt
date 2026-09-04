@@ -68,7 +68,14 @@ object VideoFixtures {
     )
 
     @Serializable
-    data class Metrics(val topSpeedKph: Double? = null, val maxRpm: Double? = null, val maxLatG: Double? = null)
+    data class Metrics(
+        val topSpeedKph: Double? = null,
+        val maxRpm: Double? = null,
+        val maxLatG: Double? = null,
+        val maxBrakeG: Double? = null,
+        val maxBoostKpa: Double? = null,
+        val maxOilC: Double? = null,
+    )
 
     @Serializable
     data class GpsSample(val i: Int, val t: Double, val lat: Double, val lon: Double, val v: Double? = null)

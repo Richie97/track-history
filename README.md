@@ -573,10 +573,29 @@ pass across it (interpolated between 10–18 Hz fixes — accurate to roughly
 batch.
 
 Imported sessions also store **per-lap channel data** — speed for every
-source, plus RPM, lateral G, throttle, brake and steering angle for PDR
-(whichever channels the recording carries; a channel the file lacks simply
-draws no graph) — resampled onto a uniform
-driven-distance grid (20 m) so laps overlay corner-for-corner. On the event
+source, plus, for PDR, RPM, lateral and longitudinal G, throttle, brake,
+steering angle, yaw rate, gear, wheel slip, boost, and an ABS/traction/
+stability bitfield (whichever channels the recording carries; a channel the
+file lacks simply draws no graph) — resampled onto a uniform
+driven-distance grid (20 m) so laps overlay corner-for-corner.
+
+Which shape a channel gets is decided by its sample rate. A PDR file carries
+66 channels, and the ones below about 5 Hz produce one real sample every
+40–90 m, so an array on the 20 m grid would be interpolation rather than
+data. Those are stored as **one value per lap** instead — peak oil, coolant
+and transmission temperatures, minimum oil pressure, fuel level and tyre
+pressures at the lap's end, peak tyre temperatures, minimum battery voltage —
+and four numbers describing the whole session (ambient and intake air
+temperature, the track's elevation range, and the car's own odometer reading)
+are stored alongside them. None of that is graphed yet; it is captured at
+import because the video never leaves the device, so anything not derived at
+import time is gone.
+
+Two of the gridded channels are states rather than measurements and are
+sampled accordingly: `gear` holds its last value (interpolating 3 and 4 gives
+3.5, a gear no car has) and the ABS/traction bitfield takes the strongest
+value in each grid window, because a half-second ABS event is narrower than
+20 m of track and a point sample would miss it. On the event
 page the session's lap list doubles as the chip picker for the expandable
 **channel graphs** below it: all laps as a dim context envelope, up to three
 laps highlighted at a time via the chips (best lap pre-selected), with a
@@ -627,8 +646,16 @@ telemetry track and validated against Cosworth Toolbox lap times):
   8-byte diff records against the decoder's running state. Decoding the
   deltas is what yields the GPS trace (lat/lon at ~11Hz, stored as radians
   scaled by the file's channel dictionary) plus the car channels — Speed,
-  RPM, accelerations, throttle/brake pedal position, steering angle — from
-  which the import reports **top speed, max RPM and max lateral G**. (An earlier parser version read only full records,
+  RPM, accelerations, throttle/brake pedal position, steering angle, yaw
+  rate, gear, boost, the four wheelspeeds and the slow housekeeping channels —
+  from which the import reports **top speed, max RPM, max lateral G, peak
+  braking G, peak boost and max oil temperature**. Three dictionary units name
+  a display unit while holding SI, and getting them wrong is silent rather
+  than obvious: `°C` channels hold **Kelvin** (which is why the unit table
+  carries an offset and not just a factor — ship one without it and 130 °C oil
+  reads as 403 °C), `kPa` channels hold **Pascals**, and `km` channels hold
+  **metres**. The recording odometer is deliberately left raw: it is the
+  driven-distance axis, not a displayed value. (An earlier parser version read only full records,
   which made it look like PDR firmware recorded no GPS: longitude gets
   exactly one full record, at recording start.) All decoded coordinates
   still sit behind plausibility checks before they become a trace.

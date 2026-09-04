@@ -728,6 +728,17 @@ function parsedOut(p) {
           topSpeedKph: p.metrics.topSpeedKph ?? null,
           maxRpm: p.metrics.maxRpm ?? null,
           maxLatG: p.metrics.maxLatG ?? null,
+          maxBrakeG: p.metrics.maxBrakeG ?? null,
+          maxBoostKpa: p.metrics.maxBoostKpa ?? null,
+          maxOilC: p.metrics.maxOilC ?? null,
+        }
+      : null,
+    sessionMeta: p.sessionMeta
+      ? {
+          ambientC: p.sessionMeta.ambientC ?? null,
+          intakeC: p.sessionMeta.intakeC ?? null,
+          elevationM: p.sessionMeta.elevationM ?? null,
+          odometerKm: p.sessionMeta.odometerKm ?? null,
         }
       : null,
     gpsCount: p.gps?.length ?? 0,

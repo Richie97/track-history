@@ -150,4 +150,28 @@ struct LapChannelsTests {
         #expect(parsed.lapChannels?.laps.count == 3)
         #expect((parsed.lapChannels?.laps[0].speed?.count ?? 0) > 80)
     }
+
+    @Test func dropsTheLowestPriorityChannelsRatherThanStoringNothing() throws {
+        // 40 laps of a 14km circuit x 12 channels x ~700 points is ~336k values,
+        // nearly three times the cap. The video contract fixture is far too
+        // small to reach this path, so it is only checked here.
+        let longDist = (0..<2000).map { ChannelPoint(t: Double($0) * 7, v: Double($0) * 280) }
+        let flat = (0..<2000).map { ChannelPoint(t: Double($0) * 7, v: 1) }
+        var chans = ParsedTelemetry.CarChannels()
+        for (name, _) in TelemetryChannels.CHANNEL_NAMES { chans[name] = flat }
+        let laps = (0..<40).map { i in
+            ParsedLap(
+                lapNumber: i + 1, timeMs: 349_000, estimated: false,
+                startT: Double(i) * 349, endT: Double(i + 1) * 349
+            )
+        }
+        let out = try #require(TelemetryChannels.buildLapChannels(laps, longDist, chans))
+        let total = out.laps.reduce(0) { sum, e in
+            sum + TelemetryChannels.CHANNEL_NAMES.reduce(0) { $0 + (e[channel: $1.0]?.count ?? 0) }
+        }
+        #expect(total <= TelemetryChannels.MAX_TOTAL_VALUES)
+        // speed survives; the tail of CHANNEL_NAMES is what went
+        #expect(out.laps[0].speed != nil)
+        #expect(out.laps[0].flags == nil)
+    }
 }

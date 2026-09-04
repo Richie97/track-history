@@ -118,6 +118,13 @@ class VideoContractTest {
             assertCloseOrBothNull(expectedMetrics.topSpeedKph, metrics?.topSpeedKph, "$file: topSpeedKph")
             assertCloseOrBothNull(expectedMetrics.maxRpm, metrics?.maxRpm, "$file: maxRpm")
             assertCloseOrBothNull(expectedMetrics.maxLatG, metrics?.maxLatG, "$file: maxLatG")
+            assertCloseOrBothNull(expectedMetrics.maxBrakeG, metrics?.maxBrakeG, "$file: maxBrakeG")
+            assertCloseOrBothNull(
+                expectedMetrics.maxBoostKpa,
+                metrics?.maxBoostKpa,
+                "$file: maxBoostKpa",
+            )
+            assertCloseOrBothNull(expectedMetrics.maxOilC, metrics?.maxOilC, "$file: maxOilC")
         } else {
             assertNull(parsed.metrics, "$file: metrics should be absent")
         }
@@ -183,12 +190,22 @@ class VideoContractTest {
         for ((lap, want) in channels.laps.zip(expected.laps)) {
             assertEquals(want.n, lap.n, "$file: channel lap ${want.n} number")
             assertEquals(want.timeMs, lap.timeMs, "$file: channel lap ${want.n} timeMs")
-            assertSeries(lap.speed, want.speed, "$file: lap ${want.n} speed")
-            assertSeries(lap.rpm, want.rpm, "$file: lap ${want.n} rpm")
-            assertSeries(lap.latG, want.latG, "$file: lap ${want.n} latG")
-            assertSeries(lap.throttle, want.throttle, "$file: lap ${want.n} throttle")
-            assertSeries(lap.brake, want.brake, "$file: lap ${want.n} brake")
-            assertSeries(lap.steering, want.steering, "$file: lap ${want.n} steering")
+            // Walk the name lists rather than a hand-written set of fields: a
+            // channel added to CHANNEL_NAMES and never produced by the port
+            // would otherwise pass this test by simply not being looked at.
+            for ((name, _) in TelemetryChannels.CHANNEL_NAMES) {
+                assertSeries(lap.channel(name), want.channel(name), "$file: lap ${want.n} $name")
+            }
+            for ((name, _, _) in TelemetryChannels.SCALAR_NAMES) {
+                assertCloseOrBothNull(
+                    want.scalar(name),
+                    lap.scalar(name),
+                    "$file: lap ${want.n} $name",
+                )
+            }
+        }
+        for ((name, _) in TelemetryChannels.META_NAMES) {
+            assertCloseOrBothNull(expected.meta?.get(name), channels.meta?.get(name), "$file: meta $name")
         }
     }
 

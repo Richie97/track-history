@@ -55,6 +55,14 @@ public data class ParsedTelemetry(
     val channels: RawChannels? = null,
     /** Scaled car channels for the per-lap graphs. */
     val carChannels: CarChannels = CarChannels(),
+    /**
+     * The slow channels, keyed by `SCALAR_NAMES`, before they are reduced to one
+     * value per lap. A map rather than a data class because nothing reads an
+     * individual one — `buildLapChannels` walks the whole list.
+     */
+    val lapScalarChannels: Map<String, List<ChannelPoint>> = emptyMap(),
+    /** Session-level numbers, stored as the channel blob's `meta`. */
+    val sessionMeta: SessionMeta? = null,
     /** Set when laps came from lat-vs-distance periodicity rather than beacons. */
     val lapRecovery: LapRecovery? = null,
 ) {
@@ -74,6 +82,25 @@ public data class ParsedTelemetry(
         val topSpeedKph: Double? = null,
         val maxRpm: Double? = null,
         val maxLatG: Double? = null,
+        /**
+         * Peak braking, reported positive the way a driver talks about it — it
+         * is the negative half of longitudinal G.
+         */
+        val maxBrakeG: Double? = null,
+        val maxBoostKpa: Double? = null,
+        val maxOilC: Double? = null,
+    )
+
+    /**
+     * Session-level numbers from a PDR file, carried into the stored blob's
+     * `meta`. `sessionMeta` in the JS.
+     */
+    public data class SessionMeta(
+        val ambientC: Double? = null,
+        val intakeC: Double? = null,
+        val elevationM: Double? = null,
+        /** The car's lifetime odometer, not this session's distance. */
+        val odometerKm: Double? = null,
     )
 
     /** The two raw PDR series lap recovery works from. */
@@ -94,6 +121,18 @@ public data class ParsedTelemetry(
         val throttle: List<ChannelPoint>? = null,
         val brake: List<ChannelPoint>? = null,
         val steering: List<ChannelPoint>? = null,
+        /** Signed: negative under braking. */
+        val longG: List<ChannelPoint>? = null,
+        /** Degrees per second, signed. */
+        val yaw: List<ChannelPoint>? = null,
+        /** 1–8, or 0 for the clutch-in / no-gear state. */
+        val gear: List<ChannelPoint>? = null,
+        /** (driven − non-driven) wheelspeed, percent. */
+        val wheelSlip: List<ChannelPoint>? = null,
+        /** Manifold gauge pressure, kPa. */
+        val boost: List<ChannelPoint>? = null,
+        /** ABS | traction control shl 1 | stability control shl 2. */
+        val flags: List<ChannelPoint>? = null,
     ) {
         /** `chans[name]` in the JS. */
         public operator fun get(name: String): List<ChannelPoint>? = when (name) {
@@ -103,7 +142,29 @@ public data class ParsedTelemetry(
             "throttle" -> throttle
             "brake" -> brake
             "steering" -> steering
+            "longG" -> longG
+            "yaw" -> yaw
+            "gear" -> gear
+            "wheelSlip" -> wheelSlip
+            "boost" -> boost
+            "flags" -> flags
             else -> null
+        }
+
+        public fun with(name: String, values: List<ChannelPoint>?): CarChannels = when (name) {
+            "speed" -> copy(speed = values)
+            "rpm" -> copy(rpm = values)
+            "latG" -> copy(latG = values)
+            "throttle" -> copy(throttle = values)
+            "brake" -> copy(brake = values)
+            "steering" -> copy(steering = values)
+            "longG" -> copy(longG = values)
+            "yaw" -> copy(yaw = values)
+            "gear" -> copy(gear = values)
+            "wheelSlip" -> copy(wheelSlip = values)
+            "boost" -> copy(boost = values)
+            "flags" -> copy(flags = values)
+            else -> this
         }
     }
 

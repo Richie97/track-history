@@ -4,6 +4,7 @@ import app.trackevolution.core.GeoTrace
 import app.trackevolution.core.GpsPoint
 import app.trackevolution.core.JsMath
 import app.trackevolution.core.TracePoint
+import app.trackevolution.core.model.ChannelMeta
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
 
@@ -39,8 +40,14 @@ public object TelemetryChannels {
     public const val MAX_TOTAL_VALUES: Int = 120_000
 
     /**
-     * Every channel a lap entry can carry, with its rounding factor (decimal
-     * places worth keeping in the stored JSON). Order is the stored/render order.
+     * Every gridded channel a lap entry can carry, with its rounding factor
+     * (decimal places worth keeping in the stored JSON).
+     *
+     * Order is load-bearing twice over. It is the stored/render order, so the
+     * six original channels keep their positions and an existing session's
+     * graphs are unchanged. And it is *priority* order: when a session overruns
+     * [MAX_TOTAL_VALUES] the tail is dropped until it fits, so a driver loses
+     * boost before losing speed. Anything new is appended, never inserted.
      */
     public val CHANNEL_NAMES: List<Pair<String, Double>> = listOf(
         "speed" to 10.0,
@@ -49,7 +56,109 @@ public object TelemetryChannels {
         "throttle" to 10.0,
         "brake" to 10.0,
         "steering" to 10.0,
+        "longG" to 1000.0,
+        "yaw" to 10.0,
+        "gear" to 1.0,
+        "wheelSlip" to 10.0,
+        "boost" to 10.0,
+        "flags" to 1.0,
     )
+
+    /**
+     * Two of those are states, not measurements, and the default sampler — the
+     * interpolated value at the grid point — is wrong for both. `flags` is a
+     * bitfield at ~45 Hz whose events are narrower than the 20 m spacing, so it
+     * is sampled as the OR of everything in the window (which is `max` for
+     * independent bits). `gear` is an enum at ~6.6 Hz; interpolating 3 and 4
+     * yields 3.5, a gear no car has, so the last value at or before the point is
+     * held.
+     */
+    public val WINDOW_MAX: List<String> = listOf("flags")
+    public val STEP_HOLD: List<String> = listOf("gear")
+
+    /** How a slow channel is reduced to one number per lap. */
+    public enum class Reduce {
+        /** Largest value inside the lap's own window. */
+        MAX,
+
+        /** Smallest value inside the lap's own window. */
+        MIN,
+
+        /**
+         * The value as the lap finished — what you want for a tyre pressure or a
+         * fuel level, and not what you want for an oil temperature.
+         */
+        END,
+    }
+
+    /**
+     * Slow channels (0.5–1.4 Hz) reduced to one value per lap, with how to
+     * reduce them and the rounding factor. `SCALAR_NAMES` in the JS.
+     */
+    public val SCALAR_NAMES: List<Triple<String, Reduce, Double>> = listOf(
+        Triple("oilC", Reduce.MAX, 10.0),
+        Triple("oilKpa", Reduce.MIN, 1.0),
+        Triple("coolantC", Reduce.MAX, 10.0),
+        Triple("transC", Reduce.MAX, 10.0),
+        Triple("fuelPct", Reduce.END, 10.0),
+        Triple("battV", Reduce.MIN, 10.0),
+        Triple("tyreKpaLF", Reduce.END, 1.0),
+        Triple("tyreKpaRF", Reduce.END, 1.0),
+        Triple("tyreKpaLR", Reduce.END, 1.0),
+        Triple("tyreKpaRR", Reduce.END, 1.0),
+        Triple("tyreCLF", Reduce.MAX, 10.0),
+        Triple("tyreCRF", Reduce.MAX, 10.0),
+        Triple("tyreCLR", Reduce.MAX, 10.0),
+        Triple("tyreCRR", Reduce.MAX, 10.0),
+    )
+
+    /** Session-level numbers, carried through to the stored blob's `meta`. */
+    public val META_NAMES: List<Pair<String, Double>> = listOf(
+        "ambientC" to 10.0,
+        "intakeC" to 10.0,
+        "elevationM" to 1.0,
+        "odometerKm" to 1.0,
+    )
+
+    /** Index of the last sample at or before [t], or -1. [arr] is sorted by t. */
+    internal fun holdIndex(arr: List<ChannelPoint>, t: Double): Int {
+        var lo = 0
+        var hi = arr.size - 1
+        var best = -1
+        while (lo <= hi) {
+            val m = (lo + hi) ushr 1
+            if (arr[m].t <= t) {
+                best = m
+                lo = m + 1
+            } else {
+                hi = m - 1
+            }
+        }
+        return best
+    }
+
+    /**
+     * Last value at or before [t] (the first sample's value before the series
+     * starts) — the sampler for enum channels.
+     */
+    internal fun holdAt(arr: List<ChannelPoint>, t: Double): Double {
+        val i = holdIndex(arr, t)
+        return arr[if (i < 0) 0 else i].v
+    }
+
+    /**
+     * Largest value in [t0, t1], falling back to the held value when the window
+     * contains no sample — the sampler for flag channels.
+     */
+    internal fun maxIn(arr: List<ChannelPoint>, t0: Double, t1: Double): Double {
+        var m = Double.NEGATIVE_INFINITY
+        var i = Math.max(0, holdIndex(arr, t0))
+        while (i < arr.size && arr[i].t <= t1) {
+            if (arr[i].t >= t0 && arr[i].v > m) m = arr[i].v
+            i++
+        }
+        return if (m == Double.NEGATIVE_INFINITY) holdAt(arr, t1) else m
+    }
 
     /**
      * Where a lap's channel arrays are cut from: cumulative distance, plus
@@ -58,8 +167,15 @@ public object TelemetryChannels {
     public data class ChannelData(
         /** `[{t, v: metres}]` cumulative. */
         val dist: List<ChannelPoint>,
-        /** Speed km/h, latG in G, throttle/brake in %, steering in degrees. */
+        /**
+         * Speed km/h, latG/longG in G, throttle/brake/wheelSlip in %,
+         * steering/yaw in degrees, boost in kPa, gear 0–8, flags a bitfield.
+         */
         val series: ParsedTelemetry.CarChannels,
+        /** The slow series, keyed by [SCALAR_NAMES]. */
+        val scalars: Map<String, List<ChannelPoint>> = emptyMap(),
+        /** Session-level numbers, stored as the blob's `meta`. */
+        val meta: ParsedTelemetry.SessionMeta? = null,
     )
 
     /** Cumulative driven distance from a projected trace ([GeoTrace.projectTrace]). */
@@ -101,22 +217,18 @@ public object TelemetryChannels {
         }
         if (parsed.kind != ParsedTelemetry.Kind.PDR) return fromTrace()
         val car = parsed.carChannels
+        val scalars = parsed.lapScalarChannels.filterValues { it.isNotEmpty() }
+        val meta = parsed.sessionMeta
         val odo = parsed.channels?.odoPts
-        if (odo != null && odo.size >= 10) return ChannelData(dist = odo, series = car)
+        if (odo != null && odo.size >= 10) {
+            return ChannelData(dist = odo, series = car, scalars = scalars, meta = meta)
+        }
         val base = fromTrace() ?: return null
         // `{...base.series, ...car}`: a present car channel wins, an absent one
         // leaves the trace-derived value in place.
-        return ChannelData(
-            dist = base.dist,
-            series = ParsedTelemetry.CarChannels(
-                speed = car.speed ?: base.series.speed,
-                rpm = car.rpm ?: base.series.rpm,
-                latG = car.latG ?: base.series.latG,
-                throttle = car.throttle ?: base.series.throttle,
-                brake = car.brake ?: base.series.brake,
-                steering = car.steering ?: base.series.steering,
-            ),
-        )
+        var merged = base.series
+        for ((name, _) in CHANNEL_NAMES) car[name]?.let { merged = merged.with(name, it) }
+        return ChannelData(dist = base.dist, series = merged, scalars = scalars, meta = meta)
     }
 
     /**
@@ -126,7 +238,11 @@ public object TelemetryChannels {
      */
     public fun attachLapChannels(parsed: ParsedTelemetry): ParsedTelemetry {
         val data = if (parsed.laps.isEmpty()) null else channelDataFor(parsed)
-        return parsed.copy(lapChannels = data?.let { buildLapChannels(parsed.laps, it.dist, it.series) })
+        return parsed.copy(
+            lapChannels = data?.let {
+                buildLapChannels(parsed.laps, it.dist, it.series, D_STEP_M, it.scalars, it.meta)
+            },
+        )
     }
 
     /**
@@ -136,22 +252,38 @@ public object TelemetryChannels {
      * returns null when nothing survives, so callers can store the absence as-is.
      *   - [laps]: the parsed laps
      *   - [dist]: `[{t, v: metres}]` cumulative, on the same clock as the series
-     *   - [chans]: speed km/h, latG in G, throttle/brake %, steering deg
+     *   - [chans]: the [CHANNEL_NAMES] channels in display units
+     *   - [scalars]: the [SCALAR_NAMES] series, reduced to one value per lap
+     *   - [meta]: session-level numbers, stored as the blob's `meta`
      */
     public fun buildLapChannels(
         laps: List<ParsedLap>,
         dist: List<ChannelPoint>,
         chans: ParsedTelemetry.CarChannels,
         dStepM: Double = D_STEP_M,
+        scalars: Map<String, List<ChannelPoint>> = emptyMap(),
+        meta: ParsedTelemetry.SessionMeta? = null,
     ): SessionChannels? {
         if (laps.isEmpty() || dist.size < 10) return null
         val distS = series(dist)
-        // Names, order and rounding factors are the JS's CHANNEL_NAMES.
-        val named = CHANNEL_NAMES.mapNotNull { (name, f) ->
+        // Names, order and rounding factors are the JS's CHANNEL_NAMES. Each
+        // channel keeps its own sampler: interpolated by default, held for
+        // enums, OR-ed across the window for flags.
+        val chanS = CHANNEL_NAMES.mapNotNull { (name, f) ->
             val pts = chans[name]
-            if (pts != null && pts.size >= 10) Triple(name, pts, f) else null
+            if (pts == null || pts.size < 10) return@mapNotNull null
+            val s = series(pts)
+            val sample: (Double, Double) -> Double = when {
+                WINDOW_MAX.contains(name) -> { t, tNext -> maxIn(pts, t, tNext) }
+                STEP_HOLD.contains(name) -> { t, _ -> holdAt(pts, t) }
+                else -> { t, _ -> s.at(t) }
+            }
+            Chan(name = name, f = f, first = s.first, last = s.last, sample = sample)
         }
-        val chanS = named.map { (name, pts, f) -> Triple(name, series(pts), f) }
+        val scalarS = SCALAR_NAMES.mapNotNull { (name, reduce, f) ->
+            val pts = scalars[name]
+            if (pts == null || pts.size < 2) null else Scalar(name, pts, reduce, f, series(pts))
+        }
 
         val out = ArrayList<LapChannels>()
         for (i in laps.indices) {
@@ -168,43 +300,113 @@ public object TelemetryChannels {
             if (!steps.isFinite() || steps < 0 || steps >= MAX_LAP_POINTS) continue
             val n = steps.toInt() + 1
             if (n < 10 || n > MAX_LAP_POINTS) continue
-            val values = HashMap<String, List<Double>>()
+            // Grid points as times, computed once and shared by every channel;
+            // the last point's window closes at the lap's end.
+            val ts = DoubleArray(n) { k -> distS.timeAt(d0 + k * dStepM) }
+            fun tNext(k: Int): Double = if (k + 1 < n) ts[k + 1] else endT
+            var entry = LapChannels(n = lap.lapNumber ?: (i + 1), timeMs = lap.timeMs)
             var any = false
-            for ((name, s, f) in chanS) {
-                val t0 = s.first.t
-                val t1 = s.last.t
-                if (startT < t0 - 5 || endT > t1 + 5) continue
-                values[name] = List(n) { k -> JsMath.round(s.at(distS.timeAt(d0 + k * dStepM)), f) }
+            for (c in chanS) {
+                if (startT < c.first.t - 5 || endT > c.last.t + 5) continue
+                entry = entry.withChannel(
+                    c.name,
+                    List(n) { k -> JsMath.round(c.sample(ts[k], tNext(k)), c.f) },
+                )
                 any = true
             }
             // synthesized speed (from the distance slope) fills in when no source
             // speed channel exists — the graph is too useful to drop for that
-            if (values["speed"] == null) {
-                values["speed"] = List(n) { k ->
-                    JsMath.round(Math.max(0.0, distS.rate(distS.timeAt(d0 + k * dStepM))) * 3.6, 10.0)
-                }
+            if (entry.speed == null) {
+                entry = entry.copy(
+                    speed = List(n) { k -> JsMath.round(Math.max(0.0, distS.rate(ts[k])) * 3.6, 10.0) },
+                )
                 any = true
             }
-            if (any) {
-                out.add(
-                    LapChannels(
-                        n = lap.lapNumber ?: (i + 1),
-                        timeMs = lap.timeMs,
-                        speed = values["speed"],
-                        rpm = values["rpm"],
-                        latG = values["latG"],
-                        throttle = values["throttle"],
-                        brake = values["brake"],
-                        steering = values["steering"],
-                    ),
-                )
+            for (c in scalarS) {
+                val v = reduceScalar(c, startT, endT)
+                if (v != null) entry = entry.withScalar(c.name, JsMath.round(v, c.f))
             }
+            if (any) out.add(entry)
         }
         if (out.isEmpty() || out.size > MAX_LAPS) return null
-        val totalValues = out.sumOf { e ->
-            (e.speed?.size ?: 0) + (e.rpm?.size ?: 0) + (e.latG?.size ?: 0) +
-                (e.throttle?.size ?: 0) + (e.brake?.size ?: 0) + (e.steering?.size ?: 0)
+        if (!trimToBudget(out)) return null
+        return SessionChannels(v = 1, dStepM = dStepM, laps = out, meta = cleanMeta(meta))
+    }
+
+    private data class Chan(
+        val name: String,
+        val f: Double,
+        val first: ChannelPoint,
+        val last: ChannelPoint,
+        val sample: (Double, Double) -> Double,
+    )
+
+    private data class Scalar(
+        val name: String,
+        val pts: List<ChannelPoint>,
+        val reduce: Reduce,
+        val f: Double,
+        val s: Series,
+    )
+
+    /**
+     * One number for one lap, by the channel's own rule. MAX/MIN run over the
+     * samples inside the lap; a lap short enough to contain none of them (a
+     * 0.5 Hz channel and a very fast lap) falls back to the interpolated value
+     * at the finish, which is also what END always uses.
+     */
+    private fun reduceScalar(c: Scalar, startT: Double, endT: Double): Double? {
+        if (c.reduce != Reduce.END) {
+            var best: Double? = null
+            var i = Math.max(0, holdIndex(c.pts, startT))
+            while (i < c.pts.size && c.pts[i].t <= endT) {
+                val p = c.pts[i]
+                i++
+                if (p.t < startT) continue
+                if (best == null || (if (c.reduce == Reduce.MAX) p.v > best!! else p.v < best!!)) {
+                    best = p.v
+                }
+            }
+            if (best != null) return best
         }
-        return if (totalValues <= MAX_TOTAL_VALUES) SessionChannels(v = 1, dStepM = dStepM, laps = out) else null
+        if (endT < c.s.first.t - 5 || startT > c.s.last.t + 5) return null
+        return c.s.at(endT)
+    }
+
+    /**
+     * Bring a session under [MAX_TOTAL_VALUES] by dropping whole channels from
+     * the tail of [CHANNEL_NAMES] — the lowest-priority ones — rather than
+     * storing nothing at all. Returns false only when even speed alone doesn't
+     * fit, which is the marathon-enduro case the cap exists for. Mutates [out].
+     */
+    private fun trimToBudget(out: MutableList<LapChannels>): Boolean {
+        fun total(): Int = out.sumOf { e -> CHANNEL_NAMES.sumOf { e.channel(it.first)?.size ?: 0 } }
+        var i = CHANNEL_NAMES.size - 1
+        while (i > 0 && total() > MAX_TOTAL_VALUES) {
+            val name = CHANNEL_NAMES[i].first
+            for (j in out.indices) out[j] = out[j].withChannel(name, null)
+            i--
+        }
+        return total() <= MAX_TOTAL_VALUES
+    }
+
+    /**
+     * Session numbers, rounded, with absent ones left out entirely; null when
+     * the source had none, so the stored blob simply carries no `meta`.
+     */
+    private fun cleanMeta(meta: ParsedTelemetry.SessionMeta?): ChannelMeta? {
+        if (meta == null) return null
+        val source = ChannelMeta(
+            ambientC = meta.ambientC,
+            intakeC = meta.intakeC,
+            elevationM = meta.elevationM,
+            odometerKm = meta.odometerKm,
+        )
+        var out = ChannelMeta()
+        for ((name, f) in META_NAMES) {
+            val v = source[name]
+            if (v != null && v.isFinite()) out = out.with(name, JsMath.round(v, f))
+        }
+        return if (out.isEmpty) null else out
     }
 }
