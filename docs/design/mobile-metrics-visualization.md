@@ -15,6 +15,12 @@ Status: **proposal.** Nothing here is built. Where it takes a position the
 tickets did not, the position is marked and the open questions are collected
 at the end.
 
+Rendered phone mockups of every screen in this doc, drawn with the app's own
+tokens on synthetic lap data:
+https://claude.ai/code/artifact/a4ba6bcc-7460-40bb-9ff1-a39f1283d6da
+(the event-page door, then the Time, Inputs, Grip and Car tabs; the dashed
+line across each board is the fold on an 844 pt phone).
+
 ---
 
 ## 1. What exists today
@@ -222,7 +228,11 @@ Three kinds, three shapes, three colours. ABS and lockup are the same
 read-out distinguishes them in words. The tokens are new: the chart slot
 colours mean *laps* on this screen and cannot be reused for *kinds*. They go
 in `public/style.css` for both themes and reach the apps through the two
-token generators, never as literals.
+token generators, never as literals. Proposed dark values, checked for
+colour-vision separation against each other and for contrast on the card
+surface: `--mark-brake: #ff8a5c`, `--mark-traction: #f4c542`,
+`--mark-stability: #b58cff`. The light theme needs its own three, stepped
+darker the way the slot colours are.
 
 At 150 pt tall a VIR map is ~140 pt across and a marker is ~8 pt. Runs closer
 than 12 pt collapse into one marker with a count badge (`×3`), and a tap on a
@@ -256,8 +266,12 @@ alpha with the number in `--text-strong`, so the ribbon reads on a sunlit
 screen where a thin line would not.
 
 With two or three laps highlighted the ribbons stack (14 pt each, up to 42),
-and any distance where the highlighted laps disagree gets a `--text-strong`
-hairline outline spanning the stack. The cursor read-out at such a point is
+and any distance where the highlighted laps disagree **for at least
+`GEAR_DISAGREE_MIN_M = 100` m** gets a `--text-strong` hairline outline
+spanning the stack. The minimum run is load-bearing: two laps that brake a
+car-length apart shift a grid point apart, and outlining every one of those
+buries the one corner taken in a different gear under a picket fence of
+timing noise (the mockup did exactly that before the rule). The cursor read-out at such a point is
 the whole feature: `1.4 km · L3 4th · L5 3rd`.
 
 ```
@@ -321,6 +335,10 @@ driver checks, not by column.
  └────────────────────────────────────────────┘
 ```
 
+- **The gear ribbon's hysteresis** is a rendering concern too: `gear` is
+  stored as sampled, and a car holding a speed on a shift threshold reads as
+  alternating gears. The ribbon draws the stored values; it does not smooth
+  them, and a session that genuinely hunts between gears should look like it.
 - **Sparklines are across laps, not distance.** Lap number on x, the
   session's own min–max on y, final value in text beside it. Seven laps make
   seven bars; the value is always written, so the sparkline is decoration for
