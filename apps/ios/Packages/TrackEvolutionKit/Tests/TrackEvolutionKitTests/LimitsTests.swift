@@ -125,7 +125,7 @@ struct LimitsTests {
         )
         #expect(
             Limits.limitSummary(SessionChannels(v: 1, dStepM: 20, laps: [lap, lap2]))
-                == "ABS in 2 places, lockup in 1 place, traction control in 1 place, wheelspin in 1 place"
+                == "ABS in 2 braking zones, lockup in 1 braking zone, traction control in 1 acceleration zone, wheelspin in 1 acceleration zone"
         )
     }
 

@@ -160,7 +160,7 @@ class LimitsTest {
             sl.kinds,
         )
         assertEquals(
-            "ABS in 2 places, lockup in 1 place, traction control in 1 place, wheelspin in 1 place",
+            "ABS in 2 braking zones, lockup in 1 braking zone, traction control in 1 acceleration zone, wheelspin in 1 acceleration zone",
             Limits.limitSummary(SessionChannels(v = 1, dStepM = 20.0, laps = listOf(lap, lap2))),
         )
     }

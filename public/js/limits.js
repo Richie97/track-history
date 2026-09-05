@@ -151,15 +151,30 @@ export function sessionLimits(channels, mergeGap = MERGE_GAP_POINTS) {
   return { kinds, hasFlags, hasSlip };
 }
 
-// One line for the session stats: "ABS in 3 places, wheelspin in 2" — or
-// "no interventions" when the systems never fired and the wheels never
-// slipped. null when the session stored neither channel.
+// The noun a kind's places are counted in, by side. A bare "in 8 places"
+// invites comparison with the track's corner count, which is a different and
+// much larger number: ABS fires in the braking zones, and VIR's 17 turns hold
+// about 8 of those — the rest are flat or lift-only. Naming the activity is
+// what stops the count reading as a corner tally, and it has to be per side,
+// since "wheelspin in 10 braking zones" is nonsense. Singular; callers add the
+// "s" the way they did for "place".
+export const ZONE_NOUNS = {
+  brake: "braking zone",
+  power: "acceleration zone",
+  stability: "corner",
+};
+
+export const zoneNoun = (kind) => ZONE_NOUNS[kindDef(kind)?.side] ?? "place";
+
+// One line for the session stats: "ABS in 3 braking zones, wheelspin in 2
+// acceleration zones" — or "no interventions" when the systems never fired and
+// the wheels never slipped. null when the session stored neither channel.
 export function limitSummary(channels) {
   const sl = sessionLimits(channels);
   if (!sl) return null;
   const parts = sl.kinds
     .filter((k) => k.places > 0)
-    .map((k) => `${sentenceLabel(k.kind)} in ${k.places} place${k.places === 1 ? "" : "s"}`);
+    .map((k) => `${sentenceLabel(k.kind)} in ${k.places} ${zoneNoun(k.kind)}${k.places === 1 ? "" : "s"}`);
   return parts.length ? parts.join(", ") : "no interventions";
 }
 

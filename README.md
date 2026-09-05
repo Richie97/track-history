@@ -647,7 +647,11 @@ stored trace — which is the best lap only, so the map says so. The same
 stretches are **shaded on the brake, throttle and steering traces** for every
 highlighted lap, the hover read-out names what was active at that point,
 and the session's stats line counts the places on track where each happened
-("ABS in 3 places, wheelspin in 2"), or says "no interventions" — traction
+("ABS in 3 braking zones, wheelspin in 2 acceleration zones"), or says "no
+interventions". The noun is per side on purpose: a bare "in 3 places" reads
+as a tally of the circuit's turns, which is a different and much larger
+number — ABS fires only in the braking zones, and VIR's 17 turns hold about
+eight of those. Traction
 and stability control read zero all day with the systems switched off,
 which is normal on track, and "off" and "never needed" can't be told apart.
 Thresholds (slip beyond ±2 %) are display semantics, named constants in

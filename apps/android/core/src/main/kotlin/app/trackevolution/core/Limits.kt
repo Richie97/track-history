@@ -228,15 +228,32 @@ public object Limits {
     }
 
     /**
-     * One line for the session stats: "ABS in 3 places, wheelspin in 2 places" —
-     * or "no interventions" when the systems never fired and the wheels never
-     * slipped. Null when the session stored neither channel.
+     * The noun a kind's places are counted in, by side. A bare "in 8 places"
+     * invites comparison with the track's corner count, which is a different and
+     * much larger number: ABS fires in the braking zones, and VIR's 17 turns
+     * hold about 8 of those — the rest are flat or lift-only. Naming the
+     * activity is what stops the count reading as a corner tally, and it has to
+     * be per side, since "wheelspin in 10 braking zones" is nonsense. Singular;
+     * callers add the "s" the way they did for "place".
+     */
+    public val ZONE_NOUNS: Map<Side, String> = mapOf(
+        Side.BRAKE to "braking zone",
+        Side.POWER to "acceleration zone",
+        Side.STABILITY to "corner",
+    )
+
+    public fun zoneNoun(kind: String): String = kindDef(kind)?.side?.let { ZONE_NOUNS[it] } ?: "place"
+
+    /**
+     * One line for the session stats: "ABS in 3 braking zones, wheelspin in 2
+     * acceleration zones" — or "no interventions" when the systems never fired
+     * and the wheels never slipped. Null when the session stored neither channel.
      */
     public fun limitSummary(channels: SessionChannels): String? {
         val sl = sessionLimits(channels) ?: return null
         val parts = sl.kinds
             .filter { it.places > 0 }
-            .map { "${sentenceLabel(it.kind)} in ${it.places} place${if (it.places == 1) "" else "s"}" }
+            .map { "${sentenceLabel(it.kind)} in ${it.places} ${zoneNoun(it.kind)}${if (it.places == 1) "" else "s"}" }
         return if (parts.isEmpty()) "no interventions" else parts.joinToString(", ")
     }
 

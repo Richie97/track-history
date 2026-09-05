@@ -231,14 +231,32 @@ public enum Limits {
         return SessionLimits(kinds: kinds, hasFlags: hasFlags, hasSlip: hasSlip)
     }
 
-    /// One line for the session stats: "ABS in 3 places, wheelspin in 2 places"
-    /// — or "no interventions" when the systems never fired and the wheels never
-    /// slipped. nil when the session stored neither channel.
+    /// The noun a kind's places are counted in, by side. A bare "in 8 places"
+    /// invites comparison with the track's corner count, which is a different
+    /// and much larger number: ABS fires in the braking zones, and VIR's 17
+    /// turns hold about 8 of those — the rest are flat or lift-only. Naming the
+    /// activity is what stops the count reading as a corner tally, and it has to
+    /// be per side, since "wheelspin in 10 braking zones" is nonsense. Singular;
+    /// callers add the "s" the way they did for "place".
+    public static let ZONE_NOUNS: [Side: String] = [
+        .brake: "braking zone",
+        .power: "acceleration zone",
+        .stability: "corner",
+    ]
+
+    public static func zoneNoun(_ kind: String) -> String {
+        guard let side = kindDef(kind)?.side else { return "place" }
+        return ZONE_NOUNS[side] ?? "place"
+    }
+
+    /// One line for the session stats: "ABS in 3 braking zones, wheelspin in 2
+    /// acceleration zones" — or "no interventions" when the systems never fired
+    /// and the wheels never slipped. nil when the session stored neither channel.
     public static func limitSummary(_ channels: SessionChannels) -> String? {
         guard let sl = sessionLimits(channels) else { return nil }
         let parts = sl.kinds
             .filter { $0.places > 0 }
-            .map { "\(sentenceLabel($0.kind)) in \($0.places) place\($0.places == 1 ? "" : "s")" }
+            .map { "\(sentenceLabel($0.kind)) in \($0.places) \(zoneNoun($0.kind))\($0.places == 1 ? "" : "s")" }
         return parts.isEmpty ? "no interventions" : parts.joined(separator: ", ")
     }
 

@@ -329,7 +329,7 @@
       "hasFlags": true,
       "hasSlip": true
     },
-    "summary": "ABS in 2 places, lockup in 1 place, traction control in 1 place, wheelspin in 1 place, stability control in 1 place",
+    "summary": "ABS in 2 braking zones, lockup in 1 braking zone, traction control in 1 acceleration zone, wheelspin in 1 acceleration zone, stability control in 1 corner",
     "quietSummary": "no interventions",
     "noData": null,
     "labelsAt": [
