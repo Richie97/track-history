@@ -658,7 +658,7 @@ The same imports' `latG` and `longG` become the **friction circle** on the
 *Grip* tab. Neither channel says much alone — a longitudinal-G trace is the
 brake trace with extra steps — but plotted against each other they show how
 much of the tyre is actually being used: every 20 m sample of the highlighted
-laps as a point on a square axis (braking down, power up, cornering to the
+laps as a point on a square axis (braking up, power down, cornering to the
 sides) over a dim envelope of the session's other laps, with a dashed
 reference arc at the session's own peak combined G. That arc is the **99th
 percentile, not the maximum**, so one kerb strike doesn't set the envelope for

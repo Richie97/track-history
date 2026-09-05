@@ -8,7 +8,7 @@
 //
 // The tyre has one grip budget, spent in any direction. Brake in a straight
 // line, release, turn, then accelerate and the samples draw a cross: full
-// braking at the bottom, full cornering at the sides, nothing in between.
+// braking at the top, full cornering at the sides, nothing in between.
 // Trail the brake into the corner and feed the throttle out of it and the
 // samples fill the circle. The empty space between the cross and the circle
 // is the lost time.
@@ -206,7 +206,11 @@ export function frictionCircleSvg(channels, lit, labelFor, { size = 460 } = {}) 
   const cx = left + side / 2, cy = top + side / 2;
   const scale = side / 2 / axis;
   const X = (g) => cx + g * scale;
-  const Y = (g) => cy - g * scale;
+  // Braking is up. `longG` is negative under braking, so the y mapping is
+  // *not* the usual "subtract to go up": deceleration is the force a driver
+  // reads as the top of the picture, and the trace under a brake pedal is the
+  // one thing on this chart that has a fixed place in a driver's head.
+  const Y = (g) => cy + g * scale;
 
   // Rings at every RING_STEP_G, labelled along the +x axis, plus the axes.
   let grid = "", labels = "";
@@ -224,11 +228,11 @@ export function frictionCircleSvg(channels, lit, labelFor, { size = 460 } = {}) 
       <text x="${cx.toFixed(1)}" y="${(cy - sg.peakG * scale - 6).toFixed(1)}" text-anchor="middle" fill="var(--accent-ink)" font-size="11" font-weight="600">${fmtG(sg.peakG)} G</text>`;
   }
 
-  // Axis wording: braking down, power up, cornering to the sides. The side
+  // Axis wording: braking up, power down, cornering to the sides. The side
   // labels say "cornering", not "left"/"right", because the side is derived
   // from the steering sign (see latSign) rather than stored.
-  labels += `<text x="${cx.toFixed(1)}" y="${(top - 6).toFixed(1)}" text-anchor="middle" fill="var(--text-faint)" font-size="11">power</text>`;
-  labels += `<text x="${cx.toFixed(1)}" y="${(top + side + 20).toFixed(1)}" text-anchor="middle" fill="var(--text-faint)" font-size="11">braking</text>`;
+  labels += `<text x="${cx.toFixed(1)}" y="${(top - 6).toFixed(1)}" text-anchor="middle" fill="var(--text-faint)" font-size="11">braking</text>`;
+  labels += `<text x="${cx.toFixed(1)}" y="${(top + side + 20).toFixed(1)}" text-anchor="middle" fill="var(--text-faint)" font-size="11">power</text>`;
   // The x-axis label goes in a corner of the square: the plot is a disc, so
   // the corners are the one area no sample can ever land in.
   labels += `<text x="${left.toFixed(1)}" y="${(top + 10).toFixed(1)}" text-anchor="start" fill="var(--text-faint)" font-size="11">cornering (G)</text>`;
@@ -262,7 +266,7 @@ export function frictionCircleSvg(channels, lit, labelFor, { size = 460 } = {}) 
   return `<svg class="grip-svg" viewBox="0 0 ${size} ${size}" role="img" data-grip="1" data-dstep="${dStep}"
     aria-label="Friction circle: lateral against longitudinal G, one point per 20 metre sample${
       litLabels.length ? ` for ${esc(litLabels.join(", "))}` : ""
-    }. Braking plots down, power up, cornering to the sides; the dashed arc is the session's peak combined ${sg?.peakG ? fmtG(sg.peakG) : "grip"} G.">
+    }. Braking plots up, power down, cornering to the sides; the dashed arc is the session's peak combined ${sg?.peakG ? fmtG(sg.peakG) : "grip"} G.">
     ${grid}${dim}${arc}${pts}${labels}
   </svg>`;
 }
