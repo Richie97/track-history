@@ -132,6 +132,29 @@ Features added after the rewrite shipped, and where they landed:
   magnitude (pdr.js stores `abs`), so the side comes from the sign of the
   `steering` trace and a lap without one plots one-sided; and the 20 m grid
   smooths peaks, so the view is the shape of grip usage, not peak G.
+- **Balance — understeer or oversteer**
+  ([#189](https://github.com/Richie97/track-history/issues/189), 2026-09,
+  epic [#193](https://github.com/Richie97/track-history/issues/193))
+  — **web first**, for the same reason as the friction circle: the `yaw`
+  trace is trivially all-three (and now draws on the Grip tab), but the
+  balance scatter and the per-corner summary are new surfaces the frontier
+  rule says to prove at a desk first. `yaw` against `steering` as a scatter
+  with the speed dependence divided out (y is yaw rate ÷ speed, so a neutral
+  car is one dashed reference line rather than a fan per speed, and colour
+  stays lap identity), plus a per-corner table — corners are stretches of
+  sustained |latG| from `public/js/corners.js`, the reusable segmentation
+  primitive the ticket asked for — reading each corner per highlighted lap
+  and pooled, and a places line in the session stats. The pure half is
+  `public/js/balance.js` + `corners.js`, written to port but **not** pinned
+  in `contracts/logic/` yet. The decisions a port inherits: v1 is
+  **relative** — the reference is the session's own median yaw gain, because
+  the rigorous bicycle model needs the wheelbase and steering ratio the
+  garage doesn't store, so a car that pushes everywhere reads neutral
+  everywhere and the view finds the corner that differs; the yaw/steering
+  sign alignment is *measured* per session (`yawSign`), never assumed; and
+  readings are per corner, never per sample, because yaw lags steering on
+  entry and leads it on exit. If this graduates past the relative version,
+  wheelbase and steering ratio belong on the garage's vehicle record.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and

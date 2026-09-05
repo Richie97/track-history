@@ -661,6 +661,21 @@ button.ch-chip.on { background: var(--surface-raised); }
 .ch-grip tr.sec-theo td { color: var(--text-muted); font-style: italic; }
 .ch-grip tr.sec-theo td.num { color: var(--text-strong); font-style: normal; }
 .ch-grip .hint { margin-top: 8px; }
+/* Balance — understeer / oversteer (js/balance.js): the scatter takes the panel
+   width like the distance charts; the per-corner table follows the sectors idiom. */
+.ch-balance { margin: 12px 0 4px; }
+.ch-balance .sec-head { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 8px; }
+.ch-balance .sec-head .hint { color: var(--text-faint); }
+.ch-balance .balance-plot { margin: 0 0 12px; }
+.ch-balance .balance-svg { display: block; width: 100%; height: auto; }
+.ch-balance .balance-svg circle[data-bk] { transition: none; }
+@media (hover: hover) { .ch-balance .balance-svg circle[data-bk]:hover { fill-opacity: 1; r: 4; } }
+.ch-balance table td, .ch-balance table th { padding: 9px 12px; white-space: nowrap; }
+.ch-balance th .dot, .ch-balance td .dot { display: inline-block; width: 9px; height: 9px; border-radius: var(--radius-pill); vertical-align: middle; margin-right: 2px; }
+.ch-balance td.bal-n, .ch-balance td.bal-none { color: var(--text-faint); }
+.ch-balance td.bal-us, .ch-balance td.bal-os { color: var(--text-strong); font-weight: var(--weight-semibold); }
+@media (hover: hover) { .ch-balance tr[data-corner]:hover td { background: var(--surface-hover); } }
+.ch-balance .hint { margin-top: 8px; }
 .add-laps-input {
   flex: 1; min-width: 200px; padding: 10px 14px;
   border: 1px solid var(--border-hairline); border-radius: var(--radius-md);

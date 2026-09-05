@@ -186,8 +186,8 @@
         gap is what stringing your best sectors together would have been worth.
         The panel is split into tabs — <strong>Time</strong> (delta, sectors,
         speed), <strong>Inputs</strong> (pedals, steering, RPM, gears) and
-        <strong>Grip</strong> (the friction circle, lateral G) — so each
-        answers one question. From
+        <strong>Grip</strong> (the friction circle, balance, lateral G and
+        yaw rate) — so each answers one question. From
         a PDR recording, a <strong>gear ribbon</strong> sits under the
         RPM trace — one band per selected lap, one block per gear with the
         number in it, a gap where the clutch was in — and with two or more
@@ -227,6 +227,30 @@
         samples smooth the spikes, so the circle shows the <em>shape</em> of
         your grip use rather than your peak G (that's the max lateral G in the
         session's stats). The friction circle is on the web app for now.
+        Under it, the same tab answers <strong>am I understeering or
+        oversteering?</strong> from the recording's yaw rate and steering
+        angle. In a neutral car the two rise together: steering the car
+        doesn't answer means the front is washing out — understeer — and
+        rotation you didn't ask for means the rear is coming round —
+        oversteer. Most of us believe we're oversteering when we're actually
+        understeering, because understeer feels like nothing happening. The
+        <strong>balance</strong> chart plots each selected lap's samples with
+        steering across and how much the car rotated per metre up, with a
+        dashed line for how this car typically responds: points above the
+        line are oversteer, below it understeer. Under the chart, the lap is
+        split into <strong>corners</strong> — stretches of sustained
+        cornering force, numbered T1, T2… from the start/finish line (the
+        app's numbering, not the circuit's) — and each corner gets a reading
+        per selected lap and for the session: <em>"T1 understeer 14%, T7
+        neutral, T10 slight oversteer 9%"</em> is something you can take to
+        the setup sheet, and the corners that stand out join the session's
+        stats line. Hover a point or a corner row to see where on the lap it
+        is. One thing to know: the reading is <em>relative</em>. The exact
+        version needs your car's wheelbase and steering ratio, which aren't
+        recorded, so each corner is compared with how the car responded on
+        average across the session — a car that pushes in every corner reads
+        neutral in every corner, and what shows up is the corner that behaves
+        differently from the rest. Balance is on the web app for now.
         (This
         is derived at import time; the recording itself is never uploaded, so
         re-import a file if you delete a session.)</li>

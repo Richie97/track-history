@@ -681,14 +681,55 @@ rather than peak G, which is what the session's max lateral and braking G
 figures are for. `public/js/grip.js`; web first, and not pinned in
 `contracts/logic/` until a port exists.
 
+Under the friction circle, the same tab answers **am I understeering or
+oversteering?** from the imports' `yaw` and `steering` channels. In a neutral
+car the rotation follows the steering; steering the car doesn't answer is the
+front washing out (understeer), rotation it wasn't asked for is the rear
+coming round (oversteer) — and amateurs almost universally believe they are
+oversteering when they are understeering, because understeer feels like
+nothing happening. The **balance scatter** plots every 20 m sample of the
+highlighted laps with steering angle across and *rotation per metre* up (yaw
+rate ÷ speed, so the speed dependence is divided out and a neutral car is one
+dashed line through the origin rather than a fan of lines per speed; the
+ticket's colour-by-speed is therefore not needed, and colour stays lap
+identity as everywhere else in the panel — speed is in the tooltip). Points
+above the line are oversteer, below it understeer. Under it, a **per-corner
+table** segments the lap into corners — stretches of sustained lateral load
+(0.35 G or more), merged across a short dip so a chicane is one corner, and
+numbered T1… from the start/finish line, so the numbers are the app's rather
+than the circuit's — and gives each corner's reading per highlighted lap and
+pooled for the session: *"T1 understeer 14%, T7 neutral, T10 slight
+oversteer 9%"* is a sentence a driver can take to the setup sheet, and the
+corners that sit off the reference join the session's stats line
+("understeer in T1, T4 and oversteer in T10"). Hovering a point or a row marks
+the distance on the other charts and rings the place on the best-lap track
+map. The `yaw` trace itself also draws on the Grip tab as the honest baseline.
+**The reading is deliberately relative.** The rigorous version is the bicycle
+model — expected yaw = v·δ/L — which needs the wheelbase and the steering
+ratio, neither of which is stored (and the ratio is non-linear with lock on
+some cars), so v1 takes the session's own median yaw-per-degree-per-speed
+over every cornering sample as this car's typical response and reads each
+corner against it. A car that pushes in every corner therefore reads neutral
+in every corner; what the view finds is the corner that behaves differently
+from the rest. Two other data facts are built in: the recorder's yaw and
+steering sign conventions aren't ours and may oppose, so their alignment is
+measured per session rather than assumed; and yaw lags steering at corner
+entry and leads it at exit, so single samples scatter and only the sum over a
+whole corner is a reading. Corner segmentation is its own module,
+`public/js/corners.js`, since anything per-corner segments this way; the
+analysis is `public/js/balance.js`. Web first, not pinned in `contracts/logic/`
+until a port exists.
+
 The panel is organised as **one question per tab** rather than a stack of
 sections: *Time* (the delta chart, the sector table and the speed trace),
 *Inputs* (throttle, brake, steering, RPM, the gear ribbon and shift points)
-and *Grip* (the friction circle and the lateral-G trace), with a *Car* tab
-reserved for the per-lap scalars once they are drawn; only tabs with content
-render, and a session with one populated tab renders flat. The tabs, the
-ribbon, the shift points and the limit marks and their bands are on the web
-app and both phone apps; the friction circle is web-first and web-only so far.
+and *Grip* (the friction circle, the balance scatter and per-corner table,
+and the lateral-G and yaw traces), with a *Car* tab reserved for the per-lap
+scalars once they are drawn; only tabs with content render, and a session
+with one populated tab renders flat. The tabs, the ribbon, the shift points
+and the limit marks and their bands are on the web app and both phone apps;
+the friction circle and the balance read-out are web-first and web-only so
+far.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.
