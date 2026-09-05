@@ -2,9 +2,9 @@ package app.trackevolution.core
 
 import app.trackevolution.core.model.LeaderboardEntry
 import app.trackevolution.core.model.TrackLeaderboard
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 
 /**
  * The leaderboard note — the port of `leaderboardHtml`'s viewer hint in
@@ -41,7 +41,7 @@ class LeaderboardTest {
     @Test
     fun `a hand-entered best faster than the ranked row is explained`() {
         assertEquals(
-            "Your best here (1:29.500) was entered by hand and isn't ranked.",
+            "Your best here (1:29.5) was entered by hand and isn't ranked.",
             Leaderboard.note(89_500, board(optedIn = true, row(88_000, you = false), row(93_211, you = true))),
         )
     }
