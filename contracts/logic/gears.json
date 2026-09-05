@@ -1,0 +1,332 @@
+{
+  "description": "Gear ribbon / shift-point reference output from public/js/gears.js (gearSegments / lapShifts / shiftPoints / shiftNotes / gearDisagreements). Ports must reproduce every integer and every note string exactly. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/gears.js",
+  "input": {
+    "channels": {
+      "v": 1,
+      "dStepM": 20,
+      "laps": [
+        {
+          "n": 1,
+          "timeMs": 90000,
+          "gear": [
+            2,
+            2,
+            2,
+            3,
+            3,
+            3,
+            3,
+            0,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            3,
+            3,
+            3,
+            4,
+            4,
+            4
+          ],
+          "rpm": [
+            5000,
+            6000,
+            6100,
+            4500,
+            5500,
+            6500,
+            7100,
+            7100,
+            4800,
+            5200,
+            5600,
+            6000,
+            6300,
+            6600,
+            6900,
+            5000,
+            6200,
+            4700,
+            5100,
+            5500
+          ]
+        },
+        {
+          "n": 2,
+          "timeMs": 89000,
+          "gear": [
+            2,
+            2,
+            2,
+            2,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            4,
+            4,
+            4
+          ],
+          "rpm": [
+            5000,
+            6000,
+            6200,
+            6300,
+            4700,
+            5300,
+            5800,
+            6200,
+            6600,
+            6900,
+            7100,
+            7200,
+            7250,
+            7300,
+            7300,
+            7300,
+            7300,
+            4900,
+            5200,
+            5600
+          ]
+        },
+        {
+          "n": 3,
+          "timeMs": 91000,
+          "gear": [
+            2,
+            2,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3
+          ]
+        },
+        {
+          "n": 4,
+          "timeMs": 92000,
+          "speed": [
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "segments": [
+      [
+        {
+          "gear": 2,
+          "k0": 0,
+          "k1": 2
+        },
+        {
+          "gear": 3,
+          "k0": 3,
+          "k1": 6
+        },
+        {
+          "gear": 0,
+          "k0": 7,
+          "k1": 7
+        },
+        {
+          "gear": 4,
+          "k0": 8,
+          "k1": 13
+        },
+        {
+          "gear": 3,
+          "k0": 14,
+          "k1": 16
+        },
+        {
+          "gear": 4,
+          "k0": 17,
+          "k1": 19
+        }
+      ],
+      [
+        {
+          "gear": 2,
+          "k0": 0,
+          "k1": 3
+        },
+        {
+          "gear": 3,
+          "k0": 4,
+          "k1": 16
+        },
+        {
+          "gear": 4,
+          "k0": 17,
+          "k1": 19
+        }
+      ],
+      [
+        {
+          "gear": 2,
+          "k0": 0,
+          "k1": 1
+        },
+        {
+          "gear": 3,
+          "k0": 2,
+          "k1": 19
+        }
+      ],
+      []
+    ],
+    "shifts": [
+      [
+        {
+          "k": 3,
+          "from": 2,
+          "to": 3,
+          "up": true,
+          "rpm": 6100
+        },
+        {
+          "k": 8,
+          "from": 3,
+          "to": 4,
+          "up": true,
+          "rpm": 7100
+        },
+        {
+          "k": 14,
+          "from": 4,
+          "to": 3,
+          "up": false,
+          "rpm": 6600
+        },
+        {
+          "k": 17,
+          "from": 3,
+          "to": 4,
+          "up": true,
+          "rpm": 6200
+        }
+      ],
+      [
+        {
+          "k": 4,
+          "from": 2,
+          "to": 3,
+          "up": true,
+          "rpm": 6300
+        },
+        {
+          "k": 17,
+          "from": 3,
+          "to": 4,
+          "up": true,
+          "rpm": 7300
+        }
+      ],
+      [
+        {
+          "k": 2,
+          "from": 2,
+          "to": 3,
+          "up": true,
+          "rpm": null
+        }
+      ],
+      []
+    ],
+    "shiftPoints": {
+      "gears": [
+        {
+          "gear": 2,
+          "count": 2,
+          "minRpm": 6100,
+          "medianRpm": 6200,
+          "maxRpm": 6300
+        },
+        {
+          "gear": 3,
+          "count": 3,
+          "minRpm": 6200,
+          "medianRpm": 7100,
+          "maxRpm": 7300
+        }
+      ],
+      "medianRpm": 6300,
+      "maxRpm": 7300
+    },
+    "notes": [
+      "Upshifts from 3rd run to the top of the rev range seen today (≈7,300 rpm).",
+      "Upshifts from 2nd come ≈900 rpm earlier than from 3rd."
+    ],
+    "noRpm": null,
+    "disagreementsAB": [
+      {
+        "k0": 8,
+        "k1": 13
+      }
+    ],
+    "disagreementsABC": [
+      {
+        "k0": 8,
+        "k1": 13
+      },
+      {
+        "k0": 17,
+        "k1": 19
+      }
+    ],
+    "offsetDefault": [],
+    "offsetMinRun1": [
+      {
+        "k0": 2,
+        "k1": 2
+      }
+    ]
+  }
+}

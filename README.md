@@ -587,9 +587,9 @@ and transmission temperatures, minimum oil pressure, fuel level and tyre
 pressures at the lap's end, peak tyre temperatures, minimum battery voltage —
 and four numbers describing the whole session (ambient and intake air
 temperature, the track's elevation range, and the car's own odometer reading)
-are stored alongside them. None of that is graphed yet; it is captured at
-import because the video never leaves the device, so anything not derived at
-import time is gone.
+are stored alongside them. None of the per-lap figures are graphed yet; they
+are captured at import because the video never leaves the device, so anything
+not derived at import time is gone.
 
 Two of the gridded channels are states rather than measurements and are
 sampled accordingly: `gear` holds its last value (interpolating 3 and 4 gives
@@ -613,7 +613,20 @@ sectors with the session's best in each sector marked and the gap otherwise,
 and the best sectors across the session sum to the theoretical best — shown
 beside the actual best in the session's stats line when it's quicker, so the
 gap quantifies what consistency was worth (`public/js/sectors.js`, pinned for
-the native ports by `contracts/logic/sectors.json`).
+the native ports by `contracts/logic/sectors.json`). For PDR imports, which
+store `gear` and RPM, a **gear ribbon** sits under the speed trace: one band
+per highlighted lap, one block per gear with the number written in it, a gap
+where the clutch was in — a step change rather than a line, because there are
+no intermediate gears — and with two or more laps highlighted the stretches
+where they disagree are outlined, which is "T5 in 3rd on the best lap, 4th on
+this one" at a glance. Beside it the panel tabulates the session's
+**shift points**: upshift RPM per gear (earliest / typical / latest across
+the laps, read at the last grid sample before the step, so ≈ one 20 m point
+low), with a factual note when a gear is taken to the top of the rev range
+seen that day or shifted out of markedly earlier than another, and the
+typical upshift RPM joins the session's stats line (`public/js/gears.js`,
+pinned for the native ports by `contracts/logic/gears.json`; web only for
+now — the native panels don't draw it yet).
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.

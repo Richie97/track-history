@@ -618,6 +618,14 @@ button.ch-chip.on { background: var(--surface-raised); }
 .ch-sectors .sec-gap { color: var(--text-faint); font-size: var(--fs-2xs); }
 .ch-sectors tr.sec-theo td { color: var(--text-muted); font-style: italic; }
 .ch-sectors tr.sec-theo td.num { color: var(--text-strong); font-style: normal; }
+/* Shift-point read-out (js/gears.js), same table idiom as the sectors */
+.ch-shifts { margin: 12px 0 4px; }
+.ch-shifts .sec-head { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 8px; }
+.ch-shifts .sec-head .t { color: var(--accent-ink); font-variant-numeric: tabular-nums; font-weight: var(--weight-semibold); }
+.ch-shifts .sec-head .hint { color: var(--text-faint); }
+.ch-shifts table td, .ch-shifts table th { padding: 9px 12px; white-space: nowrap; }
+.ch-shifts td.shift-med { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.ch-shifts .shift-notes { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 8px; display: grid; gap: 4px; }
 .add-laps-input {
   flex: 1; min-width: 200px; padding: 10px 14px;
   border: 1px solid var(--border-hairline); border-radius: var(--radius-md);

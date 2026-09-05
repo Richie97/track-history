@@ -161,8 +161,9 @@
         voltage — so those are kept as <strong>one figure per lap</strong>,
         along with the ambient temperature, the track's elevation range and
         the car's odometer reading for the session. Nothing on screen uses
-        them yet; they are saved at import because the video stays on your
-        device and is never uploaded, so a reading not taken now is gone.</li>
+        those per-lap figures yet; they are saved at import because the video
+        stays on your device and is never uploaded, so a reading not taken now
+        is gone.</li>
       <li>Each imported session also stores <strong>per-lap channel data</strong> —
         speed for every source, plus, from a PDR recording, RPM, lateral and
         longitudinal&nbsp;G, throttle, brake, steering angle, yaw rate, gear,
@@ -183,6 +184,17 @@
         sectors summed give a <strong>theoretical best lap</strong> that also
         appears in the session's stats line when it beats your actual best: the
         gap is what stringing your best sectors together would have been worth.
+        From a PDR recording, a <strong>gear ribbon</strong> sits under the
+        speed trace — one band per selected lap, one block per gear with the
+        number in it, a gap where the clutch was in — and with two or more
+        laps selected the stretches where they were in different gears are
+        outlined, so "third on my best lap, fourth on this one" is visible
+        without reading a chart. Beside it, a <strong>shift points</strong>
+        table gives your upshift RPM from each gear (earliest, typical and
+        latest across the session) with a note when a gear is taken to the top
+        of the day's rev range or shifted out of noticeably earlier than
+        another; the typical upshift RPM also joins the session's stats line.
+        The gear ribbon and shift points are on the web app for now.
         (This
         is derived at import time; the recording itself is never uploaded, so
         re-import a file if you delete a session.)</li>
