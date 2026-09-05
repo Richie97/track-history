@@ -19,6 +19,7 @@
 import { esc, fmtMs } from "./format.js";
 import { niceNumTicks } from "./chart.js";
 import { ordinal } from "./gears.js";
+import { LIMIT_KINDS, activeLimitLabels, limitRuns, sideColorVar } from "./limits.js";
 
 const SLOTS = ["var(--chart-line)", "var(--chart-line-b)", "var(--chart-line-c)"];
 const KPH_TO_MPH = 0.621371;
@@ -77,6 +78,27 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190 
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
   labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">${esc(def.label)} (${esc(def.unit)})</text>`;
 
+  // Limit bands (js/limits.js): the kinds this chart's trace explains — ABS
+  // and lockup on the brake trace, traction control and wheelspin on the
+  // throttle, stability control on steering — shaded at the distances they
+  // were active on each highlighted lap, behind the traces.
+  let bands = "";
+  const bandKinds = LIMIT_KINDS.filter((k) => k.channel === def.key);
+  const bandsUsed = new Set();
+  for (const { l, i } of withCh) {
+    if (!bandKinds.length || !lit.get(i)) continue;
+    for (const r of limitRuns(l)) {
+      const kd = bandKinds.find((k) => k.key === r.kind);
+      if (!kd) continue;
+      bandsUsed.add(kd.label);
+      const xa = X(Math.max(0, r.k0 - 0.5) * dStep), xb = X((r.k1 + 0.5) * dStep);
+      bands += `<rect x="${xa.toFixed(1)}" y="${pad.t}" width="${(xb - xa).toFixed(1)}" height="${height - pad.t - pad.b}" fill="var(${sideColorVar(kd.side)})" fill-opacity="${kd.filled ? 0.22 : 0.12}" data-limit="${kd.key}"/>`;
+    }
+  }
+  if (bandsUsed.size) {
+    labels += `<text x="${width - pad.r}" y="12" text-anchor="end" fill="var(--text-faint)" font-size="11">shaded: ${esc([...bandsUsed].join(" / "))}</text>`;
+  }
+
   const pathFor = (arr) =>
     arr.map((raw, k) => `${k ? "L" : "M"}${X(k * dStep).toFixed(1)},${Y(def.conv(raw)).toFixed(1)}`).join(" ");
   // dim context first, then highlighted laps on top (slot order, best last)
@@ -91,7 +113,7 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190 
   }
 
   return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(def.label)} by distance, per lap" data-channel="${def.key}" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
-    ${grid}${labels}${dimPaths}${litPaths}
+    ${grid}${labels}${bands}${dimPaths}${litPaths}
   </svg>`;
 }
 
@@ -216,16 +238,29 @@ export function matchLapsToChannels(sessionLaps, chLaps) {
   });
 }
 
+// The panel's tabs (epic #193): one question per tab, so the analysis area
+// holds more views without becoming a page nobody scrolls to the bottom of.
+// A chart lands on the tab its channel answers for; only tabs with content
+// render, and a single populated tab renders flat without a tab bar.
+export const TABS = [
+  { key: "time", label: "Time" },
+  { key: "inputs", label: "Inputs" },
+  { key: "grip", label: "Grip" },
+  { key: "car", label: "Car" },
+];
+const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "inputs", steering: "inputs", rpm: "inputs", latG: "grip" };
+
 // Render + wire the whole panel into `container`: the lap chips (always
 // visible — they are the session's lap list) and the charts inside a
 // collapsible <details>, rendered lazily on first expand. Chips toggle laps
 // into the highlight slots (max 3 at once; oldest is evicted). The fastest
 // lap starts highlighted. `renderExtras(litMap, dispN)` — litMap being
 // Map(chIdx -> slot color) and dispN the display lap number per channel lap —
-// returns HTML rendered above the charts and re-rendered with them.
-// `renderAfter` — { [channelKey]: (litMap, dispN) => svg } — slots a chart
-// straight under that channel's chart on the same distance axis: app.js hangs
-// the gear ribbon from js/gears.js under the speed trace.
+// returns HTML rendered above the charts and re-rendered with them — either
+// a string (goes on the Time tab) or { [tabKey]: html } to place markup per
+// tab. `renderAfter` — { [channelKey]: (litMap, dispN) => svg } — slots a
+// chart straight under that channel's chart on the same distance axis:
+// app.js hangs the gear ribbon from js/gears.js under the RPM trace.
 export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter } = {}) {
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
@@ -238,7 +273,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
   const bestRow = matched.length
     ? matched.reduce((a, b) => (b.lap.time_ms < a.lap.time_ms ? b : a))
     : null;
-  const state = { lit: bestRow ? [bestRow.chIdx] : [] }; // channel-lap indexes in slot order
+  const state = { lit: bestRow ? [bestRow.chIdx] : [], tab: null }; // channel-lap indexes in slot order
 
   const litMap = () => new Map(state.lit.map((lapIdx, slot) => [lapIdx, SLOTS[slot]]));
 
@@ -249,7 +284,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     <div class="laps ch-chips"></div>
     <details class="ch-details">
       <summary>Channel graphs <span class="hint">${chanNames} vs distance</span></summary>
-      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3). With 2+ selected, the delta chart shows where time is gained or lost vs the fastest.</div>
+      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3). With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.</div>
       <div class="ch-graphs"></div>
     </details>`;
   const chipsEl = container.querySelector(".ch-chips");
@@ -304,13 +339,41 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
       }
     }
     const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx]) : "";
-    const charts = [deltaSvg];
-    for (const def of CHANNEL_DEFS) {
-      charts.push(channelChartSvg(def, channels, lit));
-      charts.push(renderAfter?.[def.key]?.(lit, dispN) ?? "");
-    }
+    const chart = (c) => `<div class="ch-chart">${c}</div>`;
+    const byTab = new Map(TABS.map((t) => [t.key, []]));
     const extras = renderExtras ? renderExtras(lit, dispN) : "";
-    chartsEl.innerHTML = extras + charts.filter(Boolean).map((c) => `<div class="ch-chart">${c}</div>`).join("");
+    const extraByTab = typeof extras === "string" ? { time: extras } : (extras ?? {});
+    for (const t of TABS) if (extraByTab[t.key]) byTab.get(t.key).push(extraByTab[t.key]);
+    if (deltaSvg) byTab.get("time").push(chart(deltaSvg));
+    for (const def of CHANNEL_DEFS) {
+      const list = byTab.get(TAB_OF[def.key]);
+      const svg = channelChartSvg(def, channels, lit);
+      if (svg) list.push(chart(svg));
+      const after = renderAfter?.[def.key]?.(lit, dispN);
+      if (after) list.push(chart(after));
+    }
+    const tabs = TABS.filter((t) => byTab.get(t.key).length);
+    if (!tabs.some((t) => t.key === state.tab)) state.tab = tabs[0]?.key ?? null;
+    if (tabs.length <= 1) {
+      chartsEl.innerHTML = tabs.map((t) => byTab.get(t.key).join("")).join("");
+    } else {
+      chartsEl.innerHTML =
+        `<div class="ch-tabs" role="tablist">${tabs
+          .map((t) => `<button type="button" role="tab" aria-selected="${t.key === state.tab}" data-ch-tab="${t.key}">${t.label}</button>`)
+          .join("")}</div>` +
+        tabs
+          .map((t) => `<div class="ch-tabpanel" role="tabpanel" data-ch-panel="${t.key}"${t.key === state.tab ? "" : " hidden"}>${byTab.get(t.key).join("")}</div>`)
+          .join("");
+      // Switching tabs only toggles visibility — every tab is rendered, so
+      // the selection and the tooltips survive the switch.
+      chartsEl.querySelectorAll("[data-ch-tab]").forEach((btn) => {
+        btn.onclick = () => {
+          state.tab = btn.dataset.chTab;
+          chartsEl.querySelectorAll("[data-ch-tab]").forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
+          chartsEl.querySelectorAll("[data-ch-panel]").forEach((p) => (p.hidden = p.dataset.chPanel !== state.tab));
+        };
+      });
+    }
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
     const $tooltip = document.getElementById("tooltip");
@@ -339,7 +402,8 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
             }
             const arr = chLaps[lapIdx]?.[def.key];
             if (!arr || k >= arr.length) return "";
-            return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}</div>`;
+            const lim = activeLimitLabels(chLaps[lapIdx], k);
+            return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}${lim.length ? ` · ${esc(lim.join(", "))}` : ""}</div>`;
           })
           .join("");
         if (!tipRows) { $tooltip.hidden = true; return; }

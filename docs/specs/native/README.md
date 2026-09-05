@@ -84,14 +84,27 @@ Features added after the rewrite shipped, and where they landed:
   ([#187](https://github.com/Richie97/track-history/issues/187), 2026-09,
   the first ticket of epic [#193](https://github.com/Richie97/track-history/issues/193))
   — **web first, all three intended.** Rides on the channel-graphs panel: a
-  stepped band per highlighted lap under the speed trace (gear 0 a gap, runs
+  stepped band per highlighted lap under the RPM trace (gear 0 a gap, runs
   where the laps disagree outlined) and a per-gear upshift-rpm table with
   factual notes. The pure half is `public/js/gears.js`, pinned by
   `contracts/logic/gears.json` so the Kit and `:core` ports assert against
   the web output when they land; the ticket asks for all three and the
-  native panels are the follow-up. The epic's other rule stands: before the
-  second of its charts ships, the panel gets tabs rather than another
-  stacked section.
+  native panels are the follow-up.
+- **Panel tabs + limit marks**
+  ([#188](https://github.com/Richie97/track-history/issues/188), 2026-09) —
+  **web first, all three intended.** The epic's rule was that the panel gets
+  an information architecture before its second chart, so the web panel now
+  has one question per tab — Time / Inputs / Grip, with Car reserved for the
+  scalars — and #188 rides on it: `wheelSlip` and the ABS/TC/VSC `flags`
+  become marks on the best-lap track map (placed by driven-distance
+  fraction, since the stored trace is the best lap only), shaded bands on
+  the brake / throttle / steering traces for each highlighted lap, and a
+  places-count line in the session stats. Colour is by kind, not severity,
+  with shape and fill as the second encoding. The pure half is
+  `public/js/limits.js`, pinned by `contracts/logic/limits.json`; every
+  client already draws the track map and the panel, so the ports are the
+  follow-up — and the native panels will want the same tabs before they
+  take a second chart.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and

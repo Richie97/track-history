@@ -42,6 +42,8 @@
   --chart-line-b: #6ea8ff;   /* second series in overlay charts */
   --chart-line-c: #f49ac0;   /* third series (lap highlight slot 3) */
   --chart-dim:   rgba(255, 255, 255, 0.16); /* unselected laps in channel graphs */
+  --limit-brake: #6ea8ff;   /* ABS / lockup marks and bands (braking-side) */
+  --limit-power: #f49ac0;   /* traction control / wheelspin (power-side) */
   --chart-grid:  rgba(255, 255, 255, 0.07);
 
   /* GPS trace map: sequential speed ramp (one hue, dim -> bright) + tarmac */
@@ -86,6 +88,8 @@
   --chart-line-b: #2f6fd6;   /* second series in overlay charts */
   --chart-line-c: #b0348f;   /* third series (lap highlight slot 3) */
   --chart-dim:   rgba(0, 0, 0, 0.15); /* unselected laps in channel graphs */
+  --limit-brake: #2f6fd6;   /* ABS / lockup marks and bands (braking-side) */
+  --limit-power: #b0348f;   /* traction control / wheelspin (power-side) */
   --chart-grid:  rgba(0, 0, 0, 0.08);
 
   --map-slow:   #dce8b4;
@@ -130,6 +134,8 @@
     --chart-line-b: #2f6fd6;   /* second series in overlay charts */
     --chart-line-c: #b0348f;   /* third series (lap highlight slot 3) */
     --chart-dim:   rgba(0, 0, 0, 0.15); /* unselected laps in channel graphs */
+    --limit-brake: #2f6fd6;   /* ABS / lockup marks and bands (braking-side) */
+    --limit-power: #b0348f;   /* traction control / wheelspin (power-side) */
     --chart-grid:  rgba(0, 0, 0, 0.08);
 
     --map-slow:   #dce8b4;
@@ -605,6 +611,21 @@ button.ch-chip { cursor: pointer; font-family: inherit; }
 @media (hover: hover) { button.ch-chip:hover { background: var(--surface-hover); } }
 button.ch-chip.on { background: var(--surface-raised); }
 .ch-chip .dot { width: 9px; height: 9px; border-radius: var(--radius-pill); flex: none; }
+/* One question per tab: Time / Inputs / Grip / Car (epic #193) */
+.ch-tabs {
+  display: inline-flex; gap: 2px; padding: 3px; margin: 8px 0 2px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline); border-radius: var(--radius-pill);
+}
+.ch-tabs button {
+  padding: 6px 14px; font-family: inherit; font-size: var(--fs-sm);
+  font-weight: var(--weight-medium); line-height: 1; cursor: pointer;
+  border: none; border-radius: var(--radius-pill);
+  background: transparent; color: var(--text-muted); transition: var(--transition);
+}
+.ch-tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-contrast); }
+@media (hover: hover) { .ch-tabs button:not([aria-selected="true"]):hover { color: var(--text-strong); } }
+.ch-tabpanel[hidden] { display: none; }
 .ch-chart { margin-top: 12px; }
 .ch-chart svg { display: block; width: 100%; height: auto; }
 /* Sector splits + theoretical best (js/sectors.js) */
@@ -778,6 +799,9 @@ button.ch-chip.on { background: var(--surface-raised); }
   display: flex; align-items: center; gap: 8px; margin-top: 10px;
   font-size: var(--fs-2xs); color: var(--text-faint);
 }
+.trackmap-legend.limit-legend { flex-wrap: wrap; margin-top: 6px; }
+.trackmap-legend .lk { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); }
+.trackmap-legend .lk svg { flex: none; }
 .trackmap-legend .ramp {
   width: 110px; height: 6px; border-radius: 3px;
   background: linear-gradient(90deg, var(--map-slow), var(--map-fast));

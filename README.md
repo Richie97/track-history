@@ -614,7 +614,7 @@ and the best sectors across the session sum to the theoretical best — shown
 beside the actual best in the session's stats line when it's quicker, so the
 gap quantifies what consistency was worth (`public/js/sectors.js`, pinned for
 the native ports by `contracts/logic/sectors.json`). For PDR imports, which
-store `gear` and RPM, a **gear ribbon** sits under the speed trace: one band
+store `gear` and RPM, a **gear ribbon** sits under the RPM trace: one band
 per highlighted lap, one block per gear with the number written in it, a gap
 where the clutch was in — a step change rather than a line, because there are
 no intermediate gears — and with two or more laps highlighted the stretches
@@ -626,7 +626,31 @@ low), with a factual note when a gear is taken to the top of the rev range
 seen that day or shifted out of markedly earlier than another, and the
 typical upshift RPM joins the session's stats line (`public/js/gears.js`,
 pinned for the native ports by `contracts/logic/gears.json`; web only for
-now — the native panels don't draw it yet).
+now — the native panels don't draw it yet). The same imports' `wheelSlip`
+and ABS/traction/stability `flags` answer a question that is spatial rather
+than temporal, so they are drawn as **marks on the best-lap track map**
+rather than as line charts: a shape where the best lap hit ABS, locked a
+wheel, spun the driven wheels, or had traction or stability control cut in,
+coloured by kind rather than severity (braking-side events in one hue,
+power-side in another, each pair told apart by shape and fill, never by
+colour alone) and placed by matching the lap's driven distance onto the
+stored trace — which is the best lap only, so the map says so. The same
+stretches are **shaded on the brake, throttle and steering traces** for every
+highlighted lap, the hover read-out names what was active at that point,
+and the session's stats line counts the places on track where each happened
+("ABS in 3 places, wheelspin in 2"), or says "no interventions" — traction
+and stability control read zero all day with the systems switched off,
+which is normal on track, and "off" and "never needed" can't be told apart.
+Thresholds (slip beyond ±2 %) are display semantics, named constants in
+`public/js/limits.js`, pinned for the native ports by
+`contracts/logic/limits.json`; web only for now.
+
+The panel is organised as **one question per tab** rather than a stack of
+sections: *Time* (the delta chart, the sector table and the speed trace),
+*Inputs* (throttle, brake, steering, RPM, the gear ribbon and shift points)
+and *Grip* (lateral G), with a *Car* tab reserved for the per-lap scalars
+once they are drawn; only tabs with content render, and a session with one
+populated tab renders flat.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.

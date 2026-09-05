@@ -14,9 +14,39 @@ function hex2rgb(h) {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-// points: [[x, y, v], ...] in meters. Returns nothing; the renderer owns the
-// canvas until it leaves the document (checked each frame / theme change).
-export function renderTrackMap(canvas, points) {
+// A limit marker on the line (js/limits.js): a shape at trace point `idx`,
+// filled or hollow in its side's colour with a 2px surface ring, so the map
+// says *which* system fired and where, never colour-alone.
+function drawMarker(ctx, x, y, { shape, filled, side }, cssVar) {
+  const color = cssVar(side === "stability" ? "--text-strong" : `--limit-${side}`);
+  const surface = cssVar("--surface-card");
+  const r = 6.5;
+  ctx.beginPath();
+  if (shape === "circle") ctx.arc(x, y, r, 0, Math.PI * 2);
+  else if (shape === "triangle") {
+    ctx.moveTo(x, y - r * 1.15);
+    ctx.lineTo(x + r * 1.05, y + r * 0.75);
+    ctx.lineTo(x - r * 1.05, y + r * 0.75);
+    ctx.closePath();
+  } else {
+    ctx.moveTo(x, y - r * 1.2);
+    ctx.lineTo(x + r * 1.2, y);
+    ctx.lineTo(x, y + r * 1.2);
+    ctx.lineTo(x - r * 1.2, y);
+    ctx.closePath();
+  }
+  ctx.fillStyle = filled ? color : surface;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = filled ? surface : color;
+  ctx.stroke();
+}
+
+// points: [[x, y, v], ...] in meters; markers: [{idx, shape, filled, side}]
+// (limitMarkers output joined to its LIMIT_KINDS entry). Returns nothing; the
+// renderer owns the canvas until it leaves the document (checked each frame
+// / theme change).
+export function renderTrackMap(canvas, points, { markers = [] } = {}) {
   if (!points || points.length < 10) return;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -90,6 +120,19 @@ export function renderTrackMap(canvas, points) {
     ctx.moveTo(sx + nx * 10, sy + ny * 10);
     ctx.lineTo(sx - nx * 10, sy - ny * 10);
     ctx.stroke();
+
+    // where the best lap hit ABS / traction control / slip (#188). Two kinds
+    // often fire in one place (traction control *because of* wheelspin), so
+    // a marker landing on top of an earlier one is stepped off the line
+    // rather than hidden under it.
+    const placed = [];
+    for (const m of markers) {
+      const p = px[Math.min(px.length - 1, Math.max(0, m.idx | 0))];
+      let [x, y] = p;
+      while (placed.some(([qx, qy]) => Math.hypot(qx - x, qy - y) < 14)) y -= 15;
+      placed.push([x, y]);
+      drawMarker(ctx, x, y, m, cssVar);
+    }
 
     if (!reduceMotion) {
       const d = px[Math.floor(dot) % px.length];
