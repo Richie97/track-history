@@ -172,6 +172,14 @@ private val gallerySession = SessionChannels(
             throttle = (0 until 150).map { 100 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
             brake = (0 until 150).map { 100 * (0.5 - 0.5 * sin(it / 9.0 + n)) },
             steering = (0 until 150).map { 180 * sin(it / 4.5 + n) },
+            // Rotation that mostly follows the steering, but falls short through
+            // the second half of the lap — so the balance scatter has a band to
+            // draw and its table has a corner that pushes (#189).
+            yaw = (0 until 150).map { k ->
+                val speed = 60 + 90 * (0.5 + 0.5 * sin(k / 9.0 + n))
+                val steer = 180 * sin(k / 4.5 + n)
+                0.012 * (speed / 3.6) * steer * (if (k > 75) 0.7 else 1.0)
+            },
             // Gear steps with the speed wave and drops to 0 through one shift,
             // which is the clutch-in gap the ribbon has to draw as a gap.
             gear = (0 until 150).map { k ->

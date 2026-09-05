@@ -47,6 +47,12 @@ public object ChannelGraphs {
         STEERING("steering", "Steering", "°", 0, false),
         RPM("rpm", "RPM", "rpm", 0, false),
         LAT_G("latG", "Lateral G", "G", 2, true),
+
+        /**
+         * Yaw rate, the honest baseline for the balance read-out ([Balance],
+         * #189): signed, so it swings both ways around zero like steering does.
+         */
+        YAW("yaw", "Yaw rate", "°/s", 0, false),
         ;
 
         /** Stored speed is kph; the app reads mph, as the web does. */
@@ -60,6 +66,7 @@ public object ChannelGraphs {
             STEERING -> of.steering
             RPM -> of.rpm
             LAT_G -> of.latG
+            YAW -> of.yaw
         }
     }
 

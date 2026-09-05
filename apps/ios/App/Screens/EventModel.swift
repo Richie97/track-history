@@ -200,6 +200,12 @@ extension Session {
         if let channels, let limits = Limits.limitSummary(channels) {
             parts.append(limits)
         }
+        // The corners whose rotation sits off this car's typical response
+        // (`Balance`, #189), pooled across the session; the per-corner table and
+        // the scatter are on the channel panel's Grip tab.
+        if let channels, let balance = Balance.balanceSummary(channels) {
+            parts.append(balance)
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

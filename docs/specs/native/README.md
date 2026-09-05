@@ -146,18 +146,30 @@ Features added after the rewrite shipped, and where they landed:
 - **Balance — understeer or oversteer**
   ([#189](https://github.com/Richie97/track-history/issues/189), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))
-  — **web first**, for the reason the friction circle was: the `yaw`
-  trace is trivially all-three (and now draws on the Grip tab), but the
-  balance scatter and the per-corner summary are new surfaces the frontier
-  rule says to prove at a desk first. `yaw` against `steering` as a scatter
-  with the speed dependence divided out (y is yaw rate ÷ speed, so a neutral
-  car is one dashed reference line rather than a fan per speed, and colour
-  stays lap identity), plus a per-corner table — corners are stretches of
-  sustained |latG| from `public/js/corners.js`, the reusable segmentation
+  — shipped **web first** for the reason the friction circle was (the `yaw`
+  trace is trivially all-three, but the balance scatter and the per-corner
+  summary were new surfaces the frontier rule says to prove at a desk
+  first), and now **all three**: it is the reading amateurs most often get
+  backwards, so it graduated with the next port. `yaw` against `steering` as
+  a scatter with the speed dependence divided out (y is yaw rate ÷ speed, so
+  a neutral car is one dashed reference line rather than a fan per speed, and
+  colour stays lap identity), plus a per-corner table — corners are stretches
+  of sustained |latG| from `public/js/corners.js`, the reusable segmentation
   primitive the ticket asked for — reading each corner per highlighted lap
-  and pooled, and a places line in the session stats. The pure half is
-  `public/js/balance.js` + `corners.js`, written to port but **not** pinned
-  in `contracts/logic/` yet. The decisions a port inherits: v1 is
+  and pooled, and a line in the session stats. The pure half is
+  `public/js/balance.js` + `corners.js`, ported as `Balance` and `Corners` to
+  the Kit (`Analysis/Balance.swift`, `Analysis/Corners.swift`) and `:core`
+  (`Balance.kt`, `Corners.kt`) under the same function and constant names and
+  pinned by `contracts/logic/balance.json` and `corners.json`; the drawing is
+  per platform (`balanceScatterSvg` + `balanceTableHtml` /
+  `BalanceScatter.swift` / `BalanceScatter.kt`), hand-rolled on a canvas on
+  both phones for the friction circle's reason. Unlike that chart the plot is
+  deliberately **not square** — the axes carry different units — and **more
+  rotation is up**, so oversteer sits above the reference line; on the phones
+  the corner's place on track and its peak G ride under its label rather than
+  in columns of their own, which is what keeps the table inside the width.
+  The per-point hover is **web-only**, as it is for the friction circle. The
+  decisions every client inherits: v1 is
   **relative** — the reference is the session's own median yaw gain, because
   the rigorous bicycle model needs the wheelbase and steering ratio the
   garage doesn't store, so a car that pushes everywhere reads neutral

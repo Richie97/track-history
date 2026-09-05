@@ -705,9 +705,10 @@ than the circuit's — and gives each corner's reading per highlighted lap and
 pooled for the session: *"T1 understeer 14%, T7 neutral, T10 slight
 oversteer 9%"* is a sentence a driver can take to the setup sheet, and the
 corners that sit off the reference join the session's stats line
-("understeer in T1, T4 and oversteer in T10"). Hovering a point or a row marks
+("understeer in T1, T4 and oversteer in T10"). On the web, hovering a point or a row marks
 the distance on the other charts and rings the place on the best-lap track
-map. The `yaw` trace itself also draws on the Grip tab as the honest baseline.
+map; the phones have no pointer, so the table carries that meaning there. The
+`yaw` trace itself also draws on the Grip tab as the honest baseline.
 **The reading is deliberately relative.** The rigorous version is the bicycle
 model — expected yaw = v·δ/L — which needs the wheelbase and the steering
 ratio, neither of which is stored (and the ratio is non-linear with lock on
@@ -721,8 +722,13 @@ measured per session rather than assumed; and yaw lags steering at corner
 entry and leads it at exit, so single samples scatter and only the sum over a
 whole corner is a reading. Corner segmentation is its own module,
 `public/js/corners.js`, since anything per-corner segments this way; the
-analysis is `public/js/balance.js`. Web first, not pinned in `contracts/logic/`
-until a port exists.
+analysis is `public/js/balance.js`. Both are ported as `Corners` and `Balance`
+to the iOS Kit and Android `:core` and pinned for both by
+`contracts/logic/corners.json` and `balance.json`; each client draws its own
+(`balanceScatterSvg` + `balanceTableHtml`, `BalanceScatter.swift`,
+`BalanceScatter.kt`). On the phones the corner's place on track and its peak G
+sit under its label rather than in columns of their own, which is what keeps
+the table inside the width.
 
 The panel is organised as **one question per tab** rather than a stack of
 sections: *Time* (the delta chart, the sector table and the speed trace),
@@ -731,9 +737,8 @@ and *Grip* (the friction circle, the balance scatter and per-corner table,
 and the lateral-G and yaw traces), with a *Car* tab reserved for the per-lap
 scalars once they are drawn; only tabs with content render, and a session
 with one populated tab renders flat. All of it — the tabs, the ribbon, the
-shift points, the limit marks and their bands, and the friction circle — is
-on the web app and both phone apps; the balance read-out is web-first and
-web-only so far.
+shift points, the limit marks and their bands, the friction circle and the
+balance read-out — is on the web app and both phone apps.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.

@@ -80,7 +80,7 @@ final class ChannelGraphsUITests: XCTestCase {
         // The row says which channels the session actually stored, in the order
         // `CHANNEL_DEFS` fixes.
         XCTAssertTrue(
-            app.staticTexts["Speed · Throttle · Brake · RPM · Lateral G vs distance"].exists,
+            app.staticTexts["Speed · Throttle · Brake · Steering · RPM · Lateral G · Yaw rate vs distance"].exists,
             "the row should name the channels it has"
         )
         entry.tap()
@@ -142,6 +142,14 @@ final class ChannelGraphsUITests: XCTestCase {
             "a session storing both G channels draws the friction circle"
         )
         attach(app, named: "channel-graphs-friction-circle")
+        // And under it the balance scatter (#189) with its per-corner table —
+        // also drawn rather than laid out, so it gets its own screenshot.
+        let balance = app.descendants(matching: .any)["balanceScatter"]
+        XCTAssertTrue(
+            scrollTo(balance, in: app),
+            "a session storing yaw, steering and speed draws the balance scatter"
+        )
+        attach(app, named: "channel-graphs-balance")
 
         app.buttons["Done"].tap()
         deleteEventFromMenu(app)
@@ -150,9 +158,10 @@ final class ChannelGraphsUITests: XCTestCase {
     // MARK: - Seeding
 
     /// An event with one session carrying three laps of channel data, shaped like a
-    /// PDR telemetry import: 120 points per lap on a 20 m grid, the six charted
+    /// PDR telemetry import: 120 points per lap on a 20 m grid, the seven charted
     /// channels plus `gear`, `wheelSlip` and the ABS/TC/VSC `flags` bitfield, and a
-    /// GPS trace for the best lap so the map has limit marks to place (#187, #188).
+    /// GPS trace for the best lap so the map has limit marks to place (#187, #188,
+    /// #189).
     private func seedImportedSession() throws {
         let event = try api(
             "POST", "/api/events",
@@ -203,12 +212,23 @@ final class ChannelGraphsUITests: XCTestCase {
                             },
                             // Longitudinal G a quarter turn out of phase with the
                             // cornering, so the Grip tab's friction circle has both
-                            // lobes to draw (#186). No `steering` is seeded, which
-                            // is deliberate: that is the one-sided case, since the
-                            // stored latG is a magnitude and the side comes from
-                            // the steering sign.
+                            // lobes to draw (#186).
                             "longG": (0..<120).map { k in
                                 sin(Double(k) / 9 + Double(index) * 0.15) * 1.3
+                            },
+                            // Steering and yaw: the balance scatter needs both, and
+                            // the rotation falls short through the back half of the
+                            // lap so its table has a corner that pushes (#189). The
+                            // side derivation the friction circle does off the
+                            // steering sign is covered by `GripTests` and lap B of
+                            // `contracts/logic/grip.json`, not from here.
+                            "steering": (0..<120).map { k in
+                                cos(Double(k) / 9 + Double(index) * 0.15) * 120
+                            },
+                            "yaw": (0..<120).map { k -> Double in
+                                let speed = 90 + 60 * sin(Double(k) / 9 + Double(index) * 0.15)
+                                let steer = cos(Double(k) / 9 + Double(index) * 0.15) * 120
+                                return steer * (speed / 3.6) * 0.012 * (k > 60 ? 0.7 : 1)
                             },
                             // Gear steps with the speed wave, dropping to 0 through
                             // one shift — the clutch-in gap the ribbon draws as a gap.
