@@ -337,8 +337,10 @@ private fun LeaderboardOptInCard(model: SettingsModel) {
         }
         Text(
             "Opting in shares exactly two things with other signed-in drivers, per track: " +
-                "your name and your best lap (with its date). Your events, notes, laps and " +
-                "garage stay private. Leaderboards exist only for tracks the app's catalog knows.",
+                "your name and your best device-timed lap (with its date). Only laps recorded with " +
+                "the app or imported from telemetry are ranked — hand-entered times stay in your " +
+                "logbook. Your events, notes, laps and garage stay private. Leaderboards exist only " +
+                "for tracks the app's catalog knows.",
             style = TrackTheme.typography.xs,
             color = colors.textFaint,
             modifier = Modifier.padding(top = 6.dp),

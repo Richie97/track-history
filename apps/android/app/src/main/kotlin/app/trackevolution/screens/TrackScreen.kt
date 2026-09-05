@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Leaderboard
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.ui.LoadState
@@ -302,7 +303,8 @@ private fun LeaderboardCard(model: TrackModel, leaderboard: TrackLeaderboard) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TESectionHeader("Leaderboard", detail = "opt-in only")
         Text(
-            "Best laps by Track Evolution drivers at this track.",
+            "Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the app " +
+                "or imported from telemetry count; hand-entered times don't.",
             style = TrackTheme.typography.xs,
             color = colors.textFaint,
         )
@@ -351,11 +353,14 @@ private fun LeaderboardCard(model: TrackModel, leaderboard: TrackLeaderboard) {
                 }
             }
         }
+        Leaderboard.note(model.logbookBest, leaderboard)?.let {
+            Text(it, style = TrackTheme.typography.xs, color = colors.textFaint)
+        }
         model.leaderboardError?.let { TEErrorBanner(it) }
         if (leaderboard.optedIn) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "You're on the leaderboards — your name and best lap per track are visible to other signed-in drivers.",
+                    "You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers.",
                     style = TrackTheme.typography.xs,
                     color = colors.textFaint,
                     modifier = Modifier.weight(1f),
@@ -366,7 +371,7 @@ private fun LeaderboardCard(model: TrackModel, leaderboard: TrackLeaderboard) {
             }
         } else {
             Text(
-                "You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best lap.",
+                "You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap.",
                 style = TrackTheme.typography.xs,
                 color = colors.textFaint,
             )

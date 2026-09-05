@@ -159,6 +159,14 @@ class TrackModel(
     val personalBest: Int?
         get() = events.mapNotNull { it.bestMs }.minOrNull()
 
+    /**
+     * The logbook's best at this track regardless of the dry-only filter,
+     * manual bests included — what the leaderboard note compares against,
+     * since the leaderboard ignores that filter too.
+     */
+    val logbookBest: Int?
+        get() = allEvents.mapNotNull { it.bestMs }.minOrNull()
+
     /** Chronological, and only events that actually set a time. */
     val chartPoints: List<ProgressPoint>
         get() = events
