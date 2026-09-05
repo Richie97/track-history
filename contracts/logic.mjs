@@ -31,6 +31,13 @@ import { attachLapChannels } from "../public/js/import/channels.js";
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import {
+  activeLimitLabels,
+  limitMarkers,
+  limitRuns,
+  limitSummary,
+  sessionLimits,
+} from "../public/js/limits.js";
+import {
   gearDisagreements,
   gearSegments,
   lapShifts,
@@ -450,6 +457,51 @@ const gearsFixture = {
     // threshold, kept at 1.
     offsetDefault: gearDisagreements([[2, 2, 3, 3, 3], [2, 2, 2, 3, 3]]),
     offsetMinRun1: gearDisagreements([[2, 2, 3, 3, 3], [2, 2, 2, 3, 3]], 1),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Where the car is at its limit (#188): public/js/limits.js. What is worth
+// pinning: the flag bits and the slip thresholds, the run merging across
+// MERGE_GAP_POINTS clear points (an ABS pulse train is one braking zone),
+// the per-kind union across laps that counts *places* rather than events,
+// the summary sentence, and the distance-fraction placement of a run onto a
+// trace whose length differs from the grid's.
+const limitLapA = {
+  n: 1,
+  timeMs: 90000,
+  speed: Array.from({ length: 20 }, () => 100),
+  flags: [0, 0, 1, 0, 1, 1, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  wheelSlip: [0, 0, 0, -3, -1, 0, 0, 0, 0.5, 3, 4.5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+};
+const limitLapB = {
+  n: 2,
+  timeMs: 91000,
+  speed: Array.from({ length: 20 }, () => 100),
+  flags: [0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 4], // ABS in a second zone, VSC once; no slip channel
+};
+const limitLapC = { n: 3, timeMs: 92000, speed: Array.from({ length: 20 }, () => 100) }; // neither channel
+const limitChannels = { v: 1, dStepM: 20, laps: [limitLapA, limitLapB, limitLapC] };
+// A 190 m straight-line trace at 10 m spacing: half the grid's 380 m, so the
+// placement has to scale by fraction rather than by metres.
+const limitTrace = Array.from({ length: 20 }, (_, i) => [i * 10, 0, 50]);
+const limitsFixture = {
+  description:
+    "Limit-event reference output from public/js/limits.js (limitRuns / " +
+    "sessionLimits / limitSummary / activeLimitLabels / limitMarkers). Ports " +
+    "must reproduce every integer and the summary string exactly. Regenerate " +
+    "with `npm run contracts:logic`.",
+  source: "public/js/limits.js",
+  input: { channels: limitChannels, trace: limitTrace },
+  expected: {
+    runs: limitChannels.laps.map((l) => limitRuns(l)),
+    session: sessionLimits(limitChannels),
+    summary: limitSummary(limitChannels),
+    quietSummary: limitSummary({ v: 1, dStepM: 20, laps: [{ n: 1, flags: Array.from({ length: 20 }, () => 0) }] }),
+    noData: limitSummary({ v: 1, dStepM: 20, laps: [limitLapC] }),
+    labelsAt: [0, 3, 10].map((k) => activeLimitLabels(limitLapA, k)),
+    markers: limitMarkers(limitLapA, 20, limitTrace),
+    noTrace: limitMarkers(limitLapA, 20, null),
   },
 };
 
@@ -989,6 +1041,7 @@ writeFileSync(path.join(OUT_DIR, "lap-delta.json"), JSON.stringify(lapDeltaFixtu
 writeFileSync(path.join(OUT_DIR, "compare-laps.json"), JSON.stringify(compareLapsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "sectors.json"), JSON.stringify(sectorsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "gears.json"), JSON.stringify(gearsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "limits.json"), JSON.stringify(limitsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
@@ -1003,6 +1056,7 @@ console.log(`wrote contracts/logic/lap-delta.json (${lapDeltaFixture.expected.sl
 console.log(`wrote contracts/logic/compare-laps.json (${cmpRows.length} pickable laps)`);
 console.log(`wrote contracts/logic/sectors.json (${sectorsFixture.expected.session.laps.length} laps split)`);
 console.log(`wrote contracts/logic/gears.json (${gearsFixture.expected.shiftPoints.gears.length} gears with upshifts)`);
+console.log(`wrote contracts/logic/limits.json (${limitsFixture.expected.markers.length} markers placed)`);
 console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );

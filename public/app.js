@@ -3,7 +3,7 @@
 
 import { esc, fmtMs, parseTime, parseLapList, fmtDate, fmtConsistency, fmtDelta } from "./js/format.js";
 import { lineChart, multiLineChart } from "./js/chart.js";
-import { CHANNEL_DEFS, bindChannelGraphs, deltaChartSvg, deltaSeries, channelChartSvg } from "./js/channel-graphs.js";
+import { CHANNEL_DEFS, bindChannelGraphs, deltaChartSvg, deltaSeries, channelChartSvg, matchLapsToChannels } from "./js/channel-graphs.js";
 import {
   LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
   lengthMismatchRatio,
@@ -11,6 +11,7 @@ import {
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
 import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
+import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -1230,8 +1231,8 @@ async function viewLapCompare(trackId, params) {
     deltaChartSvg(aligned, lit, refIdx, `${[rowA, rowB][refIdx].lapNum} (${fmtDate([rowA, rowB][refIdx].date)})`),
     ...CHANNEL_DEFS.flatMap((def) => [
       channelChartSvg(def, aligned, lit),
-      // Gear ribbon under the speed trace, outlined where the two laps disagree.
-      def.key === "speed" ? gearRibbonSvg(aligned, lit, (i) => sideLabels[i]) : "",
+      // Gear ribbon under the RPM trace, outlined where the two laps disagree.
+      def.key === "rpm" ? gearRibbonSvg(aligned, lit, (i) => sideLabels[i]) : "",
     ]),
   ]
     .filter(Boolean)
@@ -1285,7 +1286,8 @@ async function viewLapCompare(trackId, params) {
           }
           const arr = aligned.laps[i]?.[def.key];
           if (!arr || k >= arr.length) return "";
-          return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}</div>`;
+          const lim = activeLimitLabels(aligned.laps[i], k);
+          return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}${lim.length ? ` · ${esc(lim.join(", "))}` : ""}</div>`;
         })
         .join("");
       if (!tipRows) { $tooltip.hidden = true; return; }
@@ -1374,6 +1376,11 @@ async function viewEvent(eventId) {
       // session; the per-gear breakdown sits in the channel panel.
       const sp = s.channels?.laps?.length ? shiftPoints(s.channels) : null;
       if (sp) stats.push(`upshifts ≈ <span class="t">${fmtRpm(sp.medianRpm)}</span> rpm`);
+      // Where the car hit its limit (js/limits.js): ABS / traction / slip,
+      // counted as places on track across the session. The marks themselves
+      // are on the best-lap trace and shaded on the pedal traces.
+      const lim = s.channels?.laps?.length ? limitSummary(s.channels) : null;
+      if (lim) stats.push(esc(lim));
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
@@ -1400,12 +1407,29 @@ async function viewEvent(eventId) {
         Math.min(...b.laps.map((l) => l.time_ms)) < Math.min(...a.laps.map((l) => l.time_ms)) ? b : a
       )
     : null;
+  // Limit markers for the map (#188): the trace is the best lap only, so the
+  // marks come from the best lap's channel entry and the legend says so.
+  let traceMarkers = [];
+  if (traceSession?.channels?.laps?.length) {
+    const matched = matchLapsToChannels(traceSession.laps, traceSession.channels.laps).filter((r) => r.chIdx >= 0);
+    const bestRow = matched.length ? matched.reduce((a, b) => (b.lap.time_ms < a.lap.time_ms ? b : a)) : null;
+    if (bestRow)
+      traceMarkers = limitMarkers(traceSession.channels.laps[bestRow.chIdx], traceSession.channels.dStepM, traceSession.trace);
+  }
+  const markerKinds = LIMIT_KINDS.filter((k) => traceMarkers.some((m) => m.kind === k.key));
   const traceHtml = traceSession
     ? `<div class="chart-card">
         <div class="chart-title">Best lap trace — <span class="dir">brighter is faster</span>
           <span class="trackmap-lap">${fmtMs(Math.min(...traceSession.laps.map((l) => l.time_ms)))}</span></div>
-        <div class="trackmap-wrap"><canvas id="trackmap" role="img" aria-label="Racing line of the best lap, colored by speed"></canvas></div>
+        <div class="trackmap-wrap"><canvas id="trackmap" role="img" aria-label="Racing line of the best lap, colored by speed${markerKinds.length ? `, marked where ${markerKinds.map((k) => k.label).join(", ")} were active` : ""}"></canvas></div>
         <div class="trackmap-legend"><span>slow</span><span class="ramp" aria-hidden="true"></span><span>fast</span></div>
+        ${
+          markerKinds.length
+            ? `<div class="trackmap-legend limit-legend"><span>at the limit on this lap:</span>${markerKinds
+                .map((k) => `<span class="lk">${limitGlyphSvg(k)}${esc(k.label)}</span>`)
+                .join("")}</div>`
+            : ""
+        }
       </div>`
     : "";
 
@@ -1578,7 +1602,10 @@ async function viewEvent(eventId) {
     </form>
   `);
 
-  if (traceSession) renderTrackMap(view.querySelector("#trackmap"), traceSession.trace);
+  if (traceSession)
+    renderTrackMap(view.querySelector("#trackmap"), traceSession.trace, {
+      markers: traceMarkers.map((m) => ({ idx: m.idx, ...kindDef(m.kind) })),
+    });
 
   if (pb) {
     const banner = view.querySelector("#pb-banner");
@@ -1697,12 +1724,15 @@ async function viewEvent(eventId) {
     const s = e.sessions.find((x) => String(x.id) === el.dataset.channelGraphs);
     if (s)
       bindChannelGraphs(el, s.channels, s.laps, {
-        // Sector splits + theoretical best for the highlighted laps, then the
-        // session's shift points, above the charts.
-        renderExtras: (lit, dispN) =>
-          sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) + shiftTableHtml(s.channels),
-        // The gear ribbon rides under the speed trace (#187).
-        renderAfter: { speed: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
+        // Sector splits + theoretical best for the highlighted laps on the
+        // Time tab, the session's shift points on Inputs.
+        renderExtras: (lit, dispN) => ({
+          time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+          inputs: shiftTableHtml(s.channels),
+        }),
+        // The gear ribbon rides under the RPM trace (#187), where each shift
+        // is the drop in the sawtooth above it.
+        renderAfter: { rpm: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
       });
   });
 
