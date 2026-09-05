@@ -141,7 +141,9 @@ struct LapChannelPanel: View {
         case .inputs, .grip:
             return present.contains { Self.tab(of: $0) == tabKey }
         case .car:
-            return false // reserved for the per-lap scalars (#190)
+            // The per-lap scalars (#190). A session of hand-entered laps carries
+            // none, and the tab is then absent rather than empty.
+            return Health.sessionHealth(channels) != nil
         }
     }
 
@@ -199,7 +201,12 @@ struct LapChannelPanel: View {
                     lapNumber: lapNumber(forLapIndex:)
                 )
             case .car:
-                EmptyView()
+                // The session health strip (#190): what the car was doing while
+                // you drove it, which is the other half of a track day.
+                HealthStrip(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:)
+                )
             }
             ForEach(present.filter { Self.tab(of: $0) == tabKey }, id: \.self) { channel in
                 channelChart(channel)
@@ -708,10 +715,11 @@ struct LapChannelPanel: View {
 extension LapChannelChart {
     /// The panel on synthetic data, for `-channelGraphs` (see `RootView`) and for
     /// previews. Shaped like a real import: three laps of a 2.4 km circuit on the
-    /// importer's 20 m grid, all seven charted channels plus the three a PDR
-    /// import adds — `gear`, `wheelSlip` and the ABS/TC/VSC `flags` bitfield
-    /// (#187, #188) — so the gear ribbon, the shift table, the limit bands and
-    /// the balance scatter (#189) all have something to draw.
+    /// importer's 20 m grid, all seven charted channels plus the ones a PDR
+    /// import adds — `gear`, `wheelSlip`, the ABS/TC/VSC `flags` bitfield and
+    /// the per-lap scalars (#187, #188, #190) — so the gear ribbon, the shift
+    /// table, the limit bands, the balance scatter (#189) and the Car tab's
+    /// health strip all have something to draw.
     static var demoScreen: some View {
         let times = [118_400, 116_900, 117_600]
         let channels = SessionChannels(
@@ -751,10 +759,21 @@ extension LapChannelChart {
                 let flags: [Double] = wave.map { v in
                     v < -0.85 ? Double(Limits.FLAG_ABS) : v > 0.9 ? Double(Limits.FLAG_TC) : 0
                 }
+                // The per-lap scalars the Car tab reads (#190): oil climbing past
+                // its line by the last lap, fuel draining, and a tyre spread that
+                // is a camber question rather than noise.
+                let heat = Double(index)
                 return LapChannels(
                     n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG,
                     throttle: throttle, brake: brake, steering: steering, longG: longG,
-                    yaw: yaw, gear: gear, wheelSlip: wheelSlip, flags: flags
+                    yaw: yaw, gear: gear, wheelSlip: wheelSlip,
+                    boost: wave.map { v in 60 + 90 * (1 + v) / 2 }, flags: flags,
+                    oilC: 118 + heat * 8, oilKpa: 320 - heat * 20, coolantC: 99 + heat * 5,
+                    transC: 94 + heat * 6, fuelPct: 74 - heat * 12, battV: 13.6 - heat * 0.4,
+                    tyreKpaLF: 214 + heat * 9, tyreKpaRF: 210 + heat * 8,
+                    tyreKpaLR: 205 + heat * 7, tyreKpaRR: 204 + heat * 7,
+                    tyreCLF: 82 + heat * 9, tyreCRF: 74 + heat * 7,
+                    tyreCLR: 68 + heat * 6, tyreCRR: 66 + heat * 6
                 )
             }
         )

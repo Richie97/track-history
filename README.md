@@ -737,9 +737,10 @@ sections: *Time* (the delta chart, the sector table and the speed trace),
 and *Grip* (the friction circle, the balance scatter and per-corner table,
 and the lateral-G and yaw traces), and *Car* (the session health strip);
 only tabs with content render, and a session with one populated tab renders
-flat. All of it but the Car tab — the tabs, the ribbon, the shift points, the
-limit marks and their bands, the friction circle and the balance read-out —
-is on the web app and both phone apps; the Car tab is web-first for now.
+flat. All of it — the tabs, the ribbon, the shift points, the limit marks and
+their bands, the friction circle, the balance read-out and the Car tab's health
+strip — is on the web app and both phone apps; only the tyre-pressure loop
+below stays web-only, because the setup notebook it writes to is.
 
 **Session health** ([#190](https://github.com/Richie97/track-history/issues/190),
 `public/js/health.js`) is the Car tab: the fourteen per-lap scalars plus
@@ -756,9 +757,14 @@ there is no second colour scale. Two derived figures ride with it: the
 — for temperatures and pressures, which is camber and balance evidence, and
 **fuel burn**, the median drop per lap and the laps left at that rate, which
 also joins the session's stats line beside any figure past its line. A
-session of hand-entered laps stores no scalars and shows no strip. The web
-app displays °F and psi like the rest of the logbook; the module keeps the
-stored units (°C, kPa) underneath so a port pins numbers, not a locale.
+session of hand-entered laps stores no scalars and shows no strip. Every
+client displays °F and psi like the rest of the logbook; the module keeps the
+stored units (°C, kPa) underneath, so the fixture pins numbers rather than a
+locale. The pure half is ported as `Health` to the iOS Kit and Android `:core`
+and pinned for both by `contracts/logic/health.json`; each client draws its own
+(`healthStripHtml`, `HealthStrip.swift`, `HealthStrip.kt`). The phones show the
+cards and their sparklines but not the per-lap table — fifteen columns is a
+desk layout, and the sparkline carries the shape in the width a phone has.
 
 The tab also closes the **tyre-pressure loop** the setup notebook opens, and
 this half is web-only because the notebook is: the sheet records the cold

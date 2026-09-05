@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.core.Balance
 import app.trackevolution.core.Gears
+import app.trackevolution.core.Health
 import app.trackevolution.core.LapStats
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
@@ -192,7 +193,10 @@ val Session.statsSummary: String?
         // (`Balance`, #189), pooled across the session; the per-corner table and
         // the scatter are on the channel panel's Grip tab.
         val balance = channels?.let { Balance.balanceSummary(it) }
-        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical, upshifts, limits, balance)
+        // What the car was doing (`Health`, #190): any figure past its line and
+        // the fuel outlook; the cards themselves are on the panel's Car tab.
+        val health = channels?.let { Health.healthSummary(it, Health.Units.US) }
+        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical, upshifts, limits, balance, health)
             .takeIf { it.isNotEmpty() }
             ?.joinToString(" · ")
     }
