@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CORNER_MERGE_GAP_POINTS,
+  CORNER_LAP_QUORUM,
   CORNER_MIN_G,
   MIN_CORNER_POINTS,
   cornerAt,
@@ -9,6 +10,7 @@ import {
   cornersFromMask,
   hasCornerData,
   lapCorners,
+  lapQuorum,
   sessionCorners,
 } from "../../public/js/corners.js";
 
@@ -66,13 +68,15 @@ describe("lapCorners", () => {
 });
 
 describe("sessionCorners", () => {
-  it("segments the union of every lap's mask, so the list is one list for the session", () => {
+  it("segments where the laps agree, so the list is one list for the session", () => {
     // The second lap takes the first corner wider (load starts a point
-    // earlier) and never loads the tyre through the chicane.
+    // earlier) and never loads the tyre through the chicane. Two laps need
+    // only one to agree, so this is still the union — the quorum has nothing
+    // to arbitrate until there are three.
     const wide = { ...lap, latG: latG.map((g, k) => (k === 1 ? 0.4 : k >= 9 && k <= 13 ? 0.1 : g)) };
     const cs = sessionCorners({ laps: [lap, wide] });
     expect(cs.map((c) => [c.n, c.k0, c.k1, c.laps])).toEqual([
-      [1, 1, 5, 2], // the union starts where the wide lap did; both laps took it
+      [1, 1, 5, 2], // starts where the wide lap did; both laps took it
       [2, 9, 13, 1], // only the first lap loaded the tyre here
     ]);
     expect(cs[0].peakG).toBeCloseTo(1.0, 9); // the highest any lap saw
@@ -81,6 +85,43 @@ describe("sessionCorners", () => {
     expect(sessionCorners({ laps: [{ speed: [1] }, lap] })).toHaveLength(2);
     expect(sessionCorners({ laps: [{ speed: [1] }] })).toEqual([]);
     expect(sessionCorners(null)).toEqual([]);
+  });
+
+  // Two corners with a three-point straight between them — one point more than
+  // the merge gap, so they stay apart. One lap of three stays loaded across
+  // that straight. Under the union this module used to take, that single lap
+  // bridged the gap and the two corners chained into one; this is the VIR
+  // failure (a 1,200 m "corner" spanning the esses, the Snake and South Bend)
+  // in miniature.
+  const twoCorners = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0.1, 0.7, 0.9, 0.8, 0.5, 0.1, 0, 0];
+  const clean = { n: 1, timeMs: 90_000, latG: twoCorners };
+  const bridging = { n: 2, timeMs: 91_000, latG: twoCorners.map((g, k) => (k >= 6 && k <= 8 ? 0.5 : g)) };
+
+  it("keeps neighbouring corners apart when only a minority of laps bridges them", () => {
+    // The bridging lap on its own is one long corner — that reading is correct
+    // for that lap, and is exactly what must not become the session's.
+    expect(lapCorners(bridging).map((c) => [c.k0, c.k1])).toEqual([[2, 12]]);
+    const cs = sessionCorners({ laps: [clean, clean, bridging] });
+    expect(cs.map((c) => [c.n, c.k0, c.k1, c.laps])).toEqual([
+      [1, 2, 5, 3],
+      [2, 9, 12, 3],
+    ]);
+  });
+
+  it("still merges when most laps agree the gap is loaded", () => {
+    // Same shape, but now the bridging is the majority reading rather than one
+    // lap's — a chicane taken flat by most of the session is one corner.
+    const cs = sessionCorners({ laps: [clean, bridging, bridging] });
+    expect(cs.map((c) => [c.k0, c.k1])).toEqual([[2, 12]]);
+  });
+
+  it("degrades to any-lap below two laps, so a single-lap session still segments", () => {
+    expect(lapQuorum(1)).toBe(1);
+    expect(lapQuorum(2)).toBe(1);
+    expect(lapQuorum(3)).toBe(2);
+    expect(lapQuorum(7)).toBe(4);
+    expect(sessionCorners({ laps: [bridging] }).map((c) => [c.k0, c.k1])).toEqual([[2, 12]]);
+    expect(CORNER_LAP_QUORUM).toBe(0.5);
   });
 });
 

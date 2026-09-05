@@ -23,13 +23,14 @@ import Foundation
 /// ``CORNER_MIN_G``, and a double apex may count once or twice. Every surface
 /// that shows one says as much.
 ///
-/// ``sessionCorners(_:minG:mergeGap:minPoints:)`` segments the *union* of every
-/// lap's cornering mask rather than any one lap's, so the corner list is one
-/// list for the session — the same T4 on every lap, whichever laps are
-/// highlighted — and a lap that took a corner a little wider still lands in the
-/// same window. The grid is what makes that legitimate: laps are aligned by
+/// ``sessionCorners(_:minG:mergeGap:minPoints:quorum:)`` segments where *most*
+/// laps agree they were cornering rather than any one lap's mask, so the corner
+/// list is one list for the session — the same T4 on every lap, whichever laps
+/// are highlighted — and a lap that took a corner a little wider still lands in
+/// the same window. The grid is what makes that legitimate: laps are aligned by
 /// driven distance from the start/finish line, so the same k is the same place
-/// on track to within the line taken.
+/// on track to within the line taken. The quorum is what stops that alignment's
+/// slack from chaining neighbouring corners together; see ``CORNER_LAP_QUORUM``.
 public enum Corners {
     /// Sustained `|latG|` at or above this is a corner. Display semantics, not
     /// physics — like `Limits.WHEELSPIN_PCT` and `Grip.MIN_LOAD_G`, tune against
@@ -45,6 +46,22 @@ public enum Corners {
     /// A run shorter than this is a kerb strike or a bump, not a corner.
     /// 3 points = 60 m at the 20 m grid.
     public static let MIN_CORNER_POINTS = 3
+
+    /// The share of readable laps that must be cornering at a grid point for
+    /// ``sessionCorners(_:minG:mergeGap:minPoints:quorum:)`` to call it one —
+    /// see the note there for why a union is the wrong combiner. Half is the
+    /// mildest rule that removes the one-wide-lap smear: a corner every lap
+    /// takes survives however scruffy one lap was, and a place only one lap
+    /// loaded (a tank-slapper, a spin, an off) no longer widens the session's
+    /// window. Below two laps it degrades to "any lap", which is the only
+    /// answer available.
+    public static let CORNER_LAP_QUORUM: Double = 0.5
+
+    /// How many of `lapCount` laps must agree. At least one, so a single-lap
+    /// session still segments.
+    public static func lapQuorum(_ lapCount: Int, _ quorum: Double = CORNER_LAP_QUORUM) -> Int {
+        max(1, Int((Double(lapCount) * quorum).rounded(.up)))
+    }
 
     /// True when the lap stored the channel this type reads.
     public static func hasCornerData(_ entry: LapChannels?) -> Bool {
@@ -140,24 +157,39 @@ public enum Corners {
         return (peakG, peakK)
     }
 
-    /// The session's corners on the shared grid, from the union of every lap's
-    /// cornering mask — see the type's documentation. Empty when no lap stored
-    /// `latG`.
+    /// The session's corners on the shared grid: where at least `quorum` of the
+    /// readable laps agree they were cornering — see the type's documentation.
+    /// Empty when no lap stored `latG`.
+    ///
+    /// A quorum and not a union, which is what this used to take. Laps are
+    /// aligned by driven distance, but they differ in length by a percent or two
+    /// (line choice, GPS drift), so OR-ing the masks widened every corner by the
+    /// spread of the whole session. Once widened, neighbours fell inside
+    /// `mergeGap` of one another and *chained*: on a 7-lap VIR session the
+    /// Climbing Esses, the Snake and South Bend fused into one 1,200 m "corner",
+    /// and the session reported six corners where every individual lap
+    /// segmented eight to eleven. Requiring most laps to agree keeps the window
+    /// at the corner rather than at its envelope, and leaves `mergeGap` free to
+    /// do the job it is for. Genuinely continuous complexes stay single: VIR's
+    /// esses hold load for 780 m on every lap and still read as one.
     public static func sessionCorners(
         _ channels: SessionChannels?,
         minG: Double = CORNER_MIN_G,
         mergeGap: Int = CORNER_MERGE_GAP_POINTS,
-        minPoints: Int = MIN_CORNER_POINTS
+        minPoints: Int = MIN_CORNER_POINTS,
+        quorum: Double = CORNER_LAP_QUORUM
     ) -> [Corner] {
         let laps = (channels?.laps ?? []).filter { $0.latG != nil }
         guard !laps.isEmpty else { return [] }
         let n = laps.map { $0.latG?.count ?? 0 }.max() ?? 0
-        var union = [Bool](repeating: false, count: n)
         let masks = laps.map { cornerMask($0.latG, minG) }
+        var votes = [Int](repeating: 0, count: n)
         for m in masks {
-            for k in 0..<m.count where m[k] { union[k] = true }
+            for k in 0..<m.count where m[k] { votes[k] += 1 }
         }
-        return cornersFromMask(union, mergeGap: mergeGap, minPoints: minPoints).enumerated().map { i, r in
+        let need = lapQuorum(laps.count, quorum)
+        let agreed = votes.map { $0 >= need }
+        return cornersFromMask(agreed, mergeGap: mergeGap, minPoints: minPoints).enumerated().map { i, r in
             var peakG: Double = 0
             var peakK = r.k0
             var count = 0

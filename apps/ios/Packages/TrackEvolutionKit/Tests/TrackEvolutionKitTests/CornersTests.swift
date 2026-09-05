@@ -68,9 +68,11 @@ struct CornersTests {
 
     // MARK: - sessionCorners
 
-    @Test func segmentsTheUnionSoTheListIsOneListForTheSession() {
+    @Test func segmentsWhereTheLapsAgreeSoTheListIsOneListForTheSession() {
         // The second lap takes the first corner wider (load starts a point
-        // earlier) and never loads the tyre through the chicane.
+        // earlier) and never loads the tyre through the chicane. Two laps need
+        // only one to agree, so this is still the union — the quorum has
+        // nothing to arbitrate until there are three.
         let wide = LapChannels(
             n: 2, timeMs: 91_000, speed: Array(repeating: 100, count: 24),
             latG: latG.enumerated().map { k, g in k == 1 ? 0.4 : (k >= 9 && k <= 13 ? 0.1 : g) }
@@ -78,6 +80,44 @@ struct CornersTests {
         let cs = Corners.sessionCorners(SessionChannels(v: 1, dStepM: 20, laps: [lap, wide]))
         #expect(cs.map { [$0.n, $0.k0, $0.k1, $0.laps] } == [[1, 1, 5, 2], [2, 9, 13, 1]])
         #expect(abs(cs[0].peakG - 1.0) < 1e-9) // the highest any lap saw
+    }
+
+    /// Two corners with a three-point straight between them — one point more
+    /// than the merge gap, so they stay apart — and a lap that stays loaded
+    /// across it. Under the union this used to take, that one lap chained the
+    /// pair into a single corner; this is the VIR failure in miniature.
+    private static let bridgeLatG: [Double] =
+        [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0.1, 0.7, 0.9, 0.8, 0.5, 0.1, 0, 0]
+    private var bridgeClean: LapChannels { LapChannels(n: 1, timeMs: 90_000, latG: Self.bridgeLatG) }
+    private var bridging: LapChannels {
+        LapChannels(
+            n: 2, timeMs: 91_000,
+            latG: Self.bridgeLatG.enumerated().map { k, g in (k >= 6 && k <= 8) ? 0.5 : g }
+        )
+    }
+
+    @Test func keepsNeighbouringCornersApartWhenOnlyAMinorityOfLapsBridgesThem() {
+        // Correct for that lap on its own, and exactly what must not become the
+        // session's reading.
+        #expect(Corners.lapCorners(bridging).map { [$0.k0, $0.k1] } == [[2, 12]])
+        let cs = Corners.sessionCorners(
+            SessionChannels(v: 1, dStepM: 20, laps: [bridgeClean, bridgeClean, bridging])
+        )
+        #expect(cs.map { [$0.n, $0.k0, $0.k1, $0.laps] } == [[1, 2, 5, 3], [2, 9, 12, 3]])
+    }
+
+    @Test func stillMergesWhenMostLapsAgreeTheGapIsLoaded() {
+        let cs = Corners.sessionCorners(
+            SessionChannels(v: 1, dStepM: 20, laps: [bridgeClean, bridging, bridging])
+        )
+        #expect(cs.map { [$0.k0, $0.k1] } == [[2, 12]])
+    }
+
+    @Test func degradesToAnyLapBelowTwoLapsSoASingleLapSessionStillSegments() {
+        #expect([1, 2, 3, 7].map { Corners.lapQuorum($0) } == [1, 1, 2, 4])
+        let cs = Corners.sessionCorners(SessionChannels(v: 1, dStepM: 20, laps: [bridging]))
+        #expect(cs.map { [$0.k0, $0.k1] } == [[2, 12]])
+        #expect(Corners.CORNER_LAP_QUORUM == 0.5)
     }
 
     @Test func ignoresLapsWithoutLateralGAndIsEmptyWhenNoneHasIt() {
@@ -103,6 +143,8 @@ struct CornersTests {
         struct Input: Decodable {
             let channels: SessionChannels
             let mask: [Double]
+            let bridgeChannels: SessionChannels
+            let bridgeMajorityChannels: SessionChannels
         }
         struct Expected: Decodable {
             let mask: [Bool]
@@ -115,6 +157,10 @@ struct CornersTests {
             let labels: [String]
             let at: [Int?]
             let noData: [Corners.Corner]
+            let bridge: [Corners.Corner]
+            let bridgeMajority: [Corners.Corner]
+            let bridgeLapAlone: [Corners.Corner]
+            let quorum: [Int]
         }
         let input: Input
         let expected: Expected
@@ -146,6 +192,22 @@ struct CornersTests {
             Corners.sessionCorners(SessionChannels(v: 1, dStepM: 20, laps: [channels.laps[2]])).isEmpty
         )
         #expect(fixture.expected.noData.isEmpty)
+        // The quorum, not a union: one lap of three staying loaded across a
+        // short straight must not chain the corners either side of it, while
+        // two of three must. A port that ORs the masks passes everything above
+        // and fails exactly here.
+        expectSame(Corners.sessionCorners(fixture.input.bridgeChannels), fixture.expected.bridge, "bridge")
+        expectSame(
+            Corners.sessionCorners(fixture.input.bridgeMajorityChannels),
+            fixture.expected.bridgeMajority,
+            "bridgeMajority"
+        )
+        expectSame(
+            Corners.lapCorners(fixture.input.bridgeChannels.laps[2]),
+            fixture.expected.bridgeLapAlone,
+            "bridgeLapAlone"
+        )
+        #expect([1, 2, 3, 7].map { Corners.lapQuorum($0) } == fixture.expected.quorum)
     }
 
     private func expectSame(_ got: [Corners.Corner], _ want: [Corners.Corner], _ label: String) {

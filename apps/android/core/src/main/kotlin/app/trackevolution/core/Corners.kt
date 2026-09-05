@@ -3,6 +3,7 @@ package app.trackevolution.core
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlinx.serialization.Serializable
 
 /**
@@ -29,12 +30,14 @@ import kotlinx.serialization.Serializable
  * [CORNER_MIN_G], and a double apex may count once or twice. Every surface that
  * shows one says as much.
  *
- * [sessionCorners] segments the *union* of every lap's cornering mask rather
- * than any one lap's, so the corner list is one list for the session — the same
- * T4 on every lap, whichever laps are highlighted — and a lap that took a
+ * [sessionCorners] segments where *most* laps agree they were cornering rather
+ * than any one lap's mask, so the corner list is one list for the session — the
+ * same T4 on every lap, whichever laps are highlighted — and a lap that took a
  * corner a little wider still lands in the same window. The grid is what makes
  * that legitimate: laps are aligned by driven distance from the start/finish
- * line, so the same k is the same place on track to within the line taken.
+ * line, so the same k is the same place on track to within the line taken. The
+ * quorum is what stops that alignment's slack from chaining neighbouring
+ * corners together; see [Corners.CORNER_LAP_QUORUM].
  */
 public object Corners {
     /**
@@ -57,6 +60,24 @@ public object Corners {
      * 3 points = 60 m at the 20 m grid.
      */
     public const val MIN_CORNER_POINTS: Int = 3
+
+    /**
+     * The share of readable laps that must be cornering at a grid point for
+     * [sessionCorners] to call it one — see the note there for why a union is
+     * the wrong combiner. Half is the mildest rule that removes the
+     * one-wide-lap smear: a corner every lap takes survives however scruffy one
+     * lap was, and a place only one lap loaded (a tank-slapper, a spin, an off)
+     * no longer widens the session's window. Below two laps it degrades to "any
+     * lap", which is the only answer available.
+     */
+    public const val CORNER_LAP_QUORUM: Double = 0.5
+
+    /**
+     * How many of [lapCount] laps must agree. At least one, so a single-lap
+     * session still segments.
+     */
+    public fun lapQuorum(lapCount: Int, quorum: Double = CORNER_LAP_QUORUM): Int =
+        maxOf(1, ceil(lapCount * quorum).toInt())
 
     /** True when the lap stored the channel this file reads. */
     public fun hasCornerData(entry: LapChannels?): Boolean = entry?.latG != null
@@ -129,23 +150,38 @@ public object Corners {
     }
 
     /**
-     * The session's corners on the shared grid, from the union of every lap's
-     * cornering mask — see the file's documentation. Empty when no lap stored
-     * `latG`.
+     * The session's corners on the shared grid: where at least [quorum] of the
+     * readable laps agree they were cornering — see the file's documentation.
+     * Empty when no lap stored `latG`.
+     *
+     * A quorum and not a union, which is what this used to take. Laps are
+     * aligned by driven distance, but they differ in length by a percent or two
+     * (line choice, GPS drift), so OR-ing the masks widened every corner by the
+     * spread of the whole session. Once widened, neighbours fell inside
+     * [mergeGap] of one another and *chained*: on a 7-lap VIR session the
+     * Climbing Esses, the Snake and South Bend fused into one 1,200 m "corner",
+     * and the session reported six corners where every individual lap segmented
+     * eight to eleven. Requiring most laps to agree keeps the window at the
+     * corner rather than at its envelope, and leaves [mergeGap] free to do the
+     * job it is for. Genuinely continuous complexes stay single: VIR's esses
+     * hold load for 780 m on every lap and still read as one.
      */
     public fun sessionCorners(
         channels: SessionChannels?,
         minG: Double = CORNER_MIN_G,
         mergeGap: Int = CORNER_MERGE_GAP_POINTS,
         minPoints: Int = MIN_CORNER_POINTS,
+        quorum: Double = CORNER_LAP_QUORUM,
     ): List<Corner> {
         val laps = (channels?.laps ?: emptyList()).filter { it.latG != null }
         if (laps.isEmpty()) return emptyList()
         val n = laps.maxOf { it.latG!!.size }
-        val union = BooleanArray(n)
         val masks = laps.map { cornerMask(it.latG, minG) }
-        for (m in masks) for (k in m.indices) if (m[k]) union[k] = true
-        return cornersFromMask(union.toList(), mergeGap, minPoints).mapIndexed { i, r ->
+        val votes = IntArray(n)
+        for (m in masks) for (k in m.indices) if (m[k]) votes[k]++
+        val need = lapQuorum(laps.size, quorum)
+        val agreed = votes.map { it >= need }
+        return cornersFromMask(agreed, mergeGap, minPoints).mapIndexed { i, r ->
             var peakG = 0.0
             var peakK = r.k0
             var count = 0

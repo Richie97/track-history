@@ -705,7 +705,12 @@ above the line are oversteer, below it understeer. Under it, a **per-corner
 table** segments the lap into corners — stretches of sustained lateral load
 (0.35 G or more), merged across a short dip so a chicane is one corner, and
 numbered T1… from the start/finish line, so the numbers are the app's rather
-than the circuit's — and gives each corner's reading per highlighted lap and
+than the circuit's. The session's corners are the places **most** of its laps
+were cornering, not every place any lap was: laps differ in driven length by
+a percent or two, so taking them all together widened each corner until
+neighbours touched and chained into one — at VIR that fused three corners
+into a single 1,200 m window and pooled their balance into one verdict. The
+table gives each corner's reading per highlighted lap and
 pooled for the session: *"T1 understeer 14%, T7 neutral, T10 slight
 oversteer 9%"* is a sentence a driver can take to the setup sheet, and the
 corners that sit off the reference join the session's stats line

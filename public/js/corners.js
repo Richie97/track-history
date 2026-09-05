@@ -18,13 +18,15 @@
 // CORNER_MIN_G, and a double-apex may count once or twice. The label says
 // as much wherever it is shown.
 //
-// `sessionCorners` segments the *union* of every lap's cornering mask on the
-// shared distance grid rather than any one lap's, so the corner list is one
-// list for the session — the same T4 on every lap, whichever laps are
+// `sessionCorners` segments where *most* laps agree they were cornering on
+// the shared distance grid rather than any one lap's mask, so the corner list
+// is one list for the session — the same T4 on every lap, whichever laps are
 // highlighted — and a lap that took a corner a little wider still lands in
 // the same window. The grid is what makes that legitimate: laps are aligned
 // by driven distance from the start/finish line (js/import/channels.js), so
-// the same k is the same place on track to within the line taken.
+// the same k is the same place on track to within the line taken. The quorum
+// is what stops that alignment's slack from chaining neighbouring corners
+// together; see CORNER_LAP_QUORUM and the note at sessionCorners.
 //
 // Web-first (see docs/specs/native/README.md): written to port, not pinned in
 // contracts/logic/ until a port exists.
@@ -45,6 +47,20 @@ export const CORNER_MERGE_GAP_POINTS = 2;
 // A run shorter than this is a kerb strike or a bump, not a corner.
 // 3 points = 60 m at the 20 m grid.
 export const MIN_CORNER_POINTS = 3;
+
+// The share of readable laps that must be cornering at a grid point for
+// `sessionCorners` to call it one — see the note there for why a union is the
+// wrong combiner. Half is the mildest rule that removes the one-wide-lap
+// smear: a corner every lap takes survives however scruffy one lap was, and a
+// place only one lap loaded (a tank-slapper, a spin, an off) no longer widens
+// the session's window. Below two laps it degrades to "any lap", which is the
+// only answer available.
+export const CORNER_LAP_QUORUM = 0.5;
+
+// How many of `lapCount` laps must agree. At least one, so a single-lap
+// session still segments.
+export const lapQuorum = (lapCount, quorum = CORNER_LAP_QUORUM) =>
+  Math.max(1, Math.ceil(lapCount * quorum));
 
 // True when the lap stored the channel this module reads.
 export function hasCornerData(entry) {
@@ -88,18 +104,32 @@ function peakIn(latG, { k0, k1 }) {
 }
 
 // The session's corners on the shared grid: [{n, k0, k1, peakG, peakK, laps}]
-// from the union of every lap's cornering mask, with `peakG` the highest
-// |latG| any lap saw in the window and `laps` how many laps cleared the
-// threshold somewhere inside it. [] when no lap stored latG.
+// where at least `quorum` of the readable laps agree they were cornering, with
+// `peakG` the highest |latG| any lap saw in the window and `laps` how many laps
+// cleared the threshold somewhere inside it. [] when no lap stored latG.
+//
+// A quorum and not a union, which is what this used to take. Laps are aligned
+// by driven distance, but they differ in length by a percent or two (line
+// choice, GPS drift), so OR-ing the masks widened every corner by the spread
+// of the whole session. Once widened, neighbours fell inside `mergeGap` of one
+// another and *chained*: on a 7-lap VIR session the Climbing Esses, the Snake
+// and South Bend fused into one 1,200 m "corner", and the session reported six
+// corners where every individual lap segmented eight to eleven. Requiring most
+// laps to agree keeps the window at the corner rather than at its envelope,
+// and leaves `mergeGap` free to do the job it is for — a chicane's flick
+// between two apexes is still one corner. Genuinely continuous complexes stay
+// single: VIR's esses hold load for 780 m on every lap and still read as one.
 export function sessionCorners(channels, opts = {}) {
   const laps = (channels?.laps ?? []).filter(hasCornerData);
   if (!laps.length) return [];
-  const { minG = CORNER_MIN_G } = opts;
+  const { minG = CORNER_MIN_G, quorum = CORNER_LAP_QUORUM } = opts;
   const n = Math.max(...laps.map((l) => l.latG.length));
-  const union = new Array(n).fill(false);
   const masks = laps.map((l) => cornerMask(l.latG, minG));
-  for (const m of masks) for (let k = 0; k < m.length; k++) if (m[k]) union[k] = true;
-  return cornersFromMask(union, opts).map((r, i) => {
+  const votes = new Array(n).fill(0);
+  for (const m of masks) for (let k = 0; k < m.length; k++) if (m[k]) votes[k]++;
+  const need = lapQuorum(laps.length, quorum);
+  const agreed = votes.map((v) => v >= need);
+  return cornersFromMask(agreed, opts).map((r, i) => {
     let peakG = 0, peakK = r.k0, count = 0;
     laps.forEach((l, li) => {
       const p = peakIn(l.latG, r);

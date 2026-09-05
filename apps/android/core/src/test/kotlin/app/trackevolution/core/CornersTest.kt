@@ -86,9 +86,11 @@ class CornersTest {
     }
 
     @Test
-    fun `segments the union so the list is one list for the session`() {
+    fun `segments where the laps agree so the list is one list for the session`() {
         // The second lap takes the first corner wider (load starts a point
-        // earlier) and never loads the tyre through the chicane.
+        // earlier) and never loads the tyre through the chicane. Two laps need
+        // only one to agree, so this is still the union — the quorum has
+        // nothing to arbitrate until there are three.
         val wide = lap.copy(
             n = 2,
             latG = latG.mapIndexed { k, g -> if (k == 1) 0.4 else if (k in 9..13) 0.1 else g },
@@ -99,6 +101,49 @@ class CornersTest {
             cs.map { listOf(it.n, it.k0, it.k1, it.laps) },
         )
         assertEquals(1.0, cs[0].peakG, 1e-9) // the highest any lap saw
+    }
+
+    // Two corners with a three-point straight between them — one point more
+    // than the merge gap, so they stay apart — and a lap that stays loaded
+    // across it. Under the union this used to take, that one lap chained the
+    // pair into a single corner; this is the VIR failure in miniature.
+    private val bridgeLatG =
+        listOf(0.0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0.0, 0.1, 0.7, 0.9, 0.8, 0.5, 0.1, 0.0, 0.0)
+    private val bridgeClean = LapChannels(n = 1, timeMs = 90_000, latG = bridgeLatG)
+    private val bridging = LapChannels(
+        n = 2,
+        timeMs = 91_000,
+        latG = bridgeLatG.mapIndexed { k, g -> if (k in 6..8) 0.5 else g },
+    )
+
+    @Test
+    fun `keeps neighbouring corners apart when only a minority of laps bridges them`() {
+        // Correct for that lap on its own, and exactly what must not become the
+        // session's reading.
+        assertEquals(listOf(listOf(2, 12)), Corners.lapCorners(bridging).map { listOf(it.k0, it.k1) })
+        val cs = Corners.sessionCorners(
+            SessionChannels(v = 1, dStepM = 20.0, laps = listOf(bridgeClean, bridgeClean, bridging)),
+        )
+        assertEquals(
+            listOf(listOf(1, 2, 5, 3), listOf(2, 9, 12, 3)),
+            cs.map { listOf(it.n, it.k0, it.k1, it.laps) },
+        )
+    }
+
+    @Test
+    fun `still merges when most laps agree the gap is loaded`() {
+        val cs = Corners.sessionCorners(
+            SessionChannels(v = 1, dStepM = 20.0, laps = listOf(bridgeClean, bridging, bridging)),
+        )
+        assertEquals(listOf(listOf(2, 12)), cs.map { listOf(it.k0, it.k1) })
+    }
+
+    @Test
+    fun `degrades to any-lap below two laps, so a single-lap session still segments`() {
+        assertEquals(listOf(1, 1, 2, 4), listOf(1, 2, 3, 7).map { Corners.lapQuorum(it) })
+        val cs = Corners.sessionCorners(SessionChannels(v = 1, dStepM = 20.0, laps = listOf(bridging)))
+        assertEquals(listOf(listOf(2, 12)), cs.map { listOf(it.k0, it.k1) })
+        assertEquals(0.5, Corners.CORNER_LAP_QUORUM, 1e-9)
     }
 
     @Test
@@ -187,6 +232,31 @@ class CornersTest {
             ).isEmpty(),
         )
         assertTrue(json.decodeFromJsonElement<List<Corners.Corner>>(expected["noData"]!!).isEmpty())
+        // The quorum, not a union: one lap of three staying loaded across a
+        // short straight must not chain the corners either side of it, while
+        // two of three must. A port that ORs the masks passes everything above
+        // and fails exactly here.
+        val bridge = json.decodeFromJsonElement<SessionChannels>(input["bridgeChannels"]!!)
+        val bridgeMajority = json.decodeFromJsonElement<SessionChannels>(input["bridgeMajorityChannels"]!!)
+        assertSameCorners(
+            json.decodeFromJsonElement<List<Corners.Corner>>(expected["bridge"]!!),
+            Corners.sessionCorners(bridge),
+            "bridge",
+        )
+        assertSameCorners(
+            json.decodeFromJsonElement<List<Corners.Corner>>(expected["bridgeMajority"]!!),
+            Corners.sessionCorners(bridgeMajority),
+            "bridgeMajority",
+        )
+        assertSameCorners(
+            json.decodeFromJsonElement<List<Corners.Corner>>(expected["bridgeLapAlone"]!!),
+            Corners.lapCorners(bridge.laps[2]),
+            "bridgeLapAlone",
+        )
+        assertEquals(
+            json.decodeFromJsonElement<List<Int>>(expected["quorum"]!!),
+            listOf(1, 2, 3, 7).map { Corners.lapQuorum(it) },
+        )
     }
 
     private fun assertSameCorners(want: List<Corners.Corner>, got: List<Corners.Corner>, label: String) {

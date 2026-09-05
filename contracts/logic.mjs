@@ -57,6 +57,7 @@ import {
   cornerMask,
   cornersFromMask,
   lapCorners,
+  lapQuorum,
   sessionCorners,
 } from "../public/js/corners.js";
 import {
@@ -610,9 +611,14 @@ const gripFixture = {
 // every reading hung off it. What is worth pinning: the threshold at its exact
 // boundary (inclusive, and a stored sign is still a magnitude), the merge that
 // makes a chicane one corner rather than two, the minimum length that drops a
-// kerb strike, and the *union* rule — the session's corner list comes from
-// every lap's mask together, so a lap that took a corner wider widens the
-// window for all of them.
+// kerb strike, and the *quorum* rule — the session's corner list comes from
+// where most laps agree, so a lap that took a corner wider widens the window
+// only if enough of the session did too. That last one replaced a union, and
+// the replacement is the reason `bridge`/`bridgeMajority` below exist: under a
+// union a single lap staying loaded across a short straight chained the two
+// corners either side of it into one, which on a 7-lap VIR session produced a
+// 1,200 m "corner" spanning three of them. A port that ORs the masks passes
+// every other case here and fails those two.
 const cornerLatG = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0, 0.7, 0.8, 0.2, 0.9, 0.7, 0.1, 0, 0, 1.4, 0, 0, 0.1, 0, 0, 0];
 const cornerLapA = { n: 1, timeMs: 90000, speed: Array.from({ length: 24 }, () => 100), latG: cornerLatG };
 // Takes the first corner a point wider and never loads the tyre in the chicane.
@@ -622,9 +628,16 @@ const cornerLapB = {
   speed: Array.from({ length: 24 }, () => 100),
   latG: cornerLatG.map((g, k) => (k === 1 ? 0.4 : k >= 9 && k <= 13 ? 0.1 : g)),
 };
-// Carries no latG at all: it must drop out of the union rather than shorten it.
+// Carries no latG at all: it must drop out of the vote rather than shorten it.
 const cornerLapC = { n: 3, timeMs: 92000, speed: Array.from({ length: 24 }, () => 100) };
 const cornerChannels = { v: 1, dStepM: 20, laps: [cornerLapA, cornerLapB, cornerLapC] };
+// Two corners with a three-point straight between them — one point more than
+// the merge gap, so they stay apart — and a lap that stays loaded across it.
+const bridgeLatG = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0.1, 0.7, 0.9, 0.8, 0.5, 0.1, 0, 0];
+const bridgeClean = { n: 1, timeMs: 90000, latG: bridgeLatG };
+const bridgeLap = { n: 2, timeMs: 91000, latG: bridgeLatG.map((g, k) => (k >= 6 && k <= 8 ? 0.5 : g)) };
+const bridgeChannels = { v: 1, dStepM: 20, laps: [bridgeClean, bridgeClean, bridgeLap] };
+const bridgeMajorityChannels = { v: 1, dStepM: 20, laps: [bridgeClean, bridgeLap, bridgeLap] };
 const cornersFixture = {
   description:
     "Corner-segmentation reference output from public/js/corners.js " +
@@ -632,7 +645,12 @@ const cornersFixture = {
     "Ports must reproduce the windows exactly and the peaks to 1e-9. " +
     "Regenerate with `npm run contracts:logic`.",
   source: "public/js/corners.js",
-  input: { channels: cornerChannels, mask: [0, 0.34, 0.35, -0.9] },
+  input: {
+    channels: cornerChannels,
+    mask: [0, 0.34, 0.35, -0.9],
+    bridgeChannels,
+    bridgeMajorityChannels,
+  },
   expected: {
     // The threshold is inclusive and reads |latG|, so a negative is a corner.
     mask: cornerMask([0, 0.34, 0.35, -0.9]),
@@ -649,6 +667,15 @@ const cornersFixture = {
     // straight, and past the end of the lap.
     at: [3, 11, 7, 99].map((k) => cornerAt(sessionCorners(cornerChannels), k)?.n ?? null),
     noData: sessionCorners({ v: 1, dStepM: 20, laps: [cornerLapC] }),
+    // One lap of three bridges the straight: the two corners stay apart.
+    bridge: sessionCorners(bridgeChannels),
+    // Two of three do: now it is one corner, and the merge is doing its job.
+    bridgeMajority: sessionCorners(bridgeMajorityChannels),
+    // The bridging lap read on its own — correct for that lap, and precisely
+    // what must not become the session's reading.
+    bridgeLapAlone: lapCorners(bridgeLap),
+    // How many laps must agree at 1, 2, 3 and 7 readable laps.
+    quorum: [1, 2, 3, 7].map((n) => lapQuorum(n)),
   },
 };
 
@@ -1355,7 +1382,7 @@ console.log(
   `wrote contracts/logic/grip.json (peak ${gripFixture.expected.peak.toFixed(3)} G over ` +
     `${gripFixture.expected.session.all.samples} samples)`
 );
-console.log(`wrote contracts/logic/corners.json (${cornersFixture.expected.session.length} corners on the union)`);
+console.log(`wrote contracts/logic/corners.json (${cornersFixture.expected.session.length} corners on the quorum)`);
 console.log(
   `wrote contracts/logic/balance.json (reference gain ${balanceFixture.expected.refGain.toFixed(5)}/m, ` +
     `"${balanceFixture.expected.summary}")`
