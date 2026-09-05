@@ -163,12 +163,25 @@ describe("frictionCircleSvg", () => {
     expect(svg.match(/<path /g)).toHaveLength(1); // the whole dim envelope
     expect(svg).toContain('data-grip-label="Lap 2"');
   });
+  it("plots braking above power", () => {
+    // The one thing on this chart with a fixed place in a driver's head, and
+    // it flips silently if the y mapping is ever 'fixed' to the usual sign.
+    const one = { dStepM: 20, laps: [{ n: 1, timeMs: 1000, latG: [1, 1], longG: [-1, 1] }] };
+    const svg = frictionCircleSvg(one, new Map([[0, "#fff"]]), () => "Lap 1");
+    const pts = [...svg.matchAll(/cy="([\d.]+)" r="[\d.]+" data-gk="(\d+)"/g)].map((m) => ({
+      k: Number(m[2]),
+      cy: Number(m[1]),
+    }));
+    const braking = pts.find((p) => p.k === 0);
+    const power = pts.find((p) => p.k === 1);
+    expect(braking.cy).toBeLessThan(power.cy); // smaller y is higher on screen
+  });
   it("draws the reference arc at the session's peak and says so", () => {
     const svg = frictionCircleSvg(channels, lit, label);
     const peak = peakCombinedG(channels);
     expect(svg).toContain(`${peak.toFixed(2)} G`);
     expect(svg).toContain("stroke-dasharray"); // the arc is dashed
-    expect(svg).toContain("Braking plots down, power up");
+    expect(svg).toContain("Braking plots up, power down");
   });
 });
 
