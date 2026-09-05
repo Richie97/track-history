@@ -42,12 +42,34 @@ function drawMarker(ctx, x, y, { shape, filled, side }, cssVar) {
   ctx.stroke();
 }
 
+// The trace point index at a fraction of the lap's driven distance —
+// the same cumulative-length walk limitMarkers does, exposed for callers that
+// have a fraction rather than a limit run: the friction circle (js/grip.js)
+// hovers a 20 m grid sample back onto the line. Kept here rather than in
+// limits.js because that module is ported and this is web-only plumbing.
+export function traceIndexAtFraction(points, frac) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const cum = new Array(points.length);
+  cum[0] = 0;
+  for (let i = 1; i < points.length; i++) {
+    cum[i] = cum[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+  }
+  const total = cum[points.length - 1];
+  if (!(total > 0)) return null;
+  const target = Math.max(0, Math.min(1, frac)) * total;
+  let idx = 0;
+  while (idx < points.length - 1 && cum[idx] < target) idx++;
+  return idx;
+}
+
 // points: [[x, y, v], ...] in meters; markers: [{idx, shape, filled, side}]
-// (limitMarkers output joined to its LIMIT_KINDS entry). Returns nothing; the
-// renderer owns the canvas until it leaves the document (checked each frame
-// / theme change).
+// (limitMarkers output joined to its LIMIT_KINDS entry). Returns a handle
+// whose setHighlight(idx | null) rings one trace point — the friction
+// circle's hover uses it to answer "which corner is this dot" — or null when
+// there was nothing to draw. The renderer owns the canvas until it leaves the
+// document (checked each frame / theme change).
 export function renderTrackMap(canvas, points, { markers = [] } = {}) {
-  if (!points || points.length < 10) return;
+  if (!points || points.length < 10) return null;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -73,6 +95,7 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
 
   const ctx = canvas.getContext("2d");
   let dot = 0;
+  let highlight = null; // trace point index, from setHighlight
 
   function draw() {
     const styles = getComputedStyle(document.documentElement);
@@ -134,6 +157,20 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
       drawMarker(ctx, x, y, m, cssVar);
     }
 
+    // The hovered sample from the friction circle: a ring rather than a dot,
+    // so it reads as "this place" over the line rather than as another marker.
+    if (highlight != null) {
+      const [hx2, hy2] = px[Math.min(px.length - 1, Math.max(0, highlight | 0))];
+      ctx.beginPath();
+      ctx.arc(hx2, hy2, 8, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = cssVar("--surface-card");
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = cssVar("--accent");
+      ctx.stroke();
+    }
+
     if (!reduceMotion) {
       const d = px[Math.floor(dot) % px.length];
       ctx.save();
@@ -147,6 +184,16 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
     }
   }
 
+  // Under reduced motion nothing repaints on its own, so a highlight change
+  // has to draw; otherwise the next animation frame picks it up.
+  const handle = {
+    setHighlight(idx) {
+      if (idx === highlight) return;
+      highlight = idx;
+      if (reduceMotion && canvas.isConnected) draw();
+    },
+  };
+
   if (reduceMotion) {
     draw();
     // repaint on theme flips; stop watching once the canvas is gone
@@ -155,7 +202,7 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
       draw();
     });
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return;
+    return handle;
   }
   // ~8s per lap regardless of point count; faster sections move the dot faster.
   const meanV = vNorm.reduce((a, b) => a + b, 0) / vNorm.length || 0.5;
@@ -166,4 +213,5 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
     draw();
     requestAnimationFrame(loop);
   })();
+  return handle;
 }

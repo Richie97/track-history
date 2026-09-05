@@ -186,7 +186,8 @@
         gap is what stringing your best sectors together would have been worth.
         The panel is split into tabs — <strong>Time</strong> (delta, sectors,
         speed), <strong>Inputs</strong> (pedals, steering, RPM, gears) and
-        <strong>Grip</strong> (lateral G) — so each answers one question. From
+        <strong>Grip</strong> (the friction circle, lateral G) — so each
+        answers one question. From
         a PDR recording, a <strong>gear ribbon</strong> sits under the
         RPM trace — one band per selected lap, one block per gear with the
         number in it, a gap where the clutch was in — and with two or more
@@ -206,7 +207,26 @@
         and steering traces for every selected lap, and a line in the
         session's stats counting the places where each happened, or "no
         interventions" when nothing fired (which is normal on track with the
-        systems off).
+        systems off). On the <strong>Grip</strong> tab, a PDR recording's
+        cornering and braking/acceleration forces are plotted against each
+        other as a <strong>friction circle</strong>: one point per 20&nbsp;m of
+        track for each selected lap, braking at the bottom, power at the top
+        and cornering to the sides, with a dashed arc at the strongest
+        combined grip of the session. A tyre has one grip budget and it can be
+        spent in any direction — brake in a straight line, turn, then
+        accelerate and your points draw a cross; trail the brake into the
+        corner and feed the throttle out of it and they fill the circle. The
+        space between the two is time. Under it, two numbers say how much of
+        your tyre work was combined — braking while cornering, and cornering
+        while on the power — for each selected lap and for the session, and
+        they are worth watching across a day. Hover a point to see where on
+        the lap it happened: the distance is marked on the other graphs and,
+        for the lap the map was drawn from, the spot is ringed on the track
+        map. Two things to know: left and right come from your steering, since
+        the recording stores cornering force without a side; and 20&nbsp;m
+        samples smooth the spikes, so the circle shows the <em>shape</em> of
+        your grip use rather than your peak G (that's the max lateral G in the
+        session's stats). The friction circle is on the web app for now.
         (This
         is derived at import time; the recording itself is never uploaded, so
         re-import a file if you delete a session.)</li>

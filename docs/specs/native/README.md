@@ -112,6 +112,26 @@ Features added after the rewrite shipped, and where they landed:
   on iOS the bands are drawn in `.chartBackground` rather than as
   `RectangleMark`s, because a second mark kind beside the lines breaks the
   one-homogeneous-`ForEach` rule `LapChannelChart` documents.
+- **Friction circle**
+  ([#186](https://github.com/Richie97/track-history/issues/186), 2026-09,
+  epic [#193](https://github.com/Richie97/track-history/issues/193))
+  — **web first.** The epic's highest-coaching-value ticket and its first
+  genuinely new chart *type*: `latG` against `longG` as a square scatter on
+  the panel's Grip tab, over a dim envelope of the session's other laps, with
+  a dashed reference arc at the session's own 99th-percentile combined G and
+  a quadrant read-out (the share of loaded samples spent braking-while-
+  cornering and cornering-while-on-the-power) under it. It does not ride the
+  stacked distance-axis multiples — a circle has to look like a circle — so
+  it takes its own square container inside the tab, which is what the tab IA
+  from #188 exists to allow. Hovering a point marks the distance on the
+  channel charts and rings the place on the best-lap track map (best lap
+  only, same rule as the limit marks). The pure half is `public/js/grip.js`,
+  written to port but **not** pinned in `contracts/logic/` yet — the fixture
+  lands with the first port, per the assert-against-the-reference rule. Two
+  data facts shape it and would shape any port: the stored `latG` is a
+  magnitude (pdr.js stores `abs`), so the side comes from the sign of the
+  `steering` trace and a lap without one plots one-sided; and the 20 m grid
+  smooths peaks, so the view is the shape of grip usage, not peak G.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and

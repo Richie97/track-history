@@ -3,7 +3,7 @@
 
 import { esc, fmtMs, parseTime, parseLapList, fmtDate, fmtConsistency, fmtDelta } from "./js/format.js";
 import { lineChart, multiLineChart } from "./js/chart.js";
-import { CHANNEL_DEFS, bindChannelGraphs, deltaChartSvg, deltaSeries, channelChartSvg, matchLapsToChannels } from "./js/channel-graphs.js";
+import { CHANNEL_DEFS, bindChannelGraphs, deltaChartSvg, deltaSeries, channelChartSvg, matchLapsToChannels, showDistanceMark } from "./js/channel-graphs.js";
 import {
   LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
   lengthMismatchRatio,
@@ -12,13 +12,14 @@ import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
 import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
 import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
+import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { DEFAULT_CHECKLIST } from "./js/checklist.js";
-import { renderTrackMap } from "./js/trackmap.js";
+import { renderTrackMap, traceIndexAtFraction } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
 import {
@@ -1410,11 +1411,16 @@ async function viewEvent(eventId) {
   // Limit markers for the map (#188): the trace is the best lap only, so the
   // marks come from the best lap's channel entry and the legend says so.
   let traceMarkers = [];
+  // The channel lap the trace *is* — the friction circle's hover can only be
+  // placed on the line for that one lap (#186), same reason the marks are.
+  let traceBestChIdx = null;
   if (traceSession?.channels?.laps?.length) {
     const matched = matchLapsToChannels(traceSession.laps, traceSession.channels.laps).filter((r) => r.chIdx >= 0);
     const bestRow = matched.length ? matched.reduce((a, b) => (b.lap.time_ms < a.lap.time_ms ? b : a)) : null;
-    if (bestRow)
+    if (bestRow) {
+      traceBestChIdx = bestRow.chIdx;
       traceMarkers = limitMarkers(traceSession.channels.laps[bestRow.chIdx], traceSession.channels.dStepM, traceSession.trace);
+    }
   }
   const markerKinds = LIMIT_KINDS.filter((k) => traceMarkers.some((m) => m.kind === k.key));
   const traceHtml = traceSession
@@ -1602,10 +1608,11 @@ async function viewEvent(eventId) {
     </form>
   `);
 
-  if (traceSession)
-    renderTrackMap(view.querySelector("#trackmap"), traceSession.trace, {
-      markers: traceMarkers.map((m) => ({ idx: m.idx, ...kindDef(m.kind) })),
-    });
+  const trackMap = traceSession
+    ? renderTrackMap(view.querySelector("#trackmap"), traceSession.trace, {
+        markers: traceMarkers.map((m) => ({ idx: m.idx, ...kindDef(m.kind) })),
+      })
+    : null;
 
   if (pb) {
     const banner = view.querySelector("#pb-banner");
@@ -1722,18 +1729,34 @@ async function viewEvent(eventId) {
   // inside it render lazily on first expand.
   view.querySelectorAll("[data-channel-graphs]").forEach((el) => {
     const s = e.sessions.find((x) => String(x.id) === el.dataset.channelGraphs);
-    if (s)
-      bindChannelGraphs(el, s.channels, s.laps, {
-        // Sector splits + theoretical best for the highlighted laps on the
-        // Time tab, the session's shift points on Inputs.
-        renderExtras: (lit, dispN) => ({
-          time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
-          inputs: shiftTableHtml(s.channels),
-        }),
-        // The gear ribbon rides under the RPM trace (#187), where each shift
-        // is the drop in the sawtooth above it.
-        renderAfter: { rpm: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
-      });
+    if (!s) return;
+    bindChannelGraphs(el, s.channels, s.laps, {
+      // Sector splits + theoretical best for the highlighted laps on the
+      // Time tab, the session's shift points on Inputs, and the friction
+      // circle above the lateral-G trace on Grip (#186) — a square scatter,
+      // so it gets its own container rather than a slot on the distance axis.
+      renderExtras: (lit, dispN) => ({
+        time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+        inputs: shiftTableHtml(s.channels),
+        grip: gripCircleHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+      }),
+      // The gear ribbon rides under the RPM trace (#187), where each shift
+      // is the drop in the sawtooth above it.
+      renderAfter: { rpm: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
+    });
+    // Hovering a point on the friction circle answers "which corner": the
+    // distance is marked on every chart that has a distance axis, and — when
+    // this session owns the best-lap trace and the hovered lap is the one the
+    // trace was drawn from — the place is ringed on the map.
+    bindGripCircle(el, s.channels, {
+      onHover: (hit) => {
+        showDistanceMark(el, hit?.d ?? null);
+        if (!trackMap || traceSession.id !== s.id) return;
+        trackMap.setHighlight(
+          hit && hit.chIdx === traceBestChIdx ? traceIndexAtFraction(traceSession.trace, hit.frac) : null
+        );
+      },
+    });
   });
 
   view.querySelectorAll("[data-del-session]").forEach((btn) => {

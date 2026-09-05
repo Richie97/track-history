@@ -654,14 +654,41 @@ Thresholds (slip beyond ±2 %) are display semantics, named constants in
 `public/js/limits.js`, ported as `Limits` and pinned for both native clients
 by `contracts/logic/limits.json`.
 
+The same imports' `latG` and `longG` become the **friction circle** on the
+*Grip* tab. Neither channel says much alone — a longitudinal-G trace is the
+brake trace with extra steps — but plotted against each other they show how
+much of the tyre is actually being used: every 20 m sample of the highlighted
+laps as a point on a square axis (braking down, power up, cornering to the
+sides) over a dim envelope of the session's other laps, with a dashed
+reference arc at the session's own peak combined G. That arc is the **99th
+percentile, not the maximum**, so one kerb strike doesn't set the envelope for
+the day. Brake in a straight line, turn, then accelerate and the points draw a
+cross; trail the brake in and feed the power out and they fill the circle —
+the empty space between the two is the lost time, and unlike a delta trace it
+says what to do differently rather than only where. Underneath, a read-out
+puts numbers on it: the share of the samples where the tyre was actually
+working (0.3 G combined or more) spent cornering *while* braking and cornering
+*while* on the power, per highlighted lap and pooled for the session — two
+figures that trend across a day. Hovering a point marks that distance on every
+chart that has a distance axis and rings the place on the best-lap track map
+(the trace is the best lap only, so only that lap's points are placed), which
+is what makes a dot answer "which corner". Two honesty notes are built in: the
+stored `latG` is a magnitude — `pdr.js` stores the absolute lateral
+acceleration — so left and right come from the sign of the steering trace and
+a lap that stored no steering plots on one side; and the 20 m grid smooths
+peaks (about 0.3 s at 250 km/h), so the picture is the *shape* of grip usage
+rather than peak G, which is what the session's max lateral and braking G
+figures are for. `public/js/grip.js`; web first, and not pinned in
+`contracts/logic/` until a port exists.
+
 The panel is organised as **one question per tab** rather than a stack of
 sections: *Time* (the delta chart, the sector table and the speed trace),
 *Inputs* (throttle, brake, steering, RPM, the gear ribbon and shift points)
-and *Grip* (lateral G), with a *Car* tab reserved for the per-lap scalars
-once they are drawn; only tabs with content render, and a session with one
-populated tab renders flat. All of it — the tabs, the ribbon, the shift
-points, the limit marks and their bands — is on the web app and both phone
-apps.
+and *Grip* (the friction circle and the lateral-G trace), with a *Car* tab
+reserved for the per-lap scalars once they are drawn; only tabs with content
+render, and a session with one populated tab renders flat. The tabs, the
+ribbon, the shift points and the limit marks and their bands are on the web
+app and both phone apps; the friction circle is web-first and web-only so far.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.

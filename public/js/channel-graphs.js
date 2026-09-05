@@ -238,6 +238,38 @@ export function matchLapsToChannels(sessionLaps, chLaps) {
   });
 }
 
+// A vertical mark at one driven distance across every chart in `root` — the
+// friction circle's hover (js/grip.js) uses it to answer "where on the lap is
+// this dot" on the charts that do have a distance axis. Passing null clears
+// it. Reads the axis geometry back off the data attributes every chart
+// already carries, so it needs to know nothing about how they were drawn.
+export function showDistanceMark(root, d) {
+  root.querySelectorAll("svg[data-channel]").forEach((svgEl) => {
+    let line = svgEl.querySelector(".ch-dmark");
+    if (d == null) {
+      line?.remove();
+      return;
+    }
+    const x1 = Number(svgEl.dataset.x1) || 1;
+    const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
+    const vb = svgEl.viewBox.baseVal;
+    const x = padL + Math.max(0, Math.min(1, d / x1)) * (vb.width - padL - padR);
+    if (!line) {
+      line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "ch-dmark");
+      line.setAttribute("stroke", "var(--text-faint)");
+      line.setAttribute("stroke-width", "1.5");
+      line.setAttribute("stroke-dasharray", "3 3");
+      line.setAttribute("pointer-events", "none");
+      svgEl.appendChild(line);
+    }
+    line.setAttribute("x1", x.toFixed(1));
+    line.setAttribute("x2", x.toFixed(1));
+    line.setAttribute("y1", "0");
+    line.setAttribute("y2", String(vb.height));
+  });
+}
+
 // The panel's tabs (epic #193): one question per tab, so the analysis area
 // holds more views without becoming a page nobody scrolls to the bottom of.
 // A chart lands on the tab its channel answers for; only tabs with content

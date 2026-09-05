@@ -647,6 +647,20 @@ button.ch-chip.on { background: var(--surface-raised); }
 .ch-shifts table td, .ch-shifts table th { padding: 9px 12px; white-space: nowrap; }
 .ch-shifts td.shift-med { color: var(--text-strong); font-weight: var(--weight-semibold); }
 .ch-shifts .shift-notes { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 8px; display: grid; gap: 4px; }
+/* Friction circle (js/grip.js): a square scatter, so it is capped rather than
+   stretched to the panel width — a circle has to look like a circle. */
+.ch-grip { margin: 12px 0 4px; }
+.ch-grip .sec-head { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 8px; }
+.ch-grip .sec-head .hint { color: var(--text-faint); }
+.ch-grip .grip-plot { max-width: 460px; margin: 0 auto 12px; }
+.ch-grip .grip-svg { display: block; width: 100%; height: auto; }
+.ch-grip .grip-svg circle[data-gk] { transition: none; }
+@media (hover: hover) { .ch-grip .grip-svg circle[data-gk]:hover { fill-opacity: 1; r: 4; } }
+.ch-grip table td, .ch-grip table th { padding: 9px 12px; white-space: nowrap; }
+.ch-grip td .dot { display: inline-block; width: 9px; height: 9px; border-radius: var(--radius-pill); vertical-align: middle; margin-right: 2px; }
+.ch-grip tr.sec-theo td { color: var(--text-muted); font-style: italic; }
+.ch-grip tr.sec-theo td.num { color: var(--text-strong); font-style: normal; }
+.ch-grip .hint { margin-top: 8px; }
 .add-laps-input {
   flex: 1; min-width: 200px; padding: 10px 14px;
   border: 1px solid var(--border-hairline); border-radius: var(--radius-md);
