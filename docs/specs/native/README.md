@@ -177,7 +177,8 @@ Features added after the rewrite shipped, and where they landed:
   sign alignment is *measured* per session (`yawSign`), never assumed; and
   readings are per corner, never per sample, because yaw lags steering on
   entry and leads it on exit. If this graduates past the relative version,
-  wheelbase and steering ratio belong on the garage's vehicle record.
+  wheelbase and steering ratio belong on the garage's vehicle record —
+  [#208](https://github.com/Richie97/track-history/issues/208) is that ticket.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and
