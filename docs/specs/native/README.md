@@ -182,7 +182,7 @@ Features added after the rewrite shipped, and where they landed:
 - **Session health strip**
   ([#190](https://github.com/Richie97/track-history/issues/190), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))
-  — shipped **web first**, the strip destined for **all three** and the
+  — shipped **web first**, and the strip is now on **all three**, with the
   setup-sheet loop **web-only**. The panel's Car tab, finally filled: the
   fourteen per-lap scalars plus per-lap peak boost as small multiples (a card
   per figure with the session's number by that channel's own rule and a
@@ -190,11 +190,20 @@ Features added after the rewrite shipped, and where they landed:
   vocabulary rather than alarms, the cross-corner tyre spread per lap, fuel
   burn and laps remaining, and a per-lap table; the stats line names any
   figure past its line and the fuel outlook. The pure half is
-  `public/js/health.js`, written to port under the same names (`HEALTH_DEFS`,
-  `lapValue`, `healthStatus`, `sessionHealth`, `tyreSpread`, `fuelBurn`,
-  `hotPressures`, `suggestCold`, `pressureLoop`, `healthSummary`) and pinned
-  in `contracts/logic/` when the first port lands, as the friction circle
-  was. Three decisions a port inherits: the reduction is the importer's
+  `public/js/health.js`, ported as `Health` to the Kit
+  (`Analysis/Health.swift`) and `:core` (`Health.kt`) under the same names
+  (`HEALTH_DEFS`, `lapValue`, `healthStatus`, `sessionHealth`, `tyreSpread`,
+  `fuelBurn`, `hotPressures`, `suggestCold`, `healthSummary`) and pinned by
+  `contracts/logic/health.json`; the drawing is per platform
+  (`healthStripHtml` / `HealthStrip.swift` / `HealthStrip.kt`). `pressureLoop`
+  is the one function with no counterpart: it takes a setup sheet, and the
+  notebook is web-only — the arithmetic under it (`hotPressures`,
+  `suggestCold`) ports so the hot pressures on the strip are the same numbers.
+  Two layout decisions differ on a phone and are stated in both ports: the
+  web's **per-lap table is absent** (fifteen columns is a desk layout, and the
+  sparkline plus the session figure is the same question answered in the width
+  available), and the cards go two to a row rather than in an auto-filling
+  grid. Three decisions a port inherits: the reduction is the importer's
   (`SCALAR_NAMES`), restated only so the view can say "peak" / "min" / "at
   lap end" — the one derivation is boost's per-lap peak off the trace; both
   threshold bounds are inclusive and a floor (`low: true`) shades below its

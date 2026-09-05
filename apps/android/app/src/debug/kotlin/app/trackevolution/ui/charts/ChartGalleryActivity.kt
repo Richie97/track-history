@@ -186,6 +186,23 @@ private val gallerySession = SessionChannels(
                 val wave = 0.5 + 0.5 * sin(k / 9.0 + n)
                 if (k % 37 == 18) 0.0 else (2 + (wave * 3).toInt()).toDouble()
             },
+            // The per-lap scalars the Car tab reads (#190): oil climbing past its
+            // line by the last lap, fuel draining, and a tyre spread that is a
+            // camber question rather than noise.
+            oilC = 112 + n * 6.0,
+            oilKpa = 330 - n * 30.0,
+            coolantC = 98 + n * 5.0,
+            transC = 92 + n * 7.0,
+            fuelPct = 78 - n * 11.0,
+            battV = 13.7 - n * 0.3,
+            tyreKpaLF = 212 + n * 8.0,
+            tyreKpaRF = 208 + n * 7.0,
+            tyreKpaLR = 204 + n * 6.0,
+            tyreKpaRR = 203 + n * 6.0,
+            tyreCLF = 80 + n * 8.0,
+            tyreCRF = 72 + n * 6.0,
+            tyreCLR = 67 + n * 5.0,
+            tyreCRR = 65 + n * 5.0,
             // Wheelspin on the exits, lockup into the braking zones.
             wheelSlip = (0 until 150).map { 5.0 * sin(it / 9.0 + n) },
             // ABS under braking, traction control on a couple of exits.

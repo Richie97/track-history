@@ -41,6 +41,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
+import app.trackevolution.core.Health
 import app.trackevolution.core.ChartScale
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
@@ -107,7 +108,7 @@ fun LapChannelChart(
     // One question per tab (epic #193). Only populated tabs are offered, and a
     // single one renders flat — a tab bar with one tab in it is a control that
     // does nothing. Survives rotation for the same reason the selection does.
-    val tabs = PanelTab.entries.filter { it.hasContent(present) }
+    val tabs = PanelTab.entries.filter { it.hasContent(present, channels) }
     var tab by rememberSaveable(channels) { mutableStateOf(tabs.firstOrNull() ?: PanelTab.TIME) }
     // A selection that empties the current tab must not leave the panel blank.
     val shown = if (tab in tabs) tab else tabs.firstOrNull() ?: PanelTab.TIME
@@ -160,7 +161,9 @@ fun LapChannelChart(
                 // nothing unless the session stored yaw, steering and speed.
                 BalanceScatter(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
             }
-            PanelTab.CAR -> Unit
+            // The session health strip (#190): what the car was doing while you
+            // drove it, which is the other half of a track day.
+            PanelTab.CAR -> HealthStrip(channels = channels, lit = lit, slots = slots)
         }
 
         for (channel in present.filter { PanelTab.of(it) == shown }) {
@@ -193,8 +196,18 @@ enum class PanelTab(val label: String) {
     fun hasContent(present: List<ChannelGraphs.Channel>): Boolean = when (this) {
         TIME -> true
         INPUTS, GRIP -> present.any { of(it) == this }
+        // The per-lap scalars (#190). A session of hand-entered laps carries
+        // none, and the tab is then absent rather than empty.
         CAR -> false
     }
+
+    /**
+     * Whether this tab has anything to show for a session, given the stored
+     * channels as well as the charted ones — the Car tab is filled by the
+     * per-lap scalars, which are not charted channels.
+     */
+    fun hasContent(present: List<ChannelGraphs.Channel>, channels: SessionChannels): Boolean =
+        if (this == CAR) Health.sessionHealth(channels) != null else hasContent(present)
 
     companion object {
         /** Which tab a channel's chart lands on — `TAB_OF` in the JS. */

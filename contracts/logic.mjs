@@ -73,6 +73,27 @@ import {
   yawSign,
 } from "../public/js/balance.js";
 import {
+  HEALTH_DEFS,
+  HEALTH_GROUPS,
+  TYRE_CORNERS,
+  defFor,
+  displayDelta,
+  displayValue,
+  fuelBurn,
+  hasHealthData,
+  healthLaps,
+  healthStatus,
+  healthSummary,
+  hotPressures,
+  lapValue,
+  roundPsi,
+  scalarSeries,
+  sessionHealth,
+  sessionSpread,
+  suggestCold,
+  tyreSpread,
+} from "../public/js/health.js";
+import {
   alignLapPair,
   comparableLaps,
   defaultComparePicks,
@@ -797,6 +818,201 @@ const balanceFixture = {
 };
 
 // ---------------------------------------------------------------------------
+// Session health (#190): public/js/health.js. What is worth pinning: the
+// reduction per column (the importer's own rule — a peak, a minimum, or the
+// value at lap end — restated, never re-derived), the one derivation (boost's
+// per-lap peak off the gridded trace), both threshold bounds at their exact
+// values *and* the floor columns whose hazard is below the line rather than
+// above it (a port that spells one `>=` where a `<=` belongs shades the wrong
+// half of the session), the cross-corner spread that needs all four corners,
+// the fuel median over drops with a refuel skipped, and the wording of the
+// stats line in both unit systems — the numbers are stored units, the words
+// are not.
+const healthFull = {
+  n: 1,
+  timeMs: 118_000,
+  // Everything inside its lines: this lap must contribute no status.
+  oilC: 104,
+  coolantC: 96,
+  transC: 88,
+  oilKpa: 340,
+  fuelPct: 62,
+  battV: 13.8,
+  tyreKpaLF: 214,
+  tyreKpaRF: 210,
+  tyreKpaLR: 206,
+  tyreKpaRR: 205,
+  tyreCLF: 78,
+  tyreCRF: 71,
+  tyreCLR: 66,
+  tyreCRR: 64,
+  // A gridded trace, not a scalar: its per-lap peak is the only figure this
+  // module derives.
+  boost: [12, 88, 141.5, 96, 33],
+};
+// Exactly on the lines, which is the case a port gets wrong: oil temp at
+// `watch`, oil pressure at `watch`, battery at `over`, fuel at `over`.
+const healthEdge = {
+  n: 2,
+  timeMs: 117_400,
+  oilC: 120,
+  coolantC: 110,
+  oilKpa: 200,
+  fuelPct: 10,
+  battV: 12.5,
+  tyreKpaLF: 231,
+  tyreKpaRF: 228,
+  tyreKpaLR: 219,
+  tyreKpaRR: 214,
+  tyreCLF: 96,
+  tyreCRF: 84,
+  tyreCLR: 71,
+  tyreCRR: 70,
+  boost: [40, 152, 120],
+};
+// Past every line, and the session's worst case for each: the extreme is the
+// maximum for a peak and the *minimum* for a floor, so a port that takes one
+// max for everything reports this lap's oil pressure as fine.
+const healthHot = {
+  n: 3,
+  timeMs: 119_900,
+  oilC: 134,
+  coolantC: 122,
+  transC: 128,
+  oilKpa: 110,
+  fuelPct: 41,
+  battV: 12.2,
+  tyreKpaLF: 244,
+  tyreKpaRF: 236,
+  tyreKpaLR: 225,
+  tyreKpaRR: 221,
+  tyreCLF: 108,
+  tyreCRF: 92,
+  tyreCLR: 77,
+  tyreCRR: 75,
+};
+// Three corners and a guess is not a spread, so `tyreSpread` must refuse it.
+const healthPartial = { n: 4, timeMs: 120_500, oilC: 118, tyreCLF: 90, tyreCRF: 82, tyreCLR: 70 };
+// A hand-entered lap: no health figure at all, so it never reaches the strip.
+const healthBare = { n: 5, timeMs: 121_000, speed: [80, 90, 100] };
+const healthChannels = {
+  v: 1,
+  dStepM: 20,
+  laps: [healthFull, healthEdge, healthHot, healthPartial, healthBare],
+};
+// Fuel: one refuel (an increase between laps) that must be skipped rather than
+// counted as a negative drop, and enough real drops to clear MIN_FUEL_DROPS.
+const fuelLap = (n, fuelPct) => ({ n, timeMs: 118_000, fuelPct });
+const healthFuelChannels = {
+  v: 1,
+  dStepM: 20,
+  laps: [fuelLap(1, 80), fuelLap(2, 68), fuelLap(3, 57), fuelLap(4, 95), fuelLap(5, 84)],
+};
+// Exactly MIN_FUEL_DROPS − 1 drops: one lap's noise is not a burn rate.
+const healthOneDropChannels = { v: 1, dStepM: 20, laps: [fuelLap(1, 50), fuelLap(2, 42)] };
+// A single lap of fuel left, so the sentence has to read "1 lap", not "1 laps".
+const healthLastLapChannels = {
+  v: 1,
+  dStepM: 20,
+  laps: [fuelLap(1, 30), fuelLap(2, 20), fuelLap(3, 10)],
+};
+const healthFixture = {
+  description:
+    "Session-health reference output from public/js/health.js (lapValue / " +
+    "healthStatus / sessionExtreme / sessionHealth / tyreSpread / sessionSpread / " +
+    "fuelBurn / hotPressures / roundPsi / suggestCold / displayValue / " +
+    "displayDelta / healthSummary). Values are the stored units (°C, kPa, V, %); " +
+    "only the display helpers convert. Ports must reproduce the wording exactly " +
+    "and the doubles to 1e-9. Regenerate with `npm run contracts:logic`.",
+  source: "public/js/health.js",
+  input: {
+    channels: healthChannels,
+    fuelChannels: healthFuelChannels,
+    oneDropChannels: healthOneDropChannels,
+    lastLapChannels: healthLastLapChannels,
+    // The columns a port must know about, in display order, so a port that
+    // drops one or reorders them fails here rather than on a screen.
+    defs: HEALTH_DEFS,
+    groups: HEALTH_GROUPS,
+    corners: TYRE_CORNERS,
+    // Values either side of both lines for a peak column (oil temp) and a
+    // floor column (oil pressure), plus the exact bounds.
+    statusProbes: [
+      ["oilC", 119.9],
+      ["oilC", 120],
+      ["oilC", 129.9],
+      ["oilC", 130],
+      ["oilKpa", 200.1],
+      ["oilKpa", 200],
+      ["oilKpa", 120.1],
+      ["oilKpa", 120],
+      ["tyreCLF", 300],
+    ],
+    psiProbes: [34.2, 34.25, 34.26, 34.75, -0.3],
+    suggestProbes: [
+      [31, 36, 34],
+      [30, 30, 34],
+      [31.4, 36.9, 34],
+      [null, 36, 34],
+      [31, 36, null],
+    ],
+  },
+  expected: {
+    // The importer's rule per column, and the one derived figure.
+    lapValues: HEALTH_DEFS.map((d) => [d.key, lapValue(healthFull, d.key), lapValue(healthPartial, d.key)]),
+    boostPeak: lapValue(healthFull, "boost"),
+    noBoost: lapValue(healthHot, "boost"),
+    hasData: healthChannels.laps.map((l) => hasHealthData(l)),
+    healthLaps: healthLaps(healthChannels).map((l) => l.chIdx),
+    series: scalarSeries(healthChannels, "oilC"),
+    statuses: [
+      ["oilC", 119.9],
+      ["oilC", 120],
+      ["oilC", 129.9],
+      ["oilC", 130],
+      ["oilKpa", 200.1],
+      ["oilKpa", 200],
+      ["oilKpa", 120.1],
+      ["oilKpa", 120],
+      ["tyreCLF", 300],
+    ].map(([key, v]) => healthStatus(defFor(key), v)),
+    // The worst case per column: a max for a peak, a min for a floor.
+    session: sessionHealth(healthChannels),
+    spreadFull: tyreSpread(healthFull),
+    spreadPressures: tyreSpread(healthFull, "tyreKpa"),
+    spreadPartial: tyreSpread(healthPartial),
+    sessionSpread: sessionSpread(healthChannels),
+    fuel: fuelBurn(healthFuelChannels),
+    fuelOneDrop: fuelBurn(healthOneDropChannels),
+    hot: hotPressures(healthChannels),
+    noHot: hotPressures({ v: 1, dStepM: 20, laps: [healthBare] }),
+    roundPsi: [34.2, 34.25, 34.26, 34.75, -0.3].map(roundPsi),
+    suggestions: [
+      [31, 36, 34],
+      [30, 30, 34],
+      [31.4, 36.9, 34],
+      [null, 36, 34],
+      [31, 36, null],
+    ].map(([c, h, t]) => suggestCold(c, h, t)),
+    // Stored units in, both systems out — the numbers are pinned, the locale
+    // is not.
+    displayMetric: HEALTH_DEFS.map((d) => displayValue(d, 100, "metric")),
+    displayUs: HEALTH_DEFS.map((d) => displayValue(d, 100, "us")),
+    // A temperature delta scales but must not offset: +10 °C is +18 °F, not 50.
+    deltaMetric: [displayDelta(defFor("tyreCLF"), 10, "metric"), displayDelta(defFor("tyreKpaLF"), 13.8, "metric")],
+    deltaUs: [displayDelta(defFor("tyreCLF"), 10, "us"), displayDelta(defFor("tyreKpaLF"), 13.8, "us")],
+    // Worst first, then the fuel outlook; the plural is a real case.
+    summaryMetric: healthSummary(healthChannels, "metric"),
+    summaryUs: healthSummary(healthChannels, "us"),
+    summaryFuelOnly: healthSummary(healthFuelChannels, "metric"),
+    summaryOneLap: healthSummary(healthLastLapChannels, "metric"),
+    summaryQuiet: healthSummary({ v: 1, dStepM: 20, laps: [healthFull] }, "metric"),
+    summaryNoData: healthSummary({ v: 1, dStepM: 20, laps: [healthBare] }, "metric"),
+    noData: sessionHealth({ v: 1, dStepM: 20, laps: [healthBare] }),
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Compare two laps (#165): the pure half of the cross-event lap comparison
 // (public/js/compare-laps.js). What is worth pinning: the picker flattening
 // (which rides on matchLapsToChannels, so hand-added laps drop out), the
@@ -1336,6 +1552,7 @@ writeFileSync(path.join(OUT_DIR, "limits.json"), JSON.stringify(limitsFixture, n
 writeFileSync(path.join(OUT_DIR, "grip.json"), JSON.stringify(gripFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "corners.json"), JSON.stringify(cornersFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "balance.json"), JSON.stringify(balanceFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "health.json"), JSON.stringify(healthFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
@@ -1359,6 +1576,10 @@ console.log(`wrote contracts/logic/corners.json (${cornersFixture.expected.sessi
 console.log(
   `wrote contracts/logic/balance.json (reference gain ${balanceFixture.expected.refGain.toFixed(5)}/m, ` +
     `"${balanceFixture.expected.summary}")`
+);
+console.log(
+  `wrote contracts/logic/health.json (${healthFixture.expected.session.columns.length} columns, ` +
+    `"${healthFixture.expected.summaryUs}")`
 );
 console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`

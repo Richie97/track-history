@@ -206,6 +206,11 @@ extension Session {
         if let channels, let balance = Balance.balanceSummary(channels) {
             parts.append(balance)
         }
+        // What the car was doing (`Health`, #190): any figure past its line and
+        // the fuel outlook; the cards themselves are on the panel's Car tab.
+        if let channels, let health = Health.healthSummary(channels, .us) {
+            parts.append(health)
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

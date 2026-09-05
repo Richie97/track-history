@@ -151,6 +151,16 @@ final class ChannelGraphsUITests: XCTestCase {
         )
         attach(app, named: "channel-graphs-balance")
 
+        // The Car tab (#190): the per-lap scalars as cards with sparklines, the
+        // tab that was reserved and empty until this session carried scalars.
+        app.buttons["Car"].tap()
+        let health = app.descendants(matching: .any)["healthStrip"]
+        XCTAssertTrue(
+            health.waitForExistence(timeout: 10),
+            "a session storing per-lap scalars fills the Car tab"
+        )
+        attach(app, named: "channel-graphs-health")
+
         app.buttons["Done"].tap()
         deleteEventFromMenu(app)
     }
@@ -242,7 +252,25 @@ final class ChannelGraphsUITests: XCTestCase {
                             "flags": (0..<120).map { k -> Double in
                                 let wave = sin(Double(k) / 9 + Double(index) * 0.15)
                                 return wave < -0.85 ? 1 : wave > 0.9 ? 2 : 0
-                            }
+                            },
+                            // The per-lap scalars the Car tab reads (#190). Oil
+                            // climbs past its line by the last lap and fuel drains,
+                            // so the strip has a shaded card and a fuel outlook
+                            // rather than three cards of flat numbers.
+                            "oilC": 118 + Double(index) * 8,
+                            "oilKpa": 320 - Double(index) * 20,
+                            "coolantC": 99 + Double(index) * 5,
+                            "transC": 94 + Double(index) * 6,
+                            "fuelPct": 74 - Double(index) * 12,
+                            "battV": 13.6 - Double(index) * 0.4,
+                            "tyreKpaLF": 214 + Double(index) * 9,
+                            "tyreKpaRF": 210 + Double(index) * 8,
+                            "tyreKpaLR": 205 + Double(index) * 7,
+                            "tyreKpaRR": 204 + Double(index) * 7,
+                            "tyreCLF": 82 + Double(index) * 9,
+                            "tyreCRF": 74 + Double(index) * 7,
+                            "tyreCLR": 68 + Double(index) * 6,
+                            "tyreCRR": 66 + Double(index) * 6
                         ] as [String: Any]
                     }
                 ],

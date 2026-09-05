@@ -34,6 +34,7 @@
 		4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A61B2645926992E00FFAD3 /* Shape.swift */; };
 		51CF45A0E84DE89AA15DB4D7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF43C9F27E545AD049BEA61F /* Router.swift */; };
 		5A671EFFAC149837963BCEBF /* TelemetryImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D8720DD4F67BA47FB3A473 /* TelemetryImporter.swift */; };
+		5E2DF50080E0F859027298D5 /* HealthStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509BAD79B4D55C79C15FE517 /* HealthStrip.swift */; };
 		5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6588990892F4B703C72631 /* RootView.swift */; };
 		5F8BC0ED3060AC991BAB71F8 /* TrackEvolutionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5F2EDF1C9FC56FC64FA6AD /* TrackEvolutionKit */; };
 		66499C8CFD338E62777C4FFE /* GestureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */; };
@@ -105,6 +106,7 @@
 		490360DEB9D237C16354DD63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		497D4C7291EC82131207C136 /* TelemetryFileSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryFileSource.swift; sourceTree = "<group>"; };
 		4F2186F17C307D76064E1F95 /* TrackEvolution.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrackEvolution.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		509BAD79B4D55C79C15FE517 /* HealthStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthStrip.swift; sourceTree = "<group>"; };
 		53A61B2645926992E00FFAD3 /* Shape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shape.swift; sourceTree = "<group>"; };
 		55E9244DD52E774CD4AC9340 /* Configuration.storekit */ = {isa = PBXFileReference; path = Configuration.storekit; sourceTree = "<group>"; };
 		56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
@@ -302,6 +304,7 @@
 				1DC13C54663EDFA0871181F8 /* BalanceScatter.swift */,
 				B94370814D6F989DAC6AD7C6 /* FrictionCircle.swift */,
 				38AB86A8712481673EF47E74 /* GearRibbon.swift */,
+				509BAD79B4D55C79C15FE517 /* HealthStrip.swift */,
 				C11E4CD1582ACC54710F446D /* LapChannelChart.swift */,
 				8625F0FCAC350699C111D37A /* LimitLegend.swift */,
 				41D9EC7D2504A9022D639B5C /* ProgressChart.swift */,
@@ -488,6 +491,7 @@
 				43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */,
 				76E50E777D717D9432F654F9 /* GearRibbon.swift in Sources */,
 				444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */,
+				5E2DF50080E0F859027298D5 /* HealthStrip.swift in Sources */,
 				449B69CF28F00455EFE6F6DA /* ImportScreen.swift in Sources */,
 				8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */,
 				E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */,
