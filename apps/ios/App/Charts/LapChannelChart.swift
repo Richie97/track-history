@@ -183,7 +183,15 @@ struct LapChannelPanel: View {
             case .inputs:
                 // The session's shift points (#187) above the traces they explain.
                 ShiftTable(channels: channels)
-            case .grip, .car:
+            case .grip:
+                // The friction circle (#186) above the lateral-G trace it
+                // summarises. It draws nothing unless the session stored longG
+                // too, so a source with only lateral G still gets its trace.
+                FrictionCircle(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:)
+                )
+            case .car:
                 EmptyView()
             }
             ForEach(present.filter { Self.tab(of: $0) == tabKey }, id: \.self) { channel in
@@ -713,6 +721,10 @@ extension LapChannelChart {
                 let throttle: [Double] = wave.map { v in max(0, v) * 100 }
                 let brake: [Double] = wave.map { v in max(0, -v) * 100 }
                 let steering: [Double] = (0..<120).map { k in cos(Double(k) / 9 + phase) * 120 }
+                // Longitudinal G a quarter turn out of phase with the cornering
+                // — braking into the corners, power out of them — so the
+                // friction circle fills rather than drawing a cross (#186).
+                let longG: [Double] = wave.map { v in v * 1.3 }
                 // Gear steps with the speed wave, dropping to 0 through one
                 // shift — the clutch-in gap the ribbon has to draw as a gap.
                 let gear: [Double] = wave.enumerated().map { k, v in
@@ -726,7 +738,7 @@ extension LapChannelChart {
                 }
                 return LapChannels(
                     n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG,
-                    throttle: throttle, brake: brake, steering: steering,
+                    throttle: throttle, brake: brake, steering: steering, longG: longG,
                     gear: gear, wheelSlip: wheelSlip, flags: flags
                 )
             }

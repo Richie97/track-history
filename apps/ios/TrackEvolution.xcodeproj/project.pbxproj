@@ -18,6 +18,7 @@
 		2AE133FCAF4C715B3E33AFC8 /* RemoteRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069CAEC52E0E9C81C22DC8C8 /* RemoteRecorder.swift */; };
 		2B296B48C5EA86083A5DE11F /* TrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */; };
 		2D35025A70FD15F566175D84 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC94F085162A76DECDFA4087 /* AppServices.swift */; };
+		32D05A0ACA64F77EADA631B6 /* FrictionCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94370814D6F989DAC6AD7C6 /* FrictionCircle.swift */; };
 		34446D1A60916C974D7DCF59 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB943307051525CEC527B23 /* Typography.swift */; };
 		397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */; };
 		43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE19F08670203224D23A5F6F /* GarageViews.swift */; };
@@ -132,6 +133,7 @@
 		B3FF04EE56EF96EE2E8F5283 /* PaywallSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheet.swift; sourceTree = "<group>"; };
 		B4630A11194CA0906744BD96 /* TrackEvolutionUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrackEvolutionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B84545EEFA513CC785A84F2E /* RecordingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingScreen.swift; sourceTree = "<group>"; };
+		B94370814D6F989DAC6AD7C6 /* FrictionCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrictionCircle.swift; sourceTree = "<group>"; };
 		BB900AB8D4C1B65D30BBF43A /* StoreController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreController.swift; sourceTree = "<group>"; };
 		BC08E6DAFEE98F1569066E49 /* TokenGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenGallery.swift; sourceTree = "<group>"; };
 		BEB943307051525CEC527B23 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
@@ -295,6 +297,7 @@
 		E0D236F11D520CECDCCB8AF4 /* Charts */ = {
 			isa = PBXGroup;
 			children = (
+				B94370814D6F989DAC6AD7C6 /* FrictionCircle.swift */,
 				38AB86A8712481673EF47E74 /* GearRibbon.swift */,
 				C11E4CD1582ACC54710F446D /* LapChannelChart.swift */,
 				8625F0FCAC350699C111D37A /* LimitLegend.swift */,
@@ -477,6 +480,7 @@
 				0B42C235850422B2C6BF0737 /* EventModel.swift in Sources */,
 				68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */,
 				D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */,
+				32D05A0ACA64F77EADA631B6 /* FrictionCircle.swift in Sources */,
 				43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */,
 				76E50E777D717D9432F654F9 /* GearRibbon.swift in Sources */,
 				444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */,
