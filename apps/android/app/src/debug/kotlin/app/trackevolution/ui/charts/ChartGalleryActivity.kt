@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.Limits
 import app.trackevolution.core.TracePoint
 import app.trackevolution.core.TraceSample
 import app.trackevolution.core.model.Lap
@@ -115,28 +116,17 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
         Text("Trackmap — speed ramp", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
         TrackMap(trace = lapTrace)
 
-        Text("Lap overlay", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-        LapChannelChart(
-            channels = SessionChannels(
-                v = 1,
-                dStepM = 20.0,
-                laps = (1..5).map { n ->
-                    LapChannels(
-                        n = n,
-                        timeMs = 123_000 - n * 400,
-                        speed = (0 until 150).map { 60 + 90 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
-                        rpm = (0 until 150).map { 3000 + 3500 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
-                        latG = (0 until 150).map { 1.1 * sin(it / 4.5 + n) },
-                        // Pedals trade off against each other (0–100%), the
-                        // steering trace is signed degrees around zero.
-                        throttle = (0 until 150).map { 100 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
-                        brake = (0 until 150).map { 100 * (0.5 - 0.5 * sin(it / 9.0 + n)) },
-                        steering = (0 until 150).map { 180 * sin(it / 4.5 + n) },
-                    )
-                },
-            ),
-            laps = (1..5).map { Lap(id = it, sessionId = 1, lapNum = it, timeMs = 123_000 - it * 400) },
+        Text(
+            "Trackmap — limit marks (#188)",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
         )
+        val markers = Limits.limitMarkers(gallerySession.laps[0], gallerySession.dStepM, lapTrace)
+        TrackMap(trace = lapTrace, markers = markers)
+        LimitLegend(markers, Modifier.padding(top = 6.dp))
+
+        Text("Lap overlay", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+        LapChannelChart(channels = gallerySession, laps = galleryLaps)
 
         Text(
             "Line picker — 20,000 fixes (drag/pinch to profile)",
@@ -157,6 +147,50 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
         )
     }
 }
+
+/**
+ * Five laps carrying every gridded channel the panel draws, including the three
+ * that only a PDR import produces — `gear`, `wheelSlip` and the ABS/TC/VSC
+ * `flags` bitfield (#187, #188), so the gear ribbon, the shift table, the limit
+ * bands and the map's marks all have something to draw on the bench.
+ */
+private val gallerySession = SessionChannels(
+    v = 1,
+    dStepM = 20.0,
+    laps = (1..5).map { n ->
+        LapChannels(
+            n = n,
+            timeMs = 123_000 - n * 400,
+            speed = (0 until 150).map { 60 + 90 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
+            rpm = (0 until 150).map { 3000 + 3500 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
+            latG = (0 until 150).map { 1.1 * sin(it / 4.5 + n) },
+            // Pedals trade off against each other (0–100%), the steering trace
+            // is signed degrees around zero.
+            throttle = (0 until 150).map { 100 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
+            brake = (0 until 150).map { 100 * (0.5 - 0.5 * sin(it / 9.0 + n)) },
+            steering = (0 until 150).map { 180 * sin(it / 4.5 + n) },
+            // Gear steps with the speed wave and drops to 0 through one shift,
+            // which is the clutch-in gap the ribbon has to draw as a gap.
+            gear = (0 until 150).map { k ->
+                val wave = 0.5 + 0.5 * sin(k / 9.0 + n)
+                if (k % 37 == 18) 0.0 else (2 + (wave * 3).toInt()).toDouble()
+            },
+            // Wheelspin on the exits, lockup into the braking zones.
+            wheelSlip = (0 until 150).map { 5.0 * sin(it / 9.0 + n) },
+            // ABS under braking, traction control on a couple of exits.
+            flags = (0 until 150).map { k ->
+                val wave = sin(k / 9.0 + n)
+                when {
+                    wave < -0.85 -> Limits.FLAG_ABS.toDouble()
+                    wave > 0.9 -> Limits.FLAG_TC.toDouble()
+                    else -> 0.0
+                }
+            },
+        )
+    },
+)
+
+private val galleryLaps = (1..5).map { Lap(id = it, sessionId = 1, lapNum = it, timeMs = 123_000 - it * 400) }
 
 /** A closed circuit with a couple of corners, in projected metres. */
 private fun syntheticTrace(n: Int): List<TracePoint> = (0 until n).map { i ->

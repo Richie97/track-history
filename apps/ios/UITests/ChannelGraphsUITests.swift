@@ -26,17 +26,30 @@ final class ChannelGraphsUITests: XCTestCase {
     }
 
     override func tearDown() {
+        // A safety net for a test that failed before it got to the in-app delete,
+        // so it must not assert: on the happy path the event is already gone and
+        // this 404s. `api` records a failure on any non-2xx, which is right for a
+        // seed and wrong for a best-effort cleanup.
         if let id = seededEventId {
-            _ = try? api("DELETE", "/api/events/\(id)")
+            deleteEventBestEffort(id)
             seededEventId = nil
         }
+    }
+
+    private func deleteEventBestEffort(_ id: Int) {
+        var request = URLRequest(url: URL(string: "\(Self.devServerURL)/api/events/\(id)")!)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 10
+        let done = expectation(description: "cleanup \(id)")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 15)
     }
 
     func testChannelGraphsOverlayLapsForAnImportedSession() throws {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
         try seedImportedSession()
 
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         // By name, not by identifier: every track card shares one identifier, and the
         // point of this test is to reach *our* track.
@@ -51,12 +64,23 @@ final class ChannelGraphsUITests: XCTestCase {
         XCTAssertTrue(event.waitForExistence(timeout: 15), "the track page should list the seeded event")
         event.tap()
 
-        let entry = app.buttons["channelGraphs"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 20), "an imported session offers the lap overlay")
-        scrollTo(entry, in: app)
-        // The row says which channels the session actually stored.
+        // The best lap's trace comes first on the page, carrying the limit marks
+        // and the legend that names them (#188).
+        let map = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", "marked where")
+        ).firstMatch
         XCTAssertTrue(
-            app.staticTexts["Speed · RPM · Lateral G vs distance"].exists,
+            scrollTo(map, in: app),
+            "the track map should say which systems fired on the best lap"
+        )
+        attach(app, named: "trace-limit-marks")
+
+        let entry = app.buttons["channelGraphs"]
+        XCTAssertTrue(scrollTo(entry, in: app), "an imported session offers the lap overlay")
+        // The row says which channels the session actually stored, in the order
+        // `CHANNEL_DEFS` fixes.
+        XCTAssertTrue(
+            app.staticTexts["Speed · Throttle · Brake · RPM · Lateral G vs distance"].exists,
             "the row should name the channels it has"
         )
         entry.tap()
@@ -64,9 +88,11 @@ final class ChannelGraphsUITests: XCTestCase {
         // A sheet of its own, not an expanding panel — see `LapChannelChart`.
         let speed = app.descendants(matching: .any)["Speed by driven distance, per lap"]
         XCTAssertTrue(speed.waitForExistence(timeout: 20), "the sheet draws the speed overlay")
-        XCTAssertTrue(
+        // One question per tab (#193): lateral G answers "how much grip", so it is
+        // a tab away rather than stacked under the speed trace.
+        XCTAssertFalse(
             app.descendants(matching: .any)["Lateral G by driven distance, per lap"].exists,
-            "and one chart per stored channel"
+            "the Grip channel should not be stacked under Time"
         )
         // The chips are the legend — a lap is never identified by color alone. Lap 2
         // is the fastest of the three seeded laps, so it starts highlighted.
@@ -88,6 +114,28 @@ final class ChannelGraphsUITests: XCTestCase {
         )
         attach(app, named: "channel-graphs-readout")
 
+        // One question per tab (#193): the driver inputs, the gear ribbon and the
+        // shift points are one tap away, not stacked under the speed trace.
+        let inputs = app.buttons["Inputs"]
+        XCTAssertTrue(inputs.exists, "a session with pedal traces offers the Inputs tab")
+        inputs.tap()
+        let ribbon = app.descendants(matching: .any)["gearRibbon"]
+        XCTAssertTrue(
+            ribbon.waitForExistence(timeout: 10),
+            "the gear ribbon draws under the RPM trace for a session that stored gear (#187)"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["shiftTable"].exists,
+            "and the shift points are tabulated above the traces"
+        )
+        attach(app, named: "channel-graphs-gears")
+
+        app.buttons["Grip"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["Lateral G by driven distance, per lap"].waitForExistence(timeout: 10),
+            "and one chart per stored channel, on the tab its question belongs to"
+        )
+
         app.buttons["Done"].tap()
         deleteEventFromMenu(app)
     }
@@ -95,7 +143,9 @@ final class ChannelGraphsUITests: XCTestCase {
     // MARK: - Seeding
 
     /// An event with one session carrying three laps of channel data, shaped like a
-    /// telemetry import: 120 points per lap on a 20 m grid, all three channels.
+    /// PDR telemetry import: 120 points per lap on a 20 m grid, the six charted
+    /// channels plus `gear`, `wheelSlip` and the ABS/TC/VSC `flags` bitfield, and a
+    /// GPS trace for the best lap so the map has limit marks to place (#187, #188).
     private func seedImportedSession() throws {
         let event = try api(
             "POST", "/api/events",
@@ -135,10 +185,37 @@ final class ChannelGraphsUITests: XCTestCase {
                             },
                             "latG": (0..<120).map { k in
                                 abs(cos(Double(k) / 9 + Double(index) * 0.15)) * 1.2
+                            },
+                            // The pedals trade off against each other, so the
+                            // Inputs tab has traces for the limit bands to shade.
+                            "throttle": (0..<120).map { k in
+                                max(0, sin(Double(k) / 9 + Double(index) * 0.15)) * 100
+                            },
+                            "brake": (0..<120).map { k in
+                                max(0, -sin(Double(k) / 9 + Double(index) * 0.15)) * 100
+                            },
+                            // Gear steps with the speed wave, dropping to 0 through
+                            // one shift — the clutch-in gap the ribbon draws as a gap.
+                            "gear": (0..<120).map { k -> Double in
+                                let wave = sin(Double(k) / 9 + Double(index) * 0.15)
+                                return k % 37 == 18 ? 0 : Double(2 + Int((wave + 1) / 2 * 3))
+                            },
+                            "wheelSlip": (0..<120).map { k in
+                                sin(Double(k) / 9 + Double(index) * 0.15) * 5
+                            },
+                            "flags": (0..<120).map { k -> Double in
+                                let wave = sin(Double(k) / 9 + Double(index) * 0.15)
+                                return wave < -0.85 ? 1 : wave > 0.9 ? 2 : 0
                             }
                         ] as [String: Any]
                     }
-                ]
+                ],
+                // A closed circuit in projected metres — `renderTrackMap`'s floor is
+                // ten points, and the marks are placed along its cumulative length.
+                "trace": (0..<80).map { k -> [Double] in
+                    let a = Double(k) / 80 * 2 * Double.pi
+                    return [cos(a) * 400, sin(a) * 250, 25 + 15 * sin(a * 2)]
+                }
             ]
         )
     }

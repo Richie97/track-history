@@ -3,8 +3,10 @@ package app.trackevolution.screens
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import app.trackevolution.core.Gears
 import app.trackevolution.core.LapStats
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Limits
 import app.trackevolution.core.Sectors
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
@@ -177,7 +179,15 @@ val Session.statsSummary: String?
         val sec = channels?.let { Sectors.sessionSectors(it) }
         val theoretical = sec?.takeIf { it.laps.size >= 2 && it.gapMs > 0 }
             ?.let { "theoretical best ${LapTime.fmtMs(it.theoreticalBestMs)}" }
-        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical)
+        // The typical upshift rpm across the session (`Gears`, #187); the
+        // per-gear breakdown sits in the channel panel's Inputs tab.
+        val upshifts = channels?.let { Gears.shiftPoints(it) }
+            ?.let { "upshifts ≈ ${Gears.fmtRpm(it.medianRpm.toDouble())} rpm" }
+        // Where the car hit its limit (`Limits`, #188), counted as places on
+        // track across the session. The marks themselves are on the best-lap
+        // trace and shaded on the pedal traces.
+        val limits = channels?.let { Limits.limitSummary(it) }
+        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical, upshifts, limits)
             .takeIf { it.isNotEmpty() }
             ?.joinToString(" · ")
     }

@@ -142,6 +142,10 @@ final class VideoImportUITests: XCTestCase {
     // MARK: - Helpers
 
     private func launchSignedIn(importing fixture: String, into eventId: Int) throws -> XCUIApplication {
+        // Import itself is free on every client, but this test walks through to the
+        // saved session's channel overlay, which is not — so the account is Pro for
+        // the same reason the shared `launchSignedIn` makes tier explicit.
+        try setDevTier(.pro)
         // `launchSignedIn` builds its own arguments, so the fixture goes on through
         // the environment the same way: UserDefaults reads launch arguments.
         let app = XCUIApplication()

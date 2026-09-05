@@ -29,7 +29,7 @@ struct LapChannelChart: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the delta chart shows where time is gained or lost vs the fastest.")
+                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
                 LapChannelPanel(channels: channels, laps: laps)
@@ -74,16 +74,129 @@ struct LapChannelPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             chips
-            // Sector splits + theoretical best for the highlighted laps (#146),
-            // above the charts as on the web.
-            SectorTable(channels: channels, lit: lit, slots: Self.slots, lapNumber: lapNumber(forLapIndex:))
-            deltaChart
-            ForEach(present, id: \.self) { channel in
-                channelChart(channel)
+            // One question per tab (epic #193). Only populated tabs are offered,
+            // and a single one renders flat — a tab bar with one tab in it is a
+            // control that does nothing.
+            let tabs = populatedTabs
+            if tabs.count > 1 {
+                tabBar(tabs)
+            }
+            ForEach(tabs, id: \.self) { tabKey in
+                if tabs.count == 1 || tabKey == selectedTab {
+                    tabContent(tabKey)
+                }
             }
         }
         .onAppear {
             if lit.isEmpty { lit = preselect ?? ChannelGraphs.initialSelection(matches) }
+        }
+    }
+
+    // MARK: - Tabs
+
+    /// The panel's tabs, in order — `TABS` in `public/js/channel-graphs.js`.
+    /// Car is reserved for the per-lap scalars (#190) and so draws nothing yet;
+    /// it is listed here so the two implementations stay diffable.
+    enum Tab: String, CaseIterable, Hashable {
+        case time, inputs, grip, car
+
+        var label: String {
+            switch self {
+            case .time: "Time"
+            case .inputs: "Inputs"
+            case .grip: "Grip"
+            case .car: "Car"
+            }
+        }
+    }
+
+    /// Which tab a channel's chart lands on — `TAB_OF` in the JS.
+    private static func tab(of channel: ChannelGraphs.Channel) -> Tab {
+        switch channel {
+        case .speed: .time
+        case .throttle, .brake, .steering, .rpm: .inputs
+        case .latG: .grip
+        }
+    }
+
+    @State private var tab: Tab?
+
+    /// The tab actually shown: the selection when it still has content, else the
+    /// first populated one — a lap selection that empties a tab must not leave
+    /// the panel blank.
+    private var selectedTab: Tab? {
+        let tabs = populatedTabs
+        if let tab, tabs.contains(tab) { return tab }
+        return tabs.first
+    }
+
+    private var populatedTabs: [Tab] {
+        Tab.allCases.filter { hasContent($0) }
+    }
+
+    private func hasContent(_ tabKey: Tab) -> Bool {
+        switch tabKey {
+        case .time:
+            return true // the sector table and the speed chart both live here
+        case .inputs, .grip:
+            return present.contains { Self.tab(of: $0) == tabKey }
+        case .car:
+            return false // reserved for the per-lap scalars (#190)
+        }
+    }
+
+    private func tabBar(_ tabs: [Tab]) -> some View {
+        HStack(spacing: 2) {
+            ForEach(tabs, id: \.self) { tabKey in
+                let on = tabKey == selectedTab
+                Button {
+                    tab = tabKey
+                    Haptics.select()
+                } label: {
+                    Text(tabKey.label)
+                        .teStyle(.sm)
+                        .foregroundStyle(on ? Color(.accentContrast) : Color(.textMuted))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(on ? Color(.accent) : .clear, in: .capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tabKey.label)
+                .accessibilityAddTraits(on ? [.isSelected] : [])
+            }
+        }
+        .padding(3)
+        .background(Color(.surfaceRaised), in: .capsule)
+        .overlay(Capsule().strokeBorder(Color(.borderHairline), lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("channelTabs")
+    }
+
+    @ViewBuilder
+    private func tabContent(_ tabKey: Tab) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            switch tabKey {
+            case .time:
+                // Sector splits + theoretical best for the highlighted laps (#146).
+                SectorTable(channels: channels, lit: lit, slots: Self.slots, lapNumber: lapNumber(forLapIndex:))
+                deltaChart
+            case .inputs:
+                // The session's shift points (#187) above the traces they explain.
+                ShiftTable(channels: channels)
+            case .grip, .car:
+                EmptyView()
+            }
+            ForEach(present.filter { Self.tab(of: $0) == tabKey }, id: \.self) { channel in
+                channelChart(channel)
+                // The gear ribbon rides under the RPM trace, where each shift is
+                // the drop in the sawtooth above it (#187).
+                if channel == .rpm {
+                    GearRibbon(
+                        channels: channels, lit: lit, slots: Self.slots,
+                        lapNumber: lapNumber(forLapIndex:)
+                    )
+                }
+            }
         }
     }
 
@@ -188,6 +301,13 @@ struct LapChannelPanel: View {
                 }
                 .chartYScale(domain: domain.low...domain.high)
                 .chartXScale(domain: 0...max(1, ChannelGraphs.distanceSpan(channel, in: channels)))
+                // Limit bands (#188) go in the *background* rather than as marks:
+                // a `RectangleMark` beside the lines would break the one
+                // homogeneous `ForEach` rule above, and these shade the plot
+                // rather than plotting anything.
+                .chartBackground { proxy in
+                    limitBands(channel, proxy: proxy)
+                }
                 .chartYAxis {
                     AxisMarks(values: .automatic(desiredCount: 3)) { value in
                         AxisGridLine().foregroundStyle(Color(.chartGrid))
@@ -228,6 +348,75 @@ struct LapChannelPanel: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(channel.label) by driven distance, per lap")
             .accessibilityValue(summary(channel))
+        }
+    }
+
+    // MARK: - Limit bands
+
+    /// Where the car was at its limit, shaded behind the trace that explains it
+    /// (#188): ABS and lockup on the brake chart, traction control and
+    /// wheelspin on the throttle, stability control on steering. One band per
+    /// highlighted lap, so the map, the panel and the session line tell one
+    /// story. Colour is by *kind*, not severity — a corner where traction
+    /// control cuts is a throttle problem and one where ABS cuts is a braking
+    /// problem, and the driver needs to know which.
+    @ViewBuilder
+    private func limitBands(_ channel: ChannelGraphs.Channel, proxy: ChartProxy) -> some View {
+        let kinds = Limits.LIMIT_KINDS.filter { $0.channel == channel }
+        if !kinds.isEmpty {
+            GeometryReader { geometry in
+                if let plotFrame = proxy.plotFrame {
+                    let plot = geometry[plotFrame]
+                    ForEach(bands(kinds), id: \.id) { band in
+                        if let x0 = proxy.position(forX: band.from), let x1 = proxy.position(forX: band.to) {
+                            Rectangle()
+                                .fill(Self.color(band.side).opacity(band.filled ? 0.22 : 0.12))
+                                .frame(width: max(1, x1 - x0), height: plot.height)
+                                .position(x: plot.minX + (x0 + x1) / 2, y: plot.midY)
+                        }
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// One shaded stretch of the distance axis.
+    private struct Band {
+        let id: String
+        let from: Double
+        let to: Double
+        let side: Limits.Side
+        let filled: Bool
+    }
+
+    private func bands(_ kinds: [Limits.Kind]) -> [Band] {
+        var out: [Band] = []
+        for chIdx in lit where channels.laps.indices.contains(chIdx) {
+            let entry = channels.laps[chIdx]
+            for run in Limits.limitRuns(entry) {
+                guard let kind = kinds.first(where: { $0.key == run.kind }) else { continue }
+                out.append(
+                    Band(
+                        id: "\(chIdx)-\(run.kind)-\(run.k0)",
+                        from: max(0, Double(run.k0) - 0.5) * channels.dStepM,
+                        to: (Double(run.k1) + 0.5) * channels.dStepM,
+                        side: kind.side,
+                        filled: kind.filled
+                    )
+                )
+            }
+        }
+        return out
+    }
+
+    /// A side's colour. Generated tokens, never a hex literal, and the map draws
+    /// from the same two so a mark and its band cannot disagree.
+    static func color(_ side: Limits.Side) -> Color {
+        switch side {
+        case .brake: Color(.limitBrake)
+        case .power: Color(.limitPower)
+        case .stability: Color(.textStrong)
         }
     }
 
@@ -463,7 +652,11 @@ struct LapChannelPanel: View {
             guard let v = ChannelGraphs.value(channel, lapIndex: chIdx, gridIndex: index, in: channels) else {
                 return nil
             }
-            return "L\(String(lapNumber(forLapIndex: chIdx))) \(fmtValue(v, channel))"
+            // What was active there, if anything (#188) — the read-out says "ABS"
+            // where the band is shaded, so the two never have to be matched by eye.
+            let active = Limits.activeLimitLabels(channels.laps[chIdx], index)
+            let suffix = active.isEmpty ? "" : " (\(active.joined(separator: ", ")))"
+            return "L\(String(lapNumber(forLapIndex: chIdx))) \(fmtValue(v, channel))\(suffix)"
         }
         let distance = ChannelGraphs.fmtDist(Double(index) * channels.dStepM)
         return values.isEmpty ? distance : "\(distance) · \(values.joined(separator: " · "))"
@@ -500,7 +693,10 @@ struct LapChannelPanel: View {
 extension LapChannelChart {
     /// The panel on synthetic data, for `-channelGraphs` (see `RootView`) and for
     /// previews. Shaped like a real import: three laps of a 2.4 km circuit on the
-    /// importer's 20 m grid, all six channels.
+    /// importer's 20 m grid, all six charted channels plus the three a PDR import
+    /// adds — `gear`, `wheelSlip` and the ABS/TC/VSC `flags` bitfield (#187,
+    /// #188) — so the gear ribbon, the shift table and the limit bands all have
+    /// something to draw.
     static var demoScreen: some View {
         let times = [118_400, 116_900, 117_600]
         let channels = SessionChannels(
@@ -517,9 +713,21 @@ extension LapChannelChart {
                 let throttle: [Double] = wave.map { v in max(0, v) * 100 }
                 let brake: [Double] = wave.map { v in max(0, -v) * 100 }
                 let steering: [Double] = (0..<120).map { k in cos(Double(k) / 9 + phase) * 120 }
+                // Gear steps with the speed wave, dropping to 0 through one
+                // shift — the clutch-in gap the ribbon has to draw as a gap.
+                let gear: [Double] = wave.enumerated().map { k, v in
+                    k % 37 == 18 ? 0 : Double(2 + Int((v + 1) / 2 * 3))
+                }
+                // Wheelspin on the exits, lockup into the braking zones; ABS
+                // under heavy braking and traction control on the hardest exits.
+                let wheelSlip: [Double] = wave.map { v in v * 5 }
+                let flags: [Double] = wave.map { v in
+                    v < -0.85 ? Double(Limits.FLAG_ABS) : v > 0.9 ? Double(Limits.FLAG_TC) : 0
+                }
                 return LapChannels(
                     n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG,
-                    throttle: throttle, brake: brake, steering: steering
+                    throttle: throttle, brake: brake, steering: steering,
+                    gear: gear, wheelSlip: wheelSlip, flags: flags
                 )
             }
         )

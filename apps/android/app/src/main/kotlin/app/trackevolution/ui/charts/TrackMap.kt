@@ -15,6 +15,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
@@ -23,9 +24,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChartScale
+import app.trackevolution.core.Limits
 import app.trackevolution.core.TraceMap
 import app.trackevolution.core.TracePoint
 import app.trackevolution.core.TraceSample
+import app.trackevolution.ui.theme.TrackColors
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.hypot
 import kotlin.math.min
@@ -47,6 +50,12 @@ import kotlin.math.roundToInt
 fun TrackMap(
     trace: List<TraceSample>,
     modifier: Modifier = Modifier,
+    /**
+     * Where the best lap hit its limit (#188), placed on this trace by driven
+     * distance ([Limits.limitMarkers]). Empty for a session with no `flags` or
+     * `wheelSlip` channel, which is every recorded lap and every non-PDR import.
+     */
+    markers: List<Limits.Marker> = emptyList(),
 ) {
     // Matching `renderTrackMap`'s bail: fewer than ten points is a GPS glitch,
     // not a lap, and drawing it would claim more than we know.
@@ -58,6 +67,12 @@ fun TrackMap(
     val rampWidth = with(density) { 3.5.dp.toPx() }
     val tickWidth = with(density) { 2.dp.toPx() }
     val tickLength = with(density) { 7.dp.toPx() }
+    val markerRadius = with(density) { 6.dp.toPx() }
+    val markerRing = with(density) { 2.dp.toPx() }
+    // In dp, not raw pixels: the web's 14/15 are CSS pixels, and a marker that
+    // clears its neighbour on a phone has to clear it at every density.
+    val markerGap = with(density) { 14.dp.toPx() }
+    val markerStep = with(density) { 15.dp.toPx() }
 
     // Stored samples carry no timestamp; TraceMap only needs the geometry.
     val points = remember(trace) { trace.map { TracePoint(t = 0.0, x = it.x, y = it.y, v = it.v) } }
@@ -71,7 +86,7 @@ fun TrackMap(
             .border(1.dp, colors.borderHairline, RoundedCornerShape(TrackTheme.radii.md))
             .semantics {
                 testTag = "trackMap"
-                contentDescription = trackMapSummary(trace)
+                contentDescription = trackMapSummary(trace, markers)
             },
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -132,6 +147,22 @@ fun TrackMap(
                 )
             }
 
+            // Then the limit marks on top (#188). Two kinds often fire in one
+            // place — traction control *because of* wheelspin — so a mark landing
+            // on an earlier one is stepped off the line rather than hidden under
+            // it.
+            val placed = mutableListOf<Offset>()
+            for (marker in markers) {
+                val kind = Limits.kindDef(marker.kind) ?: continue
+                val p = view[marker.idx.coerceIn(0, view.size - 1)]
+                var point = Offset(p.x.toFloat(), p.y.toFloat())
+                while (placed.any { hypot((it.x - point.x).toDouble(), (it.y - point.y).toDouble()) < markerGap }) {
+                    point = Offset(point.x, point.y - markerStep)
+                }
+                placed.add(point)
+                drawLimitMarker(kind, point, colors, markerRadius, markerRing)
+            }
+
             // Start/finish: a tick normal to the heading out of the first point.
             val head = view.getOrNull(min(3, view.size - 1))
             val start = view.first()
@@ -169,13 +200,64 @@ private const val RAMP_BUCKETS = 16
 
 private const val MS_TO_MPH = 2.236936
 
-/** The trace in words: TalkBack cannot see a racing line. */
-internal fun trackMapSummary(trace: List<TraceSample>): String {
+/**
+ * One limit marker: the kind's shape, filled or hollow in its side's colour with
+ * a ring in the card colour, so shape and fill carry identity beside the hue and
+ * no two kinds of one side are colour-alone.
+ */
+private fun DrawScope.drawLimitMarker(
+    kind: Limits.Kind,
+    at: Offset,
+    colors: TrackColors,
+    r: Float,
+    ring: Float,
+) {
+    val color = limitColor(kind.side, colors)
+    val fill = if (kind.filled) color else colors.surfaceCard
+    val stroke = if (kind.filled) colors.surfaceCard else color
+    when (kind.shape) {
+        Limits.Shape.CIRCLE -> {
+            drawCircle(fill, radius = r, center = at)
+            drawCircle(stroke, radius = r, center = at, style = Stroke(width = ring))
+        }
+        Limits.Shape.TRIANGLE, Limits.Shape.DIAMOND -> {
+            val path = Path()
+            if (kind.shape == Limits.Shape.TRIANGLE) {
+                path.moveTo(at.x, at.y - r * 1.15f)
+                path.lineTo(at.x + r * 1.05f, at.y + r * 0.75f)
+                path.lineTo(at.x - r * 1.05f, at.y + r * 0.75f)
+            } else {
+                path.moveTo(at.x, at.y - r * 1.2f)
+                path.lineTo(at.x + r * 1.2f, at.y)
+                path.lineTo(at.x, at.y + r * 1.2f)
+                path.lineTo(at.x - r * 1.2f, at.y)
+            }
+            path.close()
+            drawPath(path, color = fill)
+            drawPath(path, color = stroke, style = Stroke(width = ring))
+        }
+    }
+}
+
+/**
+ * The trace in words: TalkBack cannot see a racing line, and the limit marks are
+ * the part of it that cannot be inferred from anything else on the page.
+ */
+internal fun trackMapSummary(
+    trace: List<TraceSample>,
+    markers: List<Limits.Marker> = emptyList(),
+): String {
     val range = ChartScale.speedRange(trace)
         ?: return "Track map, ${trace.size} points."
     val (slowest, fastest) = range
-    return "Track map, ${trace.size} points, " +
+    val line = "Track map, ${trace.size} points, " +
         "${(slowest * MS_TO_MPH).roundToInt()} to ${(fastest * MS_TO_MPH).roundToInt()} mph."
+    if (markers.isEmpty()) return line
+    val counts = Limits.LIMIT_KINDS.mapNotNull { kind ->
+        val n = markers.count { it.kind == kind.key }
+        if (n == 0) null else "${Limits.sentenceLabel(kind.key)} in $n place${if (n == 1) "" else "s"}"
+    }
+    return "$line ${counts.joinToString(", ")}."
 }
 
 /** Exposed for the palette check in tests. */

@@ -44,6 +44,8 @@ enum ColorTokens {
         Token("danger", css: "--danger", color: Color(.danger)),
         Token("dangerInk", css: "--danger-ink", color: Color(.dangerInk)),
         Token("dangerTint", css: "--danger-tint", color: Color(.dangerTint)),
+        Token("limitBrake", css: "--limit-brake", color: Color(.limitBrake)),
+        Token("limitPower", css: "--limit-power", color: Color(.limitPower)),
         Token("mapFast", css: "--map-fast", color: Color(.mapFast)),
         Token("mapSlow", css: "--map-slow", color: Color(.mapSlow)),
         Token("mapTarmac", css: "--map-tarmac", color: Color(.mapTarmac)),

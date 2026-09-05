@@ -330,6 +330,16 @@ cached logbook still reads, that a queued write is on screen immediately, that t
 sync banner says so, and that all of it survives a relaunch. They skip when no dev
 server answers, so `xcodebuild test` and CI stay green.
 
+**Every launch declares the account's tier.** `launchSignedIn(tier:)` has no
+default on purpose: entitlement is server-owned, so nothing on the client can fake
+it, and the suites disagree about what they need — the lap overlay and the garage
+are gated (`channels` is stripped, `GET /garage` is 402), the recorder's Start is
+gated client-side, and the Settings subscription test asserts the *free* state to
+reach the paywall. A default would let one suite inherit whatever the last one left
+in the shared dev logbook, which is how the database ends up deciding which tests
+pass. It is set over `POST /auth/dev/entitlement`, which answers only under
+DEV_MODE on a local dev host.
+
 ```sh
 npm run dev
 xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \

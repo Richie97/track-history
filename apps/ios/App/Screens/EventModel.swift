@@ -189,6 +189,17 @@ extension Session {
         if let channels, let sec = Sectors.sessionSectors(channels), sec.laps.count >= 2, sec.gapMs > 0 {
             parts.append("theoretical best \(LapTime.fmtMs(sec.theoreticalBestMs))")
         }
+        // Shift points (`Gears`, #187): the typical upshift rpm across the
+        // session; the per-gear breakdown sits in the channel panel's Inputs tab.
+        if let channels, let sp = Gears.shiftPoints(channels) {
+            parts.append("upshifts ≈ \(Gears.fmtRpm(Double(sp.medianRpm))) rpm")
+        }
+        // Where the car hit its limit (`Limits`, #188), counted as places on
+        // track across the session. The marks themselves are on the best-lap
+        // trace and shaded on the pedal traces.
+        if let channels, let limits = Limits.limitSummary(channels) {
+            parts.append(limits)
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

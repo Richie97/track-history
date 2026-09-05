@@ -31,8 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Limits
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
@@ -45,6 +47,7 @@ import app.trackevolution.ui.TEMeta
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.charts.LapChannelChart
+import app.trackevolution.ui.charts.LimitLegend
 import app.trackevolution.ui.charts.TrackMap
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -171,17 +174,18 @@ fun EventScreen(
                 }
             }
 
-            bestLapTrace(detail.sessions)?.let { (trace, lapMs) ->
+            bestLapTrace(detail.sessions)?.let { traced ->
                 item("trace") {
                     Column {
                         TESectionHeader("Best lap trace", detail = "brighter is faster")
                         Text(
-                            LapTime.fmtMs(lapMs),
+                            LapTime.fmtMs(traced.lapMs),
                             style = TrackTheme.typography.lapTime,
                             color = colors.textStrong,
                             modifier = Modifier.padding(vertical = 4.dp),
                         )
-                        TrackMap(trace = trace)
+                        TrackMap(trace = traced.trace, markers = traced.markers)
+                        LimitLegend(traced.markers, Modifier.padding(top = 6.dp))
                     }
                 }
             }
@@ -239,14 +243,38 @@ fun EventScreen(
  * Ten points is `TrackMap`'s floor — below that it is a GPS glitch rather than a
  * lap, and drawing it would claim more than we know.
  */
-private fun bestLapTrace(sessions: List<Session>): Pair<List<TraceSample>, Int>? {
+private fun bestLapTrace(sessions: List<Session>): TracedLap? {
     val candidate = sessions
         .filter { (it.trace?.size ?: 0) >= 10 && it.laps.isNotEmpty() }
         .minByOrNull { it.bestLapMs ?: Int.MAX_VALUE }
         ?: return null
     val best = candidate.bestLapMs ?: return null
     val trace = candidate.trace.orEmpty().map { TraceSample(x = it.x, y = it.y, v = it.v) }
-    return trace to best
+    return TracedLap(trace, best, limitMarkers(candidate, trace))
+}
+
+/** The trace to draw, its lap time, and where that lap hit its limit (#188). */
+private data class TracedLap(
+    val trace: List<TraceSample>,
+    val lapMs: Int,
+    val markers: List<Limits.Marker>,
+)
+
+/**
+ * Where the best lap hit its limit (#188), for the trace map.
+ *
+ * The stored trace is the **best lap only**, so the runs come from that lap's
+ * channel entry: placing another lap's runs on it would put marks where that lap
+ * never was. Other laps get the shaded bands on the channel panel's distance
+ * axis instead, which is the same constraint the web works under.
+ */
+private fun limitMarkers(session: Session, trace: List<TraceSample>): List<Limits.Marker> {
+    val channels = session.channels?.takeIf { it.laps.isNotEmpty() } ?: return emptyList()
+    val best = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps)
+        .filter { it.hasChannels }
+        .minByOrNull { it.lap.timeMs }
+        ?: return emptyList()
+    return Limits.limitMarkers(channels.laps[best.chIdx], channels.dStepM, trace)
 }
 
 @Composable

@@ -25,7 +25,7 @@ final class OfflineWritesUITests: XCTestCase {
 
     func testAnEventLoggedOfflineIsVisibleAndQueued() throws {
         // Online first: sign in, and let the dashboard warm the cache.
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
         XCTAssertTrue(app.buttons["trackCard"].firstMatch.waitForExistence(timeout: 20))
         // The warm-up runs after first paint; give it a moment to pull event details.
         let warmed = expectation(description: "cache warms")
