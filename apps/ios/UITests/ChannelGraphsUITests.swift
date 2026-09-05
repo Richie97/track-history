@@ -135,6 +135,13 @@ final class ChannelGraphsUITests: XCTestCase {
             app.descendants(matching: .any)["Lateral G by driven distance, per lap"].waitForExistence(timeout: 10),
             "and one chart per stored channel, on the tab its question belongs to"
         )
+        // The friction circle (#186) sits above that trace: a square scatter of
+        // latG against longG, which is a drawn thing and so worth a screenshot.
+        XCTAssertTrue(
+            app.descendants(matching: .any)["frictionCircle"].waitForExistence(timeout: 10),
+            "a session storing both G channels draws the friction circle"
+        )
+        attach(app, named: "channel-graphs-friction-circle")
 
         app.buttons["Done"].tap()
         deleteEventFromMenu(app)
@@ -193,6 +200,15 @@ final class ChannelGraphsUITests: XCTestCase {
                             },
                             "brake": (0..<120).map { k in
                                 max(0, -sin(Double(k) / 9 + Double(index) * 0.15)) * 100
+                            },
+                            // Longitudinal G a quarter turn out of phase with the
+                            // cornering, so the Grip tab's friction circle has both
+                            // lobes to draw (#186). No `steering` is seeded, which
+                            // is deliberate: that is the one-sided case, since the
+                            // stored latG is a magnitude and the side comes from
+                            // the steering sign.
+                            "longG": (0..<120).map { k in
+                                sin(Double(k) / 9 + Double(index) * 0.15) * 1.3
                             },
                             // Gear steps with the speed wave, dropping to 0 through
                             // one shift — the clutch-in gap the ribbon draws as a gap.
