@@ -80,6 +80,18 @@ Features added after the rewrite shipped, and where they landed:
   pinned by `contracts/logic/sectors.json`; the compare-laps screens reuse
   the panel, so the pair's sectors come for free. Built on all three at once
   because the paddock is where "where did the time go" gets asked.
+- **Gear ribbon + shift points**
+  ([#187](https://github.com/Richie97/track-history/issues/187), 2026-09,
+  the first ticket of epic [#193](https://github.com/Richie97/track-history/issues/193))
+  — **web first, all three intended.** Rides on the channel-graphs panel: a
+  stepped band per highlighted lap under the speed trace (gear 0 a gap, runs
+  where the laps disagree outlined) and a per-gear upshift-rpm table with
+  factual notes. The pure half is `public/js/gears.js`, pinned by
+  `contracts/logic/gears.json` so the Kit and `:core` ports assert against
+  the web output when they land; the ticket asks for all three and the
+  native panels are the follow-up. The epic's other rule stands: before the
+  second of its charts ships, the panel gets tabs rather than another
+  stacked section.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and

@@ -10,6 +10,7 @@ import {
 } from "./js/compare-laps.js";
 import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
 import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
+import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -1213,7 +1214,11 @@ async function viewLapCompare(trackId, params) {
   const sectorsHtml = sectorTableHtml(aligned, lit, (i) => sideLabels[i]);
   const chartsHtml = [
     deltaChartSvg(aligned, lit, refIdx, `${[rowA, rowB][refIdx].lapNum} (${fmtDate([rowA, rowB][refIdx].date)})`),
-    ...CHANNEL_DEFS.map((def) => channelChartSvg(def, aligned, lit)),
+    ...CHANNEL_DEFS.flatMap((def) => [
+      channelChartSvg(def, aligned, lit),
+      // Gear ribbon under the speed trace, outlined where the two laps disagree.
+      def.key === "speed" ? gearRibbonSvg(aligned, lit, (i) => sideLabels[i]) : "",
+    ]),
   ]
     .filter(Boolean)
     .map((c) => `<div class="ch-chart">${c}</div>`)
@@ -1258,6 +1263,11 @@ async function viewLapCompare(trackId, params) {
             if (i === refIdx || !delta || k >= delta.length) return "";
             const v = delta[k];
             return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${v >= 0 ? "+" : ""}${v.toFixed(2)} s</div>`;
+          }
+          if (svgEl.dataset.channel === "gear") {
+            const arr = aligned.laps[i]?.gear;
+            if (!arr || k >= arr.length) return "";
+            return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${esc(ordinal(arr[k]))}</div>`;
           }
           const arr = aligned.laps[i]?.[def.key];
           if (!arr || k >= arr.length) return "";
@@ -1346,6 +1356,10 @@ async function viewEvent(eventId) {
       const sec = s.channels?.laps?.length ? sessionSectors(s.channels) : null;
       if (sec && sec.laps.length >= 2 && sec.gapMs > 0)
         stats.push(`theoretical best <span class="t">${fmtMs(sec.theoreticalBestMs)}</span>`);
+      // Shift points (js/gears.js): the typical upshift rpm across the
+      // session; the per-gear breakdown sits in the channel panel.
+      const sp = s.channels?.laps?.length ? shiftPoints(s.channels) : null;
+      if (sp) stats.push(`upshifts ≈ <span class="t">${fmtRpm(sp.medianRpm)}</span> rpm`);
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
@@ -1669,8 +1683,12 @@ async function viewEvent(eventId) {
     const s = e.sessions.find((x) => String(x.id) === el.dataset.channelGraphs);
     if (s)
       bindChannelGraphs(el, s.channels, s.laps, {
-        // Sector splits + theoretical best for the highlighted laps, above the charts.
-        renderExtras: (lit, dispN) => sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+        // Sector splits + theoretical best for the highlighted laps, then the
+        // session's shift points, above the charts.
+        renderExtras: (lit, dispN) =>
+          sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) + shiftTableHtml(s.channels),
+        // The gear ribbon rides under the speed trace (#187).
+        renderAfter: { speed: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
       });
   });
 

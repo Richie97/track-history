@@ -18,6 +18,7 @@
 
 import { esc, fmtMs } from "./format.js";
 import { niceNumTicks } from "./chart.js";
+import { ordinal } from "./gears.js";
 
 const SLOTS = ["var(--chart-line)", "var(--chart-line-b)", "var(--chart-line-c)"];
 const KPH_TO_MPH = 0.621371;
@@ -222,7 +223,10 @@ export function matchLapsToChannels(sessionLaps, chLaps) {
 // lap starts highlighted. `renderExtras(litMap, dispN)` — litMap being
 // Map(chIdx -> slot color) and dispN the display lap number per channel lap —
 // returns HTML rendered above the charts and re-rendered with them.
-export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras } = {}) {
+// `renderAfter` — { [channelKey]: (litMap, dispN) => svg } — slots a chart
+// straight under that channel's chart on the same distance axis: app.js hangs
+// the gear ribbon from js/gears.js under the speed trace.
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter } = {}) {
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
   const bestMs = Math.min(...sessionLaps.map((l) => l.time_ms));
@@ -300,9 +304,13 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
       }
     }
     const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx]) : "";
-    const charts = [deltaSvg, ...CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit))].filter(Boolean);
+    const charts = [deltaSvg];
+    for (const def of CHANNEL_DEFS) {
+      charts.push(channelChartSvg(def, channels, lit));
+      charts.push(renderAfter?.[def.key]?.(lit, dispN) ?? "");
+    }
     const extras = renderExtras ? renderExtras(lit, dispN) : "";
-    chartsEl.innerHTML = extras + charts.map((c) => `<div class="ch-chart">${c}</div>`).join("");
+    chartsEl.innerHTML = extras + charts.filter(Boolean).map((c) => `<div class="ch-chart">${c}</div>`).join("");
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
     const $tooltip = document.getElementById("tooltip");
@@ -323,6 +331,11 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
               if (!arr || k >= arr.length) return "";
               const v = arr[k];
               return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${v >= 0 ? "+" : ""}${v.toFixed(2)} s vs lap ${dispN[refIdx]}</div>`;
+            }
+            if (svgEl.dataset.channel === "gear") {
+              const arr = chLaps[lapIdx]?.gear;
+              if (!arr || k >= arr.length) return "";
+              return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${esc(ordinal(arr[k]))}</div>`;
             }
             const arr = chLaps[lapIdx]?.[def.key];
             if (!arr || k >= arr.length) return "";

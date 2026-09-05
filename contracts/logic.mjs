@@ -31,6 +31,13 @@ import { attachLapChannels } from "../public/js/import/channels.js";
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import {
+  gearDisagreements,
+  gearSegments,
+  lapShifts,
+  shiftNotes,
+  shiftPoints,
+} from "../public/js/gears.js";
+import {
   alignLapPair,
   comparableLaps,
   defaultComparePicks,
@@ -394,6 +401,55 @@ const sectorsFixture = {
     // An untimed lap falls back to the integrated duration.
     untimedSectors: sectorTimes({ speed: deltaRefLap.speed, timeMs: null }, 20, 3),
     noSpeed: sectorTimes(sectorLaps[3], 20, 3),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Gear ribbon and shift points (#187): public/js/gears.js. What is worth
+// pinning: the run cutting (gear 0 kept as its own run), the shift rule that
+// reads rpm at the last sample in the *old* gear and skips a clutch-in blip
+// between two gears (3 → 0 → 4 is one shift from 3rd, read before the blip),
+// the per-gear min / median / max with its round-the-median rule, the
+// disagreement runs with their MIN_DISAGREE_POINTS threshold, and the note
+// phrasing — the ports must say the same sentence. Lap A short-shifts out of
+// 2nd and lap B takes 3rd to the top, so both notes fire.
+const gearLapA = {
+  n: 1,
+  timeMs: 90000,
+  gear: [2, 2, 2, 3, 3, 3, 3, 0, 4, 4, 4, 4, 4, 4, 3, 3, 3, 4, 4, 4],
+  rpm: [5000, 6000, 6100, 4500, 5500, 6500, 7100, 7100, 4800, 5200, 5600, 6000, 6300, 6600, 6900, 5000, 6200, 4700, 5100, 5500],
+};
+const gearLapB = {
+  n: 2,
+  timeMs: 89000,
+  gear: [2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4], // stays in 3rd where lap A takes 4th
+  rpm: [5000, 6000, 6200, 6300, 4700, 5300, 5800, 6200, 6600, 6900, 7100, 7200, 7250, 7300, 7300, 7300, 7300, 4900, 5200, 5600],
+};
+const gearLapC = { n: 3, timeMs: 91000, gear: [2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3] }; // no rpm: shifts but no rpm figures
+const gearLapD = { n: 4, timeMs: 92000, speed: Array.from({ length: 20 }, () => 100) }; // no gear
+const gearChannels = { v: 1, dStepM: 20, laps: [gearLapA, gearLapB, gearLapC, gearLapD] };
+const gearPoints = shiftPoints(gearChannels);
+const gearsFixture = {
+  description:
+    "Gear ribbon / shift-point reference output from public/js/gears.js " +
+    "(gearSegments / lapShifts / shiftPoints / shiftNotes / gearDisagreements). " +
+    "Ports must reproduce every integer and every note string exactly. " +
+    "Regenerate with `npm run contracts:logic`.",
+  source: "public/js/gears.js",
+  input: { channels: gearChannels },
+  expected: {
+    segments: gearChannels.laps.map((l) => gearSegments(l.gear)),
+    shifts: gearChannels.laps.map((l) => lapShifts(l)),
+    shiftPoints: gearPoints,
+    notes: shiftNotes(gearPoints),
+    // Only laps with gear and rpm count; a session without any is null.
+    noRpm: shiftPoints({ v: 1, dStepM: 20, laps: [gearLapC, gearLapD] }),
+    disagreementsAB: gearDisagreements([gearLapA.gear, gearLapB.gear]),
+    disagreementsABC: gearDisagreements([gearLapA.gear, gearLapB.gear, gearLapC.gear]),
+    // A one-point offset is a shift, not a choice — dropped at the default
+    // threshold, kept at 1.
+    offsetDefault: gearDisagreements([[2, 2, 3, 3, 3], [2, 2, 2, 3, 3]]),
+    offsetMinRun1: gearDisagreements([[2, 2, 3, 3, 3], [2, 2, 2, 3, 3]], 1),
   },
 };
 
@@ -932,6 +988,7 @@ writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixtur
 writeFileSync(path.join(OUT_DIR, "lap-delta.json"), JSON.stringify(lapDeltaFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "compare-laps.json"), JSON.stringify(compareLapsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "sectors.json"), JSON.stringify(sectorsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "gears.json"), JSON.stringify(gearsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
@@ -945,6 +1002,7 @@ console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chI
 console.log(`wrote contracts/logic/lap-delta.json (${lapDeltaFixture.expected.slowVsRef.length} grid points)`);
 console.log(`wrote contracts/logic/compare-laps.json (${cmpRows.length} pickable laps)`);
 console.log(`wrote contracts/logic/sectors.json (${sectorsFixture.expected.session.laps.length} laps split)`);
+console.log(`wrote contracts/logic/gears.json (${gearsFixture.expected.shiftPoints.gears.length} gears with upshifts)`);
 console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );

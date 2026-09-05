@@ -54,7 +54,7 @@ turns lap times into analysis.
 | The garage's **vehicle list** (pre-fills the car field) | Free | — |
 | GPS lap recorder, live timing, predictive delta | **Pro** | Client, at *start* (rule 5) |
 | Telemetry import — video on the phones, video + `.vbo` on web | Free | — (revised after phase D; see the note below) |
-| Channel graphs, lap delta chart, sector splits, two-lap compare | **Pro** | Server: `channels` stripped from session payloads (rule 4) |
+| Channel graphs, lap delta chart, sector splits, gear ribbon + shift points, two-lap compare | **Pro** | Server: `channels` stripped from session payloads (rule 4) |
 | Two-event lap overlay (web) | **Pro** | Client |
 | Garage **consumables**: parts, wear, measurements, refresh, ledger | **Pro** | Server: `requireEntitlement` on the parts/measurements routes and `GET /garage` |
 | Setup notebook + setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes |
