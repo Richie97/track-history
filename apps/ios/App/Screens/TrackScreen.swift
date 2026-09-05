@@ -167,7 +167,7 @@ struct TrackScreen: View {
     private func leaderboardSection(_ model: TrackModel, _ leaderboard: TrackLeaderboard) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             TESectionHeader("Leaderboard", detail: "opt-in only")
-            Text("Best laps by Track Evolution drivers at this track.")
+            Text("Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the app or imported from telemetry count; hand-entered times don't.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
             if leaderboard.entries.isEmpty {
@@ -212,12 +212,17 @@ struct TrackScreen: View {
                     }
                 }
             }
+            if let note = leaderboardNote(model, leaderboard) {
+                Text(note)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+            }
             if let error = model.leaderboardError {
                 TEErrorBanner(message: error)
             }
             if leaderboard.optedIn {
                 HStack(spacing: 8) {
-                    Text("You're on the leaderboards — your name and best lap per track are visible to other signed-in drivers.")
+                    Text("You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                     Spacer(minLength: 4)
@@ -227,7 +232,7 @@ struct TrackScreen: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best lap.")
+                    Text("You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                     Button("Join leaderboards") { Task { await model.setLeaderboardOptIn(true) } }
@@ -245,6 +250,21 @@ struct TrackScreen: View {
             }
             Button("Stay on them", role: .cancel) {}
         }
+    }
+
+    /// Why the viewer's row differs from the track page's own headline, or is
+    /// missing: only device-timed laps rank (NS-33), and the server decides
+    /// that. Same wording as the web and Android.
+    private func leaderboardNote(_ model: TrackModel, _ leaderboard: TrackLeaderboard) -> String? {
+        guard let logbookBest = model.logbookBest else { return nil }
+        let you = leaderboard.entries.first { $0.you }
+        if leaderboard.optedIn, you == nil {
+            return "None of your laps here were timed by a device, so you aren't ranked yet. Record with the app or import telemetry to appear."
+        }
+        if let you, logbookBest < you.bestMs {
+            return "Your best here (\(LapTime.fmtMs(logbookBest))) was entered by hand and isn't ranked."
+        }
+        return nil
     }
 
     // MARK: - Chart
@@ -381,6 +401,13 @@ final class TrackModel {
 
     var personalBest: Int? {
         events.compactMap(\.bestMs).min()
+    }
+
+    /// The logbook's best at this track regardless of the dry-only filter,
+    /// manual bests included — what the leaderboard note compares against,
+    /// since the leaderboard ignores that filter too.
+    var logbookBest: Int? {
+        allEvents.compactMap(\.bestMs).min()
     }
 
     /// Chronological, and only events that set a time — the server does the same for

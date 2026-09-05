@@ -912,11 +912,18 @@ mocks the Apple and Google APIs in `vitest.workers.config.mts`.
 - **Per-track leaderboards** are strictly **opt-in** (Settings → Leaderboards,
   or the track page's join button; `users.leaderboard_opt_in`). Opting in
   shares exactly two things with other signed-in users, per track: your display
-  name and your best lap (with its event date). Tracks are matched across
-  users by `tracks.catalog_id`, so leaderboards exist only for tracks the
-  seeded catalog knows, and never mix layouts. The endpoint
-  (`GET /api/tracks/:id/leaderboard`) computes each user's best with the same
-  `MIN(manual best, best logged lap)` rule as everywhere else.
+  name and your best device-timed lap (with its event date). Tracks are matched
+  across users by `tracks.catalog_id`, so leaderboards exist only for tracks
+  the seeded catalog knows, and never mix layouts. **Only device-timed laps
+  rank** (`docs/specs/native/NS-33-leaderboard-device-timed-laps.md`): a lap
+  counts when its session's `channels` blob — the per-lap telemetry every
+  measuring source writes and no hand entry can — carries an entry with the
+  same time, which the trigger-maintained `laps.device_timed` column records
+  (migration `0018`, backfilled). A typed lap, a lap added later to a recorded
+  session, and an event's manual `best_time_ms` stay in the logbook and never
+  reach a leaderboard, so the endpoint (`GET /api/tracks/:id/leaderboard`)
+  deliberately does *not* use the `MIN(manual best, best logged lap)` rule the
+  logbook's own stats keep.
 
 ## License
 

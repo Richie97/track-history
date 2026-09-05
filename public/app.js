@@ -805,9 +805,19 @@ async function viewDashboard() {
 // The per-track community leaderboard section. Only catalog tracks have one
 // (catalog_id gives the same physical track an identity across users), and it
 // is strictly opt-in: drivers who haven't opted in — the viewer included —
-// simply aren't on it. Returns "" when there's nothing to show at all.
-function leaderboardHtml(lb) {
+// simply aren't on it. Only device-timed laps rank (NS-33) — the server
+// decides that — so `viewerBestMs`, the viewer's logbook best at the track
+// (manual bests included), is what explains a row that's slower than the
+// track page's own headline, or a missing row. Returns "" when there's
+// nothing to show at all.
+function leaderboardHtml(lb, viewerBestMs = null) {
   if (!lb || lb.catalog_id == null) return "";
+  const you = lb.entries.find((en) => en.you);
+  let yourNote = "";
+  if (lb.opted_in && !you && viewerBestMs != null)
+    yourNote = "None of your laps here were timed by a device, so you aren't ranked yet. Record with the app or import telemetry to appear.";
+  else if (you && viewerBestMs != null && viewerBestMs < you.best_ms)
+    yourNote = `Your best here (${fmtMs(viewerBestMs)}) was entered by hand and isn't ranked.`;
   const rows = lb.entries
     .map(
       (en, i) => `<tr${en.you ? ` class="you-row"` : ""}>
@@ -819,15 +829,16 @@ function leaderboardHtml(lb) {
     )
     .join("");
   const optControl = lb.opted_in
-    ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
-    : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
+    ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
+    : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
   return `<h2>Leaderboard</h2>
-    <div class="hint" style="margin:0 0 4px">Best laps by Track Evolution drivers at this track — opt-in only.</div>
+    <div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track — opt-in only. Laps recorded with the app or imported from telemetry count; hand-entered times don't.</div>
     ${
       rows
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
         : `<div class="empty">No opted-in drivers here yet${lb.opted_in ? "" : " — be the first"}.</div>`
     }
+    ${yourNote ? `<div class="hint" style="margin:8px 0 0">${yourNote}</div>` : ""}
     ${optControl}
     <span id="lb-msg" class="goal-msg"></span>`;
 }
@@ -878,6 +889,9 @@ async function viewTrack(trackId, params) {
 
   const bests = events.map((e) => e.best_ms).filter((v) => v != null);
   const pb = bests.length ? Math.min(...bests) : null;
+  // The leaderboard's "your best here" note ignores the dry-only filter: the
+  // leaderboard does too.
+  const allBests = allEvents.map((e) => e.best_ms).filter((v) => v != null);
   const goal = track.goal_ms;
   const goalMet = goal != null && pb != null && pb <= goal;
   const goalStatus =
@@ -938,7 +952,7 @@ async function viewTrack(trackId, params) {
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
-    ${leaderboardHtml(leaderboard)}
+    ${leaderboardHtml(leaderboard, allBests.length ? Math.min(...allBests) : null)}
     ${
       canUseSetups(state.entitlement)
         ? setupHistoryHtml(trackSetups, garagePartsById(garage))
@@ -1988,7 +2002,7 @@ async function viewSettings() {
         <input type="checkbox" id="lb-opt" ${state.me?.leaderboard_opt_in ? "checked" : ""}>
         Appear on per-track leaderboards
       </label>
-      <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best lap (with its date). Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
+      <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap (with its date). Only laps recorded with the app or imported from telemetry are ranked — hand-entered times stay in your logbook. Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
       <div id="lb-error"></div>
     </div>
     <h2>Subscription</h2>

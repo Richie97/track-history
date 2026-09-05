@@ -85,11 +85,13 @@ Features added after the rewrite shipped, and where they landed:
   contract, and every client renders the track page's leaderboard section and
   the Settings opt-in with the same privacy copy. The opt-in write stays off
   the offline queue everywhere — publishing your name shouldn't replay
-  silently later. **Specced, not yet built:**
-  [NS-33](NS-33-leaderboard-device-timed-laps.md) narrows the ranking to
-  device-timed laps — those with a matching entry in the session's `channels`
-  blob — so a typed time or an event's manual best never reaches a
-  leaderboard. Server-side and retroactive; the response shape doesn't change.
+  silently later. Since [NS-33](NS-33-leaderboard-device-timed-laps.md)
+  (2026-09) the ranking covers **device-timed laps only** — those with a
+  matching entry in the session's `channels` blob, recorded as the
+  trigger-maintained `laps.device_timed` — so a typed time or an event's
+  manual best never reaches a leaderboard. Server-side and retroactive; the
+  response shape didn't change, and every client's leaderboard section says
+  the rule and explains a row slower than the logbook's own best.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
@@ -178,7 +180,7 @@ change* rule does not apply — see the spec for why.
 | ID | Spec | Platform | Depends on |
 |---|---|---|---|
 | NS-32 | [Subscriptions (Track Evolution Pro)](NS-32-subscriptions.md) | Shared | NS-25, NS-26, NS-27 |
-| NS-33 | [Leaderboards rank only device-timed laps](NS-33-leaderboard-device-timed-laps.md) — **spec, not yet built** | Shared | Leaderboards, NS-30, NS-32 |
+| NS-33 | [Leaderboards rank only device-timed laps](NS-33-leaderboard-device-timed-laps.md) | Shared | Leaderboards, NS-30, NS-32 |
 
 ## Deferred — not in this programme
 
