@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHANNEL_DEFS,
   channelChartSvg,
   deltaChartSvg,
   deltaSeries,
@@ -151,5 +152,20 @@ describe("channelChartSvg", () => {
       new Map()
     );
     expect(none).toBe("");
+  });
+});
+
+describe("yaw rate trace (#189)", () => {
+  it("is a channel of its own, signed, and draws only for laps that stored it", () => {
+    const def = CHANNEL_DEFS.find((d) => d.key === "yaw");
+    expect(def).toBeTruthy();
+    expect(def.unit).toBe("°/s");
+    expect(def.floor0).toBe(false); // swings both ways around zero, like steering
+    const ch = mkChannels();
+    expect(channelChartSvg(def, ch, new Map())).toBe(""); // no lap stored yaw
+    ch.laps[0].yaw = Array.from({ length: 90 }, (_, k) => 30 * Math.sin(k / 6));
+    const svg = channelChartSvg(def, ch, new Map([[0, "#fff"]]));
+    expect(svg).toContain('data-channel="yaw"');
+    expect(svg).toContain("Yaw rate (°/s)");
   });
 });

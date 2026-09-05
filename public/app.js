@@ -13,6 +13,7 @@ import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
 import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
 import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
 import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
+import { balanceHtml, balanceSummary, bindBalance } from "./js/balance.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -1382,6 +1383,11 @@ async function viewEvent(eventId) {
       // are on the best-lap trace and shaded on the pedal traces.
       const lim = s.channels?.laps?.length ? limitSummary(s.channels) : null;
       if (lim) stats.push(esc(lim));
+      // Balance (js/balance.js): the corners whose rotation sits off this
+      // car's typical response, pooled across the session; the per-corner
+      // table and the scatter are on the panel's Grip tab.
+      const bal = s.channels?.laps?.length ? balanceSummary(s.channels) : null;
+      if (bal) stats.push(esc(bal));
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
@@ -1732,31 +1738,37 @@ async function viewEvent(eventId) {
     if (!s) return;
     bindChannelGraphs(el, s.channels, s.laps, {
       // Sector splits + theoretical best for the highlighted laps on the
-      // Time tab, the session's shift points on Inputs, and the friction
-      // circle above the lateral-G trace on Grip (#186) — a square scatter,
-      // so it gets its own container rather than a slot on the distance axis.
+      // Time tab, the session's shift points on Inputs, and on Grip the
+      // friction circle (#186) — a square scatter, so it gets its own
+      // container rather than a slot on the distance axis — followed by the
+      // balance scatter and per-corner table (#189), above the lateral-G and
+      // yaw traces.
       renderExtras: (lit, dispN) => ({
         time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
         inputs: shiftTableHtml(s.channels),
-        grip: gripCircleHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+        grip:
+          gripCircleHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) +
+          balanceHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
       }),
       // The gear ribbon rides under the RPM trace (#187), where each shift
       // is the drop in the sawtooth above it.
       renderAfter: { rpm: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
     });
-    // Hovering a point on the friction circle answers "which corner": the
-    // distance is marked on every chart that has a distance axis, and — when
-    // this session owns the best-lap trace and the hovered lap is the one the
-    // trace was drawn from — the place is ringed on the map.
-    bindGripCircle(el, s.channels, {
-      onHover: (hit) => {
-        showDistanceMark(el, hit?.d ?? null);
-        if (!trackMap || traceSession.id !== s.id) return;
-        trackMap.setHighlight(
-          hit && hit.chIdx === traceBestChIdx ? traceIndexAtFraction(traceSession.trace, hit.frac) : null
-        );
-      },
-    });
+    // Hovering a point on the friction circle or the balance scatter answers
+    // "which corner": the distance is marked on every chart that has a
+    // distance axis, and — when this session owns the best-lap trace and the
+    // hovered lap is the one the trace was drawn from — the place is ringed
+    // on the map. A row of the balance table is a corner every lap shares
+    // (chIdx null), so it rings the map whichever lap the trace is.
+    const onHover = (hit) => {
+      showDistanceMark(el, hit?.d ?? null);
+      if (!trackMap || traceSession.id !== s.id) return;
+      trackMap.setHighlight(
+        hit && (hit.chIdx == null || hit.chIdx === traceBestChIdx) ? traceIndexAtFraction(traceSession.trace, hit.frac) : null
+      );
+    };
+    bindGripCircle(el, s.channels, { onHover });
+    bindBalance(el, s.channels, { onHover });
   });
 
   view.querySelectorAll("[data-del-session]").forEach((btn) => {

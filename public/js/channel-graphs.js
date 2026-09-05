@@ -1,7 +1,7 @@
 // Lap chips + per-lap channel graphs for an imported session. The chips are
 // the session's lap list (rendered from the stored lap rows), and stacked
 // small-multiple SVG charts (speed / throttle / brake / steering / rpm /
-// lateral G, whichever the session stored — a channel no lap carries renders
+// lateral G / yaw rate, whichever the session stored — a channel no lap carries renders
 // no chart) sit under them in a collapsible <details>, every lap overlaid on a
 // shared driven-distance axis so laps line up corner-for-corner. Unselected
 // laps draw as a dim context envelope; up to three laps at a time are
@@ -34,6 +34,9 @@ export const CHANNEL_DEFS = [
   { key: "steering", label: "Steering", unit: "°", conv: (v) => v, dp: 0, floor0: false },
   { key: "rpm", label: "RPM", unit: "rpm", conv: (v) => v, dp: 0, floor0: false },
   { key: "latG", label: "Lateral G", unit: "G", conv: (v) => v, dp: 2, floor0: true },
+  // Yaw rate is the honest baseline for the balance read-out (js/balance.js,
+  // #189): signed, so it swings both ways around zero like steering does.
+  { key: "yaw", label: "Yaw rate", unit: "°/s", conv: (v) => v, dp: 0, floor0: false },
 ];
 
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
@@ -280,7 +283,7 @@ export const TABS = [
   { key: "grip", label: "Grip" },
   { key: "car", label: "Car" },
 ];
-const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "inputs", steering: "inputs", rpm: "inputs", latG: "grip" };
+const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "inputs", steering: "inputs", rpm: "inputs", latG: "grip", yaw: "grip" };
 
 // Render + wire the whole panel into `container`: the lap chips (always
 // visible — they are the session's lap list) and the charts inside a
