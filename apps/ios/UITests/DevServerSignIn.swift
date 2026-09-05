@@ -66,11 +66,21 @@ extension XCTestCase {
 
     /// Launch, tap through the browser flow, and return the app on the dashboard.
     ///
+    /// `tier` has no default on purpose. Every screen test runs against one shared
+    /// dev logbook, and several of them depend on the account's tier — the lap
+    /// overlay and the garage are gated server-side, the recorder's Start is gated
+    /// on the client, and the Settings subscription row asserts the *free* state.
+    /// A default would let a suite inherit whatever the last one left behind, which
+    /// is how the database ends up deciding which tests pass; requiring it makes
+    /// each suite say what it exercises. Set before launch, because the client
+    /// caches the entitlement from `GET /api/me` at sign-in.
+    ///
     /// `extraLaunchArguments` is for debug-only test hooks that have to be in place
     /// before the first screen draws — `-pendingRecording`, which seeds the unsaved
     /// recording the dashboard banner is about.
-    func launchSignedIn(extraLaunchArguments: [String] = []) throws -> XCUIApplication {
+    func launchSignedIn(tier: DevTier, extraLaunchArguments: [String] = []) throws -> XCUIApplication {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
+        try setDevTier(tier)
 
         let app = XCUIApplication()
         // UserDefaults reads launch arguments, so pointing the app at the dev server
@@ -188,6 +198,28 @@ extension XCTestCase {
         wait(for: [done], timeout: 20)
         XCTAssertTrue((200..<300).contains(status), "\(method) \(path) failed: \(status) \(payload)")
         return payload
+    }
+
+    /// The tier a test exercises.
+    ///
+    /// Entitlement is server-owned by design, so no launch argument can fake it:
+    /// `channels` is stripped and `GET /garage` is gated on the *server*. Every
+    /// suite that depends on tier therefore says which one it wants, rather than
+    /// inheriting whatever the shared dev logbook happens to hold — otherwise the
+    /// database decides which tests pass, and the two expectations are mutually
+    /// exclusive (the overlay and the garage need Pro; the Settings subscription
+    /// row needs Free to reach the paywall).
+    ///
+    /// Backed by `POST /auth/dev/entitlement`, which answers only under DEV_MODE
+    /// on a local dev host. Set it *before* launching the app: the client caches
+    /// the entitlement from `GET /api/me` at sign-in.
+    enum DevTier {
+        case pro
+        case free
+    }
+
+    func setDevTier(_ tier: DevTier) throws {
+        try api("POST", "/auth/dev/entitlement", body: ["pro": tier == .pro])
     }
 
     func signInOverHTTP() throws {

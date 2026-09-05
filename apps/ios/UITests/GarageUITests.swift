@@ -24,7 +24,7 @@ final class GarageUITests: XCTestCase {
     }
 
     func testGarageTracksAConsumableFromInstallToMeasurement() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         // --- add the car, from Settings
         app.buttons["Account"].tap()

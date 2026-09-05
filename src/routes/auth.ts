@@ -10,9 +10,11 @@ import {
   createSession,
   randomToken,
   sessionCookieOptions,
+  sessionUser,
   sha256Base64Url,
   sha256Hex,
 } from "../lib/session";
+import { upsertSubscription } from "../lib/billing/store";
 
 export const auth = new Hono<AppContext>();
 
@@ -348,6 +350,60 @@ auth.post("/exchange", async (c) => {
   }
   const token = await createSession(c.env.DB, row.user_id);
   return c.json({ token });
+});
+
+// Test-only tier control, gated exactly like the login bypass above: DEV_MODE
+// *and* a local dev host, so a flag that leaks into a deployed environment
+// grants nothing and the route reads as absent (404) rather than forbidden.
+//
+// It exists because entitlement is server-owned by design — no client can fake
+// it, which is the point of NS-32 — and the UI suites need both tiers: the lap
+// overlay and the garage need Pro (`channels` is stripped and `GET /garage` is
+// gated), while the Settings subscription test needs Free to reach the paywall.
+// Without this the tier is ambient state in whatever database the dev server
+// happens to be pointed at, and *that* decides which tests pass. A test should
+// declare the tier it exercises.
+//
+// The row is a `legacy` grant under an external id this route owns, so turning
+// it off removes only its own row: a real store purchase on the same account is
+// left alone, and `pro: false` then reports the entitlement it could not clear
+// rather than pretending. `users.entitled_until` is recomputed by migration
+// 0017's triggers either way, so nothing here writes it directly.
+auth.post("/dev/entitlement", async (c) => {
+  if (!isDevLogin(c.env, c.req.url)) return c.json({ error: "not found" }, 404);
+  const token = bearerToken(c.req.header("Authorization")) || getCookie(c, SESSION_COOKIE);
+  const user = token ? await sessionUser(c.env.DB, token) : null;
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json<{ pro?: unknown }>().catch(() => null);
+  if (typeof body?.pro !== "boolean") return c.json({ error: "pro must be a boolean" }, 400);
+
+  const externalId = `dev:${user.userId}`;
+  const nowMs = Date.now();
+  if (body.pro) {
+    await upsertSubscription(
+      c.env.DB,
+      {
+        userId: user.userId,
+        provider: "legacy",
+        productId: "dev-mode",
+        externalId,
+        status: "legacy",
+        expiresAt: null,
+        autoRenew: null,
+        environment: "dev",
+        raw: null,
+      },
+      nowMs
+    );
+  } else {
+    await c.env.DB.prepare("DELETE FROM subscriptions WHERE provider = 'legacy' AND external_id = ?")
+      .bind(externalId)
+      .run();
+  }
+  const row = await c.env.DB.prepare("SELECT entitled_until FROM users WHERE id = ?")
+    .bind(user.userId)
+    .first<{ entitled_until: number | null }>();
+  return c.json({ ok: true, entitled_until: row?.entitled_until ?? null });
 });
 
 auth.post("/logout", async (c) => {

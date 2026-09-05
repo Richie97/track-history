@@ -30,7 +30,7 @@ final class CoreScreensUITests: XCTestCase {
     // MARK: - Dashboard
 
     func testDashboardShowsTheLogbook() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         XCTAssertTrue(
             app.buttons["trackCard"].firstMatch.waitForExistence(timeout: 20),
@@ -61,7 +61,7 @@ final class CoreScreensUITests: XCTestCase {
     /// recording left on disk by an earlier test puts the recorder in `.stopped`, and
     /// this button is idle-only, so the dashboard would legitimately not show it.
     func testDashboardStartsARecording() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         let record = app.buttons["dashboardRecord"]
         XCTAssertTrue(
@@ -84,7 +84,7 @@ final class CoreScreensUITests: XCTestCase {
     /// It also covers a SwiftUI hazard no assertion would otherwise notice — a
     /// confirmation dialog that wedges the view hangs the app rather than failing.
     func testDashboardDiscardsAnUnsavedRecording() throws {
-        let app = try launchSignedIn(extraLaunchArguments: ["-pendingRecording"])
+        let app = try launchSignedIn(tier: .pro, extraLaunchArguments: ["-pendingRecording"])
 
         let banner = app.staticTexts["Unsaved track recording"]
         XCTAssertTrue(
@@ -115,7 +115,7 @@ final class CoreScreensUITests: XCTestCase {
     /// The event page's real content, on data this test owns: create the event, add a
     /// session with lap times, check what the page makes of them, delete it again.
     func testEventLogsLapsAndShowsTheirStats() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         try createEvent(app, named: "Summit Point (Shenandoah)")
 
@@ -167,7 +167,7 @@ final class CoreScreensUITests: XCTestCase {
     // MARK: - Track page
 
     func testTrackPageChartsProgressAndCarriesTheGoal() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         let card = app.buttons["trackCard"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))
@@ -192,7 +192,7 @@ final class CoreScreensUITests: XCTestCase {
     /// Privacy and terms are required on every platform. The web app carries them in
     /// its footer and in Settings; a native app with no footer has only Settings.
     func testPrivacyAndTermsAreReachableFromSettings() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         app.buttons["Account"].tap()
 
@@ -219,19 +219,24 @@ final class CoreScreensUITests: XCTestCase {
 
     /// The subscription row (NS-32 phase B) and the paywall behind it.
     ///
-    /// The dev account is free, so Settings must say so and offer the way in; the
+    /// This is the one test that needs the account *free*: the paywall is reachable
+    /// from Settings only when there is something to sell, and a legacy grant shows
+    /// no button at all. Hence `tier: .free` — and hence the tier being a required
+    /// argument, since the overlay and garage suites want the opposite.
+    ///
+    /// A free account means Settings must say so and offer the way in; the
     /// sheet must carry what App Store guideline 3.1.2 checks for regardless of
     /// whether any product loaded — Restore Purchases and both legal links — which
     /// is why this needs no store: the scheme's `.storekit` file may or may not be
     /// in play under `xcodebuild test`, and the assertions don't depend on it.
     func testSettingsOffersTheSubscriptionAndThePaywallCarriesTheLegalLinks() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         app.buttons["Account"].tap()
 
         let summary = app.staticTexts["subscriptionSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 15), "Settings should carry the subscription row")
-        XCTAssertEqual(summary.label, "Free", "the dev account has no entitlement")
+        XCTAssertEqual(summary.label, "Free", "a free account reads Free")
 
         let subscribe = app.buttons["subscribeButton"]
         XCTAssertTrue(scrollTo(subscribe, in: app), "a free account should be offered Pro")

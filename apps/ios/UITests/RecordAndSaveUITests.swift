@@ -37,7 +37,7 @@ final class RecordAndSaveUITests: XCTestCase {
     }
 
     func testRecordsPicksALineAndSavesASession() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         // The recorder's entry point is an event page (NS-25): the recording is saved
         // as one of that event's sessions, so this is where it's started from.
@@ -116,7 +116,7 @@ final class RecordAndSaveUITests: XCTestCase {
     /// fixes is enough to reach review, where the discard button lives whether or not
     /// the trace yielded any laps.
     func testDiscardingARecordingReturnsToTheDashboard() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(

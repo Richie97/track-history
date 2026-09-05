@@ -72,6 +72,15 @@ without OAuth credentials. The bypass only works on local dev hosts
 (`localhost`, `127.0.0.1`, `[::1]`, `10.0.2.2`) — on any other hostname login
 falls through to real OAuth — but it must still never be set in production.
 
+The same flag and the same host check enable `POST /auth/dev/entitlement`
+(`{"pro": true|false}`), which grants or clears Pro for the signed-in account
+by writing a `legacy` subscriptions row. Entitlement is server-owned by design,
+so this is how the iOS screen tests exercise both tiers — the lap overlay and
+the garage need Pro, while the Settings subscription test needs Free to reach
+the paywall — instead of depending on whatever the local database happens to
+hold. It owns a single row per user (`dev:<userId>`), so asking for Free never
+disturbs a real purchase, and on any other hostname it answers 404.
+
 ### The API contract (`contracts/golden/`)
 
 `npm run contracts:generate` starts the Worker against a scratch D1, builds a

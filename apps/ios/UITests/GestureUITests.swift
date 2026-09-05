@@ -21,7 +21,7 @@ final class GestureUITests: XCTestCase {
     /// The read-out is a tap now. This asserts the scroll: swipe *starting on the
     /// chart* and the record panel, far below it, must come into view.
     func testTheEventPageScrollsWhenTheSwipeStartsOnTheChart() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 20))
@@ -46,7 +46,7 @@ final class GestureUITests: XCTestCase {
     }
 
     func testSwipeBackFromTheTrackPageOverTheChart() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         let card = app.buttons["trackCard"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))
@@ -63,7 +63,7 @@ final class GestureUITests: XCTestCase {
     }
 
     func testSwipeBackFromTheEventPageOverTheLapList() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 15))
@@ -80,7 +80,7 @@ final class GestureUITests: XCTestCase {
     }
 
     func testSwipeBackFromSettings() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         app.buttons["Account"].tap()
         XCTAssertTrue(app.staticTexts["Privacy policy"].waitForExistence(timeout: 15))

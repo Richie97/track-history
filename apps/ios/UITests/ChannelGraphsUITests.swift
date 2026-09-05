@@ -36,7 +36,7 @@ final class ChannelGraphsUITests: XCTestCase {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
         try seedImportedSession()
 
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         // By name, not by identifier: every track card shares one identifier, and the
         // point of this test is to reach *our* track.

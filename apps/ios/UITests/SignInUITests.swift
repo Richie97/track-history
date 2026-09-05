@@ -17,7 +17,7 @@ final class SignInUITests: XCTestCase {
     /// `ASWebAuthenticationSession` released early, the sheet closed instantly, the
     /// completion handler never fired, and the app sat on its spinner forever.
     func testSignsInThroughTheSystemBrowser() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         // The account itself is on the settings screen, which is also where the
         // required privacy and terms links live.
