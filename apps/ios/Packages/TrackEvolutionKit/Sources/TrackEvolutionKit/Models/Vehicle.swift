@@ -9,10 +9,15 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
     public var name: String
     public var notes: String?
     public var isDefault: Bool
+    /// The target hot tyre pressure (psi, all four corners) the web app's
+    /// pressure loop aims the next cold pressures at (#190). Set on the web,
+    /// decoded here so the response stays pinned; nothing native reads it yet.
+    public var targetHotPsi: Double?
 
     public enum CodingKeys: String, CodingKey {
         case id, name, notes
         case isDefault = "is_default"
+        case targetHotPsi = "target_hot_psi"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -21,6 +26,7 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
         name = try c.decode(String.self, forKey: .name)
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         isDefault = try c.decode(Int.self, forKey: .isDefault) != 0
+        targetHotPsi = try c.decodeIfPresent(Double.self, forKey: .targetHotPsi)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -29,6 +35,7 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
         try c.encode(name, forKey: .name)
         try c.encode(notes, forKey: .notes)
         try c.encode(isDefault ? 1 : 0, forKey: .isDefault)
+        try c.encode(targetHotPsi, forKey: .targetHotPsi)
     }
 }
 
@@ -43,6 +50,8 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
     public var name: String
     public var notes: String?
     public var isDefault: Bool
+    /// See `Vehicle.targetHotPsi`.
+    public var targetHotPsi: Double?
     public var updatedAt: Int
     /// On-track hours accrued across the vehicle's events.
     public var hours: Double
@@ -53,6 +62,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
     public enum CodingKeys: String, CodingKey {
         case id, name, notes, hours, parts
         case isDefault = "is_default"
+        case targetHotPsi = "target_hot_psi"
         case updatedAt = "updated_at"
         case eventCount = "event_count"
         case eventDays = "event_days"
@@ -65,6 +75,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         name: String,
         notes: String? = nil,
         isDefault: Bool = false,
+        targetHotPsi: Double? = nil,
         updatedAt: Int = 0,
         hours: Double = 0,
         eventCount: Int = 0,
@@ -75,6 +86,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         self.name = name
         self.notes = notes
         self.isDefault = isDefault
+        self.targetHotPsi = targetHotPsi
         self.updatedAt = updatedAt
         self.hours = hours
         self.eventCount = eventCount
@@ -88,6 +100,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         name = try c.decode(String.self, forKey: .name)
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         isDefault = try c.decode(Int.self, forKey: .isDefault) != 0
+        targetHotPsi = try c.decodeIfPresent(Double.self, forKey: .targetHotPsi)
         updatedAt = try c.decode(Int.self, forKey: .updatedAt)
         hours = try c.decode(Double.self, forKey: .hours)
         eventCount = try c.decode(Int.self, forKey: .eventCount)
@@ -101,6 +114,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         try c.encode(name, forKey: .name)
         try c.encode(notes, forKey: .notes)
         try c.encode(isDefault ? 1 : 0, forKey: .isDefault)
+        try c.encode(targetHotPsi, forKey: .targetHotPsi)
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encode(hours, forKey: .hours)
         try c.encode(eventCount, forKey: .eventCount)

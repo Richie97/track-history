@@ -18,6 +18,7 @@ export const VEHICLES = [
     name: "2023 Corvette Z06",
     notes: "Z07 package, stock aero. Track alignment.",
     default: true,
+    target_hot_psi: 34, // optional: what the health strip's pressure loop aims for
     parts: [
       // Current consumables
       {

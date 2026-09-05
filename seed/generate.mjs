@@ -48,7 +48,7 @@ VEHICLES.forEach((v, i) => {
   const vid = i + 1;
   vehicleId.set(v.name, vid);
   lines.push(
-    `INSERT INTO vehicles (id, user_id, name, notes, is_default) VALUES (${vid}, 1, ${q(v.name)}, ${q(v.notes ?? null)}, ${v.default ? 1 : 0});`
+    `INSERT INTO vehicles (id, user_id, name, notes, is_default, target_hot_psi) VALUES (${vid}, 1, ${q(v.name)}, ${q(v.notes ?? null)}, ${v.default ? 1 : 0}, ${v.target_hot_psi ?? "NULL"});`
   );
   for (const p of v.parts ?? []) {
     partId++;

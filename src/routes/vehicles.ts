@@ -18,9 +18,21 @@ const clearDefault = (db: D1Database, userId: number) =>
 
 const normNotes = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
 
+// The target hot tyre pressure (psi, all four corners) the session health
+// strip's pressure loop aims the next cold pressures at (#190). null clears
+// it; a value outside what a road or race tyre ever runs is rejected.
+// Returns undefined for an invalid value.
+const normTargetPsi = (v: unknown): number | null | undefined => {
+  if (v == null) return null;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 5 || v > 100) return undefined;
+  return Math.round(v * 10) / 10;
+};
+
+type VehicleBody = { name?: string; notes?: string | null; is_default?: boolean; target_hot_psi?: number | null };
+
 vehicles.get("/vehicles", async (c) => {
   const rows = await c.env.DB.prepare(
-    "SELECT id, name, notes, is_default FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE"
+    "SELECT id, name, notes, is_default, target_hot_psi FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE"
   )
     .bind(c.get("userId"))
     .all();
@@ -29,11 +41,13 @@ vehicles.get("/vehicles", async (c) => {
 
 vehicles.post("/vehicles", async (c) => {
   const userId = c.get("userId");
-  const body = await c.req.json<{ name?: string; notes?: string | null; is_default?: boolean }>();
+  const body = await c.req.json<VehicleBody>();
   const name = body.name?.trim();
   if (!name) return c.json({ error: "name required" }, 400);
   if ("is_default" in body && typeof body.is_default !== "boolean")
     return c.json({ error: "invalid is_default" }, 400);
+  const targetPsi = normTargetPsi(body.target_hot_psi);
+  if (targetPsi === undefined) return c.json({ error: "invalid target_hot_psi" }, 400);
   // The first vehicle in the garage becomes the default automatically.
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM vehicles WHERE user_id = ?")
     .bind(userId)
@@ -42,9 +56,9 @@ vehicles.post("/vehicles", async (c) => {
   if (makeDefault) await clearDefault(c.env.DB, userId);
   try {
     const row = await c.env.DB.prepare(
-      "INSERT INTO vehicles (user_id, name, notes, is_default) VALUES (?, ?, ?, ?) RETURNING id, name, notes, is_default"
+      "INSERT INTO vehicles (user_id, name, notes, is_default, target_hot_psi) VALUES (?, ?, ?, ?, ?) RETURNING id, name, notes, is_default, target_hot_psi"
     )
-      .bind(userId, name, normNotes(body.notes), makeDefault ? 1 : 0)
+      .bind(userId, name, normNotes(body.notes), makeDefault ? 1 : 0, targetPsi)
       .first();
     return c.json(row, 201);
   } catch {
@@ -62,7 +76,7 @@ vehicles.put("/vehicles/:id", async (c) => {
     .first();
   if (!owned) return c.json({ error: "not found" }, 404);
 
-  const body = await c.req.json<{ name?: string; notes?: string | null; is_default?: boolean }>();
+  const body = await c.req.json<VehicleBody>();
   const sets: string[] = [];
   const binds: unknown[] = [];
   if (body.name !== undefined) {
@@ -74,6 +88,12 @@ vehicles.put("/vehicles/:id", async (c) => {
   if ("notes" in body) {
     sets.push("notes = ?");
     binds.push(normNotes(body.notes));
+  }
+  if ("target_hot_psi" in body) {
+    const targetPsi = normTargetPsi(body.target_hot_psi);
+    if (targetPsi === undefined) return c.json({ error: "invalid target_hot_psi" }, 400);
+    sets.push("target_hot_psi = ?");
+    binds.push(targetPsi);
   }
   if ("is_default" in body) {
     if (typeof body.is_default !== "boolean") return c.json({ error: "invalid is_default" }, 400);
@@ -118,7 +138,7 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
   const [vehicleRes, partRes, measurementRes, hoursRes] = await db.batch([
     db
       .prepare(
-        "SELECT id, name, notes, is_default, updated_at FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE"
+        "SELECT id, name, notes, is_default, target_hot_psi, updated_at FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE"
       )
       .bind(userId),
     db
@@ -140,7 +160,14 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
     vehicleHoursEventsStmt(db, userId),
   ]);
   const vehicleRows = {
-    results: vehicleRes.results as { id: number; name: string; notes: string | null; is_default: number; updated_at: number }[],
+    results: vehicleRes.results as {
+      id: number;
+      name: string;
+      notes: string | null;
+      is_default: number;
+      target_hot_psi: number | null;
+      updated_at: number;
+    }[],
   };
   const partRows = {
     results: partRes.results as {

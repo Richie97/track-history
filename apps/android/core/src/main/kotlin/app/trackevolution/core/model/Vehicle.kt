@@ -37,6 +37,12 @@ public data class Vehicle(
     @SerialName("is_default")
     @Serializable(with = IntAsBooleanSerializer::class)
     val isDefault: Boolean,
+    /**
+     * The target hot tyre pressure (psi, all four corners) the web app's
+     * pressure loop aims the next cold pressures at (#190). Set on the web,
+     * decoded here so the response stays pinned; nothing native reads it yet.
+     */
+    @SerialName("target_hot_psi") val targetHotPsi: Double? = null,
 )
 
 /**
@@ -55,6 +61,8 @@ public data class GarageVehicle(
     @SerialName("is_default")
     @Serializable(with = IntAsBooleanSerializer::class)
     val isDefault: Boolean,
+    /** See [Vehicle.targetHotPsi]. */
+    @SerialName("target_hot_psi") val targetHotPsi: Double? = null,
     @SerialName("updated_at") val updatedAt: Long,
     /** On-track hours accrued across the vehicle's events. */
     val hours: Double,

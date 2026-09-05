@@ -676,6 +676,45 @@ button.ch-chip.on { background: var(--surface-raised); }
 .ch-balance td.bal-us, .ch-balance td.bal-os { color: var(--text-strong); font-weight: var(--weight-semibold); }
 @media (hover: hover) { .ch-balance tr[data-corner]:hover td { background: var(--surface-hover); } }
 .ch-balance .hint { margin-top: 8px; }
+/* Session health strip (js/health.js): the per-lap scalars as small multiples
+   on the Car tab. The shading is the garage's wear vocabulary — .hs-low is
+   "approaching a line", .hs-due is "past it" — never a second colour scale. */
+.ch-health { margin: 12px 0 4px; }
+.ch-health .sec-head { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 8px; }
+.ch-health .sec-head .hint { color: var(--text-faint); }
+.ch-health .health-group { margin: 10px 0 14px; }
+.ch-health .health-group .sec-head { margin-bottom: 6px; }
+.health-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.health-card {
+  padding: 8px 10px 6px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md);
+  background: var(--surface-raised); min-width: 0;
+}
+.health-card.hs-low { border-color: color-mix(in srgb, var(--danger) 45%, var(--border-hairline)); }
+.health-card.hs-due { border-color: var(--danger); background: var(--danger-tint); }
+.health-card .hc-label { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.health-card .hc-rule, .health-table .hc-rule, .health-loop .hc-rule { color: var(--text-faint); font-weight: 400; }
+.health-card .hc-value { font-size: var(--fs-h3); font-weight: var(--weight-semibold); color: var(--text-strong); font-variant-numeric: tabular-nums; margin: 2px 0 4px; }
+.health-card .hc-status { font-size: var(--fs-2xs); font-weight: var(--weight-medium); color: var(--danger-ink); margin-left: 4px; }
+.health-card .health-spark { display: block; width: 100%; height: auto; }
+.health-fuel { font-size: var(--fs-sm); color: var(--text-muted); margin: 0 0 12px; }
+.health-fuel b { color: var(--text-strong); }
+.health-spread, .health-loop { margin: 12px 0 14px; }
+.ch-health table td, .ch-health table th { padding: 8px 10px; white-space: nowrap; }
+.ch-health table th.hg-head { text-align: center; color: var(--text-faint); font-weight: var(--weight-medium); border-bottom: none; padding-bottom: 2px; }
+.ch-health td .dot { display: inline-block; width: 9px; height: 9px; border-radius: var(--radius-pill); vertical-align: middle; margin-right: 2px; }
+.ch-health td.hs-low { background: color-mix(in srgb, var(--danger-tint) 55%, transparent); }
+.ch-health td.hs-due { background: var(--danger-tint); color: var(--danger-ink); font-weight: var(--weight-semibold); }
+.ch-health td.hs-none, .ch-health .hs-none { color: var(--text-faint); }
+.ch-health td.hs-suggest { color: var(--accent-ink); }
+.ch-health td.hs-ok { color: var(--positive); }
+.health-loop .health-day { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px 0 2px; font-size: var(--fs-xs); color: var(--text-muted); }
+.health-loop .health-day select { font: inherit; font-size: var(--fs-xs); padding: 2px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border-hairline); background: var(--surface-input); color: var(--text-strong); }
+.health-target { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.health-target label { display: inline-flex; align-items: center; gap: 6px; }
+.health-target input { width: 70px; padding: 6px 8px; border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); background: var(--surface-input); color: var(--text-strong); font: inherit; font-size: var(--fs-sm); }
+.health-actions { margin-top: 10px; align-items: center; }
+.health-actions .hint { margin: 0; }
+.ch-health .hint { margin-top: 6px; }
 .add-laps-input {
   flex: 1; min-width: 200px; padding: 10px 14px;
   border: 1px solid var(--border-hairline); border-radius: var(--radius-md);
