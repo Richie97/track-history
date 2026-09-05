@@ -164,6 +164,9 @@ private val gallerySession = SessionChannels(
             speed = (0 until 150).map { 60 + 90 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
             rpm = (0 until 150).map { 3000 + 3500 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
             latG = (0 until 150).map { 1.1 * sin(it / 4.5 + n) },
+            // A quarter-turn out of phase with the cornering, so the samples
+            // fill the friction circle rather than drawing its cross (#186).
+            longG = (0 until 150).map { -1.2 * cos(it / 4.5 + n) },
             // Pedals trade off against each other (0–100%), the steering trace
             // is signed degrees around zero.
             throttle = (0 until 150).map { 100 * (0.5 + 0.5 * sin(it / 9.0 + n)) },

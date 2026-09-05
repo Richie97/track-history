@@ -115,7 +115,7 @@ Features added after the rewrite shipped, and where they landed:
 - **Friction circle**
   ([#186](https://github.com/Richie97/track-history/issues/186), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))
-  — **web first.** The epic's highest-coaching-value ticket and its first
+  — **all three.** The epic's highest-coaching-value ticket and its first
   genuinely new chart *type*: `latG` against `longG` as a square scatter on
   the panel's Grip tab, over a dim envelope of the session's other laps, with
   a dashed reference arc at the session's own 99th-percentile combined G and
@@ -123,19 +123,30 @@ Features added after the rewrite shipped, and where they landed:
   cornering and cornering-while-on-the-power) under it. It does not ride the
   stacked distance-axis multiples — a circle has to look like a circle — so
   it takes its own square container inside the tab, which is what the tab IA
-  from #188 exists to allow. Hovering a point marks the distance on the
-  channel charts and rings the place on the best-lap track map (best lap
-  only, same rule as the limit marks). The pure half is `public/js/grip.js`,
-  written to port but **not** pinned in `contracts/logic/` yet — the fixture
-  lands with the first port, per the assert-against-the-reference rule. Two
-  data facts shape it and would shape any port: the stored `latG` is a
-  magnitude (pdr.js stores `abs`), so the side comes from the sign of the
-  `steering` trace and a lap without one plots one-sided; and the 20 m grid
-  smooths peaks, so the view is the shape of grip usage, not peak G.
+  from #188 exists to allow. The pure half is `public/js/grip.js`, ported as
+  `Grip` to the Kit (`Analysis/Grip.swift`) and `:core` (`Grip.kt`) under the
+  same function and constant names and pinned by `contracts/logic/grip.json`;
+  the drawing is per platform (`frictionCircleSvg` / `FrictionCircle.swift` /
+  `FrictionCircle.kt`), hand-rolled on a canvas on both phones for the same
+  reason the gear ribbon is: this is a polar picture, and a point mark per
+  sample inside the panel is the "chart of this many marks never settles"
+  hazard `LapChannelChart` documents.
+  Three things carry across the ports. The stored `latG` is a **magnitude**
+  (pdr.js stores `abs`), so the side comes from the sign of the `steering`
+  trace and a lap without one plots one-sided — a legitimate outcome, not a
+  bug to work around. **Braking plots up**, against the sign of the stored
+  value, because deceleration is the one axis with a fixed place in a
+  driver's head. And the 20 m grid smooths peaks, so the view is the shape of
+  grip usage, not peak G.
+  One thing is deliberately **web-only**: hovering a point to mark its
+  distance on the channel charts and ring the place on the best-lap track
+  map. A phone has no pointer, and on both native clients the panel is a
+  sheet over the event page rather than beside the map, so the read-out
+  carries that meaning there instead.
 - **Balance — understeer or oversteer**
   ([#189](https://github.com/Richie97/track-history/issues/189), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))
-  — **web first**, for the same reason as the friction circle: the `yaw`
+  — **web first**, for the reason the friction circle was: the `yaw`
   trace is trivially all-three (and now draws on the Grip tab), but the
   balance scatter and the per-corner summary are new surfaces the frontier
   rule says to prove at a desk first. `yaw` against `steering` as a scatter

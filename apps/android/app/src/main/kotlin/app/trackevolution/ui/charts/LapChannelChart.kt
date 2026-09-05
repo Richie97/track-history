@@ -150,7 +150,12 @@ fun LapChannelChart(
             }
             // The session's shift points (#187) above the traces they explain.
             PanelTab.INPUTS -> ShiftTable(channels = channels)
-            PanelTab.GRIP, PanelTab.CAR -> Unit
+            // The friction circle (#186) above the lateral-G trace it
+            // summarises. It draws nothing unless the session stored longG too,
+            // so a source with only lateral G still gets its trace.
+            PanelTab.GRIP ->
+                FrictionCircle(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+            PanelTab.CAR -> Unit
         }
 
         for (channel in present.filter { PanelTab.of(it) == shown }) {

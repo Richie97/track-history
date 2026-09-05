@@ -678,8 +678,12 @@ acceleration — so left and right come from the sign of the steering trace and
 a lap that stored no steering plots on one side; and the 20 m grid smooths
 peaks (about 0.3 s at 250 km/h), so the picture is the *shape* of grip usage
 rather than peak G, which is what the session's max lateral and braking G
-figures are for. `public/js/grip.js`; web first, and not pinned in
-`contracts/logic/` until a port exists.
+figures are for. The pure half is `public/js/grip.js`, ported as `Grip` to the
+iOS Kit and Android `:core` and pinned for both by `contracts/logic/grip.json`;
+each client draws its own (`frictionCircleSvg`, `FrictionCircle.swift`,
+`FrictionCircle.kt`). The hover linking is web-only — a phone has no pointer,
+and on both native clients this panel is a sheet over the event page rather
+than beside the track map.
 
 Under the friction circle, the same tab answers **am I understeering or
 oversteering?** from the imports' `yaw` and `steering` channels. In a neutral
@@ -726,10 +730,10 @@ sections: *Time* (the delta chart, the sector table and the speed trace),
 and *Grip* (the friction circle, the balance scatter and per-corner table,
 and the lateral-G and yaw traces), with a *Car* tab reserved for the per-lap
 scalars once they are drawn; only tabs with content render, and a session
-with one populated tab renders flat. The tabs, the ribbon, the shift points
-and the limit marks and their bands are on the web app and both phone apps;
-the friction circle and the balance read-out are web-first and web-only so
-far.
+with one populated tab renders flat. All of it — the tabs, the ribbon, the
+shift points, the limit marks and their bands, and the friction circle — is
+on the web app and both phone apps; the balance read-out is web-first and
+web-only so far.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.

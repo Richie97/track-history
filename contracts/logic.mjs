@@ -45,6 +45,13 @@ import {
   shiftPoints,
 } from "../public/js/gears.js";
 import {
+  gripPoints,
+  gripShares,
+  latSign,
+  peakCombinedG,
+  sessionGrip,
+} from "../public/js/grip.js";
+import {
   alignLapPair,
   comparableLaps,
   defaultComparePicks,
@@ -502,6 +509,76 @@ const limitsFixture = {
     labelsAt: [0, 3, 10].map((k) => activeLimitLabels(limitLapA, k)),
     markers: limitMarkers(limitLapA, 20, limitTrace),
     noTrace: limitMarkers(limitLapA, 20, null),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// The friction circle (#186): public/js/grip.js. What is worth pinning: the
+// side derivation (the stored latG is a magnitude, so left/right comes from
+// the sign of the steering trace, and a lap without steering is one-sided —
+// get that wrong and one port draws half a circle), the two quadrant
+// thresholds at their exact boundaries (both are inclusive), the MIN_LOAD_G
+// gate that decides the denominator, and the percentile that must *not* be the
+// maximum. Lap A trails the brake and feeds the power out of two corners in
+// opposite directions; lap B brakes in a straight line and stores no steering;
+// lap C carries neither channel and must drop out everywhere.
+const gripLapA = {
+  n: 1,
+  timeMs: 90000,
+  latG: [0, 0.3, 0.9, 1.3, 1.5, 1.4, 1.1, 0.7, 0.3, 0, 0.2, 0.8, 1.2, 1.5, 1.5, 1.2, 0.8, 0.4, 0.1, 0],
+  longG: [0.4, -1.2, -1, -0.6, -0.2, 0.1, 0.4, 0.6, 0.7, 0.5, -1.4, -0.9, -0.4, 0, 0.3, 0.5, 0.6, 0.6, 0.5, 0.4],
+  // first corner left (negative steering), second right
+  steering: [0, -5, -20, -60, -90, -80, -60, -30, -10, 0, 5, 25, 70, 95, 90, 60, 30, 10, 2, 0],
+};
+const gripLapB = {
+  n: 2,
+  timeMs: 92000,
+  latG: [0, 0, 0, 0, 1.4, 1.4, 1.3, 0, 0, 0, 0, 0, 0, 1.5, 1.5, 1.3, 0, 0, 0, 0],
+  longG: [0.4, -1.3, -1.3, -1.2, 0, 0, 0, 0.5, 0.6, 0.6, 0.4, -1.4, -1.3, 0, 0, 0, 0.5, 0.6, 0.6, 0.4],
+  // no steering: every sample plots on one side, which is a legitimate outcome
+};
+const gripLapC = { n: 3, timeMs: 93000, speed: Array.from({ length: 20 }, () => 100) };
+const gripChannels = { v: 1, dStepM: 20, laps: [gripLapA, gripLapB, gripLapC] };
+// Each sample sits exactly on a threshold: k0/k1 count as trail braking (both
+// bounds are inclusive), k2 fails the lateral bound, k3 counts as power, k4
+// fails the longitudinal bound, and k5 never loads the tyre at all.
+const gripEdgeLap = {
+  n: 1,
+  timeMs: 60000,
+  latG: [0.25, 0.2, 0.19, 1, 1, 0.2],
+  longG: [-0.25, -0.25, -1, 0.2, 0.19, 0.22],
+};
+// 100 samples at 1 G with one 3 G kerb strike: the arc must stay at 1 G.
+const gripSpikeLap = {
+  n: 1,
+  timeMs: 60000,
+  latG: Array.from({ length: 100 }, (_, i) => (i === 42 ? 3 : 1)),
+  longG: Array.from({ length: 100 }, () => 0),
+};
+const gripSpikeChannels = { v: 1, dStepM: 20, laps: [gripSpikeLap] };
+const gripFixture = {
+  description:
+    "Friction-circle reference output from public/js/grip.js (latSign / " +
+    "gripPoints / gripShares / peakCombinedG / sessionGrip). Ports must " +
+    "reproduce the counts exactly and the doubles to 1e-9. Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/grip.js",
+  input: { channels: gripChannels, edgeLap: gripEdgeLap, spikeChannels: gripSpikeChannels },
+  expected: {
+    // The side derivation, sampled where it matters: straight, left, right,
+    // past the end of the trace, and a lap with no steering at all.
+    latSignA: [0, 3, 13, 99].map((k) => latSign(gripLapA, k)),
+    latSignB: [0, 4, 13].map((k) => latSign(gripLapB, k)),
+    points: gripChannels.laps.map((l) => gripPoints(l)),
+    shares: gripChannels.laps.map((l) => gripShares(l)),
+    edgeShares: gripShares(gripEdgeLap),
+    session: sessionGrip(gripChannels),
+    peak: peakCombinedG(gripChannels),
+    // The percentile is the point: at 0.99 the kerb strike is outside the
+    // envelope, at 1 it sets it.
+    spikePeak: peakCombinedG(gripSpikeChannels),
+    spikeMax: peakCombinedG(gripSpikeChannels, 1),
+    noData: sessionGrip({ v: 1, dStepM: 20, laps: [gripLapC] }),
   },
 };
 
@@ -1042,6 +1119,7 @@ writeFileSync(path.join(OUT_DIR, "compare-laps.json"), JSON.stringify(compareLap
 writeFileSync(path.join(OUT_DIR, "sectors.json"), JSON.stringify(sectorsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "gears.json"), JSON.stringify(gearsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "limits.json"), JSON.stringify(limitsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "grip.json"), JSON.stringify(gripFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
@@ -1057,6 +1135,10 @@ console.log(`wrote contracts/logic/compare-laps.json (${cmpRows.length} pickable
 console.log(`wrote contracts/logic/sectors.json (${sectorsFixture.expected.session.laps.length} laps split)`);
 console.log(`wrote contracts/logic/gears.json (${gearsFixture.expected.shiftPoints.gears.length} gears with upshifts)`);
 console.log(`wrote contracts/logic/limits.json (${limitsFixture.expected.markers.length} markers placed)`);
+console.log(
+  `wrote contracts/logic/grip.json (peak ${gripFixture.expected.peak.toFixed(3)} G over ` +
+    `${gripFixture.expected.session.all.samples} samples)`
+);
 console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );
