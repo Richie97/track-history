@@ -502,6 +502,8 @@ track with a licence-tester account. Delete what you create.
   on web says where to subscribe. If web-only users turn out to exist in
   numbers, Stripe is a `provider` value and one more `src/lib/billing/*.ts`,
   not a redesign — the table was shaped to allow it.
+  **That follow-up is now specified:** [NS-33](NS-33-stripe-web-checkout.md)
+  (epic [#194](https://github.com/Richie97/track-history/issues/194)).
 - **Why freemium and not a hard paywall.** Share pages and leaderboards seeded
   by free users are the only marketing the app has, and the free tier above is
   exactly what every existing web user has today, so nobody loses anything at

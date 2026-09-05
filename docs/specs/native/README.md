@@ -174,6 +174,7 @@ change* rule does not apply — see the spec for why.
 | ID | Spec | Platform | Depends on |
 |---|---|---|---|
 | NS-32 | [Subscriptions (Track Evolution Pro)](NS-32-subscriptions.md) | Shared | NS-25, NS-26, NS-27 |
+| NS-33 | [Stripe: Track Evolution Pro on the web](NS-33-stripe-web-checkout.md) | Server + web | NS-32 |
 
 ## Deferred — not in this programme
 
