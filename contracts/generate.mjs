@@ -282,7 +282,11 @@ async function build(api) {
 
   // --- garage -------------------------------------------------------------
   // Vehicle name matches the rich event's `car` so vehicleIdForCar links them.
-  const vehicle = await api("POST", "/vehicles", { name: "Corvette C7", notes: "Track car." });
+  const vehicle = await api("POST", "/vehicles", {
+    name: "Corvette C7",
+    notes: "Track car.",
+    target_hot_psi: 32,
+  });
   // A bare vehicle with no parts — the empty branch of the garage response.
   await api("POST", "/vehicles", { name: "Miata", is_default: false });
 

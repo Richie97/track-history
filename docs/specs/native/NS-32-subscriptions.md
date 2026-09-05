@@ -58,6 +58,7 @@ turns lap times into analysis.
 | Two-event lap overlay (web) | **Pro** | Client |
 | Garage **consumables**: parts, wear, measurements, refresh, ledger | **Pro** | Server: `requireEntitlement` on the parts/measurements routes and `GET /garage` |
 | Setup notebook + setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes |
+| Session health strip (the Car tab, [#190](https://github.com/Richie97/track-history/issues/190)) and its tyre-pressure loop (web) | **Pro** | Server: rides on `channels` (rule 4) and, for the loop, the setups routes; the vehicle's `target_hot_psi` itself is a free vehicle-list field |
 | Year in review (web) | **Pro** | Client |
 
 > **Revised after phase D: telemetry import is free.** It was `Pro`, gated on

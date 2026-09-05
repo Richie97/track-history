@@ -14,6 +14,7 @@ import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./j
 import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
 import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
 import { balanceHtml, balanceSummary, bindBalance } from "./js/balance.js";
+import { healthHtml, healthSummary, nextTimeNote, pressureLoop, pressureLoopHtml } from "./js/health.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -1328,6 +1329,12 @@ let pbWatch = null;
 // Event ids whose setup notebook is expanded — collapsed by default, but the
 // route() re-render after saving a sheet must not snap it shut mid-session.
 const setupNotebookOpen = new Set();
+// The channel panel's state per session id (open, tab, lit laps), kept for
+// the same reason: the Car tab's actions save through route().
+const channelPanelMemory = new Map();
+// Which event day's setup sheet the Car tab's pressure loop reads, per
+// session id — a session doesn't record its day, so the driver picks.
+const healthDayBySession = new Map();
 
 async function viewEvent(eventId) {
   const [e, tracks, garage] = await Promise.all([
@@ -1388,6 +1395,10 @@ async function viewEvent(eventId) {
       // table and the scatter are on the panel's Grip tab.
       const bal = s.channels?.laps?.length ? balanceSummary(s.channels) : null;
       if (bal) stats.push(esc(bal));
+      // Car health (js/health.js): any slow reading past its watch line, and
+      // the fuel outlook; the strip itself is the panel's Car tab.
+      const car = s.channels?.laps?.length ? healthSummary(s.channels, "us") : null;
+      if (car) stats.push(esc(car));
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
@@ -1736,23 +1747,119 @@ async function viewEvent(eventId) {
   view.querySelectorAll("[data-channel-graphs]").forEach((el) => {
     const s = e.sessions.find((x) => String(x.id) === el.dataset.channelGraphs);
     if (!s) return;
-    bindChannelGraphs(el, s.channels, s.laps, {
+    // The Car tab's pressure loop (#190, web-only — it needs the setup
+    // notebook): the sheet's cold pressures against the import's hot ones and
+    // the vehicle's target. A session doesn't know its day, so the sheet
+    // defaults to the last day with cold pressures logged and the driver can
+    // pick another; the loop's context is rebuilt on every panel render.
+    const vehicle = e.vehicle_id ? garage.find((v) => String(v.id) === String(e.vehicle_id)) ?? null : null;
+    const defaultHealthDay = () => {
+      const withCold = setupDays.filter((d) => setupsByDay.get(d)?.tp_cold);
+      if (withCold.length) return withCold[withCold.length - 1];
+      const withSheet = setupDays.filter((d) => setupsByDay.has(d));
+      return withSheet.length ? withSheet[withSheet.length - 1] : 1;
+    };
+    const loopContext = () => {
+      const day = healthDayBySession.get(s.id) ?? defaultHealthDay();
+      const sheet = setupsByDay.get(day) ?? null;
+      const loop = pressureLoop(s.channels, sheet, vehicle?.target_hot_psi ?? null);
+      const nextDay = setupDays.includes(day + 1) ? day + 1 : null;
+      return {
+        loop,
+        day,
+        days: setupDays,
+        sheet,
+        vehicle: vehicle ? { id: vehicle.id, name: vehicle.name, target_hot_psi: vehicle.target_hot_psi ?? null } : null,
+        nextDay,
+        nextHasSheet: nextDay != null && setupsByDay.has(nextDay),
+        noteLine: nextTimeNote(loop),
+      };
+    };
+    if (!channelPanelMemory.has(s.id)) channelPanelMemory.set(s.id, {});
+    const panel = bindChannelGraphs(el, s.channels, s.laps, {
       // Sector splits + theoretical best for the highlighted laps on the
-      // Time tab, the session's shift points on Inputs, and on Grip the
+      // Time tab, the session's shift points on Inputs, on Grip the
       // friction circle (#186) — a square scatter, so it gets its own
       // container rather than a slot on the distance axis — followed by the
       // balance scatter and per-corner table (#189), above the lateral-G and
-      // yaw traces.
+      // yaw traces, and on Car the health strip (#190): the per-lap scalars
+      // as small multiples, the tyre spread, the pressure loop and the
+      // per-lap table.
       renderExtras: (lit, dispN) => ({
         time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
         inputs: shiftTableHtml(s.channels),
         grip:
           gripCircleHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) +
           balanceHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+        car: healthHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`, {
+          units: "us",
+          loopHtml: setupsAllowed ? pressureLoopHtml(loopContext(), (chIdx) => `Lap ${dispN[chIdx]}`) : "",
+        }),
       }),
       // The gear ribbon rides under the RPM trace (#187), where each shift
       // is the drop in the sawtooth above it.
       renderAfter: { rpm: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
+      memory: channelPanelMemory.get(s.id),
+    });
+    // The loop's actions, delegated from the panel container because the
+    // Car tab re-renders with every chip toggle. Saves go through route() —
+    // the notebook shows the sheet too — and the panel memory above brings
+    // the driver back to the Car tab afterwards.
+    el.addEventListener("change", (evt) => {
+      const sel = evt.target.closest?.("[data-health-day]");
+      if (!sel) return;
+      healthDayBySession.set(s.id, Number(sel.value));
+      panel.rerender();
+    });
+    el.addEventListener("submit", async (evt) => {
+      const form = evt.target.closest?.("[data-health-target]");
+      if (!form) return;
+      evt.preventDefault();
+      const raw = form.target.value.trim();
+      const target = raw === "" ? null : Number(raw);
+      if (target != null && !Number.isFinite(target)) return;
+      try {
+        await api(`/vehicles/${form.dataset.healthTarget}`, { method: "PUT", body: { target_hot_psi: target } });
+        route();
+      } catch (err) {
+        showError(err);
+      }
+    });
+    el.addEventListener("click", async (evt) => {
+      const record = evt.target.closest?.("[data-health-record]");
+      const next = evt.target.closest?.("[data-health-next]");
+      if (!record && !next) return;
+      const ctx = loopContext();
+      if (!ctx.loop) return;
+      if (record) {
+        // Hot pressures onto the day's sheet, plus the "next time" line in
+        // its notes when there is a suggestion — notes copy forward, so the
+        // suggestion is in the next sheet's form before it is typed.
+        const base = ctx.sheet ?? {};
+        const data = { ...base, tp_hot: { ...(base.tp_hot ?? {}), ...ctx.loop.hotSheet } };
+        if (ctx.noteLine && !base.notes?.includes(ctx.noteLine))
+          data.notes = base.notes ? `${base.notes}\n${ctx.noteLine}` : ctx.noteLine;
+        try {
+          await api(`/events/${e.id}/setups/${ctx.day}`, { method: "PUT", body: data });
+          route();
+        } catch (err) {
+          showError(err);
+        }
+        return;
+      }
+      // Open the next day's sheet with the suggested colds in place of the
+      // day's: a new sheet copies this one forward (minus its hots, which
+      // belong to today), an existing one keeps everything else it has.
+      const day = Number(next.dataset.healthNext);
+      const existing = setupsByDay.get(day) ?? null;
+      let carried = existing;
+      if (!carried) {
+        const { tp_hot: _todaysHots, ...rest } = ctx.sheet ?? {};
+        carried = rest;
+      }
+      notebook.open = true;
+      openSetupForm(day, { ...carried, tp_cold: ctx.loop.coldSheet }, existing != null, true);
+      view.querySelector(`[data-setup-body="${day}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     // Hovering a point on the friction circle or the balance scatter answers
     // "which corner": the distance is marked on every chart that has a

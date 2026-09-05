@@ -179,6 +179,36 @@ Features added after the rewrite shipped, and where they landed:
   entry and leads it on exit. If this graduates past the relative version,
   wheelbase and steering ratio belong on the garage's vehicle record —
   [#208](https://github.com/Richie97/track-history/issues/208) is that ticket.
+- **Session health strip**
+  ([#190](https://github.com/Richie97/track-history/issues/190), 2026-09,
+  epic [#193](https://github.com/Richie97/track-history/issues/193))
+  — shipped **web first**, the strip destined for **all three** and the
+  setup-sheet loop **web-only**. The panel's Car tab, finally filled: the
+  fourteen per-lap scalars plus per-lap peak boost as small multiples (a card
+  per figure with the session's number by that channel's own rule and a
+  sparkline across the laps), threshold shading in the garage's wear
+  vocabulary rather than alarms, the cross-corner tyre spread per lap, fuel
+  burn and laps remaining, and a per-lap table; the stats line names any
+  figure past its line and the fuel outlook. The pure half is
+  `public/js/health.js`, written to port under the same names (`HEALTH_DEFS`,
+  `lapValue`, `healthStatus`, `sessionHealth`, `tyreSpread`, `fuelBurn`,
+  `hotPressures`, `suggestCold`, `pressureLoop`, `healthSummary`) and pinned
+  in `contracts/logic/` when the first port lands, as the friction circle
+  was. Three decisions a port inherits: the reduction is the importer's
+  (`SCALAR_NAMES`), restated only so the view can say "peak" / "min" / "at
+  lap end" — the one derivation is boost's per-lap peak off the trace; both
+  threshold bounds are inclusive and a floor (`low: true`) shades below its
+  lines; and values stay in the stored units (°C, kPa) with display
+  conversion a separate step, so the fixture pins numbers rather than a
+  locale — the web shows °F and psi, the phones may choose. The
+  **tyre-pressure loop** — the sheet's cold pressures, the import's hot ones
+  and a per-vehicle target (`vehicles.target_hot_psi`, the one schema change)
+  becoming the cold pressure to start from next time, recorded onto the day's
+  sheet with a *next time* note that copies forward — stays web-only because
+  the setup notebook is (see the deferred list); the native clients show the
+  hot pressures on the strip and nothing more. `target_hot_psi` reached the
+  golden captures, so both native `Vehicle` models decode it without reading
+  it.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and

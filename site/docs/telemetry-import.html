@@ -160,10 +160,10 @@
         oil pressure, fuel level, tyre pressures and temperatures, battery
         voltage — so those are kept as <strong>one figure per lap</strong>,
         along with the ambient temperature, the track's elevation range and
-        the car's odometer reading for the session. Nothing on screen uses
-        those per-lap figures yet; they are saved at import because the video
-        stays on your device and is never uploaded, so a reading not taken now
-        is gone.</li>
+        the car's odometer reading for the session. The per-lap figures are
+        the channel panel's <strong>Car</strong> tab (below); all of it is
+        saved at import because the video stays on your device and is never
+        uploaded, so a reading not taken now is gone.</li>
       <li>Each imported session also stores <strong>per-lap channel data</strong> —
         speed for every source, plus, from a PDR recording, RPM, lateral and
         longitudinal&nbsp;G, throttle, brake, steering angle, yaw rate, gear,
@@ -185,9 +185,10 @@
         appears in the session's stats line when it beats your actual best: the
         gap is what stringing your best sectors together would have been worth.
         The panel is split into tabs — <strong>Time</strong> (delta, sectors,
-        speed), <strong>Inputs</strong> (pedals, steering, RPM, gears) and
+        speed), <strong>Inputs</strong> (pedals, steering, RPM, gears),
         <strong>Grip</strong> (the friction circle, balance, lateral G and
-        yaw rate) — so each answers one question. From
+        yaw rate) and <strong>Car</strong> (is the car okay, and is it set up
+        right) — so each answers one question. From
         a PDR recording, a <strong>gear ribbon</strong> sits under the
         RPM trace — one band per selected lap, one block per gear with the
         number in it, a gap where the clutch was in — and with two or more
@@ -227,7 +228,26 @@
         samples smooth the spikes, so the circle shows the <em>shape</em> of
         your grip use rather than your peak G (that's the max lateral G in the
         session's stats). The circle and its two numbers are on the iPhone and
-        Android apps too.
+        Android apps too. The <strong>Car</strong> tab is the other half of a
+        track day: every slow reading a PDR recording carries — oil, coolant
+        and transmission temperature, oil pressure, boost, the four tyre
+        pressures and temperatures, fuel and battery voltage — as one small
+        chart per figure across the session's laps, each with the number that
+        matters for it (the peak of a temperature, the lowest oil pressure or
+        voltage, the tyre pressure as the lap ended), shaded when a figure
+        approaches or passes a line worth watching, such as oil over about
+        130&nbsp;°C or the battery under 12.5&nbsp;V. Under the charts, the
+        <strong>tyre spread</strong> per lap — left minus right on each axle
+        and front minus rear, for temperatures and pressures — is the camber
+        and balance evidence a setup change gets judged by, a fuel line gives
+        your burn per lap and the laps left at that rate (it joins the
+        session's stats line too), and a per-lap table carries every figure.
+        A session typed in by hand has none of this and shows no Car tab. On
+        the web app the tab also closes the loop with your
+        <a href="./garage.html#setups">setup notebook</a>: the sheet's cold
+        pressures, the hot pressures the import measured and your car's
+        target hot pressure become the cold pressure to start from next time,
+        recordable onto the day's sheet in one tap.
         Under it, the same tab answers <strong>am I understeering or
         oversteering?</strong> from the recording's yaw rate and steering
         angle. In a neutral car the two rise together: steering the car

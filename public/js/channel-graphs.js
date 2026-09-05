@@ -296,7 +296,14 @@ const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "input
 // tab. `renderAfter` — { [channelKey]: (litMap, dispN) => svg } — slots a
 // chart straight under that channel's chart on the same distance axis:
 // app.js hangs the gear ribbon from js/gears.js under the RPM trace.
-export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter } = {}) {
+// `memory` — a plain object the caller keeps across re-renders — is read for
+// the panel's initial state (`open`, `tab`, `lit`) and written back on every
+// change, so a route() re-render after a save (recording hot pressures on a
+// setup sheet from the Car tab, say) lands back on the same tab with the
+// same laps lit rather than on a collapsed panel.
+// Returns { rerender }, which redraws the charts with the current selection
+// — for a caller whose extras depend on state the panel doesn't own.
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory } = {}) {
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
   const bestMs = Math.min(...sessionLaps.map((l) => l.time_ms));
@@ -308,7 +315,11 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
   const bestRow = matched.length
     ? matched.reduce((a, b) => (b.lap.time_ms < a.lap.time_ms ? b : a))
     : null;
-  const state = { lit: bestRow ? [bestRow.chIdx] : [], tab: null }; // channel-lap indexes in slot order
+  const remembered = memory?.lit?.filter((i) => Number.isInteger(i) && i >= 0 && i < chLaps.length);
+  const state = {
+    lit: remembered?.length ? remembered.slice(0, SLOTS.length) : bestRow ? [bestRow.chIdx] : [], // channel-lap indexes in slot order
+    tab: memory?.tab ?? null,
+  };
 
   const litMap = () => new Map(state.lit.map((lapIdx, slot) => [lapIdx, SLOTS[slot]]));
 
@@ -317,7 +328,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     .join(" · ");
   container.innerHTML = `
     <div class="laps ch-chips"></div>
-    <details class="ch-details">
+    <details class="ch-details"${memory?.open ? " open" : ""}>
       <summary>Channel graphs <span class="hint">${chanNames} vs distance</span></summary>
       <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3). With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.</div>
       <div class="ch-graphs"></div>
@@ -326,6 +337,9 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
   const details = container.querySelector(".ch-details");
   const chartsEl = container.querySelector(".ch-graphs");
   let chartsDirty = true;
+  const remember = () => {
+    if (memory) Object.assign(memory, { open: details.open, tab: state.tab, lit: [...state.lit] });
+  };
 
   const renderChips = () => {
     const lit = litMap();
@@ -349,6 +363,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
           state.lit.push(i);
           if (state.lit.length > SLOTS.length) state.lit.shift(); // evict oldest
         }
+        remember();
         renderChips();
         if (details.open) renderCharts();
         else chartsDirty = true;
@@ -404,6 +419,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
       chartsEl.querySelectorAll("[data-ch-tab]").forEach((btn) => {
         btn.onclick = () => {
           state.tab = btn.dataset.chTab;
+          remember();
           chartsEl.querySelectorAll("[data-ch-tab]").forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
           chartsEl.querySelectorAll("[data-ch-panel]").forEach((p) => (p.hidden = p.dataset.chPanel !== state.tab));
         };
@@ -455,7 +471,15 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
   };
 
   details.addEventListener("toggle", () => {
+    remember();
     if (details.open && chartsDirty) renderCharts();
   });
   renderChips();
+  if (details.open) renderCharts();
+  return {
+    rerender: () => {
+      if (details.open) renderCharts();
+      else chartsDirty = true;
+    },
+  };
 }

@@ -596,9 +596,10 @@ and transmission temperatures, minimum oil pressure, fuel level and tyre
 pressures at the lap's end, peak tyre temperatures, minimum battery voltage —
 and four numbers describing the whole session (ambient and intake air
 temperature, the track's elevation range, and the car's own odometer reading)
-are stored alongside them. None of the per-lap figures are graphed yet; they
-are captured at import because the video never leaves the device, so anything
-not derived at import time is gone.
+are stored alongside them. The per-lap figures are the channel panel's
+**Car tab** — see *Session health* below; the four session numbers are not
+drawn yet. All of it is captured at import because the video never leaves the
+device, so anything not derived at import time is gone.
 
 Two of the gridded channels are states rather than measurements and are
 sampled accordingly: `gear` holds its last value (interpolating 3 and 4 gives
@@ -734,11 +735,43 @@ The panel is organised as **one question per tab** rather than a stack of
 sections: *Time* (the delta chart, the sector table and the speed trace),
 *Inputs* (throttle, brake, steering, RPM, the gear ribbon and shift points)
 and *Grip* (the friction circle, the balance scatter and per-corner table,
-and the lateral-G and yaw traces), with a *Car* tab reserved for the per-lap
-scalars once they are drawn; only tabs with content render, and a session
-with one populated tab renders flat. All of it — the tabs, the ribbon, the
-shift points, the limit marks and their bands, the friction circle and the
-balance read-out — is on the web app and both phone apps.
+and the lateral-G and yaw traces), and *Car* (the session health strip);
+only tabs with content render, and a session with one populated tab renders
+flat. All of it but the Car tab — the tabs, the ribbon, the shift points, the
+limit marks and their bands, the friction circle and the balance read-out —
+is on the web app and both phone apps; the Car tab is web-first for now.
+
+**Session health** ([#190](https://github.com/Richie97/track-history/issues/190),
+`public/js/health.js`) is the Car tab: the fourteen per-lap scalars plus
+per-lap peak boost as **small multiples** — one card per figure, grouped as
+temperatures / pressures / fuel & electrical, each with the session's figure
+by that channel's own rule (a peak, a minimum, or the value as the lap ended
+— the importer's reduction, restated, never re-derived) and a sparkline
+across the laps with the highlighted laps marked — over a per-lap table.
+Figures with a line worth watching (oil above ~130 °C, oil pressure below a
+floor, battery under 12.5 V, fuel running low) **shade rather than alarm**,
+using the garage's own wear vocabulary (`low` approaching, `due` past it) so
+there is no second colour scale. Two derived figures ride with it: the
+**cross-corner tyre spread** per lap — LF−RF and LR−RR, and front minus rear
+— for temperatures and pressures, which is camber and balance evidence, and
+**fuel burn**, the median drop per lap and the laps left at that rate, which
+also joins the session's stats line beside any figure past its line. A
+session of hand-entered laps stores no scalars and shows no strip. The web
+app displays °F and psi like the rest of the logbook; the module keeps the
+stored units (°C, kPa) underneath so a port pins numbers, not a locale.
+
+The tab also closes the **tyre-pressure loop** the setup notebook opens, and
+this half is web-only because the notebook is: the sheet records the cold
+pressures set in the morning, the import knows the hot pressures the tyres
+reached (the highest end-of-lap reading per corner), and a per-vehicle
+**target hot pressure** (`vehicles.target_hot_psi`, set right there on the
+card or from Settings) turns the two into *"LF ran 27.0 cold → 31.3 hot; start
+from 25.5 next time"*, rounded to the sheet's half-psi step. One button
+records the hot pressures on the day's sheet — and a *next time* line in its
+notes, which copies forward into the next sheet's prefill — and, when the
+event has another day, a second one opens that day's sheet with the suggested
+colds in place. A session doesn't know which day it ran, so the loop reads the
+last sheet with cold pressures and offers a day picker on multi-day events.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.
@@ -858,8 +891,11 @@ doesn't retain the previous user's logbook.
   `contracts/logic/checklist.json`). Editing the template never rewrites a
   checklist already on an event — those are snapshots taken when the list was
   started, and rewriting one would untick what you had already dealt with.
-- **Vehicles** are a per-user garage (account menu → Settings) with a name and
-  free-text modification notes. An event's `car` stays a plain text column —
+- **Vehicles** are a per-user garage (account menu → Settings) with a name,
+  free-text modification notes and an optional **target hot tyre pressure**
+  (`target_hot_psi`, one number for all four corners — what the session health
+  strip's pressure loop aims the next cold pressures at). An event's `car`
+  stays a plain text column —
   the garage feeds the event form's suggestions, and the vehicle marked as
   default pre-fills new events. When the car text matches a garage vehicle by
   name (case-insensitive), the event also carries a `vehicle_id` link — that
@@ -902,7 +938,9 @@ spreadsheet and the paper setup notebook into the logbook:
   stores the full resolved snapshot, so diffing never chases a chain. The
   track page's "Setup vs. lap times" table (`GET /api/tracks/:id/setups`)
   shows every sheet at that track with what changed between sheets next to
-  the event's best/consistency.
+  the event's best/consistency. An imported session's hot tyre pressures can
+  be written onto the day's sheet from the channel panel's Car tab, with the
+  suggested cold pressures for next time (see *Session health* above).
 - **Privacy** — parts, wear, spend and setup sheets are never included in the
   public share payload.
 
