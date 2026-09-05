@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0390889F0A928F8F8BF1C2A0 /* LimitLegend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8625F0FCAC350699C111D37A /* LimitLegend.swift */; };
 		05E3AA3580CA0FCFBB1886CD /* GarageUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */; };
 		06FA7C499CE4618F1B680CD6 /* RecordingBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48AE0050A975A2D2C847DDB /* RecordingBanner.swift */; };
 		098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */; };
@@ -38,12 +39,14 @@
 		66E2ABF81E3E3688EBA81EA6 /* RecordingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84545EEFA513CC785A84F2E /* RecordingScreen.swift */; };
 		68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D136E4DE2F395728D4F10F3 /* EventScreen.swift */; };
 		7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684F8FFC9870756AC968E1E6 /* SignInScreen.swift */; };
+		76E50E777D717D9432F654F9 /* GearRibbon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AB86A8712481673EF47E74 /* GearRibbon.swift */; };
 		791FD58FCA19C993DB62F19D /* SectorTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D49906A9ABE290475361112 /* SectorTable.swift */; };
 		79DB087EDD43CCC5CE9D378E /* ProgressChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D9EC7D2504A9022D639B5C /* ProgressChart.swift */; };
 		7D8383BD1872AF68D53716DD /* DebugImportFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC506BB6A47DA40FDE9F249 /* DebugImportFixture.swift */; };
 		8942CFCB809A0BD25305A821 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490360DEB9D237C16354DD63 /* Components.swift */; };
 		8956AB4D920BC0AFC8FFE7C4 /* ChecklistTemplateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE53488843E1D73126026F6 /* ChecklistTemplateUITests.swift */; };
 		8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */; };
+		8DEED3F28EB9E00E7B8F691F /* ShiftTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFB105961C2E3614671E7B7 /* ShiftTable.swift */; };
 		99384036CC3B4CB5D05BD649 /* EventFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */; };
 		AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */; };
 		B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E142A66C92DBCD4560C1753C /* LegacyClaimRecord.swift */; };
@@ -83,6 +86,7 @@
 		03E3F0A72B7C7860B19B1ED6 /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
 		04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBanner.swift; sourceTree = "<group>"; };
 		069CAEC52E0E9C81C22DC8C8 /* RemoteRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRecorder.swift; sourceTree = "<group>"; };
+		0DFB105961C2E3614671E7B7 /* ShiftTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiftTable.swift; sourceTree = "<group>"; };
 		12317D03A02B7DF755F9A335 /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScreen.swift; sourceTree = "<group>"; };
 		150A5FDFCC1A9C0324EA2622 /* AuthController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthController.swift; sourceTree = "<group>"; };
 		1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryPicker.swift; sourceTree = "<group>"; };
@@ -92,6 +96,7 @@
 		291C87F538FC7E79CDB43160 /* ImportScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportScreen.swift; sourceTree = "<group>"; };
 		30D7E5BFFAD255C5A8CDC979 /* EventModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventModel.swift; sourceTree = "<group>"; };
 		380D4BFFDADBA70827336888 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
+		38AB86A8712481673EF47E74 /* GearRibbon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GearRibbon.swift; sourceTree = "<group>"; };
 		41D9EC7D2504A9022D639B5C /* ProgressChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressChart.swift; sourceTree = "<group>"; };
 		47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureUITests.swift; sourceTree = "<group>"; };
 		490360DEB9D237C16354DD63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -115,6 +120,7 @@
 		7FAD7F0F8459AFBE55AE39CB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		82118910A4D7C285ABC04083 /* SignInUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInUITests.swift; sourceTree = "<group>"; };
 		8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTokens.generated.swift; sourceTree = "<group>"; };
+		8625F0FCAC350699C111D37A /* LimitLegend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitLegend.swift; sourceTree = "<group>"; };
 		8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
 		8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardScreen.swift; sourceTree = "<group>"; };
 		93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageUITests.swift; sourceTree = "<group>"; };
@@ -289,9 +295,12 @@
 		E0D236F11D520CECDCCB8AF4 /* Charts */ = {
 			isa = PBXGroup;
 			children = (
+				38AB86A8712481673EF47E74 /* GearRibbon.swift */,
 				C11E4CD1582ACC54710F446D /* LapChannelChart.swift */,
+				8625F0FCAC350699C111D37A /* LimitLegend.swift */,
 				41D9EC7D2504A9022D639B5C /* ProgressChart.swift */,
 				7D49906A9ABE290475361112 /* SectorTable.swift */,
+				0DFB105961C2E3614671E7B7 /* ShiftTable.swift */,
 				F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */,
 			);
 			path = Charts;
@@ -469,11 +478,13 @@
 				68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */,
 				D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */,
 				43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */,
+				76E50E777D717D9432F654F9 /* GearRibbon.swift in Sources */,
 				444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */,
 				449B69CF28F00455EFE6F6DA /* ImportScreen.swift in Sources */,
 				8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */,
 				E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */,
 				B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */,
+				0390889F0A928F8F8BF1C2A0 /* LimitLegend.swift in Sources */,
 				4D5846D926BDEF1D48B78043 /* LinePickerView.swift in Sources */,
 				212E41370DD7175B47DE9DDB /* LocationService.swift in Sources */,
 				D51EB8770639D12CEEE9B9F0 /* PaywallSheet.swift in Sources */,
@@ -489,6 +500,7 @@
 				D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */,
 				4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */,
 				48D153C4F58B8B1A62F7A616 /* SharedLogbookScreen.swift in Sources */,
+				8DEED3F28EB9E00E7B8F691F /* ShiftTable.swift in Sources */,
 				7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */,
 				C142D7B4B7E675F7AAD53880 /* StoreController.swift in Sources */,
 				E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */,

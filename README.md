@@ -634,8 +634,8 @@ the laps, read at the last grid sample before the step, so ≈ one 20 m point
 low), with a factual note when a gear is taken to the top of the rev range
 seen that day or shifted out of markedly earlier than another, and the
 typical upshift RPM joins the session's stats line (`public/js/gears.js`,
-pinned for the native ports by `contracts/logic/gears.json`; web only for
-now — the native panels don't draw it yet). The same imports' `wheelSlip`
+ported to the iOS Kit and Android `:core` as `Gears` and pinned for both by
+`contracts/logic/gears.json`). The same imports' `wheelSlip`
 and ABS/traction/stability `flags` answer a question that is spatial rather
 than temporal, so they are drawn as **marks on the best-lap track map**
 rather than as line charts: a shape where the best lap hit ABS, locked a
@@ -651,15 +651,17 @@ and the session's stats line counts the places on track where each happened
 and stability control read zero all day with the systems switched off,
 which is normal on track, and "off" and "never needed" can't be told apart.
 Thresholds (slip beyond ±2 %) are display semantics, named constants in
-`public/js/limits.js`, pinned for the native ports by
-`contracts/logic/limits.json`; web only for now.
+`public/js/limits.js`, ported as `Limits` and pinned for both native clients
+by `contracts/logic/limits.json`.
 
 The panel is organised as **one question per tab** rather than a stack of
 sections: *Time* (the delta chart, the sector table and the speed trace),
 *Inputs* (throttle, brake, steering, RPM, the gear ribbon and shift points)
 and *Grip* (lateral G), with a *Car* tab reserved for the per-lap scalars
 once they are drawn; only tabs with content render, and a session with one
-populated tab renders flat.
+populated tab renders flat. All of it — the tabs, the ribbon, the shift
+points, the limit marks and their bands — is on the web app and both phone
+apps.
 Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.

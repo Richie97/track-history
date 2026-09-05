@@ -11,6 +11,10 @@ import UIKit
 /// between themes, so hardcoding would break one of them.
 struct TrackMapView: View {
     let trace: [TracePoint]
+    /// Where the best lap hit its limit (#188), placed on this trace by driven
+    /// distance (`Limits.limitMarkers`). Empty for a session with no `flags` or
+    /// `wheelSlip` channel, which is every recorded lap and every non-PDR import.
+    var markers: [Limits.Marker] = []
     /// Read so the ramp is rebuilt when the theme flips — the two endpoint tokens
     /// differ by hue between light and dark, not just lightness.
     @Environment(\.colorScheme) private var scheme
@@ -54,11 +58,54 @@ struct TrackMapView: View {
                         style: .init(lineWidth: 4, lineCap: .round)
                     )
                 }
+
+                // Then the limit marks on top (#188). Two kinds often fire in one
+                // place — traction control *because of* wheelspin — so a mark
+                // landing on an earlier one is stepped off the line rather than
+                // hidden under it.
+                var placed: [CGPoint] = []
+                for marker in markers {
+                    guard let kind = Limits.kindDef(marker.kind) else { continue }
+                    let index = min(trace.count - 1, max(0, marker.idx))
+                    let view = map.viewPoint(x: trace[index].x, y: trace[index].y)
+                    var point = CGPoint(x: view.x, y: view.y)
+                    while placed.contains(where: { hypot($0.x - point.x, $0.y - point.y) < 14 }) {
+                        point.y -= 15
+                    }
+                    placed.append(point)
+                    draw(kind, at: point, in: &context)
+                }
             }
         }
         .accessibilityElement()
-        .accessibilityLabel("Racing line, coloured by speed")
-        .accessibilityValue(Self.summary(trace))
+        .accessibilityLabel(Self.label(markers))
+        .accessibilityValue(Self.summary(trace, markers))
+    }
+
+    /// A marker: the kind's shape, filled or hollow in its side's colour with a
+    /// ring in the card colour, so shape and fill carry identity beside the hue
+    /// and no two kinds of one side are colour-alone.
+    private func draw(_ kind: Limits.Kind, at point: CGPoint, in context: inout GraphicsContext) {
+        let color = LapChannelPanel.color(kind.side)
+        let r: CGFloat = 6.5
+        var path = Path()
+        switch kind.shape {
+        case .circle:
+            path.addEllipse(in: CGRect(x: point.x - r, y: point.y - r, width: r * 2, height: r * 2))
+        case .triangle:
+            path.move(to: CGPoint(x: point.x, y: point.y - r * 1.15))
+            path.addLine(to: CGPoint(x: point.x + r * 1.05, y: point.y + r * 0.75))
+            path.addLine(to: CGPoint(x: point.x - r * 1.05, y: point.y + r * 0.75))
+            path.closeSubpath()
+        case .diamond:
+            path.move(to: CGPoint(x: point.x, y: point.y - r * 1.2))
+            path.addLine(to: CGPoint(x: point.x + r * 1.2, y: point.y))
+            path.addLine(to: CGPoint(x: point.x, y: point.y + r * 1.2))
+            path.addLine(to: CGPoint(x: point.x - r * 1.2, y: point.y))
+            path.closeSubpath()
+        }
+        context.fill(path, with: .color(kind.filled ? color : Color(.surfaceCard)))
+        context.stroke(path, with: .color(kind.filled ? Color(.surfaceCard) : color), lineWidth: 2)
     }
 
     /// A point on the slow→fast ramp. `Color.mix` would do this in one line, but
@@ -84,11 +131,27 @@ struct TrackMapView: View {
         )
     }
 
-    static func summary(_ trace: [TracePoint]) -> String {
+    /// The marks are the thing a screen-reader user cannot see at all, so they
+    /// go in the label rather than only the value.
+    static func label(_ markers: [Limits.Marker]) -> String {
+        let kinds = Limits.LIMIT_KINDS.filter { kind in markers.contains { $0.kind == kind.key } }
+        guard !kinds.isEmpty else { return "Racing line, coloured by speed" }
+        return "Racing line, coloured by speed, marked where "
+            + kinds.map(\.label).joined(separator: ", ") + " were active"
+    }
+
+    static func summary(_ trace: [TracePoint], _ markers: [Limits.Marker] = []) -> String {
         guard let speeds = ChartScale.speedRange(trace) else { return "No trace" }
-        return String(
+        let line = String(
             format: "%d points, %.0f to %.0f mph",
             trace.count, speeds.slowest * 2.236936, speeds.fastest * 2.236936
         )
+        guard !markers.isEmpty else { return line }
+        let counts = Limits.LIMIT_KINDS.compactMap { kind -> String? in
+            let n = markers.filter { $0.kind == kind.key }.count
+            guard n > 0 else { return nil }
+            return "\(Limits.sentenceLabel(kind.key)) in \(n) place\(n == 1 ? "" : "s")"
+        }
+        return "\(line). \(counts.joined(separator: ", "))"
     }
 }

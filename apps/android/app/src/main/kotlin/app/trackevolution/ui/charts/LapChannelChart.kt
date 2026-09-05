@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.TextStyle
@@ -42,10 +43,12 @@ import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.ChartScale
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Limits
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.abs
+import kotlin.math.max
 
 /**
  * Every lap of an imported session on one driven-distance axis (NS-24) — the
@@ -98,6 +101,16 @@ fun LapChannelChart(
 
     val slots = listOf(colors.chartLine, colors.chartLineB, colors.chartLineC)
     val bestMs = laps.minOfOrNull { it.timeMs }
+    val lapNumber: (Int) -> Int =
+        { chIdx -> matches.firstOrNull { it.chIdx == chIdx }?.lap?.lapNum ?: channels.laps[chIdx].n }
+
+    // One question per tab (epic #193). Only populated tabs are offered, and a
+    // single one renders flat — a tab bar with one tab in it is a control that
+    // does nothing. Survives rotation for the same reason the selection does.
+    val tabs = PanelTab.entries.filter { it.hasContent(present) }
+    var tab by rememberSaveable(channels) { mutableStateOf(tabs.firstOrNull() ?: PanelTab.TIME) }
+    // A selection that empties the current tab must not leave the panel blank.
+    val shown = if (tab in tabs) tab else tabs.firstOrNull() ?: PanelTab.TIME
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -115,27 +128,104 @@ fun LapChannelChart(
 
         Text(
             "Laps on a shared distance axis — tap laps to compare (up to ${ChannelGraphs.SLOT_COUNT}). " +
-                "With 2+ selected, the delta chart shows where time is gained or lost vs the fastest.",
+                "With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs " +
+                "the fastest; the other tabs show why.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
         )
 
-        // Sector splits + theoretical best for the highlighted laps (#146),
-        // above the charts as on the web.
-        SectorTable(
-            channels = channels,
-            lit = lit,
-            slots = slots,
-            lapNumber = { chIdx -> matches.firstOrNull { it.chIdx == chIdx }?.lap?.lapNum ?: channels.laps[chIdx].n },
-        )
-
-        val refIdx = ChannelGraphs.deltaReference(lit, channels)
-        if (refIdx != null) {
-            DeltaPlot(channels = channels, matches = matches, lit = lit, refIdx = refIdx, slots = slots)
+        if (tabs.size > 1) {
+            PanelTabs(tabs = tabs, current = shown, onSelect = { tab = it })
         }
 
-        for (channel in present) {
+        when (shown) {
+            PanelTab.TIME -> {
+                // Sector splits + theoretical best for the highlighted laps (#146),
+                // above the charts as on the web.
+                SectorTable(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+                val refIdx = ChannelGraphs.deltaReference(lit, channels)
+                if (refIdx != null) {
+                    DeltaPlot(channels = channels, matches = matches, lit = lit, refIdx = refIdx, slots = slots)
+                }
+            }
+            // The session's shift points (#187) above the traces they explain.
+            PanelTab.INPUTS -> ShiftTable(channels = channels)
+            PanelTab.GRIP, PanelTab.CAR -> Unit
+        }
+
+        for (channel in present.filter { PanelTab.of(it) == shown }) {
             ChannelPlot(channel = channel, channels = channels, matches = matches, lit = lit, slots = slots)
+            // The gear ribbon rides under the RPM trace, where each shift is the
+            // drop in the sawtooth above it (#187).
+            if (channel == ChannelGraphs.Channel.RPM) {
+                GearRibbon(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+            }
+        }
+    }
+}
+
+/**
+ * The panel's tabs, in order — `TABS` in `public/js/channel-graphs.js`. [CAR] is
+ * reserved for the per-lap scalars (#190) and so draws nothing yet; it is listed
+ * here so the two implementations stay diffable.
+ */
+enum class PanelTab(val label: String) {
+    TIME("Time"),
+    INPUTS("Inputs"),
+    GRIP("Grip"),
+    CAR("Car"),
+    ;
+
+    /**
+     * Whether this tab has anything to show for a session. Time always does —
+     * the sector table and the speed chart both live there.
+     */
+    fun hasContent(present: List<ChannelGraphs.Channel>): Boolean = when (this) {
+        TIME -> true
+        INPUTS, GRIP -> present.any { of(it) == this }
+        CAR -> false
+    }
+
+    companion object {
+        /** Which tab a channel's chart lands on — `TAB_OF` in the JS. */
+        fun of(channel: ChannelGraphs.Channel): PanelTab = when (channel) {
+            ChannelGraphs.Channel.SPEED -> TIME
+            ChannelGraphs.Channel.THROTTLE,
+            ChannelGraphs.Channel.BRAKE,
+            ChannelGraphs.Channel.STEERING,
+            ChannelGraphs.Channel.RPM,
+            -> INPUTS
+            ChannelGraphs.Channel.LAT_G -> GRIP
+        }
+    }
+}
+
+@Composable
+private fun PanelTabs(tabs: List<PanelTab>, current: PanelTab, onSelect: (PanelTab) -> Unit) {
+    val colors = TrackTheme.colors
+    Row(
+        Modifier
+            .background(colors.surfaceRaised, CircleShape)
+            .border(1.dp, colors.borderHairline, CircleShape)
+            .padding(3.dp)
+            .semantics { testTag = "channelTabs" },
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        tabs.forEach { entry ->
+            val on = entry == current
+            Text(
+                entry.label,
+                style = TrackTheme.typography.sm,
+                color = if (on) colors.accentContrast else colors.textMuted,
+                modifier = Modifier
+                    .background(if (on) colors.accent else Color.Transparent, CircleShape)
+                    .clickable(onClick = { onSelect(entry) })
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .semantics {
+                        selected = on
+                        contentDescription = entry.label
+                    },
+            )
         }
     }
 }
@@ -327,6 +417,20 @@ private fun ChannelPlot(
     val gridCount = ChannelGraphs.gridCount(channel, channels)
     if (gridCount < 2) return
 
+    // The limit runs this chart's trace explains, for each highlighted lap
+    // (#188). Empty for every channel with no kind pointed at it, and for every
+    // session that stored neither `flags` nor `wheelSlip`.
+    val bandKinds = Limits.LIMIT_KINDS.filter { it.channel == channel }
+    val bands = if (bandKinds.isEmpty()) {
+        emptyList()
+    } else {
+        lit.filter { it in channels.laps.indices }.flatMap { chIdx ->
+            Limits.limitRuns(channels.laps[chIdx]).mapNotNull { run ->
+                bandKinds.firstOrNull { it.key == run.kind }?.let { run to it }
+            }
+        }
+    }
+
     // Measured below rather than fixed: an RPM axis label ("7400") is far wider
     // than a lateral-G one ("1.2"), and a single inset either wastes the plot or
     // lets the label run under it.
@@ -348,6 +452,7 @@ private fun ChannelPlot(
                     extent = ChannelGraphs.valueExtent(channel, channels),
                     spanMetres = span,
                     litCount = lit.size,
+                    shaded = bands.map { it.second.label }.distinct(),
                 )
             },
     ) {
@@ -388,8 +493,29 @@ private fun ChannelPlot(
                 strokeWidth = 1f,
             )
 
+            // Where the car was at its limit, shaded behind the trace that
+            // explains it (#188) — ABS and lockup on the brake chart, traction
+            // control and wheelspin on the throttle, stability control on
+            // steering. Drawn before the traces so it reads as ground, not mark.
+            for ((run, kind) in bands) {
+                val xa = px(max(0.0, run.k0 - 0.5) * channels.dStepM)
+                val xb = px((run.k1 + 0.5) * channels.dStepM)
+                drawRect(
+                    color = limitColor(kind.side, colors),
+                    topLeft = Offset(xa, padTop),
+                    size = androidx.compose.ui.geometry.Size(kotlin.math.max(1f, xb - xa), plotH),
+                    alpha = if (kind.filled) 0.22f else 0.12f,
+                )
+            }
+
             val title = measurer.measure("${channel.label} (${channel.unit})", titleStyle)
             drawText(title, topLeft = Offset(padLeft, 0f))
+            // Name what is shaded, so a band is never an unexplained colour.
+            val shadedKinds = bands.map { it.second.label }.distinct()
+            if (shadedKinds.isNotEmpty()) {
+                val note = measurer.measure("shaded: ${shadedKinds.joinToString(" / ")}", labelStyle)
+                drawText(note, topLeft = Offset(size.width - padRight - note.size.width, 0f))
+            }
 
             fun lapPath(lapIndex: Int): Path? {
                 val series = channel.series(channels.laps[lapIndex]) ?: return null
@@ -443,6 +569,8 @@ internal fun channelSummary(
     extent: Pair<Double, Double>?,
     spanMetres: Double,
     litCount: Int,
+    /** Limit kinds shaded on this chart (#188) — invisible to a screen reader. */
+    shaded: List<String> = emptyList(),
 ): String = buildString {
     append("${channel.label} against distance over ${ChannelGraphs.fmtDist(spanMetres)}")
     if (extent != null) {
@@ -458,4 +586,15 @@ internal fun channelSummary(
         },
     )
     append(".")
+    if (shaded.isNotEmpty()) append(" Shaded where ${shaded.joinToString(", ")} were active.")
+}
+
+/**
+ * A limit kind's colour. Generated tokens, never a hex literal, and [TrackMap]
+ * draws its marks from the same two so a mark and its band cannot disagree.
+ */
+internal fun limitColor(side: Limits.Side, colors: app.trackevolution.ui.theme.TrackColors): Color = when (side) {
+    Limits.Side.BRAKE -> colors.limitBrake
+    Limits.Side.POWER -> colors.limitPower
+    Limits.Side.STABILITY -> colors.textStrong
 }

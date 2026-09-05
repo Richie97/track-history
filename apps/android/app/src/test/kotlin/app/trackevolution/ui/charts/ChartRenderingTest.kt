@@ -1,10 +1,14 @@
 package app.trackevolution.ui.charts
 
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.onNodeWithText
+import app.trackevolution.core.Limits
 import app.trackevolution.core.TraceSample
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapChannels
@@ -184,10 +188,16 @@ class ChartRenderingTest {
                 )
             }
         }
+        // One question per tab (#193): speed answers "where did the time go",
+        // lateral G "how much grip", so they are not on screen together.
         compose.onNodeWithTag("channelChart:speed").assertIsDisplayed()
+        compose.onNodeWithTag("channelChart:latG").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Grip").performClick()
         compose.onNodeWithTag("channelChart:latG").assertIsDisplayed()
-        // RPM is absent from the data, so it must not draw an empty axis.
+        // RPM is absent from the data, so neither tab draws an empty axis — and
+        // with nothing on Inputs, that tab is not offered at all.
         compose.onNodeWithTag("channelChart:rpm").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Inputs").assertDoesNotExist()
     }
 
     @Test
@@ -212,6 +222,9 @@ class ChartRenderingTest {
                 )
             }
         }
+        // The driver inputs share a tab; speed keeps the Time tab it opens on.
+        compose.onNodeWithTag("channelChart:speed").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Inputs").performClick()
         compose.onNodeWithTag("channelChart:throttle").assertIsDisplayed()
         compose.onNodeWithTag("channelChart:brake").assertIsDisplayed()
         // Steering is absent from every lap, so it must not draw an empty axis.
@@ -249,6 +262,128 @@ class ChartRenderingTest {
         // chip is present and inert rather than missing.
         compose.onNodeWithText("Lap 1 · 2:01.9").assertIsDisplayed()
         compose.onNodeWithText("Lap 2 · 1:59.8 ★").assertExists()
+    }
+
+    // ---- gear ribbon and shift points (#187) -------------------------------
+
+    /**
+     * A lap that upshifts three times with a clutch-in blip in the middle, so
+     * the ribbon has a gap to draw and the shift table has rows.
+     */
+    private fun gearLap(n: Int, timeMs: Int, late: Boolean = false) = LapChannels(
+        n = n,
+        timeMs = timeMs,
+        speed = ramp(40),
+        rpm = (0 until 40).map { 4000.0 + (it % 10) * 350 },
+        gear = (0 until 40).map { k ->
+            when {
+                k == 19 -> 0.0 // clutch in: no gear, drawn as a gap
+                k < 10 -> 2.0
+                k < 20 -> 3.0
+                k < 30 -> if (late) 3.0 else 4.0 // where the two laps disagree
+                else -> 5.0
+            }
+        },
+    )
+
+    @Test
+    fun `draws the gear ribbon under the rpm trace and tabulates the shift points`() {
+        compose.setContent {
+            TrackTheme {
+                LapChannelChart(
+                    channels = SessionChannels(
+                        v = 1,
+                        dStepM = 20.0,
+                        laps = listOf(gearLap(1, 121_900), gearLap(2, 120_400, late = true)),
+                    ),
+                    laps = listOf(lap(1, 121_900), lap(2, 120_400)),
+                )
+            }
+        }
+        // Both live on Inputs, beside the traces they explain.
+        compose.onNodeWithTag("gearRibbon").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Inputs").performClick()
+        compose.onNodeWithTag("shiftTable").assertIsDisplayed()
+        compose.onNodeWithTag("gearRibbon").assertIsDisplayed()
+        // The ribbon is a picture; the gears it drew have to survive into words.
+        val ribbon = compose.onNodeWithTag("gearRibbon").fetchSemanticsNode()
+        val said = ribbon.config[SemanticsProperties.ContentDescription].first()
+        assertTrue(said, said.contains("2nd to 5th"))
+    }
+
+    @Test
+    fun `draws no ribbon for a session that stored no gear`() {
+        compose.setContent {
+            TrackTheme {
+                LapChannelChart(
+                    channels = SessionChannels(
+                        v = 1,
+                        dStepM = 20.0,
+                        laps = listOf(LapChannels(1, 121_900, speed = ramp(30), rpm = ramp(30, 7000.0))),
+                    ),
+                    laps = listOf(lap(1, 121_900)),
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Inputs").performClick()
+        compose.onNodeWithTag("channelChart:rpm").assertIsDisplayed()
+        compose.onNodeWithTag("gearRibbon").assertDoesNotExist()
+        compose.onNodeWithTag("shiftTable").assertDoesNotExist()
+    }
+
+    // ---- limit marks (#188) ------------------------------------------------
+
+    @Test
+    fun `marks the track map where the lap hit its limit, and names the kinds`() {
+        val lapChannels = LapChannels(
+            1,
+            121_900,
+            speed = ramp(40),
+            brake = ramp(40),
+            // ABS across one braking zone, traction control on one exit.
+            flags = (0 until 40).map { k ->
+                when {
+                    k in 8..11 -> Limits.FLAG_ABS.toDouble()
+                    k in 25..26 -> Limits.FLAG_TC.toDouble()
+                    else -> 0.0
+                }
+            },
+        )
+        val trace = circuit()
+        val markers = Limits.limitMarkers(lapChannels, 20.0, trace)
+        compose.setContent {
+            TrackTheme {
+                androidx.compose.foundation.layout.Column {
+                    TrackMap(trace = trace, markers = markers)
+                    LimitLegend(markers)
+                }
+            }
+        }
+        assertTrue(markers.map { it.kind } == listOf("abs", "tc"))
+        // Colour and shape are invisible to TalkBack, so both the map and the
+        // legend have to say which systems fired.
+        val map = compose.onNodeWithTag("trackMap").fetchSemanticsNode()
+        val said = map.config[SemanticsProperties.ContentDescription].first()
+        assertTrue(said, said.contains("ABS in 1 place"))
+        assertTrue(said, said.contains("traction control in 1 place"))
+        compose.onNodeWithContentDescription("At the limit on this lap: ABS, Traction control")
+            .assertExists()
+    }
+
+    @Test
+    fun `draws no legend for a lap that never reached its limit`() {
+        compose.setContent {
+            TrackTheme {
+                androidx.compose.foundation.layout.Column {
+                    TrackMap(trace = circuit())
+                    LimitLegend(emptyList())
+                }
+            }
+        }
+        compose.onNodeWithTag("trackMap").assertIsDisplayed()
+        val map = compose.onNodeWithTag("trackMap").fetchSemanticsNode()
+        val said = map.config[SemanticsProperties.ContentDescription].first()
+        assertTrue(said, !said.contains("place"))
     }
 
     // ---- fixtures ----------------------------------------------------------

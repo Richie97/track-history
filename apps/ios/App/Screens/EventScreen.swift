@@ -287,6 +287,7 @@ struct EventScreen: View {
     @ViewBuilder
     private func traceSection(_ detail: EventDetail) -> some View {
         if let session = Self.tracedSession(detail.sessions), let best = session.bestLapMs {
+            let markers = Self.limitMarkers(session)
             Section {
                 row {
                     TECard {
@@ -298,8 +299,9 @@ struct EventScreen: View {
                                 Spacer()
                                 TETime(ms: best, emphasized: true)
                             }
-                            TrackMapView(trace: session.trace ?? [])
+                            TrackMapView(trace: session.trace ?? [], markers: markers)
                                 .frame(height: 220)
+                            LimitLegend(markers: markers)
                         }
                     }
                 }
@@ -307,6 +309,22 @@ struct EventScreen: View {
                 header("Best lap trace")
             }
         }
+    }
+
+    /// Where the best lap hit its limit (#188), for the trace map.
+    ///
+    /// The stored trace is the **best lap only**, so the runs come from that
+    /// lap's channel entry: placing another lap's runs on it would put marks
+    /// where that lap never was. Other laps get the shaded bands on the channel
+    /// panel's distance axis instead, which is the same constraint the web works
+    /// under.
+    static func limitMarkers(_ session: Session) -> [Limits.Marker] {
+        guard let channels = session.channels, !channels.laps.isEmpty, let trace = session.trace else {
+            return []
+        }
+        let matched = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps).filter(\.hasChannels)
+        guard let bestRow = matched.min(by: { $0.lap.timeMs < $1.lap.timeMs }) else { return [] }
+        return Limits.limitMarkers(channels.laps[bestRow.chIdx], channels.dStepM, trace)
     }
 
     /// Among sessions with a usable trace, the one holding the event's fastest lap.
