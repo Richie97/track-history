@@ -153,8 +153,13 @@ fun LapChannelChart(
             // The friction circle (#186) above the lateral-G trace it
             // summarises. It draws nothing unless the session stored longG too,
             // so a source with only lateral G still gets its trace.
-            PanelTab.GRIP ->
+            PanelTab.GRIP -> {
                 FrictionCircle(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+                // Under it, the balance scatter and its per-corner table (#189),
+                // above the lateral-G and yaw traces they are read from. It draws
+                // nothing unless the session stored yaw, steering and speed.
+                BalanceScatter(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+            }
             PanelTab.CAR -> Unit
         }
 
@@ -200,7 +205,9 @@ enum class PanelTab(val label: String) {
             ChannelGraphs.Channel.STEERING,
             ChannelGraphs.Channel.RPM,
             -> INPUTS
-            ChannelGraphs.Channel.LAT_G -> GRIP
+            ChannelGraphs.Channel.LAT_G,
+            ChannelGraphs.Channel.YAW,
+            -> GRIP
         }
     }
 }

@@ -115,7 +115,7 @@ struct LapChannelPanel: View {
         switch channel {
         case .speed: .time
         case .throttle, .brake, .steering, .rpm: .inputs
-        case .latG: .grip
+        case .latG, .yaw: .grip
         }
     }
 
@@ -188,6 +188,13 @@ struct LapChannelPanel: View {
                 // summarises. It draws nothing unless the session stored longG
                 // too, so a source with only lateral G still gets its trace.
                 FrictionCircle(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:)
+                )
+                // Under it, the balance scatter and its per-corner table (#189),
+                // above the lateral-G and yaw traces they are read from. It draws
+                // nothing unless the session stored yaw, steering and speed.
+                BalanceScatter(
                     channels: channels, lit: lit, slots: Self.slots,
                     lapNumber: lapNumber(forLapIndex:)
                 )
@@ -701,10 +708,10 @@ struct LapChannelPanel: View {
 extension LapChannelChart {
     /// The panel on synthetic data, for `-channelGraphs` (see `RootView`) and for
     /// previews. Shaped like a real import: three laps of a 2.4 km circuit on the
-    /// importer's 20 m grid, all six charted channels plus the three a PDR import
-    /// adds — `gear`, `wheelSlip` and the ABS/TC/VSC `flags` bitfield (#187,
-    /// #188) — so the gear ribbon, the shift table and the limit bands all have
-    /// something to draw.
+    /// importer's 20 m grid, all seven charted channels plus the three a PDR
+    /// import adds — `gear`, `wheelSlip` and the ABS/TC/VSC `flags` bitfield
+    /// (#187, #188) — so the gear ribbon, the shift table, the limit bands and
+    /// the balance scatter (#189) all have something to draw.
     static var demoScreen: some View {
         let times = [118_400, 116_900, 117_600]
         let channels = SessionChannels(
@@ -725,6 +732,14 @@ extension LapChannelChart {
                 // — braking into the corners, power out of them — so the
                 // friction circle fills rather than drawing a cross (#186).
                 let longG: [Double] = wave.map { v in v * 1.3 }
+                // Rotation that mostly follows the steering but falls short
+                // through the back half of the lap, so the balance scatter has a
+                // band to draw and its table a corner that pushes (#189).
+                let yaw: [Double] = (0..<120).map { (k: Int) -> Double in
+                    let mps: Double = speed[k] / 3.6
+                    let slip: Double = k > 60 ? 0.7 : 1
+                    return steering[k] * mps * 0.012 * slip
+                }
                 // Gear steps with the speed wave, dropping to 0 through one
                 // shift — the clutch-in gap the ribbon has to draw as a gap.
                 let gear: [Double] = wave.enumerated().map { k, v in
@@ -739,7 +754,7 @@ extension LapChannelChart {
                 return LapChannels(
                     n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG,
                     throttle: throttle, brake: brake, steering: steering, longG: longG,
-                    gear: gear, wheelSlip: wheelSlip, flags: flags
+                    yaw: yaw, gear: gear, wheelSlip: wheelSlip, flags: flags
                 )
             }
         )

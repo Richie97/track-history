@@ -52,6 +52,27 @@ import {
   sessionGrip,
 } from "../public/js/grip.js";
 import {
+  cornerAt,
+  cornerLabel,
+  cornerMask,
+  cornersFromMask,
+  lapCorners,
+  sessionCorners,
+} from "../public/js/corners.js";
+import {
+  balanceLabel,
+  balancePoints,
+  balanceSummary,
+  cornerBalance,
+  fmtBalance,
+  median,
+  referenceGain,
+  sessionBalance,
+  usableAt,
+  yawGain,
+  yawSign,
+} from "../public/js/balance.js";
+import {
   alignLapPair,
   comparableLaps,
   defaultComparePicks,
@@ -579,6 +600,199 @@ const gripFixture = {
     spikePeak: peakCombinedG(gripSpikeChannels),
     spikeMax: peakCombinedG(gripSpikeChannels, 1),
     noData: sessionGrip({ v: 1, dStepM: 20, laps: [gripLapC] }),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Corner segmentation (#189): public/js/corners.js. Sectors cut a lap by
+// distance; this cuts it by lateral load, and everything per-corner segments
+// through it — so a port that disagrees about where T4 is disagrees about
+// every reading hung off it. What is worth pinning: the threshold at its exact
+// boundary (inclusive, and a stored sign is still a magnitude), the merge that
+// makes a chicane one corner rather than two, the minimum length that drops a
+// kerb strike, and the *union* rule — the session's corner list comes from
+// every lap's mask together, so a lap that took a corner wider widens the
+// window for all of them.
+const cornerLatG = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0, 0.7, 0.8, 0.2, 0.9, 0.7, 0.1, 0, 0, 1.4, 0, 0, 0.1, 0, 0, 0];
+const cornerLapA = { n: 1, timeMs: 90000, speed: Array.from({ length: 24 }, () => 100), latG: cornerLatG };
+// Takes the first corner a point wider and never loads the tyre in the chicane.
+const cornerLapB = {
+  n: 2,
+  timeMs: 91000,
+  speed: Array.from({ length: 24 }, () => 100),
+  latG: cornerLatG.map((g, k) => (k === 1 ? 0.4 : k >= 9 && k <= 13 ? 0.1 : g)),
+};
+// Carries no latG at all: it must drop out of the union rather than shorten it.
+const cornerLapC = { n: 3, timeMs: 92000, speed: Array.from({ length: 24 }, () => 100) };
+const cornerChannels = { v: 1, dStepM: 20, laps: [cornerLapA, cornerLapB, cornerLapC] };
+const cornersFixture = {
+  description:
+    "Corner-segmentation reference output from public/js/corners.js " +
+    "(cornerMask / cornersFromMask / lapCorners / sessionCorners / cornerAt). " +
+    "Ports must reproduce the windows exactly and the peaks to 1e-9. " +
+    "Regenerate with `npm run contracts:logic`.",
+  source: "public/js/corners.js",
+  input: { channels: cornerChannels, mask: [0, 0.34, 0.35, -0.9] },
+  expected: {
+    // The threshold is inclusive and reads |latG|, so a negative is a corner.
+    mask: cornerMask([0, 0.34, 0.35, -0.9]),
+    // The chicane's one-point dip merges; the single-point kerb strike drops.
+    runs: cornersFromMask(cornerMask(cornerLatG)),
+    // Both options, so a port can't hard-code either bound.
+    tightRuns: cornersFromMask(cornerMask(cornerLatG), { mergeGap: 0 }),
+    shortRuns: cornersFromMask(cornerMask(cornerLatG), { mergeGap: 0, minPoints: 2 }),
+    strikeRuns: cornersFromMask(cornerMask(cornerLatG), { minPoints: 1 }),
+    lapA: lapCorners(cornerLapA),
+    session: sessionCorners(cornerChannels),
+    labels: sessionCorners(cornerChannels).map(cornerLabel),
+    // Inside a corner, inside the chicane's dip (still the chicane), on a
+    // straight, and past the end of the lap.
+    at: [3, 11, 7, 99].map((k) => cornerAt(sessionCorners(cornerChannels), k)?.n ?? null),
+    noData: sessionCorners({ v: 1, dStepM: 20, laps: [cornerLapC] }),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Balance — understeer or oversteer (#189): public/js/balance.js. What is
+// worth pinning: the alignment sign, which is *measured* rather than assumed
+// (a recorder whose yaw opposes its steering must read the same corners the
+// same way); the two usability bounds at their exact values (both inclusive)
+// and the stationary sample that leaves the scatter entirely; the reference
+// gain, which is a median over the session and not a per-lap figure; the
+// per-corner reading as Σ delivered ÷ Σ asked-for rather than a mean of
+// per-sample ratios (`mixedLap` below reads +46% summed and +100% averaged,
+// so a port that averages fails on that one number); the corner a segmenter
+// finds but the diagnosis can't read; and the wording, including the point at
+// which corners are counted rather than named.
+const balK = 0.03;
+const balV = 100 / 3.6;
+const balSteering = [0, 0, 20, 40, 40, 20, 0, 0, 0, -30, -30, -30, 0, 0, 0];
+const balLatG = [0, 0, 0.5, 0.9, 0.9, 0.5, 0, 0, 0, 0.8, 0.8, 0.8, 0, 0, 0];
+const balSpeed = Array.from({ length: 15 }, () => 100);
+const balYaw = (scaleAt) => balSteering.map((d, k) => balK * balV * d * scaleAt(k));
+// A right-hander at k 2–5 and a left-hander at k 9–11. The neutral lap answers
+// the steering exactly in both; the pushing lap delivers three quarters of the
+// rotation asked for in the left-hander.
+const balNeutral = { n: 1, timeMs: 90000, speed: balSpeed, steering: balSteering, latG: balLatG, yaw: balYaw(() => 1) };
+const balPushing = {
+  n: 2,
+  timeMs: 91000,
+  speed: balSpeed,
+  steering: balSteering,
+  latG: balLatG,
+  yaw: balYaw((k) => (k >= 9 ? 0.75 : 1)),
+};
+// Cornering force but no yaw channel: it shapes the corner list and appears in
+// none of the readings.
+const balNoYaw = { n: 3, timeMs: 92000, speed: balSpeed, steering: balSteering, latG: balLatG };
+const balanceChannels = { v: 1, dStepM: 20, laps: [balNeutral, balPushing, balNoYaw] };
+// The same lap on a recorder whose yaw convention opposes its steering.
+const balFlipped = { v: 1, dStepM: 20, laps: [{ ...balNeutral, yaw: balNeutral.yaw.map((y) => -y) }] };
+// k0 sits exactly on the steering bound and k2 exactly on the speed bound —
+// both count. k1 is a tenth under, k3 a tenth slow, and k4 is stationary, so it
+// has no rotation per metre and leaves the scatter altogether.
+const balEdgeLap = {
+  n: 1,
+  timeMs: 60000,
+  speed: [100, 100, 30, 29.9, 0, 100],
+  steering: [10, 9.9, 40, 40, 40, 40],
+  yaw: [10, 10, 20, 20, 20, 20].map((d, k) => balK * balV * d * (k === 5 ? 1.2 : 1)),
+  latG: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+};
+// One corner taken with two big steering inputs answered exactly and two small
+// ones answered three times over — the case that separates summing from
+// averaging.
+const balMixedLap = {
+  n: 1,
+  timeMs: 60000,
+  speed: Array.from({ length: 6 }, () => 100),
+  steering: [0, 40, 40, 12, 12, 0],
+  yaw: [0, 40, 40, 36, 36, 0].map((d) => balK * balV * d),
+  latG: [0, 0.8, 0.8, 0.8, 0.8, 0],
+};
+// Lateral load with the wheel straight — a banked straight, say. The segmenter
+// finds a corner; the diagnosis has nothing to divide by and drops it.
+const balBankedLap = { ...balNeutral, steering: balSteering.map((d, k) => (k >= 9 ? 0 : d)) };
+// Eight corners, the odd ones pushing: past three, corners are counted.
+const balManySteer = [], balManyLatG = [], balManyYaw = [];
+for (let c = 0; c < 8; c++) {
+  balManySteer.push(0, 0, 30, 30, 30, 0);
+  balManyLatG.push(0, 0, 0.8, 0.8, 0.8, 0);
+  const s = c % 2 ? 0.7 : 1;
+  balManyYaw.push(0, 0, balK * balV * 30 * s, balK * balV * 30 * s, balK * balV * 30 * s, 0);
+}
+const balManyLap = {
+  n: 1,
+  timeMs: 90000,
+  speed: Array.from({ length: balManySteer.length }, () => 100),
+  steering: balManySteer,
+  latG: balManyLatG,
+  yaw: balManyYaw,
+};
+const balFewLap = {
+  n: 1,
+  timeMs: 90000,
+  speed: Array.from({ length: 36 }, () => 100),
+  steering: balManySteer.slice(0, 36),
+  latG: balManyLatG.slice(0, 36),
+  yaw: balManyYaw.slice(0, 36),
+};
+const balCorners = sessionCorners(balanceChannels);
+// Either side of both wording thresholds, and the two figures the JS rounds.
+const balPcts = [0, 7.9, -8, 19.9, -20, 40, -25.4, 12, 3];
+const balanceFixture = {
+  description:
+    "Balance reference output from public/js/balance.js (yawSign / usableAt / " +
+    "yawGain / referenceGain / balancePoints / cornerBalance / sessionBalance / " +
+    "balanceLabel / fmtBalance / balanceSummary). Ports must reproduce the " +
+    "wording exactly and the doubles to 1e-9. Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/balance.js",
+  input: {
+    channels: balanceChannels,
+    flipped: balFlipped,
+    edgeLap: balEdgeLap,
+    mixedLap: balMixedLap,
+    bankedLap: balBankedLap,
+    manyLap: balManyLap,
+    fewLap: balFewLap,
+    refGain: balK,
+    pcts: balPcts,
+  },
+  expected: {
+    // Measured, not assumed: the flipped recorder reads -1 and, once aligned,
+    // reports the same balance.
+    sign: yawSign(balanceChannels),
+    flippedSign: yawSign(balFlipped),
+    flippedSummary: balanceSummary(balFlipped),
+    // Both bounds inclusive; the stationary sample is absent from the points.
+    edgeUsable: balEdgeLap.speed.map((_, k) => usableAt(balEdgeLap, k)),
+    edgePoints: balancePoints(balEdgeLap),
+    // A gain per usable sample, null elsewhere — and the same gain whatever the
+    // corner's direction, since the sign cancels.
+    gainsAt: [0, 3, 9].map((k) => yawGain(balNeutral, k)),
+    pushingGainsAt: [3, 9].map((k) => yawGain(balPushing, k)),
+    refGain: referenceGain(balanceChannels),
+    medians: [median([3, 1, 2]), median([4, 1, 3, 2]), median([])],
+    points: [balancePoints(balNeutral), balancePoints(balPushing)],
+    corners: balCorners,
+    // Every readable lap through every corner, at a reference passed in rather
+    // than measured, so the reading is pinned independently of the median.
+    cornerReadings: balCorners.map((c) => [cornerBalance(balNeutral, c, balK), cornerBalance(balPushing, c, balK)]),
+    // Summed, not averaged: +46% here, +100% for a port that means the ratios.
+    mixed: cornerBalance(balMixedLap, sessionCorners({ v: 1, dStepM: 20, laps: [balMixedLap] })[0], balK),
+    session: sessionBalance(balanceChannels),
+    // The segmenter finds two corners on the banked lap; only one can be read.
+    banked: sessionBalance({ v: 1, dStepM: 20, laps: [balBankedLap] }).corners.map((c) => c.n),
+    labels: balPcts.map(balanceLabel),
+    formatted: balPcts.map(fmtBalance),
+    summary: balanceSummary(balanceChannels),
+    neutralSummary: balanceSummary({ v: 1, dStepM: 20, laps: [balNeutral] }),
+    manySummary: balanceSummary({ v: 1, dStepM: 20, laps: [balManyLap] }),
+    fewSummary: balanceSummary({ v: 1, dStepM: 20, laps: [balFewLap] }),
+    noData: balanceSummary({ v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 1000, speed: [100] }] }),
+    // Cornering force, no yaw: nowhere to read a balance from.
+    noYaw: sessionBalance({ v: 1, dStepM: 20, laps: [balNoYaw] }),
   },
 };
 
@@ -1120,6 +1334,8 @@ writeFileSync(path.join(OUT_DIR, "sectors.json"), JSON.stringify(sectorsFixture,
 writeFileSync(path.join(OUT_DIR, "gears.json"), JSON.stringify(gearsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "limits.json"), JSON.stringify(limitsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "grip.json"), JSON.stringify(gripFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "corners.json"), JSON.stringify(cornersFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "balance.json"), JSON.stringify(balanceFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
@@ -1138,6 +1354,11 @@ console.log(`wrote contracts/logic/limits.json (${limitsFixture.expected.markers
 console.log(
   `wrote contracts/logic/grip.json (peak ${gripFixture.expected.peak.toFixed(3)} G over ` +
     `${gripFixture.expected.session.all.samples} samples)`
+);
+console.log(`wrote contracts/logic/corners.json (${cornersFixture.expected.session.length} corners on the union)`);
+console.log(
+  `wrote contracts/logic/balance.json (reference gain ${balanceFixture.expected.refGain.toFixed(5)}/m, ` +
+    `"${balanceFixture.expected.summary}")`
 );
 console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`

@@ -30,6 +30,9 @@ public enum ChannelGraphs {
         case steering
         case rpm
         case latG
+        /// Yaw rate, the honest baseline for the balance read-out (`Balance`,
+        /// #189): signed, so it swings both ways around zero like steering does.
+        case yaw
 
         public var label: String {
             switch self {
@@ -39,6 +42,7 @@ public enum ChannelGraphs {
             case .steering: "Steering"
             case .rpm: "RPM"
             case .latG: "Lateral G"
+            case .yaw: "Yaw rate"
             }
         }
 
@@ -49,13 +53,14 @@ public enum ChannelGraphs {
             case .steering: "°"
             case .rpm: "rpm"
             case .latG: "G"
+            case .yaw: "°/s"
             }
         }
 
         /// Decimal places a readout of this channel shows.
         public var decimals: Int {
             switch self {
-            case .speed, .throttle, .brake, .steering, .rpm: 0
+            case .speed, .throttle, .brake, .steering, .rpm, .yaw: 0
             case .latG: 2
             }
         }
@@ -63,11 +68,11 @@ public enum ChannelGraphs {
         /// Whether the axis is pinned at zero rather than padded below the minimum.
         /// Lateral G and the pedals are magnitudes — an axis starting at 0.3 G (or
         /// 20% throttle) reads as if the car never went straight (or lifted).
-        /// Steering is signed, so it keeps the padded axis.
+        /// Steering and yaw rate are signed, so they keep the padded axis.
         public var floorAtZero: Bool {
             switch self {
             case .throttle, .brake, .latG: true
-            case .speed, .steering, .rpm: false
+            case .speed, .steering, .rpm, .yaw: false
             }
         }
 
@@ -85,6 +90,7 @@ public enum ChannelGraphs {
             case .steering: lap.steering
             case .rpm: lap.rpm
             case .latG: lap.latG
+            case .yaw: lap.yaw
             }
         }
     }

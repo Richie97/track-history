@@ -66,6 +66,7 @@
 		E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */; };
 		E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11E4CD1582ACC54710F446D /* LapChannelChart.swift */; };
 		E9868474425C0AC1F91A7E55 /* TelemetryFileSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497D4C7291EC82131207C136 /* TelemetryFileSource.swift */; };
+		EA02A4AFE756343D8F165FFE /* BalanceScatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC13C54663EDFA0871181F8 /* BalanceScatter.swift */; };
 		F87B8589AAC23215D4995227 /* DevServerSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9909D90A12012D6F62C72B /* DevServerSignIn.swift */; };
 		F8BF1DC67E401FF5B97B9614 /* CompareLapsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBA185EA22E05A952A0F1AD /* CompareLapsScreen.swift */; };
 		F903D5D339EABBC96E51A877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D10939598E67F796CA22FCE3 /* Assets.xcassets */; };
@@ -92,6 +93,7 @@
 		150A5FDFCC1A9C0324EA2622 /* AuthController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthController.swift; sourceTree = "<group>"; };
 		1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryPicker.swift; sourceTree = "<group>"; };
 		1D6588990892F4B703C72631 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		1DC13C54663EDFA0871181F8 /* BalanceScatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceScatter.swift; sourceTree = "<group>"; };
 		2133654268DDDB033D753977 /* ChannelGraphsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelGraphsUITests.swift; sourceTree = "<group>"; };
 		2547D11C2AB55F3F271936B4 /* VideoImportUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoImportUITests.swift; sourceTree = "<group>"; };
 		291C87F538FC7E79CDB43160 /* ImportScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportScreen.swift; sourceTree = "<group>"; };
@@ -297,6 +299,7 @@
 		E0D236F11D520CECDCCB8AF4 /* Charts */ = {
 			isa = PBXGroup;
 			children = (
+				1DC13C54663EDFA0871181F8 /* BalanceScatter.swift */,
 				B94370814D6F989DAC6AD7C6 /* FrictionCircle.swift */,
 				38AB86A8712481673EF47E74 /* GearRibbon.swift */,
 				C11E4CD1582ACC54710F446D /* LapChannelChart.swift */,
@@ -469,6 +472,7 @@
 			files = (
 				2D35025A70FD15F566175D84 /* AppServices.swift in Sources */,
 				DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */,
+				EA02A4AFE756343D8F165FFE /* BalanceScatter.swift in Sources */,
 				499E0DD4FB9A41DF0B97A880 /* BrandMark.swift in Sources */,
 				DB78BAE155E508C9C20736D1 /* CarPlaySceneDelegate.swift in Sources */,
 				098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */,

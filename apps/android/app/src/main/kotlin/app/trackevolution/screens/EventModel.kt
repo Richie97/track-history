@@ -3,6 +3,7 @@ package app.trackevolution.screens
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import app.trackevolution.core.Balance
 import app.trackevolution.core.Gears
 import app.trackevolution.core.LapStats
 import app.trackevolution.core.LapTime
@@ -187,7 +188,11 @@ val Session.statsSummary: String?
         // track across the session. The marks themselves are on the best-lap
         // trace and shaded on the pedal traces.
         val limits = channels?.let { Limits.limitSummary(it) }
-        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical, upshifts, limits)
+        // The corners whose rotation sits off this car's typical response
+        // (`Balance`, #189), pooled across the session; the per-corner table and
+        // the scatter are on the channel panel's Grip tab.
+        val balance = channels?.let { Balance.balanceSummary(it) }
+        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical, upshifts, limits, balance)
             .takeIf { it.isNotEmpty() }
             ?.joinToString(" · ")
     }
