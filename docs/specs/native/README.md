@@ -168,8 +168,10 @@ Features added after the rewrite shipped, and where they landed:
   rotation is up**, so oversteer sits above the reference line; on the phones
   the corner's place on track and its peak G ride under its label rather than
   in columns of their own, which is what keeps the table inside the width.
-  The per-point hover is **web-only**, as it is for the friction circle. The
-  decisions every client inherits: v1 is
+  The per-point *hover* is still web-only — a phone has no pointer — but the
+  friction circle now answers a **tap** on every client (NS-34 ticket 3), and
+  the balance scatter is the same seam and next in line for it.
+  The decisions every client inherits: v1 is
   **relative** — the reference is the session's own median yaw gain, because
   the rigorous bicycle model needs the wheelbase and steering ratio the
   garage doesn't store, so a car that pushes everywhere reads neutral
@@ -315,9 +317,19 @@ Features added after the rewrite shipped, and where they landed:
   panel. The session cards' channel control becomes a *selection* at expanded
   width — the iOS sheet and the Android inline panel both stand down — and the
   best lap's channel-carrying session is pre-selected. What that ticket still
-  owes: tap-to-mark cross-linking between the charts and the map (its stated
-  point), the health per-lap table, wide table columns, and the track and
-  vehicle pages' second columns.
+  owes: the health per-lap table, wide table columns, and the track and vehicle
+  pages' second columns.
+  **Tap-to-mark cross-linking has landed** — the thing the column was for.
+  Tapping a friction-circle sample marks that driven distance across every
+  chart on the shared axis and rings the place on the best-lap track map, which
+  is the web's hover behaviour and the entry this README had listed as
+  web-only *because* both native panels were sheets. It brought one new port
+  with it: `TrackMap.traceIndexAtFraction` (`public/js/trackmap.js`'s pure
+  half) in the Kit and `:core`, pinned by `contracts/logic/trackmap.json` —
+  and worth knowing, it walks **cumulative chord length rather than sample
+  index**, because a trace is denser where the car was slower and indexing is
+  wrong by whole corners. The balance scatter and the sector rows are the same
+  seam and are not wired yet.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,

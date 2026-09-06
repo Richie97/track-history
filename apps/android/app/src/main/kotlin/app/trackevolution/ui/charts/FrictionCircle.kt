@@ -16,7 +16,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PointMode
@@ -38,6 +40,7 @@ import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.ceil
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -75,9 +78,12 @@ private const val RING_STEP_G = 0.5
  * thousand samples — one batched call per group, rather than one draw call per
  * point.
  *
- * Unlike the web there is no per-point hover: a phone has no pointer, and the
- * best-lap track map the web rings on hover is on the event page rather than in
- * this panel. The read-out under the plot is what carries the meaning here.
+ * There is no *hover* — a phone has no pointer — but there is a **tap**, and it
+ * does what the web's hover does: [onHit] answers "which corner is this dot" on
+ * everything drawn beside the panel (NS-34 ticket 3). That was worth nothing
+ * while the panel lived inside a session card with the track map a long scroll
+ * away; it is worth having now the two sit side by side at expanded width. The
+ * read-out under the plot still carries the meaning when nothing is tapped.
  */
 @Composable
 fun FrictionCircle(
@@ -88,6 +94,11 @@ fun FrictionCircle(
     /** The session's own lap number for a channel entry. */
     lapNumber: (Int) -> Int,
     modifier: Modifier = Modifier,
+    /**
+     * Tapping a sample answers "which corner is this dot" on everything drawn
+     * beside it (NS-34 ticket 3). Null clears the answer.
+     */
+    onHit: (ChannelHit?) -> Unit = {},
 ) {
     val sg = remember(channels) { Grip.sessionGrip(channels) } ?: return
     val gripLaps = remember(channels) { Grip.gripLaps(channels) }
@@ -130,7 +141,20 @@ fun FrictionCircle(
             val dim = colors.chartDim
             val labelStyle = TrackTheme.typography.xxs.copy(color = faint)
             val arcStyle = TrackTheme.typography.xxs.copy(color = colors.accentInk)
-            Canvas(Modifier.fillMaxWidth().aspectRatio(1f)) {
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    // Tap, not hover: a phone has no pointer, and taking the
+                    // web's hover behaviour back is the point of NS-34 ticket 3.
+                    // A mouse on a tablet or Chromebook is ticket 5's, and is
+                    // additive to this rather than a replacement.
+                    .pointerInput(sg, lit, gripLaps) {
+                        detectTapGestures { offset ->
+                            onHit(hitAt(offset, size.width, size.height, sg, gripLaps, lit, density))
+                        }
+                    },
+            ) {
                 drawPlot(
                     sg = sg,
                     gripLaps = gripLaps,
@@ -158,6 +182,56 @@ fun FrictionCircle(
 private fun axisMaxG(sg: Grip.SessionGrip): Double {
     val need = max(sg.maxG, sg.peakG ?: 0.0) * 1.04
     return max(RING_STEP_G, ceil(need / RING_STEP_G) * RING_STEP_G)
+}
+
+/**
+ * The plotted sample nearest a tap, among the **highlighted** laps only.
+ *
+ * The envelope behind them is every other lap at once; a tap landing on it has no
+ * single answer to give, so it clears instead. Within a lit lap the nearest
+ * sample wins, but only inside a finger-sized radius — a tap on empty canvas
+ * should mean "never mind", not "the closest dot, wherever it is".
+ *
+ * The transform is [drawPlot]'s, deliberately duplicated rather than hoisted: one
+ * takes a `DrawScope` and this takes a tap, and pulling the four lines they share
+ * into a shape object would be more indirection than the arithmetic is worth.
+ * They fail together, and visibly — a change to one that misses the other puts
+ * the ring in the wrong corner the first time it is used.
+ */
+internal fun hitAt(
+    offset: Offset,
+    width: Int,
+    height: Int,
+    sg: Grip.SessionGrip,
+    gripLaps: List<Grip.GripLap>,
+    lit: List<Int>,
+    density: Float,
+): ChannelHit? {
+    val inset = 18f * density
+    val side = min(width.toFloat(), height.toFloat()) - inset * 2
+    if (side <= 0f) return null
+    val cx = width / 2f
+    val cy = height / 2f
+    val scale = (side / 2) / axisMaxG(sg).toFloat()
+    if (scale <= 0f) return null
+
+    var bestDistance = Float.MAX_VALUE
+    var best: ChannelHit? = null
+    for (chIdx in lit) {
+        val lap = gripLaps.firstOrNull { it.chIdx == chIdx } ?: continue
+        val points = Grip.gripPoints(lap.entry)
+        if (points.size < 2) continue
+        for (p in points) {
+            val x = cx + (p.lat * scale).toFloat()
+            val y = cy + (p.long * scale).toFloat()
+            val d = hypot(x - offset.x, y - offset.y)
+            if (d < bestDistance) {
+                bestDistance = d
+                best = ChannelHit(chIdx = chIdx, k = p.k, frac = p.k.toDouble() / (points.size - 1))
+            }
+        }
+    }
+    return if (bestDistance <= 22f * density) best else null
 }
 
 private fun DrawScope.drawPlot(

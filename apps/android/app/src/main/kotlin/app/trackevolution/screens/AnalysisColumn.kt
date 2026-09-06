@@ -11,17 +11,27 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.TraceSample
+// Aliased: `TrackMap` is also the *composable* that draws the map, imported
+// below. One is the geometry and one is the picture, and they deliberately share
+// the name of the JS module they both come from — so the import says which.
+import app.trackevolution.core.TrackMap as TrackMapGeometry
 import app.trackevolution.core.model.Session
 import app.trackevolution.ui.TESectionHeader
+import app.trackevolution.ui.charts.ChannelHit
 import app.trackevolution.ui.charts.LapChannelChart
 import app.trackevolution.ui.charts.LimitLegend
 import app.trackevolution.ui.charts.TrackMap
@@ -47,6 +57,11 @@ fun AnalysisColumn(
 ) {
     val colors = TrackTheme.colors
     val selected = sessions.firstOrNull { it.id == selectedSessionId }
+
+    // Where the panel is pointing, if anywhere — the friction circle's tapped
+    // sample. Held here rather than in the panel because the *map* is what
+    // answers it, and the map is this column's, not the panel's.
+    var hit by remember(selectedSessionId) { mutableStateOf<ChannelHit?>(null) }
 
     Column(
         modifier = modifier
@@ -74,7 +89,11 @@ fun AnalysisColumn(
             // `TraceSample`s, as the page's own trace section does.
             val samples = trace.map { TraceSample(x = it.x, y = it.y, v = it.v) }
             val markers = limitMarkers(selected, samples)
-            TrackMap(trace = samples, markers = markers)
+            TrackMap(
+                trace = samples,
+                markers = markers,
+                highlight = ringedIndex(selected, hit),
+            )
             LimitLegend(markers)
         }
 
@@ -91,6 +110,7 @@ fun AnalysisColumn(
                     channels = channels,
                     laps = selected.laps,
                     modifier = Modifier.fillMaxWidth(),
+                    onHit = { hit = it },
                 )
             }
         }
@@ -122,4 +142,33 @@ private fun Empty(anyChannels: Boolean) {
             modifier = Modifier.widthIn(max = 300.dp),
         )
     }
+}
+
+/**
+ * Where to ring the map for the current hit, or null for "don't".
+ *
+ * The stored trace is **one lap** — the session's best — so a sample from any
+ * other lap has no place on it, and ringing one anyway would put the mark where
+ * that lap never was. Same constraint the limit marks work under
+ * ([Limits.limitMarkers]), and the same rule the web states in `bindBalance`: a
+ * hit with no lap of its own (`chIdx` null) is a place every lap shares, so it
+ * rings whichever lap the trace is.
+ */
+private fun ringedIndex(session: Session, hit: ChannelHit?): Int? {
+    if (hit == null) return null
+    val trace = session.trace ?: return null
+    if (hit.chIdx != null && hit.chIdx != tracedChannelIndex(session)) return null
+    return TrackMapGeometry.traceIndexAtFraction(trace, hit.frac)
+}
+
+/**
+ * The channel-lap the stored trace was drawn from: the session's fastest lap that
+ * has channel data, matched the way the panel matches them.
+ */
+private fun tracedChannelIndex(session: Session): Int? {
+    val channels = session.channels?.takeIf { it.laps.isNotEmpty() } ?: return null
+    return ChannelGraphs.matchLapsToChannels(session.laps, channels.laps)
+        .filter { it.hasChannels }
+        .minByOrNull { it.lap.timeMs }
+        ?.chIdx
 }

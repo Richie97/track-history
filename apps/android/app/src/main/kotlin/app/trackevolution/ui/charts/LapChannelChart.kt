@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -52,6 +53,28 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
+ * A place on a lap, pointed at from one chart and answered on the others.
+ *
+ * The port of the `hit` the web's `bindGripCircle` / `bindBalance` hand to
+ * `onHover` (`{ chIdx, k, d, frac }`), under the same field names. It exists so
+ * tapping a sample on the friction circle can mark that distance across every
+ * chart *and* ring the place on the track map — the behaviour NS-34 ticket 3
+ * takes back from the web now that the panel sits beside the map rather than
+ * inside a session card.
+ *
+ * [chIdx] is null for a place every lap shares — a corner row rather than a
+ * sample — which is what tells the map it may ring it whichever lap the trace
+ * happens to be.
+ */
+data class ChannelHit(
+    val chIdx: Int?,
+    /** The grid sample index. */
+    val k: Int,
+    /** How far round the lap, 0..1. What the map is placed by. */
+    val frac: Double,
+)
+
+/**
  * Every lap of an imported session on one driven-distance axis (NS-24) — the
  * port of `public/js/channel-graphs.js`.
  *
@@ -72,6 +95,12 @@ fun LapChannelChart(
     laps: List<Lap>,
     modifier: Modifier = Modifier,
     /**
+     * Where the panel is currently pointing, for whatever is drawn beside it
+     * (NS-34 ticket 3). Defaulted to a no-op: inside a session card there is
+     * nothing beside the panel to answer.
+     */
+    onHit: (ChannelHit?) -> Unit = {},
+    /**
      * Channel-lap indexes to start highlighted, in slot order. Null means the
      * fastest lap — what the event page's overlay wants. The compare-laps
      * screen passes both laps of its pair.
@@ -87,6 +116,12 @@ fun LapChannelChart(
     var lit by rememberSaveable(channels) {
         mutableStateOf(initialSelection ?: ChannelGraphs.initialSelection(matches))
     }
+
+    // Where the panel is currently pointing (NS-34 ticket 3). Deliberately *not*
+    // saveable: it is a question being asked right now, and restoring a mark
+    // after a rotation would answer one nobody is still asking.
+    var hit by remember(channels) { mutableStateOf<ChannelHit?>(null) }
+    val markDistance = hit?.let { it.k * channels.dStepM }
 
     if (present.isEmpty()) {
         // A session imported without channel data is normal — a hand-entered
@@ -155,7 +190,16 @@ fun LapChannelChart(
             // summarises. It draws nothing unless the session stored longG too,
             // so a source with only lateral G still gets its trace.
             PanelTab.GRIP -> {
-                FrictionCircle(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+                FrictionCircle(
+                    channels = channels,
+                    lit = lit,
+                    slots = slots,
+                    lapNumber = lapNumber,
+                    // The point of the column (NS-34 ticket 3): the tapped
+                    // sample marks its distance on every chart sharing the axis,
+                    // and goes outward so the map can ring the place.
+                    onHit = { hit = it; onHit(it) },
+                )
                 // Under it, the balance scatter and its per-corner table (#189),
                 // above the lateral-G and yaw traces they are read from. It draws
                 // nothing unless the session stored yaw, steering and speed.
@@ -167,7 +211,14 @@ fun LapChannelChart(
         }
 
         for (channel in present.filter { PanelTab.of(it) == shown }) {
-            ChannelPlot(channel = channel, channels = channels, matches = matches, lit = lit, slots = slots)
+            ChannelPlot(
+                channel = channel,
+                channels = channels,
+                matches = matches,
+                lit = lit,
+                slots = slots,
+                markDistance = markDistance,
+            )
             // The gear ribbon rides under the RPM trace, where each shift is the
             // drop in the sawtooth above it (#187).
             if (channel == ChannelGraphs.Channel.RPM) {
@@ -430,6 +481,15 @@ private fun ChannelPlot(
     matches: List<ChannelGraphs.LapMatch>,
     lit: List<Int>,
     slots: List<Color>,
+    /**
+     * A driven distance to mark, in metres, or null for none (NS-34 ticket 3).
+     *
+     * The port of the web's `showDistanceMark`: the friction circle hands over a
+     * sample, and every chart on the shared distance axis says where that was.
+     * One line on each chart is the whole mechanism — the charts already agree
+     * about the axis, which is what makes the answer meaningful.
+     */
+    markDistance: Double? = null,
 ) {
     val colors = TrackTheme.colors
     val measurer = rememberTextMeasurer()
@@ -573,6 +633,20 @@ private fun ChannelPlot(
                         style = Stroke(width = litWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
                     )
                 }
+            }
+
+            // Over everything, because it is the question being asked right now.
+            // Dashed and faint: it points *at* the traces rather than competing
+            // with them for the eye.
+            if (markDistance != null && span > 0.0) {
+                val x = px(markDistance.coerceIn(0.0, span))
+                drawLine(
+                    color = colors.textFaint,
+                    start = Offset(x, padTop),
+                    end = Offset(x, padTop + plotH),
+                    strokeWidth = with(density) { 1.5.dp.toPx() },
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)),
+                )
             }
         }
     }
