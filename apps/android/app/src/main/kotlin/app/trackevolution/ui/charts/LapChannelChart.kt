@@ -203,11 +203,18 @@ fun LapChannelChart(
                 // Under it, the balance scatter and its per-corner table (#189),
                 // above the lateral-G and yaw traces they are read from. It draws
                 // nothing unless the session stored yaw, steering and speed.
-                BalanceScatter(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+                BalanceScatter(
+                    channels = channels,
+                    lit = lit,
+                    slots = slots,
+                    lapNumber = lapNumber,
+                    onHit = { hit = it; onHit(it) },
+                )
             }
             // The session health strip (#190): what the car was doing while you
             // drove it, which is the other half of a track day.
-            PanelTab.CAR -> HealthStrip(channels = channels, lit = lit, slots = slots)
+            PanelTab.CAR ->
+                HealthStrip(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
         }
 
         for (channel in present.filter { PanelTab.of(it) == shown }) {

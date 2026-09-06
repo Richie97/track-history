@@ -232,7 +232,11 @@ struct LapChannelPanel: View {
                 // nothing unless the session stored yaw, steering and speed.
                 BalanceScatter(
                     channels: channels, lit: lit, slots: Self.slots,
-                    lapNumber: lapNumber(forLapIndex:)
+                    lapNumber: lapNumber(forLapIndex:),
+                    onHit: { hit in
+                        readout = hit?.k
+                        onHit(hit)
+                    }
                 )
             case .car:
                 // The session health strip (#190): what the car was doing while

@@ -3,12 +3,19 @@ package app.trackevolution.ui.charts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,9 +31,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.Health
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.ui.LayoutClass
+import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.abs
@@ -76,10 +87,15 @@ fun HealthStrip(
     lit: List<Int>,
     slots: List<Color>,
     modifier: Modifier = Modifier,
+    /** The session's own lap number for a channel entry, for the per-lap table. */
+    lapNumber: (Int) -> Int = { it + 1 },
 ) {
     val sh = remember(channels) { Health.sessionHealth(channels) } ?: return
     val order = sh.laps.map { it.chIdx }
     val colors = TrackTheme.colors
+    // Two on a phone; as many as the column holds above that. 150dp is the web's
+    // own `.health-cards` minimum.
+    val perRow = maxOf(2, LocalLayoutMetrics.current.columns(150.dp, gap = 8.dp))
 
     val summary = Health.healthSummary(channels, UNITS)
         ?: sh.columns.mapNotNull { column ->
@@ -88,8 +104,9 @@ fun HealthStrip(
             }
         }.joinToString(", ")
 
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     TrackCard(
-        modifier
+        Modifier
             .fillMaxWidth()
             .clearAndSetSemantics {
                 testTag = "healthStrip"
@@ -108,14 +125,16 @@ fun HealthStrip(
                 val columns = sh.columns.filter { Health.defFor(it.key)?.group == groupKey }
                 if (columns.isEmpty()) continue
                 Text(groupLabel, style = TrackTheme.typography.xxs, color = colors.textFaint)
-                // Two to a row: a phone fits two of these cards legibly, and a
-                // LazyVGrid inside an already-scrolling panel nests scrolls.
-                columns.chunked(2).forEach { pair ->
+                // Two to a row on a phone, which is what fits legibly; more once
+                // the column is wide enough for them (NS-34 ticket 3). Still not
+                // a LazyVGrid — one inside an already-scrolling panel nests
+                // scrolls, which is why this chunks by hand.
+                columns.chunked(perRow).forEach { group ->
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        pair.forEach { column ->
+                        group.forEach { column ->
                             FigureCard(
                                 column = column,
                                 order = order,
@@ -124,13 +143,28 @@ fun HealthStrip(
                                 modifier = Modifier.weight(1f),
                             )
                         }
-                        if (pair.size == 1) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                        repeat(perRow - group.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
             SpreadLines(channels)
             FuelLine(channels)
         }
+    }
+
+    // The per-lap table (NS-34 ticket 3), at expanded width only: the cards
+    // above reduce each column to one number precisely because fifteen columns
+    // do not fit a phone, and this is that reduction undone where there is room.
+    //
+    // Its **own card**, deliberately, rather than the last thing inside the one
+    // above. That card declares itself a single accessibility element — a
+    // fifteen-by-N grid of numbers is unbearable to swipe through one cell at a
+    // time — and anything inside it inherits that, so a table placed there would
+    // be invisible to TalkBack as well as to a test. As a sibling it carries a
+    // summary of its own.
+    if (LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded) {
+        PerLapTable(sh = sh, lit = lit, slots = slots, lapNumber = lapNumber)
+    }
     }
 }
 
@@ -325,4 +359,101 @@ private fun FuelLine(channels: SessionChannels) {
         style = TrackTheme.typography.xs,
         color = TrackTheme.colors.textMuted,
     )
+}
+
+/**
+ * Every figure, every lap — the port of `healthTableHtml` (NS-34 ticket 3).
+ *
+ * Columns are `sh.columns`: `HEALTH_DEFS` order, filtered to what the session
+ * actually stored, so the table and the cards above can never disagree about
+ * which figures exist. It scrolls horizontally rather than squeezing, because a
+ * temperature narrowed to three digits is not a temperature any more.
+ */
+@Composable
+private fun PerLapTable(
+    sh: Health.SessionHealth,
+    lit: List<Int>,
+    slots: List<Color>,
+    lapNumber: (Int) -> Int,
+) {
+    if (sh.laps.isEmpty() || sh.columns.isEmpty()) return
+    val colors = TrackTheme.colors
+    TrackCard(Modifier.fillMaxWidth()) {
+    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Text("Per lap", style = TrackTheme.typography.xxs, color = colors.textFaint)
+    Column(
+        Modifier.horizontalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "Lap",
+                style = TrackTheme.typography.xxs,
+                color = colors.textFaint,
+                modifier = Modifier.width(72.dp),
+            )
+            sh.columns.forEach { column ->
+                val def = Health.defFor(column.key)
+                Column(Modifier.width(64.dp), horizontalAlignment = Alignment.End) {
+                    Text(
+                        def?.label ?: column.key,
+                        style = TrackTheme.typography.xxs,
+                        color = colors.textFaint,
+                        maxLines = 1,
+                    )
+                    if (def != null) {
+                        Text(
+                            Health.displayValue(def, 0.0, UNITS).unit,
+                            style = TrackTheme.typography.xxs,
+                            color = colors.textFaint,
+                        )
+                    }
+                }
+            }
+        }
+        sh.laps.forEach { row ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    Modifier.width(72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // The slot colour when this lap is lit, so a row lines up
+                    // with the traces above — never colour alone, since the lap
+                    // number is right beside it.
+                    val slot = lit.indexOf(row.chIdx)
+                    if (slot >= 0 && slot < slots.size) {
+                        Box(Modifier.size(7.dp).clip(CircleShape).background(slots[slot]))
+                    }
+                    Text(
+                        "Lap ${lapNumber(row.chIdx)}",
+                        style = TrackTheme.typography.xs,
+                        color = colors.textStrong,
+                        maxLines = 1,
+                    )
+                }
+                sh.columns.forEach { column ->
+                    val def = Health.defFor(column.key)
+                    val value = row.values[column.key]
+                    Text(
+                        if (def != null && value != null) {
+                            Health.displayValue(def, value, UNITS).text
+                        } else {
+                            "—"
+                        },
+                        style = TrackTheme.typography.xs,
+                        color = if (value == null) colors.textFaint else colors.textStrong,
+                        maxLines = 1,
+                        modifier = Modifier.width(64.dp),
+                        textAlign = TextAlign.End,
+                    )
+                }
+            }
+        }
+    }
+    }
+    }
 }
