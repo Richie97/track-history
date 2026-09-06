@@ -42,6 +42,9 @@ struct FrictionCircle: View {
     let slots: [Color]
     /// The session's own lap number for a channel entry.
     let lapNumber: (Int) -> Int
+    /// Tapping a sample answers "which corner is this dot" on everything drawn
+    /// beside it (NS-34 ticket 3). Nil clears the answer.
+    var onHit: (ChannelHit?) -> Void = { _ in }
 
     /// Ring spacing, in G. 0.5 G rings are readable on every car this app sees;
     /// a slow car simply draws fewer of them.
@@ -74,6 +77,19 @@ struct FrictionCircle: View {
                     }
                     .aspectRatio(1, contentMode: .fit)
                     .frame(maxWidth: .infinity)
+                    // Tap, not hover: the phone has no pointer, and the web's
+                    // hover is what NS-34 is taking back here. A pointer on an
+                    // iPad is ticket 5's job and is additive to this, never a
+                    // replacement — the same iPad is used by touch a moment later.
+                    .overlay {
+                        GeometryReader { geometry in
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { location in
+                                    onHit(hit(sg, at: location, size: geometry.size))
+                                }
+                        }
+                    }
                     readout(sg, rows)
                 }
             }
@@ -92,6 +108,55 @@ struct FrictionCircle: View {
     private func axisMaxG(_ sg: Grip.SessionGrip) -> Double {
         let need = max(sg.maxG, sg.peakG ?? 0) * 1.04
         return max(Self.ringStepG, (need / Self.ringStepG).rounded(.up) * Self.ringStepG)
+    }
+
+    /// The plotted sample nearest a tap, among the **highlighted** laps only.
+    ///
+    /// The envelope behind them is every other lap at once; a tap landing on it
+    /// has no single answer to give, so it clears instead. Within a lit lap the
+    /// nearest sample wins, but only inside a finger-sized radius — a tap on
+    /// empty canvas should mean "never mind", not "the closest dot, wherever it
+    /// is".
+    ///
+    /// The transform is `draw`'s, deliberately duplicated rather than hoisted:
+    /// the drawing takes a `GraphicsContext` and this takes a tap, and pulling
+    /// the four lines they share into a shape object would be more indirection
+    /// than the arithmetic is worth. They fail together — a change to one that
+    /// misses the other puts the ring in the wrong corner, which is visible the
+    /// first time it is used.
+    private func hit(_ sg: Grip.SessionGrip, at location: CGPoint, size: CGSize) -> ChannelHit? {
+        let inset: CGFloat = 18
+        let side = min(size.width, size.height) - inset * 2
+        guard side > 0 else { return nil }
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let scale = Double(side / 2) / axisMaxG(sg)
+        guard scale > 0 else { return nil }
+
+        var best: (distance: CGFloat, hit: ChannelHit)?
+        for chIdx in lit {
+            guard let lap = Grip.gripLaps(channels).first(where: { $0.chIdx == chIdx }) else { continue }
+            let points = Grip.gripPoints(lap.entry)
+            guard points.count > 1 else { continue }
+            for p in points {
+                let plotted = CGPoint(
+                    x: center.x + CGFloat(p.lat * scale),
+                    y: center.y + CGFloat(p.long * scale)
+                )
+                let d = hypot(plotted.x - location.x, plotted.y - location.y)
+                if best == nil || d < best!.distance {
+                    best = (
+                        d,
+                        ChannelHit(
+                            chIdx: chIdx,
+                            k: p.k,
+                            frac: points.count > 1 ? Double(p.k) / Double(points.count - 1) : 0
+                        )
+                    )
+                }
+            }
+        }
+        guard let best, best.distance <= 22 else { return nil }
+        return best.hit
     }
 
     private func draw(_ sg: Grip.SessionGrip, in context: GraphicsContext, size: CGSize) {

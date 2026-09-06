@@ -56,6 +56,15 @@ fun TrackMap(
      * `wheelSlip` channel, which is every recorded lap and every non-PDR import.
      */
     markers: List<Limits.Marker> = emptyList(),
+    /**
+     * A trace point to ring — "the dot you are pointing at on the friction circle
+     * is *here*" (NS-34 ticket 3).
+     *
+     * An index into [trace], from `TrackMap.traceIndexAtFraction` in `:core`.
+     * Null is the ordinary state and draws nothing: the ring is a transient
+     * answer to a question being asked right now, not a mark the map carries.
+     */
+    highlight: Int? = null,
 ) {
     // Matching `renderTrackMap`'s bail: fewer than ten points is a GPS glitch,
     // not a lap, and drawing it would claim more than we know.
@@ -73,6 +82,10 @@ fun TrackMap(
     // clears its neighbour on a phone has to clear it at every density.
     val markerGap = with(density) { 14.dp.toPx() }
     val markerStep = with(density) { 15.dp.toPx() }
+    // The "you are pointing here" ring (NS-34 ticket 3).
+    val ringRadius = with(density) { 10.dp.toPx() }
+    val ringHalo = with(density) { 4.dp.toPx() }
+    val ringStroke = with(density) { 2.dp.toPx() }
 
     // Stored samples carry no timestamp; TraceMap only needs the geometry.
     val points = remember(trace) { trace.map { TracePoint(t = 0.0, x = it.x, y = it.y, v = it.v) } }
@@ -161,6 +174,16 @@ fun TrackMap(
                 }
                 placed.add(point)
                 drawLimitMarker(kind, point, colors, markerRadius, markerRing)
+            }
+
+            // Over the limit marks, because it is the question being asked right
+            // now. Two rings — the accent inside a card-coloured halo — so it
+            // reads on the pale end of the speed ramp as well as the dark one.
+            if (highlight != null && highlight in view.indices) {
+                val p = view[highlight]
+                val centre = Offset(p.x.toFloat(), p.y.toFloat())
+                drawCircle(colors.surfaceCard, radius = ringRadius, center = centre, style = Stroke(ringHalo))
+                drawCircle(colors.accent, radius = ringRadius, center = centre, style = Stroke(ringStroke))
             }
 
             // Start/finish: a tick normal to the heading out of the first point.

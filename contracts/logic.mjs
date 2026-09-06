@@ -30,6 +30,7 @@ import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
 import { attachLapChannels } from "../public/js/import/channels.js";
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
+import { traceIndexAtFraction } from "../public/js/trackmap.js";
 import {
   activeLimitLabels,
   limitMarkers,
@@ -1659,7 +1660,52 @@ const conditionsFixture = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Placing a driven-distance fraction on a stored trace (NS-34 ticket 3):
+// public/js/trackmap.js `traceIndexAtFraction`. This is the mapping behind
+// "which corner is this dot" — the friction circle and balance scatter hand
+// over a fraction of the lap, and the map rings the point that far along the
+// racing line. What is worth pinning is that the walk is along *cumulative
+// chord length*, not sample index: a trace is denser where the car was slower,
+// so the two answers differ by whole corners on any real lap. The clamping at
+// both ends and the degenerate cases (a single point, a stationary trace whose
+// total length is zero) are the rest of the contract.
+const traceRing = [
+  [0, 0, 30],
+  [100, 0, 30],
+  // A dense, slow section: five samples covering the same 100m as one above.
+  [120, 0, 12],
+  [140, 0, 12],
+  [160, 0, 12],
+  [180, 0, 12],
+  [200, 0, 12],
+  [200, 100, 25],
+  [0, 100, 25],
+  [0, 0, 30],
+];
+const trackmapFixture = {
+  description:
+    "Reference output from public/js/trackmap.js `traceIndexAtFraction` — the " +
+    "fraction-to-trace-point mapping the friction circle's hover uses to ring a " +
+    "corner on the map. Ports must reproduce every index exactly. Regenerate " +
+    "with `npm run contracts:logic`.",
+  source: "public/js/trackmap.js",
+  input: { trace: traceRing },
+  expected: {
+    // Across the lap, including both ends and the out-of-range clamp.
+    atFraction: [-0.5, 0, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 1, 1.5].map((f) => ({
+      frac: f,
+      idx: traceIndexAtFraction(traceRing, f),
+    })),
+    // Degenerate traces answer null rather than 0 — there is no point to ring.
+    tooShort: traceIndexAtFraction([[0, 0, 10]], 0.5),
+    empty: traceIndexAtFraction([], 0.5),
+    stationary: traceIndexAtFraction([[5, 5, 0], [5, 5, 0], [5, 5, 0]], 0.5),
+  },
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");

@@ -18,6 +18,11 @@ struct AnalysisColumn: View {
     let detail: EventDetail
     @Binding var selectedSessionId: Int?
 
+    /// Where the panel is pointing, if anywhere — the friction circle's tapped
+    /// sample. Held here rather than in the panel because the *map* is what
+    /// answers it, and the map is this column's, not the panel's.
+    @State private var hit: ChannelHit?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TESpacing.gridGap) {
@@ -58,8 +63,12 @@ struct AnalysisColumn: View {
                         TETime(ms: session.bestLapMs, emphasized: true)
                     }
                     let markers = EventScreen.limitMarkers(session)
-                    TrackMapView(trace: trace, markers: markers)
-                        .frame(height: 240)
+                    TrackMapView(
+                        trace: trace,
+                        markers: markers,
+                        highlight: ringedIndex(session, trace: trace)
+                    )
+                    .frame(height: 240)
                     LimitLegend(markers: markers)
                 }
             }
@@ -73,7 +82,7 @@ struct AnalysisColumn: View {
                 Text(session.label ?? "Channel graphs")
                     .teStyle(.h3)
                     .foregroundStyle(Color(.textStrong))
-                LapChannelChart(channels: channels, laps: session.laps)
+                LapChannelChart(channels: channels, laps: session.laps, onHit: { hit = $0 })
                     // Keyed by session: `lit` holds *channel-lap indexes*, which
                     // mean different laps in a different session, so carrying them
                     // across would light the wrong ones. Remembering tab and lit
@@ -104,6 +113,30 @@ struct AnalysisColumn: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 60)
+    }
+
+    /// Where to ring the map for the current hit, or nil for "don't".
+    ///
+    /// The stored trace is **one lap** — the session's best — so a sample from
+    /// any other lap has no place on it, and ringing one anyway would put the
+    /// mark where that lap never was. Same constraint the limit marks work under
+    /// (`Limits.limitMarkers`), and the same rule the web states in `bindBalance`:
+    /// a hit with no lap of its own (`chIdx` nil) is a place every lap shares, so
+    /// it rings whichever lap the trace is.
+    private func ringedIndex(_ session: Session, trace: [TracePoint]) -> Int? {
+        guard let hit else { return nil }
+        if let chIdx = hit.chIdx, chIdx != Self.tracedChannelIndex(session) { return nil }
+        return TrackMap.traceIndexAtFraction(trace, hit.frac)
+    }
+
+    /// The channel-lap the stored trace was drawn from: the session's fastest lap
+    /// that has channel data, matched the way the panel matches them.
+    private static func tracedChannelIndex(_ session: Session) -> Int? {
+        guard let channels = session.channels, !channels.laps.isEmpty else { return nil }
+        return ChannelGraphs.matchLapsToChannels(session.laps, channels.laps)
+            .filter(\.hasChannels)
+            .min { $0.lap.timeMs < $1.lap.timeMs }?
+            .chIdx
     }
 
     private var hasAnyChannels: Bool {

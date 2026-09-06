@@ -15,6 +15,13 @@ struct TrackMapView: View {
     /// distance (`Limits.limitMarkers`). Empty for a session with no `flags` or
     /// `wheelSlip` channel, which is every recorded lap and every non-PDR import.
     var markers: [Limits.Marker] = []
+    /// A trace point to ring — "the dot you are pointing at on the friction
+    /// circle is *here*" (NS-34 ticket 3).
+    ///
+    /// An index into `trace`, from `TrackMap.traceIndexAtFraction`. Nil is the
+    /// ordinary state and draws nothing; the ring is a transient answer to a
+    /// question being asked right now, not a mark the map carries.
+    var highlight: Int? = nil
     /// Read so the ramp is rebuilt when the theme flips — the two endpoint tokens
     /// differ by hue between light and dark, not just lightness.
     @Environment(\.colorScheme) private var scheme
@@ -74,6 +81,28 @@ struct TrackMapView: View {
                     }
                     placed.append(point)
                     draw(kind, at: point, in: &context)
+                }
+
+                // Last, so it sits over the limit marks: whatever the panel is
+                // currently pointing at. Two rings — the accent inside a card-
+                // coloured halo — so it reads on the pale end of the speed ramp
+                // as well as the dark one.
+                if let highlight, trace.indices.contains(highlight) {
+                    let view = map.viewPoint(x: trace[highlight].x, y: trace[highlight].y)
+                    let centre = CGPoint(x: view.x, y: view.y)
+                    for (radius, color, width) in [
+                        (CGFloat(10), Color(.surfaceCard), CGFloat(4)),
+                        (CGFloat(10), Color(.accent), CGFloat(2))
+                    ] {
+                        var ring = Path()
+                        ring.addEllipse(
+                            in: CGRect(
+                                x: centre.x - radius, y: centre.y - radius,
+                                width: radius * 2, height: radius * 2
+                            )
+                        )
+                        context.stroke(ring, with: .color(color), style: .init(lineWidth: width))
+                    }
                 }
             }
         }

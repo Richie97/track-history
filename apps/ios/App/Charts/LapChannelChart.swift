@@ -22,9 +22,31 @@ import TrackEvolutionKit
 /// The data only ever comes from the *web* telemetry importer (`sessions.channels`)
 /// — file import is deliberately not ported — so a natively-recorded session has
 /// nothing to show here and the event page offers no way in.
+/// A place on a lap, pointed at from one chart and answered on the others.
+///
+/// The port of the `hit` the web's `bindGripCircle` / `bindBalance` hand to
+/// `onHover` (`{ chIdx, k, d, frac }`), under the same field names. It exists so
+/// tapping a sample on the friction circle can mark that distance across every
+/// chart *and* ring the place on the track map — the behaviour NS-34 ticket 3
+/// takes back from the web now that the panel sits beside the map rather than
+/// over it.
+///
+/// `chIdx` is nil for a place every lap shares — a corner row rather than a
+/// sample — which is what tells the map it may ring it whichever lap the trace
+/// happens to be.
+struct ChannelHit: Equatable {
+    var chIdx: Int?
+    /// The grid sample index. The panel's read-out is parked here.
+    var k: Int
+    /// How far round the lap, 0…1. What the map is placed by.
+    var frac: Double
+}
+
 struct LapChannelChart: View {
     let channels: SessionChannels
     let laps: [Lap]
+    /// Where the panel is currently pointing, for whatever is drawn beside it.
+    var onHit: (ChannelHit?) -> Void = { _ in }
 
     var body: some View {
         ScrollView {
@@ -32,7 +54,7 @@ struct LapChannelChart: View {
                 Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
-                LapChannelPanel(channels: channels, laps: laps)
+                LapChannelPanel(channels: channels, laps: laps, onHit: onHit)
             }
             .padding(TESpacing.pageGutter)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -51,6 +73,10 @@ struct LapChannelPanel: View {
     /// Channel-lap indexes to start highlighted, in slot order. nil means the
     /// fastest lap, which is what the event page's overlay wants.
     var preselect: [Int]? = nil
+    /// Where the panel is currently pointing (NS-34 ticket 3). Defaulted to a
+    /// no-op, because everywhere the panel is a *sheet* there is nothing beside
+    /// it to answer.
+    var onHit: (ChannelHit?) -> Void = { _ in }
 
     /// Channel-lap indexes in slot order — oldest first, so the eviction in
     /// `ChannelGraphs.toggle` drops the one you selected longest ago.
@@ -191,7 +217,15 @@ struct LapChannelPanel: View {
                 // too, so a source with only lateral G still gets its trace.
                 FrictionCircle(
                     channels: channels, lit: lit, slots: Self.slots,
-                    lapNumber: lapNumber(forLapIndex:)
+                    lapNumber: lapNumber(forLapIndex:),
+                    // The point of the column (NS-34 ticket 3): the tapped
+                    // sample's distance is marked across every chart that shares
+                    // the axis — which is what `readout` already does — and
+                    // handed outward so the map can ring the place.
+                    onHit: { hit in
+                        readout = hit?.k
+                        onHit(hit)
+                    }
                 )
                 // Under it, the balance scatter and its per-corner table (#189),
                 // above the lateral-G and yaw traces they are read from. It draws
