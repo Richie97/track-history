@@ -114,6 +114,17 @@ struct BalanceScatter: View {
             .accessibilityLabel("Balance: rotation per metre against steering angle")
             .accessibilityValue(summary(sb))
             .accessibilityIdentifier("balanceScatter")
+            // The corner rows are tappable and this card is a *single*
+            // accessibility element, so the taps would otherwise be unreachable
+            // with VoiceOver. Named actions put them in the rotor, which is
+            // where a one-element control's extra verbs belong.
+            .accessibilityActions {
+                ForEach(Balance.sessionBalance(channels)?.corners ?? [], id: \.corner.n) { row in
+                    Button("Show where \(Corners.cornerLabel(row.corner)) is") {
+                        onHit(hit(for: row.corner))
+                    }
+                }
+            }
         }
     }
 

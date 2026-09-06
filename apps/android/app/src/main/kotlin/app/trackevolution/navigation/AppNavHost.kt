@@ -1,12 +1,20 @@
 package app.trackevolution.navigation
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -38,7 +46,10 @@ import app.trackevolution.screens.TrackModel
 import app.trackevolution.screens.TrackScreen
 import app.trackevolution.screens.VehicleModel
 import app.trackevolution.screens.VehicleScreen
+import app.trackevolution.ui.LayoutClass
+import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.PageColumn
+import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.videoimport.ImportModel
 import app.trackevolution.videoimport.ImportScreen
@@ -198,14 +209,44 @@ fun AppNavHost(
         pageComposable<Route.Track> { entry ->
             val route = entry.toRoute<Route.Track>()
             val model = rememberScreenModel { scope, _ -> TrackModel(scope, api, route.id) }
-            TrackScreen(
-                model = model,
-                onOpenEvent = { nav.navigate(Route.Event(it)) },
-                onAddEvent = { name -> nav.navigate(Route.EventForm(presetTrack = name)) },
-                onCompareLaps = { nav.navigate(Route.CompareLaps(route.id)) },
-                onShare = share,
-                serverUrl = serverUrl,
-            )
+            // At expanded width the two-lap compare opens **beside** the page
+            // rather than as its own destination (NS-34 ticket 3). Same
+            // `CompareLapsScreen`, same `Route.CompareLaps` — which a deep link
+            // can still land on — only the container changes.
+            val sideBySide = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded
+            var comparing by rememberSaveable { mutableStateOf(false) }
+            val page = @Composable {
+                TrackScreen(
+                    model = model,
+                    onOpenEvent = { nav.navigate(Route.Event(it)) },
+                    onAddEvent = { name -> nav.navigate(Route.EventForm(presetTrack = name)) },
+                    onCompareLaps = {
+                        if (sideBySide) comparing = true else nav.navigate(Route.CompareLaps(route.id))
+                    },
+                    onShare = share,
+                    serverUrl = serverUrl,
+                )
+            }
+            if (sideBySide && comparing) {
+                Row(Modifier.fillMaxSize()) {
+                    PaneWidth(Modifier.weight(1f)) { page() }
+                    VerticalDivider()
+                    PaneWidth(
+                        Modifier.width(
+                            (LocalLayoutMetrics.current.contentWidth * 0.46f).coerceIn(380.dp, 620.dp),
+                        ),
+                    ) {
+                        val compare = rememberScreenModel(key = "compare-${route.id}") { scope, _ ->
+                            CompareLapsModel(scope, api, route.id)
+                        }
+                        // A destination has a back gesture and a column has
+                        // nothing, so the column needs a way out of its own.
+                        CompareLapsScreen(model = compare, onClose = { comparing = false })
+                    }
+                }
+            } else {
+                page()
+            }
         }
 
         pageComposable<Route.CompareLaps> { entry ->

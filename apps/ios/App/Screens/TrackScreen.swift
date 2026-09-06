@@ -13,6 +13,7 @@ struct TrackScreen: View {
 
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
 
     @State private var model: TrackModel?
     @State private var confirmingLeaveLeaderboard = false
@@ -21,7 +22,23 @@ struct TrackScreen: View {
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let track = model.track {
-                content(model, track)
+                // At expanded width the compare opens in a **column beside** the
+                // page rather than as a sheet over it (NS-34 ticket 3). The view
+                // is the same `CompareLapsScreen`; only its container changes,
+                // which is the whole claim the ticket makes about it.
+                if layout.layoutClass == .expanded, showingCompareLaps {
+                    HStack(spacing: 0) {
+                        content(model, track)
+                            .frame(maxWidth: .infinity)
+                            .measuringPaneWidth()
+                        Divider()
+                        compareColumn
+                            .frame(width: min(max(layout.contentWidth * 0.46, 380), 620))
+                            .measuringPaneWidth()
+                    }
+                } else {
+                    content(model, track)
+                }
             }
         }
         .navigationTitle(model?.track?.name ?? "Track")
@@ -33,6 +50,28 @@ struct TrackScreen: View {
                 await model.load()
             }
         }
+    }
+
+    /// The compare as this page's right-hand column, with a way to close it —
+    /// a sheet has a swipe-down and a column has nothing, so it needs one.
+    private var compareColumn: some View {
+        // The screen already titles itself, so the column adds only the way out
+        // — overlaid rather than stacked above, which would push its heading down
+        // and put two headings in a row.
+        CompareLapsScreen(trackId: trackId)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    showingCompareLaps = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textFaint))
+                        .padding(TESpacing.pageGutter)
+                }
+                .accessibilityLabel("Close the comparison")
+            }
+            .background(Color(.bgPage))
+            .accessibilityIdentifier("compareColumn")
     }
 
     private func content(_ model: TrackModel, _ track: Track) -> some View {
@@ -149,7 +188,13 @@ struct TrackScreen: View {
             }
         }
         .refreshable { await model.load() }
-        .sheet(isPresented: $showingCompareLaps) {
+        // Below expanded width it stays the sheet it has always been: there is
+        // nowhere to put a second column, and a half-width lap comparison is a
+        // worse comparison rather than a smaller one.
+        .sheet(isPresented: .init(
+            get: { showingCompareLaps && layout.layoutClass != .expanded },
+            set: { showingCompareLaps = $0 }
+        )) {
             CompareLapsScreen(trackId: trackId)
         }
         .toolbar {

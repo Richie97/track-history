@@ -178,7 +178,13 @@ fun LapChannelChart(
             PanelTab.TIME -> {
                 // Sector splits + theoretical best for the highlighted laps (#146),
                 // above the charts as on the web.
-                SectorTable(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
+                SectorTable(
+                    channels = channels,
+                    lit = lit,
+                    slots = slots,
+                    lapNumber = lapNumber,
+                    onHit = { hit = it; onHit(it) },
+                )
                 val refIdx = ChannelGraphs.deltaReference(lit, channels)
                 if (refIdx != null) {
                     DeltaPlot(channels = channels, matches = matches, lit = lit, refIdx = refIdx, slots = slots)

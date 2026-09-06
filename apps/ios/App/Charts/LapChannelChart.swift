@@ -206,7 +206,14 @@ struct LapChannelPanel: View {
             switch tabKey {
             case .time:
                 // Sector splits + theoretical best for the highlighted laps (#146).
-                SectorTable(channels: channels, lit: lit, slots: Self.slots, lapNumber: lapNumber(forLapIndex:))
+                SectorTable(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:),
+                    onHit: { hit in
+                        readout = hit?.k
+                        onHit(hit)
+                    }
+                )
                 deltaChart
             case .inputs:
                 // The session's shift points (#187) above the traces they explain.
