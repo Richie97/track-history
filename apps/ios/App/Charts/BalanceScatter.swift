@@ -45,6 +45,11 @@ struct BalanceScatter: View {
     let slots: [Color]
     /// The session's own lap number for a channel entry.
     let lapNumber: (Int) -> Int
+    /// Tapping a corner row answers "where is this on track" on everything drawn
+    /// beside the panel (NS-34 ticket 3).
+    var onHit: (ChannelHit?) -> Void = { _ in }
+
+    @Environment(\.layout) private var layout
 
     /// The axes are padded this much past the furthest sample, and floored so a
     /// session that never turned still draws a frame. `xMax` / `yMax` in the JS.
@@ -235,6 +240,14 @@ struct BalanceScatter: View {
                         .teStyle(.eyebrow)
                         .foregroundStyle(Color(.textFaint))
                         .gridColumnAlignment(.leading)
+                    if wideColumns {
+                        Text("At")
+                            .teStyle(.eyebrow)
+                            .foregroundStyle(Color(.textFaint))
+                        Text("Peak G")
+                            .teStyle(.eyebrow)
+                            .foregroundStyle(Color(.textFaint))
+                    }
                     ForEach(cols) { col in
                         HStack(spacing: 4) {
                             Circle().fill(col.color).frame(width: 8, height: 8)
@@ -251,25 +264,81 @@ struct BalanceScatter: View {
                 }
                 ForEach(sb.corners, id: \.corner.n) { row in
                     GridRow {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(Corners.cornerLabel(row.corner))
-                                .teStyle(.sm)
-                                .foregroundStyle(Color(.textStrong))
-                            Text(
-                                "\(fmtDist(Int((Double(row.corner.k0) * channels.dStepM).rounded()))) · "
-                                    + "\(String(format: "%.2f", row.corner.peakG)) G"
-                            )
-                            .teStyle(.xxs)
-                            .foregroundStyle(Color(.textFaint))
+                        cornerLabel(row.corner)
+                            .gridColumnAlignment(.leading)
+                        // Given the width, the corner's place on track and its
+                        // peak G get columns of their own rather than a second
+                        // line under the label (NS-34 ticket 3) — which is how
+                        // the web has always drawn them, and what makes two
+                        // corners comparable down the column.
+                        if wideColumns {
+                            Text(fmtDist(Int((Double(row.corner.k0) * channels.dStepM).rounded())))
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textMuted))
+                                .monospacedDigit()
+                            Text(String(format: "%.2f", row.corner.peakG))
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textMuted))
+                                .monospacedDigit()
                         }
-                        .gridColumnAlignment(.leading)
                         ForEach(cols) { col in
                             cell(row.laps.first { $0.chIdx == col.chIdx }?.pct)
                         }
                         if pooled { cell(row.all.pct) }
                     }
+                    // A corner is a place every lap shares, so the hit carries no
+                    // lap of its own and the map rings it whichever lap the trace
+                    // is — the rule `bindBalance` states on the web (NS-34).
+                    .contentShape(Rectangle())
+                    .onTapGesture { onHit(hit(for: row.corner)) }
                 }
             }
+        }
+    }
+
+    /// The corner's name, with its place and peak G under it when there is no
+    /// room for columns — the phone layout, unchanged.
+    @ViewBuilder
+    private func cornerLabel(_ corner: Corners.Corner) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(Corners.cornerLabel(corner))
+                .teStyle(.sm)
+                .foregroundStyle(Color(.textStrong))
+            if !wideColumns {
+                Text(
+                    "\(fmtDist(Int((Double(corner.k0) * channels.dStepM).rounded()))) · "
+                        + "\(String(format: "%.2f", corner.peakG)) G"
+                )
+                .teStyle(.xxs)
+                .foregroundStyle(Color(.textFaint))
+            }
+        }
+    }
+
+    /// Whether the table has room to give place and peak G their own columns.
+    ///
+    /// Measured against the **column this table is in**, not the window: the
+    /// panel is a narrow right-hand column at expanded width, and reading the
+    /// class would put five columns into 380pt.
+    private var wideColumns: Bool {
+        layout.contentWidth >= 520
+    }
+
+    /// Where a corner is, as a place on the lap.
+    ///
+    /// `chIdx` is deliberately nil: a corner is a stretch of track every lap goes
+    /// through, not one lap's sample, so the map may ring it whatever lap the
+    /// trace was drawn from.
+    private func hit(for corner: Corners.Corner) -> ChannelHit? {
+        let n = Self.sampleCount(channels)
+        guard n > 1 else { return nil }
+        return ChannelHit(chIdx: nil, k: corner.k0, frac: Double(corner.k0) / Double(n - 1))
+    }
+
+    /// The lap grid's length, from the longest lap that stored one.
+    private static func sampleCount(_ channels: SessionChannels) -> Int {
+        channels.laps.reduce(0) { longest, entry in
+            max(longest, max(entry.latG?.count ?? 0, entry.speed?.count ?? 0))
         }
     }
 

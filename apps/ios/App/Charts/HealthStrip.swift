@@ -28,10 +28,12 @@ import TrackEvolutionKit
 /// the logbook, while the maths stays in the stored units — the conversion is
 /// the last step, exactly as on the web.
 ///
-/// **The web's per-lap table is deliberately absent.** Fifteen columns is a
-/// desk layout; on a phone the sparkline carries the shape and the highlighted
-/// laps are marked on it in their slot colours, which is the same question
-/// answered in the space available.
+/// **The web's per-lap table appears at expanded width only** (NS-34 ticket 3).
+/// Fifteen columns is a desk layout, so on a phone the sparkline carries the
+/// shape and the highlighted laps are marked on it in their slot colours — the
+/// same question answered in the space available. Given a desk-sized window the
+/// figures themselves are worth more than the reduction of them, so `perLapTable`
+/// draws them; it is the one thing on this card that reads the layout class.
 struct HealthStrip: View {
     let channels: SessionChannels
     /// Channel-lap indexes in slot order, as `LapChannelPanel` keeps them.
@@ -40,11 +42,28 @@ struct HealthStrip: View {
     /// The session's own lap number for a channel entry.
     let lapNumber: (Int) -> Int
 
+    @Environment(\.layout) private var layout
+
     private static let units = Health.Units.us
 
     var body: some View {
         if let sh = Health.sessionHealth(channels) {
-            let order = sh.laps.map(\.chIdx)
+            VStack(alignment: .leading, spacing: 10) {
+                strip(sh)
+                // Its **own card**, deliberately, rather than the last thing
+                // inside the one above. That card declares itself a single
+                // accessibility element — a fifteen-by-N grid of numbers is
+                // unbearable to swipe through one cell at a time — and anything
+                // inside it inherits that, so a table placed there would be
+                // invisible to VoiceOver. As a sibling it keeps its own.
+                perLapTable(sh)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func strip(_ sh: Health.SessionHealth) -> some View {
+        let order = sh.laps.map(\.chIdx)
             TECard {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -83,6 +102,90 @@ struct HealthStrip: View {
             .accessibilityLabel("Car: the session's health figures")
             .accessibilityValue(summary(sh))
             .accessibilityIdentifier("healthStrip")
+    }
+
+    // MARK: - The per-lap table
+
+    /// Every figure, every lap — the port of `healthTableHtml` (NS-34 ticket 3).
+    ///
+    /// **Expanded width only.** The cards above reduce each column to one number
+    /// precisely because fifteen columns do not fit a phone; this is the reduction
+    /// undone, so it appears exactly where there is room for it and nowhere else.
+    ///
+    /// Columns are `sh.columns` — `HEALTH_DEFS` order, filtered to what the
+    /// session actually stored — so the table and the cards can never disagree
+    /// about which figures exist, and it scrolls horizontally rather than
+    /// squeezing, because a temperature that has been narrowed to three digits
+    /// is not a temperature any more.
+    @ViewBuilder
+    private func perLapTable(_ sh: Health.SessionHealth) -> some View {
+        if layout.layoutClass == .expanded, !sh.laps.isEmpty, !sh.columns.isEmpty {
+            TECard {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Per lap")
+                    .teStyle(.eyebrow)
+                    .foregroundStyle(Color(.textFaint))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 6) {
+                        GridRow {
+                            Text("Lap")
+                                .teStyle(.eyebrow)
+                                .foregroundStyle(Color(.textFaint))
+                                .gridColumnAlignment(.leading)
+                            ForEach(sh.columns, id: \.key) { column in
+                                let def = Health.defFor(column.key)
+                                VStack(alignment: .trailing, spacing: 0) {
+                                    Text(def?.label ?? column.key)
+                                        .teStyle(.eyebrow)
+                                        .foregroundStyle(Color(.textFaint))
+                                    if let def {
+                                        Text(Health.displayValue(def, 0, Self.units).unit)
+                                            .teStyle(.xxs)
+                                            .foregroundStyle(Color(.textFaint))
+                                    }
+                                }
+                            }
+                        }
+                        ForEach(sh.laps, id: \.chIdx) { row in
+                            GridRow {
+                                HStack(spacing: 5) {
+                                    // The slot colour when this lap is lit, so a
+                                    // row lines up with the traces above without
+                                    // colour being the only thing saying so —
+                                    // the number is right beside it.
+                                    if let slot = lit.firstIndex(of: row.chIdx), slot < slots.count {
+                                        Circle().fill(slots[slot]).frame(width: 7, height: 7)
+                                    }
+                                    Text("Lap \(String(lapNumber(row.chIdx)))")
+                                        .teStyle(.xs)
+                                        .foregroundStyle(Color(.textStrong))
+                                }
+                                .gridColumnAlignment(.leading)
+                                ForEach(sh.columns, id: \.key) { column in
+                                    tableCell(row, column)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            }
+            .accessibilityIdentifier("healthTable")
+        }
+    }
+
+    /// One reading, or an em dash for a lap that never carried it.
+    @ViewBuilder
+    private func tableCell(_ row: Health.Row, _ column: Health.Column) -> some View {
+        if let def = Health.defFor(column.key), let value = row.values[column.key] {
+            Text(Health.displayValue(def, value, Self.units).text)
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textStrong))
+                .monospacedDigit()
+        } else {
+            Text("—")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textFaint))
         }
     }
 

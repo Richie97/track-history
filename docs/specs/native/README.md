@@ -202,10 +202,12 @@ Features added after the rewrite shipped, and where they landed:
   notebook is web-only — the arithmetic under it (`hotPressures`,
   `suggestCold`) ports so the hot pressures on the strip are the same numbers.
   Two layout decisions differ on a phone and are stated in both ports: the
-  web's **per-lap table is absent** (fifteen columns is a desk layout, and the
-  sparkline plus the session figure is the same question answered in the width
-  available), and the cards go two to a row rather than in an auto-filling
-  grid. Three decisions a port inherits: the reduction is the importer's
+  web's **per-lap table appears at expanded width only** (fifteen columns is a
+  desk layout, so on a phone the sparkline plus the session figure is the same
+  question answered in the width available — NS-34 ticket 3 draws the table
+  where there is room, in a card of its own so it keeps its own accessibility
+  summary), and the cards go two to a row on a phone, auto-filling above it.
+  Three decisions a port inherits: the reduction is the importer's
   (`SCALAR_NAMES`), restated only so the view can say "peak" / "min" / "at
   lap end" — the one derivation is boost's per-lap peak off the trace; both
   threshold bounds are inclusive and a floor (`low: true`) shades below its
@@ -317,8 +319,12 @@ Features added after the rewrite shipped, and where they landed:
   panel. The session cards' channel control becomes a *selection* at expanded
   width — the iOS sheet and the Android inline panel both stand down — and the
   best lap's channel-carrying session is pre-selected. What that ticket still
-  owes: the health per-lap table, wide table columns, and the track and vehicle
-  pages' second columns.
+  owes: wide columns on the sector and shift tables, sector rows as a hit
+  source, and the track and vehicle pages' second columns.
+  The **health per-lap table** and the balance table's **place / peak G
+  columns** have landed at expanded width — both the reversal of a sacrifice
+  this README records, and both gated on the *column's* width rather than the
+  window's class, since the panel is itself a narrow column at expanded width.
   **Tap-to-mark cross-linking has landed** — the thing the column was for.
   Tapping a friction-circle sample marks that driven distance across every
   chart on the shared axis and rings the place on the best-lap track map, which

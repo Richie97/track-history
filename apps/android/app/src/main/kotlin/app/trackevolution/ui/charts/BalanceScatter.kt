@@ -2,6 +2,7 @@ package app.trackevolution.ui.charts
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import app.trackevolution.core.Balance
 import app.trackevolution.core.Corners
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.abs
@@ -84,9 +86,12 @@ private const val MIN_ROTATION = 1e-3
  * that count toward no reading — straight-line, or slow — draw fainter so the
  * blob at the origin doesn't read as data.
  *
- * Unlike the web there is no per-point hover: a phone has no pointer, and the
- * best-lap track map the web rings on hover is on the event page rather than in
- * this panel.
+ * There is no per-point *hover* — a phone has no pointer — but a **corner row is
+ * tappable**, and does what the web's hover does for one: [onHit] answers "where
+ * is this corner on track" on everything drawn beside the panel (NS-34 ticket 3).
+ * The hit carries no lap of its own, because a corner is a stretch of track every
+ * lap goes through, which is what lets the map ring it whatever lap the trace was
+ * drawn from — the rule `bindBalance` states on the web.
  */
 @Composable
 fun BalanceScatter(
@@ -97,6 +102,11 @@ fun BalanceScatter(
     /** The session's own lap number for a channel entry. */
     lapNumber: (Int) -> Int,
     modifier: Modifier = Modifier,
+    /**
+     * Tapping a corner row answers "where is this on track" on everything drawn
+     * beside the panel (NS-34 ticket 3).
+     */
+    onHit: (ChannelHit?) -> Unit = {},
 ) {
     val readable = remember(channels) { Balance.balanceLaps(channels) }
     if (readable.isEmpty()) return
@@ -175,6 +185,24 @@ fun BalanceScatter(
                     pooled = readable.size >= 2,
                     dStepM = channels.dStepM,
                     lapNumber = lapNumber,
+                    onCorner = { corner ->
+                        // `chIdx` is null on purpose: a corner is a stretch of
+                        // track every lap goes through, not one lap's sample.
+                        val n = channels.laps.maxOfOrNull {
+                            maxOf(it.latG?.size ?: 0, it.speed?.size ?: 0)
+                        } ?: 0
+                        onHit(
+                            if (n > 1) {
+                                ChannelHit(
+                                    chIdx = null,
+                                    k = corner.k0,
+                                    frac = corner.k0.toDouble() / (n - 1),
+                                )
+                            } else {
+                                null
+                            },
+                        )
+                    },
                 )
             }
             Text(
@@ -329,14 +357,38 @@ private fun CornerTable(
     pooled: Boolean,
     dStepM: Double,
     lapNumber: (Int) -> Int,
+    /** Tapping a row says where the corner is on track (NS-34 ticket 3). */
+    onCorner: (Corners.Corner) -> Unit = {},
 ) {
     if (columns.isEmpty()) return
     val colors = TrackTheme.colors
+    // Place and peak G get columns of their own once the table has room for
+    // them (NS-34 ticket 3), which is how the web has always drawn them and what
+    // makes two corners comparable down the column. Measured against the column
+    // this table is in, not the window: the panel is itself a narrow right-hand
+    // column at expanded width.
+    val wideColumns = LocalLayoutMetrics.current.contentWidth >= 520.dp
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
                 Text("Corner", style = TrackTheme.typography.xxs, color = colors.textFaint)
+            }
+            if (wideColumns) {
+                Text(
+                    "At",
+                    style = TrackTheme.typography.xxs,
+                    color = colors.textFaint,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(0.7f),
+                )
+                Text(
+                    "Peak G",
+                    style = TrackTheme.typography.xxs,
+                    color = colors.textFaint,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(0.7f),
+                )
             }
             columns.forEach { (chIdx, color) ->
                 Row(
@@ -363,18 +415,45 @@ private fun CornerTable(
             }
         }
         sb.corners.forEach { row ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    // A corner is a place every lap shares, so the hit it emits
+                    // carries no lap of its own and the map may ring it whatever
+                    // lap the trace was drawn from — the rule `bindBalance`
+                    // states on the web.
+                    .clickable { onCorner(row.corner) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         Corners.cornerLabel(row.corner),
                         style = TrackTheme.typography.sm,
                         color = colors.textStrong,
                     )
+                    if (!wideColumns) {
+                        Text(
+                            "${fmtDist((row.corner.k0 * dStepM).roundToLong())} · " +
+                                "${"%.2f".format(row.corner.peakG)} G",
+                            style = TrackTheme.typography.xxs,
+                            color = colors.textFaint,
+                        )
+                    }
+                }
+                if (wideColumns) {
                     Text(
-                        "${fmtDist((row.corner.k0 * dStepM).roundToLong())} · " +
-                            "${"%.2f".format(row.corner.peakG)} G",
-                        style = TrackTheme.typography.xxs,
-                        color = colors.textFaint,
+                        fmtDist((row.corner.k0 * dStepM).roundToLong()),
+                        style = TrackTheme.typography.xs,
+                        color = colors.textMuted,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(0.7f),
+                    )
+                    Text(
+                        "%.2f".format(row.corner.peakG),
+                        style = TrackTheme.typography.xs,
+                        color = colors.textMuted,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(0.7f),
                     )
                 }
                 columns.forEach { (chIdx, _) ->
