@@ -3,15 +3,18 @@ package app.trackevolution
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import app.trackevolution.ui.LayoutClass
+import app.trackevolution.ui.LayoutMetrics
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.ProvideLayoutMetrics
 import app.trackevolution.ui.TwoPaneShell
 import app.trackevolution.ui.theme.TrackTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -96,6 +99,51 @@ class TwoPaneShellTest {
         }
         compose.onNodeWithText(DETAIL).assertIsDisplayed()
         compose.onNodeWithText(LIST).assertDoesNotExist()
+    }
+
+    /**
+     * A pane publishes **its own** width, not the window's.
+     *
+     * This is the bug the shell shipped with and the reason it is worth a test:
+     * the list pane inherited the window's content width, so a card grid inside
+     * it counted three columns against 1064dp and drew them across 400 — cards
+     * about 110dp wide, in a pane that looked far too narrow for its own content.
+     * The *class* still has to be the window's, since a pane must not decide it
+     * is a phone; only the width changes.
+     */
+    @Test
+    @Config(qualifiers = "w1200dp-h800dp")
+    fun `each pane publishes its own content width`() {
+        var window = 0.dp
+        var list = 0.dp
+        var detail = 0.dp
+        compose.setContent {
+            ProvideLayoutMetrics {
+                window = LocalLayoutMetrics.current.contentWidth
+                TrackTheme {
+                    TwoPaneShell(
+                        twoPane = true,
+                        listPane = {
+                            list = LocalLayoutMetrics.current.contentWidth
+                            Text(LIST)
+                        },
+                    ) {
+                        detail = LocalLayoutMetrics.current.contentWidth
+                        Text(DETAIL)
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        assertTrue("the list pane should be narrower than the window", list < window)
+        assertTrue("the detail pane should be narrower than the window", detail < window)
+        // The point of it: a 280dp-minimum card grid gets one column in the list
+        // pane, where against the window's width it would have taken three.
+        val inPane = LayoutMetrics(LayoutClass.Expanded, list).columns(280.dp)
+        val againstWindow = LayoutMetrics(LayoutClass.Expanded, window).columns(280.dp)
+        assertEquals("one card per row in the list pane", 1, inPane)
+        assertTrue("…where the window would have allowed more", againstWindow > inPane)
     }
 
     private fun showShell() {

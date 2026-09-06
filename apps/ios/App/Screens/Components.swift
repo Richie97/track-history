@@ -229,12 +229,16 @@ struct TEStatRow: View {
     /// One column once the text is big enough that even two across would truncate.
     ///
     /// The four-up row goes two-and-two on a phone because `0:45.184` at `h2` is
-    /// wider than a quarter of 390pt. That is a width argument, not a design
-    /// one, so above phone width the four tiles go across in one row — as they
-    /// do on the web — while large text still collapses them to one.
+    /// wider than a quarter of 390pt. That is a width argument, not a design one,
+    /// so once there is room the four tiles go across in one row, as they do on
+    /// the web — while large text still collapses them to one.
+    ///
+    /// Measured against the **column this row is in**, not the window's class: in
+    /// a list pane the window is expanded and the column is a phone's width, and
+    /// reading the class there would put four tiles across 360pt.
     private var columns: Int {
         if typeSize >= .accessibility1 { return 1 }
-        if !layout.layoutClass.isCompact { return max(1, tiles.count) }
+        if layout.contentWidth >= LayoutClass.MEDIUM_MIN_DP { return max(1, tiles.count) }
         return tiles.count > 3 ? 2 : max(1, tiles.count)
     }
 

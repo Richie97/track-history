@@ -161,7 +161,13 @@ struct RootView: View {
     private var splitShell: some View {
         NavigationSplitView {
             DashboardScreen()
-                .navigationSplitViewColumnWidth(min: 320, ideal: 360, max: 420)
+                // Never narrower than a phone. The dashboard's own content sets
+                // this floor — a hero card with a countdown, three stat tiles and
+                // track cards carrying lap times were all drawn for ~390pt, and a
+                // 320pt sidebar squeezes every one of them for the sake of a
+                // detail pane that already has room to spare.
+                .navigationSplitViewColumnWidth(min: 390, ideal: 420, max: 520)
+                .measuringPaneWidth()
         } detail: {
             NavigationStack(path: $router.path) {
                 DetailPlaceholder()
@@ -169,6 +175,7 @@ struct RootView: View {
                         destination(route)
                     }
             }
+            .measuringPaneWidth()
         }
         .navigationSplitViewStyle(.balanced)
     }
