@@ -296,6 +296,19 @@ Features added after the rewrite shipped, and where they landed:
   its width, while Android reads width alone and puts a 915dp Pixel window in
   expanded. That is free while medium and expanded are the same layout, and it
   is the two-pane ticket's decision to make.
+  **Ticket 2 has landed** ([#216](https://github.com/Richie97/track-history/issues/216)):
+  the shell is list-detail at expanded width on both platforms, with the
+  dashboard as the list pane, selection marked on the row the detail is
+  showing, and an empty state that names the next upcoming event. The design
+  that made it cheap is worth remembering: **one path with two roots**. Neither
+  platform gained a route, a second navigator or a width-dependent branch in a
+  deep link — iOS keeps the single `AppRouter.path` and swaps only the stack's
+  root, Android keeps `Route.Dashboard` as the start destination and changes
+  only what that destination draws. The recorder and the importer own the whole
+  window at every width, which is the one place the two-pane layout is refused
+  on purpose. One dependency note: Android's `compileSdk` is now **37**, because
+  `androidx.compose.material3.adaptive` 1.3.0 requires it; `targetSdk` stays 36,
+  and the two are unrelated knobs.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,

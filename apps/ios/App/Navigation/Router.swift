@@ -22,6 +22,34 @@ enum Route: Hashable {
     case shared(slug: String)
 }
 
+extension Route {
+    /// Whether this destination needs the **whole window** rather than a pane
+    /// (NS-34).
+    ///
+    /// Two of them do, for the same reason rather than two: each is a task you are
+    /// doing *instead of* reading the logbook, not alongside it. The record screen
+    /// is a phone-in-a-mount layout meant to be read at a glance, and half an iPad
+    /// is a worse version of it rather than a bigger one; the importer ends in the
+    /// review, which is modal by nature and which NS-26 keeps above the graph on
+    /// Android for exactly this reason.
+    ///
+    /// Below expanded width this changes nothing — the stack already fills the
+    /// window, so a push is full-window and keeps the back gesture.
+    var ownsTheWindow: Bool {
+        switch self {
+        case .record, .importVideo: true
+        case .event, .eventForm, .track, .vehicle, .settings, .shared: false
+        }
+    }
+}
+
+/// A route identifies itself, so it can drive a `fullScreenCover(item:)` without
+/// a wrapper type. Safe because `Route` is already `Hashable` and carries no
+/// mutable state — two equal routes *are* the same destination.
+extension Route: Identifiable {
+    var id: Self { self }
+}
+
 /// New or existing, in one value so the form has a single input.
 enum EventFormTarget: Hashable {
     /// A new event, optionally starting at a known track (the track page's
@@ -35,6 +63,23 @@ enum EventFormTarget: Hashable {
 @Observable
 final class AppRouter {
     var path: [Route] = []
+
+    /// A route that must own the **whole window** rather than a pane (NS-34).
+    ///
+    /// Only two things are ever put here, and both for the same reason: the record
+    /// screen is a phone-in-a-mount layout that a half-width detail pane would
+    /// ruin, and the importer ends in the review, which is modal by nature. At
+    /// compact and medium width this stays nil and both are ordinary pushes — the
+    /// stack already fills the window there.
+    var fullWindow: Route?
+
+    /// What the list pane has selected: the detail's root, or nil for its empty
+    /// state.
+    ///
+    /// `path.first` rather than a second stored property, so there is one source
+    /// of truth for where the app is. A deep link that calls ``show(_:)`` moves
+    /// the selection with it for free, and nothing can get out of step.
+    var selection: Route? { path.first }
 
     /// A link that arrived before there was a stack to put it on — at cold start,
     /// or while signed out. Applied by `applyPending()` once the app is signed in,
@@ -54,6 +99,30 @@ final class AppRouter {
     /// rather than burying the dashboard under an arbitrary history.
     func show(_ route: Route) {
         path = [route]
+    }
+
+    /// Open a route **from the list pane** (NS-34).
+    ///
+    /// Replaces the detail rather than deepening it: the dashboard is beside the
+    /// detail at expanded width, not behind it, so picking a second track from it
+    /// means "show me this one", never "push this on top of the last one".
+    ///
+    /// At compact and medium width this is indistinguishable from ``push(_:)``,
+    /// and not by coincidence — the dashboard is the stack's *root* there, so its
+    /// cards are only ever tapped while the path is empty, and appending to an
+    /// empty path is the same operation. That is what lets one dashboard serve
+    /// both shells with no width check in it.
+    func open(_ route: Route) {
+        show(route)
+    }
+
+    /// Present a route over the whole window, at any width. See ``fullWindow``.
+    func presentFullWindow(_ route: Route) {
+        fullWindow = route
+    }
+
+    func dismissFullWindow() {
+        fullWindow = nil
     }
 
     /// Handle a URL from the OS. Returns false when it isn't ours, so the caller

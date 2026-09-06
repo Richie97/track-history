@@ -229,12 +229,16 @@ struct TEStatRow: View {
     /// One column once the text is big enough that even two across would truncate.
     ///
     /// The four-up row goes two-and-two on a phone because `0:45.184` at `h2` is
-    /// wider than a quarter of 390pt. That is a width argument, not a design
-    /// one, so above phone width the four tiles go across in one row — as they
-    /// do on the web — while large text still collapses them to one.
+    /// wider than a quarter of 390pt. That is a width argument, not a design one,
+    /// so once there is room the four tiles go across in one row, as they do on
+    /// the web — while large text still collapses them to one.
+    ///
+    /// Measured against the **column this row is in**, not the window's class: in
+    /// a list pane the window is expanded and the column is a phone's width, and
+    /// reading the class there would put four tiles across 360pt.
     private var columns: Int {
         if typeSize >= .accessibility1 { return 1 }
-        if !layout.layoutClass.isCompact { return max(1, tiles.count) }
+        if layout.contentWidth >= LayoutClass.MEDIUM_MIN_DP { return max(1, tiles.count) }
         return tiles.count > 3 ? 2 : max(1, tiles.count)
     }
 
@@ -358,12 +362,28 @@ struct TENavCard<Content: View>: View {
     /// A stable handle for UI tests. Card *titles* are user data — a seeded track
     /// name today, a renamed one tomorrow — so tests navigate by this instead.
     var identifier: String?
+    /// Whether this card lives in the **list pane** (NS-34).
+    ///
+    /// A list-pane card replaces the detail rather than pushing onto it, and shows
+    /// which row the detail is currently showing. Everywhere else — an event page
+    /// linking to its track, a track page linking to an event — a card is a push
+    /// and nothing is "selected", so this stays false and the card is what it
+    /// always was.
+    var listPane = false
     @ViewBuilder let content: () -> Content
     @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
+
+    /// Only ever true beside a visible detail pane: at compact and medium width
+    /// the detail *is* the screen you just left, and highlighting a row you can no
+    /// longer see would be describing something off-screen.
+    private var isSelected: Bool {
+        listPane && layout.layoutClass == .expanded && router.selection == route
+    }
 
     var body: some View {
         Button {
-            router.push(route)
+            if listPane { router.open(route) } else { router.push(route) }
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) { content() }
@@ -374,14 +394,24 @@ struct TENavCard<Content: View>: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.surfaceCard), in: .rect(cornerRadius: TERadius.md))
+            .background(
+                Color(isSelected ? .accentTint : .surfaceCard),
+                in: .rect(cornerRadius: TERadius.md)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: TERadius.md)
-                    .strokeBorder(Color(.borderHairline), lineWidth: 1)
+                    // Selection is a border *and* a tint, never colour alone: the
+                    // accent tint is a few percent of lime and disappears entirely
+                    // for anyone who can't see it.
+                    .strokeBorder(
+                        Color(isSelected ? .accent : .borderHairline),
+                        lineWidth: isSelected ? 2 : 1
+                    )
             )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(identifier ?? "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

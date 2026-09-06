@@ -29,6 +29,11 @@ struct TrackEvolutionApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // Measured on the *window*, above the root view, so `RootView`
+                // itself can read the class and choose its shell (NS-34): a view
+                // cannot both install an environment value and read it in the same
+                // body. Everything below shares this one measurement.
+                .measuringLayoutClass()
                 .environment(theme)
                 .environment(recorder)
                 .environment(auth)

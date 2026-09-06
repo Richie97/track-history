@@ -115,6 +115,23 @@ extension View {
     func measuringLayoutClass() -> some View {
         modifier(MeasureLayoutClass())
     }
+
+    /// Republish the metrics for a container narrower than the window — a pane.
+    ///
+    /// The **class stays the window's**, which is the spec's rule and the right
+    /// one: a pane must not decide it is a phone and start hiding things. What
+    /// has to change is the *content width*, because everything that counts
+    /// columns counts them against the column it is actually in. Without this a
+    /// 360pt sidebar inherits the window's 1064pt content width and lays its
+    /// track cards out three across, at 110pt each — which is how a list pane
+    /// ends up far too narrow for what is in it.
+    ///
+    /// Measured rather than assumed: `NavigationSplitView` picks the sidebar's
+    /// width itself, anywhere between the minimum and maximum it is offered, and
+    /// the user can drag it.
+    func measuringPaneWidth() -> some View {
+        modifier(MeasurePaneWidth())
+    }
 }
 
 private struct MeasureLayoutClass: ViewModifier {
@@ -132,5 +149,24 @@ private struct MeasureLayoutClass: ViewModifier {
             layoutClass: layoutClass,
             contentWidth: max(0, width - 2 * TESpacing.pageGutter(for: layoutClass))
         )
+    }
+}
+
+private struct MeasurePaneWidth: ViewModifier {
+    @Environment(\.layout) private var layout
+
+    func body(content: Content) -> some View {
+        GeometryReader { proxy in
+            content.environment(
+                \.layout,
+                LayoutMetrics(
+                    layoutClass: layout.layoutClass,
+                    contentWidth: max(
+                        0,
+                        proxy.size.width - 2 * TESpacing.pageGutter(for: layout.layoutClass)
+                    )
+                )
+            )
+        }
     }
 }

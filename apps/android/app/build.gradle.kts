@@ -33,7 +33,13 @@ android {
     // and the App Links association in public/.well-known/assetlinks.json,
     // rather than a second listing.
     namespace = "app.trackevolution"
-    compileSdk = 36
+    // 37 because `androidx.compose.material3.adaptive` 1.3.0 — the list-detail
+    // scaffold behind NS-34's two-pane shell — refuses to compile against
+    // anything older. Raising this is safe on its own: `compileSdk` only says
+    // which APIs may be *referenced*, while `targetSdk` below (still 36) is what
+    // opts the app into new runtime behaviour and what Play enforces at upload.
+    // The two move independently and deliberately do here.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "app.trackevolution"
@@ -60,7 +66,7 @@ android {
         // actually holds. The 3 below is only what local builds get; it is not
         // kept in step with Play.
         versionCode = env("TE_VERSION_CODE")?.toInt() ?: 3
-        versionName = env("TE_VERSION_NAME") ?: "1.6"
+        versionName = env("TE_VERSION_NAME") ?: "1.7"
     }
 
     signingConfigs {
@@ -214,6 +220,12 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    // The two-pane shell (NS-34 ticket 2). `adaptive-layout` carries
+    // ListDetailPaneScaffold; `adaptive-navigation` is deliberately *not* here,
+    // because the app's navigation is the type-safe NavHost from NS-26 and a
+    // second navigator would be a second answer to "where am I".
+    implementation(libs.compose.material3.adaptive)
+    implementation(libs.compose.material3.adaptive.layout)
 
     debugImplementation(libs.compose.ui.tooling)
 
