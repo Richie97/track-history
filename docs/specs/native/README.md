@@ -268,6 +268,22 @@ Features added after the rewrite shipped, and where they landed:
   manual best never reaches a leaderboard. Server-side and retroactive; the
   response shape didn't change, and every client's leaderboard section says
   the rule and explains a row slower than the logbook's own best.
+- **Large screens** (2026-09, [NS-34](NS-34-large-screens.md), epic
+  [#214](https://github.com/Richie97/track-history/issues/214)) — **native
+  only, presentation only.** Both apps ran on iPad and foldables with a phone
+  column stretched to the window; NS-34 gives them a shared **layout class**
+  (compact / medium / expanded, by window width, never by device), caps and
+  centres the phone layout at medium width, and at expanded width goes
+  two-pane with the dashboard as the list. The point is not tablet features:
+  it is that the phone layouts made width sacrifices the README records —
+  the channel panel as a sheet rather than beside the map (which is why the
+  friction circle's and balance scatter's hover stayed web-only), the health
+  strip's missing per-lap table, the tables' place-and-peak-G-under-the-label
+  columns — and a wide window takes every one of them back with no new logic
+  and no new fixture. Web-only features **stay web-only** at every width; a
+  big screen does not reopen the deferred list. The one foldable feature is
+  the tabletop-posture recorder on Android, and the iPad ones are pointer
+  hover on the charts and dropping a clip on an event to import it.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
@@ -357,6 +373,7 @@ change* rule does not apply — see the spec for why.
 |---|---|---|---|
 | NS-32 | [Subscriptions (Track Evolution Pro)](NS-32-subscriptions.md) | Shared | NS-25, NS-26, NS-27 |
 | NS-33 | [Leaderboards rank only device-timed laps](NS-33-leaderboard-device-timed-laps.md) | Shared | Leaderboards, NS-30, NS-32 |
+| NS-34 | [Large screens: iPad, foldables and tablets](NS-34-large-screens.md) | iOS + Android | NS-23, NS-24, NS-25, NS-26 |
 
 ## Deferred — not in this programme
 
