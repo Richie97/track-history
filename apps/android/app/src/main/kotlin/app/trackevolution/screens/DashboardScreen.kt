@@ -39,7 +39,10 @@ import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Track
+import app.trackevolution.ui.CARD_GRID_MINIMUM
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.cardGridItems
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.TELoadable
@@ -82,6 +85,9 @@ fun DashboardScreen(
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
+    // One column on a phone by construction — a phone is narrower than one
+    // card's minimum — so the compact layout is unchanged without a branch.
+    val cardColumns = LocalLayoutMetrics.current.columns(CARD_GRID_MINIMUM)
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
@@ -171,14 +177,16 @@ fun DashboardScreen(
                 if (model.tracksWithData.isEmpty()) {
                     item("tracks-empty") { TEEmpty("No events yet — add your first track day.") }
                 } else {
-                    items(model.tracksWithData, key = { "tr-${it.id}" }) { track ->
+                    // One card per row on a phone, filling the width above it —
+                    // the web's `.cards` grid (NS-34).
+                    cardGridItems(model.tracksWithData, cardColumns, key = { "tr-${it.id}" }) { track ->
                         TrackRow(track) { onOpenTrack(track.id) }
                     }
                 }
 
                 if (model.garage.isNotEmpty()) {
                     item("garage-header") { TESectionHeader("Garage") }
-                    items(model.garage, key = { "veh-${it.id}" }) { vehicle ->
+                    cardGridItems(model.garage, cardColumns, key = { "veh-${it.id}" }) { vehicle ->
                         VehicleRow(vehicle) { onOpenVehicle(vehicle.id) }
                     }
                 }

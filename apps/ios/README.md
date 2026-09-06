@@ -48,9 +48,24 @@ xcodebuild -project TrackEvolution.xcodeproj -scheme TrackEvolution \
 xcodebuild test -project TrackEvolution.xcodeproj -scheme TrackEvolutionKit \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 
+# the app target's own unit tests — see below for what belongs in them
+xcodebuild test -project TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:TrackEvolutionTests
+
 # or just open it
 open TrackEvolution.xcodeproj
 ```
+
+**Almost nothing belongs in `Tests/`.** Testable logic lives in the Kit, which
+is exactly why the Kit builds for macOS: `swift test` runs it in seconds with no
+simulator, and this target needs one. It exists for the handful of values that
+are facts about a *window* rather than about the domain — the NS-34 layout
+breakpoints, which the spec keeps out of the Kit because the class is derived
+from UIKit's size class and the window's width, and which Android duplicates for
+the same reason. A test on each platform is what stops that duplication becoming
+drift, so `LayoutClassTests` and Android's `LayoutClassTest` fail together or not
+at all. Adding a second case here should feel like a decision.
 
 ## Design system
 
@@ -345,7 +360,20 @@ npm run dev
 xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -only-testing:TrackEvolutionUITests/CoreScreensUITests
+
+# …and on an iPad, which is the only place the large-screen layout exists
+xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' \
+  -only-testing:TrackEvolutionUITests/CoreScreensUITests
 ```
+
+The iPad run is a *manual* one for now, and deliberately so: CI runs none of
+these suites, because they need `npm run dev` and skip without it, so adding an
+iPad destination to `ios.yml` would add a simulator boot and assert nothing. It
+becomes worth wiring in when there is behaviour that only exists at expanded
+width — the two-pane shell (NS-34 ticket 2) and the analysis column beside the
+map (ticket 3). Until then, what CI does hold is the breakpoints themselves, in
+`TrackEvolutionTests`.
 
 **Connect the simulator's hardware keyboard** (Simulator → I/O → Keyboard →
 Connect Hardware Keyboard, or `defaults write com.apple.iphonesimulator

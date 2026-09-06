@@ -21,22 +21,79 @@ enum LoadState: Equatable {
 }
 
 /// A page of cards on the app background.
+///
+/// The one place the content column is capped (NS-34). Above phone width the
+/// page stops at `--page-max` and centres, the way the web app's `.shell` does,
+/// instead of stretching a phone layout across an iPad — and it republishes the
+/// narrowed width, so a grid inside it counts columns against the column it is
+/// actually in rather than against the window.
 struct TEPage<Content: View>: View {
     private let content: Content
+    @Environment(\.layout) private var layout
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
+        let gutter = TESpacing.pageGutter(for: layout.layoutClass)
         ScrollView {
             VStack(alignment: .leading, spacing: TESpacing.gridGap) {
                 content
             }
-            .padding(TESpacing.pageGutter)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(gutter)
+            // The cap includes the gutters, matching the web's border-box
+            // `.shell { max-width: var(--page-max); padding: 0 var(--page-gutter) }`.
+            // Below the cap this is the same full-width leading frame as before,
+            // so a phone renders exactly as it did.
+            .frame(maxWidth: LayoutTokens.PAGE_MAX, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .environment(\.layout, layout.narrowed(to: LayoutTokens.PAGE_MAX - 2 * gutter))
         }
         .background(Color(.bgPage))
+    }
+}
+
+/// Cards that take as many columns as the width allows — the web's
+/// `repeat(auto-fill, minmax(280px, 1fr))`.
+///
+/// One column at compact width, which is where a phone always lands, so this is
+/// a no-op on a phone by construction rather than by a branch.
+///
+/// Deliberately **not** a `LazyVGrid`, for the reason spelled out on `TEStatRow`:
+/// a lazy row below the fold does not exist yet, which makes it invisible to
+/// VoiceOver's element order and to any test that looks for a card without
+/// scrolling first. These lists are tens of items, not thousands.
+struct TECardGrid<Item: Identifiable, Content: View>: View {
+    let items: [Item]
+    /// The narrowest a card may be before the grid drops a column.
+    var minimum: CGFloat = TESpacing.cardGridMinimum
+    @ViewBuilder let content: (Item) -> Content
+
+    @Environment(\.layout) private var layout
+
+    var body: some View {
+        let columns = layout.layoutClass == .compact ? 1 : layout.columns(minimum: minimum)
+        VStack(spacing: TESpacing.gridGap) {
+            ForEach(Array(rows(columns).enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: TESpacing.gridGap) {
+                    ForEach(row) { item in content(item) }
+                    // Keeps a short last row's cards the width of the ones above
+                    // rather than stretching two cards across four columns.
+                    if row.count < columns {
+                        ForEach(0..<(columns - row.count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func rows(_ columns: Int) -> [[Item]] {
+        stride(from: 0, to: items.count, by: columns).map {
+            Array(items[$0..<min($0 + columns, items.count)])
+        }
     }
 }
 
@@ -151,6 +208,7 @@ struct TEStatTile: View {
 struct TEStatRow: View {
     let tiles: [TEStatTile]
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.layout) private var layout
 
     var body: some View {
         VStack(spacing: 10) {
@@ -169,8 +227,15 @@ struct TEStatRow: View {
     }
 
     /// One column once the text is big enough that even two across would truncate.
+    ///
+    /// The four-up row goes two-and-two on a phone because `0:45.184` at `h2` is
+    /// wider than a quarter of 390pt. That is a width argument, not a design
+    /// one, so above phone width the four tiles go across in one row — as they
+    /// do on the web — while large text still collapses them to one.
     private var columns: Int {
-        typeSize >= .accessibility1 ? 1 : (tiles.count > 3 ? 2 : max(1, tiles.count))
+        if typeSize >= .accessibility1 { return 1 }
+        if !layout.layoutClass.isCompact { return max(1, tiles.count) }
+        return tiles.count > 3 ? 2 : max(1, tiles.count)
     }
 
     private var rows: [[TEStatTile]] {

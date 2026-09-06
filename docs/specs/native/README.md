@@ -284,6 +284,18 @@ Features added after the rewrite shipped, and where they landed:
   big screen does not reopen the deferred list. The one foldable feature is
   the tabletop-posture recorder on Android, and the iPad ones are pointer
   hover on the charts and dropping a clip on an event to import it.
+  **Ticket 1 has landed** ([#215](https://github.com/Richie97/track-history/issues/215)):
+  the layout class exists on both platforms with its breakpoints pinned by a
+  unit test each, `PAGE_MAX` and `--page-gutter` are emitted by both token
+  generators, and every logbook page is capped, centred and grid-filled above
+  phone width. Two things it turned up are worth carrying into ticket 2. The
+  iOS app needed its **first unit-test target** (`apps/ios/Tests`) to hold the
+  breakpoints, because the Kit cannot — a fact the spec implied and no ticket
+  stated. And the two platforms **classify a phone in landscape differently**:
+  UIKit's `.compact` horizontal size class keeps an iPhone one-column whatever
+  its width, while Android reads width alone and puts a 915dp Pixel window in
+  expanded. That is free while medium and expanded are the same layout, and it
+  is the two-pane ticket's decision to make.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,

@@ -336,6 +336,7 @@ struct TEButtonStyle: ButtonStyle {
     /// A custom style has to dim itself: `.disabled()` alone leaves a lime button
     /// looking perfectly tappable.
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.layout) private var layout
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -343,7 +344,11 @@ struct TEButtonStyle: ButtonStyle {
             .foregroundStyle(foreground)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            .frame(maxWidth: .infinity)
+            // A button fills its column on a phone, where the column *is* its
+            // natural width, and stops growing above that (NS-34): an 1120pt
+            // "Save" is a banner, not a button. A max, never a fixed width — the
+            // narrow case is still the phone's.
+            .frame(maxWidth: layout.layoutClass.isCompact ? .infinity : TESpacing.controlMax)
             .background(background, in: .rect(cornerRadius: TERadius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: TERadius.md)

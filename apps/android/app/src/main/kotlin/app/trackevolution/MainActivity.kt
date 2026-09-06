@@ -49,6 +49,7 @@ import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
 import app.trackevolution.recording.RecordingFlow
 import app.trackevolution.recording.RecordingService
+import app.trackevolution.ui.ProvideLayoutMetrics
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.ThemePreference
 import app.trackevolution.ui.theme.TrackTheme
@@ -157,45 +158,52 @@ class MainActivity : ComponentActivity() {
             val choice by preference.choice.collectAsState(initial = ThemeChoice.System)
             val state by auth.state.collectAsState()
             val server by serverPreference.url.collectAsState(initial = ApiClient.DEFAULT_BASE_URL)
-            TrackTheme(choice) {
-                when (state) {
-                    is AuthState.SignedIn -> SignedInScaffold(
-                        api = api,
-                        auth = auth,
-                        authState = state,
-                        billing = services.billing,
-                        router = router,
-                        flow = flow,
-                        serverUrl = server,
-                        themeChoice = choice,
-                        onThemeChange = { next ->
-                            lifecycleScope.launch { preference.set(next) }
-                        },
-                        startOnRecord = openRecorder,
-                        onConsumedStartOnRecord = { openRecorder = false },
-                        onStartRecording = ::requestPermissionsThenRecord,
-                        onSignOut = {
-                            // A deep link parked for a session that no longer
-                            // exists must not fire under the next one.
-                            router.clear()
-                            incomingImport = null
-                            auth.signOut()
-                        },
-                        incomingImport = incomingImport,
-                        onConsumedIncomingImport = { incomingImport = null },
-                    )
-                    AuthState.Loading -> LoadingScreen()
-                    else -> SignInScreen(
-                        state = state,
-                        onSignIn = { auth.signIn(it, this@MainActivity) },
-                        // Debug only: pointing the app at `wrangler dev` is a
-                        // development affordance, not a user-facing setting.
-                        serverOverride = if (BuildConfig.DEBUG) {
-                            ServerOverride(current = server, onChange = auth::setServer)
-                        } else {
-                            null
-                        },
-                    )
+            // Measured once at the root and published downwards (NS-34), so every
+            // screen reads one window width rather than measuring its own — and so
+            // folding, rotating or resizing across a breakpoint re-lays out the
+            // whole app rather than nothing at all. Outside the theme because it
+            // is a fact about the window, not a design token.
+            ProvideLayoutMetrics {
+                TrackTheme(choice) {
+                    when (state) {
+                        is AuthState.SignedIn -> SignedInScaffold(
+                            api = api,
+                            auth = auth,
+                            authState = state,
+                            billing = services.billing,
+                            router = router,
+                            flow = flow,
+                            serverUrl = server,
+                            themeChoice = choice,
+                            onThemeChange = { next ->
+                                lifecycleScope.launch { preference.set(next) }
+                            },
+                            startOnRecord = openRecorder,
+                            onConsumedStartOnRecord = { openRecorder = false },
+                            onStartRecording = ::requestPermissionsThenRecord,
+                            onSignOut = {
+                                // A deep link parked for a session that no longer
+                                // exists must not fire under the next one.
+                                router.clear()
+                                incomingImport = null
+                                auth.signOut()
+                            },
+                            incomingImport = incomingImport,
+                            onConsumedIncomingImport = { incomingImport = null },
+                        )
+                        AuthState.Loading -> LoadingScreen()
+                        else -> SignInScreen(
+                            state = state,
+                            onSignIn = { auth.signIn(it, this@MainActivity) },
+                            // Debug only: pointing the app at `wrangler dev` is a
+                            // development affordance, not a user-facing setting.
+                            serverOverride = if (BuildConfig.DEBUG) {
+                                ServerOverride(current = server, onChange = auth::setServer)
+                            } else {
+                                null
+                            },
+                        )
+                    }
                 }
             }
         }

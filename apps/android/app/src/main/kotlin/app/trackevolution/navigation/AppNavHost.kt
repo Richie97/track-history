@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,6 +39,7 @@ import app.trackevolution.screens.TrackModel
 import app.trackevolution.screens.TrackScreen
 import app.trackevolution.screens.VehicleModel
 import app.trackevolution.screens.VehicleScreen
+import app.trackevolution.ui.PageColumn
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.videoimport.ImportModel
 import app.trackevolution.videoimport.ImportScreen
@@ -108,7 +110,7 @@ fun AppNavHost(
 
     NavHost(navController = nav, startDestination = Route.Dashboard, modifier = modifier) {
 
-        composable<Route.Dashboard> {
+        pageComposable<Route.Dashboard> {
             val model = rememberScreenModel { scope, _ -> DashboardModel(scope, api) }
             DashboardScreen(
                 model = model,
@@ -122,7 +124,7 @@ fun AppNavHost(
             )
         }
 
-        composable<Route.Event> { entry ->
+        pageComposable<Route.Event> { entry ->
             val route = entry.toRoute<Route.Event>()
             val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.id) }
             EventScreen(
@@ -144,7 +146,7 @@ fun AppNavHost(
             )
         }
 
-        composable<Route.EventForm> { entry ->
+        pageComposable<Route.EventForm> { entry ->
             val route = entry.toRoute<Route.EventForm>()
             // The form's own destination, so saving can pop exactly it and
             // nothing else — the screen underneath might be the dashboard, an
@@ -178,7 +180,7 @@ fun AppNavHost(
             )
         }
 
-        composable<Route.Track> { entry ->
+        pageComposable<Route.Track> { entry ->
             val route = entry.toRoute<Route.Track>()
             val model = rememberScreenModel { scope, _ -> TrackModel(scope, api, route.id) }
             TrackScreen(
@@ -191,13 +193,13 @@ fun AppNavHost(
             )
         }
 
-        composable<Route.CompareLaps> { entry ->
+        pageComposable<Route.CompareLaps> { entry ->
             val route = entry.toRoute<Route.CompareLaps>()
             val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
             CompareLapsScreen(model = model)
         }
 
-        composable<Route.Settings> {
+        pageComposable<Route.Settings> {
             val model = rememberScreenModel { scope, _ -> SettingsModel(scope, api, auth) }
             SettingsScreen(
                 model = model,
@@ -269,7 +271,7 @@ fun AppNavHost(
             )
         }
 
-        composable<Route.Vehicle> { entry ->
+        pageComposable<Route.Vehicle> { entry ->
             val route = entry.toRoute<Route.Vehicle>()
             val model = rememberScreenModel { scope, _ -> VehicleModel(scope, api, route.id) }
             VehicleScreen(
@@ -279,13 +281,31 @@ fun AppNavHost(
             )
         }
 
-        composable<Route.Shared> { entry ->
+        pageComposable<Route.Shared> { entry ->
             val route = entry.toRoute<Route.Shared>()
             val model = rememberScreenModel { scope, _ -> SharedLogbookModel(scope, api, route.slug) }
             SharedLogbookScreen(model = model)
         }
     }
 }
+
+/**
+ * A logbook destination, with its content column capped and centred (NS-34).
+ *
+ * Identical to `composable<T>` except for the [PageColumn] around the screen, so
+ * that "this page is read as a column" is one word at the destination rather
+ * than a wrapper indented into every screen. Below the cap it is a no-op, which
+ * is why a phone renders exactly as it did.
+ *
+ * The two destinations that deliberately keep `composable<T>` are **Record** and
+ * **Import**: the record screen is a phone-in-a-mount layout and stays
+ * full-window at every width (NS-34 explicitly gives it no width work), and the
+ * importer is a chooser that hands straight over to the review overlay, which is
+ * modal over the whole window.
+ */
+private inline fun <reified T : Any> NavGraphBuilder.pageComposable(
+    noinline content: @Composable (NavBackStackEntry) -> Unit,
+) = composable<T> { entry -> PageColumn { content(entry) } }
 
 /**
  * Follows a row created offline to its real id once the queue has flushed.
