@@ -301,11 +301,24 @@ private struct ChartChrome: ViewModifier {
                     }
                 }
                 .chartXAxis {
-                    // Four labels at most: the axis is a reference, and a label per
-                    // event turns into overlapping mush by the fifth track day.
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    // Grid lines on the automatic ticks; labels on the ends only.
+                    //
+                    // A date reads as "Feb 12, 2019" and a phone leaves the plot
+                    // around 280pt, so four of them do not fit — what shipped was
+                    // five overlapping labels with the last one truncated. The axis
+                    // here is a *range*, not a lookup table: which day a point is
+                    // belongs to the drag read-out, which answers it exactly, so the
+                    // axis says where the series starts and where it ends and stops
+                    // there. The wider web chart (`public/js/chart.js`) still draws
+                    // its two intermediate labels — it has the room, this doesn't.
+                    AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                         AxisGridLine().foregroundStyle(Color(.chartGrid))
-                        AxisValueLabel {
+                    }
+                    // Anchored by their inside corner, so the first label grows
+                    // rightwards off its mark and the last one leftwards; centred,
+                    // both would hang half a date past the end of the plot.
+                    AxisMarks(values: endpoints) { value in
+                        AxisValueLabel(anchor: anchor(for: value)) {
                             if let x = value.as(Double.self) {
                                 Text(label(for: x)).teStyle(.xxs)
                             }
@@ -313,6 +326,19 @@ private struct ChartChrome: ViewModifier {
                     }
                 }
         }
+    }
+
+    /// The first and last plot positions — one value when there is a single point,
+    /// which then sits centred with nothing to collide with.
+    private var endpoints: [Double] {
+        let xs = points.map(\.x)
+        guard let low = xs.min(), let high = xs.max() else { return [] }
+        return low < high ? [low, high] : [low]
+    }
+
+    private func anchor(for value: AxisValue) -> UnitPoint {
+        guard value.count > 1 else { return .top }
+        return value.index == 0 ? .topLeading : .topTrailing
     }
 
     /// The caller's formatter, or the nearest point's own label.
