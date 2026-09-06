@@ -48,6 +48,12 @@ struct PaywallSheet: View {
                     legal
                 }
                 .padding(TESpacing.pageGutter)
+                // On an iPad the sheet is as wide as the window, and a paywall
+                // whose price sits alone at the end of a 1000pt line is a worse
+                // offer than the same one read as a column (NS-34). Below the
+                // cap this is the layout it always had.
+                .frame(maxWidth: TESpacing.readableMax, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
             .background(Color(.bgPage))
             .navigationTitle("Track Evolution Pro")

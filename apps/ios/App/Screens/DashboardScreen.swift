@@ -110,14 +110,16 @@ struct DashboardScreen: View {
             if model.tracksWithData.isEmpty {
                 TEEmpty("No events yet — add your first track day.")
             } else {
-                ForEach(model.tracksWithData) { track in
+                // One card per row on a phone, filling the width above it — the
+                // web's `.cards` grid (NS-34).
+                TECardGrid(items: model.tracksWithData) { track in
                     trackCard(track)
                 }
             }
 
             if !model.garage.isEmpty {
                 TESectionHeader("Garage")
-                ForEach(model.garage) { vehicle in
+                TECardGrid(items: model.garage) { vehicle in
                     garageCard(vehicle)
                 }
             }

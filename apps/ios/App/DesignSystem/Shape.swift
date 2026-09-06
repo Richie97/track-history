@@ -24,6 +24,41 @@ enum TESpacing {
     static let gridGap: CGFloat = 14
     /// `--page-gutter`, tightened for phones.
     static let pageGutter: CGFloat = 16
+
+    /// The page gutter for a layout class.
+    ///
+    /// A phone keeps the tightened 16pt — 28pt of margin on each side of a
+    /// 390pt screen is most of a column. Once there is width to spare the app
+    /// uses the web's own `--page-gutter`, which is what makes a capped page on
+    /// an iPad sit the way the same page does in Safari beside it.
+    static func pageGutter(for layoutClass: LayoutClass) -> CGFloat {
+        layoutClass == .compact ? pageGutter : LayoutTokens.PAGE_GUTTER
+    }
+
+    /// How wide a card in an auto-filling grid wants to be at minimum — the web's
+    /// `.cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }`.
+    ///
+    /// A phone is narrower than this, so the grid is one column there and the
+    /// compact layout is unchanged by construction.
+    static let cardGridMinimum: CGFloat = 280
+
+    /// The width a full-bleed control stops growing at.
+    ///
+    /// A primary button is `frame(maxWidth: .infinity)` on a phone because the
+    /// column *is* the button's natural width there. At 1120pt it is not: an
+    /// 1120pt-wide "Save" reads as a banner, and the tap target it advertises is
+    /// mostly empty lime. The web never had the problem — its buttons are
+    /// `inline-flex` and size to their label — so this is the native reading of
+    /// that, not a number from the stylesheet.
+    static let controlMax: CGFloat = 420
+
+    /// How wide a column of prose is allowed to get.
+    ///
+    /// Narrower than `PAGE_MAX`, because a page of cards and a page of sentences
+    /// want different widths: the sign-in screen and the paywall are read left to
+    /// right, and a 1120pt line is one the eye loses its place on. The sign-in
+    /// card has capped itself at 420 since NS-08 for the same reason.
+    static let readableMax: CGFloat = 560
 }
 
 /// Motion: one standard curve, so transitions aren't hand-picked per screen.

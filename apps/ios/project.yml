@@ -71,6 +71,28 @@ targets:
         SUPPORTS_XR_DESIGNED_FOR_IPHONE: NO
         SWIFT_EMIT_LOC_STRINGS: YES
 
+  # Logic that belongs to the *app* rather than to the Kit, and so cannot be
+  # reached by `swift test` (NS-34).
+  #
+  # Almost everything testable lives in the Kit precisely so it needs no
+  # simulator, and that stays the rule: this target exists for the handful of
+  # values that are facts about a window rather than about the domain — the
+  # layout breakpoints — which the spec keeps out of the Kit and pins with a test
+  # on each platform instead. Adding a case here should feel like a decision.
+  TrackEvolutionTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: TrackEvolution
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.trackevolution.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/TrackEvolution.app/TrackEvolution"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        GENERATE_INFOPLIST_FILE: YES
+
   # Taps through the real sign-in browser flow, which is the one part of NS-08 no
   # unit test can reach. Skipped unless TE_DEV_SERVER is set, because it needs
   # `npm run dev` on :8787 — see UITests/SignInUITests.swift.
@@ -92,6 +114,7 @@ schemes:
     build:
       targets:
         TrackEvolution: all
+        TrackEvolutionTests: [test]
         TrackEvolutionUITests: [test]
     run:
       config: Debug
@@ -103,6 +126,7 @@ schemes:
     test:
       config: Debug
       targets:
+        - TrackEvolutionTests
         - TrackEvolutionUITests
     profile:
       config: Release

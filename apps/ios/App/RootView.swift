@@ -16,6 +16,14 @@ struct RootView: View {
     @State private var router = AppRouter()
 
     var body: some View {
+        // Measured at the root and published downwards, so every screen reads one
+        // window width rather than measuring its own — and so Stage Manager or
+        // Split View crossing a breakpoint re-lays out the whole app (NS-34).
+        content.measuringLayoutClass()
+    }
+
+    @ViewBuilder
+    private var content: some View {
         #if DEBUG
         // Lets the gallery be opened without tapping through, for screenshots in
         // both appearances and at the largest text size:

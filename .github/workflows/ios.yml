@@ -71,3 +71,29 @@ jobs:
             -scheme TrackEvolution \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
+
+      # The app target's own unit tests (NS-34). This is the one thing here that
+      # boots a simulator, and it is a deliberate trade: the layout breakpoints
+      # are duplicated on Android by design — the class comes from each
+      # platform's window APIs, so neither pure-logic module may hold it — and
+      # a test on each platform is what stops the duplication becoming drift.
+      # Only this bundle: the UI tests need `npm run dev` and skip without it.
+      #
+      # The device is whatever the runner image has, since the simulator
+      # catalogue moves with Xcode and pinning a model name is how this job
+      # starts failing on an image bump that has nothing to do with the app.
+      - name: App unit tests
+        working-directory: apps/ios
+        run: |
+          device=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [^(]+' | sed 's/ *$//')
+          if [ -z "$device" ]; then
+            echo "::error::no iPhone simulator available on this runner"
+            exit 1
+          fi
+          echo "Running on $device"
+          xcodebuild test \
+            -project TrackEvolution.xcodeproj \
+            -scheme TrackEvolution \
+            -destination "platform=iOS Simulator,name=$device" \
+            -only-testing:TrackEvolutionTests \
+            CODE_SIGNING_ALLOWED=NO
