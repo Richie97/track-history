@@ -52,8 +52,15 @@ jobs:
       # happens not to ship that platform would otherwise fail deep inside a
       # Gradle task with a message about the SDK rather than about the build.
       # Naming it here also makes the requirement greppable.
+      #
+      # **`android-37.0`, not `android-37`.** Platforms are published with a
+      # minor version from 36.1 on, and there is no unsuffixed 37 package at all
+      # — `sdkmanager "platforms;android-37"` fails with "Failed to find
+      # package", which is exactly how this step failed the first time. The
+      # build file still says `compileSdk = 37`: AGP resolves that to the base
+      # minor, so the two spellings are correct in their own places.
       - name: Install the compileSdk platform
-        run: sdkmanager "platforms;android-37"
+        run: sdkmanager "platforms;android-37.0"
       - uses: gradle/actions/setup-gradle@v4
 
       # Compiles the Compose UI and dexes :core — which is the real assertion
