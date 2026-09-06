@@ -267,19 +267,26 @@ private fun DrawScope.drawXLabels(
     canvasHeight: Float,
 ) {
     val n = points.size
-    // First, last, and up to two between — the web's choice, and enough for a
-    // phone without labels colliding.
-    val indices = linkedSetOf(0, (n - 1) / 3, (n - 1) * 2 / 3, n - 1)
+    // The ends, and nothing between them.
+    //
+    // The web draws two intermediate labels as well, and this used to copy it —
+    // but a date reads as "Feb 12, 2019" and a phone leaves the plot around 280dp,
+    // so the four ran into each other. The axis here is a *range*, not a lookup
+    // table: the event list under the chart is where a day's date is read, so the
+    // axis says where the series starts and where it ends and stops there. The web
+    // chart keeps its middle two — it is 900pt wide and has the room.
+    val indices = linkedSetOf(0, n - 1)
     for (i in indices) {
         val p = points.getOrNull(i) ?: continue
         if (p.label.isEmpty()) continue
         val text = measurer.measure(p.label, style)
         val centre = px(p.x)
+        // Anchored by the inside corner: the first label grows rightwards off its
+        // mark and the last one leftwards, so neither hangs past the plot.
         val x = when {
             n == 1 -> centre - text.size.width / 2f
             i == 0 -> centre
-            i == n - 1 -> centre - text.size.width
-            else -> centre - text.size.width / 2f
+            else -> centre - text.size.width
         }
         drawText(
             text,
