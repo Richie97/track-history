@@ -452,6 +452,20 @@ struct EventScreen: View {
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                 }
+                // The air this session was driven in (#191) — context for the
+                // times under it, so it rides in the header as a tag rather than
+                // joining the stats line. Only what this session's own recording
+                // measured: the event's typed figure is on the event header and
+                // is not repeated down the page.
+                if let ambientC = SessionConditions.sessionAmbientC(session) {
+                    Text(SessionConditions.tempText(ambientC, .us))
+                        .teStyle(.xxs)
+                        .foregroundStyle(Color(.textMuted))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color(.heat).opacity(0.14), in: .capsule)
+                        .accessibilityLabel("Ambient \(SessionConditions.tempText(ambientC, .us))")
+                }
                 Spacer()
                 Menu {
                     Button {

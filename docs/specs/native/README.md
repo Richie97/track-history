@@ -218,6 +218,44 @@ Features added after the rewrite shipped, and where they landed:
   hot pressures on the strip and nothing more. `target_hot_psi` reached the
   golden captures, so both native `Vehicle` models decode it without reading
   it.
+- **Session conditions**
+  ([#191](https://github.com/Richie97/track-history/issues/191), 2026-09,
+  epic [#193](https://github.com/Richie97/track-history/issues/193))
+  — **all three**, in one change rather than web-first: the pieces are small
+  on each client and the question ("was it actually a hot afternoon?") is one
+  a driver asks in the paddock as much as at a desk. Three views: the ambient
+  a session recorded, in its header; a **faint wash behind the track page's
+  best-lap-per-event chart**, one cell per event, deepening with the air
+  temperature, with a key under it; and the track's elevation change on its
+  summary line. The pure half is `public/js/conditions.js`, ported as
+  **`SessionConditions`** to the Kit (`Analysis/SessionConditions.swift`) and
+  `:core` (`SessionConditions.kt`) under the same function and constant names
+  (`sessionAmbientC`, `eventAmbient`, `ambientMidC`, `trackElevationM`,
+  `tempText`, `ambientText`, `elevationText`, `conditionsBand`, `bandAlpha`,
+  `bandLabel`, `BAND_MIN_EVENTS`, `BAND_MIN_SPAN_C`) and pinned by
+  `contracts/logic/conditions.json`; the *type* name is the one deliberate
+  divergence, since `Conditions` is already the dry/damp/wet enum on `Event`
+  in both ports. Four decisions a port inherits. **Recorded beats typed, and
+  never overwrites it** — `eventAmbient` prefers the sessions' recorded range
+  over the manual `temp_f` and nothing writes one from the other. **Per
+  session, only what was measured**, because repeating the event's typed
+  figure down the page is one number wearing four hats. **A cell with no
+  reading draws nothing**, not the coolest shade, and the band is skipped
+  entirely under `BAND_MIN_EVENTS` / `BAND_MIN_SPAN_C` — a uniform wash shows
+  nothing and implies something. And **ties round toward +infinity**, matching
+  JavaScript's `Math.round`: Swift's `rounded()` and Kotlin's `round()` are
+  half-away-from-zero and disagree by a degree on every freezing morning,
+  which is why the fixture probes -12.5 and -0.5 °C. The band is a wash rather
+  than a second series on every client (a line would read as a comparison),
+  and the chart speaks `bandLabel` in its accessibility description, since the
+  shading is exactly what a screen-reader user cannot see. Two schema notes:
+  `sessions.ambient_c` / `elevation_m` (migration 0020) are trigger-maintained
+  from the channel blob like `laps.device_timed`, so the event query can
+  aggregate them (`ambient_lo_c` / `ambient_hi_c` / `elevation_m`, in the
+  golden captures and both `Event` models) — and they are outside the Pro
+  strip, so a free account sees the temperature without the traces. Intake air
+  temperature is deliberately not part of this: it is a heat-soak signal about
+  the car, and belongs with the health strip.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
   contract, and every client renders the track page's leaderboard section and

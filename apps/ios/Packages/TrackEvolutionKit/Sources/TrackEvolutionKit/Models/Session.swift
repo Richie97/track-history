@@ -34,7 +34,29 @@ public struct Session: Codable, Hashable, Sendable, Identifiable {
     /// Per-lap channel data on a shared driven-distance grid, present only on
     /// telemetry imports (`sanitizeChannels`).
     public var channels: SessionChannels?
+    /// The conditions this session was driven in (#191), lifted out of the
+    /// channel blob into columns by migration 0020 — so they survive the Pro
+    /// strip that nulls ``channels``, and so the event query can aggregate
+    /// them. `ambientC` is the recording's median outside-air temperature and
+    /// `elevationM` its max−min altitude; both nil for a hand-entered or
+    /// GPS-recorded session. Read through `SessionConditions`.
+    public var ambientC: Double?
+    public var elevationM: Double?
     public var laps: [Lap]
+
+    // Spelled out because nothing here uses a key strategy: a snake_case
+    // column has to be named, at the field, or it silently decodes as nil.
+    public enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case notes
+        case sort
+        case trace
+        case channels
+        case ambientC = "ambient_c"
+        case elevationM = "elevation_m"
+        case laps
+    }
 }
 
 /// One `[x, y, v]` point of a stored trace: local metres east/north plus speed.

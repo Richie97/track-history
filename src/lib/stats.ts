@@ -20,6 +20,13 @@ export type EventRow = {
   best_time_ms: number | null;
   track_hours: number | null; // manual override of the on-track hours estimate
   updated_at: number;
+  // Session conditions (#191), derived from the sessions' channel meta by
+  // migration 0020's triggers: the coolest and hottest ambient temperature any
+  // session of this event recorded (°C, equal when there is one), and the
+  // largest elevation range seen at it (m). Null when nothing was imported.
+  ambient_lo_c: number | null;
+  ambient_hi_c: number | null;
+  elevation_m: number | null;
   lap_best_ms: number | null;
   lap_count: number;
   lap_avg: number | null;

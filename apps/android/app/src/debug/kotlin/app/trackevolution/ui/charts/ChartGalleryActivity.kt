@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.Limits
+import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.TracePoint
 import app.trackevolution.core.TraceSample
 import app.trackevolution.core.model.Lap
@@ -103,6 +104,30 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
             ),
             goalMs = 119_000,
         )
+
+        // The conditions band (#191). Four events warming through the season,
+        // with the third one's temperature unknown — the case that must draw
+        // nothing rather than the coolest shade.
+        Text(
+            "Progress — with the conditions band (#191)",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
+        )
+        val banded = listOf(
+            ProgressPoint(1.0, "May 1", 128_400),
+            ProgressPoint(2.0, "Jun 12", 125_100),
+            ProgressPoint(3.0, "Jul 3", 126_800),
+            ProgressPoint(4.0, "Aug 2", 124_450),
+        )
+        val bandEvents = listOf(
+            GalleryEvent(ambientLoC = 11.0, ambientHiC = 14.0),
+            GalleryEvent(ambientLoC = 19.0, ambientHiC = 24.0),
+            GalleryEvent(),
+            GalleryEvent(ambientLoC = 30.0, ambientHiC = 34.0),
+        )
+        val band = SessionConditions.conditionsBand(bandEvents)
+        ProgressChart(points = banded, goalMs = 119_000, band = band)
+        band?.let { ConditionsKey(it) }
 
         Text("Progress — sparkline", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
         ProgressChart(
@@ -234,3 +259,11 @@ private fun syntheticTrace(n: Int): List<TracePoint> = (0 until n).map { i ->
 private fun syntheticSamples(n: Int): List<TraceSample> = syntheticTrace(n).map {
     TraceSample(x = it.x, y = it.y, v = it.v ?: 0.0)
 }
+
+/** An event in the four fields the conditions band reads (#191). */
+private data class GalleryEvent(
+    override val ambientLoC: Double? = null,
+    override val ambientHiC: Double? = null,
+    override val elevationM: Double? = null,
+    override val tempF: Int? = null,
+) : SessionConditions.AmbientEvent

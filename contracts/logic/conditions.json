@@ -1,0 +1,299 @@
+{
+  "description": "Session-conditions reference output from public/js/conditions.js (sessionAmbientC / sessionElevationM / eventAmbient / ambientMidC / trackElevationM / tempText / ambientText / elevationText / conditionsBand / bandAlpha / bandLabel). Temperatures are °C and elevations metres in; only the text helpers convert, so the numbers are pinned and the locale is not. Ports (SessionConditions in the iOS Kit and Android :core — the plain name is taken by the dry/damp/wet enum) must reproduce the wording exactly and the doubles to 1e-9. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/conditions.js",
+  "input": {
+    "events": [
+      {
+        "ambient_lo_c": 10,
+        "ambient_hi_c": 10,
+        "elevation_m": 38,
+        "temp_f": null
+      },
+      {
+        "ambient_lo_c": 14,
+        "ambient_hi_c": 26,
+        "elevation_m": 41.4,
+        "temp_f": null
+      },
+      {
+        "ambient_lo_c": null,
+        "ambient_hi_c": null,
+        "elevation_m": null,
+        "temp_f": 86
+      },
+      {
+        "ambient_lo_c": null,
+        "ambient_hi_c": null,
+        "elevation_m": null,
+        "temp_f": null
+      },
+      {
+        "ambient_lo_c": 31.8,
+        "ambient_hi_c": 31.8,
+        "elevation_m": 39,
+        "temp_f": null
+      }
+    ],
+    "spanAtLimit": [
+      {
+        "ambient_lo_c": 10,
+        "ambient_hi_c": 10,
+        "elevation_m": null,
+        "temp_f": null
+      },
+      {
+        "ambient_lo_c": 13,
+        "ambient_hi_c": 13,
+        "elevation_m": null,
+        "temp_f": null
+      }
+    ],
+    "spanUnder": [
+      {
+        "ambient_lo_c": 10,
+        "ambient_hi_c": 10,
+        "elevation_m": null,
+        "temp_f": null
+      },
+      {
+        "ambient_lo_c": 12.9,
+        "ambient_hi_c": 12.9,
+        "elevation_m": null,
+        "temp_f": null
+      }
+    ],
+    "oneKnown": [
+      {
+        "ambient_lo_c": 10,
+        "ambient_hi_c": 30,
+        "elevation_m": null,
+        "temp_f": null
+      },
+      {
+        "ambient_lo_c": null,
+        "ambient_hi_c": null,
+        "elevation_m": null,
+        "temp_f": null
+      }
+    ],
+    "sessions": [
+      {
+        "ambient_c": 18.5,
+        "elevation_m": 38,
+        "channels": {
+          "meta": {
+            "ambientC": 99,
+            "elevationM": 99
+          }
+        }
+      },
+      {
+        "ambient_c": null,
+        "elevation_m": null,
+        "channels": {
+          "meta": {
+            "ambientC": 24,
+            "elevationM": 12
+          }
+        }
+      },
+      {
+        "ambient_c": null,
+        "elevation_m": null,
+        "channels": null
+      },
+      {}
+    ],
+    "tempProbes": [
+      21.4,
+      21.8,
+      0,
+      -0.5,
+      -12.5,
+      -17.5,
+      31.8
+    ],
+    "elevProbes": [
+      41.4,
+      0.5,
+      12
+    ],
+    "alphaProbes": [
+      -1,
+      0,
+      0.5,
+      1,
+      2
+    ],
+    "constants": {
+      "BAND_MIN_EVENTS": 2,
+      "BAND_MIN_SPAN_C": 3,
+      "BAND_MIN_ALPHA": 0.05,
+      "BAND_MAX_ALPHA": 0.3
+    }
+  },
+  "expected": {
+    "convert": {
+      "cToF": [
+        32,
+        70.52,
+        -40
+      ],
+      "fToC": [
+        0,
+        30,
+        -40
+      ],
+      "mToFt": [
+        135.8267716535433,
+        3.280839895013123
+      ]
+    },
+    "sessionAmbientC": [
+      18.5,
+      24,
+      null,
+      null
+    ],
+    "sessionElevationM": [
+      38,
+      12,
+      null,
+      null
+    ],
+    "eventAmbient": [
+      {
+        "loC": 10,
+        "hiC": 10,
+        "source": "recorded"
+      },
+      {
+        "loC": 14,
+        "hiC": 26,
+        "source": "recorded"
+      },
+      {
+        "loC": 30,
+        "hiC": 30,
+        "source": "manual"
+      },
+      null,
+      {
+        "loC": 31.8,
+        "hiC": 31.8,
+        "source": "recorded"
+      }
+    ],
+    "reversedRange": {
+      "loC": 12,
+      "hiC": 30,
+      "source": "recorded"
+    },
+    "ambientMidC": [
+      10,
+      20,
+      30,
+      null,
+      31.8
+    ],
+    "trackElevationM": [
+      41.4,
+      null,
+      null
+    ],
+    "tempTextMetric": [
+      "21 °C",
+      "22 °C",
+      "0 °C",
+      "0 °C",
+      "-12 °C",
+      "-17 °C",
+      "32 °C"
+    ],
+    "tempTextUs": [
+      "71 °F",
+      "71 °F",
+      "32 °F",
+      "31 °F",
+      "10 °F",
+      "1 °F",
+      "89 °F"
+    ],
+    "ambientText": [
+      "57–79 °F",
+      "14–26 °C",
+      "86 °F",
+      "",
+      "71 °F"
+    ],
+    "elevationTextMetric": [
+      "41 m of elevation change",
+      "1 m of elevation change",
+      "12 m of elevation change"
+    ],
+    "elevationTextUs": [
+      "136 ft of elevation change",
+      "2 ft of elevation change",
+      "39 ft of elevation change"
+    ],
+    "noElevationText": "",
+    "band": {
+      "loC": 10,
+      "hiC": 31.8,
+      "cells": [
+        {
+          "c": 10,
+          "intensity": 0,
+          "alpha": 0.05
+        },
+        {
+          "c": 20,
+          "intensity": 0.4587155963302752,
+          "alpha": 0.1646788990825688
+        },
+        {
+          "c": 30,
+          "intensity": 0.9174311926605504,
+          "alpha": 0.2793577981651376
+        },
+        null,
+        {
+          "c": 31.8,
+          "intensity": 1,
+          "alpha": 0.3
+        }
+      ]
+    },
+    "bandAtLimit": {
+      "loC": 10,
+      "hiC": 13,
+      "cells": [
+        {
+          "c": 10,
+          "intensity": 0,
+          "alpha": 0.05
+        },
+        {
+          "c": 13,
+          "intensity": 1,
+          "alpha": 0.3
+        }
+      ]
+    },
+    "bandUnder": null,
+    "bandOneKnown": null,
+    "bandEmpty": null,
+    "bandAlpha": [
+      0.05,
+      0.05,
+      0.175,
+      0.3,
+      0.3
+    ],
+    "bandLabel": [
+      "shaded by ambient temperature, 50 °F to 89 °F",
+      "shaded by ambient temperature, 10 °C to 32 °C",
+      ""
+    ]
+  }
+}

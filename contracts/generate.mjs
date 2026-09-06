@@ -249,6 +249,12 @@ async function build(api) {
     trace: Array.from({ length: N }, (_, i) => [...ring(i), 30 + i * 2]),
     channels: {
       dStepM: 20,
+      // Session meta, so the conditions columns migration 0020 derives from it
+      // (#191) are pinned with real values rather than nulls: `ambient_c` and
+      // `elevation_m` on the session, and the event's `ambient_lo_c` /
+      // `ambient_hi_c` / `elevation_m` aggregates. They survive the Pro strip
+      // that nulls `channels`, which is the point of their being columns.
+      meta: { ambientC: 21.4, intakeC: 44, elevationM: 38, odometerKm: 71_087 },
       laps: [
         {
           n: 1,

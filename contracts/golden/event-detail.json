@@ -3,6 +3,8 @@
   "path": "/events/:id",
   "status": 200,
   "body": {
+    "ambient_hi_c": 21.4,
+    "ambient_lo_c": 21.4,
     "best_ms": 121500,
     "best_time_ms": 121500,
     "car": "Corvette C7",
@@ -20,6 +22,7 @@
     "conditions": "dry",
     "consistency": 0.01738467127508466,
     "days": 2,
+    "elevation_m": 38,
     "hours": 4,
     "id": 1,
     "lap_best_ms": 121500,
@@ -29,7 +32,9 @@
     "session_count": 3,
     "sessions": [
       {
+        "ambient_c": null,
         "channels": null,
+        "elevation_m": null,
         "id": 1,
         "label": "Session 1",
         "laps": [
@@ -63,7 +68,9 @@
         "trace": null
       },
       {
+        "ambient_c": null,
         "channels": null,
+        "elevation_m": null,
         "id": 1,
         "label": "Session 2",
         "laps": [
@@ -85,6 +92,7 @@
         "trace": null
       },
       {
+        "ambient_c": 21.4,
         "channels": {
           "dStepM": 20,
           "laps": [
@@ -177,8 +185,15 @@
               "timeMs": 121900
             }
           ],
+          "meta": {
+            "ambientC": 21.4,
+            "elevationM": 38,
+            "intakeC": 44,
+            "odometerKm": 71087
+          },
           "v": 1
         },
+        "elevation_m": 38,
         "id": 1,
         "label": "Session 3",
         "laps": [

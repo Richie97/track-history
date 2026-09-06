@@ -29,6 +29,11 @@ public struct SharedEvent: Codable, Hashable, Sendable, Identifiable {
     public var car: String?
     public var conditions: Conditions?
     public var tempF: Int?
+    /// Session conditions (#191). Weather rather than anything the driver wrote
+    /// down, so it is shared like the rest of the event's outcome.
+    public var ambientLoC: Double?
+    public var ambientHiC: Double?
+    public var elevationM: Double?
     public var bestTimeMs: Int?
     public var updatedAt: Int
     public var lapBestMs: Int?
@@ -45,6 +50,9 @@ public struct SharedEvent: Codable, Hashable, Sendable, Identifiable {
         case startDate = "start_date"
         case runGroup = "run_group"
         case tempF = "temp_f"
+        case ambientLoC = "ambient_lo_c"
+        case ambientHiC = "ambient_hi_c"
+        case elevationM = "elevation_m"
         case bestTimeMs = "best_time_ms"
         case updatedAt = "updated_at"
         case lapBestMs = "lap_best_ms"

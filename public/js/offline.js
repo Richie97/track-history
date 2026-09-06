@@ -475,6 +475,13 @@ async function applyLocal(m) {
       best_time_ms: m.body?.best_time_ms ?? null,
       track_hours: m.body?.track_hours ?? null,
       vehicle_id: null, // matched server-side from the car name on flush
+      // Session conditions (#191) are derived from imported telemetry by the
+      // server (migration 0020) and are never part of a write, so an event
+      // created offline simply has none until something is imported into it.
+      // The keys are spelled out so the offline row has the server's shape.
+      ambient_lo_c: null,
+      ambient_hi_c: null,
+      elevation_m: null,
       updated_at: 0,
       sessions: [],
       setups: [],

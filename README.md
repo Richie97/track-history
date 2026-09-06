@@ -782,6 +782,40 @@ Everything is derived at import time in the browser (recordings are never
 uploaded), sanitized server-side (`sanitizeChannels`), and stored as JSON on
 the session row; the public share page never includes it.
 
+**Session conditions** ([#191](https://github.com/Richie97/track-history/issues/191),
+`public/js/conditions.js`) puts the weather back in the picture. Lap times
+across a day are confounded by air temperature: a morning session and an
+afternoon session are not comparable, and a progress chart that plots them as
+if they were invites the wrong conclusion — a line that ticks upward after
+lunch reads as *I got worse* when what happened is that the track got hotter.
+Every video telemetry import already stores the recording's ambient
+temperature and the elevation range it saw, so three small things now show it.
+Each session's header carries the **ambient it was driven in**, from that
+session's own recording. Behind the track page's **best-lap-per-event chart**
+sits a **faint wash**, one cell per event, deepening with the air temperature,
+with a key under it — a band reads as context, where a second line would read
+as a comparison. And the track's **elevation change** joins its summary line.
+
+Recorded and typed temperatures **reconcile rather than compete**: events have
+carried a manual °F field for a long time, and where a session recorded its
+own, the recorded figure (a range, when the day warmed up between sessions) is
+what every view shows — the typed one is the fallback, and nothing ever writes
+one from the other. The band counts a typed temperature too, so a logbook with
+no telemetry in it still gets one; an event with no temperature at all draws no
+cell rather than the coolest shade, and the whole band is skipped when fewer
+than two events in view carry a temperature or they were all run in much the
+same air. Intake air temperature is deliberately *not* here: it is a heat-soak
+signal about the car, and it belongs with the health strip above.
+
+The per-session figures are columns (`sessions.ambient_c`, `sessions.elevation_m`,
+migration 0020), trigger-maintained from the channel blob exactly like
+`laps.device_timed`, so the event query can aggregate them (`ambient_lo_c` /
+`ambient_hi_c` / `elevation_m`) without parsing a megabyte of per-lap arrays —
+and so a free account, whose `channels` are stripped, still sees the
+temperature. The pure half is ported as `SessionConditions` to the iOS Kit and
+Android `:core` (the plain name is taken by the dry/damp/wet enum) and pinned
+for both by `contracts/logic/conditions.json`; each client draws its own band.
+
 Any two stored laps at a track can also be compared **across sessions and
 events**: the track page's **Compare two laps** view (`#/track/:id/lap-compare`)
 pairs any two laps with channel data — defaulting to the best lap of your most

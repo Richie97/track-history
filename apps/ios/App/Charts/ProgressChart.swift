@@ -40,6 +40,10 @@ struct ProgressChart: View {
     let points: [Point]
     /// The target lap time, drawn as a rule when there is one. Ignored by sparklines.
     var goalMs: Int?
+    /// The conditions wash behind the plot (#191): one cell per point, nil where
+    /// that event has no temperature at all. Ignored by sparklines, which have no
+    /// room to be read as anything.
+    var band: SessionConditions.Band?
     var style: Style = .full
     /// What the axis labels say, given a plot position. Defaults to the nearest
     /// point's own label.
@@ -123,6 +127,18 @@ struct ProgressChart: View {
         // the modifier rather than the maths.
         .chartYScale(domain: domain.low...domain.high)
         .chartXScale(domain: xDomain)
+        // The conditions band goes in the *background* rather than as a
+        // `RectangleMark` in the builder above: a mark of a second type beside
+        // the lines breaks Swift Charts' one-homogeneous-`ForEach` rule and
+        // wedges layout, the same trap `LapChannelChart` documents.
+        .chartBackground { proxy in
+            GeometryReader { geometry in
+                if style == .full, let band, band.cells.count == points.count,
+                   let plotFrame = proxy.plotFrame {
+                    ConditionsBandLayer(band: band, points: points, proxy: proxy, plot: geometry[plotFrame])
+                }
+            }
+        }
         .modifier(ChartChrome(style: style, points: points, xLabel: xLabel))
         .foregroundStyle(Color(.textMuted))
         .modifier(ReadOutGesture(style: style, points: points, selected: $selected))
@@ -144,7 +160,14 @@ struct ProgressChart: View {
         // A chart that's only visual is incomplete.
         .accessibilityElement()
         .accessibilityLabel(style == .full ? "Lap times over \(unit)" : "Trend of best laps")
-        .accessibilityValue(Self.trendSummary(points, unit: unit))
+        // The wash is exactly what a screen-reader user cannot see, so the
+        // trend summary says it out loud — same reason the summary says which
+        // way the trend goes.
+        .accessibilityValue(
+            [Self.trendSummary(points, unit: unit), style == .full ? SessionConditions.bandLabel(band, .us) : ""]
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+        )
     }
 
     /// What VoiceOver reads: the trend, not the pixels.
@@ -157,6 +180,67 @@ struct ProgressChart: View {
             \(points.count) \(unit), from \(LapTime.fmtMs(first.ms)) to \
             \(LapTime.fmtMs(last.ms)) — \(LapTime.fmtDelta(abs(delta))) \(direction)
             """
+    }
+}
+
+/// The ambient-temperature wash behind the plot (#191).
+///
+/// One cell per event, spanning the midpoints between neighbouring points — so
+/// each event owns the width around its own mark and the shading reads as
+/// territory rather than as a bar per event, which is how the web draws it too.
+/// A cell the band left nil draws nothing at all: an unknown day must not be
+/// painted the coolest shade, which would claim a measurement never made.
+private struct ConditionsBandLayer: View {
+    let band: SessionConditions.Band
+    let points: [ProgressChart.Point]
+    let proxy: ChartProxy
+    let plot: CGRect
+
+    var body: some View {
+        Canvas { context, _ in
+            let xs = points.map { proxy.position(forX: $0.x) ?? 0 }
+            for (i, cell) in band.cells.enumerated() {
+                guard let cell else { continue }
+                let left = i == 0 ? 0 : (xs[i - 1] + xs[i]) / 2
+                let right = i == points.count - 1 ? plot.width : (xs[i] + xs[i + 1]) / 2
+                guard right > left else { continue }
+                let rect = CGRect(
+                    x: plot.minX + left, y: plot.minY, width: right - left, height: plot.height
+                )
+                context.fill(Path(rect), with: .color(Color(.heat).opacity(cell.alpha)))
+            }
+        }
+    }
+}
+
+/// The conditions band's key, for under the chart: pale is the coolest event in
+/// view, deep the hottest. The same two alphas the wash itself is drawn with, so
+/// the key is the legend for the thing above it rather than an approximation.
+///
+/// Hidden from VoiceOver on purpose — the chart's own accessibility value
+/// already says what the shading means, and a second reading of the same two
+/// temperatures is noise.
+struct ConditionsKey: View {
+    let band: SessionConditions.Band
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(SessionConditions.tempText(band.loC, .us))
+            LinearGradient(
+                colors: [
+                    Color(.heat).opacity(SessionConditions.BAND_MIN_ALPHA),
+                    Color(.heat).opacity(SessionConditions.BAND_MAX_ALPHA),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 110, height: 6)
+            .clipShape(.capsule)
+            Text(SessionConditions.tempText(band.hiC, .us))
+        }
+        .teStyle(.xxs)
+        .foregroundStyle(Color(.textFaint))
+        .accessibilityHidden(true)
     }
 }
 

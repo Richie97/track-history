@@ -5,6 +5,8 @@
   "body": {
     "events": [
       {
+        "ambient_hi_c": null,
+        "ambient_lo_c": null,
         "best_ms": null,
         "best_time_ms": null,
         "car": null,
@@ -12,6 +14,7 @@
         "conditions": null,
         "consistency": null,
         "days": 1,
+        "elevation_m": null,
         "hours": 2,
         "id": 1,
         "lap_best_ms": null,
@@ -25,6 +28,8 @@
         "updated_at": 0
       },
       {
+        "ambient_hi_c": null,
+        "ambient_lo_c": null,
         "best_ms": 77400,
         "best_time_ms": null,
         "car": null,
@@ -32,6 +37,7 @@
         "conditions": null,
         "consistency": 0.004239612392579993,
         "days": 1,
+        "elevation_m": null,
         "hours": 3.5,
         "id": 1,
         "lap_best_ms": 77400,
@@ -45,6 +51,8 @@
         "updated_at": 0
       },
       {
+        "ambient_hi_c": 21.4,
+        "ambient_lo_c": 21.4,
         "best_ms": 121500,
         "best_time_ms": 121500,
         "car": "Corvette C7",
@@ -52,6 +60,7 @@
         "conditions": "dry",
         "consistency": 0.01738467127508466,
         "days": 2,
+        "elevation_m": 38,
         "hours": 4,
         "id": 1,
         "lap_best_ms": 121500,

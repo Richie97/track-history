@@ -3,6 +3,8 @@
   "path": "/events/:id",
   "status": 200,
   "body": {
+    "ambient_hi_c": null,
+    "ambient_lo_c": null,
     "best_ms": null,
     "best_time_ms": null,
     "car": null,
@@ -11,6 +13,7 @@
     "conditions": null,
     "consistency": null,
     "days": 1,
+    "elevation_m": null,
     "hours": 2,
     "id": 1,
     "lap_best_ms": null,

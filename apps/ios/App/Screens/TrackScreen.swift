@@ -53,6 +53,14 @@ struct TrackScreen: View {
                     Text("· \(fmtCount(model.events.count, "event"))\(model.dryOnly ? " (dry)" : "")")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
+                    // How much the track climbs and falls (#191), from whatever
+                    // telemetry has been imported here. Context, not coaching —
+                    // one line, and no more.
+                    if !model.elevationLine.isEmpty {
+                        Text("· \(model.elevationLine)")
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.textMuted))
+                    }
                 }
             }
 
@@ -282,9 +290,15 @@ struct TrackScreen: View {
                 ProgressChart(
                     points: model.chartPoints,
                     goalMs: track.goalMs,
+                    band: model.conditionsBand,
                     xLabel: { EventDates.fmtDate(EventDates.isoString(from: Date(timeIntervalSince1970: $0))) },
                     unit: "events"
                 )
+                // The wash's key: pale is the coolest event in view, deep the
+                // hottest. Absent when the band is, which is most young logbooks.
+                if let band = model.conditionsBand {
+                    ConditionsKey(band: band)
+                }
                 // Only offered once something here was logged as damp/wet/mixed:
                 // "Dry only" keeps a rain weekend from reading as regression, and it
                 // hides events *known* not to be dry — unlabelled history stays.
@@ -410,24 +424,41 @@ final class TrackModel {
         allEvents.compactMap(\.bestMs).min()
     }
 
-    /// Chronological, and only events that set a time — the server does the same for
-    /// `Track.series`.
-    var chartPoints: [ProgressChart.Point] {
+    /// Chronological, and only events that set a time the chart can place — the
+    /// server does the same for `Track.series`. The band's cells are built from
+    /// this same list so the two line up one for one; deriving them separately
+    /// is how an unparseable date shifts every event's shading by one.
+    var plottedEvents: [Event] {
         events
-            .filter { $0.bestMs != nil }
+            .filter { $0.bestMs != nil && EventDates.date(fromISO: $0.startDate) != nil }
             .sorted { $0.startDate < $1.startDate }
-            .compactMap { event in
-                guard let best = event.bestMs,
-                      let date = EventDates.date(fromISO: event.startDate)
-                else { return nil }
-                // Time-proportional x, like the web chart: a two-year gap should look
-                // like a gap, not like the next event along.
-                return .init(
-                    x: date.timeIntervalSince1970,
-                    label: EventDates.fmtDate(event.startDate),
-                    ms: best
-                )
+    }
+
+    var chartPoints: [ProgressChart.Point] {
+        plottedEvents.compactMap { event in
+            guard let best = event.bestMs, let date = EventDates.date(fromISO: event.startDate) else {
+                return nil
             }
+            // Time-proportional x, like the web chart: a two-year gap should look
+            // like a gap, not like the next event along.
+            return .init(
+                x: date.timeIntervalSince1970,
+                label: EventDates.fmtDate(event.startDate),
+                ms: best
+            )
+        }
+    }
+
+    /// The ambient wash behind the chart (#191) — nil when too few events here
+    /// carry a temperature, or when they were all run in much the same air.
+    var conditionsBand: SessionConditions.Band? {
+        SessionConditions.conditionsBand(plottedEvents)
+    }
+
+    /// The track's elevation change, from every event at it — the dry-only
+    /// filter has nothing to do with the hill.
+    var elevationLine: String {
+        SessionConditions.elevationText(SessionConditions.trackElevationM(allEvents), .us)
     }
 
     /// How the personal best stands against the goal, in the web app's words.
