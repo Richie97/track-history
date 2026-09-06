@@ -21,6 +21,7 @@ struct EventScreen: View {
     @Environment(AppRouter.self) private var router
     @Environment(RecordingController.self) private var recorder
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layout) private var layout
 
     @State private var model: EventModel?
     @State private var editingSession: Session?
@@ -28,8 +29,14 @@ struct EventScreen: View {
     @State private var newChecklistItem = ""
     @State private var newSession = SessionFormFields()
     @State private var appendLapText: [Int: String] = [:]
-    /// The session whose lap overlay is open, if any.
+    /// The session whose lap overlay is open **as a sheet**, if any.
+    ///
+    /// Compact and medium width only. At expanded width the panel is a column
+    /// beside the page and the same control selects rather than presents — see
+    /// `selectedChannelSessionId`.
     @State private var channelSession: Session?
+    /// The session the analysis column is showing (NS-34 ticket 3).
+    @State private var selectedChannelSessionId: Int?
     /// Whether the "Add a session" card's hand-entry form is expanded.
     ///
     /// Collapsed by default: recording and importing are the two ways laps normally
@@ -40,7 +47,15 @@ struct EventScreen: View {
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let detail = model.detail {
-                list(model, detail)
+                page(model, detail)
+                    // The best lap's session, ready to read: a Pro user with
+                    // channel data sees analysis the moment the page opens rather
+                    // than an empty column asking to be filled.
+                    .task(id: detail.sessions.map(\.id)) {
+                        if selectedChannelSessionId == nil {
+                            selectedChannelSessionId = Self.defaultChannelSession(detail.sessions)?.id
+                        }
+                    }
             }
         }
         .navigationTitle(model?.event?.trackName ?? "Event")
@@ -113,6 +128,46 @@ struct EventScreen: View {
 
     // MARK: - The page
 
+    /// One column, or the page beside its analysis (NS-34 ticket 3).
+    ///
+    /// The right column is a **sibling of the `List`**, never a row in it. That is
+    /// the constraint `LapChannelChart` documents rather than a layout preference:
+    /// a Swift Charts chart of that many marks inside a `List` row never settles.
+    /// Putting the panel in the list to save a column is precisely the bug that
+    /// note exists to prevent.
+    @ViewBuilder
+    private func page(_ model: EventModel, _ detail: EventDetail) -> some View {
+        if isTwoColumn {
+            HStack(spacing: 0) {
+                list(model, detail)
+                    .frame(maxWidth: .infinity)
+                    .measuringPaneWidth()
+                Divider()
+                AnalysisColumn(
+                    detail: detail,
+                    selectedSessionId: $selectedChannelSessionId
+                )
+                .frame(width: analysisWidth)
+                .measuringPaneWidth()
+            }
+        } else {
+            list(model, detail)
+        }
+    }
+
+    /// Two columns only where there is width for both to be worth having.
+    private var isTwoColumn: Bool { layout.layoutClass == .expanded }
+
+    /// How wide the analysis column gets.
+    ///
+    /// Just under half, with a floor and a ceiling. The floor is what a track map
+    /// over a stack of channel charts needs before it stops being readable; the
+    /// ceiling stops the left column being squeezed on a very wide window, where
+    /// the extra room is better spent on the page than on a wider chart.
+    private var analysisWidth: CGFloat {
+        min(max(layout.contentWidth * 0.46, 380), 620)
+    }
+
     private func list(_ model: EventModel, _ detail: EventDetail) -> some View {
         List {
             summarySection(model, detail.event)
@@ -120,7 +175,12 @@ struct EventScreen: View {
                 row { TEErrorBanner(message: error) }
             }
             checklistSection(model, detail.event)
-            traceSection(detail)
+            // At expanded width the trace moves to the analysis column, so the map
+            // and the charts of the session you are reading are in one eyeline —
+            // which is the whole point of the column.
+            if !isTwoColumn {
+                traceSection(detail)
+            }
             paceSection(detail)
             ForEach(detail.sessions) { session in
                 sessionSection(model, session)
@@ -506,9 +566,18 @@ struct EventScreen: View {
     private func channelSection(_ session: Session) -> some View {
         let present = session.channels.map { ChannelGraphs.presentChannels($0) } ?? []
         if !present.isEmpty {
+            let selected = isTwoColumn && selectedChannelSessionId == session.id
             row {
                 Button {
-                    channelSession = session
+                    // The same control, two meanings, decided by whether there is
+                    // a column to put the answer in (NS-34): at expanded width it
+                    // *selects* the session the analysis column shows, and below
+                    // that it presents the sheet it always did.
+                    if isTwoColumn {
+                        selectedChannelSessionId = session.id
+                    } else {
+                        channelSession = session
+                    }
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -520,22 +589,51 @@ struct EventScreen: View {
                                 .foregroundStyle(Color(.textMuted))
                         }
                         Spacer(minLength: 8)
-                        Image(systemName: "chevron.right")
+                        // A chevron promises a push, which is not what this does
+                        // once the answer appears beside it.
+                        Image(systemName: isTwoColumn ? "chart.xyaxis.line" : "chevron.right")
                             .teStyle(.xs)
-                            .foregroundStyle(Color(.textFaint))
+                            .foregroundStyle(Color(selected ? .accentInk : .textFaint))
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.surfaceCard), in: .rect(cornerRadius: TERadius.md))
+                    .background(
+                        Color(selected ? .accentTint : .surfaceCard),
+                        in: .rect(cornerRadius: TERadius.md)
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: TERadius.md)
-                            .strokeBorder(Color(.borderHairline), lineWidth: 1)
+                            .strokeBorder(
+                                Color(selected ? .accent : .borderHairline),
+                                lineWidth: selected ? 2 : 1
+                            )
                     )
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("channelGraphs")
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
+    }
+
+    /// The session the analysis column opens on: the one holding the event's best
+    /// lap, among those that actually stored channels.
+    ///
+    /// Channels only ever come from an import or a phone recording, so most
+    /// sessions have none and are not candidates at all. Nil is a perfectly
+    /// ordinary answer — an event of hand-entered laps has nothing to analyse —
+    /// and the column says so rather than sitting empty.
+    static func defaultChannelSession(_ sessions: [Session]) -> Session? {
+        sessions
+            .filter { session in
+                session.channels.map { !ChannelGraphs.presentChannels($0).isEmpty } ?? false
+            }
+            .compactMap { session -> (Session, Int)? in
+                guard let best = session.bestLapMs else { return nil }
+                return (session, best)
+            }
+            .min { $0.1 < $1.1 }?
+            .0
     }
 
     private func appendLaps(_ model: EventModel, _ session: Session) {

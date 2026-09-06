@@ -56,6 +56,7 @@
 		AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */; };
 		B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E142A66C92DBCD4560C1753C /* LegacyClaimRecord.swift */; };
 		B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */; };
+		B962D4EA9A0300EEDC05153C /* AnalysisColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE2A9CD6AC286F49A143CA2 /* AnalysisColumn.swift */; };
 		B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82118910A4D7C285ABC04083 /* SignInUITests.swift */; };
 		C142D7B4B7E675F7AAD53880 /* StoreController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB900AB8D4C1B65D30BBF43A /* StoreController.swift */; };
 		D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */; };
@@ -157,6 +158,7 @@
 		B94370814D6F989DAC6AD7C6 /* FrictionCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrictionCircle.swift; sourceTree = "<group>"; };
 		BB900AB8D4C1B65D30BBF43A /* StoreController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreController.swift; sourceTree = "<group>"; };
 		BC08E6DAFEE98F1569066E49 /* TokenGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenGallery.swift; sourceTree = "<group>"; };
+		BDE2A9CD6AC286F49A143CA2 /* AnalysisColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisColumn.swift; sourceTree = "<group>"; };
 		BEB943307051525CEC527B23 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		C11E4CD1582ACC54710F446D /* LapChannelChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapChannelChart.swift; sourceTree = "<group>"; };
 		CA9909D90A12012D6F62C72B /* DevServerSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevServerSignIn.swift; sourceTree = "<group>"; };
@@ -235,6 +237,7 @@
 		665A300ABA9EBC0413EB48F9 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
+				BDE2A9CD6AC286F49A143CA2 /* AnalysisColumn.swift */,
 				5EBA185EA22E05A952A0F1AD /* CompareLapsScreen.swift */,
 				490360DEB9D237C16354DD63 /* Components.swift */,
 				8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */,
@@ -527,6 +530,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B962D4EA9A0300EEDC05153C /* AnalysisColumn.swift in Sources */,
 				2D35025A70FD15F566175D84 /* AppServices.swift in Sources */,
 				DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */,
 				EA02A4AFE756343D8F165FFE /* BalanceScatter.swift in Sources */,

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,7 +46,10 @@ import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
+import app.trackevolution.ui.LayoutClass
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -86,6 +91,10 @@ fun EventScreen(
     var confirmDeleteEvent by remember { mutableStateOf(false) }
     var confirmDeleteSession by remember { mutableStateOf<Int?>(null) }
 
+    // Two columns, and which session the right one is showing (NS-34 ticket 3).
+    val twoColumn = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded
+    var selectedSessionId by rememberSaveable { mutableStateOf<Int?>(null) }
+
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
     LaunchedEffect(model.isDeleted) { if (model.isDeleted) onDeleted() }
 
@@ -93,6 +102,15 @@ fun EventScreen(
         val detail = model.detail ?: return@TELoadable
         val event = detail.event
 
+        // The best lap's session, ready to read: analysis is there the moment the
+        // page opens rather than an empty column asking to be filled.
+        LaunchedEffect(detail.sessions.map { it.id }) {
+            if (selectedSessionId == null) {
+                selectedSessionId = defaultChannelSession(detail.sessions)?.id
+            }
+        }
+
+        val page = @Composable {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -180,7 +198,10 @@ fun EventScreen(
                 }
             }
 
-            bestLapTrace(detail.sessions)?.let { traced ->
+            // At expanded width the trace moves to the analysis column, so the map
+            // and the charts of the session being read are in one eyeline — which
+            // is the whole point of that column.
+            bestLapTrace(detail.sessions).takeIf { !twoColumn }?.let { traced ->
                 item("trace") {
                     Column {
                         TESectionHeader("Best lap trace", detail = "brighter is faster")
@@ -208,6 +229,12 @@ fun EventScreen(
                             onDelete = { confirmDeleteSession = session.id },
                             onAddLaps = { model.appendLaps(session.id, it) },
                             onDeleteLap = model::deleteLap,
+                            // At expanded width the panel is the column beside
+                            // this, so the card offers a way to *select* it
+                            // rather than drawing a second copy inline.
+                            channelsInColumn = twoColumn,
+                            selected = twoColumn && selectedSessionId == session.id,
+                            onSelect = { selectedSessionId = session.id },
                         )
                     }
                 }
@@ -221,6 +248,29 @@ fun EventScreen(
                     onAdd = { label, notes, laps -> model.addSession(label, notes, laps) },
                 )
             }
+        }
+        }
+
+        if (twoColumn) {
+            Row(Modifier.fillMaxSize()) {
+                PaneWidth(Modifier.weight(1f)) { page() }
+                VerticalDivider(color = colors.borderHairline)
+                // Just under half, with a floor and a ceiling. The floor is what a
+                // track map over a stack of channel charts needs before it stops
+                // being readable; the ceiling stops the page being squeezed on a
+                // very wide window, where the extra room is better spent on the
+                // page than on a wider chart.
+                val width = (LocalLayoutMetrics.current.contentWidth * 0.46f)
+                    .coerceIn(380.dp, 620.dp)
+                PaneWidth(Modifier.width(width)) {
+                    AnalysisColumn(
+                        sessions = detail.sessions,
+                        selectedSessionId = selectedSessionId,
+                    )
+                }
+            }
+        } else {
+            page()
         }
     }
 
@@ -242,6 +292,20 @@ fun EventScreen(
         )
     }
 }
+
+/**
+ * The session the analysis column opens on: the one holding the event's best lap,
+ * among those that actually stored channels (NS-34 ticket 3).
+ *
+ * Channels only ever come from an import or a phone recording, so most sessions
+ * have none and are not candidates at all. Null is an ordinary answer — an event
+ * of hand-entered laps has nothing to analyse — and the column says so rather
+ * than sitting empty.
+ */
+internal fun defaultChannelSession(sessions: List<Session>): Session? =
+    sessions
+        .filter { it.channels != null && it.bestLapMs != null }
+        .minByOrNull { it.bestLapMs ?: Int.MAX_VALUE }
 
 /**
  * The session holding the event's fastest lap, and its trace.
@@ -274,7 +338,7 @@ private data class TracedLap(
  * never was. Other laps get the shaded bands on the channel panel's distance
  * axis instead, which is the same constraint the web works under.
  */
-private fun limitMarkers(session: Session, trace: List<TraceSample>): List<Limits.Marker> {
+internal fun limitMarkers(session: Session, trace: List<TraceSample>): List<Limits.Marker> {
     val channels = session.channels?.takeIf { it.laps.isNotEmpty() } ?: return emptyList()
     val best = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps)
         .filter { it.hasChannels }
@@ -375,12 +439,22 @@ private fun SessionCard(
     onDelete: () -> Unit,
     onAddLaps: (List<Int>) -> Unit,
     onDeleteLap: (Int) -> Unit,
+    /** Whether the channel panel lives in the analysis column rather than here. */
+    channelsInColumn: Boolean = false,
+    selected: Boolean = false,
+    onSelect: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
     val best = session.bestLapMs
 
-    TrackCard(Modifier.fillMaxWidth()) {
+    TrackCard(
+        Modifier.fillMaxWidth(),
+        // Marked the same way a list-pane row is (NS-34): a tint *and* a border,
+        // never colour alone.
+        color = if (selected) colors.accentTint else null,
+        border = if (selected) colors.accent else null,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -447,7 +521,18 @@ private fun SessionCard(
         // An imported session's channels replace the plain lap chips: the chips
         // are the overlay's legend, so showing both would be two lap lists.
         val channels = session.channels
-        if (channels != null) {
+        if (channels != null && channelsInColumn) {
+            // The way into the column, in place of a second copy of the panel.
+            // Selecting rather than expanding is what keeps the map and the
+            // charts together on the right (NS-34 ticket 3).
+            TextButton(onClick = onSelect, modifier = Modifier.padding(top = 4.dp)) {
+                Text(
+                    if (selected) "Showing channel graphs →" else "Channel graphs →",
+                    style = TrackTheme.typography.sm,
+                    color = if (selected) colors.accentInk else colors.textMuted,
+                )
+            }
+        } else if (channels != null) {
             LapChannelChart(
                 channels = channels,
                 laps = session.laps,
