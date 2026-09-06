@@ -309,6 +309,15 @@ Features added after the rewrite shipped, and where they landed:
   on purpose. One dependency note: Android's `compileSdk` is now **37**, because
   `androidx.compose.material3.adaptive` 1.3.0 requires it; `targetSdk` stays 36,
   and the two are unrelated knobs.
+  **Ticket 3 is under way** ([#217](https://github.com/Richie97/track-history/issues/217)):
+  the event page now splits again inside the detail, into the page and an
+  analysis column carrying the selected session's track map above its channel
+  panel. The session cards' channel control becomes a *selection* at expanded
+  width — the iOS sheet and the Android inline panel both stand down — and the
+  best lap's channel-carrying session is pre-selected. What that ticket still
+  owes: tap-to-mark cross-linking between the charts and the map (its stated
+  point), the health per-lap table, wide table columns, and the track and
+  vehicle pages' second columns.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,

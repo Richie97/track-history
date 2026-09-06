@@ -46,8 +46,8 @@ fun TwoPaneShell(
         Box(modifier.fillMaxSize()) { detailPane() }
         return
     }
-    @Suppress("NAME_SHADOWING") val listPane = @Composable { InPane(listPane) }
-    @Suppress("NAME_SHADOWING") val detailPane = @Composable { InPane(detailPane) }
+    @Suppress("NAME_SHADOWING") val listPane = @Composable { PaneWidth(content = listPane) }
+    @Suppress("NAME_SHADOWING") val detailPane = @Composable { PaneWidth(content = detailPane) }
     ListDetailPaneScaffold(
         // The window is already known to be expanded — that decision is
         // `LayoutClass`'s and is made once, at the root — so the directive only
@@ -77,11 +77,15 @@ fun TwoPaneShell(
  *
  * `BoxWithConstraints` rather than an assumed width: the scaffold decides how it
  * splits the window, and that is not a number this file should be guessing.
+ *
+ * Public because panes are not only the shell's: the event page splits its detail
+ * again at expanded width (NS-34 ticket 3), and each of *those* columns owes its
+ * contents the same honest width.
  */
 @Composable
-private fun InPane(content: @Composable () -> Unit) {
+fun PaneWidth(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val metrics = LocalLayoutMetrics.current
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
         val width = (maxWidth - pageGutter(metrics.layoutClass) * 2).coerceAtLeast(0.dp)
         CompositionLocalProvider(
             LocalLayoutMetrics provides metrics.copy(contentWidth = width),
