@@ -93,6 +93,11 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+      # See the same step in android.yml: `compileSdk` is 37 since NS-34, and
+      # this is the workflow where a missing platform costs a release rather
+      # than a red check.
+      - name: Install the compileSdk platform
+        run: sdkmanager "platforms;android-37"
       - uses: gradle/actions/setup-gradle@v4
 
       # Ahead of anything expensive, and well ahead of any upload. Play rejected

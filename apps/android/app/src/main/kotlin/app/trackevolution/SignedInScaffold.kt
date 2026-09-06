@@ -34,9 +34,14 @@ import app.trackevolution.billing.PaywallSheet
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.navigation.AppNavHost
+import app.trackevolution.navigation.DashboardPane
 import app.trackevolution.navigation.Route
 import app.trackevolution.navigation.Router
+import app.trackevolution.navigation.selectionRoute
 import app.trackevolution.navigation.showDeepLink
+import app.trackevolution.ui.LayoutClass
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.TwoPaneShell
 import app.trackevolution.recording.RecordingBanner
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecordingFlow
@@ -106,6 +111,25 @@ fun SignedInScaffold(
 
     val onRecordScreen = entry?.destination?.hasRoute(Route.Record::class) == true
     val atRoot = entry?.destination?.hasRoute(Route.Dashboard::class) == true
+
+    // Two panes, or one (NS-34).
+    //
+    // Expanded width and nothing that owns the window. The record screen is a
+    // phone-in-a-mount layout meant to be read at a glance and the importer hands
+    // straight over to the modal review, so both drop to a single pane rather than
+    // being squeezed into half a tablet — the same rule iOS spells as
+    // `Route.ownsTheWindow`. Dropping the *scaffold* rather than presenting over
+    // it is what keeps navigation in one place: these are ordinary destinations on
+    // the ordinary back stack, at every width.
+    val onImportScreen = entry?.destination?.hasRoute(Route.Import::class) == true
+    val twoPane = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded &&
+        !onRecordScreen && !onImportScreen
+
+    // Which list row the detail is showing. Null below expanded width, where the
+    // detail is the whole screen and there is no list beside it to mark.
+    val selection = if (twoPane) entry?.selectionRoute() else null
+
+    val recorderIdle = !recorder.isRecording && pending == null
 
     // A link that arrived before there was a graph to send it to — a cold start
     // hands the intent over long before this composes.
@@ -205,36 +229,63 @@ fun SignedInScaffold(
         Box(modifier = Modifier.weight(1f)) {
             // The graph stays composed underneath: review is a cover, not a
             // replacement, so returning from it does not rebuild the back stack.
-            AppNavHost(
-                nav = nav,
-                api = api,
-                auth = auth,
-                checklistTemplate = authState.checklistTemplate,
-                hasCustomChecklistTemplate = authState.hasCustomChecklistTemplate,
-                themeChoice = themeChoice,
-                onThemeChange = onThemeChange,
-                serverUrl = serverUrl,
-                recorderState = recorder,
-                // Idle is "nothing to say about a recording": none running, and
-                // none stopped-but-unsaved. Either of those already has a
-                // visible affordance above, so the dashboard's door stands down.
-                recorderIdle = !recorder.isRecording && pending == null,
-                onStartRecording = onStartRecording,
-                onStopRecording = { Recorder.stop(context) },
-                onSignOut = onSignOut,
-                entitlement = entitlement,
-                onRequirePro = { paywall = true },
-                onImportParsed = { eventId, clips: List<ImportedClip> ->
-                    // Same shape as a recording stopping: the review covers the
-                    // graph, and the chooser comes off the stack underneath it
-                    // so backing out of the review lands on the event page.
-                    flow.beginImport(clips, eventId)
-                    reviewing = true
-                    nav.popBackStack()
+            //
+            // At expanded width it is the *detail* of a two-pane scaffold with the
+            // dashboard beside it (NS-34). Both panes are inside this Box, so the
+            // banners above still span the window and the review overlay below
+            // still covers both — which is the rule NS-18 set and a second pane is
+            // the easiest way to break by accident.
+            TwoPaneShell(
+                twoPane = twoPane,
+                listPane = {
+                    DashboardPane(
+                        nav = nav,
+                        api = api,
+                        recorderIdle = recorderIdle,
+                        selection = selection,
+                        inListPane = true,
+                    )
                 },
-                incomingImport = incomingImport,
-                onConsumedIncomingImport = onConsumedIncomingImport,
-            )
+            ) {
+                AppNavHost(
+                    nav = nav,
+                    api = api,
+                    auth = auth,
+                    checklistTemplate = authState.checklistTemplate,
+                    hasCustomChecklistTemplate = authState.hasCustomChecklistTemplate,
+                    themeChoice = themeChoice,
+                    onThemeChange = onThemeChange,
+                    serverUrl = serverUrl,
+                    recorderState = recorder,
+                    // Idle is "nothing to say about a recording": none running, and
+                    // none stopped-but-unsaved. Either of those already has a
+                    // visible affordance above, so the dashboard's door stands down.
+                    recorderIdle = !recorder.isRecording && pending == null,
+                    onStartRecording = onStartRecording,
+                    onStopRecording = { Recorder.stop(context) },
+                    onSignOut = onSignOut,
+                    entitlement = entitlement,
+                    onRequirePro = { paywall = true },
+                    onImportParsed = { eventId, clips: List<ImportedClip> ->
+                        // Same shape as a recording stopping: the review covers the
+                        // graph, and the chooser comes off the stack underneath it
+                        // so backing out of the review lands on the event page.
+                        flow.beginImport(clips, eventId)
+                        reviewing = true
+                        nav.popBackStack()
+                    },
+                    incomingImport = incomingImport,
+                    onConsumedIncomingImport = onConsumedIncomingImport,
+                    // At expanded width the dashboard is the pane beside this, so the
+                    // graph's start destination renders the empty state instead — the
+                    // one thing NS-34 rules out by name is showing the dashboard
+                    // twice. The *route* is unchanged, which is what keeps deep links,
+                    // `popUpTo(Route.Dashboard)` and the minimize-at-root handler
+                    // working identically at both widths.
+                    dashboardAsDetailPlaceholder = twoPane,
+                    selection = selection,
+                )
+            }
             if (reviewing) {
                 ReviewScreen(
                     state = review,

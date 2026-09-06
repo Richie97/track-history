@@ -25,8 +25,7 @@ import app.trackevolution.recording.RecordScreen
 import app.trackevolution.recording.RecorderState
 import app.trackevolution.screens.CompareLapsModel
 import app.trackevolution.screens.CompareLapsScreen
-import app.trackevolution.screens.DashboardModel
-import app.trackevolution.screens.DashboardScreen
+import app.trackevolution.screens.DetailPlaceholder
 import app.trackevolution.screens.EventFormModel
 import app.trackevolution.screens.EventFormScreen
 import app.trackevolution.screens.EventModel
@@ -100,6 +99,19 @@ fun AppNavHost(
      * Settings' Subscribe was tapped: the scaffold shows the paywall sheet.
      */
     onRequirePro: () -> Unit = {},
+    /**
+     * Whether the start destination should render the detail pane's empty state
+     * rather than the dashboard (NS-34).
+     *
+     * True exactly when the dashboard is already the list pane beside this graph.
+     * The *route* is unchanged either way — `Route.Dashboard` is still the start
+     * destination, still what `popUpTo` targets and still where back lands — so
+     * nothing about navigation has two versions; only what that one destination
+     * draws does.
+     */
+    dashboardAsDetailPlaceholder: Boolean = false,
+    /** Which row the list pane should mark, when there is a list pane. */
+    selection: Route? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -111,17 +123,20 @@ fun AppNavHost(
     NavHost(navController = nav, startDestination = Route.Dashboard, modifier = modifier) {
 
         pageComposable<Route.Dashboard> {
-            val model = rememberScreenModel { scope, _ -> DashboardModel(scope, api) }
-            DashboardScreen(
-                model = model,
-                onOpenEvent = { nav.navigate(Route.Event(it)) },
-                onOpenTrack = { nav.navigate(Route.Track(it)) },
-                onOpenVehicle = { nav.navigate(Route.Vehicle(it)) },
-                onNewEvent = { nav.navigate(Route.EventForm()) },
-                onOpenSettings = { nav.navigate(Route.Settings) },
-                onRecord = { nav.navigate(Route.Record(eventId = it)) },
-                recorderIdle = recorderIdle,
-            )
+            if (dashboardAsDetailPlaceholder) {
+                DetailPlaceholder(
+                    api = api,
+                    onOpenEvent = { nav.navigate(Route.Event(it)) },
+                )
+            } else {
+                DashboardPane(
+                    nav = nav,
+                    api = api,
+                    recorderIdle = recorderIdle,
+                    selection = selection,
+                    inListPane = false,
+                )
+            }
         }
 
         pageComposable<Route.Event> { entry ->

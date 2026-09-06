@@ -16,6 +16,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.trackevolution.ui.theme.TrackCard
@@ -181,10 +183,30 @@ fun TEStatRow(tiles: List<Pair<String, String>>, modifier: Modifier = Modifier) 
     }
 }
 
-/** A tappable card that navigates. */
+/**
+ * A tappable card that navigates.
+ *
+ * [selected] marks the row the detail pane is currently showing (NS-34), and is
+ * only ever true beside a visible detail. The mark is a border *and* a tint,
+ * never colour alone: the accent tint is a few percent of lime and disappears
+ * entirely for anyone who cannot see it, so the border carries the same
+ * information and `selected` semantics carry it to TalkBack.
+ */
 @Composable
-fun TENavCard(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    TrackCard(modifier = modifier.fillMaxWidth().clickable(onClick = onClick)) { content() }
+fun TENavCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    TrackCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .semantics { this.selected = selected },
+        color = if (selected) TrackTheme.colors.accentTint else null,
+        border = if (selected) TrackTheme.colors.accent else null,
+    ) { content() }
 }
 
 /**

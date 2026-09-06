@@ -47,6 +47,13 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+      # Explicit rather than left to AGP's auto-download. `compileSdk` moved to
+      # 37 for `material3.adaptive` (NS-34 ticket 2), and a runner image that
+      # happens not to ship that platform would otherwise fail deep inside a
+      # Gradle task with a message about the SDK rather than about the build.
+      # Naming it here also makes the requirement greppable.
+      - name: Install the compileSdk platform
+        run: sdkmanager "platforms;android-37"
       - uses: gradle/actions/setup-gradle@v4
 
       # Compiles the Compose UI and dexes :core — which is the real assertion

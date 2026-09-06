@@ -16,6 +16,7 @@ struct DashboardScreen: View {
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
     @Environment(RecordingController.self) private var recorder
+    @Environment(\.layout) private var layout
 
     @State private var model: DashboardModel?
     @State private var showingDiscardConfirmation = false
@@ -33,7 +34,7 @@ struct DashboardScreen: View {
                 // toggle and sign-out. All three live on the settings screen here —
                 // a popover menu duplicating them would be two places to change.
                 Button {
-                    router.push(.settings)
+                    openFromList(.settings)
                 } label: {
                     Image(systemName: "person.crop.circle")
                 }
@@ -63,7 +64,10 @@ struct DashboardScreen: View {
             // event first, which is exactly the wrong amount of friction with a helmet
             // in your other hand.
             HStack(spacing: TESpacing.gridGap) {
-                Button("+ Add event") { router.push(.eventForm(.new(presetTrack: nil))) }
+                // The form opens in the detail pane, and at compact width — where
+                // this screen is the stack's root — that is the push it always was
+                // (NS-34, `AppRouter.open`).
+                Button("+ Add event") { openFromList(.eventForm(.new(presetTrack: nil))) }
                     .buttonStyle(TEButtonStyle(kind: .accent))
 
                 // Only when the recorder is idle. A live recording already has the
@@ -71,7 +75,11 @@ struct DashboardScreen: View {
                 // above; a third control would be a third answer to the same question.
                 if recorder.phase == .idle {
                     Button("Record laps") {
-                        router.push(.record(eventId: model.todaysEvent?.id))
+                        // Full-window at every width. The record screen is a
+                        // phone-in-a-mount layout designed to be read at a glance
+                        // through a helmet, and half of an iPad is a worse version
+                        // of it, not a bigger one (NS-34).
+                        openFromList(.record(eventId: model.todaysEvent?.id))
                     }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityIdentifier("dashboardRecord")
@@ -92,7 +100,7 @@ struct DashboardScreen: View {
             if !model.alsoUpcoming.isEmpty {
                 TESectionHeader("Also upcoming")
                 ForEach(model.alsoUpcoming) { event in
-                    TENavCard(route: .event(event.id), identifier: "upcomingCard") {
+                    TENavCard(route: .event(event.id), identifier: "upcomingCard", listPane: true) {
                         Text(event.trackName)
                             .teStyle(.h3)
                             .foregroundStyle(Color(.textStrong))
@@ -127,6 +135,21 @@ struct DashboardScreen: View {
         .refreshable { await model.load() }
     }
 
+    /// Open a route from the list pane.
+    ///
+    /// The one width check on this screen, and it exists so there are none of them
+    /// anywhere else: a route that `ownsTheWindow` is presented over everything at
+    /// expanded width, and everything else replaces the detail. At compact and
+    /// medium both branches collapse to what this screen has always done, because
+    /// the dashboard is the stack's root there.
+    private func openFromList(_ route: Route) {
+        if layout.layoutClass == .expanded, route.ownsTheWindow {
+            router.presentFullWindow(route)
+        } else {
+            router.open(route)
+        }
+    }
+
     /// Where the laps are going to land, said out loud. The button can't carry a
     /// subtitle without pushing the fold down on every day that isn't a track day,
     /// but a screen reader can have the whole sentence for free.
@@ -141,7 +164,7 @@ struct DashboardScreen: View {
     /// app's `heroEventHtml`.
     private func heroCard(_ event: Event) -> some View {
         Button {
-            router.push(.event(event.id))
+            openFromList(.event(event.id))
         } label: {
             TECard {
                 VStack(alignment: .leading, spacing: 8) {
@@ -228,7 +251,7 @@ struct DashboardScreen: View {
     // MARK: - Track cards
 
     private func trackCard(_ track: Track) -> some View {
-        TENavCard(route: .track(track.id), identifier: "trackCard") {
+        TENavCard(route: .track(track.id), identifier: "trackCard", listPane: true) {
             // The text column sets the row's height and the sparkline fills it, so the
             // trend line reads as part of the card rather than a stamp floating in it.
             // `.fixedSize(vertical:)` is what pins that height to the text: without it
@@ -280,7 +303,7 @@ struct DashboardScreen: View {
     private func garageCard(_ vehicle: GarageVehicle) -> some View {
         let active = vehicle.parts.filter { $0.retiredOn == nil }
         let worst = Garage.garageAlerts([vehicle]).first?.status
-        return TENavCard(route: .vehicle(vehicle.id), identifier: "garageCard") {
+        return TENavCard(route: .vehicle(vehicle.id), identifier: "garageCard", listPane: true) {
             Text(vehicle.name)
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
@@ -371,7 +394,7 @@ struct DashboardScreen: View {
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
                 HStack(spacing: TESpacing.gridGap) {
-                    Button(action) { router.push(route) }
+                    Button(action) { openFromList(route) }
                         .buttonStyle(TEButtonStyle(kind: .accent))
                     if discardable {
                         Button("Discard") { showingDiscardConfirmation = true }
