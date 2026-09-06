@@ -67,7 +67,11 @@ function animateDraw(svgEl, pts) {
 // points: [{x: epochMs, y: lapMs, ...meta}]
 // goal: optional target lap time (ms) drawn as a horizontal reference line —
 // red while unbeaten, green once a point meets or beats it.
-export function lineChart(points, { width = 900, height = 300, sparkline = false, goal = null } = {}) {
+// bands: optional context wash behind the plot (#191) — {cells, label} with one
+// cell per point, `{alpha}` or null for a point there is no reading for. Purely
+// visual: the words belong to each point's `tip` and to `label`, which the
+// chart speaks, since a wash is exactly what a screen-reader user cannot see.
+export function lineChart(points, { width = 900, height = 300, sparkline = false, goal = null, bands = null } = {}) {
   if (!points.length) return { svg: "", bind: () => {} };
   const hasGoal = !sparkline && typeof goal === "number" && Number.isFinite(goal);
   const goalMet = hasGoal && Math.min(...points.map((p) => p.y)) <= goal;
@@ -89,6 +93,26 @@ export function lineChart(points, { width = 900, height = 300, sparkline = false
 
   const pts = points.map((p) => ({ ...p, px: X(p.x), py: Y(p.y) }));
   const path = pts.map((p, i) => `${i ? "L" : "M"}${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
+
+  // The band cells span the midpoints between neighbouring points, so each
+  // event owns the width around its own mark and the wash reads as territory
+  // rather than as a bar per event. Never drawn on a sparkline, which has no
+  // room to be read as anything.
+  let bandLayer = "";
+  if (bands && !sparkline && bands.cells?.length === pts.length) {
+    const x0px = pad.l, x1px = width - pad.r;
+    const mid = (a, b) => (a.px + b.px) / 2;
+    bandLayer = bands.cells
+      .map((cell, i) => {
+        if (!cell) return "";
+        const left = i === 0 ? x0px : mid(pts[i - 1], pts[i]);
+        const right = i === pts.length - 1 ? x1px : mid(pts[i], pts[i + 1]);
+        const w = Math.max(0, right - left);
+        if (!w) return "";
+        return `<rect x="${left.toFixed(1)}" y="${pad.t}" width="${w.toFixed(1)}" height="${height - pad.t - pad.b}" fill="var(--heat)" fill-opacity="${cell.alpha.toFixed(3)}"/>`;
+      })
+      .join("");
+  }
 
   let grid = "", labels = "", dots = "";
   if (!sparkline) {
@@ -126,8 +150,8 @@ export function lineChart(points, { width = 900, height = 300, sparkline = false
   }
 
   const strokeCol = sparkline ? "var(--text-faint)" : "var(--chart-line)";
-  const svg = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lap time trend">
-    ${grid}${labels}${goalLayer}
+  const svg = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lap time trend${bandLayer && bands.label ? `, ${esc(bands.label)}` : ""}">
+    ${bandLayer}${grid}${labels}${goalLayer}
     <path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="${sparkline ? 1.5 : 2.25}" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
   </svg>`;

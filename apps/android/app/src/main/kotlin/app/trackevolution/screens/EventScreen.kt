@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -28,13 +30,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
+import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
@@ -394,6 +400,25 @@ private fun SessionCard(
                     },
                     style = TrackTheme.typography.xs,
                     color = colors.textMuted,
+                )
+            }
+            // The air this session was driven in (#191) — context for the times
+            // under it, so it rides in the header as a tag rather than joining
+            // the stats line. Only what this session's own recording measured:
+            // the event's typed figure is on the event header and is not
+            // repeated down the page.
+            SessionConditions.sessionAmbientC(session)?.let { ambientC ->
+                val text = SessionConditions.tempText(ambientC, SessionConditions.Units.US)
+                Text(
+                    text,
+                    style = TrackTheme.typography.xxs,
+                    color = colors.textMuted,
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(colors.heat.copy(alpha = 0.14f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .semantics { contentDescription = "Ambient $text" },
                 )
             }
             TextButton(onClick = onDelete) {

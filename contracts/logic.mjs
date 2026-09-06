@@ -94,6 +94,26 @@ import {
   tyreSpread,
 } from "../public/js/health.js";
 import {
+  BAND_MAX_ALPHA,
+  BAND_MIN_ALPHA,
+  BAND_MIN_EVENTS,
+  BAND_MIN_SPAN_C,
+  ambientMidC,
+  ambientText,
+  bandAlpha,
+  bandLabel,
+  cToF,
+  conditionsBand,
+  elevationText,
+  eventAmbient,
+  fToC,
+  mToFt,
+  sessionAmbientC,
+  sessionElevationM,
+  tempText,
+  trackElevationM,
+} from "../public/js/conditions.js";
+import {
   alignLapPair,
   comparableLaps,
   defaultComparePicks,
@@ -1537,6 +1557,108 @@ const entitlementFixture = {
   cases: entitlementCases,
 };
 
+// --- session conditions (#191) ----------------------------------------------
+// The band behind the progress chart, the per-session chip and the track's
+// elevation line, over events shaped like the rows GET /api/events returns.
+const condEvent = (o = {}) => ({
+  ambient_lo_c: null,
+  ambient_hi_c: null,
+  elevation_m: null,
+  temp_f: null,
+  ...o,
+});
+// Oldest to newest, the order the chart plots: a cool recorded day, a day that
+// warmed up 12 °C between sessions (so a port that shades by `lo` or by `hi`
+// instead of the midpoint lands somewhere else), a day with only a typed
+// temperature — most logbooks have no telemetry and must still get a band — an
+// event with nothing known at all, which must produce a *null* cell rather than
+// the coolest shade, and the hottest day of the set.
+const condEvents = [
+  condEvent({ ambient_lo_c: 10, ambient_hi_c: 10, elevation_m: 38 }),
+  condEvent({ ambient_lo_c: 14, ambient_hi_c: 26, elevation_m: 41.4 }),
+  condEvent({ temp_f: 86 }),
+  condEvent({}),
+  condEvent({ ambient_lo_c: 31.8, ambient_hi_c: 31.8, elevation_m: 39 }),
+];
+// Exactly BAND_MIN_SPAN_C apart, and a hair under it: the bound is inclusive,
+// so a port that spells one `<` for a `<=` draws a band on the wrong one.
+const condSpanAtLimit = [condEvent({ ambient_lo_c: 10, ambient_hi_c: 10 }), condEvent({ ambient_lo_c: 10 + BAND_MIN_SPAN_C, ambient_hi_c: 10 + BAND_MIN_SPAN_C })];
+const condSpanUnder = [condEvent({ ambient_lo_c: 10, ambient_hi_c: 10 }), condEvent({ ambient_lo_c: 12.9, ambient_hi_c: 12.9 })];
+// One known event is not a comparison; an empty list is not a chart.
+const condOneKnown = [condEvent({ ambient_lo_c: 10, ambient_hi_c: 30 }), condEvent({})];
+// A recorded column, a blob-only fallback (a response cached before migration
+// 0020, or a free account whose `channels` survived locally), and a session
+// with neither — hand-entered or GPS-recorded.
+const condSessions = [
+  { ambient_c: 18.5, elevation_m: 38, channels: { meta: { ambientC: 99, elevationM: 99 } } },
+  { ambient_c: null, elevation_m: null, channels: { meta: { ambientC: 24, elevationM: 12 } } },
+  { ambient_c: null, elevation_m: null, channels: null },
+  {},
+];
+// Rounding probes. The negative halves are the port trap: JavaScript's
+// Math.round is half-*up* (-12.5 → -12), while Swift's `rounded()` and any
+// "away from zero" rule give -13. A port must round toward +infinity on a tie.
+const condTempProbes = [21.4, 21.8, 0, -0.5, -12.5, -17.5, 31.8];
+const condElevProbes = [41.4, 0.5, 12];
+
+const conditionsFixture = {
+  description:
+    "Session-conditions reference output from public/js/conditions.js " +
+    "(sessionAmbientC / sessionElevationM / eventAmbient / ambientMidC / trackElevationM / " +
+    "tempText / ambientText / elevationText / conditionsBand / bandAlpha / bandLabel). " +
+    "Temperatures are °C and elevations metres in; only the text helpers convert, so the " +
+    "numbers are pinned and the locale is not. Ports (SessionConditions in the iOS Kit and " +
+    "Android :core — the plain name is taken by the dry/damp/wet enum) must reproduce the " +
+    "wording exactly and the doubles to 1e-9. Regenerate with `npm run contracts:logic`.",
+  source: "public/js/conditions.js",
+  input: {
+    events: condEvents,
+    spanAtLimit: condSpanAtLimit,
+    spanUnder: condSpanUnder,
+    oneKnown: condOneKnown,
+    sessions: condSessions,
+    tempProbes: condTempProbes,
+    elevProbes: condElevProbes,
+    alphaProbes: [-1, 0, 0.5, 1, 2],
+    constants: {
+      BAND_MIN_EVENTS,
+      BAND_MIN_SPAN_C,
+      BAND_MIN_ALPHA,
+      BAND_MAX_ALPHA,
+    },
+  },
+  expected: {
+    convert: { cToF: [cToF(0), cToF(21.4), cToF(-40)], fToC: [fToC(32), fToC(86), fToC(-40)], mToFt: [mToFt(41.4), mToFt(1)] },
+    sessionAmbientC: condSessions.map((x) => sessionAmbientC(x)),
+    sessionElevationM: condSessions.map((x) => sessionElevationM(x)),
+    eventAmbient: condEvents.map((e) => eventAmbient(e)),
+    // A range handed over the wrong way round is ordered, not trusted.
+    reversedRange: eventAmbient(condEvent({ ambient_lo_c: 30, ambient_hi_c: 12 })),
+    ambientMidC: condEvents.map((e) => ambientMidC(eventAmbient(e))),
+    trackElevationM: [trackElevationM(condEvents), trackElevationM([condEvent({}), condEvent({})]), trackElevationM([])],
+    tempTextMetric: condTempProbes.map((c) => tempText(c, "metric")),
+    tempTextUs: condTempProbes.map((c) => tempText(c, "us")),
+    // The last case is the collapse: 21.4–21.8 °C is 70.5–71.2 °F, one number.
+    ambientText: [
+      ambientText(eventAmbient(condEvents[1]), "us"),
+      ambientText(eventAmbient(condEvents[1]), "metric"),
+      ambientText(eventAmbient(condEvents[2]), "us"),
+      ambientText(null, "us"),
+      ambientText({ loC: 21.4, hiC: 21.8 }, "us"),
+    ],
+    elevationTextMetric: condElevProbes.map((m) => elevationText(m, "metric")),
+    elevationTextUs: condElevProbes.map((m) => elevationText(m, "us")),
+    noElevationText: elevationText(null, "us"),
+    band: conditionsBand(condEvents),
+    bandAtLimit: conditionsBand(condSpanAtLimit),
+    bandUnder: conditionsBand(condSpanUnder),
+    bandOneKnown: conditionsBand(condOneKnown),
+    bandEmpty: conditionsBand([]),
+    bandAlpha: [-1, 0, 0.5, 1, 2].map(bandAlpha),
+    bandLabel: [bandLabel(conditionsBand(condEvents), "us"), bandLabel(conditionsBand(condEvents), "metric"), bandLabel(null, "us")],
+  },
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
@@ -1553,6 +1675,7 @@ writeFileSync(path.join(OUT_DIR, "grip.json"), JSON.stringify(gripFixture, null,
 writeFileSync(path.join(OUT_DIR, "corners.json"), JSON.stringify(cornersFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "balance.json"), JSON.stringify(balanceFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "health.json"), JSON.stringify(healthFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "conditions.json"), JSON.stringify(conditionsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");

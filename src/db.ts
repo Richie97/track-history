@@ -8,6 +8,15 @@
 
 import { type ComputedEvent, type EventRow, withComputed } from "./lib/stats";
 
+// The session-conditions aggregates (#191) are MIN/MAX rather than an average
+// for two reasons. The laps LEFT JOIN repeats a session's row once per lap, so
+// AVG(s.ambient_c) would silently weight each session by how many laps it ran,
+// while MIN and MAX are duplicate-proof. And a day that started at 15 °C and
+// finished at 32 °C is precisely the confounder the band exists to show, so the
+// honest event-level figure is the range, not a number that hides it.
+// `elevation_m` is a per-recording max−min altitude, so its event figure is the
+// largest one seen — the track's elevation change, not a sum.
+//
 // Event rows with lap aggregates, computed in a single pass: LEFT JOINs plus
 // GROUP BY read each session and lap once, where the correlated-subquery
 // version rescanned an event's laps once per aggregate. `where` must filter on
@@ -16,6 +25,9 @@ export const eventSelect = (where: string, orderBy = "") => `
   SELECT e.id, e.track_id, t.name AS track_name,
          e.start_date, e.days, e.club, e.run_group, e.car, e.vehicle_id, e.notes,
          e.conditions, e.temp_f, e.checklist, e.best_time_ms, e.track_hours, e.updated_at,
+         MIN(s.ambient_c) AS ambient_lo_c,
+         MAX(s.ambient_c) AS ambient_hi_c,
+         MAX(s.elevation_m) AS elevation_m,
          MIN(l.time_ms) AS lap_best_ms,
          COUNT(l.id) AS lap_count,
          AVG(l.time_ms * 1.0) AS lap_avg,

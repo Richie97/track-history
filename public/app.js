@@ -15,6 +15,10 @@ import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, l
 import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
 import { balanceHtml, balanceSummary, bindBalance } from "./js/balance.js";
 import { healthHtml, healthSummary, nextTimeNote, pressureLoop, pressureLoopHtml } from "./js/health.js";
+import {
+  ambientText, bandLabel, conditionsBand, conditionsChipHtml, conditionsLegendHtml,
+  elevationText, eventAmbient, trackElevationM,
+} from "./js/conditions.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -61,8 +65,12 @@ const CONDITIONS = [
   ["mixed", "⛅ Mixed"],
 ];
 const condLabel = (c) => (CONDITIONS.find(([v]) => v === c) || [])[1] ?? "";
+// Sky plus air temperature. The temperature reconciles the two sources rather
+// than showing both (#191): what the sessions' telemetry recorded if any did —
+// a range when the day warmed up — else the number the driver typed. Neither
+// is ever written from the other; they only meet here.
 const fmtConditions = (e) =>
-  [condLabel(e.conditions), e.temp_f != null ? `${e.temp_f}°F` : ""].filter(Boolean).join(" · ");
+  [condLabel(e.conditions), ambientText(eventAmbient(e), "us")].filter(Boolean).join(" · ");
 
 // ---------- tier / paywall ---------------------------------------------------
 
@@ -875,7 +883,19 @@ async function viewTrack(trackId, params) {
     tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}${fmtConditions(e) ? " · " + fmtConditions(e) : ""}`,
     href: `#/event/${e.id}`,
   }));
-  const chart = points.length ? lineChart(points, { goal: track.goal_ms }) : null;
+  // Conditions band (#191): a wash behind the line, one cell per event,
+  // deepening with the air temperature — so a run of slower times in August
+  // reads as August. The numbers are on the tooltip and in the key below.
+  const band = conditionsBand(chrono);
+  const chart = points.length
+    ? lineChart(points, {
+        goal: track.goal_ms,
+        bands: band ? { cells: band.cells, label: bandLabel(band, "us") } : null,
+      })
+    : null;
+  // Elevation change is a property of the track, so it comes from every event
+  // at it, dry-only filter or no filter.
+  const elevM = trackElevationM(allEvents);
 
   const rows = events
     .map(
@@ -937,8 +957,8 @@ async function viewTrack(trackId, params) {
 
   const view = shell(`
     <h1>${esc(track.name)}</h1>
-    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
+    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, "us"))}` : ""}</p>
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
     <div class="btn-row">
       <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a>
       ${shareBtn}
@@ -1403,6 +1423,7 @@ async function viewEvent(eventId) {
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
           <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "no laps"}</span>
+          ${conditionsChipHtml(s)}
           <span class="grow"></span>
           <button class="btn small danger" data-del-session="${s.id}">Delete</button>
         </div>
@@ -2777,17 +2798,27 @@ function shareTrack(trackId) {
     x: new Date(e.start_date).getTime(),
     y: e.best_ms,
     xlabel: fmtDate(e.start_date),
-    tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}`,
+    tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}${fmtConditions(e) ? " · " + fmtConditions(e) : ""}`,
   }));
-  const chart = points.length ? lineChart(points, { goal: track.goal_ms }) : null;
+  // Same conditions band as the signed-in track page (#191): the share payload
+  // carries the event's ambient range, which is weather rather than anything
+  // the driver wrote down.
+  const band = conditionsBand(chrono);
+  const chart = points.length
+    ? lineChart(points, {
+        goal: track.goal_ms,
+        bands: band ? { cells: band.cells, label: bandLabel(band, "us") } : null,
+      })
+    : null;
+  const elevM = trackElevationM(events);
   const bests = events.map((e) => e.best_ms).filter((v) => v != null);
   const pb = bests.length ? Math.min(...bests) : null;
 
   const view = shareShell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← All tracks</a></p>
     <h1>${esc(track.name)}</h1>
-    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : ""}
+    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, "us"))}` : ""}</p>
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}</div>` : ""}
     <h2>Events</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
     <tbody>${shareEventRows(events)}</tbody></table></div>

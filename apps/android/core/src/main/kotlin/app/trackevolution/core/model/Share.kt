@@ -38,6 +38,13 @@ public data class SharedEvent(
     val car: String? = null,
     val conditions: Conditions? = null,
     @SerialName("temp_f") val tempF: Int? = null,
+    /**
+     * Session conditions (#191). Weather rather than anything the driver wrote
+     * down, so it is shared like the rest of the event's outcome.
+     */
+    @SerialName("ambient_lo_c") val ambientLoC: Double? = null,
+    @SerialName("ambient_hi_c") val ambientHiC: Double? = null,
+    @SerialName("elevation_m") val elevationM: Double? = null,
     @SerialName("best_time_ms") val bestTimeMs: Int? = null,
     @SerialName("updated_at") val updatedAt: Long,
     @SerialName("lap_best_ms") val lapBestMs: Int? = null,

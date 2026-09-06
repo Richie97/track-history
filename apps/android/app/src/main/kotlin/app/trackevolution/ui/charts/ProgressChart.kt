@@ -1,6 +1,17 @@
 package app.trackevolution.ui.charts
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +35,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChartScale
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.SessionConditions
 import app.trackevolution.ui.theme.TrackTheme
 
 /** One plotted lap time. [x] is an epoch millisecond or an ordinal. */
@@ -52,6 +64,7 @@ fun ProgressChart(
     points: List<ProgressPoint>,
     modifier: Modifier = Modifier,
     goalMs: Int? = null,
+    band: SessionConditions.Band? = null,
     style: ProgressChartStyle = ProgressChartStyle.Full,
 ) {
     // An empty chart is a layout hole, not a chart. The web returns "" here and
@@ -96,8 +109,13 @@ fun ProgressChart(
             .semantics {
                 testTag = if (sparkline) "progressSparkline" else "progressChart"
                 // A chart that is only visual is incomplete: TalkBack gets the
-                // trend in words rather than "image".
-                contentDescription = trendSummary(points, goalMs)
+                // trend in words rather than "image" — and the wash behind it
+                // (#191) is precisely what a screen-reader user cannot see, so
+                // it is said out loud too.
+                contentDescription = listOf(
+                    trendSummary(points, goalMs),
+                    if (sparkline) "" else SessionConditions.bandLabel(band, SessionConditions.Units.US),
+                ).filter { it.isNotEmpty() }.joinToString(", ")
             },
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -119,6 +137,27 @@ fun ProgressChart(
 
             fun px(x: Double) = plot.left + (ChartScale.horizontalFraction(x, xDomain) * plot.width).toFloat()
             fun py(ms: Double) = plot.top + (ChartScale.plottedFraction(ms, domain) * plot.height).toFloat()
+
+            // The conditions wash goes down first, behind grid, line and
+            // markers (#191): one cell per event spanning the midpoints between
+            // neighbours, so each event owns the width around its own mark and
+            // the shading reads as territory rather than as a bar per event. A
+            // cell the band left null draws nothing at all — an unknown day must
+            // not be painted the coolest shade.
+            if (!sparkline && band != null && band.cells.size == points.size) {
+                val xs = points.map { px(it.x) }
+                band.cells.forEachIndexed { i, cell ->
+                    if (cell == null) return@forEachIndexed
+                    val cellLeft = if (i == 0) plot.left else (xs[i - 1] + xs[i]) / 2f
+                    val cellRight = if (i == points.size - 1) plot.right else (xs[i] + xs[i + 1]) / 2f
+                    if (cellRight <= cellLeft) return@forEachIndexed
+                    drawRect(
+                        color = colors.heat.copy(alpha = cell.alpha.toFloat()),
+                        topLeft = Offset(cellLeft, plot.top),
+                        size = androidx.compose.ui.geometry.Size(cellRight - cellLeft, plot.height),
+                    )
+                }
+            }
 
             if (!sparkline) {
                 for ((tick, text) in tickLabels) {
@@ -165,6 +204,50 @@ fun ProgressChart(
                 }
             }
         }
+    }
+}
+
+/**
+ * The conditions band's key, for under the chart: pale is the coolest event in
+ * view, deep the hottest. The same two alphas the wash itself is drawn with, so
+ * the key is the legend for the thing above it rather than an approximation.
+ *
+ * Hidden from TalkBack on purpose — the chart's own content description already
+ * says what the shading means, and a second reading of the same two temperatures
+ * is noise.
+ */
+@Composable
+fun ConditionsKey(band: SessionConditions.Band, modifier: Modifier = Modifier) {
+    val colors = TrackTheme.colors
+    Row(
+        modifier = modifier.padding(top = 8.dp).clearAndSetSemantics {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            SessionConditions.tempText(band.loC, SessionConditions.Units.US),
+            style = TrackTheme.typography.xxs,
+            color = colors.textFaint,
+        )
+        Box(
+            Modifier
+                .width(110.dp)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            colors.heat.copy(alpha = SessionConditions.BAND_MIN_ALPHA.toFloat()),
+                            colors.heat.copy(alpha = SessionConditions.BAND_MAX_ALPHA.toFloat()),
+                        ),
+                    ),
+                ),
+        )
+        Text(
+            SessionConditions.tempText(band.hiC, SessionConditions.Units.US),
+            style = TrackTheme.typography.xxs,
+            color = colors.textFaint,
+        )
     }
 }
 

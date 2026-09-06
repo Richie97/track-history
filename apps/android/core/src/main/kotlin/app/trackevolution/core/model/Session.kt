@@ -35,6 +35,16 @@ public data class Session(
      * telemetry imports (`sanitizeChannels`).
      */
     val channels: SessionChannels? = null,
+    /**
+     * The conditions this session was driven in (#191), lifted out of the
+     * channel blob into columns by migration 0020 — so they survive the Pro
+     * strip that nulls [channels], and so the event query can aggregate them.
+     * [ambientC] is the recording's median outside-air temperature and
+     * [elevationM] its max−min altitude; both null for a hand-entered or
+     * GPS-recorded session. Read through `SessionConditions`.
+     */
+    @SerialName("ambient_c") val ambientC: Double? = null,
+    @SerialName("elevation_m") val elevationM: Double? = null,
     val laps: List<Lap>,
 )
 

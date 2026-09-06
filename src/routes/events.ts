@@ -87,7 +87,7 @@ events.get("/events/:id", async (c) => {
     db.prepare(eventSelect("WHERE e.user_id = ? AND e.id = ?")).bind(userId, id),
     db
       .prepare(
-        "SELECT id, label, notes, sort, trace, channels FROM sessions WHERE event_id = ? ORDER BY sort, id"
+        "SELECT id, label, notes, sort, trace, channels, ambient_c, elevation_m FROM sessions WHERE event_id = ? ORDER BY sort, id"
       )
       .bind(id),
     db
@@ -105,8 +105,19 @@ events.get("/events/:id", async (c) => {
   // per-lap channel arrays nulled, which is exactly the shape every client
   // already renders as "no channel data".
   const entitled = isEntitled(c.get("entitledUntil"), Date.now());
+  // `ambient_c` / `elevation_m` (migration 0020) ride alongside and are *not*
+  // stripped: they are conditions, not analysis (#191).
   const sessions = (
-    sessionRes.results as { id: number; label: string | null; notes: string | null; sort: number; trace: string | null; channels: string | null }[]
+    sessionRes.results as {
+      id: number;
+      label: string | null;
+      notes: string | null;
+      sort: number;
+      trace: string | null;
+      channels: string | null;
+      ambient_c: number | null;
+      elevation_m: number | null;
+    }[]
   ).map((s) =>
     stripProFields(
       {
