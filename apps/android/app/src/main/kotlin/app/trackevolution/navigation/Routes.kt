@@ -35,6 +35,19 @@ public sealed interface Route {
     @Serializable
     public data class CompareLaps(val trackId: Int) : Route
 
+    /**
+     * One leaderboard row, opened (NS-35). [trackId] is the viewer's own track,
+     * because a shared lap is only reachable from a track the viewer has — the
+     * server checks that, so this is not merely how the screen finds its way
+     * back.
+     *
+     * Deliberately **not** a `DeepLink` case: a lap id is only meaningful next
+     * to the leaderboard it came from, and a link to one would go stale the
+     * moment its owner set a faster lap or turned sharing off.
+     */
+    @Serializable
+    public data class LeaderboardLap(val trackId: Int, val lapId: Int) : Route
+
     @Serializable
     public data object Settings : Route
 

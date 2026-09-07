@@ -56,6 +56,7 @@
 		99384036CC3B4CB5D05BD649 /* EventFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */; };
 		AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */; };
 		B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E142A66C92DBCD4560C1753C /* LegacyClaimRecord.swift */; };
+		B4B78EDE7A4EB68DFF1E5B60 /* LeaderboardLapScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */; };
 		B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */; };
 		B962D4EA9A0300EEDC05153C /* AnalysisColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE2A9CD6AC286F49A143CA2 /* AnalysisColumn.swift */; };
 		B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82118910A4D7C285ABC04083 /* SignInUITests.swift */; };
@@ -150,6 +151,7 @@
 		7FAD7F0F8459AFBE55AE39CB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		82118910A4D7C285ABC04083 /* SignInUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInUITests.swift; sourceTree = "<group>"; };
 		8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTokens.generated.swift; sourceTree = "<group>"; };
+		85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardLapScreen.swift; sourceTree = "<group>"; };
 		8625F0FCAC350699C111D37A /* LimitLegend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitLegend.swift; sourceTree = "<group>"; };
 		8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
 		8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardScreen.swift; sourceTree = "<group>"; };
@@ -255,6 +257,7 @@
 				30D7E5BFFAD255C5A8CDC979 /* EventModel.swift */,
 				5D136E4DE2F395728D4F10F3 /* EventScreen.swift */,
 				DE19F08670203224D23A5F6F /* GarageViews.swift */,
+				85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */,
 				6D029EFD956A7AC879046769 /* SettingsScreen.swift */,
 				AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */,
 				6C37B0DDB941D4C18A32BA87 /* TrackScreen.swift */,
@@ -574,6 +577,7 @@
 				E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */,
 				2639E291816F71B3EB423DD9 /* LayoutClass.swift in Sources */,
 				293C075351115201DCE5537C /* LayoutTokens.generated.swift in Sources */,
+				B4B78EDE7A4EB68DFF1E5B60 /* LeaderboardLapScreen.swift in Sources */,
 				B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */,
 				0390889F0A928F8F8BF1C2A0 /* LimitLegend.swift in Sources */,
 				4D5846D926BDEF1D48B78043 /* LinePickerView.swift in Sources */,

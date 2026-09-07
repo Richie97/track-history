@@ -1129,6 +1129,26 @@ mocks the Apple and Google APIs in `vitest.workers.config.mts`.
   reach a leaderboard, so the endpoint (`GET /api/tracks/:id/leaderboard`)
   deliberately does *not* use the `MIN(manual best, best logged lap)` rule the
   logbook's own stats keep.
+- **A leaderboard row can be opened** — the ranked lap's racing line and
+  telemetry traces, with your own best lap at that track laid over it, corner
+  for corner (`docs/specs/native/NS-35-leaderboard-lap-detail.md`;
+  `GET /api/tracks/:id/leaderboard/laps/:lapId`). It is a **second, separate
+  opt-in** — Settings → Leaderboards → *Let other drivers open my ranked laps*,
+  or the track page's button; `users.leaderboard_share_laps`, migration `0021`,
+  **off by default**. The original opt-in promises "exactly two things", so it
+  was not widened: an existing opt-in keeps meaning exactly what it did, and
+  leaving the leaderboards clears both flags in one statement so a rejoin can't
+  silently re-publish. Only your *ranked* lap per track is reachable — never
+  the session it came from, never your other laps — and what it carries is
+  built by allow-list in `src/lib/leaderboard.ts`: the gridded channel traces,
+  the stored racing line (local `[x, y, v]` metres, so it carries no absolute
+  position), the time, the date and the recorded ambient temperature and
+  elevation. Nothing user-entered is published at any setting, and the per-lap
+  scalars (oil, fuel, tyre pressures) and the car's lifetime odometer are
+  excluded on purpose. Every refusal is a 404 rather than a 403, which would
+  confirm the lap exists. `channels` remains the one Pro field, stripped for a
+  free account exactly as it is on the event detail — the racing line and the
+  times are free.
 
 ## License
 

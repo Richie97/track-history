@@ -49,6 +49,7 @@ const VOLATILE = {
   part_id: 1,
   catalog_id: 1,
   user_id: 1,
+  lap_id: 1,
   created_at: 0,
   updated_at: 0,
 };
@@ -357,14 +358,27 @@ async function captureAll(api, anon, f) {
     "src/routes/me.ts", await api("GET", "/me"));
 
   // Leaderboard opt-in before the leaderboard read, so the capture has a row.
+  // Both consents, so `lap_id` is populated and the lap detail below is
+  // reachable — the withheld case is a null of the same type, pinned by the
+  // route tests rather than by a second capture.
   record("leaderboard-opt-in", "PUT", "/me/leaderboard",
-    "Toggle the per-track leaderboard opt-in.", "src/routes/me.ts",
-    await api("PUT", "/me/leaderboard", { opt_in: true }));
+    "Toggle the per-track leaderboard opt-in, and the lap-sharing consent (NS-35) " +
+    "stacked on top of it.", "src/routes/me.ts",
+    await api("PUT", "/me/leaderboard", { opt_in: true, share_laps: true }));
 
+  const lb = await api("GET", `/tracks/${track}/leaderboard`);
   record("track-leaderboard", "GET", "/tracks/:id/leaderboard",
     "The per-track community leaderboard: opted-in users' best laps at the same " +
-    "catalog track. `you` marks the viewer's own row.",
-    "src/routes/tracks.ts", await api("GET", `/tracks/${track}/leaderboard`));
+    "catalog track. `you` marks the viewer's own row; `lap_id` is non-null only " +
+    "when that row's owner shares the lap itself.",
+    "src/routes/tracks.ts", lb);
+
+  record("leaderboard-lap", "GET", "/tracks/:id/leaderboard/laps/:lapId",
+    "One shared leaderboard lap: its racing line and gridded channel traces, with " +
+    "nothing user-entered. `channels` is the one Pro field and is null for a free " +
+    "account.",
+    "src/routes/tracks.ts",
+    await api("GET", `/tracks/${track}/leaderboard/laps/${lb.body.entries[0].lap_id}`));
 
   record("events-list", "GET", "/events",
     "All events with lap aggregates and computed stats (withComputed).",
@@ -526,7 +540,8 @@ const EXPECTED_ROUTES = [
   "POST /events/:id/sessions", "PUT /sessions/:id", "DELETE /sessions/:id",
   "POST /sessions/:id/laps", "DELETE /laps/:id",
   "GET /tracks", "POST /tracks", "PUT /tracks/:id", "DELETE /tracks/:id",
-  "GET /tracks/:id/setups", "GET /tracks/:id/leaderboard", "GET /catalog",
+  "GET /tracks/:id/setups", "GET /tracks/:id/leaderboard",
+  "GET /tracks/:id/leaderboard/laps/:lapId", "GET /catalog",
   "GET /vehicles", "POST /vehicles", "PUT /vehicles/:id", "DELETE /vehicles/:id",
   "GET /garage",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",

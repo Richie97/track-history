@@ -31,6 +31,7 @@ struct GoldenContractTests {
         case "tracks-list": try roundTrip([Track].self, entry.name)
         case "track-setups": try roundTrip([TrackSetupRow].self, entry.name)
         case "track-leaderboard": try roundTrip(TrackLeaderboard.self, entry.name)
+        case "leaderboard-lap": try roundTrip(LeaderboardLap.self, entry.name)
         case "catalog": try roundTrip([CatalogTrack].self, entry.name)
         case "vehicles-list": try roundTrip([Vehicle].self, entry.name)
         case "garage": try roundTrip([GarageVehicle].self, entry.name)

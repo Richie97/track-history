@@ -22,6 +22,7 @@
       "email": "dev@example.com",
       "id": 1,
       "leaderboard_opt_in": true,
+      "leaderboard_share_laps": true,
       "name": "Dev User",
       "picture": null,
       "share_slug": null

@@ -345,6 +345,36 @@ private fun LeaderboardOptInCard(model: SettingsModel) {
             color = colors.textFaint,
             modifier = Modifier.padding(top = 6.dp),
         )
+        HorizontalDivider(color = colors.borderHairline, modifier = Modifier.padding(vertical = 10.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = model.leaderboardShareLaps,
+                onCheckedChange = { model.updateLeaderboardShareLaps(it) },
+                enabled = model.leaderboardOptIn,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.accentInk,
+                    checkedTrackColor = colors.accentTint,
+                ),
+            )
+            Text(
+                "Let other drivers open my ranked laps",
+                style = TrackTheme.typography.body,
+                color = colors.textBody,
+            )
+        }
+        Text(
+            "A second, separate choice, off unless you turn it on. It publishes one lap per track " +
+                "— the ranked one already on the board — as its racing line and telemetry traces, so a " +
+                "driver ranked at the same track can compare corner for corner. It never publishes any " +
+                "other lap, your notes, your session labels, your car, the conditions you typed, your " +
+                "setup sheets or your garage. Leaving the leaderboards turns it off.",
+            style = TrackTheme.typography.xs,
+            color = colors.textFaint,
+            modifier = Modifier.padding(top = 6.dp),
+        )
         model.leaderboardError?.let {
             TEErrorBanner(it, modifier = Modifier.padding(top = 8.dp))
         }
