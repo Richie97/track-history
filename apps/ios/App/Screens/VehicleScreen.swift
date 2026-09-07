@@ -22,11 +22,14 @@ struct VehicleScreen: View {
 
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
 
     @State private var model: VehicleModel?
     /// Sheet and dialog presentation state, held here rather than in the model:
     /// the model is re-read from the server after every write.
     @State private var partForm: PartForm?
+    /// Which consumable the right column is showing (NS-34 ticket 3).
+    @State private var selectedPartId: Int?
     @State private var confirmingRefresh: Part?
 
     /// Which part form is on screen. One value rather than a bool plus an optional,
@@ -60,7 +63,7 @@ struct VehicleScreen: View {
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let vehicle = model.vehicle {
-                content(model, vehicle)
+                page(model, vehicle)
             } else {
                 TEPage { TEEmpty("That vehicle isn't in your garage.") }
             }
@@ -108,6 +111,62 @@ struct VehicleScreen: View {
             }
             Button("Cancel", role: .cancel) { confirmingRefresh = nil }
         }
+    }
+
+    /// One column, or the garage beside its detail (NS-34 ticket 3).
+    ///
+    /// At expanded width the consumables stay on the left and the **selected
+    /// part's measurements** move to the right, with the track-hours ledger under
+    /// them. That is the split the spec asks for, and it earns its place: logging
+    /// a measurement is a two-field form that on a phone sits inside whichever
+    /// card you scrolled to, and the ledger it should be read against is a long
+    /// way further down the page.
+    @ViewBuilder
+    private func page(_ model: VehicleModel, _ vehicle: GarageVehicle) -> some View {
+        if layout.layoutClass == .expanded {
+            HStack(spacing: 0) {
+                content(model, vehicle)
+                    .frame(maxWidth: .infinity)
+                    .measuringPaneWidth()
+                Divider()
+                partColumn(model)
+                    .frame(width: min(max(layout.contentWidth * 0.42, 340), 560))
+                    .measuringPaneWidth()
+            }
+        } else {
+            content(model, vehicle)
+        }
+    }
+
+    private var isTwoColumn: Bool { layout.layoutClass == .expanded }
+
+    /// The selected part's measurements, and the ledger under them.
+    private func partColumn(_ model: VehicleModel) -> some View {
+        let part = model.activeParts.first { $0.id == selectedPartId } ?? model.activeParts.first
+        return ScrollView {
+            VStack(alignment: .leading, spacing: TESpacing.gridGap) {
+                if let part {
+                    Text(part.name ?? part.kind.label)
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textStrong))
+                    WearStatusLine(part: part)
+                    if !part.measurements.isEmpty {
+                        TESectionHeader("Measurements")
+                        measurements(model, part)
+                    }
+                    MeasurementField(part: part) { draft in
+                        await model.addMeasurement(partId: part.id, draft)
+                    }
+                } else {
+                    TEEmpty("Add a consumable and its measurements will show here.")
+                }
+                ledger(model)
+            }
+            .padding(TESpacing.pageGutter)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(.bgPage))
+        .accessibilityIdentifier("partColumn")
     }
 
     private func content(_ model: VehicleModel, _ vehicle: GarageVehicle) -> some View {
@@ -159,43 +218,55 @@ struct VehicleScreen: View {
                 }
             }
 
-            if !model.ledger.isEmpty {
-                TESectionHeader("Track-hours ledger")
-                Text("Hours marked *est.* use the 2 h-per-day default — set exact hours on an event to correct a day that ran long or short.")
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textFaint))
-                ForEach(model.ledger) { event in
-                    TENavCard(route: .event(event.id), identifier: "ledgerRow") {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(event.trackName)
-                                    .teStyle(.bodyStrong)
-                                    .foregroundStyle(Color(.textStrong))
-                                TEMeta([EventDates.fmtDate(event.startDate), fmtDays(event.days)])
-                            }
-                            Spacer(minLength: 8)
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(Garage.fmtHours(event.hours))
-                                    .teStyle(.bodyStrong)
-                                    .foregroundStyle(Color(.textStrong))
-                                if event.trackHours == nil {
-                                    Text("est.")
-                                        .teStyle(.xxs)
-                                        .foregroundStyle(Color(.textFaint))
-                                }
+            // At expanded width the ledger sits under the measurements in the
+            // right column instead: the hours it lists are what the wear above
+            // them accrued from, and on a phone they are a whole page apart.
+            if !isTwoColumn {
+                ledger(model)
+            }
+        }
+        .refreshable { await model.load() }
+    }
+
+    /// The car's driven events and the hours each contributed.
+    @ViewBuilder
+    private func ledger(_ model: VehicleModel) -> some View {
+        if !model.ledger.isEmpty {
+            TESectionHeader("Track-hours ledger")
+            Text("Hours marked *est.* use the 2 h-per-day default — set exact hours on an event to correct a day that ran long or short.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textFaint))
+            ForEach(model.ledger) { event in
+                TENavCard(route: .event(event.id), identifier: "ledgerRow") {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(event.trackName)
+                                .teStyle(.bodyStrong)
+                                .foregroundStyle(Color(.textStrong))
+                            TEMeta([EventDates.fmtDate(event.startDate), fmtDays(event.days)])
+                        }
+                        Spacer(minLength: 8)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(Garage.fmtHours(event.hours))
+                                .teStyle(.bodyStrong)
+                                .foregroundStyle(Color(.textStrong))
+                            if event.trackHours == nil {
+                                Text("est.")
+                                    .teStyle(.xxs)
+                                    .foregroundStyle(Color(.textFaint))
                             }
                         }
                     }
                 }
             }
         }
-        .refreshable { await model.load() }
     }
 
     // MARK: - A part in service
 
     private func partCard(_ model: VehicleModel, _ part: Part) -> some View {
-        TECard(padding: 16) {
+        let selected = isTwoColumn && selectedPart(model)?.id == part.id
+        return TECard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(part.kind.label)
@@ -224,12 +295,15 @@ struct VehicleScreen: View {
                 WearBar(wear: part.wear)
                 WearStatusLine(part: part)
 
-                if !part.measurements.isEmpty {
-                    measurements(model, part)
-                }
-
-                MeasurementField(part: part) { draft in
-                    await model.addMeasurement(partId: part.id, draft)
+                // Both move to the right column at expanded width, where the
+                // ledger they are read against also lives (NS-34 ticket 3).
+                if !isTwoColumn {
+                    if !part.measurements.isEmpty {
+                        measurements(model, part)
+                    }
+                    MeasurementField(part: part) { draft in
+                        await model.addMeasurement(partId: part.id, draft)
+                    }
                 }
 
                 HStack(spacing: 10) {
@@ -242,7 +316,24 @@ struct VehicleScreen: View {
                 }
             }
         }
+        // Selecting a card fills the column beside it. The buttons inside keep
+        // their own taps — SwiftUI gives a `Button` priority over a container's
+        // tap gesture — so Refresh, Retire and Edit still do what they say.
+        .contentShape(Rectangle())
+        .onTapGesture { if isTwoColumn { selectedPartId = part.id } }
+        .overlay(
+            RoundedRectangle(cornerRadius: TERadius.lg)
+                .strokeBorder(Color(.accent), lineWidth: selected ? 2 : 0)
+        )
         .accessibilityIdentifier("partCard")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// The part the right column is showing: the selection, or the first in
+    /// service. Never nothing while there is something to show — an empty column
+    /// beside a list of parts reads as broken rather than as unselected.
+    private func selectedPart(_ model: VehicleModel) -> Part? {
+        model.activeParts.first { $0.id == selectedPartId } ?? model.activeParts.first
     }
 
     private func measurements(_ model: VehicleModel, _ part: Part) -> some View {
