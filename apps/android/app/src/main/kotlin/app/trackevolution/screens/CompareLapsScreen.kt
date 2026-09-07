@@ -19,6 +19,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,10 +54,33 @@ import kotlin.math.roundToInt
 fun CompareLapsScreen(
     model: CompareLapsModel,
     modifier: Modifier = Modifier,
+    /**
+     * Shown as the track page's right-hand column rather than as its own
+     * destination (NS-34 ticket 3), and given a way out: a destination has the
+     * back gesture, a column has nothing. Null when this *is* a destination.
+     */
+    onClose: (() -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
+
+    if (onClose != null) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Compare two laps",
+                style = TrackTheme.typography.h3,
+                color = colors.textStrong,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onClose) {
+                Text("Close", style = TrackTheme.typography.sm, color = colors.textMuted)
+            }
+        }
+    }
 
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val pair = model.pair
@@ -65,8 +89,12 @@ fun CompareLapsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 12.dp),
         ) {
-            item("head") {
-                Text("Compare two laps", style = TrackTheme.typography.h1, color = colors.textStrong)
+            // The column has its own heading above, with the close beside it, so
+            // this one would be the same words twice.
+            if (onClose == null) {
+                item("head") {
+                    Text("Compare two laps", style = TrackTheme.typography.h1, color = colors.textStrong)
+                }
             }
 
             if (pair == null) {

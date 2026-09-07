@@ -23,7 +23,9 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.TextMeasurer
@@ -150,6 +152,16 @@ fun BalanceScatter(
                 testTag = "balanceScatter"
                 contentDescription =
                     "Balance: rotation per metre against steering angle. $summary"
+                // The corner rows are tappable and this card is a *single*
+                // accessibility node, so the taps would otherwise be unreachable
+                // with TalkBack. Custom actions are where a one-node control's
+                // extra verbs belong.
+                customActions = sb?.corners.orEmpty().map { row ->
+                    CustomAccessibilityAction("Show where ${Corners.cornerLabel(row.corner)} is") {
+                        onHit(cornerPlace(row.corner, channels))
+                        true
+                    }
+                }
             },
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -185,24 +197,7 @@ fun BalanceScatter(
                     pooled = readable.size >= 2,
                     dStepM = channels.dStepM,
                     lapNumber = lapNumber,
-                    onCorner = { corner ->
-                        // `chIdx` is null on purpose: a corner is a stretch of
-                        // track every lap goes through, not one lap's sample.
-                        val n = channels.laps.maxOfOrNull {
-                            maxOf(it.latG?.size ?: 0, it.speed?.size ?: 0)
-                        } ?: 0
-                        onHit(
-                            if (n > 1) {
-                                ChannelHit(
-                                    chIdx = null,
-                                    k = corner.k0,
-                                    frac = corner.k0.toDouble() / (n - 1),
-                                )
-                            } else {
-                                null
-                            },
-                        )
-                    },
+                    onCorner = { corner -> onHit(cornerPlace(corner, channels)) },
                 )
             }
             Text(
@@ -493,3 +488,20 @@ private fun fmtDist(m: Long): String =
     } else {
         "$m m"
     }
+
+/**
+ * Where a corner is, as a place on the lap — null when there is no grid to place
+ * it on.
+ *
+ * `chIdx` is null on purpose: a corner is a stretch of track every lap goes
+ * through rather than one lap's sample, which is what lets the map ring it
+ * whatever lap the trace was drawn from.
+ *
+ * One function, used by both the tap and the accessibility action, so the two
+ * cannot come to different answers.
+ */
+private fun cornerPlace(corner: Corners.Corner, channels: SessionChannels): ChannelHit? {
+    val n = channels.laps.maxOfOrNull { maxOf(it.latG?.size ?: 0, it.speed?.size ?: 0) } ?: 0
+    if (n <= 1) return null
+    return ChannelHit(chIdx = null, k = corner.k0, frac = corner.k0.toDouble() / (n - 1))
+}

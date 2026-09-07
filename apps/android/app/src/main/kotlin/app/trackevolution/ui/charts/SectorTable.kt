@@ -1,6 +1,7 @@
 package app.trackevolution.ui.charts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +17,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontStyle
@@ -27,6 +30,7 @@ import app.trackevolution.core.Sectors
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
+import kotlin.math.roundToInt
 
 /**
  * Sector splits and the theoretical best lap for the highlighted laps of a
@@ -53,6 +57,20 @@ fun SectorTable(
     /** The session's own lap number for a channel entry. */
     lapNumber: (Int) -> Int,
     modifier: Modifier = Modifier,
+    /**
+     * Tapping a sector heading says where that sector **begins** (NS-34 ticket 3).
+     *
+     * A sector is a range and the mark is a single point, so this marks its
+     * boundary rather than its extent — which is also the more useful of the two:
+     * the splits are equal thirds of each lap's own driven distance, so where one
+     * ends and the next begins is a purely computed place with nothing on the
+     * track to mark it. Shading the whole range would need range support in both
+     * the distance mark and the map; that is noted on #217 rather than half-built.
+     *
+     * Deliberately **not** a port: the web wires only the friction circle and the
+     * balance scatter to `onHover`, so this is behaviour NS-34 adds.
+     */
+    onHit: (ChannelHit?) -> Unit = {},
 ) {
     val sec = remember(channels) { Sectors.sessionSectors(channels) } ?: return
     val rows = lit.mapIndexedNotNull { slot, chIdx ->
@@ -80,6 +98,17 @@ fun SectorTable(
             .clearAndSetSemantics {
                 testTag = "sectorTable"
                 contentDescription = summary
+                // The headings are tappable and this card is a *single*
+                // accessibility node — the cells would be dozens of unlabelled
+                // numbers to swipe through — so the taps would otherwise be
+                // unreachable with TalkBack. Custom actions are where a
+                // one-node control's extra verbs belong.
+                customActions = (0 until sec.n).map { k ->
+                    CustomAccessibilityAction("Show where sector ${k + 1} starts") {
+                        onHit(sectorStart(k, sec, channels))
+                        true
+                    }
+                }
             },
         contentPadding = 12.dp,
     ) {
@@ -108,7 +137,9 @@ fun SectorTable(
                     style = TrackTheme.typography.eyebrow,
                     color = colors.textFaint,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onHit(sectorStart(k, sec, channels)) },
                 )
             }
             Text(
@@ -214,3 +245,20 @@ internal fun gapSentence(sec: Sectors.SessionSplits): String =
     } else {
         "The best lap already strings together the session's best sectors."
     }
+
+/**
+ * Where sector [k] **starts**, as a place on the lap — null when the session has
+ * no grid to place it on.
+ *
+ * `chIdx` is null: a sector boundary is a place every lap shares, so the map may
+ * ring it whatever lap the trace was drawn from.
+ *
+ * One function, used by both the tap and the accessibility action, so the two
+ * cannot come to different answers.
+ */
+private fun sectorStart(k: Int, sec: Sectors.SessionSplits, channels: SessionChannels): ChannelHit? {
+    val n = channels.laps.maxOfOrNull { maxOf(it.speed?.size ?: 0, it.latG?.size ?: 0) } ?: 0
+    if (sec.n <= 0 || n <= 1) return null
+    val frac = k.toDouble() / sec.n
+    return ChannelHit(chIdx = null, k = (frac * (n - 1)).roundToInt(), frac = frac)
+}
