@@ -263,6 +263,8 @@ struct RootView: View {
             EventFormScreen(target: target)
         case .track(let id):
             TrackScreen(trackId: id)
+        case .leaderboard(let trackId):
+            LeaderboardScreen(trackId: trackId)
         case .vehicle(let id):
             VehicleScreen(vehicleId: id)
         case .settings:
@@ -305,7 +307,7 @@ struct RootView: View {
         case .eventForm(.edit(let id)): id
         case .record(let id): id
         case .importVideo(let id, _): id
-        case .track, .vehicle, .settings, .shared, .eventForm(.new): nil
+        case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new): nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }
         return id
