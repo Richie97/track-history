@@ -45,7 +45,6 @@ import app.trackevolution.core.model.PartKind
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.wearLimitHint
-import app.trackevolution.ui.LayoutClass
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.PaneWidth
@@ -90,7 +89,13 @@ fun VehicleScreen(
     var confirmDeleteId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     // Two columns, and which consumable the right one is showing (NS-34 ticket 3).
-    val twoColumn = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded
+    //
+    // Narrower than the event page's analysis column and with a lower floor,
+    // because what goes in it is a two-field form and a ledger rather than a
+    // track map and a stack of charts. Measured against this page's own column
+    // rather than the window's class — see `LayoutMetrics.sideColumnWidth`.
+    val partWidth = LocalLayoutMetrics.current.sideColumnWidth(0.42f, 340.dp, 560.dp)
+    val twoColumn = partWidth != null
     var selectedPartId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
@@ -207,15 +212,11 @@ fun VehicleScreen(
         }
         }
 
-        if (twoColumn) {
+        if (partWidth != null) {
             Row(Modifier.fillMaxSize()) {
                 PaneWidth(Modifier.weight(1f)) { page() }
                 VerticalDivider(color = colors.borderHairline)
-                PaneWidth(
-                    Modifier.width(
-                        (LocalLayoutMetrics.current.contentWidth * 0.42f).coerceIn(340.dp, 560.dp),
-                    ),
-                ) {
+                PaneWidth(Modifier.width(partWidth)) {
                     PartColumn(
                         part = model.activeParts.firstOrNull { it.id == selectedPartId }
                             ?: model.activeParts.firstOrNull(),

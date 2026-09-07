@@ -46,7 +46,6 @@ import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
-import app.trackevolution.ui.LayoutClass
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.PaneWidth
@@ -92,7 +91,14 @@ fun EventScreen(
     var confirmDeleteSession by remember { mutableStateOf<Int?>(null) }
 
     // Two columns, and which session the right one is showing (NS-34 ticket 3).
-    val twoColumn = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded
+    //
+    // Just under half, with a floor and a ceiling — the floor is what a track map
+    // over a stack of channel charts needs before it stops being readable, the
+    // ceiling stops the page being squeezed on a very wide window. Measured
+    // against this page's own column rather than the window's class: a tablet in
+    // portrait is an expanded window whose detail pane has no room for two.
+    val analysisWidth = LocalLayoutMetrics.current.sideColumnWidth(0.46f, 380.dp, 620.dp)
+    val twoColumn = analysisWidth != null
     var selectedSessionId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
@@ -251,18 +257,11 @@ fun EventScreen(
         }
         }
 
-        if (twoColumn) {
+        if (analysisWidth != null) {
             Row(Modifier.fillMaxSize()) {
                 PaneWidth(Modifier.weight(1f)) { page() }
                 VerticalDivider(color = colors.borderHairline)
-                // Just under half, with a floor and a ceiling. The floor is what a
-                // track map over a stack of channel charts needs before it stops
-                // being readable; the ceiling stops the page being squeezed on a
-                // very wide window, where the extra room is better spent on the
-                // page than on a wider chart.
-                val width = (LocalLayoutMetrics.current.contentWidth * 0.46f)
-                    .coerceIn(380.dp, 620.dp)
-                PaneWidth(Modifier.width(width)) {
+                PaneWidth(Modifier.width(analysisWidth)) {
                     AnalysisColumn(
                         sessions = detail.sessions,
                         selectedSessionId = selectedSessionId,

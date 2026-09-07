@@ -159,18 +159,26 @@ struct EventScreen: View {
     /// note exists to prevent.
     @ViewBuilder
     private func page(_ model: EventModel, _ detail: EventDetail) -> some View {
-        if isTwoColumn {
+        if let analysisWidth {
             HStack(spacing: 0) {
                 list(model, detail)
-                    .frame(maxWidth: .infinity)
+                    // The measurement goes **inside** the frame on both columns.
+                    // Outside it, `measuringPaneWidth()`'s `GeometryReader` is
+                    // greedy and the fixed width stops deciding anything: the
+                    // `HStack` sees two flexible children and hands each exactly
+                    // half the pane, so the analysis column got a slot that had
+                    // nothing to do with the width it had been given — 80pt of
+                    // dead background beside it on a full window, and 90pt of it
+                    // off the side of the screen with the sidebar showing.
                     .measuringPaneWidth()
+                    .frame(maxWidth: .infinity)
                 Divider()
                 AnalysisColumn(
                     detail: detail,
                     selectedSessionId: $selectedChannelSessionId
                 )
-                .frame(width: analysisWidth)
                 .measuringPaneWidth()
+                .frame(width: analysisWidth)
             }
         } else {
             list(model, detail)
@@ -178,16 +186,23 @@ struct EventScreen: View {
     }
 
     /// Two columns only where there is width for both to be worth having.
-    private var isTwoColumn: Bool { layout.layoutClass == .expanded }
+    private var isTwoColumn: Bool { analysisWidth != nil }
 
-    /// How wide the analysis column gets.
+    /// How wide the analysis column gets, or nil for one column.
     ///
     /// Just under half, with a floor and a ceiling. The floor is what a track map
     /// over a stack of channel charts needs before it stops being readable; the
     /// ceiling stops the left column being squeezed on a very wide window, where
     /// the extra room is better spent on the page than on a wider chart.
-    private var analysisWidth: CGFloat {
-        min(max(layout.contentWidth * 0.46, 380), 620)
+    ///
+    /// Measured against **this page's own column** rather than the window's
+    /// class, which is `sideColumnWidth`'s whole subject: an iPad in portrait is
+    /// an expanded window with a 683pt detail pane once the sidebar is showing,
+    /// and two columns do not go into that. There it is one column, the trace
+    /// returns to the list, and the channel panel opens as the sheet it is at
+    /// every other narrow width — the layout the pane actually has room for.
+    private var analysisWidth: CGFloat? {
+        layout.sideColumnWidth(fraction: 0.46, minimum: 380, maximum: 620)
     }
 
     private func list(_ model: EventModel, _ detail: EventDetail) -> some View {

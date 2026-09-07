@@ -27,6 +27,16 @@ struct TrackScreen: View {
     /// pane you opened.
     @State private var openingLap: Int?
 
+    /// How wide the compare column gets, or nil for the sheet.
+    ///
+    /// The event page's numbers, because it is the same kind of content: two laps
+    /// of channel traces need the width a track map and its charts need.
+    /// Measured against this page's own column rather than the window's class,
+    /// for the reason `sideColumnWidth` states.
+    private var compareWidth: CGFloat? {
+        layout.sideColumnWidth(fraction: 0.46, minimum: 380, maximum: 620)
+    }
+
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let track = model.track {
@@ -34,15 +44,18 @@ struct TrackScreen: View {
                 // page rather than as a sheet over it (NS-34 ticket 3). The view
                 // is the same `CompareLapsScreen`; only its container changes,
                 // which is the whole claim the ticket makes about it.
-                if layout.layoutClass == .expanded, showingCompareLaps {
+                if let compareWidth, showingCompareLaps {
                     HStack(spacing: 0) {
                         content(model, track)
-                            .frame(maxWidth: .infinity)
+                            // Inside the frame on both columns — see the note on
+                            // `EventScreen.page`: a greedy `GeometryReader` around
+                            // a fixed frame splits the row in half instead.
                             .measuringPaneWidth()
+                            .frame(maxWidth: .infinity)
                         Divider()
                         compareColumn
-                            .frame(width: min(max(layout.contentWidth * 0.46, 380), 620))
                             .measuringPaneWidth()
+                            .frame(width: compareWidth)
                     }
                 } else {
                     content(model, track)
@@ -69,13 +82,17 @@ struct TrackScreen: View {
     }
 
     /// The two `@State` flags read as one presentation. A leaderboard lap wins
-    /// when both are set: it is the more recent tap, and at expanded width the
+    /// when both are set: it is the more recent tap, and where there is room the
     /// compare is a column rather than a sheet anyway.
+    ///
+    /// "Where there is room" is `compareWidth`, the same value the column is
+    /// drawn from, so the two can never both be showing the same compare — which
+    /// is what a width check there and a class check here would eventually allow.
     private var sheet: Binding<TrackSheet?> {
         .init(
             get: {
                 if let openingLap { return .leaderboardLap(openingLap) }
-                return showingCompareLaps && layout.layoutClass != .expanded ? .compareLaps : nil
+                return showingCompareLaps && compareWidth == nil ? .compareLaps : nil
             },
             set: { value in
                 switch value {
@@ -235,8 +252,8 @@ struct TrackScreen: View {
         // watchdog "lost connection" rather than a stack trace, so they share one
         // presentation through `TrackSheet`.
         //
-        // Below expanded width the compare stays the sheet it has always been:
-        // there is nowhere to put a second column, and a half-width lap
+        // Where there is no room for a second column the compare stays the sheet
+        // it has always been: there is nowhere to put one, and a half-width lap
         // comparison is a worse comparison rather than a smaller one.
         .sheet(item: sheet) { which in
             switch which {
