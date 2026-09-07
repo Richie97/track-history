@@ -181,11 +181,17 @@ public actor APIClient {
     /// Stand-in body type for requests that don't have one.
     private struct NoBody: Encodable {}
 
-    /// Toggle the per-track leaderboard opt-in. Deliberately a live write, never
-    /// queued offline: publishing your name is not something to replay silently
-    /// later.
-    public func setLeaderboardOptIn(_ optIn: Bool) async throws {
-        _ = try await send("PUT", "/me/leaderboard", body: LeaderboardOptInDraft(optIn: optIn), as: OKResponse.self)
+    /// Toggle the per-track leaderboard opt-in, and optionally the lap-sharing
+    /// consent stacked on it (NS-35). Deliberately a live write, never queued
+    /// offline: publishing your name — still less your telemetry — is not
+    /// something to replay silently later. Passing nil for `shareLaps` leaves
+    /// the stored value alone.
+    public func setLeaderboardOptIn(_ optIn: Bool, shareLaps: Bool? = nil) async throws {
+        _ = try await send(
+            "PUT", "/me/leaderboard",
+            body: LeaderboardOptInDraft(optIn: optIn, shareLaps: shareLaps),
+            as: OKResponse.self
+        )
     }
 
     // MARK: - Tracks
@@ -199,6 +205,14 @@ public actor APIClient {
     /// no cross-user identity, so no leaderboard.
     public func trackLeaderboard(id: Int) async throws -> TrackLeaderboard {
         try await get("/tracks/\(id)/leaderboard", as: TrackLeaderboard.self)
+    }
+
+    /// One shared leaderboard lap, opened from a row whose `lapId` is non-nil
+    /// (NS-35). `id` is the viewer's own track — a lap is only reachable from a
+    /// track the viewer actually has — and the server re-checks every condition,
+    /// answering 404 rather than 403 for anything it will not publish.
+    public func leaderboardLap(trackId: Int, lapId: Int) async throws -> LeaderboardLap {
+        try await get("/tracks/\(trackId)/leaderboard/laps/\(lapId)", as: LeaderboardLap.self)
     }
 
     /// The seeded canonical catalog behind the event form's name suggestions.

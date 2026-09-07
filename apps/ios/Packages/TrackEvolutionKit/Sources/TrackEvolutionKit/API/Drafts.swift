@@ -364,15 +364,24 @@ public struct TrackPatch: Encodable, Hashable, Sendable {
     }
 }
 
-/// `PUT /api/me/leaderboard` — the per-track leaderboard opt-in.
+/// `PUT /api/me/leaderboard` — the per-track leaderboard opt-in, and the
+/// lap-sharing consent stacked on it (NS-35).
+///
+/// `shareLaps` is optional and omitted when nil, which the server reads as
+/// "leave the stored value alone" — so a screen that only means to toggle the
+/// opt-in cannot silently clear a consent it never asked about. Opting out
+/// clears both server-side whatever is sent here.
 public struct LeaderboardOptInDraft: Encodable, Hashable, Sendable {
     public var optIn: Bool
+    public var shareLaps: Bool?
 
-    public init(optIn: Bool) {
+    public init(optIn: Bool, shareLaps: Bool? = nil) {
         self.optIn = optIn
+        self.shareLaps = shareLaps
     }
 
     public enum CodingKeys: String, CodingKey {
         case optIn = "opt_in"
+        case shareLaps = "share_laps"
     }
 }

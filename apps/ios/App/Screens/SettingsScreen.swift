@@ -493,6 +493,27 @@ struct SettingsScreen: View {
                     """)
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
+                Divider().overlay(Color(.borderHairline))
+                Toggle(
+                    "Let other drivers open my ranked laps",
+                    isOn: Binding(
+                        get: { model.leaderboardShareLaps },
+                        set: { newValue in Task { await model.setLeaderboardShareLaps(newValue) } }
+                    )
+                )
+                .teStyle(.body)
+                .foregroundStyle(Color(.textBody))
+                .tint(Color(.accent))
+                .disabled(!model.leaderboardOptIn)
+                Text("""
+                    A second, separate choice, off unless you turn it on. It publishes one lap per track \
+                    — the ranked one already on the board — as its racing line and telemetry traces, so a \
+                    driver ranked at the same track can compare corner for corner. It never publishes any \
+                    other lap, your notes, your session labels, your car, the conditions you typed, your \
+                    setup sheets or your garage. Leaving the leaderboards turns it off.
+                    """)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
                 if let error = model.leaderboardError {
                     TEErrorBanner(message: error)
                 }
@@ -590,6 +611,8 @@ final class SettingsModel {
 
     /// The per-track leaderboard opt-in, mirrored from `/me`.
     private(set) var leaderboardOptIn = false
+    /// The lap-sharing consent stacked on it (NS-35), mirrored from `/me`.
+    private(set) var leaderboardShareLaps = false
     var leaderboardError: String?
 
     init(api: APIClient, auth: AuthController) {
@@ -649,6 +672,7 @@ final class SettingsModel {
             slug = me.user.shareSlug
             slugDraft = me.user.shareSlug ?? ""
             leaderboardOptIn = me.user.leaderboardOptIn ?? false
+            leaderboardShareLaps = me.user.leaderboardShareLaps ?? false
             hasUnsyncedChanges = (await api.syncStatus()?.pending ?? 0) > 0
             state = .ready
         } catch let error as APIError {
@@ -708,15 +732,40 @@ final class SettingsModel {
     func setLeaderboardOptIn(_ optIn: Bool) async {
         leaderboardError = nil
         let previous = leaderboardOptIn
+        let previousShare = leaderboardShareLaps
         leaderboardOptIn = optIn
+        // Leaving the board clears lap sharing server-side, so the second toggle
+        // follows rather than showing a consent that is no longer stored.
+        if !optIn { leaderboardShareLaps = false }
         do {
-            try await api.setLeaderboardOptIn(optIn)
+            try await api.setLeaderboardOptIn(optIn, shareLaps: optIn ? leaderboardShareLaps : false)
             Haptics.select()
         } catch let error as APIError {
             leaderboardOptIn = previous
+            leaderboardShareLaps = previousShare
             leaderboardError = error.message
         } catch {
             leaderboardOptIn = previous
+            leaderboardShareLaps = previousShare
+            leaderboardError = error.localizedDescription
+        }
+    }
+
+    /// Publish the ranked lap itself, or stop (NS-35). A second consent, never
+    /// implied by the opt-in, and a live write for the same reason: publishing
+    /// your telemetry should not replay silently later.
+    func setLeaderboardShareLaps(_ share: Bool) async {
+        leaderboardError = nil
+        let previous = leaderboardShareLaps
+        leaderboardShareLaps = share
+        do {
+            try await api.setLeaderboardOptIn(true, shareLaps: share)
+            Haptics.select()
+        } catch let error as APIError {
+            leaderboardShareLaps = previous
+            leaderboardError = error.message
+        } catch {
+            leaderboardShareLaps = previous
             leaderboardError = error.localizedDescription
         }
     }

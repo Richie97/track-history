@@ -18,6 +18,14 @@ struct TrackScreen: View {
     @State private var model: TrackModel?
     @State private var confirmingLeaveLeaderboard = false
     @State private var showingCompareLaps = false
+    /// The leaderboard lap being read (NS-35), by its id.
+    ///
+    /// A sheet at **every** width, unlike the compare above: that one is a second
+    /// reading of this page's own laps and belongs beside them at expanded width,
+    /// while this is someone else's lap — a detour from the page rather than a
+    /// column of it, and one you leave by dismissing rather than by closing a
+    /// pane you opened.
+    @State private var openingLap: Int?
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -50,6 +58,39 @@ struct TrackScreen: View {
                 await model.load()
             }
         }
+    }
+
+    /// What this screen can present modally. One case per thing, so the two live
+    /// in a single `.sheet` — see the modifier for why that is not a style choice.
+    private enum TrackSheet: Identifiable, Hashable {
+        case compareLaps
+        case leaderboardLap(Int)
+        var id: Self { self }
+    }
+
+    /// The two `@State` flags read as one presentation. A leaderboard lap wins
+    /// when both are set: it is the more recent tap, and at expanded width the
+    /// compare is a column rather than a sheet anyway.
+    private var sheet: Binding<TrackSheet?> {
+        .init(
+            get: {
+                if let openingLap { return .leaderboardLap(openingLap) }
+                return showingCompareLaps && layout.layoutClass != .expanded ? .compareLaps : nil
+            },
+            set: { value in
+                switch value {
+                case .none:
+                    // Dismissing the lap must not also close a compare column the
+                    // viewer opened behind it.
+                    if openingLap != nil { openingLap = nil } else { showingCompareLaps = false }
+                case .compareLaps:
+                    openingLap = nil
+                    showingCompareLaps = true
+                case .leaderboardLap(let id):
+                    openingLap = id
+                }
+            }
+        )
     }
 
     /// The compare as this page's right-hand column, with a way to close it —
@@ -188,14 +229,20 @@ struct TrackScreen: View {
             }
         }
         .refreshable { await model.load() }
-        // Below expanded width it stays the sheet it has always been: there is
-        // nowhere to put a second column, and a half-width lap comparison is a
-        // worse comparison rather than a smaller one.
-        .sheet(isPresented: .init(
-            get: { showingCompareLaps && layout.layoutClass != .expanded },
-            set: { showingCompareLaps = $0 }
-        )) {
-            CompareLapsScreen(trackId: trackId)
+        // **One** sheet modifier, not two. This screen presents two different
+        // things — the lap compare and a leaderboard lap — and a second `.sheet`
+        // on the same view is the SwiftUI hazard that takes the app down with a
+        // watchdog "lost connection" rather than a stack trace, so they share one
+        // presentation through `TrackSheet`.
+        //
+        // Below expanded width the compare stays the sheet it has always been:
+        // there is nowhere to put a second column, and a half-width lap
+        // comparison is a worse comparison rather than a smaller one.
+        .sheet(item: sheet) { which in
+            switch which {
+            case .compareLaps: CompareLapsScreen(trackId: trackId)
+            case .leaderboardLap(let lapId): LeaderboardLapScreen(trackId: trackId, lapId: lapId)
+            }
         }
         .toolbar {
             if let url = model.shareURL(serverURL: auth.server.url) {
@@ -229,38 +276,7 @@ struct TrackScreen: View {
                 TECard {
                     VStack(spacing: 0) {
                         ForEach(Array(leaderboard.entries.enumerated()), id: \.offset) { index, entry in
-                            HStack(spacing: 10) {
-                                Text("\(String(index + 1))")
-                                    .teStyle(.lapTime)
-                                    .foregroundStyle(Color(.textFaint))
-                                    .frame(width: 24, alignment: .trailing)
-                                Text(entry.name ?? "Driver")
-                                    .teStyle(entry.you ? .bodyStrong : .body)
-                                    .foregroundStyle(Color(.textBody))
-                                    .lineLimit(1)
-                                if entry.you {
-                                    Text("you")
-                                        .teStyle(.xxs)
-                                        .foregroundStyle(Color(.accentInk))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 2)
-                                        .background(Color(.accentTint), in: .capsule)
-                                }
-                                Spacer(minLength: 8)
-                                TETime(ms: entry.bestMs)
-                                Text(EventDates.fmtDate(entry.date))
-                                    .teStyle(.xxs)
-                                    .foregroundStyle(Color(.textFaint))
-                            }
-                            .padding(.vertical, 8)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(
-                                "Rank \(index + 1), \(entry.name ?? "Driver")\(entry.you ? ", you" : ""), "
-                                    + "\(LapTime.fmtMs(entry.bestMs)), \(EventDates.fmtDate(entry.date))"
-                            )
-                            if index < leaderboard.entries.count - 1 {
-                                Divider().overlay(Color(.borderHairline))
-                            }
+                            leaderboardRow(index, entry, count: leaderboard.entries.count)
                         }
                     }
                 }
@@ -273,6 +289,11 @@ struct TrackScreen: View {
             if let error = model.leaderboardError {
                 TEErrorBanner(message: error)
             }
+            if leaderboard.entries.contains(where: { $0.lapId != nil }) {
+                Text("Rows with a chevron open the lap — its racing line and telemetry, next to your own best here.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+            }
             if leaderboard.optedIn {
                 HStack(spacing: 8) {
                     Text("You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers.")
@@ -282,6 +303,29 @@ struct TrackScreen: View {
                     Button("Leave") { confirmingLeaveLeaderboard = true }
                         .teStyle(.xs)
                         .foregroundStyle(Color(.dangerInk))
+                }
+                // The second consent sits with the first, because this is the one
+                // place a driver is looking at exactly what it would publish.
+                if leaderboard.shareLaps == true {
+                    HStack(spacing: 8) {
+                        Text("Your ranked lap is open to other drivers here — its racing line and telemetry, and nothing else from your logbook.")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                        Spacer(minLength: 4)
+                        Button("Stop") { Task { await model.setLeaderboardOptIn(true, shareLaps: false) } }
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.dangerInk))
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Your ranked lap is a time only. Sharing it lets other drivers ranked here open its racing line and telemetry — never your notes, your car, your setup or any other lap.")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                        Button("Share my ranked laps") {
+                            Task { await model.setLeaderboardOptIn(true, shareLaps: true) }
+                        }
+                        .buttonStyle(TEButtonStyle(kind: .quiet))
+                    }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
@@ -302,6 +346,59 @@ struct TrackScreen: View {
                 Task { await model.setLeaderboardOptIn(false) }
             }
             Button("Stay on them", role: .cancel) {}
+        }
+    }
+
+    /// One leaderboard row. Openable when its owner published the lap itself
+    /// (NS-35) — the server decides that and withholds `lapId` otherwise, so a
+    /// row with no id is plain text rather than a tap that would 404.
+    @ViewBuilder
+    private func leaderboardRow(_ index: Int, _ entry: LeaderboardEntry, count: Int) -> some View {
+        let openable = entry.lapId != nil
+        let label = "Rank \(index + 1), \(entry.name ?? "Driver")\(entry.you ? ", you" : ""), "
+            + "\(LapTime.fmtMs(entry.bestMs)), \(EventDates.fmtDate(entry.date))"
+        Button {
+            if let lapId = entry.lapId { openingLap = lapId }
+        } label: {
+            HStack(spacing: 10) {
+                Text("\(String(index + 1))")
+                    .teStyle(.lapTime)
+                    .foregroundStyle(Color(.textFaint))
+                    .frame(width: 24, alignment: .trailing)
+                Text(entry.name ?? "Driver")
+                    .teStyle(entry.you ? .bodyStrong : .body)
+                    .foregroundStyle(Color(.textBody))
+                    .lineLimit(1)
+                if entry.you {
+                    Text("you")
+                        .teStyle(.xxs)
+                        .foregroundStyle(Color(.accentInk))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color(.accentTint), in: .capsule)
+                }
+                Spacer(minLength: 8)
+                TETime(ms: entry.bestMs)
+                Text(EventDates.fmtDate(entry.date))
+                    .teStyle(.xxs)
+                    .foregroundStyle(Color(.textFaint))
+                // A chevron is the only thing distinguishing an openable row, so
+                // it is drawn rather than left to colour: most rows are not.
+                if openable {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(.textFaint))
+                }
+            }
+            .padding(.vertical, 8)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .disabled(!openable)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(openable ? "\(label). Open this lap." : label)
+        if index < count - 1 {
+            Divider().overlay(Color(.borderHairline))
         }
     }
 
@@ -585,10 +682,10 @@ final class TrackModel {
 
     /// Join or leave the leaderboards. A live write on purpose — never queued
     /// offline: publishing your name shouldn't replay silently later.
-    func setLeaderboardOptIn(_ optIn: Bool) async {
+    func setLeaderboardOptIn(_ optIn: Bool, shareLaps: Bool? = nil) async {
         leaderboardError = nil
         do {
-            try await api.setLeaderboardOptIn(optIn)
+            try await api.setLeaderboardOptIn(optIn, shareLaps: shareLaps)
             leaderboard = try? await api.trackLeaderboard(id: trackId)
             Haptics.confirm()
         } catch let error as APIError {
