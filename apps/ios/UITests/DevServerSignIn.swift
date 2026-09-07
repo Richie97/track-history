@@ -1,10 +1,11 @@
+import CryptoKit
 import XCTest
 
 /// Getting a UI test to a signed-in app, against the local dev server.
 ///
-/// Shared by every UI test that needs real data, because the `DEV_MODE` bypass is the
-/// only way through the `ASWebAuthenticationSession` browser step without typing a
-/// Google password:
+/// Shared by every UI test that needs real data. The session comes from the
+/// `DEV_MODE` bypass, and the test performs **the app's own PKCE exchange itself**
+/// rather than driving the browser — see `devSessionToken()`:
 ///
 ///     npm run dev     # at the repo root, with .dev.vars
 ///
@@ -82,6 +83,8 @@ extension XCTestCase {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
         try setDevTier(tier)
 
+        let token = try devSessionToken()
+
         let app = XCUIApplication()
         // UserDefaults reads launch arguments, so pointing the app at the dev server
         // needs no test hook. The dev bypass only answers on localhost.
@@ -90,36 +93,95 @@ extension XCTestCase {
         // simulator: without it a test would pass by starting already signed in.
         // -resetRecording does the same for an unsaved recording, which would
         // otherwise put a banner on the dashboard that this run didn't create.
+        // -authToken then seeds the session this test just minted.
         app.launchArguments = [
-            "-server.url", Self.devServerURL, "-resetAuth", "-resetRecording"
+            "-server.url", Self.devServerURL, "-resetAuth", "-resetRecording", "-authToken", token
         ] + extraLaunchArguments
         app.launch()
 
-        let google = app.buttons["Continue with Google"]
-        XCTAssertTrue(google.waitForExistence(timeout: 15), "the sign-in screen should offer Google")
-        google.tap()
-
-        // "TrackEvolution wants to use localhost to sign in" — the consent alert
-        // belongs to springboard, not to the app.
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let consent = springboard.buttons["Continue"]
-        if consent.waitForExistence(timeout: 15) {
-            // Existing isn't enough: the alert animates in, and a tap synthesized
-            // while it's still moving is swallowed — leaving the alert up and the
-            // test waiting 30 s for a dashboard behind it. Tap until it's gone.
-            for _ in 0..<10 where consent.exists {
-                if consent.isHittable { consent.tap() }
-                _ = consent.waitForNonExistence(timeout: 2)
-            }
-        }
-
         // The dashboard's own button, rather than anything about the account: this is
-        // the assertion that the exchanged token actually loaded the logbook.
+        // the assertion that the token actually loaded the logbook.
         XCTAssertTrue(
             app.buttons["+ Add event"].waitForExistence(timeout: 30),
-            "the exchanged token should land on the dashboard"
+            "the seeded token should land on the dashboard"
         )
         return app
+    }
+
+    /// A real session token for the dev user, obtained the way the app obtains one.
+    ///
+    /// The native flow is PKCE: `GET /auth/login?client=app&code_challenge=…` answers
+    /// with a redirect to `trackevolution://auth?code=…`, and `POST /auth/exchange`
+    /// trades that single-use code plus the verifier for a bearer token. Under
+    /// `DEV_MODE` on a dev host the first step skips Google and signs in as the fixed
+    /// dev user — so the whole exchange is two HTTP requests, and **the browser is
+    /// the only part being skipped**. The token is as real as any other, the code is
+    /// still single-use, and the PKCE check still runs against it.
+    ///
+    /// Why bother: `ASWebAuthenticationSession` is a system service these suites do
+    /// not mean to exercise. On this machine it takes the app down with an XPC fault
+    /// inside BoardServices before any assertion runs — reproducibly, and on `main`
+    /// — which left every screen test unrunnable for a reason that has nothing to do
+    /// with the screens. `SignInUITests` still drives the real browser flow, so that
+    /// coverage moves here rather than disappearing.
+    func devSessionToken() throws -> String {
+        // 43 unreserved characters, which is the shortest a verifier may be.
+        let verifier = String(
+            (0..<43).map { _ in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~".randomElement()! }
+        )
+        let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncodedString()
+
+        var login = URLComponents(string: "\(Self.devServerURL)/auth/login")!
+        login.queryItems = [
+            URLQueryItem(name: "client", value: "app"),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256")
+        ]
+        // Redirects are refused rather than followed: the target is the app's custom
+        // scheme, which `URLSession` cannot fetch — the `Location` header *is* the
+        // answer.
+        let redirect = try request(URLRequest(url: login.url!), followRedirects: false)
+        let location = try XCTUnwrap(
+            (redirect.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Location"),
+            "the dev bypass should redirect to the app with a code — is DEV_MODE=1 set?"
+        )
+        let code = try XCTUnwrap(
+            URLComponents(string: location)?.queryItems?.first(where: { $0.name == "code" })?.value,
+            "the redirect should carry a single-use code: \(location)"
+        )
+
+        var exchange = URLRequest(url: URL(string: "\(Self.devServerURL)/auth/exchange")!)
+        exchange.httpMethod = "POST"
+        exchange.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        exchange.httpBody = try JSONSerialization.data(
+            withJSONObject: ["code": code, "code_verifier": verifier]
+        )
+        let exchanged = try request(exchange, followRedirects: true)
+        let status = (exchanged.response as? HTTPURLResponse)?.statusCode ?? 0
+        XCTAssertEqual(status, 200, "the code should exchange for a token")
+        let body = try JSONSerialization.jsonObject(with: exchanged.data) as? [String: Any]
+        return try XCTUnwrap(body?["token"] as? String, "the exchange should answer with a token")
+    }
+
+    /// One request, run to completion on the calling thread.
+    private func request(
+        _ request: URLRequest, followRedirects: Bool
+    ) throws -> (data: Data, response: URLResponse?) {
+        let session = followRedirects
+            ? URLSession.shared
+            : URLSession(configuration: .ephemeral, delegate: NoRedirects(), delegateQueue: nil)
+        defer { if !followRedirects { session.finishTasksAndInvalidate() } }
+
+        var result: (Data, URLResponse?)?
+        var failure: Error?
+        let done = expectation(description: "request")
+        session.dataTask(with: request) { data, response, error in
+            if let error { failure = error } else { result = (data ?? Data(), response) }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 20)
+        if let failure { throw failure }
+        return try XCTUnwrap(result, "the dev server should have answered")
     }
 
     /// Open an event with a chartable number of laps, from the dashboard, via its
@@ -237,5 +299,30 @@ extension XCTestCase {
         shot.name = name
         shot.lifetime = .keepAlways
         add(shot)
+    }
+}
+
+
+/// Stops `URLSession` following the sign-in redirect, whose target is the app's
+/// own URL scheme rather than something it could fetch.
+private final class NoRedirects: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
+extension Data {
+    /// base64url, unpadded — what PKCE's S256 challenge is encoded with.
+    func base64URLEncodedString() -> String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }

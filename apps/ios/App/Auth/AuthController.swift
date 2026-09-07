@@ -139,6 +139,25 @@ final class AuthController {
         if ProcessInfo.processInfo.arguments.contains("-resetAuth") {
             tokens.clear()
         }
+        // Test hook: start signed in with a session the *test* obtained, so a suite
+        // that isn't about signing in doesn't have to sign in.
+        //   xcrun simctl launch <device> app.trackevolution -authToken <session>
+        //
+        // This is not a way around authentication — it is a way around the
+        // *browser*. The token is a real one, minted by the dev server's `DEV_MODE`
+        // bypass through the same PKCE exchange the app performs, and it is rejected
+        // like any other if it is wrong. What it skips is `ASWebAuthenticationSession`:
+        // a system service these suites do not mean to exercise, which on this
+        // machine takes the app down with an XPC fault inside BoardServices before
+        // any assertion runs — leaving every screen test unrunnable for reasons that
+        // have nothing to do with the screens. `SignInUITests` still drives the real
+        // browser flow, so the coverage moves rather than disappears.
+        //
+        // DEBUG-only, so no release build can carry it, and it is applied *after*
+        // -resetAuth so the pair reads in the order it happens: clear, then seed.
+        if let token = Self.launchArgument("-authToken") {
+            tokens.save(token)
+        }
         #endif
         // Deliberately *not* awaited. This used to gate the auth decision, which
         // put a launch-blocking network request in front of every cold start: on a
@@ -162,6 +181,23 @@ final class AuthController {
             state = .signedIn(nil)
         }
     }
+
+    #if DEBUG
+    /// The value after a `-flag value` launch argument, if it is there.
+    ///
+    /// Read from `ProcessInfo` rather than `UserDefaults`: the argument domain would
+    /// answer too, but `-resetAuth` beside it is a bare flag that `UserDefaults`
+    /// would parse as taking the *next* argument as its value. One reader for both
+    /// keeps that from mattering.
+    private static func launchArgument(_ flag: String) -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else {
+            return nil
+        }
+        let value = arguments[index + 1]
+        return value.hasPrefix("-") ? nil : value
+    }
+    #endif
 
     /// Ask the server which sign-in buttons to draw, and remember the answer.
     ///
