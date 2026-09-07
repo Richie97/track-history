@@ -201,7 +201,15 @@ final class CoreScreensUITests: XCTestCase {
             "the privacy policy must be reachable from Settings"
         )
         XCTAssertTrue(app.staticTexts["Terms of use"].exists, "so must the terms of use")
-        XCTAssertTrue(app.staticTexts["dev@example.com"].exists, "with the signed-in account")
+        // The account's own email, read from the server rather than written here:
+        // `DEV_USER_EMAIL` is whatever the developer's `.dev.vars` says, and it has
+        // to match the seed's `USER_EMAIL` for this logbook to belong to them at
+        // all. A literal makes those two settings mutually exclusive — one value
+        // passes this assertion, the other owns the data every other test needs.
+        let email = (try api("GET", "/api/me")["user"] as? [String: Any])?["email"] as? String
+        XCTAssertTrue(
+            app.staticTexts[try XCTUnwrap(email)].exists, "with the signed-in account"
+        )
         XCTAssertTrue(app.staticTexts["Vehicles"].exists, "the garage's vehicle list lives here")
         XCTAssertTrue(app.buttons["Sign out"].exists)
 

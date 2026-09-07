@@ -396,20 +396,80 @@ xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolutio
   -only-testing:TrackEvolutionUITests/CoreScreensUITests
 ```
 
-The iPad run is a *manual* one for now, and deliberately so: CI runs none of
-these suites, because they need `npm run dev` and skip without it, so adding an
-iPad destination to `ios.yml` would add a simulator boot and assert nothing. It
-becomes worth wiring in when there is behaviour that only exists at expanded
-width — the two-pane shell (NS-34 ticket 2) and the analysis column beside the
-map (ticket 3). Until then, what CI does hold is the breakpoints themselves, in
-`TrackEvolutionTests`.
+`UITests/TwoPaneUITests` is the one to run on both: it asserts the dashboard
+stays beside the detail at expanded width and goes behind it at compact, taking
+its expectation from the **window's own width** rather than from the destination,
+so one test states the rule on either device.
 
-One suite is the exception and is the obvious first candidate if that step is
-ever wired up: `UITests/ChannelPanelKeyboardUITests` (NS-34 ticket 5) needs
-**neither a dev server nor sign-in**, because `-channelGraphs` opens the panel
-on synthetic data before the shell is built. What it would need in CI is the
-hardware keyboard turned on for the runner's simulator (`defaults write
+The iPad run is still a *manual* one: CI runs none of these suites, because they
+need `npm run dev`. Wiring it up is now a question of standing a dev server up in
+the workflow rather than of the tests themselves — the browser step that used to
+make them fragile is gone (below), and they pass unattended.
+
+One suite needs no server at all and is the cheapest first step if that is ever
+wired up: `UITests/ChannelPanelKeyboardUITests` (NS-34 ticket 5) needs **neither
+a dev server nor sign-in**, because `-channelGraphs` opens the panel on synthetic
+data before the shell is built. What it would need in CI is the hardware keyboard
+turned on for the runner's simulator (`defaults write
 com.apple.iphonesimulator ConnectHardwareKeyboard -bool true`), since it types.
+
+## The suites sign in without the browser
+
+Every suite that needs real data gets its session from **`-authToken`**, a
+DEBUG-only launch argument, rather than by tapping through
+`ASWebAuthenticationSession`:
+
+- `devSessionToken()` in `DevServerSignIn` performs the app's *own* PKCE
+  exchange over HTTP — `GET /auth/login?client=app&code_challenge=…` answers with
+  a redirect to `trackevolution://auth?code=…` under the `DEV_MODE` bypass, and
+  `POST /auth/exchange` trades that single-use code for a bearer token.
+- `AuthController.restore()` reads `-authToken` and saves it, after `-resetAuth`
+  has cleared whatever the Keychain held.
+
+**This is not a way around authentication, it is a way around the browser.** The
+token is a real one, minted by the same endpoints the app uses, and the PKCE
+check still runs against it. `SignInUITests` still drives the real browser flow,
+so that coverage moved rather than vanished.
+
+It exists because `ASWebAuthenticationSession` is a system service these suites
+never meant to exercise, and on some machines it takes the app down with an XPC
+fault inside Apple's BoardServices — reproducibly, on `main`, before any
+assertion runs. That left every screen test unrunnable for a reason that had
+nothing to do with the screens, which is how a real regression can sit in `main`
+unnoticed (see the garage note below).
+
+Two environment things to know when running them:
+
+- **`DEV_USER_EMAIL` in `.dev.vars` must match the seed data's `USER_EMAIL`**
+  (`you@example.com` for `seed/data.example.mjs`). They are the same account: if
+  they differ, the dev sign-in creates an empty user and every suite that reads
+  the logbook fails for lack of data.
+- The dev logbook is **shared between suites and between runs**. `db:seed:local`
+  is not idempotent over an existing user row, so a re-seed wants
+  `rm -rf .wrangler/state` and a fresh `db:migrate:local` first.
+
+### What the suites say today
+
+The first full run — 24 tests, since they became runnable — was 19 passing and 5
+failing. The failures are recorded here rather than left to be rediscovered, and
+**none of them is about signing in**:
+
+- `SignInUITests.testSignsInThroughTheSystemBrowser` — the XPC fault above. This
+  one is the known-bad path, and the reason the rest no longer take it.
+- `GarageUITests` — never reaches `measurePart`. The diagnostic lists the part
+  cards as *buttons* and no `Measure` / `Refresh` / `Retire` / `Edit` among them,
+  which points at the card-wide tap gesture NS-34 ticket 3 added for selecting a
+  part: a tap on a container makes SwiftUI publish it as one accessibility
+  element and swallow the buttons inside. If that is what it is, it is a
+  VoiceOver regression on the phone and not merely a test failure. **Unconfirmed**
+  — attaching the gesture only at expanded width did not fix it on its own, so
+  something else is contributing; the dev logbook had also accumulated a dozen
+  parts from repeated runs, which the suite is supposed to clean up.
+- `RecordAndSaveUITests` (both) and `VideoImportUITests.testAGoProClipAsksForThe`
+  `StartFinishLine` — not yet diagnosed.
+
+All four are pre-existing: they are what became *visible* when the suites started
+running, not what running them broke.
 
 **Connect the simulator's hardware keyboard** (Simulator → I/O → Keyboard →
 Connect Hardware Keyboard, or `defaults write com.apple.iphonesimulator
