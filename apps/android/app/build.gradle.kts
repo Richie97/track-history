@@ -226,6 +226,9 @@ dependencies {
     // second navigator would be a second answer to "where am I".
     implementation(libs.compose.material3.adaptive)
     implementation(libs.compose.material3.adaptive.layout)
+    // Fold posture (NS-34 ticket 4) — `:app` only. `:core` must never see it,
+    // and `checkNoAndroidDependency` is what enforces that.
+    implementation(libs.androidx.window)
 
     debugImplementation(libs.compose.ui.tooling)
 

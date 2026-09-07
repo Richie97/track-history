@@ -78,9 +78,16 @@ fun VehicleScreen(
     onRequirePro: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
-    var confirmRetire by remember { mutableStateOf<Part?>(null) }
-    var confirmRefresh by remember { mutableStateOf<Part?>(null) }
-    var confirmDelete by remember { mutableStateOf<Part?>(null) }
+    // Which part has a confirmation open, by **id** rather than by `Part`.
+    //
+    // Saveable, so an open dialog survives the configuration change a fold, a
+    // rotation or a font-scale change causes (NS-34 ticket 4's audit). Held as an
+    // id because `Part` is not `Parcelable` — and an id is the better handle
+    // anyway: the part is re-read from the model, so a dialog cannot go on
+    // describing a part whose measurements have moved on underneath it.
+    var confirmRetireId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var confirmRefreshId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var confirmDeleteId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     // Two columns, and which consumable the right one is showing (NS-34 ticket 3).
     val twoColumn = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded
@@ -168,9 +175,9 @@ fun VehicleScreen(
                         PartCard(
                             part = part,
                             model = model,
-                            onRetire = { confirmRetire = part },
-                            onRefresh = { confirmRefresh = part },
-                            onDelete = { confirmDelete = part },
+                            onRetire = { confirmRetireId = part.id },
+                            onRefresh = { confirmRefreshId = part.id },
+                            onDelete = { confirmDeleteId = part.id },
                             detailInColumn = twoColumn,
                             selected = twoColumn &&
                                 (selectedPartId ?: model.activeParts.firstOrNull()?.id) == part.id,
@@ -222,33 +229,33 @@ fun VehicleScreen(
         }
     }
 
-    confirmRetire?.let { part ->
+    partById(model, confirmRetireId)?.let { part ->
         TEConfirmDialog(
             text = "Retire ${part.kind.label}? It stops accruing wear as of today and moves to " +
                 "the retired list.",
             confirm = "Retire",
-            onConfirm = { confirmRetire = null; model.retirePart(part.id) },
-            onDismiss = { confirmRetire = null },
+            onConfirm = { confirmRetireId = null; model.retirePart(part.id) },
+            onDismiss = { confirmRetireId = null },
         )
     }
 
-    confirmRefresh?.let { part ->
+    partById(model, confirmRefreshId)?.let { part ->
         TEConfirmDialog(
             text = "Replace ${part.kind.label} with the same spec? The old one is retired as of " +
                 "today and a new one goes on in its place.",
             confirm = "Replace",
-            onConfirm = { confirmRefresh = null; model.refreshPart(part.id) },
-            onDismiss = { confirmRefresh = null },
+            onConfirm = { confirmRefreshId = null; model.refreshPart(part.id) },
+            onDismiss = { confirmRefreshId = null },
         )
     }
 
-    confirmDelete?.let { part ->
+    partById(model, confirmDeleteId)?.let { part ->
         TEConfirmDialog(
             text = "Delete ${part.kind.label}? Its measurements and wear history go with it. " +
                 "Retire it instead if it was actually fitted.",
             confirm = "Delete",
-            onConfirm = { confirmDelete = null; model.deletePart(part.id) },
-            onDismiss = { confirmDelete = null },
+            onConfirm = { confirmDeleteId = null; model.deletePart(part.id) },
+            onDismiss = { confirmDeleteId = null },
         )
     }
 }
@@ -523,6 +530,20 @@ private fun WearStory(part: Part) {
             color = colors.textFaint,
         )
     }
+}
+
+/**
+ * The part a confirmation is about, looked up fresh each time.
+ *
+ * Both lists, because a confirmation can outlive the state that opened it: retire
+ * a part and the dialog's own action moves it from one list to the other. Null
+ * when the id names nothing any more, which closes the dialog rather than
+ * stranding it over a part that has been deleted.
+ */
+private fun partById(model: VehicleModel, id: Int?): Part? {
+    if (id == null) return null
+    return model.activeParts.firstOrNull { it.id == id }
+        ?: model.retiredParts.firstOrNull { it.id == id }
 }
 
 @Composable
