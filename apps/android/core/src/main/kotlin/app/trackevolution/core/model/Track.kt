@@ -61,13 +61,18 @@ public data class CatalogTrack(
  * The per-track community leaderboard (`GET /api/tracks/:id/leaderboard`):
  * opted-in users' best laps at the same catalog track. [catalogId] is null for
  * a track the catalog doesn't know — no cross-user identity, so no leaderboard.
- * [optedIn] is the viewer's own flag, so the UI can offer the opt-in without a
- * second request.
+ * [optedIn] and [shareLaps] are the viewer's own flags, so the UI can offer both
+ * consents without a second request.
  */
 @Serializable
 public data class TrackLeaderboard(
     @SerialName("catalog_id") val catalogId: Int? = null,
     @SerialName("opted_in") val optedIn: Boolean,
+    /**
+     * The viewer's own lap-sharing consent (NS-35). Defaulted rather than
+     * required, so a response cached before the field existed still decodes.
+     */
+    @SerialName("share_laps") val shareLaps: Boolean = false,
     val entries: List<LeaderboardEntry>,
 )
 
@@ -78,7 +83,45 @@ public data class LeaderboardEntry(
     @SerialName("best_ms") val bestMs: Int,
     val date: String,
     val you: Boolean,
+    /**
+     * The ranked lap, when its owner published the lap itself (NS-35) — null
+     * otherwise, which is the normal case and means this row is a time rather
+     * than a lap. Non-null is what makes a row openable; the server re-checks
+     * every condition on the way in, so a null here is a refusal to offer the
+     * tap, never the only thing standing between a viewer and the lap.
+     */
+    @SerialName("lap_id") val lapId: Int? = null,
 )
+
+/**
+ * One shared leaderboard lap (`GET /api/tracks/:id/leaderboard/laps/:lapId`,
+ * NS-35): the ranked lap another driver published, opened.
+ *
+ * Everything the server publishes is here, and the shape is the point — there is
+ * no session, no event, no car and nothing else user-entered to decode, because
+ * none of it is shared at any setting. [ambientC] and [elevationM] are the
+ * recorder's own, the same two columns the logbook shows outside the Pro strip.
+ * [channels] is the one Pro field and arrives null for a free account, exactly as
+ * it does on a session; [trace] and the times do not.
+ */
+@Serializable
+public data class LeaderboardLap(
+    @SerialName("lap_id") val lapId: Int,
+    val name: String? = null,
+    val you: Boolean,
+    @SerialName("time_ms") val timeMs: Int,
+    val date: String,
+    @SerialName("ambient_c") val ambientC: Double? = null,
+    @SerialName("elevation_m") val elevationM: Double? = null,
+    val trace: List<TracePoint>? = null,
+    val channels: SessionChannels? = null,
+) {
+    /**
+     * The single published entry, or null when the account is free (channels
+     * stripped) or the lap stored no traces.
+     */
+    val entry: LapChannels? get() = channels?.laps?.firstOrNull()
+}
 
 /**
  * One row of "setup vs. lap times" for a track (`GET /api/tracks/:id/setups`):

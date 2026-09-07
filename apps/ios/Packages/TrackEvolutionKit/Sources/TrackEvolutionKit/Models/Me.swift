@@ -25,12 +25,18 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// so a cached response from an older server still decodes; absent means
     /// false.
     public var leaderboardOptIn: Bool?
+    /// Whether the user's *ranked lap itself* — its racing line and telemetry —
+    /// is open to other drivers ranked at the same track (NS-35). A second,
+    /// separate consent stacked on ``leaderboardOptIn``, never implied by it.
+    /// Optional for the same reason: an older cached response has no such key.
+    public var leaderboardShareLaps: Bool?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
         case shareSlug = "share_slug"
         case checklistTemplate = "checklist_template"
         case leaderboardOptIn = "leaderboard_opt_in"
+        case leaderboardShareLaps = "leaderboard_share_laps"
     }
 
     /// The list "Use my list" actually uses.

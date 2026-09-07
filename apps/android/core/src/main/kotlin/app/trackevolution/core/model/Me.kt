@@ -35,6 +35,13 @@ public data class User(
      * false so a cached response from an older server still decodes.
      */
     @SerialName("leaderboard_opt_in") val leaderboardOptIn: Boolean = false,
+    /**
+     * Whether the user's *ranked lap itself* — its racing line and telemetry —
+     * is open to other drivers ranked at the same track (NS-35). A second,
+     * separate consent stacked on [leaderboardOptIn], never implied by it.
+     * Defaulted for the same reason: an older cached response has no such key.
+     */
+    @SerialName("leaderboard_share_laps") val leaderboardShareLaps: Boolean = false,
 )
 
 /** Headline counts shown on the dashboard and the public share page. */

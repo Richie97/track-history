@@ -1,0 +1,20 @@
+-- The second half of the leaderboard consent (NS-35). leaderboard_opt_in
+-- (migration 0016) publishes exactly two things per catalog track: the user's
+-- display name and their best device-timed lap time with its date. This flag
+-- publishes the *lap itself* — its GPS trace and its per-lap channel data — so
+-- another driver ranked at the same track can open it and compare.
+--
+-- It is a separate column rather than a widening of leaderboard_opt_in
+-- because the existing opt-in copy promises "exactly two things", and a
+-- driver who agreed to that has not agreed to publish their telemetry.
+-- Default 0 therefore means every already-opted-in user keeps exactly the
+-- share they consented to until they say otherwise; only the one ranked lap
+-- per catalog track is ever reachable, never the rest of the logbook, and
+-- nothing user-entered (notes, labels, car, conditions, setup) is shared at
+-- any setting.
+--
+-- No trigger: this is a plain user preference, route-set by
+-- PUT /me/leaderboard, not a column derived from another column. Clearing
+-- leaderboard_opt_in clears this too (the route does it in one statement) —
+-- laps cannot be shared by someone who is not on the board.
+ALTER TABLE users ADD COLUMN leaderboard_share_laps INTEGER NOT NULL DEFAULT 0;

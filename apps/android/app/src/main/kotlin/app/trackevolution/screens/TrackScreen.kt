@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -60,6 +61,7 @@ fun TrackScreen(
     onOpenEvent: (Int) -> Unit,
     onAddEvent: (String) -> Unit,
     onCompareLaps: () -> Unit,
+    onOpenLeaderboardLap: (Int) -> Unit,
     onShare: (String) -> Unit,
     serverUrl: String,
     modifier: Modifier = Modifier,
@@ -157,7 +159,7 @@ fun TrackScreen(
             item("notes") { NotesCard(model) }
 
             model.leaderboard?.takeIf { it.catalogId != null }?.let { leaderboard ->
-                item("leaderboard") { LeaderboardCard(model, leaderboard) }
+                item("leaderboard") { LeaderboardCard(model, leaderboard, onOpenLeaderboardLap) }
             }
 
             item("events-header") {
@@ -296,7 +298,11 @@ private fun NotesCard(model: TrackModel) {
  * `catalogId`), since only those have a cross-user identity.
  */
 @Composable
-private fun LeaderboardCard(model: TrackModel, leaderboard: TrackLeaderboard) {
+private fun LeaderboardCard(
+    model: TrackModel,
+    leaderboard: TrackLeaderboard,
+    onOpenLap: (Int) -> Unit,
+) {
     val colors = TrackTheme.colors
     var confirmingLeave by remember { mutableStateOf(false) }
 
@@ -316,13 +322,21 @@ private fun LeaderboardCard(model: TrackModel, leaderboard: TrackLeaderboard) {
                     val label = "Rank ${index + 1}, ${entry.name ?: "Driver"}" +
                         (if (entry.you) ", you" else "") +
                         ", ${LapTime.fmtMs(entry.bestMs)}, ${EventDates.fmtDate(entry.date)}"
+                    // Openable when its owner published the lap itself (NS-35) —
+                    // the server decides that and withholds `lapId` otherwise, so
+                    // a row with no id is plain text rather than a tap that would
+                    // 404.
+                    val lapId = entry.lapId
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .then(if (lapId != null) Modifier.clickable { onOpenLap(lapId) } else Modifier)
                             .padding(vertical = 6.dp)
-                            .semantics { contentDescription = label },
+                            .semantics {
+                                contentDescription = if (lapId != null) "$label. Open this lap." else label
+                            },
                     ) {
                         Text(
                             "${index + 1}",
@@ -349,9 +363,22 @@ private fun LeaderboardCard(model: TrackModel, leaderboard: TrackLeaderboard) {
                             style = TrackTheme.typography.xxs,
                             color = colors.textFaint,
                         )
+                        // A chevron is the only thing distinguishing an openable
+                        // row, so it is drawn rather than left to colour: most
+                        // rows are not.
+                        if (lapId != null) {
+                            Text("›", style = TrackTheme.typography.body, color = colors.textFaint)
+                        }
                     }
                 }
             }
+        }
+        if (leaderboard.entries.any { it.lapId != null }) {
+            Text(
+                "Rows with a chevron open the lap — its racing line and telemetry, next to your own best here.",
+                style = TrackTheme.typography.xs,
+                color = colors.textFaint,
+            )
         }
         Leaderboard.note(model.logbookBest, leaderboard)?.let {
             Text(it, style = TrackTheme.typography.xs, color = colors.textFaint)
@@ -367,6 +394,36 @@ private fun LeaderboardCard(model: TrackModel, leaderboard: TrackLeaderboard) {
                 )
                 TextButton(onClick = { confirmingLeave = true }) {
                     Text("Leave", style = TrackTheme.typography.xs, color = colors.dangerInk)
+                }
+            }
+            // The second consent sits with the first, because this is the one
+            // place a driver is looking at exactly what it would publish.
+            if (leaderboard.shareLaps) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Your ranked lap is open to other drivers here — its racing line and telemetry, " +
+                            "and nothing else from your logbook.",
+                        style = TrackTheme.typography.xs,
+                        color = colors.textFaint,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { model.setLeaderboardOptIn(true, shareLaps = false) }) {
+                        Text("Stop", style = TrackTheme.typography.xs, color = colors.dangerInk)
+                    }
+                }
+            } else {
+                Text(
+                    "Your ranked lap is a time only. Sharing it lets other drivers ranked here open its " +
+                        "racing line and telemetry — never your notes, your car, your setup or any other lap.",
+                    style = TrackTheme.typography.xs,
+                    color = colors.textFaint,
+                )
+                TextButton(onClick = { model.setLeaderboardOptIn(true, shareLaps = true) }) {
+                    Text(
+                        "Share my ranked laps",
+                        style = TrackTheme.typography.bodyStrong,
+                        color = colors.accentInk,
+                    )
                 }
             }
         } else {

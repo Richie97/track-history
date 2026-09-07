@@ -8,6 +8,7 @@ import app.trackevolution.core.model.CreatedTrack
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
 import app.trackevolution.core.model.PartRefresh
@@ -81,6 +82,7 @@ class GoldenContractTest {
             "tracks-list" -> roundTrip(entry.name, ListSerializer(Track.serializer()))
             "track-setups" -> roundTrip(entry.name, ListSerializer(TrackSetupRow.serializer()))
             "track-leaderboard" -> roundTrip(entry.name, TrackLeaderboard.serializer())
+            "leaderboard-lap" -> roundTrip(entry.name, LeaderboardLap.serializer())
             "catalog" -> roundTrip(entry.name, ListSerializer(CatalogTrack.serializer()))
             "vehicles-list" -> roundTrip(entry.name, ListSerializer(Vehicle.serializer()))
             "garage" -> roundTrip(entry.name, ListSerializer(GarageVehicle.serializer()))

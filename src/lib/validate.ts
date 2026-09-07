@@ -90,6 +90,14 @@ const CHANNEL_SPECS: [ChannelName, number, number, number][] = [
   ["flags", 7, 1, 0],
 ];
 
+// Just the gridded channel names, in the same order. Exported because the
+// leaderboard's published lap (lib/leaderboard.ts) is built by *allow-list*
+// from this array rather than by deleting the fields it must not publish — a
+// channel added to CHANNEL_SPECS then reaches the leaderboard on purpose,
+// while a scalar added to SCALAR_SPECS stays private without anyone
+// remembering to exclude it.
+export const GRIDDED_CHANNEL_NAMES: readonly ChannelName[] = CHANNEL_SPECS.map((s) => s[0]);
+
 // Slow channels reduced to one value per lap (SCALAR_NAMES in channels.js).
 // Same tuple shape; these are single numbers, so they cost nothing against
 // the array budget and are validated only for plausibility.

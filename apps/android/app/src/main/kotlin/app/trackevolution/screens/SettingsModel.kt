@@ -69,6 +69,9 @@ class SettingsModel(
 
     /** The per-track leaderboard opt-in, mirrored from `/me`. */
     var leaderboardOptIn by mutableStateOf(false)
+
+    /** The lap-sharing consent stacked on it (NS-35), mirrored from `/me`. */
+    var leaderboardShareLaps by mutableStateOf(false)
         private set
 
     var leaderboardError by mutableStateOf<String?>(null)
@@ -88,6 +91,7 @@ class SettingsModel(
                 slug = me.user.shareSlug
                 slugDraft = me.user.shareSlug.orEmpty()
                 leaderboardOptIn = me.user.leaderboardOptIn
+                leaderboardShareLaps = me.user.leaderboardShareLaps
                 pendingWrites = api.syncStatus.value.pending
                 state = LoadState.Ready
             } catch (e: ApiException) {
@@ -113,11 +117,35 @@ class SettingsModel(
         scope.launch {
             leaderboardError = null
             val previous = leaderboardOptIn
+            val previousShare = leaderboardShareLaps
             leaderboardOptIn = optIn
+            // Leaving the board clears lap sharing server-side, so the second
+            // toggle follows rather than showing a consent no longer stored.
+            if (!optIn) leaderboardShareLaps = false
             try {
-                api.setLeaderboardOptIn(optIn)
+                api.setLeaderboardOptIn(optIn, shareLaps = optIn && leaderboardShareLaps)
             } catch (e: ApiException) {
                 leaderboardOptIn = previous
+                leaderboardShareLaps = previousShare
+                leaderboardError = e.message
+            }
+        }
+    }
+
+    /**
+     * Publish the ranked lap itself, or stop (NS-35). A second consent, never
+     * implied by the opt-in, and a live write for the same reason: publishing
+     * your telemetry should not replay silently later.
+     */
+    fun updateLeaderboardShareLaps(share: Boolean) {
+        scope.launch {
+            leaderboardError = null
+            val previous = leaderboardShareLaps
+            leaderboardShareLaps = share
+            try {
+                api.setLeaderboardOptIn(true, shareLaps = share)
+            } catch (e: ApiException) {
+                leaderboardShareLaps = previous
                 leaderboardError = e.message
             }
         }

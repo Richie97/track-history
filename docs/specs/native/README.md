@@ -273,7 +273,18 @@ Features added after the rewrite shipped, and where they landed:
   trigger-maintained `laps.device_timed` — so a typed time or an event's
   manual best never reaches a leaderboard. Server-side and retroactive; the
   response shape didn't change, and every client's leaderboard section says
-  the rule and explains a row slower than the logbook's own best.
+  the rule and explains a row slower than the logbook's own best. Since
+  [NS-35](NS-35-leaderboard-lap-detail.md) (2026-09) a row can **open**: the
+  ranked lap's racing line and channel traces, with the viewer's own best at
+  the track laid over it through the same `alignLapPair` the two-lap compare
+  uses. That is a **second, separate consent** — `users.leaderboard_share_laps`
+  (migration 0021), default off — because the original opt-in copy promises
+  "exactly two things" and a driver who agreed to that has not agreed to
+  publish their telemetry; opting out clears both flags in one statement. Only
+  the *ranked* lap is reachable, never the session or the rest of the logbook,
+  and what it carries is built by allow-list in `src/lib/leaderboard.ts` so a
+  per-lap scalar added later stays private without anyone remembering to
+  exclude it.
 - **Large screens** (2026-09, [NS-34](NS-34-large-screens.md), epic
   [#214](https://github.com/Richie97/track-history/issues/214)) — **native
   only, presentation only.** Both apps ran on iPad and foldables with a phone
@@ -480,6 +491,7 @@ change* rule does not apply — see the spec for why.
 | NS-32 | [Subscriptions (Track Evolution Pro)](NS-32-subscriptions.md) | Shared | NS-25, NS-26, NS-27 |
 | NS-33 | [Leaderboards rank only device-timed laps](NS-33-leaderboard-device-timed-laps.md) | Shared | Leaderboards, NS-30, NS-32 |
 | NS-34 | [Large screens: iPad, foldables and tablets](NS-34-large-screens.md) | iOS + Android | NS-23, NS-24, NS-25, NS-26 |
+| NS-35 | [Open a leaderboard lap](NS-35-leaderboard-lap-detail.md) | Shared | Leaderboards, NS-33, #165 |
 
 ## Deferred — not in this programme
 

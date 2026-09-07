@@ -8,10 +8,12 @@
       {
         "best_ms": 121900,
         "date": "2026-04-10",
+        "lap_id": 1,
         "name": "Dev User",
         "you": true
       }
     ],
-    "opted_in": true
+    "opted_in": true,
+    "share_laps": true
   }
 }
