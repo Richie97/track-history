@@ -133,11 +133,11 @@ class TrackModel(
      * Join or leave the leaderboards. A live write on purpose — never queued
      * offline: publishing your name shouldn't replay silently later.
      */
-    fun setLeaderboardOptIn(optIn: Boolean) {
+    fun setLeaderboardOptIn(optIn: Boolean, shareLaps: Boolean? = null) {
         scope.launch {
             leaderboardError = null
             try {
-                api.setLeaderboardOptIn(optIn)
+                api.setLeaderboardOptIn(optIn, shareLaps)
                 leaderboard = runCatching { api.trackLeaderboard(trackId) }.getOrNull() ?: leaderboard
             } catch (e: ApiException) {
                 leaderboardError = e.message

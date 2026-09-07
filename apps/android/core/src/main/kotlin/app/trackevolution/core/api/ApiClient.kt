@@ -7,6 +7,7 @@ import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.EventDraft
 import app.trackevolution.core.model.EventPatch
+import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
 import app.trackevolution.core.model.SessionDraft
@@ -201,12 +202,20 @@ public class ApiClient(
     }
 
     /**
-     * Toggles the per-track leaderboard opt-in. Deliberately a live write,
-     * never queued offline: publishing your name is not something to replay
-     * silently later.
+     * Toggles the per-track leaderboard opt-in, and optionally the lap-sharing
+     * consent stacked on it (NS-35). Deliberately a live write, never queued
+     * offline: publishing your name — still less your telemetry — is not
+     * something to replay silently later.
+     *
+     * [shareLaps] null omits the key, which the server reads as "leave the
+     * stored value alone", so a screen meaning only to toggle the opt-in cannot
+     * clear a consent it never asked about.
      */
-    public suspend fun setLeaderboardOptIn(optIn: Boolean) {
-        val body = buildJsonObject { put("opt_in", JsonPrimitive(optIn)) }
+    public suspend fun setLeaderboardOptIn(optIn: Boolean, shareLaps: Boolean? = null) {
+        val body = buildJsonObject {
+            put("opt_in", JsonPrimitive(optIn))
+            if (shareLaps != null) put("share_laps", JsonPrimitive(shareLaps))
+        }
         send("PUT", "/me/leaderboard", body = body, deserializer = OkResponse.serializer())
     }
 
@@ -288,6 +297,15 @@ public class ApiClient(
      */
     public suspend fun trackLeaderboard(id: Int): TrackLeaderboard =
         get("/tracks/$id/leaderboard", TrackLeaderboard.serializer())
+
+    /**
+     * One shared leaderboard lap, opened from a row whose `lapId` is non-null
+     * (NS-35). [trackId] is the viewer's own track — a lap is only reachable
+     * from a track the viewer actually has — and the server re-checks every
+     * condition, answering 404 rather than 403 for anything it will not publish.
+     */
+    public suspend fun leaderboardLap(trackId: Int, lapId: Int): LeaderboardLap =
+        get("/tracks/$trackId/leaderboard/laps/$lapId", LeaderboardLap.serializer())
 
     public suspend fun updateTrack(id: Int, patch: TrackPatch) {
         send("PUT", "/tracks/$id", encode(TrackPatch.serializer(), patch), OkResponse.serializer())
