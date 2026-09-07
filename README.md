@@ -682,9 +682,11 @@ rather than peak G, which is what the session's max lateral and braking G
 figures are for. The pure half is `public/js/grip.js`, ported as `Grip` to the
 iOS Kit and Android `:core` and pinned for both by `contracts/logic/grip.json`;
 each client draws its own (`frictionCircleSvg`, `FrictionCircle.swift`,
-`FrictionCircle.kt`). The hover linking is web-only — a phone has no pointer,
-and on both native clients this panel is a sheet over the event page rather
-than beside the track map.
+`FrictionCircle.kt`). Pointing at a sample — which marks that distance on the
+other charts and rings the place on the best-lap track map — is a hover
+wherever there is a pointer (the web, an iPad with a trackpad, a tablet or
+Chromebook with a mouse) and a tap everywhere else, on the wide layout where
+the panel sits beside the map rather than over it.
 
 Under the friction circle, the same tab answers **am I understeering or
 oversteering?** from the imports' `yaw` and `steering` channels. In a neutral
@@ -706,9 +708,9 @@ than the circuit's — and gives each corner's reading per highlighted lap and
 pooled for the session: *"T1 understeer 14%, T7 neutral, T10 slight
 oversteer 9%"* is a sentence a driver can take to the setup sheet, and the
 corners that sit off the reference join the session's stats line
-("understeer in T1, T4 and oversteer in T10"). On the web, hovering a point or a row marks
-the distance on the other charts and rings the place on the best-lap track
-map; the phones have no pointer, so the table carries that meaning there. The
+("understeer in T1, T4 and oversteer in T10"). Hovering a point or a corner row
+marks the distance on the other charts and rings the place on the best-lap
+track map, and tapping a corner row does the same on a touchscreen. The
 `yaw` trace itself also draws on the Grip tab as the honest baseline.
 **The reading is deliberately relative.** The rigorous version is the bicycle
 model — expected yaw = v·δ/L — which needs the wheelbase and the steering

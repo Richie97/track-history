@@ -78,12 +78,14 @@ private const val RING_STEP_G = 0.5
  * thousand samples — one batched call per group, rather than one draw call per
  * point.
  *
- * There is no *hover* — a phone has no pointer — but there is a **tap**, and it
- * does what the web's hover does: [onHit] answers "which corner is this dot" on
- * everything drawn beside the panel (NS-34 ticket 3). That was worth nothing
- * while the panel lived inside a session card with the track map a long scroll
- * away; it is worth having now the two sit side by side at expanded width. The
- * read-out under the plot still carries the meaning when nothing is tapped.
+ * **A tap points, and a pointer borrows.** [onHit] answers "which corner is this
+ * dot" on everything drawn beside the panel (NS-34 ticket 3) — the behaviour the
+ * web has on hover, which was worth nothing while the panel lived inside a
+ * session card with the track map a long scroll away and is worth having now the
+ * two sit side by side at expanded width. A tablet or Chromebook with a mouse
+ * gets the web's hover itself through [onHover] (ticket 5), additive to the tap
+ * rather than a replacement. The read-out under the plot still carries the
+ * meaning when nothing is pointed at.
  */
 @Composable
 fun FrictionCircle(
@@ -99,6 +101,11 @@ fun FrictionCircle(
      * beside it (NS-34 ticket 3). Null clears the answer.
      */
     onHit: (ChannelHit?) -> Unit = {},
+    /**
+     * The same answer from a *mouse* (NS-34 ticket 5), held only while it is over
+     * the plot. Null means it has left.
+     */
+    onHover: (ChannelHit?) -> Unit = {},
 ) {
     val sg = remember(channels) { Grip.sessionGrip(channels) } ?: return
     val gripLaps = remember(channels) { Grip.gripLaps(channels) }
@@ -145,14 +152,21 @@ fun FrictionCircle(
                 Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    // Tap, not hover: a phone has no pointer, and taking the
-                    // web's hover behaviour back is the point of NS-34 ticket 3.
-                    // A mouse on a tablet or Chromebook is ticket 5's, and is
-                    // additive to this rather than a replacement.
+                    // Tap and hover over one hit-test: a finger commits a mark
+                    // and a mouse borrows one, and both ask the same question of
+                    // the same geometry, so the two can never come to different
+                    // answers about which dot is under them.
                     .pointerInput(sg, lit, gripLaps) {
                         detectTapGestures { offset ->
                             onHit(hitAt(offset, size.width, size.height, sg, gripLaps, lit, density))
                         }
+                    }
+                    .pointerHover(sg, lit, gripLaps) { offset ->
+                        onHover(
+                            offset?.let {
+                                hitAt(it, size.width, size.height, sg, gripLaps, lit, density)
+                            }
+                        )
                     },
             ) {
                 drawPlot(
