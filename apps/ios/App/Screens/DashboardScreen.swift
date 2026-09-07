@@ -121,7 +121,7 @@ struct DashboardScreen: View {
                 // One card per row on a phone, filling the width above it — the
                 // web's `.cards` grid (NS-34).
                 TECardGrid(items: model.tracksWithData) { track in
-                    trackCard(track)
+                    TrackCard(track: track)
                 }
             }
 
@@ -250,52 +250,6 @@ struct DashboardScreen: View {
 
     // MARK: - Track cards
 
-    private func trackCard(_ track: Track) -> some View {
-        TENavCard(route: .track(track.id), identifier: "trackCard", listPane: true) {
-            // The text column sets the row's height and the sparkline fills it, so the
-            // trend line reads as part of the card rather than a stamp floating in it.
-            // `.fixedSize(vertical:)` is what pins that height to the text: without it
-            // the flexible chart and the flexible stack negotiate with each other and
-            // the row collapses.
-            //
-            // Since the text is the only thing setting the height, the name reserves two
-            // lines whether it needs them or not — that's what makes every card in the
-            // list the same height instead of a row of ragged ones, and two lines is
-            // what a track name with its layout suffix ("… — Grand West") actually
-            // takes at this width.
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(track.name)
-                        .teStyle(.h3)
-                        .lineLimit(2, reservesSpace: true)
-                        .foregroundStyle(Color(.textStrong))
-                    Text(LapTime.fmtMs(track.bestMs))
-                        .teStyle(.lapTimeHero)
-                        .foregroundStyle(Color(.textStrong))
-                    TEMeta([
-                        fmtCount(track.eventCount, "event"),
-                        fmtCount(track.trackDays, "day"),
-                        EventDates.fmtDate(track.lastDate)
-                    ])
-                }
-                .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 0)
-                // Two points is the least that can show a direction; one would be a
-                // dot pretending to be a trend.
-                if track.series.count >= 2 {
-                    ProgressChart(
-                        points: track.series.enumerated().map { index, point in
-                            .init(x: Double(index), label: EventDates.fmtDate(point.date), ms: point.bestMs)
-                        },
-                        style: .sparkline
-                    )
-                    .frame(width: 110)
-                }
-            }
-        }
-    }
-
     // MARK: - Garage cards
 
     /// A car's accrued hours and the worst thing fitted to it — enough to know
@@ -307,8 +261,13 @@ struct DashboardScreen: View {
             Text(vehicle.name)
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
+            // Same rule as the track card's time: one line, scaled to fit. "12.5 h"
+            // is short enough to be safe today, and this card sits in the same
+            // grid, so it would break the same way the first time it isn't.
             Text(Garage.fmtHours(vehicle.hours))
                 .teStyle(.lapTimeHero)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
                 .foregroundStyle(Color(.textStrong))
             TEMeta([
                 fmtCount(vehicle.eventDays, "track day"),
@@ -492,4 +451,113 @@ final class DashboardModel {
         RemoteRecording.pickRecordingEvent(events, todayIso: RemoteRecording.localTodayIso())
     }
     var alsoUpcoming: [Event] { Array(upcoming.dropFirst()) }
+}
+
+/// One track's card on the dashboard: name, best lap, and the trend sparkline.
+///
+/// Its own view rather than a method on `DashboardScreen` so it can read
+/// `@Environment(\.layout)` **as the card sees it**. `TECardGrid` republishes a
+/// narrowed metric around each cell, and an `@Environment` property on the
+/// screen resolves once, at the screen — a value installed downstream of it can
+/// never reach it. The same reason `LayoutClassRow` in the token gallery is a
+/// view of its own.
+struct TrackCard: View {
+    let track: Track
+
+    @Environment(\.layout) private var layout
+
+    var body: some View {
+        TENavCard(route: .track(track.id), identifier: "trackCard", listPane: true) {
+            // Side by side while there is room for both, stacked when there
+            // isn't — the sparkline moving under the text rather than squeezing
+            // it into a column too narrow to hold a lap time. That is the shape
+            // Android has always drawn this card in, and it is the right one in
+            // a list pane or a three-across grid, where a lap time broken across
+            // lines ("1:5" / "9.0" / "1") reads as three numbers, none of them
+            // the time.
+            if stacks {
+                VStack(alignment: .leading, spacing: 4) {
+                    text
+                    sparkline(height: 44)
+                }
+            } else {
+                // The text column sets the row's height and the sparkline fills
+                // it, so the trend line reads as part of the card rather than a
+                // stamp floating in it. `.fixedSize(vertical:)` is what pins that
+                // height to the text: without it the flexible chart and the
+                // flexible stack negotiate with each other and the row collapses.
+                HStack(alignment: .top, spacing: 8) {
+                    // `layoutPriority` is the half of this that applies at every
+                    // width. The sparkline asked for a *fixed* 110pt while the
+                    // text was flexible, so the chart was served first and the
+                    // text took whatever was left — which on a long track name
+                    // was narrower than the lap time it had to hold, whatever the
+                    // card's own width. Now the text is served first and the
+                    // chart takes the remainder, up to 110.
+                    text
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+                    Spacer(minLength: 0)
+                    sparkline(height: nil)
+                        .frame(maxWidth: 110)
+                }
+            }
+        }
+    }
+
+    /// Whether the card stacks its sparkline under the text.
+    ///
+    /// Measured against the **card's** width, which `TECardGrid` publishes — the
+    /// page's width is the wrong answer the moment there are two columns.
+    ///
+    /// The number is what has to fit rather than a round one: 28pt of card
+    /// padding, 110 of sparkline, 8 of spacing, and about 180 for a lap time at
+    /// `lapTimeHero` with a track name over it. Below that the text column is
+    /// narrower than the number it has to hold. A list pane lands under it; a
+    /// phone does not, except the very smallest, which had the same problem and
+    /// now gets the same answer. A zero width means nobody has measured yet, and
+    /// side by side is what has always been drawn there.
+    private var stacks: Bool {
+        layout.contentWidth > 0 && layout.contentWidth < 340
+    }
+
+    private var text: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(track.name)
+                .teStyle(.h3)
+                // Two lines whether it needs them or not, so every card in the
+                // list is the same height rather than a ragged row — and two is
+                // what a name with its layout suffix ("… — Grand West") takes.
+                .lineLimit(2, reservesSpace: true)
+                .foregroundStyle(Color(.textStrong))
+            // One line, shrinking to fit rather than wrapping: the monospaced
+            // digits make a wrapped time worse, because each fragment looks
+            // deliberate. The same rule `TEStatTile` has carried since NS-25.
+            Text(LapTime.fmtMs(track.bestMs))
+                .teStyle(.lapTimeHero)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .foregroundStyle(Color(.textStrong))
+            TEMeta([
+                fmtCount(track.eventCount, "event"),
+                fmtCount(track.trackDays, "day"),
+                EventDates.fmtDate(track.lastDate)
+            ])
+        }
+    }
+
+    /// Two points is the least that can show a direction; one would be a dot
+    /// pretending to be a trend.
+    @ViewBuilder
+    private func sparkline(height: CGFloat?) -> some View {
+        if track.series.count >= 2 {
+            ProgressChart(
+                points: track.series.enumerated().map { index, point in
+                    .init(x: Double(index), label: EventDates.fmtDate(point.date), ms: point.bestMs)
+                },
+                style: .sparkline
+            )
+            .frame(height: height)
+        }
+    }
 }
