@@ -27,8 +27,30 @@ struct DashboardScreen: View {
                 content(model)
             }
         }
+        // The title stays for what reads it — the back button on every pushed
+        // screen and VoiceOver's name for the bar — while what the bar *draws*
+        // is the brand below.
         .navigationTitle("Track Evolution")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // The web topbar's `.brand` (`appLogoHtml()` + "Track Evolution" in
+            // `shell()`) and Android's `DashboardTopBar`: the mark at the web
+            // header's 26px beside the wordmark at its 17px semibold, which is
+            // also the size of an inline navigation title. A large title has no
+            // room for a mark — the bar owns its layout — so the dashboard joins
+            // every other screen at inline, and the brand becomes the bar's
+            // principal item. Only the dashboard draws it: inner screens lead
+            // with their own title and a back affordance.
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 9) {
+                    BrandMark(size: 26)
+                    Text("Track Evolution")
+                        .teStyle(.h2)
+                        .foregroundStyle(Color(.textStrong))
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 // The web app's account dropdown, which carries Settings, the theme
                 // toggle and sign-out. All three live on the settings screen here —
