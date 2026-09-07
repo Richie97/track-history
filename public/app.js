@@ -854,7 +854,7 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   const optControl = lb.opted_in
     ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
     : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
-  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track — opt-in only. Laps recorded with the app or imported from telemetry count; hand-entered times don't.</div>
+  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the app or imported from telemetry count; hand-entered times don't.</div>
     ${
       rows
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
