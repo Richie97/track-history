@@ -23,6 +23,54 @@ final class GarageUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Remove the test car however the run ended.
+    ///
+    /// The in-app delete at the end of the happy path is part of what this suite
+    /// asserts, so it stays — but a run that fails before reaching it used to leave
+    /// its car and parts behind, and the next run added another part to the *same*
+    /// car. A few failures in and the page carries a dozen cards, which is enough
+    /// to make the scrolling helpers fail for reasons that have nothing to do with
+    /// what is being tested. A suite whose failures make the next failure worse is
+    /// a suite nobody can debug.
+    ///
+    /// Best-effort and never asserting: on the happy path the car is already gone
+    /// and there is nothing here to do.
+    override func tearDown() {
+        guard devServerIsRunning() else { return }
+        for id in testVehicleIds() {
+            deleteVehicleBestEffort(id)
+        }
+    }
+
+    /// The ids of every car this suite has left behind, by name.
+    private func testVehicleIds() -> [Int] {
+        try? signInOverHTTP()
+        var ids: [Int] = []
+        let done = expectation(description: "list vehicles")
+        var request = URLRequest(url: URL(string: "\(Self.devServerURL)/api/vehicles")!)
+        request.timeoutInterval = 15
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data,
+               let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                ids = rows
+                    .filter { ($0["name"] as? String) == Self.vehicleName }
+                    .compactMap { $0["id"] as? Int }
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 20)
+        return ids
+    }
+
+    private func deleteVehicleBestEffort(_ id: Int) {
+        var request = URLRequest(url: URL(string: "\(Self.devServerURL)/api/vehicles/\(id)")!)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 15
+        let done = expectation(description: "delete vehicle \(id)")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 20)
+    }
+
     func testGarageTracksAConsumableFromInstallToMeasurement() throws {
         let app = try launchSignedIn(tier: .pro)
 
@@ -124,27 +172,52 @@ final class GarageUITests: XCTestCase {
         )
     }
 
-    /// Delete the test car. Its row is the only one with this name, and the
-    /// confirmation's destructive button repeats the label.
+    /// Delete the test car, by finding the Delete that belongs to *its* row.
+    ///
+    /// Two things this has to get right, and the version before it got neither —
+    /// which nothing noticed, because the suite could not be run at all:
+    ///
+    /// - **Match by label, not identifier.** This button sets no identifier of its
+    ///   own and SwiftUI synthesizes none, so `matching(identifier: "Delete")`
+    ///   matched *nothing* and the walk fell straight through to its failure.
+    /// - **Scroll first.** Settings is longer than a screen and the vehicles sit
+    ///   under the checklist-template editor, so every Delete starts off-screen and
+    ///   `isHittable` is false for all of them. A `where isHittable` filter over
+    ///   elements nobody has scrolled to skips the whole list.
+    ///
+    /// Which Delete belongs to this car is decided by **geometry**: the buttons sit
+    /// under their own row, so the right one is the first Delete at or below the
+    /// row's top edge. The confirmation still quotes the name, and that is asserted
+    /// rather than searched — a delete that reached the wrong dialog should fail
+    /// loudly, not quietly cancel and try the next one.
     private func deleteVehicle(_ app: XCUIApplication) {
-        let deletes = app.buttons.matching(identifier: "Delete")
-        // The row order follows the server's (default first, then name), so the
-        // Delete under this car's name is found by walking from its label.
-        for index in 0..<deletes.count where deletes.element(boundBy: index).isHittable {
-            deletes.element(boundBy: index).tap()
-            if app.buttons["Delete vehicle"].waitForExistence(timeout: 5) {
-                // The dialog quotes the car's name — only confirm for ours.
-                let mine = app.staticTexts.containing(
-                    NSPredicate(format: "label CONTAINS %@", Self.vehicleName)
-                ).firstMatch.exists
-                if mine {
-                    app.buttons["Delete vehicle"].tap()
-                    return
-                }
-                app.buttons["Keep it"].tap()
-            }
+        let row = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", Self.vehicleName))
+            .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "the test car should still be listed")
+        scrollUntilHittable(app, row)
+
+        let deletes = app.buttons.matching(NSPredicate(format: "label == %@", "Delete"))
+        let mine = deletes.allElementsBoundByIndex
+            .filter { $0.exists && $0.frame.minY >= row.frame.minY }
+            .min { $0.frame.minY < $1.frame.minY }
+        guard let mine, mine.isHittable else {
+            XCTFail("no Delete button under the test vehicle's row")
+            return
         }
-        XCTFail("no Delete button matched the test vehicle")
+        mine.tap()
+
+        XCTAssertTrue(
+            app.buttons["Delete vehicle"].waitForExistence(timeout: 10),
+            "deleting a car should ask first — it takes its parts with it"
+        )
+        XCTAssertTrue(
+            app.staticTexts.containing(
+                NSPredicate(format: "label CONTAINS %@", Self.vehicleName)
+            ).firstMatch.exists,
+            "and the confirmation should name the car being deleted"
+        )
+        app.buttons["Delete vehicle"].tap()
     }
 
     /// Swipe until the element can actually be tapped, or give up after a few
