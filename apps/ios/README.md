@@ -319,6 +319,35 @@ xcrun simctl launch <device> app.trackevolution -channelGraphs   # synthetic dat
 can't create what it asserts on through the UI, so it seeds a session over the dev
 API (the same `DEV_MODE` door `DevServerSignIn` uses) and deletes the event again.
 
+The panel also answers a **keyboard and a pointer** on an iPad (NS-34 ticket 5),
+and both are additive to touch rather than replacing it:
+
+- `1`–`4` select tabs *by their place in the bar* (an unpopulated tab isn't
+  drawn, and skipping a number to honour one nobody can see would be a puzzle),
+  `[` / `]` step the newest highlighted lap through the session leaving the
+  others pinned, and ⌘F hides the friction circle's dim envelope.
+- They are **titled `Button`s carrying `.keyboardShortcut`**, not `onKeyPress`:
+  that is what registers them as `UIKeyCommand`s and so lists them, by title, in
+  the ⌘-key overlay. The three with no visible control to hang off are
+  zero-sized invisible buttons — which does register, and
+  `ChannelPanelKeyboardUITests` is what proves it still does.
+- With a trackpad, **hovering** does what tapping does — mark the distance
+  across the charts, ring the place on the track map — through
+  `.onContinuousHover` on the friction circle, the balance corner rows, the
+  sector headings and the traces. A tap *parks* a mark; a pointer only
+  *borrows* one and hands the parked mark back on its way out, so a mouse
+  passing over never throws away a choice somebody made.
+
+And a clip can be **dropped onto an event page** from Files to start an import.
+The trap there is worth knowing before touching it:
+`loadInPlaceFileRepresentation` gives a URL that is valid **only inside its
+callback**. In place, opening the security scope inside that callback is what
+extends it; not in place, the provider has already made a copy and deletes it as
+soon as you return, so the file has to be moved out first. `DroppedClip` holds
+whichever of the two it was, and `Tests/DroppedClipTests` covers both — a real
+drag between two apps is not something a simulator can be made to perform, but
+everything after the drop lands is ordinary code.
+
 Three things about Swift Charts are load-bearing here, all found by the app wedging
 rather than by any assertion failing:
 
@@ -374,6 +403,13 @@ becomes worth wiring in when there is behaviour that only exists at expanded
 width — the two-pane shell (NS-34 ticket 2) and the analysis column beside the
 map (ticket 3). Until then, what CI does hold is the breakpoints themselves, in
 `TrackEvolutionTests`.
+
+One suite is the exception and is the obvious first candidate if that step is
+ever wired up: `UITests/ChannelPanelKeyboardUITests` (NS-34 ticket 5) needs
+**neither a dev server nor sign-in**, because `-channelGraphs` opens the panel
+on synthetic data before the shell is built. What it would need in CI is the
+hardware keyboard turned on for the runner's simulator (`defaults write
+com.apple.iphonesimulator ConnectHardwareKeyboard -bool true`), since it types.
 
 **Connect the simulator's hardware keyboard** (Simulator → I/O → Keyboard →
 Connect Hardware Keyboard, or `defaults write com.apple.iphonesimulator

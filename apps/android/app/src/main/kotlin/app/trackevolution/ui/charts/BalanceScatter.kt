@@ -88,12 +88,14 @@ private const val MIN_ROTATION = 1e-3
  * that count toward no reading — straight-line, or slow — draw fainter so the
  * blob at the origin doesn't read as data.
  *
- * There is no per-point *hover* — a phone has no pointer — but a **corner row is
- * tappable**, and does what the web's hover does for one: [onHit] answers "where
- * is this corner on track" on everything drawn beside the panel (NS-34 ticket 3).
- * The hit carries no lap of its own, because a corner is a stretch of track every
- * lap goes through, which is what lets the map ring it whatever lap the trace was
- * drawn from — the rule `bindBalance` states on the web.
+ * The **corner rows** are what points outward: [onHit] answers "where is this
+ * corner on track" on everything drawn beside the panel (NS-34 ticket 3), and a
+ * mouse resting on a row does the same through [onHover] without committing it
+ * (ticket 5). The samples themselves stay untappable — a point here is one 20 m
+ * sample of one lap, and the reading it belongs to is the corner's, which is the
+ * row. The hit carries no lap of its own, because a corner is a stretch of track
+ * every lap goes through, which is what lets the map ring it whatever lap the
+ * trace was drawn from — the rule `bindBalance` states on the web.
  */
 @Composable
 fun BalanceScatter(
@@ -109,6 +111,11 @@ fun BalanceScatter(
      * beside the panel (NS-34 ticket 3).
      */
     onHit: (ChannelHit?) -> Unit = {},
+    /**
+     * The same answer from a *mouse* over the row (NS-34 ticket 5), held only
+     * while it is there. Null means it has left.
+     */
+    onHover: (ChannelHit?) -> Unit = {},
 ) {
     val readable = remember(channels) { Balance.balanceLaps(channels) }
     if (readable.isEmpty()) return
@@ -198,6 +205,9 @@ fun BalanceScatter(
                     dStepM = channels.dStepM,
                     lapNumber = lapNumber,
                     onCorner = { corner -> onHit(cornerPlace(corner, channels)) },
+                    onCornerHover = { corner ->
+                        onHover(corner?.let { cornerPlace(it, channels) })
+                    },
                 )
             }
             Text(
@@ -354,6 +364,7 @@ private fun CornerTable(
     lapNumber: (Int) -> Int,
     /** Tapping a row says where the corner is on track (NS-34 ticket 3). */
     onCorner: (Corners.Corner) -> Unit = {},
+    onCornerHover: (Corners.Corner?) -> Unit = {},
 ) {
     if (columns.isEmpty()) return
     val colors = TrackTheme.colors
@@ -417,7 +428,8 @@ private fun CornerTable(
                     // carries no lap of its own and the map may ring it whatever
                     // lap the trace was drawn from — the rule `bindBalance`
                     // states on the web.
-                    .clickable { onCorner(row.corner) },
+                    .clickable { onCorner(row.corner) }
+                    .pointerHover(row.corner) { offset -> onCornerHover(offset?.let { row.corner }) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {

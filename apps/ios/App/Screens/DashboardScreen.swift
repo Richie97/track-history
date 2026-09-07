@@ -121,7 +121,7 @@ struct DashboardScreen: View {
                 // One card per row on a phone, filling the width above it — the
                 // web's `.cards` grid (NS-34).
                 TECardGrid(items: model.tracksWithData) { track in
-                    trackCard(track)
+                    TrackCard(track: track)
                 }
             }
 
@@ -250,29 +250,6 @@ struct DashboardScreen: View {
 
     // MARK: - Track cards
 
-    private func trackCard(_ track: Track) -> some View {
-        TENavCard(route: .track(track.id), identifier: "trackCard", listPane: true) {
-            // The name reserves two lines whether it needs them or not, so a grid of
-            // cards is one height rather than a row of ragged ones — and two lines is
-            // what a track name with its layout suffix ("… — Grand West") actually
-            // takes at this width.
-            VStack(alignment: .leading, spacing: 4) {
-                Text(track.name)
-                    .teStyle(.h3)
-                    .lineLimit(2, reservesSpace: true)
-                    .foregroundStyle(Color(.textStrong))
-                Text(LapTime.fmtMs(track.bestMs))
-                    .teStyle(.lapTimeHero)
-                    .foregroundStyle(Color(.textStrong))
-                TEMeta([
-                    fmtCount(track.eventCount, "event"),
-                    fmtCount(track.trackDays, "day"),
-                    EventDates.fmtDate(track.lastDate)
-                ])
-            }
-        }
-    }
-
     // MARK: - Garage cards
 
     /// A car's accrued hours and the worst thing fitted to it — enough to know
@@ -284,8 +261,13 @@ struct DashboardScreen: View {
             Text(vehicle.name)
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
+            // Same rule as the track card's time: one line, scaled to fit. "12.5 h"
+            // is short enough to be safe today, and this card sits in the same
+            // grid, so it would break the same way the first time it isn't.
             Text(Garage.fmtHours(vehicle.hours))
                 .teStyle(.lapTimeHero)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
                 .foregroundStyle(Color(.textStrong))
             TEMeta([
                 fmtCount(vehicle.eventDays, "track day"),
@@ -469,4 +451,44 @@ final class DashboardModel {
         RemoteRecording.pickRecordingEvent(events, todayIso: RemoteRecording.localTodayIso())
     }
     var alsoUpcoming: [Event] { Array(upcoming.dropFirst()) }
+}
+
+/// One track's card on the dashboard: its name, its best lap and its counts.
+///
+/// It carried a sparkline of best lap per event too, until that came off every
+/// client: a track usually holds two or three visits, and two points is a dot
+/// and a dot rather than a trend. What the chart cost was the card's own
+/// layout — the text column and the plot negotiating for a width neither could
+/// state — and with it gone the card is a stack of three things.
+struct TrackCard: View {
+    let track: Track
+
+    var body: some View {
+        TENavCard(route: .track(track.id), identifier: "trackCard", listPane: true) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track.name)
+                    .teStyle(.h3)
+                    // Two lines whether it needs them or not, so every card in the
+                    // list is the same height rather than a ragged row — and two is
+                    // what a name with its layout suffix ("… — Grand West") takes.
+                    .lineLimit(2, reservesSpace: true)
+                    .foregroundStyle(Color(.textStrong))
+                // One line, shrinking to fit rather than wrapping: the monospaced
+                // digits make a wrapped time worse, because each fragment looks
+                // deliberate. The same rule `TEStatTile` has carried since NS-25.
+                // Still earned without the chart beside it — a long name in a
+                // narrow list-pane column is enough to break the time on its own.
+                Text(LapTime.fmtMs(track.bestMs))
+                    .teStyle(.lapTimeHero)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .foregroundStyle(Color(.textStrong))
+                TEMeta([
+                    fmtCount(track.eventCount, "event"),
+                    fmtCount(track.trackDays, "day"),
+                    EventDates.fmtDate(track.lastDate)
+                ])
+            }
+        }
+    }
 }

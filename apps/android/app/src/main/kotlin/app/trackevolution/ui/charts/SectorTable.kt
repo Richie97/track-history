@@ -71,6 +71,11 @@ fun SectorTable(
      * balance scatter to `onHover`, so this is behaviour NS-34 adds.
      */
     onHit: (ChannelHit?) -> Unit = {},
+    /**
+     * The same answer from a *mouse* over the heading (NS-34 ticket 5), held only
+     * while it is there. Null means it has left.
+     */
+    onHover: (ChannelHit?) -> Unit = {},
 ) {
     val sec = remember(channels) { Sectors.sessionSectors(channels) } ?: return
     val rows = lit.mapIndexedNotNull { slot, chIdx ->
@@ -139,7 +144,10 @@ fun SectorTable(
                     textAlign = TextAlign.End,
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { onHit(sectorStart(k, sec, channels)) },
+                        .clickable { onHit(sectorStart(k, sec, channels)) }
+                        .pointerHover(sec, channels, k) { offset ->
+                            onHover(if (offset == null) null else sectorStart(k, sec, channels))
+                        },
                 )
             }
             Text(

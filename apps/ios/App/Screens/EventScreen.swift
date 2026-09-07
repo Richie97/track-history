@@ -1,5 +1,6 @@
 import SwiftUI
 import TrackEvolutionKit
+import UniformTypeIdentifiers
 
 /// A track day: what the car did, session by session.
 ///
@@ -37,6 +38,8 @@ struct EventScreen: View {
     @State private var channelSession: Session?
     /// The session the analysis column is showing (NS-34 ticket 3).
     @State private var selectedChannelSessionId: Int?
+    /// Whether a clip is being dragged over the page (NS-34 ticket 5).
+    @State private var isDropTargeted = false
     /// Whether the "Add a session" card's hand-entry form is expanded.
     ///
     /// Collapsed by default: recording and importing are the two ways laps normally
@@ -56,6 +59,25 @@ struct EventScreen: View {
                             selectedChannelSessionId = Self.defaultChannelSession(detail.sessions)?.id
                         }
                     }
+            }
+        }
+        // Drop a clip from Files onto the page to import it (NS-34 ticket 5).
+        //
+        // On the whole page rather than on the "Add a session" card at the bottom
+        // of it: a drag is held in one hand across a screen you cannot scroll
+        // with the other, so a target you have to reach is a target you drop
+        // beside. The page already knows which event it is, which is the only
+        // thing the drop has to say.
+        .onDrop(of: [.movie], isTargeted: $isDropTargeted) { providers in
+            acceptDroppedClip(providers)
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: TERadius.md)
+                    .strokeBorder(Color(.accent), lineWidth: 2)
+                    .padding(4)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
         .navigationTitle(model?.event?.trackName ?? "Event")
@@ -726,6 +748,92 @@ struct EventScreen: View {
     }
 
     // MARK: - Video import entry point
+
+    /// The page's own drop handler: a clip lands, and the importer opens on this
+    /// event.
+    private func acceptDroppedClip(_ providers: [NSItemProvider]) -> Bool {
+        Self.droppedClip(from: providers) { url in
+            router.push(.importVideo(eventId: eventId, incoming: url))
+        }
+    }
+
+    /// A clip dragged onto the page (NS-34 ticket 5).
+    ///
+    /// **In place where the system allows it**, via `loadInPlaceFileRepresentation`
+    /// — the drop is a third door onto NS-30's importer and inherits its first
+    /// rule, that the video is not copied. `loadFileRepresentation`, the obvious
+    /// sibling, always materialises the whole clip into the sandbox before handing
+    /// anything back, which for a 4 GB track-day recording is minutes of waiting
+    /// for bytes the parsers never read.
+    ///
+    /// Both of its outcomes have to be handled, and the second is the one that
+    /// bites. The URL it yields is valid **only inside the callback**:
+    ///
+    /// - *In place* — a drag from Files — the URL is the file itself, and opening
+    ///   its security scope here is precisely what extends it past the callback.
+    ///   `DroppedClip` holds that scope until the import has read it.
+    /// - *Not in place*, which is what a provider that cannot share the original
+    ///   does: the copy has **already been made** by the time we are called, and
+    ///   the system deletes it the instant we return. Moving it out is then the
+    ///   only way to keep it, and within one container a move is a rename, so it
+    ///   costs nothing on top of a copy nobody asked for. `DroppedClip` deletes
+    ///   that one when it is finished with, since it is ours.
+    ///
+    /// Static and routerless so all of that can be tested — a drag session between
+    /// two apps is not something a simulator can be made to perform, but
+    /// everything after the drop lands is ordinary code.
+    static func droppedClip(
+        from providers: [NSItemProvider],
+        // `@Sendable @MainActor` because the item provider answers on a queue of
+        // its own choosing and the opening has to happen back on the main actor:
+        // the closure crosses one boundary and is called on the other side of it.
+        then open: @escaping @Sendable @MainActor (URL) -> Void
+    ) -> Bool {
+        let movie = UTType.movie.identifier
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(movie) })
+        else { return false }
+        // The clip's real name, for the review's "Imported from …" note: a copy
+        // the system made carries a name of its own invention.
+        let suggested = provider.suggestedName
+        provider.loadInPlaceFileRepresentation(forTypeIdentifier: movie) { url, isInPlace, _ in
+            guard let url else { return }
+            if isInPlace, url.startAccessingSecurityScopedResource() {
+                Task { @MainActor in
+                    DroppedClip.shared.hold(url, scoped: true, temporary: false)
+                    open(url)
+                }
+                return
+            }
+            guard let kept = try? Self.keepBeforeItIsDeleted(url, named: suggested) else { return }
+            Task { @MainActor in
+                DroppedClip.shared.hold(kept, scoped: false, temporary: true)
+                open(kept)
+            }
+        }
+        return true
+    }
+
+    /// Move a copy the provider made into somewhere it will still exist a moment
+    /// from now, under the clip's own name.
+    private static func keepBeforeItIsDeleted(_ url: URL, named suggested: String?) throws -> URL {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("dropped-clips", isDirectory: true)
+        var name = suggested ?? url.lastPathComponent
+        if URL(fileURLWithPath: name).pathExtension.isEmpty {
+            name += ".\(url.pathExtension)"
+        }
+        // A directory per drop, so the file can keep its own name — which is what
+        // the imported session's notes end up quoting.
+        let box = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: box, withIntermediateDirectories: true)
+        let kept = box.appendingPathComponent(name)
+        do {
+            try FileManager.default.moveItem(at: url, to: kept)
+        } catch {
+            try FileManager.default.copyItem(at: url, to: kept)
+        }
+        return kept
+    }
 
     /// Lap times out of a video already on the phone (NS-30). Only *video* import
     /// is native — `.vbo` and the rest of the desk-bound long tail stay on the web

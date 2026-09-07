@@ -35,9 +35,11 @@ import TrackEvolutionKit
 /// Samples that count toward no reading — straight-line, or slow — draw fainter
 /// so the blob at the origin doesn't read as data.
 ///
-/// Unlike the web there is no per-point hover: a phone has no pointer, and the
-/// best-lap track map the web rings on hover is on the event page behind this
-/// sheet.
+/// The **corner rows** are what points outward: tapping one says where that
+/// corner is, and on an iPad a pointer resting on the row does the same without
+/// committing it (NS-34 ticket 5). The samples themselves stay untappable — a
+/// point here is one 20 m sample of one lap, and the reading it belongs to is the
+/// corner's, which is the row.
 struct BalanceScatter: View {
     let channels: SessionChannels
     /// Channel-lap indexes in slot order, as `LapChannelPanel` keeps them.
@@ -48,6 +50,9 @@ struct BalanceScatter: View {
     /// Tapping a corner row answers "where is this on track" on everything drawn
     /// beside the panel (NS-34 ticket 3).
     var onHit: (ChannelHit?) -> Void = { _ in }
+    /// The same answer from a *pointer* over the row (NS-34 ticket 5), held only
+    /// while it is there. Nil means it has left.
+    var onHover: (ChannelHit?) -> Void = { _ in }
 
     @Environment(\.layout) private var layout
 
@@ -302,6 +307,7 @@ struct BalanceScatter: View {
                     // is — the rule `bindBalance` states on the web (NS-34).
                     .contentShape(Rectangle())
                     .onTapGesture { onHit(hit(for: row.corner)) }
+                    .onHover { inside in onHover(inside ? hit(for: row.corner) : nil) }
                 }
             }
         }
