@@ -695,18 +695,13 @@ async function viewDashboard() {
   const upcoming = events.filter(isUpcoming).sort((a, b) => a.start_date.localeCompare(b.start_date));
 
   const cards = withData
-    .map((t) => {
-      const spark =
-        t.series.length >= 2
-          ? lineChart(t.series.map((p, i) => ({ x: i, y: p.best_ms })), { width: 220, height: 44, sparkline: true }).svg
-          : "";
-      return `<a class="card" href="#/track/${t.id}">
+    .map(
+      (t) => `<a class="card" href="#/track/${t.id}">
         <div class="name">${esc(t.name)}</div>
         <div class="best">${fmtMs(t.best_ms)}</div>
         <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · ${fmtDate(t.last_date)}</div>
-        ${spark}
-      </a>`;
-    })
+      </a>`
+    )
     .join("");
 
   // The nearest upcoming event gets a hero slot above the tiles; any others
@@ -2746,18 +2741,13 @@ function shareDashboard() {
     .sort((a, b) => (b.last_date || "").localeCompare(a.last_date || ""));
 
   const cards = withData
-    .map((t) => {
-      const spark =
-        t.series.length >= 2
-          ? lineChart(t.series.map((p, i) => ({ x: i, y: p.best_ms })), { width: 220, height: 44, sparkline: true }).svg
-          : "";
-      return `<a class="card" href="#/track/${t.id}">
+    .map(
+      (t) => `<a class="card" href="#/track/${t.id}">
         <div class="name">${esc(t.name)}</div>
         <div class="best">${fmtMs(t.best_ms)}</div>
         <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · ${fmtDate(t.last_date)}</div>
-        ${spark}
-      </a>`;
-    })
+      </a>`
+    )
     .join("");
 
   const view = shareShell(`

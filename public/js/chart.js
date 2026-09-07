@@ -71,13 +71,11 @@ function animateDraw(svgEl, pts) {
 // cell per point, `{alpha}` or null for a point there is no reading for. Purely
 // visual: the words belong to each point's `tip` and to `label`, which the
 // chart speaks, since a wash is exactly what a screen-reader user cannot see.
-export function lineChart(points, { width = 900, height = 300, sparkline = false, goal = null, bands = null } = {}) {
+export function lineChart(points, { width = 900, height = 300, goal = null, bands = null } = {}) {
   if (!points.length) return { svg: "", bind: () => {} };
-  const hasGoal = !sparkline && typeof goal === "number" && Number.isFinite(goal);
+  const hasGoal = typeof goal === "number" && Number.isFinite(goal);
   const goalMet = hasGoal && Math.min(...points.map((p) => p.y)) <= goal;
-  const pad = sparkline
-    ? { l: 2, r: 6, t: 4, b: 4 }
-    : { l: 64, r: 20, t: 12, b: 28 };
+  const pad = { l: 64, r: 20, t: 12, b: 28 };
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
   let x0 = Math.min(...xs), x1 = Math.max(...xs);
@@ -96,10 +94,9 @@ export function lineChart(points, { width = 900, height = 300, sparkline = false
 
   // The band cells span the midpoints between neighbouring points, so each
   // event owns the width around its own mark and the wash reads as territory
-  // rather than as a bar per event. Never drawn on a sparkline, which has no
-  // room to be read as anything.
+  // rather than as a bar per event.
   let bandLayer = "";
-  if (bands && !sparkline && bands.cells?.length === pts.length) {
+  if (bands && bands.cells?.length === pts.length) {
     const x0px = pad.l, x1px = width - pad.r;
     const mid = (a, b) => (a.px + b.px) / 2;
     bandLayer = bands.cells
@@ -114,32 +111,27 @@ export function lineChart(points, { width = 900, height = 300, sparkline = false
       .join("");
   }
 
-  let grid = "", labels = "", dots = "";
-  if (!sparkline) {
-    for (const tv of niceTimeTicks(y0, y1)) {
-      const y = Y(tv).toFixed(1);
-      grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
-      labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${fmtMs(tv)}</text>`;
-    }
-    // x labels: first, last, and up to 2 between
-    const n = pts.length;
-    const idxs = [...new Set([0, Math.floor((n - 1) / 3), Math.floor(((n - 1) * 2) / 3), n - 1])];
-    for (const i of idxs) {
-      const p = pts[i];
-      const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
-      labels += `<text x="${p.px.toFixed(1)}" y="${height - 8}" text-anchor="${anchor}" fill="var(--text-faint)" font-size="11">${esc(p.xlabel ?? "")}</text>`;
-    }
-    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
-    dots = pts
-      .map(
-        (p, i) =>
-          `<circle data-i="${i}" cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="4.5" fill="var(--chart-line)" stroke="var(--surface-card)" stroke-width="2" style="cursor:${p.href ? "pointer" : "default"}"/>`
-      )
-      .join("");
-  } else {
-    const last = pts[pts.length - 1];
-    dots = `<circle cx="${last.px.toFixed(1)}" cy="${last.py.toFixed(1)}" r="3" fill="var(--accent)" stroke="var(--surface-card)" stroke-width="2"/>`;
+  let grid = "", labels = "";
+  for (const tv of niceTimeTicks(y0, y1)) {
+    const y = Y(tv).toFixed(1);
+    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
+    labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${fmtMs(tv)}</text>`;
   }
+  // x labels: first, last, and up to 2 between
+  const n = pts.length;
+  const idxs = [...new Set([0, Math.floor((n - 1) / 3), Math.floor(((n - 1) * 2) / 3), n - 1])];
+  for (const i of idxs) {
+    const p = pts[i];
+    const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+    labels += `<text x="${p.px.toFixed(1)}" y="${height - 8}" text-anchor="${anchor}" fill="var(--text-faint)" font-size="11">${esc(p.xlabel ?? "")}</text>`;
+  }
+  grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  const dots = pts
+    .map(
+      (p, i) =>
+        `<circle data-i="${i}" cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="4.5" fill="var(--chart-line)" stroke="var(--surface-card)" stroke-width="2" style="cursor:${p.href ? "pointer" : "default"}"/>`
+    )
+    .join("");
 
   let goalLayer = "";
   if (hasGoal) {
@@ -149,16 +141,14 @@ export function lineChart(points, { width = 900, height = 300, sparkline = false
       <text x="${width - pad.r}" y="${(Number(gy) - 6).toFixed(1)}" text-anchor="end" fill="${col}" font-size="11" font-weight="600">Goal ${fmtMs(goal)}${goalMet ? " ✓" : ""}</text>`;
   }
 
-  const strokeCol = sparkline ? "var(--text-faint)" : "var(--chart-line)";
   const svg = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lap time trend${bandLayer && bands.label ? `, ${esc(bands.label)}` : ""}">
     ${bandLayer}${grid}${labels}${goalLayer}
-    <path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="${sparkline ? 1.5 : 2.25}" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="${path}" fill="none" stroke="var(--chart-line)" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
   </svg>`;
 
-  // Hover/click wiring for the full chart (nearest point by x).
+  // Hover/click wiring (nearest point by x).
   const bind = (container) => {
-    if (sparkline) return;
     const $tooltip = document.getElementById("tooltip");
     const svgEl = container.querySelector("svg");
     animateDraw(svgEl, pts);

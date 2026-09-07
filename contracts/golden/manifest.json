@@ -106,7 +106,7 @@
       "method": "GET",
       "path": "/tracks",
       "status": 200,
-      "description": "Tracks with per-track aggregates and the best-per-event sparkline series.",
+      "description": "Tracks with per-track aggregates, plus the best-per-event series no client renders any more (kept so shipped app builds keep decoding — see src/db.ts).",
       "source": "src/routes/tracks.ts"
     },
     {

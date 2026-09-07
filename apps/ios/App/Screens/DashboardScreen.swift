@@ -252,46 +252,23 @@ struct DashboardScreen: View {
 
     private func trackCard(_ track: Track) -> some View {
         TENavCard(route: .track(track.id), identifier: "trackCard", listPane: true) {
-            // The text column sets the row's height and the sparkline fills it, so the
-            // trend line reads as part of the card rather than a stamp floating in it.
-            // `.fixedSize(vertical:)` is what pins that height to the text: without it
-            // the flexible chart and the flexible stack negotiate with each other and
-            // the row collapses.
-            //
-            // Since the text is the only thing setting the height, the name reserves two
-            // lines whether it needs them or not — that's what makes every card in the
-            // list the same height instead of a row of ragged ones, and two lines is
+            // The name reserves two lines whether it needs them or not, so a grid of
+            // cards is one height rather than a row of ragged ones — and two lines is
             // what a track name with its layout suffix ("… — Grand West") actually
             // takes at this width.
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(track.name)
-                        .teStyle(.h3)
-                        .lineLimit(2, reservesSpace: true)
-                        .foregroundStyle(Color(.textStrong))
-                    Text(LapTime.fmtMs(track.bestMs))
-                        .teStyle(.lapTimeHero)
-                        .foregroundStyle(Color(.textStrong))
-                    TEMeta([
-                        fmtCount(track.eventCount, "event"),
-                        fmtCount(track.trackDays, "day"),
-                        EventDates.fmtDate(track.lastDate)
-                    ])
-                }
-                .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 0)
-                // Two points is the least that can show a direction; one would be a
-                // dot pretending to be a trend.
-                if track.series.count >= 2 {
-                    ProgressChart(
-                        points: track.series.enumerated().map { index, point in
-                            .init(x: Double(index), label: EventDates.fmtDate(point.date), ms: point.bestMs)
-                        },
-                        style: .sparkline
-                    )
-                    .frame(width: 110)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track.name)
+                    .teStyle(.h3)
+                    .lineLimit(2, reservesSpace: true)
+                    .foregroundStyle(Color(.textStrong))
+                Text(LapTime.fmtMs(track.bestMs))
+                    .teStyle(.lapTimeHero)
+                    .foregroundStyle(Color(.textStrong))
+                TEMeta([
+                    fmtCount(track.eventCount, "event"),
+                    fmtCount(track.trackDays, "day"),
+                    EventDates.fmtDate(track.lastDate)
+                ])
             }
         }
     }
