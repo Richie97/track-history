@@ -325,6 +325,7 @@ struct VehicleScreen: View {
             RoundedRectangle(cornerRadius: TERadius.lg)
                 .strokeBorder(Color(.accent), lineWidth: selected ? 2 : 0)
         )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("partCard")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

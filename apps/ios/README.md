@@ -451,22 +451,49 @@ Two environment things to know when running them:
 ### What the suites say today
 
 The first full run — 24 tests, since they became runnable — was 19 passing and 5
-failing. The failures are recorded here rather than left to be rediscovered, and
-**none of them is about signing in**:
+failing. `GarageUITests` has since been fixed; the rest are recorded here rather
+than left to be rediscovered, and **none of them is about signing in**:
 
 - `SignInUITests.testSignsInThroughTheSystemBrowser` — the XPC fault above. This
   one is the known-bad path, and the reason the rest no longer take it.
-- `GarageUITests` — never reaches `measurePart`. The diagnostic lists the part
-  cards as *buttons* and no `Measure` / `Refresh` / `Retire` / `Edit` among them,
-  which points at the card-wide tap gesture NS-34 ticket 3 added for selecting a
-  part: a tap on a container makes SwiftUI publish it as one accessibility
-  element and swallow the buttons inside. If that is what it is, it is a
-  VoiceOver regression on the phone and not merely a test failure. **Unconfirmed**
-  — attaching the gesture only at expanded width did not fix it on its own, so
-  something else is contributing; the dev logbook had also accumulated a dozen
-  parts from repeated runs, which the suite is supposed to clean up.
+- `GarageUITests` — **fixed**, and it was three separate things, none of them the
+  VoiceOver regression it first looked like (see *Identifiers propagate*, below).
+  The card's buttons were always reachable and always spoken; only their
+  *identifiers* were masked.
 - `RecordAndSaveUITests` (both) and `VideoImportUITests.testAGoProClipAsksForThe`
   `StartFinishLine` — not yet diagnosed.
+
+### Identifiers propagate, and it is silent
+
+`.accessibilityIdentifier` on a **container** is inherited by every element
+inside it, overwriting identifiers those elements set for themselves. The part
+card carried one, so `Measure`, `Refresh`, `Retire` and `Edit` all reported as
+`partCard` and `app.buttons["measurePart"]` matched nothing at all.
+
+Nothing about this is visible from the outside: the buttons still exist as
+separate elements and VoiceOver still reads their labels, so it is not an
+accessibility bug — it breaks *tests*, and only tests, which is why it survived
+in `main` while the suites could not run. The fix is
+`.accessibilityElement(children: .contain)` above the identifier: it says the
+card is a group that keeps its children, so the identifier lands on the card and
+stops there. **Any card here that wants an identifier of its own and holds
+controls needs that pair.**
+
+Two more things that suite had wrong, both of the same family — a query that
+matches nothing and then reports something else:
+
+- `matching(identifier: "Delete")` where the button sets no identifier. SwiftUI
+  synthesizes none, so it matched nothing; match a plain `Button("Delete")` by
+  **label**.
+- `for … where element.isHittable` over a list nobody had scrolled to. Every
+  element was off-screen, so the filter skipped all of them and the loop fell
+  through to its own failure message. Scroll first, then filter.
+
+The suite also now removes its car in `tearDown` over the API, however the run
+ended. It used to leave one behind on failure and add a part to the *same* car
+next time, so a few failures in, the page carried a dozen cards and the scrolling
+helpers failed for reasons unrelated to the test. A suite whose failures make the
+next failure worse is one nobody can debug.
 
 All four are pre-existing: they are what became *visible* when the suites started
 running, not what running them broke.
