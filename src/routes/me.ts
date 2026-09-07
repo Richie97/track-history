@@ -26,7 +26,7 @@ me.get("/me", async (c) => {
   // batched round trip.
   const [userRes, totalsRes, subsRes] = await c.env.DB.batch([
     c.env.DB.prepare(
-      "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in FROM users WHERE id = ?"
+      "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in, leaderboard_share_laps FROM users WHERE id = ?"
     ).bind(userId),
     userTotalsStmt(c.env.DB, userId),
     subscriptionsForUserStmt(c.env.DB, userId),
@@ -36,6 +36,7 @@ me.get("/me", async (c) => {
     ...row,
     checklist_template: parseTemplate(row.checklist_template),
     leaderboard_opt_in: Boolean(row.leaderboard_opt_in),
+    leaderboard_share_laps: Boolean(row.leaderboard_share_laps),
   };
   // Tier comes from entitled_until as loaded with the session; the rows only
   // say where it came from (NS-32 requirement 1).
@@ -43,17 +44,35 @@ me.get("/me", async (c) => {
   return c.json({ user, totals: totalsRes.results[0], entitlement });
 });
 
-// Toggle the per-track leaderboard opt-in. Off (the default) means nothing
-// about the user appears on any leaderboard; on publishes their display name
-// and best lap per catalog track to other signed-in users (see
-// GET /tracks/:id/leaderboard in routes/tracks.ts).
+// Toggle the per-track leaderboard opt-in, and the second, narrower consent
+// stacked on top of it (NS-35). Off (the default) means nothing about the user
+// appears on any leaderboard; `opt_in` publishes their display name and best
+// device-timed lap per catalog track to other signed-in users, and
+// `share_laps` additionally publishes *that lap* — its GPS trace and per-lap
+// channel data — so a driver ranked at the same track can open it and compare
+// (see GET /tracks/:id/leaderboard and its /laps/:lapId sibling in
+// routes/tracks.ts).
+//
+// `share_laps` is optional, so a shipped older client's `{ opt_in }` body keeps
+// working and never silently clears a flag it doesn't know about. Opting *out*
+// clears both in the same statement: laps cannot be shared by someone who is
+// not on the board, and a second flag left set would re-publish telemetry the
+// moment they rejoined.
 me.put("/me/leaderboard", async (c) => {
   const userId = c.get("userId");
   const body = await c.req.json().catch(() => null);
-  const optIn = body && typeof body === "object" ? (body as Record<string, unknown>).opt_in : undefined;
+  const o = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+  const optIn = o.opt_in;
   if (typeof optIn !== "boolean") return c.json({ error: "opt_in must be true or false" }, 400);
-  await c.env.DB.prepare("UPDATE users SET leaderboard_opt_in = ? WHERE id = ?")
-    .bind(optIn ? 1 : 0, userId)
+  const shareLaps = o.share_laps;
+  if (shareLaps !== undefined && typeof shareLaps !== "boolean")
+    return c.json({ error: "share_laps must be true or false" }, 400);
+  // null = leave the stored value alone; opting out overrides it to 0.
+  const share = !optIn ? 0 : shareLaps === undefined ? null : shareLaps ? 1 : 0;
+  await c.env.DB.prepare(
+    "UPDATE users SET leaderboard_opt_in = ?, leaderboard_share_laps = COALESCE(?, leaderboard_share_laps) WHERE id = ?"
+  )
+    .bind(optIn ? 1 : 0, share, userId)
     .run();
   return c.json({ ok: true });
 });

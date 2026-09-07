@@ -84,8 +84,8 @@ describe("GET /tracks/:id/leaderboard", () => {
     expect(res.body.opted_in).toBe(true);
     expect(res.body.catalog_id).not.toBeNull();
     expect(res.body.entries).toEqual([
-      { name: "Test User", best_ms: 91000, date: "2026-04-10", you: false },
-      { name: "Test User", best_ms: 93211, date: "2026-04-10", you: true },
+      { name: "Test User", best_ms: 91000, date: "2026-04-10", you: false, lap_id: null },
+      { name: "Test User", best_ms: 93211, date: "2026-04-10", you: true, lap_id: expect.any(Number) },
     ]);
   });
 
@@ -99,7 +99,7 @@ describe("GET /tracks/:id/leaderboard", () => {
     });
     const res = await u.api("GET", `/tracks/${trackId}/leaderboard`);
     expect(res.body.entries).toEqual([
-      { name: "Test User", best_ms: 125000, date: "2026-04-10", you: true },
+      { name: "Test User", best_ms: 125000, date: "2026-04-10", you: true, lap_id: expect.any(Number) },
     ]);
     // The logbook itself keeps the MIN(manual, laps) rule — only the ranking changed.
     const events = (await u.api("GET", `/events?track_id=${trackId}`)).body;
@@ -123,7 +123,7 @@ describe("GET /tracks/:id/leaderboard", () => {
     const { trackId } = await trackDay(u, "Barber Motorsports Park", { laps: [95000, 93211], timed: [95000] });
     const res = await u.api("GET", `/tracks/${trackId}/leaderboard`);
     expect(res.body.entries).toEqual([
-      { name: "Test User", best_ms: 95000, date: "2026-04-10", you: true },
+      { name: "Test User", best_ms: 95000, date: "2026-04-10", you: true, lap_id: expect.any(Number) },
     ]);
   });
 
@@ -137,7 +137,7 @@ describe("GET /tracks/:id/leaderboard", () => {
     expect((await u.api("POST", `/sessions/${sessionId}/laps`, { laps: [90000] })).status).toBe(201);
     const res = await u.api("GET", `/tracks/${trackId}/leaderboard`);
     expect(res.body.entries).toEqual([
-      { name: "Test User", best_ms: 100000, date: "2026-04-10", you: true },
+      { name: "Test User", best_ms: 100000, date: "2026-04-10", you: true, lap_id: expect.any(Number) },
     ]);
   });
 
@@ -191,7 +191,7 @@ describe("GET /tracks/:id/leaderboard", () => {
     const { trackId } = await trackDay(u, "My Backyard Kart Track", { laps: [45000], timed: [45000] });
     const res = await u.api("GET", `/tracks/${trackId}/leaderboard`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ catalog_id: null, opted_in: true, entries: [] });
+    expect(res.body).toEqual({ catalog_id: null, opted_in: true, share_laps: false, entries: [] });
   });
 
   it("404s for another user's track id and for anonymous requests", async () => {

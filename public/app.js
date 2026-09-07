@@ -17,7 +17,7 @@ import { balanceHtml, balanceSummary, bindBalance } from "./js/balance.js";
 import { healthHtml, healthSummary, nextTimeNote, pressureLoop, pressureLoopHtml } from "./js/health.js";
 import {
   ambientText, bandLabel, conditionsBand, conditionsChipHtml, conditionsLegendHtml,
-  elevationText, eventAmbient, trackElevationM,
+  elevationText, eventAmbient, tempText, trackElevationM,
 } from "./js/conditions.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
@@ -818,7 +818,7 @@ async function viewDashboard() {
 // (manual bests included), is what explains a row that's slower than the
 // track page's own headline, or a missing row. Returns "" when there's
 // nothing to show at all.
-function leaderboardHtml(lb, viewerBestMs = null) {
+function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   if (!lb || lb.catalog_id == null) return "";
   const you = lb.entries.find((en) => en.you);
   let yourNote = "";
@@ -826,16 +826,32 @@ function leaderboardHtml(lb, viewerBestMs = null) {
     yourNote = "None of your laps here were timed by a device, so you aren't ranked yet. Record with the app or import telemetry to appear.";
   else if (you && viewerBestMs != null && viewerBestMs < you.best_ms)
     yourNote = `Your best here (${fmtMs(viewerBestMs)}) was entered by hand and isn't ranked.`;
+  // A row is openable when its owner published the lap itself (NS-35) — the
+  // server decides that, and withholds `lap_id` otherwise. The time stays a
+  // plain cell in that case rather than a link that would 404.
   const rows = lb.entries
-    .map(
-      (en, i) => `<tr${en.you ? ` class="you-row"` : ""}>
+    .map((en, i) => {
+      const time = fmtMs(en.best_ms);
+      const timeCell =
+        en.lap_id != null && trackId != null
+          ? `<a href="#/track/${trackId}/leaderboard/${en.lap_id}" title="Open this lap">${time}</a>`
+          : time;
+      return `<tr${en.you ? ` class="you-row"` : ""}>
         <td class="num">${i + 1}</td>
         <td>${esc(en.name ?? "Driver")}${en.you ? ` <span class="hint">(you)</span>` : ""}</td>
-        <td class="num">${fmtMs(en.best_ms)}</td>
+        <td class="num">${timeCell}</td>
         <td class="date">${fmtDate(en.date)}</td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join("");
+  const anyOpenable = lb.entries.some((en) => en.lap_id != null);
+  // The second consent sits with the first, because it is the one place a
+  // driver is looking at exactly what it would publish.
+  const shareControl = lb.opted_in
+    ? lb.share_laps
+      ? `<div class="hint" style="margin:4px 0 0">Your ranked lap is open to other drivers here — its racing line and telemetry, and nothing else from your logbook. <button class="btn small" id="lb-unshare">Stop sharing my laps</button></div>`
+      : `<div class="hint" style="margin:4px 0 0">Your ranked lap is a time only. Sharing it lets other drivers ranked here open its racing line and telemetry — never your notes, your car, your setup or any other lap. <button class="btn small" id="lb-share">Share my ranked laps</button></div>`
+    : "";
   const optControl = lb.opted_in
     ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
     : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
@@ -846,8 +862,10 @@ function leaderboardHtml(lb, viewerBestMs = null) {
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
         : `<div class="empty">No opted-in drivers here yet${lb.opted_in ? "" : " — be the first"}.</div>`
     }
+    ${anyOpenable ? `<div class="hint" style="margin:6px 0 0">Times in blue open the lap — its racing line and telemetry, next to your own best here.</div>` : ""}
     ${yourNote ? `<div class="hint" style="margin:8px 0 0">${yourNote}</div>` : ""}
     ${optControl}
+    ${shareControl}
     <span id="lb-msg" class="goal-msg"></span>`;
 }
 
@@ -972,7 +990,7 @@ async function viewTrack(trackId, params) {
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
-    ${leaderboardHtml(leaderboard, allBests.length ? Math.min(...allBests) : null)}
+    ${leaderboardHtml(leaderboard, allBests.length ? Math.min(...allBests) : null, track.id)}
     ${
       canUseSetups(state.entitlement)
         ? setupHistoryHtml(trackSetups, garagePartsById(garage))
@@ -1032,10 +1050,17 @@ async function viewTrack(trackId, params) {
 
   // Leaderboard opt-in/out — a live server write on purpose (not queueable):
   // publishing your name is not something to replay silently later.
-  const lbToggle = (optIn) => async () => {
+  const lbToggle = (optIn, shareLaps) => async () => {
     try {
-      await api("/me/leaderboard", { method: "PUT", body: { opt_in: optIn } });
+      await api("/me/leaderboard", {
+        method: "PUT",
+        body: { opt_in: optIn, ...(shareLaps === undefined ? {} : { share_laps: shareLaps }) },
+      });
       state.me.leaderboard_opt_in = optIn;
+      // Leaving clears the second consent server-side; mirror that here so the
+      // re-render doesn't show a control the server has already turned off.
+      if (!optIn) state.me.leaderboard_share_laps = false;
+      else if (shareLaps !== undefined) state.me.leaderboard_share_laps = shareLaps;
       route();
     } catch (err) {
       view.querySelector("#lb-msg").textContent = err.message;
@@ -1048,6 +1073,10 @@ async function viewTrack(trackId, params) {
     lbLeave.onclick = () => {
       if (confirm("Leave the leaderboards? Your name and times disappear from every track's leaderboard.")) lbToggle(false)();
     };
+  const lbShare = view.querySelector("#lb-share");
+  if (lbShare) lbShare.onclick = lbToggle(true, true);
+  const lbUnshare = view.querySelector("#lb-unshare");
+  if (lbUnshare) lbUnshare.onclick = lbToggle(true, false);
 
   const shareTrack = view.querySelector("#share-track");
   if (shareTrack)
@@ -1160,6 +1189,59 @@ async function viewCompare(trackId, params) {
 // --- compare two laps: full telemetry for any two laps at one track (#165) ---
 
 const KPH_TO_MPH = 0.621371;
+
+// Tooltip for a hand-built set of channel charts: nearest grid point by x, one
+// row per side. The multi-lap version of the readout `bindChannelGraphs` binds
+// for a whole session, used wherever a small fixed set of laps is drawn
+// directly — the two-lap compare (#165) and the leaderboard lap (NS-35), which
+// draws either one side or two depending on whether the viewer has a lap of
+// their own to put beside it. Sides come from `sideLabels`, so a one-sided
+// render needs no special case; `delta` and `refIdx` are the delta chart's, and
+// omitting them simply leaves it out.
+function bindPairTooltip(container, aligned, { sideColors, sideLabels, delta = null, refIdx = -1 }) {
+  if (!container) return;
+  const $tooltip = document.getElementById("tooltip");
+  container.querySelectorAll("svg[data-channel]").forEach((svgEl) => {
+    const def = CHANNEL_DEFS.find((d) => d.key === svgEl.dataset.channel);
+    const x1 = Number(svgEl.dataset.x1);
+    const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
+    const vbW = svgEl.viewBox.baseVal.width;
+    const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
+    svgEl.addEventListener("mousemove", (evt) => {
+      const rect = svgEl.getBoundingClientRect();
+      const frac = (((evt.clientX - rect.left) / rect.width) * vbW - padL) / (vbW - padL - padR);
+      const k = Math.round((Math.max(0, Math.min(1, frac)) * x1) / aligned.dStepM);
+      const d = Math.round(k * aligned.dStepM);
+      const tipRows = sideLabels
+        .map((label, i) => {
+          if (svgEl.dataset.channel === "delta") {
+            if (i === refIdx || !delta || k >= delta.length) return "";
+            const v = delta[k];
+            return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(label)} — ${v >= 0 ? "+" : ""}${v.toFixed(2)} s</div>`;
+          }
+          if (svgEl.dataset.channel === "gear") {
+            const arr = aligned.laps[i]?.gear;
+            if (!arr || k >= arr.length) return "";
+            return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(label)} — ${esc(ordinal(arr[k]))}</div>`;
+          }
+          const arr = aligned.laps[i]?.[def.key];
+          if (!arr || k >= arr.length) return "";
+          const lim = activeLimitLabels(aligned.laps[i], k);
+          return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(label)} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}${lim.length ? ` · ${esc(lim.join(", "))}` : ""}</div>`;
+        })
+        .join("");
+      if (!tipRows) { $tooltip.hidden = true; return; }
+      $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${tipRows}`;
+      $tooltip.hidden = false;
+      const tw = $tooltip.offsetWidth;
+      let left = evt.clientX + 14;
+      if (left + tw > window.innerWidth - 8) left = evt.clientX - tw - 14;
+      $tooltip.style.left = `${left}px`;
+      $tooltip.style.top = `${evt.clientY - 12}px`;
+    });
+    svgEl.addEventListener("mouseleave", () => ($tooltip.hidden = true));
+  });
+}
 
 async function viewLapCompare(trackId, params) {
   if (!canViewChannels(state.entitlement)) return viewProGate(trackId, "Compare two laps",
@@ -1276,49 +1358,7 @@ async function viewLapCompare(trackId, params) {
     </div>
   `);
 
-  // Tooltip: nearest grid point by x, one row per side — the two-lap version
-  // of the readout in bindChannelGraphs.
-  const $tooltip = document.getElementById("tooltip");
-  view.querySelectorAll("#cmp-charts svg[data-channel]").forEach((svgEl) => {
-    const def = CHANNEL_DEFS.find((d) => d.key === svgEl.dataset.channel);
-    const x1 = Number(svgEl.dataset.x1);
-    const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
-    const vbW = svgEl.viewBox.baseVal.width;
-    const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
-    svgEl.addEventListener("mousemove", (evt) => {
-      const rect = svgEl.getBoundingClientRect();
-      const frac = (((evt.clientX - rect.left) / rect.width) * vbW - padL) / (vbW - padL - padR);
-      const k = Math.round((Math.max(0, Math.min(1, frac)) * x1) / aligned.dStepM);
-      const d = Math.round(k * aligned.dStepM);
-      const tipRows = [0, 1]
-        .map((i) => {
-          if (svgEl.dataset.channel === "delta") {
-            if (i === refIdx || !delta || k >= delta.length) return "";
-            const v = delta[k];
-            return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${v >= 0 ? "+" : ""}${v.toFixed(2)} s</div>`;
-          }
-          if (svgEl.dataset.channel === "gear") {
-            const arr = aligned.laps[i]?.gear;
-            if (!arr || k >= arr.length) return "";
-            return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${esc(ordinal(arr[k]))}</div>`;
-          }
-          const arr = aligned.laps[i]?.[def.key];
-          if (!arr || k >= arr.length) return "";
-          const lim = activeLimitLabels(aligned.laps[i], k);
-          return `<div class="t-sub"><span style="color:${sideColors[i]}">●</span> ${esc(sideLabels[i])} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}${lim.length ? ` · ${esc(lim.join(", "))}` : ""}</div>`;
-        })
-        .join("");
-      if (!tipRows) { $tooltip.hidden = true; return; }
-      $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${tipRows}`;
-      $tooltip.hidden = false;
-      const tw = $tooltip.offsetWidth;
-      let left = evt.clientX + 14;
-      if (left + tw > window.innerWidth - 8) left = evt.clientX - tw - 14;
-      $tooltip.style.left = `${left}px`;
-      $tooltip.style.top = `${evt.clientY - 12}px`;
-    });
-    svgEl.addEventListener("mouseleave", () => ($tooltip.hidden = true));
-  });
+  bindPairTooltip(view.querySelector("#cmp-charts"), aligned, { sideColors, sideLabels, delta, refIdx });
 
   const [selA, selB] = [view.querySelector("#lap-a"), view.querySelector("#lap-b")];
   const go = () => {
@@ -1333,6 +1373,195 @@ async function viewLapCompare(trackId, params) {
     if (selA.value === selB.value) selA.value = keyOf(rowB);
     go();
   };
+}
+
+// --- leaderboard lap: another driver's ranked lap, and yours beside it (NS-35) ---
+
+// One row of the track leaderboard, opened. What the server publishes is the
+// lap and nothing else — no session, no event, no car, nothing user-entered —
+// so this page is deliberately thin above the charts: a name, a time, a date,
+// and what the recorder measured.
+//
+// The comparison is the point of the page rather than a feature on it. When the
+// viewer has a lap of their own with telemetry at this track, the two go
+// through `alignLapPair` and render exactly as the two-lap compare does; when
+// they don't, the same charts draw one side, and the page says why there is
+// only one. Their lap is always side A, so the leaderboard lap keeps the same
+// colour whether or not you have something to put beside it.
+async function viewLeaderboardLap(trackId, lapId, params) {
+  const lap = await api(`/tracks/${trackId}/leaderboard/laps/${lapId}`);
+  // The viewer's own name for the track — never the owner's row, which is
+  // user-entered and not published.
+  const tracks = await api("/tracks").catch(() => []);
+  const track = tracks.find((t) => String(t.id) === String(trackId));
+  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(track?.name ?? "Back to track")}</a></p>`;
+
+  const who = lap.you ? "Your leaderboard lap" : `${lap.name ?? "Driver"}'s leaderboard lap`;
+  const context = [
+    fmtDate(lap.date),
+    lap.ambient_c != null ? tempText(lap.ambient_c, "us") : "",
+    elevationText(lap.elevation_m, "us"),
+  ].filter(Boolean);
+
+  const headHtml = `${backHtml}
+    <h1>${esc(fmtMs(lap.time_ms))}</h1>
+    <p class="sub">${esc(who)}${context.length ? ` · ${esc(context.join(" · "))}` : ""}</p>`;
+
+  // The racing line is free — only `channels` is the Pro field (NS-32 rule 4),
+  // so a free account still gets the shape of the lap and the paywall sits
+  // under it rather than over the whole page.
+  const mapHtml = lap.trace
+    ? `<div class="chart-card">
+         <div class="chart-title">Racing line — <span class="dir">brighter is faster</span></div>
+         <canvas id="lb-trackmap" class="trackmap" aria-label="Racing line of this lap, coloured by speed"></canvas>
+       </div>`
+    : "";
+
+  if (!canViewChannels(state.entitlement) || !lap.channels?.laps?.length) {
+    const view = shell(`${headHtml}${mapHtml}
+      ${
+        !canViewChannels(state.entitlement)
+          ? proPanelHtml(
+              "Telemetry",
+              "See this lap's speed, throttle, brake and steering traces — and put your own best lap at this track " +
+                "beside it, corner for corner."
+            )
+          : `<div class="empty">This lap's telemetry isn't available.</div>`
+      }`);
+    if (lap.trace) renderTrackMap(view.querySelector("#lb-trackmap"), lap.trace);
+    return;
+  }
+
+  const theirEntry = lap.channels.laps[0];
+  const theirStep = lap.channels.dStepM;
+  const theirLabel = lap.you ? "Your ranked lap" : `${lap.name ?? "Driver"} — ${fmtMs(lap.time_ms)}`;
+
+  // The viewer's own comparable laps at this track. Channel data lives on event
+  // details, which the prefetcher warms after any dashboard visit, so this is
+  // mostly cache reads and works offline. A failure here costs the comparison,
+  // never the page: their lap still renders.
+  let mine = [];
+  try {
+    const allEvents = await api(`/events?track_id=${trackId}`);
+    const details = await Promise.all(
+      allEvents.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`))
+    );
+    const sessionsById = new Map(details.flatMap((e) => e.sessions.map((s) => [String(s.id), s])));
+    mine = comparableLaps(details).map((r) => ({
+      ...r,
+      key: `${r.sessionId}:${r.lapNum}`,
+      entry: sessionsById.get(String(r.sessionId)).channels.laps[r.chIdx],
+      step: sessionsById.get(String(r.sessionId)).channels.dStepM,
+    }));
+  } catch {
+    mine = [];
+  }
+  // Default to the viewer's own fastest — the comparison anyone opening a
+  // leaderboard row actually wants is "my best against theirs".
+  const fastest = mine.reduce((m, r) => (m == null || r.timeMs < m.timeMs ? r : m), null);
+  const pick = mine.find((r) => r.key === params.get("mine")) ?? fastest;
+
+  const sideColors = ["var(--chart-line)", "var(--chart-line-b)"];
+  const aligned = pick
+    ? alignLapPair(theirEntry, theirStep, pick.entry, pick.step)
+    : { v: 1, dStepM: theirStep, laps: [theirEntry] };
+  const sideLabels = pick ? [theirLabel, `You — ${fmtMs(pick.timeMs)} (${fmtDate(pick.date)})`] : [theirLabel];
+  const lit = new Map(sideLabels.map((_, i) => [i, sideColors[i]]));
+
+  let delta = null, refIdx = -1;
+  if (pick) {
+    refIdx = aligned.laps[0].timeMs <= aligned.laps[1].timeMs ? 0 : 1;
+    delta = deltaSeries(aligned.laps[1 - refIdx], aligned.laps[refIdx], aligned.dStepM);
+  }
+
+  const mismatch = pick ? lengthMismatchRatio(theirEntry, theirStep, pick.entry, pick.step) : 0;
+  const warnHtml =
+    mismatch > LENGTH_MISMATCH_WARN
+      ? `<div class="hint" style="margin:8px 0">⚠️ These laps cover driven distances ${Math.round(mismatch * 100)}% apart — likely a different layout or start/finish line, so the distance alignment may be off.</div>`
+      : "";
+
+  // Head to head, from the *unresampled* entries — the same rule the two-lap
+  // compare follows, so a resampling artefact never reaches a number.
+  const mphFmt = (v) => (v == null ? "—" : `${Math.round(v * KPH_TO_MPH)} mph`);
+  const signed = (fmt) => (d) => `${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))}`;
+  const mphDelta = signed((d) => `${Math.round(d * KPH_TO_MPH)} mph`);
+  const [mT, mM] = [lapMetrics(theirEntry), pick ? lapMetrics(pick.entry) : null];
+  const metricRow = (label, fmt, va, vb, deltaFmt) => {
+    const d = va != null && vb != null ? deltaFmt(vb - va) : "—";
+    return `<tr><td>${label}</td><td class="num">${fmt(va)}</td>${
+      pick ? `<td class="num">${fmt(vb)}</td><td class="num">${d}</td>` : ""
+    }</tr>`;
+  };
+  const tableHtml = `<div class="table-wrap"><table>
+    <thead><tr><th></th><th class="num">${esc(sideLabels[0])}</th>${
+      pick ? `<th class="num">${esc(sideLabels[1])}</th><th class="num">Δ</th>` : ""
+    }</tr></thead>
+    <tbody>
+      ${metricRow("Lap time", fmtMs, mT.timeMs, mM?.timeMs, fmtDelta)}
+      ${metricRow("Top speed", mphFmt, mT.topSpeedKph, mM?.topSpeedKph, mphDelta)}
+      ${metricRow("Min speed", mphFmt, mT.minSpeedKph, mM?.minSpeedKph, mphDelta)}
+      ${metricRow("Avg speed", mphFmt, mT.avgSpeedKph, mM?.avgSpeedKph, mphDelta)}
+      ${metricRow("Max lateral G", (v) => (v == null ? "—" : v.toFixed(2)), mT.maxLatG, mM?.maxLatG, signed((d) => d.toFixed(2)))}
+      ${metricRow("Full throttle", (v) => (v == null ? "—" : `${v.toFixed(0)}% of lap`), mT.fullThrottlePct, mM?.fullThrottlePct, signed((d) => `${d.toFixed(1)}pp`))}
+      ${metricRow("On the brakes", (v) => (v == null ? "—" : `${v.toFixed(0)}% of lap`), mT.brakingPct, mM?.brakingPct, signed((d) => `${d.toFixed(1)}pp`))}
+    </tbody></table></div>`;
+
+  const chartsHtml = [
+    pick ? deltaChartSvg(aligned, lit, refIdx, sideLabels[refIdx]) : "",
+    ...CHANNEL_DEFS.flatMap((def) => [
+      channelChartSvg(def, aligned, lit),
+      def.key === "rpm" ? gearRibbonSvg(aligned, lit, (i) => sideLabels[i]) : "",
+    ]),
+  ]
+    .filter(Boolean)
+    .map((c) => `<div class="ch-chart">${c}</div>`)
+    .join("");
+
+  // The picker only exists once there is a choice to make; with one lap of your
+  // own it is already the one shown, and a select with a single option is a
+  // control that does nothing.
+  const pickerHtml =
+    mine.length > 1
+      ? `<p class="sub"><span class="swatch" style="background:${sideColors[1]}"></span> Your lap:
+           <select id="lb-mine">${mine
+             .map(
+               (r) =>
+                 `<option value="${esc(r.key)}" ${r.key === pick.key ? "selected" : ""}>${fmtDate(r.date)} — Lap ${r.lapNum} — ${fmtMs(r.timeMs)}</option>`
+             )
+             .join("")}</select></p>`
+      : "";
+
+  const noneHtml = pick
+    ? ""
+    : `<div class="hint" style="margin:8px 0">You have no lap with telemetry at this track yet, so there's nothing to overlay. Record with the app or import a session and this page will put the two side by side.</div>`;
+
+  const view = shell(`${headHtml}
+    ${pickerHtml}
+    ${warnHtml}
+    ${noneHtml}
+    ${mapHtml}
+    <h2>${pick ? "Head to head" : "This lap"}</h2>
+    ${tableHtml}
+    ${sectorTableHtml(aligned, lit, (i) => sideLabels[i])}
+    <div class="chart-card">
+      <div class="chart-title">Telemetry — shared driven-distance axis</div>
+      ${
+        pick
+          ? `<div class="hint" style="margin:2px 0 6px">The delta chart shows where you gain or lose against this lap; the channels below show why.</div>`
+          : ""
+      }
+      <div class="ch-graphs" id="lb-charts">${chartsHtml}</div>
+    </div>
+  `);
+
+  if (lap.trace) renderTrackMap(view.querySelector("#lb-trackmap"), lap.trace);
+  bindPairTooltip(view.querySelector("#lb-charts"), aligned, { sideColors, sideLabels, delta, refIdx });
+
+  const sel = view.querySelector("#lb-mine");
+  if (sel)
+    sel.onchange = () => {
+      location.hash = `#/track/${trackId}/leaderboard/${lapId}?mine=${encodeURIComponent(sel.value)}`;
+    };
 }
 
 // --- event detail ---
@@ -2209,6 +2438,11 @@ async function viewSettings() {
         Appear on per-track leaderboards
       </label>
       <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap (with its date). Only laps recorded with the app or imported from telemetry are ranked — hand-entered times stay in your logbook. Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
+      <label class="dry-toggle" style="display:block;margin-top:12px">
+        <input type="checkbox" id="lb-share" ${state.me?.leaderboard_share_laps ? "checked" : ""} ${state.me?.leaderboard_opt_in ? "" : "disabled"}>
+        Let other drivers open my ranked laps
+      </label>
+      <div class="hint" style="margin:8px 0 0">A second, separate choice, off unless you turn it on. It publishes one lap per track — the ranked one already on the board — as its racing line and telemetry traces, so a driver ranked at the same track can compare corner for corner. It never publishes any other lap, your notes, your session labels, your car, the conditions you typed, your setup sheets or your garage. Leaving the leaderboards turns it off.</div>
       <div id="lb-error"></div>
     </div>
     <h2>Subscription</h2>
@@ -2274,17 +2508,31 @@ async function viewSettings() {
   const tmplReset = view.querySelector("#tmpl-reset");
   if (tmplReset) tmplReset.onclick = () => saveTemplate([]);
 
-  // --- leaderboard opt-in ---
+  // --- leaderboard opt-in, and the lap-sharing consent stacked on it (NS-35) ---
   const lbOpt = view.querySelector("#lb-opt");
-  lbOpt.onchange = async () => {
+  const lbShare = view.querySelector("#lb-share");
+  const saveLeaderboard = async (optIn, shareLaps) => {
     try {
-      await api("/me/leaderboard", { method: "PUT", body: { opt_in: lbOpt.checked } });
-      state.me.leaderboard_opt_in = lbOpt.checked;
+      await api("/me/leaderboard", { method: "PUT", body: { opt_in: optIn, share_laps: shareLaps } });
+      state.me.leaderboard_opt_in = optIn;
+      state.me.leaderboard_share_laps = optIn && shareLaps;
       view.querySelector("#lb-error").innerHTML = "";
+      return true;
     } catch (err) {
-      lbOpt.checked = !lbOpt.checked; // the write failed — don't lie about the state
       view.querySelector("#lb-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+      return false;
     }
+  };
+  lbOpt.onchange = async () => {
+    // Leaving the board clears lap sharing server-side; the checkbox follows so
+    // it never shows a consent that is no longer stored.
+    const ok = await saveLeaderboard(lbOpt.checked, lbOpt.checked && lbShare.checked);
+    if (!ok) lbOpt.checked = !lbOpt.checked; // the write failed — don't lie about the state
+    lbShare.disabled = !lbOpt.checked;
+    if (!lbOpt.checked) lbShare.checked = false;
+  };
+  lbShare.onchange = async () => {
+    if (!(await saveLeaderboard(true, lbShare.checked))) lbShare.checked = !lbShare.checked;
   };
 
   view.querySelector("#veh-add").onsubmit = async (evt) => {
@@ -2878,6 +3126,8 @@ async function route() {
     if (parts.length === 0) return await viewDashboard();
     if (parts[0] === "track" && parts[1] && parts[2] === "compare") return await viewCompare(parts[1], params);
     if (parts[0] === "track" && parts[1] && parts[2] === "lap-compare") return await viewLapCompare(parts[1], params);
+    if (parts[0] === "track" && parts[1] && parts[2] === "leaderboard" && parts[3])
+      return await viewLeaderboardLap(parts[1], parts[3], params);
     if (parts[0] === "track" && parts[1]) return await viewTrack(parts[1], params);
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);

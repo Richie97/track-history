@@ -52,7 +52,7 @@
       "method": "PUT",
       "path": "/me/leaderboard",
       "status": 200,
-      "description": "Toggle the per-track leaderboard opt-in.",
+      "description": "Toggle the per-track leaderboard opt-in, and the lap-sharing consent (NS-35) stacked on top of it.",
       "source": "src/routes/me.ts"
     },
     {
@@ -61,7 +61,16 @@
       "method": "GET",
       "path": "/tracks/:id/leaderboard",
       "status": 200,
-      "description": "The per-track community leaderboard: opted-in users' best laps at the same catalog track. `you` marks the viewer's own row.",
+      "description": "The per-track community leaderboard: opted-in users' best laps at the same catalog track. `you` marks the viewer's own row; `lap_id` is non-null only when that row's owner shares the lap itself.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "leaderboard-lap",
+      "file": "leaderboard-lap.json",
+      "method": "GET",
+      "path": "/tracks/:id/leaderboard/laps/:lapId",
+      "status": 200,
+      "description": "One shared leaderboard lap: its racing line and gridded channel traces, with nothing user-entered. `channels` is the one Pro field and is null for a free account.",
       "source": "src/routes/tracks.ts"
     },
     {
