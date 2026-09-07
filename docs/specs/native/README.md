@@ -319,11 +319,15 @@ Features added after the rewrite shipped, and where they landed:
   panel. The session cards' channel control becomes a *selection* at expanded
   width — the iOS sheet and the Android inline panel both stand down — and the
   best lap's channel-carrying session is pre-selected. What that ticket still
-  owes: the vehicle page's second column, and nothing else. The sector and
-  shift tables turned out to need no wide-column work — neither carries a place
-  or a peak G under a label, so that sentence in the spec is about the balance
-  table alone, which is done. Sector headings *are* now a hit source, and the
-  track page's two-lap compare opens as its right column at expanded width.
+  is **complete**. The sector and shift tables turned out to need no
+  wide-column work — neither carries a place or a peak G under a label, so that
+  sentence in the spec is about the balance table alone. Sector headings are a
+  hit source, the track page's two-lap compare opens as its right column, and
+  the vehicle page splits into consumables and the selected part's
+  measurements over the track-hours ledger. One rule the ticket left behind:
+  these chart cards are each a *single* accessibility element, so anything
+  tappable added inside one needs a named accessibility action on the card as
+  well, or it ships unreachable with VoiceOver and TalkBack.
   The **health per-lap table** and the balance table's **place / peak G
   columns** have landed at expanded width — both the reversal of a sacrifice
   this README records, and both gated on the *column's* width rather than the

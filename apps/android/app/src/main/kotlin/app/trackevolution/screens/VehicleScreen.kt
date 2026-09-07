@@ -7,13 +7,18 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +29,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.EventDates
@@ -37,7 +45,10 @@ import app.trackevolution.core.model.PartKind
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.wearLimitHint
+import app.trackevolution.ui.LayoutClass
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -71,11 +82,16 @@ fun VehicleScreen(
     var confirmRefresh by remember { mutableStateOf<Part?>(null) }
     var confirmDelete by remember { mutableStateOf<Part?>(null) }
 
+    // Two columns, and which consumable the right one is showing (NS-34 ticket 3).
+    val twoColumn = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded
+    var selectedPartId by rememberSaveable { mutableStateOf<Int?>(null) }
+
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier, onSubscribe = onRequirePro) {
         val vehicle = model.vehicle ?: return@TELoadable
 
+        val page = @Composable {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -155,6 +171,10 @@ fun VehicleScreen(
                             onRetire = { confirmRetire = part },
                             onRefresh = { confirmRefresh = part },
                             onDelete = { confirmDelete = part },
+                            detailInColumn = twoColumn,
+                            selected = twoColumn &&
+                                (selectedPartId ?: model.activeParts.firstOrNull()?.id) == part.id,
+                            onSelect = { selectedPartId = part.id },
                         )
                     }
                 }
@@ -171,47 +191,34 @@ fun VehicleScreen(
                 }
             }
 
-            if (model.events.isNotEmpty()) {
-                item("ledger-header") { TESectionHeader("Track-hours ledger") }
-                item("ledger-hint") {
-                    Text(
-                        "Hours marked est. use the 2h-per-day default — set exact hours on an " +
-                            "event's edit form if a day ran long or short.",
-                        style = TrackTheme.typography.xs,
-                        color = colors.textMuted,
+            // At expanded width the ledger sits under the measurements in the
+            // right column instead: the hours it lists are what the wear above
+            // them accrued from, and on a phone they are a whole page apart.
+            if (!twoColumn) {
+                item("ledger") { Ledger(model, onOpenEvent) }
+            }
+        }
+        }
+
+        if (twoColumn) {
+            Row(Modifier.fillMaxSize()) {
+                PaneWidth(Modifier.weight(1f)) { page() }
+                VerticalDivider(color = colors.borderHairline)
+                PaneWidth(
+                    Modifier.width(
+                        (LocalLayoutMetrics.current.contentWidth * 0.42f).coerceIn(340.dp, 560.dp),
+                    ),
+                ) {
+                    PartColumn(
+                        part = model.activeParts.firstOrNull { it.id == selectedPartId }
+                            ?: model.activeParts.firstOrNull(),
+                        model = model,
+                        onOpenEvent = onOpenEvent,
                     )
                 }
-                model.events.forEach { event ->
-                    item("ledger-${event.id}") {
-                        TrackCard(Modifier.fillMaxWidth().clickable { onOpenEvent(event.id) }) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        event.trackName,
-                                        style = TrackTheme.typography.bodyStrong,
-                                        color = colors.textStrong,
-                                    )
-                                    TEMeta(
-                                        listOf(
-                                            EventDates.fmtDate(event.startDate),
-                                            EventDates.fmtDays(event.days),
-                                        ),
-                                    )
-                                }
-                                Text(
-                                    Garage.fmtHours(event.hours) +
-                                        if (event.trackHours == null) " est." else "",
-                                    style = TrackTheme.typography.sm,
-                                    color = colors.textStrong,
-                                )
-                            }
-                        }
-                    }
-                }
             }
+        } else {
+            page()
         }
     }
 
@@ -268,6 +275,116 @@ private fun MaintenancePanel(alerts: List<Garage.Alert>) {
     }
 }
 
+/** One row per logged measurement, with the way to remove it. */
+@Composable
+private fun MeasurementList(part: Part, model: VehicleModel) {
+    val colors = TrackTheme.colors
+    part.measurements.forEach { measurement ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${EventDates.fmtDate(measurement.measuredOn)} · " +
+                    "${measurement.value} ${measurement.unit}",
+                style = TrackTheme.typography.xs,
+                color = colors.textMuted,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { model.deleteMeasurement(part.id, measurement.id) }) {
+                Text("✕", style = TrackTheme.typography.xs, color = colors.textFaint)
+            }
+        }
+    }
+}
+
+/**
+ * The car's driven events and the hours each contributed.
+ *
+ * One composable rather than a run of lazy items, because at expanded width it is
+ * the bottom of a scrolling column rather than part of the page's own list. A
+ * garage has tens of events, not thousands, so composing them together costs
+ * nothing measurable — and it is what iOS has always done here.
+ */
+@Composable
+private fun Ledger(model: VehicleModel, onOpenEvent: (Int) -> Unit) {
+    if (model.events.isEmpty()) return
+    val colors = TrackTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TESectionHeader("Track-hours ledger")
+        Text(
+            "Hours marked est. use the 2h-per-day default — set exact hours on an " +
+                "event's edit form if a day ran long or short.",
+            style = TrackTheme.typography.xs,
+            color = colors.textMuted,
+        )
+        model.events.forEach { event ->
+            TrackCard(Modifier.fillMaxWidth().clickable { onOpenEvent(event.id) }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            event.trackName,
+                            style = TrackTheme.typography.bodyStrong,
+                            color = colors.textStrong,
+                        )
+                        TEMeta(
+                            listOf(
+                                EventDates.fmtDate(event.startDate),
+                                EventDates.fmtDays(event.days),
+                            ),
+                        )
+                    }
+                    Text(
+                        Garage.fmtHours(event.hours) +
+                            if (event.trackHours == null) " est." else "",
+                        style = TrackTheme.typography.sm,
+                        color = colors.textStrong,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The vehicle page's right-hand column at expanded width (NS-34 ticket 3): the
+ * selected consumable's measurements, and the ledger under them.
+ *
+ * The pairing is the point. Logging a measurement is a two-field form that on a
+ * phone sits inside whichever card you happened to scroll to, and the hours its
+ * wear accrued from are a whole page further down.
+ */
+@Composable
+private fun PartColumn(part: Part?, model: VehicleModel, onOpenEvent: (Int) -> Unit) {
+    val colors = TrackTheme.colors
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(colors.bgPage)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+            .semantics { testTag = "partColumn" },
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (part == null) {
+            TEEmpty("Add a consumable and its measurements will show here.")
+        } else {
+            Text(
+                part.name ?: part.kind.label,
+                style = TrackTheme.typography.h3,
+                color = colors.textStrong,
+            )
+            WearStory(part)
+            if (part.measurements.isNotEmpty()) {
+                TESectionHeader("Measurements")
+                MeasurementList(part, model)
+            }
+            MeasurementForm(part) { draft -> model.addMeasurement(part.id, draft) }
+        }
+        Ledger(model, onOpenEvent)
+    }
+}
+
 @Composable
 private fun PartCard(
     part: Part,
@@ -275,12 +392,25 @@ private fun PartCard(
     onRetire: () -> Unit,
     onRefresh: () -> Unit,
     onDelete: () -> Unit,
+    /** Whether the measurements live in the column beside this instead. */
+    detailInColumn: Boolean = false,
+    selected: Boolean = false,
+    onSelect: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     var measuring by rememberSaveable(part.id) { mutableStateOf(false) }
     var editing by rememberSaveable(part.id) { mutableStateOf(false) }
 
-    TrackCard(Modifier.fillMaxWidth()) {
+    TrackCard(
+        Modifier
+            .fillMaxWidth()
+            .then(if (detailInColumn) Modifier.clickable(onClick = onSelect) else Modifier)
+            .semantics { this.selected = selected },
+        // Marked the way every other selectable row in the app is: a tint *and*
+        // a border, never colour alone.
+        color = if (selected) colors.accentTint else null,
+        border = if (selected) colors.accent else null,
+    ) {
         Text(part.kind.label, style = TrackTheme.typography.eyebrow, color = colors.accentInk)
         Text(
             part.name ?: part.kind.label,
@@ -299,30 +429,17 @@ private fun PartCard(
         TEWearBar(part.wear, modifier = Modifier.padding(vertical = 8.dp))
         WearStory(part)
 
-        if (part.measurements.isNotEmpty()) {
-            Column(Modifier.padding(top = 8.dp)) {
-                part.measurements.forEach { measurement ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "${EventDates.fmtDate(measurement.measuredOn)} · " +
-                                "${measurement.value} ${measurement.unit}",
-                            style = TrackTheme.typography.xs,
-                            color = colors.textMuted,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(
-                            onClick = { model.deleteMeasurement(part.id, measurement.id) },
-                        ) {
-                            Text("✕", style = TrackTheme.typography.xs, color = colors.textFaint)
-                        }
-                    }
-                }
-            }
+        // Both move to the column beside this at expanded width, where the
+        // ledger their wear accrued from also lives (NS-34 ticket 3).
+        if (!detailInColumn && part.measurements.isNotEmpty()) {
+            Column(Modifier.padding(top = 8.dp)) { MeasurementList(part, model) }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = { measuring = !measuring }) {
-                Text("Measure", style = TrackTheme.typography.xs, color = colors.accentInk)
+            if (!detailInColumn) {
+                TextButton(onClick = { measuring = !measuring }) {
+                    Text("Measure", style = TrackTheme.typography.xs, color = colors.accentInk)
+                }
             }
             if (part.retiredOn == null) {
                 TextButton(onClick = onRefresh) {
