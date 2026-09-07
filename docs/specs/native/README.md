@@ -367,6 +367,29 @@ Features added after the rewrite shipped, and where they landed:
   second. A test over a real `NSItemProvider` caught that; a manual drag would
   have caught it later.
 
+  **Ticket 4 has landed, and the epic is complete**
+  ([#218](https://github.com/Richie97/track-history/issues/218)): foldable
+  postures on Android. Posture is not width and is kept out of `LayoutMetrics`
+  for that reason — a half-open Fold is the same dp as a flat one. `androidx.window`
+  is confined to four lines that read the window; the decision is a pure function
+  over three plain values, so every posture is unit-tested without a foldable.
+  Tabletop is the one new feature: the recorder puts its live timing above the
+  crease and its controls below, split at the real hinge. Book posture moves the
+  two-pane gutter onto the seam.
+
+  The **audit** is the part worth remembering, because the spec asserted the
+  opposite. `RecordingFlow` — the held review pick, which NS-34 says sits "above
+  the view tree for exactly this reason" — was built in `onCreate` and died with
+  the activity on every configuration change, while the flag that *reopens* the
+  review is saveable and survived. Folding a device mid-review therefore landed
+  you on an empty review screen. Nothing had noticed because nothing had folded
+  a device and nothing tested a configuration change. It is a `ViewModel` now.
+  Two smaller finds went with it: three vehicle-page confirmations in bare
+  `remember`, and a channel panel whose saveable state had never been through a
+  restore in a test — `rememberSaveable` fails at runtime, not at compile time,
+  so "it is saveable" was an inspection rather than a fact until
+  `StateRestorationTester` said so.
+
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,

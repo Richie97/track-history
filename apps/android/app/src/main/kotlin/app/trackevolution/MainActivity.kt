@@ -48,7 +48,9 @@ import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
 import app.trackevolution.recording.RecordingFlow
+import app.trackevolution.navigation.rememberScreenModel
 import app.trackevolution.recording.RecordingService
+import app.trackevolution.ui.ProvideFoldGeometry
 import app.trackevolution.ui.ProvideLayoutMetrics
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.ThemePreference
@@ -77,7 +79,6 @@ class MainActivity : ComponentActivity() {
      */
     private val router = Router()
 
-    private lateinit var flow: RecordingFlow
 
     /**
      * Set when the app was opened by tapping the recording notification, which
@@ -131,7 +132,6 @@ class MainActivity : ComponentActivity() {
             providersStore = AuthProvidersStore(this),
             serverPreference = serverPreference,
         )
-        flow = RecordingFlow(scope = lifecycleScope, api = api)
         auth.start()
         // Billing follows the session (NS-32 phase C). Each time the app becomes
         // signed in — at launch on a stored token, or after the browser hop — the
@@ -154,6 +154,24 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         setContent {
+            // Retained across configuration changes, which is the whole point.
+            //
+            // It used to be built in `onCreate` against `lifecycleScope`, and the
+            // review state went with the activity: folding a device, rotating one,
+            // or changing the font scale destroys the activity, and the next one
+            // started a fresh `RecordingFlow` with an empty `ReviewUiState`. The
+            // picked start/finish line, the edited session labels, the notes and
+            // the include flags were all gone — while `SignedInScaffold`'s
+            // `reviewing` flag is `rememberSaveable` and came *back*, so the review
+            // reopened with nothing in it. NS-34 ticket 4 is what looked for this;
+            // the spec had assumed it already survived.
+            //
+            // A `ViewModel` is the right lifetime: longer than the activity, shorter
+            // than the process. `viewModelScope` is cancelled when the flow is
+            // actually finished with, rather than at every recreation.
+            val recordingFlow = rememberScreenModel { scope, _ ->
+                RecordingFlow(scope = scope, api = api)
+            }
             val preference = remember { ThemePreference(applicationContext) }
             val choice by preference.choice.collectAsState(initial = ThemeChoice.System)
             val state by auth.state.collectAsState()
@@ -164,45 +182,51 @@ class MainActivity : ComponentActivity() {
             // whole app rather than nothing at all. Outside the theme because it
             // is a fact about the window, not a design token.
             ProvideLayoutMetrics {
-                TrackTheme(choice) {
-                    when (state) {
-                        is AuthState.SignedIn -> SignedInScaffold(
-                            api = api,
-                            auth = auth,
-                            authState = state,
-                            billing = services.billing,
-                            router = router,
-                            flow = flow,
-                            serverUrl = server,
-                            themeChoice = choice,
-                            onThemeChange = { next ->
-                                lifecycleScope.launch { preference.set(next) }
-                            },
-                            startOnRecord = openRecorder,
-                            onConsumedStartOnRecord = { openRecorder = false },
-                            onStartRecording = ::requestPermissionsThenRecord,
-                            onSignOut = {
-                                // A deep link parked for a session that no longer
-                                // exists must not fire under the next one.
-                                router.clear()
-                                incomingImport = null
-                                auth.signOut()
-                            },
-                            incomingImport = incomingImport,
-                            onConsumedIncomingImport = { incomingImport = null },
-                        )
-                        AuthState.Loading -> LoadingScreen()
-                        else -> SignInScreen(
-                            state = state,
-                            onSignIn = { auth.signIn(it, this@MainActivity) },
-                            // Debug only: pointing the app at `wrangler dev` is a
-                            // development affordance, not a user-facing setting.
-                            serverOverride = if (BuildConfig.DEBUG) {
-                                ServerOverride(current = server, onChange = auth::setServer)
-                            } else {
-                                null
-                            },
-                        )
+                // Posture beside width, and outside the theme for the same reason
+                // (NS-34 ticket 4): how the device is folded is a fact about the
+                // window. On anything that does not fold this resolves to flat and
+                // costs one flow that never emits.
+                ProvideFoldGeometry {
+                    TrackTheme(choice) {
+                        when (state) {
+                            is AuthState.SignedIn -> SignedInScaffold(
+                                api = api,
+                                auth = auth,
+                                authState = state,
+                                billing = services.billing,
+                                router = router,
+                                flow = recordingFlow,
+                                serverUrl = server,
+                                themeChoice = choice,
+                                onThemeChange = { next ->
+                                    lifecycleScope.launch { preference.set(next) }
+                                },
+                                startOnRecord = openRecorder,
+                                onConsumedStartOnRecord = { openRecorder = false },
+                                onStartRecording = ::requestPermissionsThenRecord,
+                                onSignOut = {
+                                    // A deep link parked for a session that no longer
+                                    // exists must not fire under the next one.
+                                    router.clear()
+                                    incomingImport = null
+                                    auth.signOut()
+                                },
+                                incomingImport = incomingImport,
+                                onConsumedIncomingImport = { incomingImport = null },
+                            )
+                            AuthState.Loading -> LoadingScreen()
+                            else -> SignInScreen(
+                                state = state,
+                                onSignIn = { auth.signIn(it, this@MainActivity) },
+                                // Debug only: pointing the app at `wrangler dev` is a
+                                // development affordance, not a user-facing setting.
+                                serverOverride = if (BuildConfig.DEBUG) {
+                                    ServerOverride(current = server, onChange = auth::setServer)
+                                } else {
+                                    null
+                                },
+                            )
+                        }
                     }
                 }
             }

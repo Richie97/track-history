@@ -12,6 +12,7 @@ import androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
@@ -48,21 +49,50 @@ fun TwoPaneShell(
     }
     @Suppress("NAME_SHADOWING") val listPane = @Composable { PaneWidth(content = listPane) }
     @Suppress("NAME_SHADOWING") val detailPane = @Composable { PaneWidth(content = detailPane) }
-    ListDetailPaneScaffold(
-        // The window is already known to be expanded — that decision is
-        // `LayoutClass`'s and is made once, at the root — so the directive only
-        // has to say "two panes, standard gutter" rather than measure again and
-        // risk disagreeing with the class the rest of the app is laid out by.
-        directive = PaneScaffoldDirective.Default,
-        value = ThreePaneScaffoldValue(
-            primary = PaneAdaptedValue.Expanded,
-            secondary = PaneAdaptedValue.Expanded,
-            tertiary = PaneAdaptedValue.Hidden,
-        ),
-        listPane = { AnimatedPane { listPane() } },
-        detailPane = { AnimatedPane { detailPane() } },
-        modifier = modifier.fillMaxSize(),
-    )
+    val fold = LocalFoldGeometry.current
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        ListDetailPaneScaffold(
+            // The window is already known to be expanded — that decision is
+            // `LayoutClass`'s and is made once, at the root — so the directive only
+            // has to say "two panes, standard gutter" rather than measure again and
+            // risk disagreeing with the class the rest of the app is laid out by.
+            //
+            // The one thing it does measure is the **crease**: on a book-posture
+            // foldable the split goes where the hinge is, so neither pane is laid
+            // across it (NS-34 ticket 4). Everywhere else — every phone, every
+            // tablet, every flat foldable — this is the default, unchanged.
+            directive = bookDirective(fold, maxWidth),
+            value = ThreePaneScaffoldValue(
+                primary = PaneAdaptedValue.Expanded,
+                secondary = PaneAdaptedValue.Expanded,
+                tertiary = PaneAdaptedValue.Hidden,
+            ),
+            listPane = { AnimatedPane { listPane() } },
+            detailPane = { AnimatedPane { detailPane() } },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+/**
+ * The scaffold directive, with the list pane widened to meet the hinge in book
+ * posture.
+ *
+ * `defaultPanePreferredWidth` rather than `excludedBounds`: the hinge on the
+ * devices this is for is a *seam*, not a cutout with a width to route around, so
+ * the useful thing to do with it is put the gutter there. A fold whose hinge sits
+ * far from the middle has already been discarded by [Folds.geometry] — a 15/85
+ * split is a worse layout than an even one, not a better one.
+ *
+ * Internal and pure so the arithmetic is testable without a foldable.
+ */
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
+internal fun bookDirective(fold: FoldGeometry, width: Dp): PaneScaffoldDirective {
+    val fraction = fold.hingeFraction
+    if (fold.posture != FoldPosture.Book || fraction == null || width <= 0.dp) {
+        return PaneScaffoldDirective.Default
+    }
+    return PaneScaffoldDirective.Default.copy(defaultPanePreferredWidth = width * fraction)
 }
 
 /**
