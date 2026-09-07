@@ -53,19 +53,6 @@ struct TokenGallery: View {
                 ],
                 goalMs: 118_000
             )
-            Text("…and the dashboard's sparkline of the same series")
-                .teStyle(.xs)
-                .foregroundStyle(Color(.textFaint))
-            ProgressChart(
-                points: [
-                    .init(x: 0, label: "Apr 10", ms: 124_500),
-                    .init(x: 1, label: "May 1", ms: 122_800),
-                    .init(x: 2, label: "Jun 1", ms: 121_500),
-                    .init(x: 3, label: "Jul 4", ms: 119_900)
-                ],
-                style: .sparkline
-            )
-            .frame(width: 140, height: 44)
             Text("Trackmap — speed ramp over tarmac")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))

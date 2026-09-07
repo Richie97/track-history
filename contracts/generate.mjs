@@ -383,7 +383,8 @@ async function captureAll(api, anon, f) {
     "src/routes/events.ts", await api("GET", `/events/${ev}/setups/prefill`));
 
   record("tracks-list", "GET", "/tracks",
-    "Tracks with per-track aggregates and the best-per-event sparkline series.",
+    "Tracks with per-track aggregates, plus the best-per-event series no client "
+      + "renders any more (kept so shipped app builds keep decoding — see src/db.ts).",
     "src/routes/tracks.ts", await api("GET", "/tracks"));
 
   record("track-setups", "GET", "/tracks/:id/setups",

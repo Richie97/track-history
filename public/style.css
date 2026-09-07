@@ -436,7 +436,6 @@ h2 {
   color: var(--text-strong); font-variant-numeric: tabular-nums;
 }
 .card .meta { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
-.card svg { display: block; margin-top: 14px; }
 
 /* ---------- Tables ---------- */
 .table-wrap {

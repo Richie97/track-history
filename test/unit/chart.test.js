@@ -41,12 +41,6 @@ describe("lineChart", () => {
     expect(cys[2]).toBeGreaterThan(cys[0]);
   });
 
-  it("renders sparklines with a single end dot and no grid", () => {
-    const { svg } = lineChart(points, { sparkline: true });
-    expect(svg.match(/<circle /g)).toHaveLength(1);
-    expect(svg).not.toContain("<line ");
-  });
-
   it("draws an unbeaten goal in the danger colour", () => {
     const { svg } = lineChart(points, { goal: 120000 });
     expect(svg).toContain("var(--danger)");
@@ -82,8 +76,7 @@ describe("lineChart", () => {
     expect(lineChart(points).svg).toContain('aria-label="Lap time trend"');
   });
 
-  it("ignores bands that don't line up with the points, and never washes a sparkline", () => {
+  it("ignores bands that don't line up with the points", () => {
     expect(lineChart(points, { bands: { cells: [{ alpha: 0.2 }], label: "x" } }).svg).not.toContain("<rect");
-    expect(lineChart(points, { bands, sparkline: true }).svg).not.toContain("<rect");
   });
 });

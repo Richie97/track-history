@@ -52,7 +52,6 @@ import app.trackevolution.ui.TENavCard
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.charts.ProgressChart
-import app.trackevolution.ui.charts.ProgressChartStyle
 import app.trackevolution.ui.charts.ProgressPoint
 import app.trackevolution.ui.theme.BrandMark
 import app.trackevolution.ui.theme.TrackCard
@@ -366,13 +365,13 @@ private fun HeroCard(event: Event, selected: Boolean = false, onClick: () -> Uni
     }
 }
 
-/** A track with its best time and, once there are two events, its trend. */
+/** A track with its best time and how much of it you have driven. */
 @Composable
 private fun TrackRow(track: Track, selected: Boolean = false, onClick: () -> Unit) {
     val colors = TrackTheme.colors
     TENavCard(onClick = onClick, selected = selected) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(Modifier.weight(1f)) {
@@ -389,15 +388,6 @@ private fun TrackRow(track: Track, selected: Boolean = false, onClick: () -> Uni
                 LapTime.fmtMs(track.bestMs),
                 style = TrackTheme.typography.lapTime,
                 color = colors.textStrong,
-            )
-        }
-        // Two points is the minimum that can show a direction; one is a dot.
-        if (track.series.size >= 2) {
-            ProgressChart(
-                points = track.series.mapIndexed { i, p ->
-                    ProgressPoint(x = i.toDouble(), label = "", ms = p.bestMs)
-                },
-                style = ProgressChartStyle.Sparkline,
             )
         }
     }

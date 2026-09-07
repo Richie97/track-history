@@ -41,8 +41,6 @@ import app.trackevolution.ui.theme.TrackTheme
 /** One plotted lap time. [x] is an epoch millisecond or an ordinal. */
 data class ProgressPoint(val x: Double, val label: String, val ms: Int)
 
-enum class ProgressChartStyle { Full, Sparkline }
-
 /**
  * The lap-time progress chart (NS-24) — the port of `lineChart` in
  * `public/js/chart.js`.
@@ -65,7 +63,6 @@ fun ProgressChart(
     modifier: Modifier = Modifier,
     goalMs: Int? = null,
     band: SessionConditions.Band? = null,
-    style: ProgressChartStyle = ProgressChartStyle.Full,
 ) {
     // An empty chart is a layout hole, not a chart. The web returns "" here and
     // the caller decides what to say instead; same contract.
@@ -74,30 +71,21 @@ fun ProgressChart(
     val colors = TrackTheme.colors
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val sparkline = style == ProgressChartStyle.Sparkline
 
     val labelStyle = TrackTheme.typography.xxs.copy(color = colors.textFaint)
     val goalStyle = TrackTheme.typography.xxs
 
-    val pad = with(density) {
-        if (sparkline) {
-            Insets(2.dp.toPx(), 6.dp.toPx(), 4.dp.toPx(), 4.dp.toPx())
-        } else {
-            // The left gutter is measured below, not fixed: "2:00.25" is wider
-            // than "1:59" and a fixed inset lets the widest tick label run under
-            // the plot. This is only the floor.
-            Insets(0f, 14.dp.toPx(), 10.dp.toPx(), 22.dp.toPx())
-        }
-    }
+    // The left gutter is measured below, not fixed: "2:00.25" is wider than
+    // "1:59" and a fixed inset lets the widest tick label run under the plot.
+    // This is only the floor.
+    val pad = with(density) { Insets(0f, 14.dp.toPx(), 10.dp.toPx(), 22.dp.toPx()) }
     val gutter = with(density) { 6.dp.toPx() }
-    val lineWidth = with(density) { (if (sparkline) 1.5.dp else 2.25.dp).toPx() }
-    val dotRadius = with(density) { (if (sparkline) 3.dp else 4.5.dp).toPx() }
+    val lineWidth = with(density) { 2.25.dp.toPx() }
+    val dotRadius = with(density) { 4.5.dp.toPx() }
     val ringWidth = with(density) { 2.dp.toPx() }
     val goalWidth = with(density) { 1.5.dp.toPx() }
 
-    // The goal only applies to the full chart — a sparkline has no room to say
-    // what the dashed line means, and an unexplained rule is noise.
-    val goal = goalMs?.takeIf { !sparkline }
+    val goal = goalMs
     val domain = ChartScale.lapTimeDomain(points.map { it.ms }, goal) ?: return
     val xDomain = ChartScale.xDomain(points.map { it.x }) ?: return
     val goalMet = goal != null && points.minOf { it.ms } <= goal
@@ -105,27 +93,23 @@ fun ProgressChart(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (sparkline) Modifier.height(44.dp) else Modifier.height(200.dp))
+            .height(200.dp)
             .semantics {
-                testTag = if (sparkline) "progressSparkline" else "progressChart"
+                testTag = "progressChart"
                 // A chart that is only visual is incomplete: TalkBack gets the
                 // trend in words rather than "image" — and the wash behind it
                 // (#191) is precisely what a screen-reader user cannot see, so
                 // it is said out loud too.
                 contentDescription = listOf(
                     trendSummary(points, goalMs),
-                    if (sparkline) "" else SessionConditions.bandLabel(band, SessionConditions.Units.US),
+                    SessionConditions.bandLabel(band, SessionConditions.Units.US),
                 ).filter { it.isNotEmpty() }.joinToString(", ")
             },
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val ticks = if (sparkline) emptyList() else ChartScale.niceTimeTicks(domain.low, domain.high)
+            val ticks = ChartScale.niceTimeTicks(domain.low, domain.high)
             val tickLabels = ticks.map { it to measurer.measure(LapTime.fmtMs(it), labelStyle) }
-            val left = if (sparkline) {
-                pad.left
-            } else {
-                (tickLabels.maxOfOrNull { it.second.size.width }?.toFloat() ?: 0f) + gutter * 2
-            }
+            val left = (tickLabels.maxOfOrNull { it.second.size.width }?.toFloat() ?: 0f) + gutter * 2
 
             val plot = Plot(
                 left = left,
@@ -144,7 +128,7 @@ fun ProgressChart(
             // the shading reads as territory rather than as a bar per event. A
             // cell the band left null draws nothing at all — an unknown day must
             // not be painted the coolest shade.
-            if (!sparkline && band != null && band.cells.size == points.size) {
+            if (band != null && band.cells.size == points.size) {
                 val xs = points.map { px(it.x) }
                 band.cells.forEachIndexed { i, cell ->
                     if (cell == null) return@forEachIndexed
@@ -159,23 +143,21 @@ fun ProgressChart(
                 }
             }
 
-            if (!sparkline) {
-                for ((tick, text) in tickLabels) {
-                    val y = py(tick)
-                    drawLine(colors.chartGrid, Offset(plot.left, y), Offset(plot.right, y), strokeWidth = 1f)
-                    drawText(
-                        text,
-                        topLeft = Offset(plot.left - gutter - text.size.width, y - text.size.height / 2f),
-                    )
-                }
-                drawLine(
-                    colors.borderStrong,
-                    Offset(plot.left, plot.bottom),
-                    Offset(plot.right, plot.bottom),
-                    strokeWidth = 1f,
+            for ((tick, text) in tickLabels) {
+                val y = py(tick)
+                drawLine(colors.chartGrid, Offset(plot.left, y), Offset(plot.right, y), strokeWidth = 1f)
+                drawText(
+                    text,
+                    topLeft = Offset(plot.left - gutter - text.size.width, y - text.size.height / 2f),
                 )
-                drawXLabels(plot, points, measurer, labelStyle, ::px, size.height)
             }
+            drawLine(
+                colors.borderStrong,
+                Offset(plot.left, plot.bottom),
+                Offset(plot.right, plot.bottom),
+                strokeWidth = 1f,
+            )
+            drawXLabels(plot, points, measurer, labelStyle, ::px, size.height)
 
             val path = Path()
             points.forEachIndexed { i, p ->
@@ -185,7 +167,7 @@ fun ProgressChart(
             }
             drawPath(
                 path,
-                color = if (sparkline) colors.textFaint else colors.chartLine,
+                color = colors.chartLine,
                 style = Stroke(width = lineWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round),
             )
 
@@ -193,15 +175,8 @@ fun ProgressChart(
                 drawGoal(plot, py(goal.toDouble()), goal, goalMet, colors, measurer, goalStyle, goalWidth)
             }
 
-            if (sparkline) {
-                // Only the newest point, as the web does — a 44dp strip cannot
-                // carry a marker per event.
-                val last = points.last()
-                drawMarker(Offset(px(last.x), py(last.ms.toDouble())), colors.accent, colors.surfaceCard, dotRadius, ringWidth)
-            } else {
-                points.forEach { p ->
-                    drawMarker(Offset(px(p.x), py(p.ms.toDouble())), colors.chartLine, colors.surfaceCard, dotRadius, ringWidth)
-                }
+            points.forEach { p ->
+                drawMarker(Offset(px(p.x), py(p.ms.toDouble())), colors.chartLine, colors.surfaceCard, dotRadius, ringWidth)
             }
         }
     }

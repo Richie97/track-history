@@ -20,7 +20,12 @@ public struct Track: Codable, Hashable, Sendable, Identifiable {
     public var bestMs: Int?
     /// Start date of the most recent past event; nil when there are none.
     public var lastDate: String?
-    /// Chronological best-per-event series for the sparkline.
+    /// Chronological best-per-event series.
+    ///
+    /// Decoded and not drawn: the track cards' sparkline came off every client
+    /// (a track usually holds two or three events, and two points is not a
+    /// trend). The field stays because it is non-optional here and on Android,
+    /// so the server cannot stop sending it while these builds are in the wild.
     public var series: [TrackSeriesPoint]
 
     public enum CodingKeys: String, CodingKey {

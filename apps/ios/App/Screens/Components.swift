@@ -75,10 +75,15 @@ struct TECardGrid<Item: Identifiable, Content: View>: View {
     var body: some View {
         let columns = layout.layoutClass == .compact ? 1 : layout.columns(minimum: minimum)
         // Each card is told how wide *it* is, not how wide the page is. A card
-        // that lays itself out differently when narrow — the track card puts its
-        // sparkline under the text rather than beside it — has no other way to
-        // know, and the page's width is the wrong answer as soon as there are
-        // two columns. Same rule as the panes and the analysis column.
+        // that lays itself out differently when narrow has no other way to know,
+        // and the page's width is the wrong answer as soon as there are two
+        // columns. Same rule as the panes and the analysis column.
+        //
+        // No card reads it today — the track card's sparkline, which is what it
+        // was added for, came off every client. It stays because the rule is the
+        // grid's to enforce rather than each card's to rediscover, and because a
+        // card that needs it and cannot see it fails silently: the branch simply
+        // never fires.
         let cardWidth = max(
             0,
             (layout.contentWidth - TESpacing.gridGap * CGFloat(columns - 1)) / CGFloat(columns)

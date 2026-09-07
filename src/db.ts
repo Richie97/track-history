@@ -143,11 +143,11 @@ export function trackRowsStmt(db: D1Database, userId: number) {
     .bind(userId);
 }
 
-// Per-track aggregates and a best-per-event sparkline series, computed from
-// the track rows plus the user's *past* events in ascending date order (same
-// rule as userTotals — upcoming events live in the dashboard's upcoming
-// section, not the tracks list). Pure so the share endpoint can feed it the
-// events it already fetched instead of querying them a second time.
+// Per-track aggregates, computed from the track rows plus the user's *past*
+// events in ascending date order (same rule as userTotals — upcoming events live
+// in the dashboard's upcoming section, not the tracks list). Pure so the share
+// endpoint can feed it the events it already fetched instead of querying them a
+// second time.
 export function summarizeTracks(tracks: TrackRow[], events: ComputedEvent[]) {
   const byTrack = new Map<number, ComputedEvent[]>();
   for (const ev of events) {
@@ -163,7 +163,16 @@ export function summarizeTracks(tracks: TrackRow[], events: ComputedEvent[]) {
       track_days: evs.reduce((sum, e) => sum + (e.days ?? 0), 0),
       best_ms: bests.length ? Math.min(...bests) : null,
       last_date: evs.length ? evs[evs.length - 1].start_date : null,
-      // chronological best-per-event series for sparklines
+      // The chronological best-per-event series. **Nothing renders it any more** —
+      // it fed the track cards' sparkline, which came off every client because a
+      // track usually holds two or three events and two points is not a trend.
+      //
+      // It stays because removing it would break the apps already on people's
+      // phones: `series` is a non-optional field on `Track` and `SharedTrack` in
+      // both the Swift and Kotlin models, so a shipped build stops decoding
+      // GET /api/tracks the day the server leaves it out. It costs one array per
+      // track out of events already in memory, not a query. Drop it once the
+      // builds that need it have aged out.
       series: evs
         .filter((e) => e.best_ms != null)
         .map((e) => ({ date: e.start_date, best_ms: e.best_ms })),

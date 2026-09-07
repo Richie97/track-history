@@ -129,12 +129,6 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
         ProgressChart(points = banded, goalMs = 119_000, band = band)
         band?.let { ConditionsKey(it) }
 
-        Text("Progress — sparkline", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-        ProgressChart(
-            points = (1..8).map { ProgressPoint(it.toDouble(), "", 128_000 - it * 700) },
-            style = ProgressChartStyle.Sparkline,
-        )
-
         Text("Progress — identical times (degenerate)", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
         ProgressChart(points = (1..3).map { ProgressPoint(it.toDouble(), "E$it", 120_000) })
 

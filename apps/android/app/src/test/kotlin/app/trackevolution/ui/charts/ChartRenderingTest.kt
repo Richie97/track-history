@@ -91,19 +91,6 @@ class ChartRenderingTest {
     }
 
     @Test
-    fun `renders a sparkline`() {
-        compose.setContent {
-            TrackTheme {
-                ProgressChart(
-                    points = (1..5).map { ProgressPoint(it.toDouble(), "", 125_000 - it * 400) },
-                    style = ProgressChartStyle.Sparkline,
-                )
-            }
-        }
-        compose.onNodeWithTag("progressSparkline").assertIsDisplayed()
-    }
-
-    @Test
     fun `renders a goal that is still unbeaten`() {
         compose.setContent {
             TrackTheme {

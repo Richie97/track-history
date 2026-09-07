@@ -26,7 +26,14 @@ public data class Track(
     @SerialName("best_ms") val bestMs: Int? = null,
     /** Start date of the most recent past event; null when there are none. */
     @SerialName("last_date") val lastDate: String? = null,
-    /** Chronological best-per-event series for the sparkline. */
+    /**
+     * Chronological best-per-event series.
+     *
+     * Decoded and not drawn: the track cards' sparkline came off every client (a
+     * track usually holds two or three events, and two points is not a trend).
+     * The field stays because it is non-optional here and on iOS, so the server
+     * cannot stop sending it while these builds are in the wild.
+     */
     val series: List<TrackSeriesPoint>,
 )
 
