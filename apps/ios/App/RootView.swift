@@ -223,8 +223,23 @@ struct RootView: View {
     /// column's selected session, a half-typed lap, an expanded form), all of which
     /// belong to the row that is no longer on screen. In the stack shell a push
     /// lands at a new depth, so identity was already fresh and nothing changes.
-    @ViewBuilder
+    /// It also **measures its own container**, which is the other thing a pushed
+    /// screen cannot inherit. `measuringPaneWidth()` applied to a
+    /// `NavigationStack` publishes into that stack's root and not into what
+    /// `navigationDestination` builds, so until this every detail screen read the
+    /// *window's* width while being laid out in a pane a third narrower — and a
+    /// column sized for a 1366pt window ran off the side of a 1025pt pane. Here
+    /// the reader is inside the container it is measuring, so there is nothing
+    /// left to inherit through. It is applied to all three callers: at compact
+    /// width, and in a window-owning cover, the container *is* the window, so it
+    /// measures the number `measuringLayoutClass()` already published and changes
+    /// nothing — no width branch to keep in step, because no branch.
     private func destination(_ route: Route) -> some View {
+        keyed(route).measuringPaneWidth()
+    }
+
+    @ViewBuilder
+    private func keyed(_ route: Route) -> some View {
         if route.ownsTheWindow {
             // Never keyed, and the exclusion is the point rather than an omission.
             // These two are never *replaced* in place — they are a cover or a push,

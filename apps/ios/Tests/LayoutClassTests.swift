@@ -100,6 +100,72 @@ final class LayoutClassTests: XCTestCase {
         XCTAssertEqual(page.narrowed(to: 2000).contentWidth, 1064)
     }
 
+    // MARK: - The second column
+
+    /// The three splitting pages ask their **own column**, not the window.
+    ///
+    /// This is the iPad bug in one assertion. A 13-inch iPad in portrait is an
+    /// expanded *window* — it has a sidebar — and its detail pane is 683pt, 627
+    /// of it usable. Reading the class there said "two columns"; reading the
+    /// column says one, which is the layout the pane has room for.
+    func testASplitNeedsTheColumnsOwnWidthNotTheWindowsClass() {
+        func width(_ contentWidth: CGFloat) -> CGFloat? {
+            LayoutMetrics(layoutClass: .expanded, contentWidth: contentWidth)
+                .sideColumnWidth(fraction: 0.46, minimum: 380, maximum: 620)
+        }
+        // The detail pane of an iPad in portrait with the sidebar showing.
+        XCTAssertNil(width(627))
+        // …and in landscape, where there is room for both.
+        XCTAssertNotNil(width(969))
+        // The threshold is the window's own, one level down.
+        XCTAssertNil(width(LayoutClass.EXPANDED_MIN_DP - 1))
+        XCTAssertNotNil(width(LayoutClass.EXPANDED_MIN_DP))
+    }
+
+    /// The floor and the ceiling, on the widths the hardware actually produces.
+    func testTheSideColumnStaysBetweenItsFloorAndCeiling() throws {
+        func width(_ contentWidth: CGFloat) throws -> CGFloat {
+            try XCTUnwrap(
+                LayoutMetrics(layoutClass: .expanded, contentWidth: contentWidth)
+                    .sideColumnWidth(fraction: 0.46, minimum: 380, maximum: 620)
+            )
+        }
+        // At the threshold the fraction is under the floor, so the floor holds.
+        XCTAssertEqual(try width(840), 386.4, accuracy: 0.01)
+        // A 13-inch iPad with the sidebar showing, landscape: the fraction.
+        XCTAssertEqual(try width(969), 445.74, accuracy: 0.01)
+        // …and with the sidebar hidden. This is the number the broken build used
+        // at *every* width, which is why it fitted here and nowhere else.
+        XCTAssertEqual(try width(1310), 602.6, accuracy: 0.01)
+        // A very wide window spends the extra on the page, not on the chart.
+        XCTAssertEqual(try width(2000), 620)
+    }
+
+    /// Whatever the width, the page keeps more of it than the column beside it.
+    ///
+    /// The failure this rules out is a floor that outgrows its container — the
+    /// shape of the original bug, where a column sized for one width was laid
+    /// into a narrower one and the difference went off the side of the screen.
+    func testThePageKeepsTheLargerHalfAtEveryWidth() {
+        for content in stride(from: CGFloat(840), through: 2400, by: 1) {
+            let metrics = LayoutMetrics(layoutClass: .expanded, contentWidth: content)
+            for (fraction, minimum, maximum) in [
+                (CGFloat(0.46), CGFloat(380), CGFloat(620)),  // event, track
+                (CGFloat(0.42), CGFloat(340), CGFloat(560)),  // vehicle
+            ] {
+                guard let side = metrics.sideColumnWidth(
+                    fraction: fraction, minimum: minimum, maximum: maximum
+                ) else {
+                    XCTFail("no column at \(content)pt")
+                    continue
+                }
+                XCTAssertGreaterThanOrEqual(side, minimum)
+                XCTAssertLessThanOrEqual(side, maximum)
+                XCTAssertGreaterThan(content - side, side, "page column squeezed at \(content)pt")
+            }
+        }
+    }
+
     // MARK: - Tokens
 
     /// `PAGE_MAX` is generated from `--page-max`, so this is really a check that

@@ -3,9 +3,13 @@ package app.trackevolution.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.trackevolution.ui.theme.LayoutTokens
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -129,6 +133,64 @@ class LayoutClassTest {
         assertEquals(PHONE_PAGE_GUTTER, pageGutter(LayoutClass.Compact))
         assertEquals(LayoutTokens.PAGE_GUTTER, pageGutter(LayoutClass.Medium))
         assertEquals(LayoutTokens.PAGE_GUTTER, pageGutter(LayoutClass.Expanded))
+    }
+
+    /**
+     * The pages that split ask their **own column**, not the window.
+     *
+     * The iPad bug this mirrors, in one assertion: a 13-inch tablet in portrait
+     * is an expanded *window* — it has a sidebar — and its detail pane is 683dp,
+     * 627 of it usable. Reading the class there said "two columns"; reading the
+     * column says one. iOS's `LayoutClassTests` pins the same numbers, so a
+     * change to either side fails the other.
+     */
+    @Test
+    fun `a split needs the column's own width, not the window's class`() {
+        fun width(contentWidth: Dp) =
+            LayoutMetrics(LayoutClass.Expanded, contentWidth)
+                .sideColumnWidth(0.46f, 380.dp, 620.dp)
+
+        // The detail pane of a tablet in portrait with the sidebar showing.
+        assertNull(width(627.dp))
+        // …and in landscape, where there is room for both.
+        assertNotNull(width(969.dp))
+        // The threshold is the window's own, one level down.
+        assertNull(width(LayoutClass.EXPANDED_MIN_DP.dp - 1.dp))
+        assertNotNull(width(LayoutClass.EXPANDED_MIN_DP.dp))
+    }
+
+    /** The floor, the fraction and the ceiling, on real pane widths. */
+    @Test
+    fun `the side column stays between its floor and its ceiling`() {
+        fun width(contentWidth: Dp) =
+            LayoutMetrics(LayoutClass.Expanded, contentWidth)
+                .sideColumnWidth(0.46f, 380.dp, 620.dp)
+
+        // At the threshold the fraction is under the floor, so the floor holds.
+        assertEquals(386.4f, width(840.dp)!!.value, 0.01f)
+        // A tablet with the sidebar showing, landscape: the fraction.
+        assertEquals(445.74f, width(969.dp)!!.value, 0.01f)
+        // A very wide window spends the extra on the page, not on the chart.
+        assertEquals(620.dp, width(2000.dp))
+    }
+
+    /** Whatever the width, the page keeps more of it than the column beside it. */
+    @Test
+    fun `the page keeps the larger half at every width`() {
+        var content = 840
+        while (content <= 2400) {
+            val metrics = LayoutMetrics(LayoutClass.Expanded, content.dp)
+            for ((fraction, bounds) in listOf(
+                0.46f to (380.dp to 620.dp),  // event
+                0.42f to (340.dp to 560.dp),  // vehicle
+            )) {
+                val side = metrics.sideColumnWidth(fraction, bounds.first, bounds.second)
+                assertNotNull("no column at $content dp", side)
+                assertTrue(side!! >= bounds.first && side <= bounds.second)
+                assertTrue("page column squeezed at $content dp", content.dp - side > side)
+            }
+            content++
+        }
     }
 }
 

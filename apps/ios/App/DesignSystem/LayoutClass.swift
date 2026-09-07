@@ -89,6 +89,30 @@ struct LayoutMetrics: Equatable, Sendable {
     func narrowed(to width: CGFloat) -> LayoutMetrics {
         LayoutMetrics(layoutClass: layoutClass, contentWidth: min(contentWidth, width))
     }
+
+    /// How wide a second column beside the page should be, or nil for one column.
+    ///
+    /// The three pages that split — the event's analysis, the track's lap
+    /// compare, the vehicle's selected part — share this rule rather than each
+    /// carrying its own pair of magic numbers, because the thing that goes wrong
+    /// is the same on all three and went wrong on all three.
+    ///
+    /// It reads `contentWidth`, **never the layout class**, and that is the whole
+    /// point. The class is a fact about the *window* and stays one, so a pane
+    /// never decides it is a phone — but "is there room here for two columns" is
+    /// a question about the container this page is actually in, and on an iPad in
+    /// portrait with the sidebar showing those two answers disagree: an expanded
+    /// window, and a detail pane with 627pt of usable width. Splitting that pane
+    /// gave the side column 341pt of slot for the 445pt of content the window's
+    /// width had asked for, and the difference ran off the side of the screen.
+    ///
+    /// `nil` below `EXPANDED_MIN_DP` is the same threshold the window uses to
+    /// earn its second pane, applied one level down: a column too narrow to be a
+    /// two-pane window is too narrow to hold two columns of its own.
+    func sideColumnWidth(fraction: CGFloat, minimum: CGFloat, maximum: CGFloat) -> CGFloat? {
+        guard contentWidth >= LayoutClass.EXPANDED_MIN_DP else { return nil }
+        return min(max(contentWidth * fraction, minimum), maximum)
+    }
 }
 
 private struct LayoutMetricsKey: EnvironmentKey {
@@ -129,6 +153,24 @@ extension View {
     /// Measured rather than assumed: `NavigationSplitView` picks the sidebar's
     /// width itself, anywhere between the minimum and maximum it is offered, and
     /// the user can drag it.
+    ///
+    /// **It measures with a `GeometryReader`, so it is greedy**: it takes every
+    /// point offered to it and reports that as its own size. Two consequences,
+    /// both of which have bitten:
+    ///
+    /// - It goes **inside** a fixed frame, never outside one.
+    ///   `column.frame(width: w).measuringPaneWidth()` puts the greedy reader
+    ///   *around* the frame, so an `HStack` sees two fully flexible children and
+    ///   splits the row in half — the fixed width stops deciding anything, and
+    ///   whatever it was is either short of the half (a gap of dead background)
+    ///   or over it (content off the side of the window). Write
+    ///   `column.measuringPaneWidth().frame(width: w)`.
+    /// - A pushed screen does not inherit it. Applied to a `NavigationStack`, it
+    ///   publishes into the stack's own root and not into what
+    ///   `navigationDestination` builds, so a detail screen went on reading the
+    ///   *window's* width while being laid out in a 1025pt pane. `RootView`
+    ///   therefore applies it to each destination, where the reader is inside the
+    ///   container it is measuring and there is nothing left to inherit through.
     func measuringPaneWidth() -> some View {
         modifier(MeasurePaneWidth())
     }

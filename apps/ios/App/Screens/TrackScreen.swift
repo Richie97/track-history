@@ -19,6 +19,16 @@ struct TrackScreen: View {
     @State private var confirmingLeaveLeaderboard = false
     @State private var showingCompareLaps = false
 
+    /// How wide the compare column gets, or nil for the sheet.
+    ///
+    /// The event page's numbers, because it is the same kind of content: two laps
+    /// of channel traces need the width a track map and its charts need.
+    /// Measured against this page's own column rather than the window's class,
+    /// for the reason `sideColumnWidth` states.
+    private var compareWidth: CGFloat? {
+        layout.sideColumnWidth(fraction: 0.46, minimum: 380, maximum: 620)
+    }
+
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let track = model.track {
@@ -26,15 +36,18 @@ struct TrackScreen: View {
                 // page rather than as a sheet over it (NS-34 ticket 3). The view
                 // is the same `CompareLapsScreen`; only its container changes,
                 // which is the whole claim the ticket makes about it.
-                if layout.layoutClass == .expanded, showingCompareLaps {
+                if let compareWidth, showingCompareLaps {
                     HStack(spacing: 0) {
                         content(model, track)
-                            .frame(maxWidth: .infinity)
+                            // Inside the frame on both columns — see the note on
+                            // `EventScreen.page`: a greedy `GeometryReader` around
+                            // a fixed frame splits the row in half instead.
                             .measuringPaneWidth()
+                            .frame(maxWidth: .infinity)
                         Divider()
                         compareColumn
-                            .frame(width: min(max(layout.contentWidth * 0.46, 380), 620))
                             .measuringPaneWidth()
+                            .frame(width: compareWidth)
                     }
                 } else {
                     content(model, track)
@@ -188,11 +201,14 @@ struct TrackScreen: View {
             }
         }
         .refreshable { await model.load() }
-        // Below expanded width it stays the sheet it has always been: there is
-        // nowhere to put a second column, and a half-width lap comparison is a
-        // worse comparison rather than a smaller one.
+        // Where there is no room for a second column it stays the sheet it has
+        // always been: there is nowhere to put one, and a half-width lap
+        // comparison is a worse comparison rather than a smaller one. The two
+        // readings are one value, so the column and the sheet can never both be
+        // showing the same compare — which is what a separate width check here
+        // and a class check there would eventually allow.
         .sheet(isPresented: .init(
-            get: { showingCompareLaps && layout.layoutClass != .expanded },
+            get: { showingCompareLaps && compareWidth == nil },
             set: { showingCompareLaps = $0 }
         )) {
             CompareLapsScreen(trackId: trackId)

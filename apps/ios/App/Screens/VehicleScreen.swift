@@ -123,22 +123,35 @@ struct VehicleScreen: View {
     /// way further down the page.
     @ViewBuilder
     private func page(_ model: VehicleModel, _ vehicle: GarageVehicle) -> some View {
-        if layout.layoutClass == .expanded {
+        if let partWidth {
             HStack(spacing: 0) {
                 content(model, vehicle)
-                    .frame(maxWidth: .infinity)
+                    // Inside the frame on both columns — see the note on
+                    // `EventScreen.page`: a greedy `GeometryReader` around a fixed
+                    // frame splits the row in half instead.
                     .measuringPaneWidth()
+                    .frame(maxWidth: .infinity)
                 Divider()
                 partColumn(model)
-                    .frame(width: min(max(layout.contentWidth * 0.42, 340), 560))
                     .measuringPaneWidth()
+                    .frame(width: partWidth)
             }
         } else {
             content(model, vehicle)
         }
     }
 
-    private var isTwoColumn: Bool { layout.layoutClass == .expanded }
+    private var isTwoColumn: Bool { partWidth != nil }
+
+    /// How wide the selected part's column gets, or nil for one column.
+    ///
+    /// Narrower than the event page's analysis column and with a lower floor,
+    /// because what goes in it is a two-field form and a ledger rather than a
+    /// track map and a stack of charts. Measured against this page's own column
+    /// for the reason `sideColumnWidth` states.
+    private var partWidth: CGFloat? {
+        layout.sideColumnWidth(fraction: 0.42, minimum: 340, maximum: 560)
+    }
 
     /// The selected part's measurements, and the ledger under them.
     private func partColumn(_ model: VehicleModel) -> some View {

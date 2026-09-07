@@ -36,18 +36,9 @@ final class ChannelGraphsUITests: XCTestCase {
         }
     }
 
-    private func deleteEventBestEffort(_ id: Int) {
-        var request = URLRequest(url: URL(string: "\(Self.devServerURL)/api/events/\(id)")!)
-        request.httpMethod = "DELETE"
-        request.timeoutInterval = 10
-        let done = expectation(description: "cleanup \(id)")
-        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
-        wait(for: [done], timeout: 15)
-    }
-
     func testChannelGraphsOverlayLapsForAnImportedSession() throws {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
-        try seedImportedSession()
+        seededEventId = try seedImportedSession(track: Self.track)
 
         let app = try launchSignedIn(tier: .pro)
 
@@ -166,123 +157,6 @@ final class ChannelGraphsUITests: XCTestCase {
     }
 
     // MARK: - Seeding
-
-    /// An event with one session carrying three laps of channel data, shaped like a
-    /// PDR telemetry import: 120 points per lap on a 20 m grid, the seven charted
-    /// channels plus `gear`, `wheelSlip` and the ABS/TC/VSC `flags` bitfield, and a
-    /// GPS trace for the best lap so the map has limit marks to place (#187, #188,
-    /// #189).
-    private func seedImportedSession() throws {
-        let event = try api(
-            "POST", "/api/events",
-            body: [
-                "track_name": Self.track,
-                // Fixed and in the past, so this event never lands in the dashboard's
-                // hero slot and never changes which event another test finds there.
-                "start_date": "2024-03-15",
-                "days": 1,
-                "club": "UITest",
-                "car": "Test car"
-            ]
-        )
-        let id = try XCTUnwrap(event["id"] as? Int, "the dev server should return the created event")
-        seededEventId = id
-
-        let times = [118_400, 116_900, 117_600]
-        _ = try api(
-            "POST", "/api/events/\(id)/sessions",
-            body: [
-                "label": "Imported session",
-                "laps": times,
-                "channels": [
-                    "v": 1,
-                    "dStepM": 20,
-                    "laps": times.enumerated().map { index, ms in
-                        [
-                            "n": index + 1,
-                            "timeMs": ms,
-                            // A lap of a circuit: speed rising and falling through
-                            // corners, RPM tracking it, lateral G peaking between.
-                            "speed": (0..<120).map { k in
-                                90 + 60 * sin(Double(k) / 9 + Double(index) * 0.15)
-                            },
-                            "rpm": (0..<120).map { k in
-                                3000 + 3500 * (1 + sin(Double(k) / 9 + Double(index) * 0.15)) / 2
-                            },
-                            "latG": (0..<120).map { k in
-                                abs(cos(Double(k) / 9 + Double(index) * 0.15)) * 1.2
-                            },
-                            // The pedals trade off against each other, so the
-                            // Inputs tab has traces for the limit bands to shade.
-                            "throttle": (0..<120).map { k in
-                                max(0, sin(Double(k) / 9 + Double(index) * 0.15)) * 100
-                            },
-                            "brake": (0..<120).map { k in
-                                max(0, -sin(Double(k) / 9 + Double(index) * 0.15)) * 100
-                            },
-                            // Longitudinal G a quarter turn out of phase with the
-                            // cornering, so the Grip tab's friction circle has both
-                            // lobes to draw (#186).
-                            "longG": (0..<120).map { k in
-                                sin(Double(k) / 9 + Double(index) * 0.15) * 1.3
-                            },
-                            // Steering and yaw: the balance scatter needs both, and
-                            // the rotation falls short through the back half of the
-                            // lap so its table has a corner that pushes (#189). The
-                            // side derivation the friction circle does off the
-                            // steering sign is covered by `GripTests` and lap B of
-                            // `contracts/logic/grip.json`, not from here.
-                            "steering": (0..<120).map { k in
-                                cos(Double(k) / 9 + Double(index) * 0.15) * 120
-                            },
-                            "yaw": (0..<120).map { k -> Double in
-                                let speed = 90 + 60 * sin(Double(k) / 9 + Double(index) * 0.15)
-                                let steer = cos(Double(k) / 9 + Double(index) * 0.15) * 120
-                                return steer * (speed / 3.6) * 0.012 * (k > 60 ? 0.7 : 1)
-                            },
-                            // Gear steps with the speed wave, dropping to 0 through
-                            // one shift — the clutch-in gap the ribbon draws as a gap.
-                            "gear": (0..<120).map { k -> Double in
-                                let wave = sin(Double(k) / 9 + Double(index) * 0.15)
-                                return k % 37 == 18 ? 0 : Double(2 + Int((wave + 1) / 2 * 3))
-                            },
-                            "wheelSlip": (0..<120).map { k in
-                                sin(Double(k) / 9 + Double(index) * 0.15) * 5
-                            },
-                            "flags": (0..<120).map { k -> Double in
-                                let wave = sin(Double(k) / 9 + Double(index) * 0.15)
-                                return wave < -0.85 ? 1 : wave > 0.9 ? 2 : 0
-                            },
-                            // The per-lap scalars the Car tab reads (#190). Oil
-                            // climbs past its line by the last lap and fuel drains,
-                            // so the strip has a shaded card and a fuel outlook
-                            // rather than three cards of flat numbers.
-                            "oilC": 118 + Double(index) * 8,
-                            "oilKpa": 320 - Double(index) * 20,
-                            "coolantC": 99 + Double(index) * 5,
-                            "transC": 94 + Double(index) * 6,
-                            "fuelPct": 74 - Double(index) * 12,
-                            "battV": 13.6 - Double(index) * 0.4,
-                            "tyreKpaLF": 214 + Double(index) * 9,
-                            "tyreKpaRF": 210 + Double(index) * 8,
-                            "tyreKpaLR": 205 + Double(index) * 7,
-                            "tyreKpaRR": 204 + Double(index) * 7,
-                            "tyreCLF": 82 + Double(index) * 9,
-                            "tyreCRF": 74 + Double(index) * 7,
-                            "tyreCLR": 68 + Double(index) * 6,
-                            "tyreCRR": 66 + Double(index) * 6
-                        ] as [String: Any]
-                    }
-                ],
-                // A closed circuit in projected metres — `renderTrackMap`'s floor is
-                // ten points, and the marks are placed along its cumulative length.
-                "trace": (0..<80).map { k -> [Double] in
-                    let a = Double(k) / 80 * 2 * Double.pi
-                    return [cos(a) * 400, sin(a) * 250, 25 + 15 * sin(a * 2)]
-                }
-            ]
-        )
-    }
 
     // MARK: - Helpers
 

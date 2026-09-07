@@ -118,6 +118,32 @@ data class LayoutMetrics(
 
     /** The same metrics for a narrower column. */
     fun narrowedTo(width: Dp): LayoutMetrics = copy(contentWidth = minOf(contentWidth, width))
+
+    /**
+     * How wide a second column beside the page should be, or null for one column.
+     *
+     * The two pages that split — the event's analysis, the vehicle's selected
+     * part — share this rule rather than each carrying its own pair of numbers,
+     * and it is the same rule and the same numbers as iOS's
+     * `LayoutMetrics.sideColumnWidth`.
+     *
+     * It reads [contentWidth], **never [layoutClass]**, and that is the point.
+     * The class is a fact about the *window* and stays one, so a pane never
+     * decides it is a phone — but "is there room here for two columns" is a
+     * question about the container this page is in, and on a tablet in portrait
+     * those two answers disagree: an expanded window, and a detail pane with
+     * ~627dp of usable width. Splitting that gave the page column 300dp with a
+     * chart column beside it, where iOS ran the same arithmetic and put its
+     * column off the side of the screen.
+     *
+     * `null` below [LayoutClass.EXPANDED_MIN_DP] is the window's own threshold
+     * applied one level down: a column too narrow to be a two-pane window is too
+     * narrow to hold two columns of its own.
+     */
+    fun sideColumnWidth(fraction: Float, minimum: Dp, maximum: Dp): Dp? {
+        if (contentWidth < LayoutClass.EXPANDED_MIN_DP.dp) return null
+        return (contentWidth * fraction).coerceIn(minimum, maximum)
+    }
 }
 
 /**
