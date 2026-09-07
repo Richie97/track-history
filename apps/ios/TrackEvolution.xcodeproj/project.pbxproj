@@ -56,6 +56,7 @@
 		99384036CC3B4CB5D05BD649 /* EventFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */; };
 		AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */; };
 		B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E142A66C92DBCD4560C1753C /* LegacyClaimRecord.swift */; };
+		B24D8C3A534B03A0E29B44FE /* RotationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8134A2B69B7EB6E2209EC2D5 /* RotationUITests.swift */; };
 		B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */; };
 		B962D4EA9A0300EEDC05153C /* AnalysisColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE2A9CD6AC286F49A143CA2 /* AnalysisColumn.swift */; };
 		B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82118910A4D7C285ABC04083 /* SignInUITests.swift */; };
@@ -148,6 +149,7 @@
 		7CE53488843E1D73126026F6 /* ChecklistTemplateUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistTemplateUITests.swift; sourceTree = "<group>"; };
 		7D49906A9ABE290475361112 /* SectorTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectorTable.swift; sourceTree = "<group>"; };
 		7FAD7F0F8459AFBE55AE39CB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8134A2B69B7EB6E2209EC2D5 /* RotationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotationUITests.swift; sourceTree = "<group>"; };
 		82118910A4D7C285ABC04083 /* SignInUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInUITests.swift; sourceTree = "<group>"; };
 		8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTokens.generated.swift; sourceTree = "<group>"; };
 		8625F0FCAC350699C111D37A /* LimitLegend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitLegend.swift; sourceTree = "<group>"; };
@@ -330,6 +332,7 @@
 				47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */,
 				6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */,
 				AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */,
+				8134A2B69B7EB6E2209EC2D5 /* RotationUITests.swift */,
 				82118910A4D7C285ABC04083 /* SignInUITests.swift */,
 				042BCD94857B93C69F6E4953 /* TwoPaneUITests.swift */,
 				2547D11C2AB55F3F271936B4 /* VideoImportUITests.swift */,
@@ -537,6 +540,7 @@
 				66499C8CFD338E62777C4FFE /* GestureUITests.swift in Sources */,
 				B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */,
 				397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */,
+				B24D8C3A534B03A0E29B44FE /* RotationUITests.swift in Sources */,
 				B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */,
 				D234842001F72AFD889C8DA2 /* TwoPaneUITests.swift in Sources */,
 				DDC81CFF119F5757B8E5C2A5 /* VideoImportUITests.swift in Sources */,

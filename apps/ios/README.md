@@ -401,17 +401,49 @@ stays beside the detail at expanded width and goes behind it at compact, taking
 its expectation from the **window's own width** rather than from the destination,
 so one test states the rule on either device.
 
+`UITests/RotationUITests` covers the other way a window changes width, and the
+one every user performs. Nothing here ever turned a device, so "landscape works"
+rested entirely on the two `UISupportedInterfaceOrientations` arrays in
+`App/Info.plist` and on `measuringLayoutClass()`'s `GeometryReader` being
+re-evaluated. Its first test needs no server and no session — whether the window
+turns is a question the sign-in screen answers as well as the logbook does — and
+its second signs in and asserts the two-pane shell *grows* on the turn, with no
+relaunch. Run that one on an **iPad mini**, the clearest device whose portrait
+width (744pt) is below the 840pt breakpoint and whose landscape width (1133pt) is
+above it:
+
+```sh
+xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPad mini (A17 Pro)' \
+  -only-testing:TrackEvolutionUITests/RotationUITests
+```
+
+Two things it had to get right, both worth knowing before writing anything else
+that rotates. **The frame has to settle before it is read**: `app.frame` is
+sampled live, and a mid-animation sample of an iPad mini turning reads
+1311×340 — already wider than it is tall, and nothing like either orientation, so
+a wait on `width > height` alone passes on a number belonging to no layout;
+`settledFrame(of:)` waits for two identical readings instead. And **the idiom is
+part of the skip guard, not a shortcut for the width**: `LayoutClass.of` answers
+`.compact` whenever UIKit reports a compact horizontal size class, whatever the
+number, so an iPhone 17 Pro at 874pt in landscape is over the breakpoint and
+still deliberately one column. Guarding on width alone fails the test on exactly
+the destination the rest of the suite runs on.
+
 The iPad run is still a *manual* one: CI runs none of these suites, because they
 need `npm run dev`. Wiring it up is now a question of standing a dev server up in
 the workflow rather than of the tests themselves — the browser step that used to
 make them fragile is gone (below), and they pass unattended.
 
-One suite needs no server at all and is the cheapest first step if that is ever
+Two tests need no server at all and are the cheapest first step if that is ever
 wired up: `UITests/ChannelPanelKeyboardUITests` (NS-34 ticket 5) needs **neither
 a dev server nor sign-in**, because `-channelGraphs` opens the panel on synthetic
-data before the shell is built. What it would need in CI is the hardware keyboard
+data before the shell is built, and so does
+`RotationUITests.testTheWindowTurnsWithTheDevice`, which asks only whether the
+window turns. The keyboard one would additionally need the hardware keyboard
 turned on for the runner's simulator (`defaults write
-com.apple.iphonesimulator ConnectHardwareKeyboard -bool true`), since it types.
+com.apple.iphonesimulator ConnectHardwareKeyboard -bool true`), since it types;
+the rotation one needs nothing at all.
 
 ## The suites sign in without the browser
 
