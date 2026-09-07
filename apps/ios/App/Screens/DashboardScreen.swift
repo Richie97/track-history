@@ -27,8 +27,55 @@ struct DashboardScreen: View {
                 content(model)
             }
         }
+        // The title stays for what reads it — the back button on every pushed
+        // screen and VoiceOver's name for the bar — while what the bar *draws*
+        // is the brand below.
         .navigationTitle("Track Evolution")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // The web topbar's `.brand` (`appLogoHtml()` + "Track Evolution" in
+            // `shell()`) and Android's `DashboardTopBar`: the mark at the web
+            // header's 26px beside the wordmark at its 17px semibold, which is
+            // also the size of an inline navigation title. A large title has no
+            // room for a mark — the bar owns its layout — so the dashboard joins
+            // every other screen at inline, and the brand becomes the bar's
+            // principal item. Only the dashboard draws it: inner screens lead
+            // with their own title and a back affordance.
+            //
+            // **Leading, not centred**, which is what the other two clients do:
+            // the web's `.brand` opens the topbar and Android's `DashboardTopBar`
+            // opens its row. It stays the *principal* item and is stretched to the
+            // leading edge rather than moving to `.topBarLeading`, because the
+            // principal slot is also what suppresses the centred title — take the
+            // brand out of it and the bar draws "Track Evolution" in the middle
+            // with the wordmark beside it, saying the name twice.
+            // The principal slot is emptied rather than left unset. It is what
+            // suppresses the centred title, and the title itself cannot go — it
+            // is the label every pushed screen's back button carries — so
+            // dropping the item would draw "Track Evolution" in the middle of the
+            // bar with the wordmark beside it, saying the name twice.
+            ToolbarItem(placement: .principal) {
+                Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                HStack(spacing: 9) {
+                    BrandMark(size: 26)
+                    Text("Track Evolution")
+                        .teStyle(.h2)
+                        .foregroundStyle(Color(.textStrong))
+                        .fixedSize()
+                }
+                // Hidden rather than combined into a header: the bar is *already*
+                // named "Track Evolution" by `navigationTitle`, so an element
+                // repeating it is a second announcement of the same thing — and
+                // `.isHeader` would put that repeat in VoiceOver's heading rotor.
+                // Measured on a simulator: the bar exposed the name three times
+                // with the combined header, twice without it, and once before the
+                // brand existed at all. Two is the floor while the wordmark is
+                // drawn, since the title itself cannot go — it is the label every
+                // pushed screen's back button carries.
+                .accessibilityHidden(true)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 // The web app's account dropdown, which carries Settings, the theme
                 // toggle and sign-out. All three live on the settings screen here —
