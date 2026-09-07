@@ -117,10 +117,13 @@ fun LapChannelChart(
         mutableStateOf(initialSelection ?: ChannelGraphs.initialSelection(matches))
     }
 
-    // Where the panel is currently pointing (NS-34 ticket 3). Deliberately *not*
-    // saveable: it is a question being asked right now, and restoring a mark
-    // after a rotation would answer one nobody is still asking.
-    var hit by remember(channels) { mutableStateOf<ChannelHit?>(null) }
+    // Where the panel is currently pointing (NS-34 ticket 3), and whether a tap
+    // put it there or a mouse is merely passing over (ticket 5) — see
+    // [PanelPointer]. Deliberately *not* saveable: it is a question being asked
+    // right now, and restoring a mark after a rotation would answer one nobody is
+    // still asking.
+    val pointer = remember(channels) { PanelPointer() }
+    val hit = pointer.current
     val markDistance = hit?.let { it.k * channels.dStepM }
 
     if (present.isEmpty()) {
@@ -183,7 +186,8 @@ fun LapChannelChart(
                     lit = lit,
                     slots = slots,
                     lapNumber = lapNumber,
-                    onHit = { hit = it; onHit(it) },
+                    onHit = { pointer.park(it); onHit(pointer.current) },
+                    onHover = { pointer.hover(it); onHit(pointer.current) },
                 )
                 val refIdx = ChannelGraphs.deltaReference(lit, channels)
                 if (refIdx != null) {
@@ -204,7 +208,8 @@ fun LapChannelChart(
                     // The point of the column (NS-34 ticket 3): the tapped
                     // sample marks its distance on every chart sharing the axis,
                     // and goes outward so the map can ring the place.
-                    onHit = { hit = it; onHit(it) },
+                    onHit = { pointer.park(it); onHit(pointer.current) },
+                    onHover = { pointer.hover(it); onHit(pointer.current) },
                 )
                 // Under it, the balance scatter and its per-corner table (#189),
                 // above the lateral-G and yaw traces they are read from. It draws
@@ -214,7 +219,8 @@ fun LapChannelChart(
                     lit = lit,
                     slots = slots,
                     lapNumber = lapNumber,
-                    onHit = { hit = it; onHit(it) },
+                    onHit = { pointer.park(it); onHit(pointer.current) },
+                    onHover = { pointer.hover(it); onHit(pointer.current) },
                 )
             }
             // The session health strip (#190): what the car was doing while you

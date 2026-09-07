@@ -138,11 +138,12 @@ Features added after the rewrite shipped, and where they landed:
   value, because deceleration is the one axis with a fixed place in a
   driver's head. And the 20 m grid smooths peaks, so the view is the shape of
   grip usage, not peak G.
-  One thing is deliberately **web-only**: hovering a point to mark its
-  distance on the channel charts and ring the place on the best-lap track
-  map. A phone has no pointer, and on both native clients the panel is a
-  sheet over the event page rather than beside the map, so the read-out
-  carries that meaning there instead.
+  Marking a point — showing its distance on the channel charts and ringing
+  the place on the best-lap track map — is a **tap** on the phones (NS-34
+  ticket 3) and a **hover** wherever there is a pointer: the web, an iPad with
+  a trackpad, an Android tablet or Chromebook with a mouse (ticket 5). The two
+  are additive, and hover is filtered to a real pointer at the source, so a
+  finger dragging across the plot is still just a scroll.
 - **Balance — understeer or oversteer**
   ([#189](https://github.com/Richie97/track-history/issues/189), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))
@@ -168,9 +169,10 @@ Features added after the rewrite shipped, and where they landed:
   rotation is up**, so oversteer sits above the reference line; on the phones
   the corner's place on track and its peak G ride under its label rather than
   in columns of their own, which is what keeps the table inside the width.
-  The per-point *hover* is still web-only — a phone has no pointer — but the
-  friction circle now answers a **tap** on every client (NS-34 ticket 3), and
-  the balance scatter is the same seam and next in line for it.
+  A corner row answers a **tap** on every client and a **hover** wherever
+  there is a pointer (NS-34 tickets 3 and 5). The samples themselves stay
+  untappable on the phones: a point is one 20 m sample of one lap, and the
+  reading it belongs to is the corner's, which is the row.
   The decisions every client inherits: v1 is
   **relative** — the reference is the session's own median yaw gain, because
   the rigorous bicycle model needs the wheelbase and steering ratio the
@@ -313,13 +315,12 @@ Features added after the rewrite shipped, and where they landed:
   on purpose. One dependency note: Android's `compileSdk` is now **37**, because
   `androidx.compose.material3.adaptive` 1.3.0 requires it; `targetSdk` stays 36,
   and the two are unrelated knobs.
-  **Ticket 3 is under way** ([#217](https://github.com/Richie97/track-history/issues/217)):
+  **Ticket 3 is complete** ([#217](https://github.com/Richie97/track-history/issues/217)):
   the event page now splits again inside the detail, into the page and an
   analysis column carrying the selected session's track map above its channel
   panel. The session cards' channel control becomes a *selection* at expanded
   width — the iOS sheet and the Android inline panel both stand down — and the
-  best lap's channel-carrying session is pre-selected. What that ticket still
-  is **complete**. The sector and shift tables turned out to need no
+  best lap's channel-carrying session is pre-selected. The sector and shift tables turned out to need no
   wide-column work — neither carries a place or a peak G under a label, so that
   sentence in the spec is about the balance table alone. Sector headings are a
   hit source, the track page's two-lap compare opens as its right column, and
@@ -341,8 +342,31 @@ Features added after the rewrite shipped, and where they landed:
   half) in the Kit and `:core`, pinned by `contracts/logic/trackmap.json` —
   and worth knowing, it walks **cumulative chord length rather than sample
   index**, because a trace is denser where the car was slower and indexing is
-  wrong by whole corners. The balance scatter and the sector rows are the same
-  seam and are not wired yet.
+  wrong by whole corners. The balance corners and the sector headings went
+  through the same seam after it.
+  **Ticket 5 has landed** ([#219](https://github.com/Richie97/track-history/issues/219)):
+  pointer hover on the analysis panel, the panel's keyboard shortcuts, and
+  dropping a clip onto an event page to import it. Three things are worth
+  carrying. **Hover mirrors tap, and never replaces it** — a tap *parks* a
+  mark and a pointer only *borrows* one, so a mouse crossing a plot somebody
+  had tapped hands the tapped mark back when it leaves; the rule is one line
+  in each language and the wrong way round reads just as well, which is why it
+  has a test on both platforms. Hover is offered exactly where a tap already
+  points (the friction circle's samples, the balance corners, the sector
+  headings, and the traces' read-out on iOS), and is **filtered to a real
+  pointer**, so touch behaviour is untouched. **The shortcuts are titled
+  buttons** (`1`–`4` tabs, `[` / `]` step the lit lap, ⌘F hides the friction
+  circle's envelope) rather than key-press handlers, because that is what puts
+  them in the iPad's ⌘-key overlay by name — a shortcut nobody can discover is
+  one nobody uses — and the two that no visible control carries are hidden
+  zero-sized buttons, which does register. And **the drop is where the
+  no-copy rule nearly broke**: `loadInPlaceFileRepresentation` yields a URL
+  valid only inside its callback, and a provider that refuses to share the
+  original hands back a copy it deletes the moment you return, so the handler
+  opens the security scope for the first case and moves the file out for the
+  second. A test over a real `NSItemProvider` caught that; a manual drag would
+  have caught it later.
+
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,

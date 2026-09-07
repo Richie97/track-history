@@ -32,9 +32,13 @@ import TrackEvolutionKit
 /// keeps a full session cheap: `MAX_TOTAL_VALUES` caps a stored session's
 /// channels, so `latG` tops out in the low thousands of samples.
 ///
-/// Unlike the web there is no per-point hover: a phone has no pointer, and the
-/// best-lap track map the web rings on hover is on the event page behind this
-/// sheet. The read-out under the plot is what carries the meaning here.
+/// **A tap points, and a pointer borrows.** The web answers a *hover* over a dot
+/// by marking that distance on every chart and ringing the place on the track
+/// map; a phone has no pointer, so NS-34 ticket 3 gave that to a tap instead.
+/// An iPad with a trackpad has both, so ticket 5 wires the pointer up as well —
+/// additive to the tap, never a replacement, because the same iPad is used by
+/// touch a moment later. A hovered mark lasts as long as the pointer is over the
+/// plot; a tapped one stays until it is tapped away.
 struct FrictionCircle: View {
     let channels: SessionChannels
     /// Channel-lap indexes in slot order, as `LapChannelPanel` keeps them.
@@ -45,6 +49,16 @@ struct FrictionCircle: View {
     /// Tapping a sample answers "which corner is this dot" on everything drawn
     /// beside it (NS-34 ticket 3). Nil clears the answer.
     var onHit: (ChannelHit?) -> Void = { _ in }
+    /// The same answer from a *pointer* (NS-34 ticket 5), which the panel holds
+    /// only while the pointer is over the plot. Nil means it has left.
+    var onHover: (ChannelHit?) -> Void = { _ in }
+    /// Whether to draw the laps that aren't highlighted (⌘F).
+    ///
+    /// The envelope is what a lit lap is read *against*, so it is on by default
+    /// and only a keyboard can turn it off — on a crowded session the dim cloud
+    /// can bury the three laps being compared, and that is the one case worth a
+    /// shortcut rather than a control.
+    var showEnvelope: Bool = true
 
     /// Ring spacing, in G. 0.5 G rings are readable on every car this app sees;
     /// a slow car simply draws fewer of them.
@@ -77,16 +91,26 @@ struct FrictionCircle: View {
                     }
                     .aspectRatio(1, contentMode: .fit)
                     .frame(maxWidth: .infinity)
-                    // Tap, not hover: the phone has no pointer, and the web's
-                    // hover is what NS-34 is taking back here. A pointer on an
-                    // iPad is ticket 5's job and is additive to this, never a
-                    // replacement — the same iPad is used by touch a moment later.
+                    // Tap *and* hover, over one hit-test: a finger commits a
+                    // mark and a pointer borrows one, and both ask the same
+                    // question of the same geometry so the two can never come to
+                    // different answers about which dot is under them.
                     .overlay {
                         GeometryReader { geometry in
                             Color.clear
                                 .contentShape(Rectangle())
                                 .onTapGesture { location in
                                     onHit(hit(sg, at: location, size: geometry.size))
+                                }
+                                .onContinuousHover { phase in
+                                    switch phase {
+                                    case .active(let location):
+                                        onHover(hit(sg, at: location, size: geometry.size))
+                                    case .ended:
+                                        onHover(nil)
+                                    @unknown default:
+                                        onHover(nil)
+                                    }
                                 }
                         }
                     }
@@ -212,7 +236,7 @@ struct FrictionCircle: View {
                     path.addEllipse(in: CGRect(x: c.x - 2.4, y: c.y - 2.4, width: 4.8, height: 4.8))
                 }
                 hot.append((slots[slot], path))
-            } else if !litSet.contains(lap.chIdx) {
+            } else if showEnvelope, !litSet.contains(lap.chIdx) {
                 for p in points {
                     let c = point(p.lat, p.long)
                     dim.addEllipse(in: CGRect(x: c.x - 1.3, y: c.y - 1.3, width: 2.6, height: 2.6))
@@ -334,6 +358,12 @@ struct FrictionCircle: View {
         }
         if let peak = sg.peakG {
             parts.append("Peak combined \(String(format: "%.2f", peak)) G")
+        }
+        // The envelope going away changes what the plot shows, and a scatter is
+        // the one picture a screen-reader user can't check for themselves — so
+        // ⌘F says so here rather than only on screen.
+        if !showEnvelope {
+            parts.append("Other laps hidden")
         }
         return parts.joined(separator: ". ")
     }

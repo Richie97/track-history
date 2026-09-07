@@ -81,10 +81,60 @@ struct LapChannelPanel: View {
     /// Channel-lap indexes in slot order — oldest first, so the eviction in
     /// `ChannelGraphs.toggle` drops the one you selected longest ago.
     @State private var lit: [Int] = []
+    /// What a **tap** has parked the panel on, and what a **pointer** is
+    /// borrowing (NS-34 ticket 5).
+    ///
+    /// Two states rather than one because hover is *additive to tap, never a
+    /// replacement* — the same iPad is used by touch a moment later. A pointer
+    /// crossing the plot marks as it goes and hands the tapped mark back the
+    /// moment it leaves, so a mark you committed survives a pointer passing over
+    /// it. Without the pair, moving the trackpad would silently throw away the
+    /// place you had chosen.
+    @State private var parked: Mark?
+    @State private var hovered: Mark?
+    /// Whether the friction circle draws the laps that aren't highlighted (⌘F).
+    @State private var showEnvelope = true
+
+    /// Where the panel is pointing: the pointer's mark if there is one, else the
+    /// tapped one.
+    private var mark: Mark? { hovered ?? parked }
+
     /// The grid point the read-out is parked on. Shared across the stacked charts
     /// because they share the distance axis: tapping the speed trace at the braking
     /// zone also shows you the RPM and the lateral G there.
-    @State private var readout: Int?
+    private var readout: Int? { mark?.k }
+
+    /// A place the panel is pointing at.
+    ///
+    /// `k` is the grid sample every chart marks; `hit` is the place on *track* it
+    /// names, when it names one. A read-out taken from a trace marks a distance
+    /// and rings nothing — the charts share the distance axis, but the map is one
+    /// lap's racing line and a distance alone doesn't say whose. The friction
+    /// circle's samples, the balance corners and the sector headings all carry a
+    /// `ChannelHit`, so those reach the map too.
+    private struct Mark: Equatable {
+        var k: Int
+        var hit: ChannelHit?
+    }
+
+    /// A tap: commits a mark, or clears it.
+    private func park(_ hit: ChannelHit?) {
+        parked = hit.map { Mark(k: $0.k, hit: $0) }
+        emit()
+    }
+
+    /// A pointer: borrows a mark for as long as it is over the plot. Nil is the
+    /// pointer leaving, which hands back whatever a tap had parked.
+    private func borrow(_ hit: ChannelHit?) {
+        hovered = hit.map { Mark(k: $0.k, hit: $0) }
+        emit()
+    }
+
+    /// Tell whatever is drawn beside the panel where it is pointing. One funnel,
+    /// so a tap and a pointer can't disagree about what the map should ring.
+    private func emit() {
+        onHit(mark?.hit)
+    }
 
     /// The slot colors, in the order laps take them.
     private static let slots: [Color] = [Color(.chartLine), Color(.chartLineB), Color(.chartLineC)]
@@ -113,9 +163,78 @@ struct LapChannelPanel: View {
                 }
             }
         }
+        .background { keyboardCommands }
         .onAppear {
             if lit.isEmpty { lit = preselect ?? ChannelGraphs.initialSelection(matches) }
         }
+    }
+
+    // MARK: - Keyboard (NS-34 ticket 5)
+
+    /// The commands an iPad keyboard drives that no visible control carries.
+    ///
+    /// Titled `Button`s with `.keyboardShortcut` rather than `onKeyPress`, and
+    /// deliberately: a shortcut declared this way becomes a `UIKeyCommand`, which
+    /// is what lists it — by its title — in the ⌘-key overlay. A shortcut nobody
+    /// can discover is a shortcut nobody uses, and holding ⌘ is where an iPad
+    /// user looks. The tab shortcuts are on the tab buttons themselves, since
+    /// those exist; these three have no control to hang off.
+    ///
+    /// Invisible, because the panel has no room for three more buttons, and
+    /// hidden from accessibility rather than merely unlabelled: VoiceOver reaches
+    /// the same two things through the chips and the friction circle, and a
+    /// zero-sized button in the rotor is noise.
+    @ViewBuilder
+    private var keyboardCommands: some View {
+        Group {
+            Button("Previous lap") { stepLit(by: -1) }
+                .keyboardShortcut("[", modifiers: [])
+            Button("Next lap") { stepLit(by: 1) }
+                .keyboardShortcut("]", modifiers: [])
+            Button(showEnvelope ? "Hide the other laps" : "Show the other laps") {
+                showEnvelope.toggle()
+            }
+            .keyboardShortcut("f", modifiers: .command)
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+    }
+
+    /// Step the newest highlighted lap one place through the laps that have
+    /// channels.
+    private func stepLit(by direction: Int) {
+        let stepped = Self.stepped(lit, by: direction, over: matches.filter(\.hasChannels).map(\.chIdx))
+        guard stepped != lit else { return }
+        lit = stepped
+        Haptics.select()
+    }
+
+    /// Move the **most recently lit** lap one place along, keeping the rest.
+    ///
+    /// The newest slot rather than the whole selection, because that is what
+    /// makes the key useful: pin the two laps you are comparing against and scrub
+    /// a third through the session without losing them. Laps already lit are
+    /// skipped — two slots showing one lap is a selection with a hole in it — and
+    /// the walk wraps, so neither key is ever a dead one. With nothing lit at all
+    /// it lights an end, whichever end the direction points at.
+    ///
+    /// Pure and static so it can be tested without a view: `LapChannelChartTests`.
+    static func stepped(_ lit: [Int], by direction: Int, over available: [Int]) -> [Int] {
+        guard direction != 0, !available.isEmpty else { return lit }
+        guard let current = lit.last, let from = available.firstIndex(of: current) else {
+            return [direction > 0 ? available[0] : available[available.count - 1]]
+        }
+        let pinned = Set(lit.dropLast())
+        for step in 1...available.count {
+            let index = ((from + step * direction) % available.count + available.count) % available.count
+            let candidate = available[index]
+            if !pinned.contains(candidate) {
+                return Array(lit.dropLast()) + [candidate]
+            }
+        }
+        // Every lap is already lit, so there is nowhere to step to.
+        return lit
     }
 
     // MARK: - Tabs
@@ -175,7 +294,7 @@ struct LapChannelPanel: View {
 
     private func tabBar(_ tabs: [Tab]) -> some View {
         HStack(spacing: 2) {
-            ForEach(tabs, id: \.self) { tabKey in
+            ForEach(Array(tabs.enumerated()), id: \.element) { index, tabKey in
                 let on = tabKey == selectedTab
                 Button {
                     tab = tabKey
@@ -189,6 +308,12 @@ struct LapChannelPanel: View {
                         .background(on ? Color(.accent) : .clear, in: .capsule)
                 }
                 .buttonStyle(.plain)
+                // 1…4 on an attached keyboard (NS-34 ticket 5). Numbered by the
+                // tab's **place in the bar**, not by the `Tab` case: an unpopulated
+                // tab isn't drawn, and a shortcut that skips a number to honour a
+                // tab nobody can see would be a puzzle. Safe as an index because
+                // there are only ever four cases.
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [])
                 .accessibilityLabel(tabKey.label)
                 .accessibilityAddTraits(on ? [.isSelected] : [])
             }
@@ -209,10 +334,8 @@ struct LapChannelPanel: View {
                 SectorTable(
                     channels: channels, lit: lit, slots: Self.slots,
                     lapNumber: lapNumber(forLapIndex:),
-                    onHit: { hit in
-                        readout = hit?.k
-                        onHit(hit)
-                    }
+                    onHit: park,
+                    onHover: borrow
                 )
                 deltaChart
             case .inputs:
@@ -228,11 +351,11 @@ struct LapChannelPanel: View {
                     // The point of the column (NS-34 ticket 3): the tapped
                     // sample's distance is marked across every chart that shares
                     // the axis — which is what `readout` already does — and
-                    // handed outward so the map can ring the place.
-                    onHit: { hit in
-                        readout = hit?.k
-                        onHit(hit)
-                    }
+                    // handed outward so the map can ring the place. A pointer
+                    // does the same without committing it (ticket 5).
+                    onHit: park,
+                    onHover: borrow,
+                    showEnvelope: showEnvelope
                 )
                 // Under it, the balance scatter and its per-corner table (#189),
                 // above the lateral-G and yaw traces they are read from. It draws
@@ -240,10 +363,8 @@ struct LapChannelPanel: View {
                 BalanceScatter(
                     channels: channels, lit: lit, slots: Self.slots,
                     lapNumber: lapNumber(forLapIndex:),
-                    onHit: { hit in
-                        readout = hit?.k
-                        onHit(hit)
-                    }
+                    onHit: park,
+                    onHover: borrow
                 )
             case .car:
                 // The session health strip (#190): what the car was doing while
@@ -402,6 +523,9 @@ struct LapChannelPanel: View {
                         Rectangle().fill(.clear).contentShape(.rect)
                             .onTapGesture { location in
                                 readOut(at: location, channel, proxy: proxy, geometry: geometry)
+                            }
+                            .onContinuousHover { phase in
+                                hoverReadOut(phase, channel, proxy: proxy, geometry: geometry)
                             }
                     }
                 }
@@ -564,6 +688,9 @@ struct LapChannelPanel: View {
                                 .onTapGesture { location in
                                     readOut(at: location, .speed, proxy: proxy, geometry: geometry)
                                 }
+                                .onContinuousHover { phase in
+                                    hoverReadOut(phase, .speed, proxy: proxy, geometry: geometry)
+                                }
                         }
                     }
                     .accessibilityHidden(true)
@@ -697,19 +824,54 @@ struct LapChannelPanel: View {
     /// A tap rather than a drag, for the reason spelled out in `ProgressChart`: the
     /// charts sit in a scroller, and a `DragGesture` over the plot takes the touch
     /// that would have scrolled it.
+    ///
+    /// The toggle compares against the **parked** mark rather than the one on
+    /// screen: with a pointer resting on the plot the mark under your finger is
+    /// borrowed, not committed, and tapping there means "keep this", never
+    /// "cancel it".
     private func readOut(
         at location: CGPoint, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
     ) {
-        guard let plotFrame = proxy.plotFrame else { return }
-        let x = location.x - geometry[plotFrame].origin.x
-        guard let metres: Double = proxy.value(atX: x) else { return }
-        let index = ChannelGraphs.gridIndex(atDistance: metres, channel, in: channels)
-        if readout == index {
-            readout = nil
+        guard let index = gridIndex(at: location, channel, proxy: proxy, geometry: geometry) else { return }
+        if parked?.k == index {
+            parked = nil
         } else {
-            readout = index
+            // No `hit`: a distance on the shared axis names no lap, so this marks
+            // every chart and rings nothing. See `Mark`.
+            parked = Mark(k: index, hit: nil)
             Haptics.select()
         }
+        emit()
+    }
+
+    /// The same read-out under a pointer (NS-34 ticket 5): no haptic, because
+    /// nothing was committed, and no toggle, because a pointer that stays still
+    /// is not asking twice.
+    private func hoverReadOut(
+        _ phase: HoverPhase, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
+    ) {
+        switch phase {
+        case .active(let location):
+            guard let index = gridIndex(at: location, channel, proxy: proxy, geometry: geometry) else { return }
+            hovered = Mark(k: index, hit: nil)
+            emit()
+        case .ended:
+            hovered = nil
+            emit()
+        @unknown default:
+            hovered = nil
+            emit()
+        }
+    }
+
+    /// Which grid sample a point in the plot lands on, or nil off the axis.
+    private func gridIndex(
+        at location: CGPoint, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
+    ) -> Int? {
+        guard let plotFrame = proxy.plotFrame else { return nil }
+        let x = location.x - geometry[plotFrame].origin.x
+        guard let metres: Double = proxy.value(atX: x) else { return nil }
+        return ChannelGraphs.gridIndex(atDistance: metres, channel, in: channels)
     }
 
     /// "1.2 km · Lap 3 92 · Lap 5 88" — the distance once, then a value per

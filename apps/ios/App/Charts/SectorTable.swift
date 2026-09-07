@@ -23,6 +23,9 @@ struct SectorTable: View {
     let lapNumber: (Int) -> Int
     /// Tapping a sector heading says where that sector begins (NS-34 ticket 3).
     var onHit: (ChannelHit?) -> Void = { _ in }
+    /// The same answer from a *pointer* over the heading (NS-34 ticket 5), held
+    /// only while it is there. Nil means it has left.
+    var onHover: (ChannelHit?) -> Void = { _ in }
 
     private struct Row: Identifiable {
         let color: Color
@@ -91,6 +94,9 @@ struct SectorTable: View {
                                         .foregroundStyle(Color(.textFaint))
                                         .contentShape(Rectangle())
                                         .onTapGesture { onHit(hit(startingSector: k, of: sec)) }
+                                        .onHover { inside in
+                                            onHover(inside ? hit(startingSector: k, of: sec) : nil)
+                                        }
                                         .accessibilityLabel("Sector \(k + 1), tap to show where it starts")
                                 }
                                 Text("Lap")
