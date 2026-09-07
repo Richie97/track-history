@@ -83,6 +83,33 @@ struct RootView: View {
         .fullScreenCover(item: $router.fullWindow) { route in
             NavigationStack {
                 destination(route)
+                    // The way out.
+                    //
+                    // A cover has no back button and no swipe — it is the *root* of
+                    // its own stack, not a push onto one — so a route that owns the
+                    // window has to carry its own, or the recorder is a room with no
+                    // door. At compact width the same screen is a push and the system
+                    // draws this for us; here it has to be drawn.
+                    //
+                    // On the root only, which is what the toolbar's own scoping gives
+                    // us for free: the review is *pushed* onto this stack, so it keeps
+                    // its own back-to-the-recorder and nothing here can dismiss it out
+                    // from under an unsaved session.
+                    //
+                    // Leaving does not stop a recording — that is the whole reason the
+                    // banner spans the window — so this is "put the logbook back in
+                    // front of me", never "throw the laps away".
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button {
+                                router.dismissFullWindow()
+                            } label: {
+                                Label("Back", systemImage: "chevron.backward")
+                                    .labelStyle(.titleAndIcon)
+                            }
+                            .accessibilityIdentifier("fullWindowBack")
+                        }
+                    }
             }
             .environment(router)
         }
@@ -180,8 +207,40 @@ struct RootView: View {
         .navigationSplitViewStyle(.balanced)
     }
 
+    /// A destination, keyed by the route it came from.
+    ///
+    /// The `.id(route)` is load-bearing at expanded width and does nothing at
+    /// compact, which is why it is easy to leave out and impossible to notice in a
+    /// stack. `AppRouter.open` **replaces** the detail rather than deepening it, so
+    /// picking a second event from the list pane rewrites `path[0]` in place —
+    /// same stack depth, same view type, so SwiftUI keeps the view's identity and
+    /// with it every `@State` it owns. Each screen creates its model in a
+    /// `.task { if model == nil … }`, so a preserved model means the pane keeps
+    /// showing the *first* event you tapped no matter how many more you pick.
+    ///
+    /// Tying identity to the route is the general fix rather than a per-screen one:
+    /// it resets the model *and* the rest of the screen's state (the analysis
+    /// column's selected session, a half-typed lap, an expanded form), all of which
+    /// belong to the row that is no longer on screen. In the stack shell a push
+    /// lands at a new depth, so identity was already fresh and nothing changes.
     @ViewBuilder
     private func destination(_ route: Route) -> some View {
+        if route.ownsTheWindow {
+            // Never keyed, and the exclusion is the point rather than an omission.
+            // These two are never *replaced* in place — they are a cover or a push,
+            // never a list-pane pick — while `remapTempIds` does rewrite their ids
+            // when an offline-created event's insert flushes. Keying them would make
+            // that rewrite tear the screen down: a video parse in flight would
+            // restart, and an unsaved recording's review would be popped out from
+            // under the driver. Their state is the state worth keeping.
+            routeContent(route)
+        } else {
+            routeContent(route).id(route)
+        }
+    }
+
+    @ViewBuilder
+    private func routeContent(_ route: Route) -> some View {
         switch route {
         case .event(let id):
             EventScreen(eventId: id)
