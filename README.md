@@ -1115,7 +1115,13 @@ mocks the Apple and Google APIs in `vitest.workers.config.mts`.
   count and headline bests instead of the generic app card. Only data the
   public share payload already exposes is used.
 - **Per-track leaderboards** are strictly **opt-in** (Settings → Leaderboards,
-  or the track page's join button; `users.leaderboard_opt_in`). Opting in
+  or the join button on the leaderboard itself; `users.leaderboard_opt_in`).
+  The board is **its own page behind a *Leaderboard* button on the track page**
+  (`#/track/:id/leaderboard` on the web, a pushed screen on iOS, a destination
+  on Android), not a section of it: the track page is the driver's own history,
+  and a board they may not care about was costing it a screen of space — while a
+  driver who does care wants to read it before they are on it. The button shows
+  for every catalog track, first event or not. Opting in
   shares exactly two things with other signed-in users, per track: your display
   name and your best device-timed lap (with its event date). Tracks are matched
   across users by `tracks.catalog_id`, so leaderboards exist only for tracks
@@ -1134,7 +1140,7 @@ mocks the Apple and Google APIs in `vitest.workers.config.mts`.
   for corner (`docs/specs/native/NS-35-leaderboard-lap-detail.md`;
   `GET /api/tracks/:id/leaderboard/laps/:lapId`). It is a **second, separate
   opt-in** — Settings → Leaderboards → *Let other drivers open my ranked laps*,
-  or the track page's button; `users.leaderboard_share_laps`, migration `0021`,
+  or the leaderboard page's button; `users.leaderboard_share_laps`, migration `0021`,
   **off by default**. The original opt-in promises "exactly two things", so it
   was not widened: an existing opt-in keeps meaning exactly what it did, and
   leaving the leaderboards clears both flags in one statement so a rejoin can't

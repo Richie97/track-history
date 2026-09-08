@@ -810,16 +810,15 @@ async function viewDashboard() {
 
 // --- track detail ---
 
-// The per-track community leaderboard section. Only catalog tracks have one
-// (catalog_id gives the same physical track an identity across users), and it
-// is strictly opt-in: drivers who haven't opted in — the viewer included —
-// simply aren't on it. Only device-timed laps rank (NS-33) — the server
-// decides that — so `viewerBestMs`, the viewer's logbook best at the track
-// (manual bests included), is what explains a row that's slower than the
-// track page's own headline, or a missing row. Returns "" when there's
-// nothing to show at all.
+// The per-track community leaderboard — the body of `viewLeaderboard`. Only
+// catalog tracks have one (catalog_id gives the same physical track an
+// identity across users), and it is strictly opt-in: drivers who haven't
+// opted in — the viewer included — simply aren't on it. Only device-timed laps
+// rank (NS-33) — the server decides that — so `viewerBestMs`, the viewer's
+// logbook best at the track (manual bests included), is what explains a row
+// that's slower than the track page's own headline, or a missing row.
 function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
-  if (!lb || lb.catalog_id == null) return "";
+  if (lb.catalog_id == null) return `<div class="empty">This track isn't in the catalog, so it has no leaderboard.</div>`;
   const you = lb.entries.find((en) => en.you);
   let yourNote = "";
   if (lb.opted_in && !you && viewerBestMs != null)
@@ -855,8 +854,7 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   const optControl = lb.opted_in
     ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
     : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
-  return `<h2>Leaderboard</h2>
-    <div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track — opt-in only. Laps recorded with the app or imported from telemetry count; hand-entered times don't.</div>
+  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the app or imported from telemetry count; hand-entered times don't.</div>
     ${
       rows
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -870,13 +868,11 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
 }
 
 async function viewTrack(trackId, params) {
-  const [tracks, allEvents, trackSetups, garage, leaderboard] = await Promise.all([
+  const [tracks, allEvents, trackSetups, garage] = await Promise.all([
     api("/tracks"),
     api(`/events?track_id=${trackId}`),
     api(`/tracks/${trackId}/setups`).catch(() => []),
     api("/garage").catch(() => []),
-    // Older server or offline: no leaderboard section rather than a broken page.
-    api(`/tracks/${trackId}/leaderboard`).catch(() => null),
   ]);
   const track = tracks.find((t) => String(t.id) === String(trackId));
   if (!track) return viewNotFound();
@@ -927,9 +923,6 @@ async function viewTrack(trackId, params) {
 
   const bests = events.map((e) => e.best_ms).filter((v) => v != null);
   const pb = bests.length ? Math.min(...bests) : null;
-  // The leaderboard's "your best here" note ignores the dry-only filter: the
-  // leaderboard does too.
-  const allBests = allEvents.map((e) => e.best_ms).filter((v) => v != null);
   const goal = track.goal_ms;
   const goalMet = goal != null && pb != null && pb <= goal;
   const goalStatus =
@@ -967,6 +960,12 @@ async function viewTrack(trackId, params) {
   const shareBtn = state.me.share_slug
     ? `<button class="btn" id="share-track">Copy share link</button>`
     : "";
+  // The leaderboard is its own page rather than a section here: this page is
+  // the driver's own history, and a board they may not care about was costing
+  // it a screen of space. Offered for every catalog track — before the driver
+  // is on it, and before they have been here at all.
+  const leaderboardBtn =
+    track.catalog_id != null ? `<a class="btn" href="#/track/${trackId}/leaderboard">Leaderboard</a>` : "";
 
   const view = shell(`
     <h1>${esc(track.name)}</h1>
@@ -974,6 +973,7 @@ async function viewTrack(trackId, params) {
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
     <div class="btn-row">
       <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a>
+      ${leaderboardBtn}
       ${shareBtn}
       <span id="track-msg" class="goal-msg"></span>
     </div>
@@ -990,7 +990,6 @@ async function viewTrack(trackId, params) {
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
-    ${leaderboardHtml(leaderboard, allBests.length ? Math.min(...allBests) : null, track.id)}
     ${
       canUseSetups(state.entitlement)
         ? setupHistoryHtml(trackSetups, garagePartsById(garage))
@@ -1047,36 +1046,6 @@ async function viewTrack(trackId, params) {
       msg.textContent = err.message;
     }
   };
-
-  // Leaderboard opt-in/out — a live server write on purpose (not queueable):
-  // publishing your name is not something to replay silently later.
-  const lbToggle = (optIn, shareLaps) => async () => {
-    try {
-      await api("/me/leaderboard", {
-        method: "PUT",
-        body: { opt_in: optIn, ...(shareLaps === undefined ? {} : { share_laps: shareLaps }) },
-      });
-      state.me.leaderboard_opt_in = optIn;
-      // Leaving clears the second consent server-side; mirror that here so the
-      // re-render doesn't show a control the server has already turned off.
-      if (!optIn) state.me.leaderboard_share_laps = false;
-      else if (shareLaps !== undefined) state.me.leaderboard_share_laps = shareLaps;
-      route();
-    } catch (err) {
-      view.querySelector("#lb-msg").textContent = err.message;
-    }
-  };
-  const lbJoin = view.querySelector("#lb-join");
-  if (lbJoin) lbJoin.onclick = lbToggle(true);
-  const lbLeave = view.querySelector("#lb-leave");
-  if (lbLeave)
-    lbLeave.onclick = () => {
-      if (confirm("Leave the leaderboards? Your name and times disappear from every track's leaderboard.")) lbToggle(false)();
-    };
-  const lbShare = view.querySelector("#lb-share");
-  if (lbShare) lbShare.onclick = lbToggle(true, true);
-  const lbUnshare = view.querySelector("#lb-unshare");
-  if (lbUnshare) lbUnshare.onclick = lbToggle(true, false);
 
   const shareTrack = view.querySelector("#share-track");
   if (shareTrack)
@@ -1375,6 +1344,72 @@ async function viewLapCompare(trackId, params) {
   };
 }
 
+// --- track leaderboard ---
+
+// One track's leaderboard, as its own page behind the track page's button.
+// It used to be a section of the track page; it moved out because that page
+// is the driver's own history and a board they may not care about was costing
+// it a screen of space — and because a driver who *does* care wants to read
+// it before they are on it, when the section had nothing of theirs to sit
+// beside. The opt-in controls live here, where the driver is looking at
+// exactly what joining publishes.
+async function viewLeaderboard(trackId) {
+  const [tracks, allEvents, leaderboard] = await Promise.all([
+    api("/tracks"),
+    // The viewer's logbook best here, manual bests included, is what explains a
+    // row slower than the track page's headline — the dry-only filter has no
+    // say, because the board ignores it too.
+    api(`/events?track_id=${trackId}`).catch(() => []),
+    // Older server or offline: say so rather than render a broken page.
+    api(`/tracks/${trackId}/leaderboard`).catch(() => null),
+  ]);
+  const track = tracks.find((t) => String(t.id) === String(trackId));
+  if (!track) return viewNotFound();
+  const bests = allEvents.map((e) => e.best_ms).filter((v) => v != null);
+  const viewerBest = bests.length ? Math.min(...bests) : null;
+
+  const view = shell(`
+    <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(track.name)}</a></p>
+    <h1>Leaderboard</h1>
+    <p class="sub">${esc(track.name)} · opt-in only</p>
+    ${
+      leaderboard
+        ? leaderboardHtml(leaderboard, viewerBest, track.id)
+        : `<div class="empty">Couldn't load the leaderboard — it needs a connection.</div>`
+    }
+  `);
+
+  // Leaderboard opt-in/out — a live server write on purpose (not queueable):
+  // publishing your name is not something to replay silently later.
+  const lbToggle = (optIn, shareLaps) => async () => {
+    try {
+      await api("/me/leaderboard", {
+        method: "PUT",
+        body: { opt_in: optIn, ...(shareLaps === undefined ? {} : { share_laps: shareLaps }) },
+      });
+      state.me.leaderboard_opt_in = optIn;
+      // Leaving clears the second consent server-side; mirror that here so the
+      // re-render doesn't show a control the server has already turned off.
+      if (!optIn) state.me.leaderboard_share_laps = false;
+      else if (shareLaps !== undefined) state.me.leaderboard_share_laps = shareLaps;
+      route();
+    } catch (err) {
+      view.querySelector("#lb-msg").textContent = err.message;
+    }
+  };
+  const lbJoin = view.querySelector("#lb-join");
+  if (lbJoin) lbJoin.onclick = lbToggle(true);
+  const lbLeave = view.querySelector("#lb-leave");
+  if (lbLeave)
+    lbLeave.onclick = () => {
+      if (confirm("Leave the leaderboards? Your name and times disappear from every track's leaderboard.")) lbToggle(false)();
+    };
+  const lbShare = view.querySelector("#lb-share");
+  if (lbShare) lbShare.onclick = lbToggle(true, true);
+  const lbUnshare = view.querySelector("#lb-unshare");
+  if (lbUnshare) lbUnshare.onclick = lbToggle(true, false);
+}
+
 // --- leaderboard lap: another driver's ranked lap, and yours beside it (NS-35) ---
 
 // One row of the track leaderboard, opened. What the server publishes is the
@@ -1394,7 +1429,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   // user-entered and not published.
   const tracks = await api("/tracks").catch(() => []);
   const track = tracks.find((t) => String(t.id) === String(trackId));
-  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(track?.name ?? "Back to track")}</a></p>`;
+  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}/leaderboard">← ${esc(track?.name ?? "Track")} leaderboard</a></p>`;
 
   const who = lap.you ? "Your leaderboard lap" : `${lap.name ?? "Driver"}'s leaderboard lap`;
   const context = [
@@ -3128,6 +3163,7 @@ async function route() {
     if (parts[0] === "track" && parts[1] && parts[2] === "lap-compare") return await viewLapCompare(parts[1], params);
     if (parts[0] === "track" && parts[1] && parts[2] === "leaderboard" && parts[3])
       return await viewLeaderboardLap(parts[1], parts[3], params);
+    if (parts[0] === "track" && parts[1] && parts[2] === "leaderboard") return await viewLeaderboard(parts[1]);
     if (parts[0] === "track" && parts[1]) return await viewTrack(parts[1], params);
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);

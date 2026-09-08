@@ -157,7 +157,9 @@ Three platform differences, each stated at its call site:
   and belongs beside them, while this is someone else's lap, a detour rather
   than a column. The track screen presents both through a **single**
   `.sheet(item:)`, because two `.sheet` modifiers on one view is the documented
-  watchdog crash.
+  watchdog crash. *(Since 2026-09 the leaderboard itself is a pushed
+  `LeaderboardScreen` rather than a section of the track screen, and the lap is
+  that screen's one sheet; the track screen is back to a single compare sheet.)*
 - **Android** — a destination (`Route.LeaderboardLap`), matching how the
   two-lap compare is reached there.
 
