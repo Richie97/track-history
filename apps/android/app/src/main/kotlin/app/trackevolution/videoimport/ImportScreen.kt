@@ -7,6 +7,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import app.trackevolution.ui.FormColumn
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -94,81 +96,92 @@ fun ImportScreen(
         }
     }
 
-    Column(
-        modifier = modifier
+    // The chooser owns the window — `SignedInScaffold` drops to one pane for
+    // this destination — while its content keeps a column (NS-34). Covering the
+    // window is about reach; a "Choose videos" button 1200dp wide is a control
+    // you have to go looking for.
+    Box(
+        modifier
             .fillMaxSize()
-            .background(colors.bgPage)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .background(colors.bgPage),
     ) {
-        Text("Import video", style = type.h1, color = colors.textStrong)
+        FormColumn {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Import video", style = type.h1, color = colors.textStrong)
 
-        TrackCard(Modifier.fillMaxWidth()) {
-            Text("Lap times from video", style = type.h3, color = colors.textStrong)
-            Text(
-                "Corvette PDR and GoPro clips carry telemetry alongside the picture. Pick one and the " +
-                    "laps come out of it here — the video never leaves this phone and is never copied; " +
-                    "only its telemetry track is read.",
-                style = type.sm,
-                color = colors.textMuted,
-                modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
-            )
-
-            if (model.isParsing) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.height(18.dp), color = colors.accent)
+                TrackCard(Modifier.fillMaxWidth()) {
+                    Text("Lap times from video", style = type.h3, color = colors.textStrong)
                     Text(
-                        model.progress,
+                        "Corvette PDR and GoPro clips carry telemetry alongside the picture. Pick one and the " +
+                            "laps come out of it here — the video never leaves this phone and is never copied; " +
+                            "only its telemetry track is read.",
                         style = type.sm,
                         color = colors.textMuted,
-                        modifier = Modifier.padding(start = 10.dp),
+                        modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
+                    )
+
+                    if (model.isParsing) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.height(18.dp), color = colors.accent)
+                            Text(
+                                model.progress,
+                                style = type.sm,
+                                color = colors.textMuted,
+                                modifier = Modifier.padding(start = 10.dp),
+                            )
+                        }
+                        TextButton(onClick = model::cancel) {
+                            Text("Cancel", style = type.sm, color = colors.textMuted)
+                        }
+                    } else {
+                        Button(
+                            onClick = { documents.launch(arrayOf("video/mp4", "video/quicktime", "video/*")) },
+                            modifier = Modifier.fillMaxWidth().testTag("importChooseVideos"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colors.accent,
+                                contentColor = colors.accentContrast,
+                            ),
+                        ) {
+                            Text("Choose videos", style = type.bodyStrong)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).testTag("importChoosePhotos"),
+                        ) {
+                            Text("Choose from Photos", style = type.bodyStrong, color = colors.textStrong)
+                        }
+                    }
+
+                    model.failure?.let { TEErrorBanner(it, modifier = Modifier.padding(top = 10.dp)) }
+                }
+
+                TrackCard(Modifier.fillMaxWidth()) {
+                    Text("WHAT WORKS", style = type.eyebrow, color = colors.textFaint)
+                    Text(
+                        "A PDR clip recorded with the track's beacon arrives with exact lap times and needs " +
+                            "nothing from you. A GoPro clip, or a PDR one without beacons, has GPS but no lap " +
+                            "markers — tap where the start/finish line is and every pass across it is timed.",
+                        style = type.xs,
+                        color = colors.textMuted,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    Text(
+                        ".vbo and other logger files stay on the web app, where the screen is bigger and the " +
+                            "SD card is already in the laptop.",
+                        style = type.xs,
+                        color = colors.textFaint,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
-                TextButton(onClick = model::cancel) {
-                    Text("Cancel", style = type.sm, color = colors.textMuted)
-                }
-            } else {
-                Button(
-                    onClick = { documents.launch(arrayOf("video/mp4", "video/quicktime", "video/*")) },
-                    modifier = Modifier.fillMaxWidth().testTag("importChooseVideos"),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colors.accent,
-                        contentColor = colors.accentContrast,
-                    ),
-                ) {
-                    Text("Choose videos", style = type.bodyStrong)
-                }
-                OutlinedButton(
-                    onClick = {
-                        photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp).testTag("importChoosePhotos"),
-                ) {
-                    Text("Choose from Photos", style = type.bodyStrong, color = colors.textStrong)
-                }
             }
-
-            model.failure?.let { TEErrorBanner(it, modifier = Modifier.padding(top = 10.dp)) }
-        }
-
-        TrackCard(Modifier.fillMaxWidth()) {
-            Text("WHAT WORKS", style = type.eyebrow, color = colors.textFaint)
-            Text(
-                "A PDR clip recorded with the track's beacon arrives with exact lap times and needs " +
-                    "nothing from you. A GoPro clip, or a PDR one without beacons, has GPS but no lap " +
-                    "markers — tap where the start/finish line is and every pass across it is timed.",
-                style = type.xs,
-                color = colors.textMuted,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-            Text(
-                ".vbo and other logger files stay on the web app, where the screen is bigger and the " +
-                    "SD card is already in the laptop.",
-                style = type.xs,
-                color = colors.textFaint,
-                modifier = Modifier.padding(top = 6.dp),
-            )
         }
     }
 }

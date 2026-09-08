@@ -2,6 +2,7 @@ package app.trackevolution.recording
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,12 +27,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.LineReview
 import app.trackevolution.core.telemetry.ParsedTelemetry
 import app.trackevolution.core.telemetry.Telemetry
+import app.trackevolution.ui.FormColumn
+import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -64,152 +68,185 @@ fun ReviewScreen(
     var confirmingDiscard by remember { mutableStateOf(false) }
     val anyLaps = state.items.any { it.hasLaps }
 
-    Column(
-        modifier = modifier
+    // How tall to draw the start/finish picker (NS-34).
+    //
+    // A phone keeps its 280dp exactly. Above compact width the map grows with
+    // the column it is in, because a line is picked on a *shape*: `TraceMap.fit`
+    // scales uniformly, so a short wide box draws the circuit small against the
+    // short side and leaves the rest of the row empty — and the file already
+    // notes that the target for a pick is tiny.
+    //
+    // Bounded by the window's **height** as well as its width, which is not
+    // belt-and-braces here: a phone in landscape is an expanded window on this
+    // platform — there is no `.compact` size class to say otherwise, which
+    // `LayoutClass` records — and two-thirds of 915dp of map in a 412dp-high
+    // window would push the session cards and Save off the screen entirely.
+    val metrics = LocalLayoutMetrics.current
+    val windowHeight = LocalConfiguration.current.screenHeightDp.dp
+    val pickerHeight = if (metrics.layoutClass.isCompact) {
+        280.dp
+    } else {
+        minOf(metrics.contentWidth * 0.62f, windowHeight * 0.45f, 420.dp)
+            .coerceAtLeast(280.dp)
+    }
+
+    // The overlay covers the window — NS-18's rule, and what "the review is
+    // modal" actually means — while its *content* keeps a column (NS-34). The
+    // background is painted out here, on the covering Box, so the graph
+    // underneath never shows through beside a centred form.
+    Box(
+        modifier
             .fillMaxSize()
-            .background(colors.bgPage)
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .background(colors.bgPage),
     ) {
-        Text(
-            if (state.isImport) "Import preview" else "Review recording",
-            style = type.h1,
-            color = colors.textStrong,
-        )
-
-        if (state.needsLinePick) {
-            Text(
-                pickerHint(state),
-                style = type.sm,
-                color = colors.textMuted,
-            )
-
-            LinePicker(
-                trace = state.pickTrace,
-                gate = state.gate,
-                pickedIndex = state.pickedIndex,
-                onPick = onPick,
-                modifier = Modifier.fillMaxWidth().height(280.dp),
-            )
-
-            // The guidance the spec asks for: never a dead end, and the two dead
-            // ends are different problems with different answers.
-            when (state.problem) {
-                LineReview.Problem.STATIONARY_PICK -> Advice(
-                    "The car wasn't moving there, so there's no direction to place a line across. " +
-                        "Try a point out on track.",
+        FormColumn {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    if (state.isImport) "Import preview" else "Review recording",
+                    style = type.h1,
+                    color = colors.textStrong,
                 )
-                LineReview.Problem.NO_CROSSINGS -> Advice(
-                    "No laps cross the picked line — try a different spot.",
-                )
-                null -> if (state.pickedIndex == null) {
-                    Advice("Nothing picked yet.", warning = false)
-                }
-            }
-        }
 
-        state.items.forEachIndexed { index, item ->
-            ItemCard(
-                item = item,
-                index = index,
-                state = state,
-                onLabelChange = { onLabelChange(index, it) },
-                onIncludeChange = { onIncludeChange(index, it) },
-            )
-        }
-
-        if (anyLaps) {
-            // Which event this belongs to. A recording can outlive not having
-            // one — Android Auto starts them before the event exists — so the
-            // choice lives here, at save time, rather than at start.
-            TrackCard {
-                Text("SAVE ONTO", style = type.eyebrow, color = colors.textFaint)
-                if (state.events.isEmpty()) {
+                if (state.needsLinePick) {
                     Text(
-                        "No events yet. Create one first, then come back — " +
-                            if (state.isImport) "the videos aren't going anywhere." else "the recording keeps until you do.",
+                        pickerHint(state),
                         style = type.sm,
                         color = colors.textMuted,
-                        modifier = Modifier.padding(top = 6.dp),
+                    )
+
+                    LinePicker(
+                        trace = state.pickTrace,
+                        gate = state.gate,
+                        pickedIndex = state.pickedIndex,
+                        onPick = onPick,
+                        modifier = Modifier.fillMaxWidth().height(pickerHeight),
+                    )
+
+                    // The guidance the spec asks for: never a dead end, and the two dead
+                    // ends are different problems with different answers.
+                    when (state.problem) {
+                        LineReview.Problem.STATIONARY_PICK -> Advice(
+                            "The car wasn't moving there, so there's no direction to place a line across. " +
+                                "Try a point out on track.",
+                        )
+                        LineReview.Problem.NO_CROSSINGS -> Advice(
+                            "No laps cross the picked line — try a different spot.",
+                        )
+                        null -> if (state.pickedIndex == null) {
+                            Advice("Nothing picked yet.", warning = false)
+                        }
+                    }
+                }
+
+                state.items.forEachIndexed { index, item ->
+                    ItemCard(
+                        item = item,
+                        index = index,
+                        state = state,
+                        onLabelChange = { onLabelChange(index, it) },
+                        onIncludeChange = { onIncludeChange(index, it) },
                     )
                 }
-                state.events.take(8).forEach { event ->
-                    TextButton(
-                        onClick = { onSelectEvent(event.id) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            "${if (event.id == state.selectedEventId) "● " else "○ "}" +
-                                "${event.startDate} · ${event.trackName}",
-                            style = type.sm,
-                            color = if (event.id == state.selectedEventId) {
-                                colors.accentInk
-                            } else {
-                                colors.textMuted
-                            },
+
+                if (anyLaps) {
+                    // Which event this belongs to. A recording can outlive not having
+                    // one — Android Auto starts them before the event exists — so the
+                    // choice lives here, at save time, rather than at start.
+                    TrackCard {
+                        Text("SAVE ONTO", style = type.eyebrow, color = colors.textFaint)
+                        if (state.events.isEmpty()) {
+                            Text(
+                                "No events yet. Create one first, then come back — " +
+                                    if (state.isImport) "the videos aren't going anywhere." else "the recording keeps until you do.",
+                                style = type.sm,
+                                color = colors.textMuted,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                        state.events.take(8).forEach { event ->
+                            TextButton(
+                                onClick = { onSelectEvent(event.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    "${if (event.id == state.selectedEventId) "● " else "○ "}" +
+                                        "${event.startDate} · ${event.trackName}",
+                                    style = type.sm,
+                                    color = if (event.id == state.selectedEventId) {
+                                        colors.accentInk
+                                    } else {
+                                        colors.textMuted
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
+
+                    if (!state.isImport) {
+                        OutlinedTextField(
+                            value = state.notes,
+                            onValueChange = onNotesChange,
+                            label = { Text("Notes", style = type.sm) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
-            }
 
-            if (!state.isImport) {
-                OutlinedTextField(
-                    value = state.notes,
-                    onValueChange = onNotesChange,
-                    label = { Text("Notes", style = type.sm) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
+                state.error?.let {
+                    TrackCard(color = colors.dangerTint, border = colors.danger) {
+                        Text(it, style = type.sm, color = colors.dangerInk)
+                        Text(
+                            if (state.isImport) {
+                                "Nothing was lost — the videos are still on this phone."
+                            } else {
+                                "The recording is still here — nothing was lost."
+                            },
+                            style = type.xs,
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
 
-        state.error?.let {
-            TrackCard(color = colors.dangerTint, border = colors.danger) {
-                Text(it, style = type.sm, color = colors.dangerInk)
-                Text(
-                    if (state.isImport) {
-                        "Nothing was lost — the videos are still on this phone."
+                Button(
+                    onClick = onSave,
+                    enabled = state.canSave,
+                    modifier = Modifier.fillMaxWidth().testTag("reviewSave"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = colors.accentContrast,
+                    ),
+                ) {
+                    if (state.saving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.height(18.dp),
+                            color = colors.accentContrast,
+                        )
                     } else {
-                        "The recording is still here — nothing was lost."
-                    },
-                    style = type.xs,
-                    color = colors.textMuted,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        }
+                        Text(
+                            if (state.selectedCount > 1) "Save ${state.selectedCount} sessions" else "Save session",
+                            style = type.bodyStrong,
+                        )
+                    }
+                }
 
-        Button(
-            onClick = onSave,
-            enabled = state.canSave,
-            modifier = Modifier.fillMaxWidth().testTag("reviewSave"),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.accent,
-                contentColor = colors.accentContrast,
-            ),
-        ) {
-            if (state.saving) {
-                CircularProgressIndicator(
-                    modifier = Modifier.height(18.dp),
-                    color = colors.accentContrast,
-                )
-            } else {
-                Text(
-                    if (state.selectedCount > 1) "Save ${state.selectedCount} sessions" else "Save session",
-                    style = type.bodyStrong,
-                )
-            }
-        }
-
-        if (state.isImport) {
-            // Nothing to protect: the clips are still where they were.
-            TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) {
-                Text("Cancel import", style = type.sm, color = colors.textMuted)
-            }
-        } else {
-            TextButton(onClick = { confirmingDiscard = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Discard recording", style = type.sm, color = colors.dangerInk)
+                if (state.isImport) {
+                    // Nothing to protect: the clips are still where they were.
+                    TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) {
+                        Text("Cancel import", style = type.sm, color = colors.textMuted)
+                    }
+                } else {
+                    TextButton(onClick = { confirmingDiscard = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Discard recording", style = type.sm, color = colors.dangerInk)
+                    }
+                }
             }
         }
     }

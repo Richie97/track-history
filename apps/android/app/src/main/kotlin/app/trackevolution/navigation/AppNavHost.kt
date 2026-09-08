@@ -50,7 +50,6 @@ import app.trackevolution.screens.TrackModel
 import app.trackevolution.screens.TrackScreen
 import app.trackevolution.screens.VehicleModel
 import app.trackevolution.screens.VehicleScreen
-import app.trackevolution.ui.LayoutClass
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.PageColumn
 import app.trackevolution.ui.PaneWidth
@@ -217,7 +216,22 @@ fun AppNavHost(
             // rather than as its own destination (NS-34 ticket 3). Same
             // `CompareLapsScreen`, same `Route.CompareLaps` — which a deep link
             // can still land on — only the container changes.
-            val sideBySide = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded
+            //
+            // The width is `sideColumnWidth`'s, and so is the decision to split
+            // at all: the event page's numbers, because it is the same kind of
+            // content — two laps of channel traces need the width a track map
+            // and its charts need. Measured against the column this page is
+            // actually in and **never the window's class**, which is the whole
+            // subject of `sideColumnWidth`: a tablet in portrait is an expanded
+            // *window* whose detail pane has about 627dp to give, and two
+            // columns do not go into that. Reading the class here gave the
+            // compare its 380dp floor and left the track page ~230dp.
+            //
+            // This page lives in the graph rather than in `TrackScreen`, which
+            // is how it was missed when the event and vehicle pages took the
+            // same fix.
+            val compareWidth = LocalLayoutMetrics.current.sideColumnWidth(0.46f, 380.dp, 620.dp)
+            val sideBySide = compareWidth != null
             var comparing by rememberSaveable { mutableStateOf(false) }
             val page = @Composable {
                 TrackScreen(
@@ -235,15 +249,11 @@ fun AppNavHost(
                     serverUrl = serverUrl,
                 )
             }
-            if (sideBySide && comparing) {
+            if (compareWidth != null && comparing) {
                 Row(Modifier.fillMaxSize()) {
                     PaneWidth(Modifier.weight(1f)) { page() }
                     VerticalDivider()
-                    PaneWidth(
-                        Modifier.width(
-                            (LocalLayoutMetrics.current.contentWidth * 0.46f).coerceIn(380.dp, 620.dp),
-                        ),
-                    ) {
+                    PaneWidth(Modifier.width(compareWidth)) {
                         val compare = rememberScreenModel(key = "compare-${route.id}") { scope, _ ->
                             CompareLapsModel(scope, api, route.id)
                         }

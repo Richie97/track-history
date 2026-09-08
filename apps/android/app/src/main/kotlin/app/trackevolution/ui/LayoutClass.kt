@@ -296,3 +296,60 @@ fun PageColumn(
         }
     }
 }
+
+/**
+ * How wide a full-window **form** is allowed to get.
+ *
+ * Narrower than [LayoutTokens.PAGE_MAX] on purpose, and it is not a second
+ * opinion about the same thing: a logbook page is a grid of cards that gets
+ * better the more of them fit a row, while a form is a single column of fields
+ * read top to bottom, and a field twice as wide is not twice as good. 640dp is
+ * about where one stops being a control and starts being a rule across the
+ * window.
+ *
+ * Not a generated token, because the web has no counterpart to cap against —
+ * the recorder's review is native-only, and the browser's import dropzone is a
+ * card inside the ordinary page shell.
+ */
+val FORM_MAX: Dp = 640.dp
+
+/**
+ * The content column for a surface that **owns the whole window** — the
+ * recorder's review overlay and the import chooser (NS-34).
+ *
+ * Those two skip [PageColumn] deliberately: they are not logbook pages, they
+ * cover the window at every width, and the review has to span both panes rather
+ * than sit inside the detail. But *covering* the window is about reach, not
+ * about stretching a form across it. Uncapped on a 1200dp tablet the review
+ * drew its start/finish picker 1200dp wide and 280dp tall — a letterbox with
+ * the circuit fitted to the short side and most of the row empty, which is the
+ * worst shape there is for something whose whole job is to be tapped — and gave
+ * Save and Discard the full width, so the two controls sat a screen apart.
+ *
+ * So the surface keeps the window and its content keeps a column. Below
+ * [FORM_MAX] the cap is a no-op, which is every phone.
+ *
+ * The background belongs to the **caller**, outside this: it is what actually
+ * covers the window, and painting it here would leave the graph showing through
+ * beside a centred column.
+ */
+@Composable
+fun FormColumn(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val metrics = LocalLayoutMetrics.current
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.fillMaxSize().widthIn(max = FORM_MAX)) {
+            CompositionLocalProvider(
+                // `narrowedTo` takes the smaller of the two, so on a phone this
+                // is the window's own width and nothing below sees a change.
+                LocalLayoutMetrics provides metrics.narrowedTo(
+                    FORM_MAX - pageGutter(metrics.layoutClass) * 2,
+                ),
+            ) {
+                content()
+            }
+        }
+    }
+}
