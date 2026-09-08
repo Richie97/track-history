@@ -264,15 +264,21 @@ Features added after the rewrite shipped, and where they landed:
   the car, and belongs with the health strip.
 - **Per-track leaderboards** (2026-08) — **all three.** Strictly opt-in
   (`users.leaderboard_opt_in`); `GET /tracks/:id/leaderboard` is in the golden
-  contract, and every client renders the track page's leaderboard section and
-  the Settings opt-in with the same privacy copy. The opt-in write stays off
+  contract, and every client renders the board and the Settings opt-in with
+  the same privacy copy. Since 2026-09 the board is **its own screen behind a
+  *Leaderboard* button on the track page** — `#/track/:id/leaderboard` on the
+  web, a pushed `Route.leaderboard` on iOS, a `Route.Leaderboard` destination
+  on Android — rather than a section of that page: the page is the driver's
+  own history and the board was costing it a screen of space, and a driver who
+  does care wants to read it before they are on it. Shown for every catalog
+  track, first event or not. The opt-in write stays off
   the offline queue everywhere — publishing your name shouldn't replay
   silently later. Since [NS-33](NS-33-leaderboard-device-timed-laps.md)
   (2026-09) the ranking covers **device-timed laps only** — those with a
   matching entry in the session's `channels` blob, recorded as the
   trigger-maintained `laps.device_timed` — so a typed time or an event's
   manual best never reaches a leaderboard. Server-side and retroactive; the
-  response shape didn't change, and every client's leaderboard section says
+  response shape didn't change, and every client's leaderboard says
   the rule and explains a row slower than the logbook's own best. Since
   [NS-35](NS-35-leaderboard-lap-detail.md) (2026-09) a row can **open**: the
   ranked lap's racing line and channel traces, with the viewer's own best at

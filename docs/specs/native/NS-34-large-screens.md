@@ -189,6 +189,9 @@ At expanded width the page is **two columns inside the detail pane**:
 - Two columns: the summary, the best-lap-per-event chart with its conditions
   wash, the leaderboard section and the event list on the left; the *Setup
   vs. lap times* placeholder is **not** added (web-only, deferred list).
+  *(Since 2026-09 the leaderboard is no longer a section here — it is its own
+  screen behind a button, on every client; see the README's leaderboards
+  entry. The column's contents are otherwise as written.)*
 - The **two-lap compare** (#165, a sheet on both phones today) opens in the
   right column at expanded width, with its picker at the top and the
   head-to-head, delta chart and channel overlays under it. It is the same

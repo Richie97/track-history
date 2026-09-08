@@ -36,6 +36,15 @@ public sealed interface Route {
     public data class CompareLaps(val trackId: Int) : Route
 
     /**
+     * A track's leaderboard, behind the track page's button. Keyed by the
+     * viewer's own track, because that is what the server keys the board on.
+     * Not a `DeepLink` case: the web reaches it as `#/track/:id/leaderboard`,
+     * a hash the share page never advertises.
+     */
+    @Serializable
+    public data class Leaderboard(val trackId: Int) : Route
+
+    /**
      * One leaderboard row, opened (NS-35). [trackId] is the viewer's own track,
      * because a shared lap is only reachable from a track the viewer has — the
      * server checks that, so this is not merely how the screen finds its way

@@ -12,7 +12,6 @@ import app.trackevolution.core.model.Conditions
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.Track
-import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.charts.ProgressPoint
@@ -27,7 +26,9 @@ import kotlinx.coroutines.launch
  * `viewTrack` in `public/app.js` is the reference. The **setup-vs-lap-times
  * table** and the **two-event lap overlay** (`viewCompare`) stay web-only per the
  * product split, and are absent rather than stubbed. The two-lap telemetry
- * compare (`viewLapCompare`, #165) *is* here — see [CompareLapsModel].
+ * compare (`viewLapCompare`, #165) *is* here — see [CompareLapsModel]. The
+ * leaderboard is **not** a section of this page any more — it is
+ * [LeaderboardModel], behind a button, for the reason stated there.
  */
 class TrackModel(
     private val scope: CoroutineScope,
@@ -111,37 +112,6 @@ class TrackModel(
                 return@launch
             }
             shareSlug = runCatching { api.me() }.getOrNull()?.user?.shareSlug
-            // Non-fatal on purpose: an older server or a failed fetch costs the
-            // leaderboard section, never the track page.
-            leaderboard = runCatching { api.trackLeaderboard(trackId) }.getOrNull()
-        }
-    }
-
-    // ---- Leaderboard ---------------------------------------------------------
-
-    /**
-     * The per-track community leaderboard, or null when it couldn't be loaded
-     * (older server, offline) — the section simply doesn't render then.
-     */
-    var leaderboard by mutableStateOf<TrackLeaderboard?>(null)
-        private set
-
-    var leaderboardError by mutableStateOf<String?>(null)
-        private set
-
-    /**
-     * Join or leave the leaderboards. A live write on purpose — never queued
-     * offline: publishing your name shouldn't replay silently later.
-     */
-    fun setLeaderboardOptIn(optIn: Boolean, shareLaps: Boolean? = null) {
-        scope.launch {
-            leaderboardError = null
-            try {
-                api.setLeaderboardOptIn(optIn, shareLaps)
-                leaderboard = runCatching { api.trackLeaderboard(trackId) }.getOrNull() ?: leaderboard
-            } catch (e: ApiException) {
-                leaderboardError = e.message
-            }
         }
     }
 
@@ -159,14 +129,6 @@ class TrackModel(
 
     val personalBest: Int?
         get() = events.mapNotNull { it.bestMs }.minOrNull()
-
-    /**
-     * The logbook's best at this track regardless of the dry-only filter,
-     * manual bests included — what the leaderboard note compares against,
-     * since the leaderboard ignores that filter too.
-     */
-    val logbookBest: Int?
-        get() = allEvents.mapNotNull { it.bestMs }.minOrNull()
 
     /** Chronological, and only events that actually set a time. */
     /**

@@ -40,6 +40,8 @@ import app.trackevolution.screens.EventModel
 import app.trackevolution.screens.EventScreen
 import app.trackevolution.screens.LeaderboardLapModel
 import app.trackevolution.screens.LeaderboardLapScreen
+import app.trackevolution.screens.LeaderboardModel
+import app.trackevolution.screens.LeaderboardScreen
 import app.trackevolution.screens.SettingsModel
 import app.trackevolution.screens.SettingsScreen
 import app.trackevolution.screens.SharedLogbookModel
@@ -225,10 +227,10 @@ fun AppNavHost(
                     onCompareLaps = {
                         if (sideBySide) comparing = true else nav.navigate(Route.CompareLaps(route.id))
                     },
-                    // A destination rather than a column, at every width: this is
-                    // someone else's lap — a place you go and come back from —
-                    // not a second reading of this page's own laps.
-                    onOpenLeaderboardLap = { nav.navigate(Route.LeaderboardLap(route.id, it)) },
+                    // A destination rather than a column, at every width: other
+                    // drivers' laps are a place you go and come back from, not a
+                    // second reading of this page's own.
+                    onLeaderboard = { nav.navigate(Route.Leaderboard(route.id)) },
                     onShare = share,
                     serverUrl = serverUrl,
                 )
@@ -259,6 +261,15 @@ fun AppNavHost(
             val route = entry.toRoute<Route.CompareLaps>()
             val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
             CompareLapsScreen(model = model)
+        }
+
+        pageComposable<Route.Leaderboard> { entry ->
+            val route = entry.toRoute<Route.Leaderboard>()
+            val model = rememberScreenModel { scope, _ -> LeaderboardModel(scope, api, route.trackId) }
+            LeaderboardScreen(
+                model = model,
+                onOpenLap = { nav.navigate(Route.LeaderboardLap(route.trackId, it)) },
+            )
         }
 
         pageComposable<Route.LeaderboardLap> { entry ->

@@ -16,9 +16,10 @@ import TrackEvolutionKit
 /// leaderboard lap keeps its colour whether or not there is something to put
 /// beside it.
 ///
-/// Presented as a sheet from the track screen, like `CompareLapsScreen` and for
-/// the same reason: the stacked charts want the full height, and a Swift Charts
-/// chart of this many marks inside a `List` row never settles.
+/// Presented as a sheet from `LeaderboardScreen`, like `CompareLapsScreen` is
+/// from the track screen and for the same reason: the stacked charts want the
+/// full height, and a Swift Charts chart of this many marks inside a `List` row
+/// never settles.
 struct LeaderboardLapScreen: View {
     let trackId: Int
     let lapId: Int

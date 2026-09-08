@@ -10,6 +10,9 @@ enum Route: Hashable {
     case event(Int)
     case eventForm(EventFormTarget)
     case track(Int)
+    /// A track's leaderboard, behind the track page's button. Keyed by the
+    /// viewer's own track, because that is what the server keys the board on.
+    case leaderboard(trackId: Int)
     /// A car's garage page: consumables, wear and its track-hours ledger.
     case vehicle(Int)
     case settings
@@ -38,7 +41,7 @@ extension Route {
     var ownsTheWindow: Bool {
         switch self {
         case .record, .importVideo: true
-        case .event, .eventForm, .track, .vehicle, .settings, .shared: false
+        case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared: false
         }
     }
 }
@@ -185,7 +188,7 @@ final class AppRouter {
                 return .importVideo(eventId: real, incoming: incoming)
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.
-            case .track, .vehicle, .settings, .shared, .eventForm(.new):
+            case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new):
                 return route
             }
         }
