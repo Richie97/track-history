@@ -32,6 +32,11 @@ public data class VehiclePatch(
     val name: Patch<String> = Patch.Unchanged,
     val notes: Patch<String> = Patch.Unchanged,
     val isDefault: Patch<Boolean> = Patch.Unchanged,
+    /**
+     * The hot tyre pressure the health strip's pressure loop aims at, in psi
+     * (5–100, rounded to a tenth server-side). `Set(null)` clears it.
+     */
+    val targetHotPsi: Patch<Double> = Patch.Unchanged,
 )
 
 public object VehiclePatchSerializer : KSerializer<VehiclePatch> {
@@ -45,6 +50,7 @@ public object VehiclePatchSerializer : KSerializer<VehiclePatch> {
         body.put("name", value.name) { JsonPrimitive(it) }
         body.put("notes", value.notes) { JsonPrimitive(it) }
         body.put("is_default", value.isDefault) { JsonPrimitive(it) }
+        body.put("target_hot_psi", value.targetHotPsi) { JsonPrimitive(it) }
         out.encodeJsonElement(body.build())
     }
 }

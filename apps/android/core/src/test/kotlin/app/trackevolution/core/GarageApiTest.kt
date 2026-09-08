@@ -89,6 +89,16 @@ class GarageApiTest {
     }
 
     @Test
+    fun `sends the target hot pressure under the server's key`() = runTest {
+        val api = client { ok("""{"ok":true}""") }
+        api.updateVehicle(3, VehiclePatch(targetHotPsi = Patch.Set(34.5)))
+
+        val body = bodyOf(recorded.single())
+        assertEquals(setOf("target_hot_psi"), body.keys)
+        assertEquals(34.5, body["target_hot_psi"]!!.jsonPrimitive.content.toDouble(), 0.0)
+    }
+
+    @Test
     fun `deletes a vehicle`() = runTest {
         val api = client { ok("""{"ok":true}""") }
         api.deleteVehicle(3)

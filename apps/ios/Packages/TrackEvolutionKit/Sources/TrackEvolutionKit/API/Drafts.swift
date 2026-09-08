@@ -207,10 +207,14 @@ public struct VehiclePatch: Encodable, Hashable, Sendable {
     public var name: Patch<String> = .unchanged
     public var notes: Patch<String> = .unchanged
     public var isDefault: Patch<Bool> = .unchanged
+    /// The hot tyre pressure the health strip's pressure loop aims at, in psi
+    /// (5–100, rounded to a tenth server-side). `.set(nil)` clears it.
+    public var targetHotPsi: Patch<Double> = .unchanged
 
     public enum CodingKeys: String, CodingKey {
         case name, notes
         case isDefault = "is_default"
+        case targetHotPsi = "target_hot_psi"
     }
 
     public init() {}
@@ -220,6 +224,7 @@ public struct VehiclePatch: Encodable, Hashable, Sendable {
         try c.encode(name, forKey: .name)
         try c.encode(notes, forKey: .notes)
         try c.encode(isDefault, forKey: .isDefault)
+        try c.encode(targetHotPsi, forKey: .targetHotPsi)
     }
 }
 

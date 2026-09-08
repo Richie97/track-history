@@ -200,7 +200,9 @@ At expanded width the page is **two columns inside the detail pane**:
 - Two columns: tiles, the maintenance strip and the consumable cards on the
   left; the selected part's measurements and the track-hours ledger on the
   right. Selecting a card selects the part. The ledger's driven-only filter
-  and the "no basis, no bar" rule (NS-31) are unchanged.
+  and the "no basis, no bar" rule (NS-31) are unchanged. *(Since 2026-09 the
+  ledger is gone from the page on every client; the right column is the
+  selected part's measurements alone.)*
 - Garage writes stay off the offline queue, as before. Width changes
   nothing about what a screen may write.
 

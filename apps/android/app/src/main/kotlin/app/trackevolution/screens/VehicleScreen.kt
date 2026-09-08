@@ -17,6 +17,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.TextButton
@@ -42,6 +44,7 @@ import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartKind
+import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.wearLimitHint
@@ -72,7 +75,6 @@ import app.trackevolution.ui.theme.TrackTheme
 @Composable
 fun VehicleScreen(
     model: VehicleModel,
-    onOpenEvent: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onRequirePro: () -> Unit = {},
 ) {
@@ -91,12 +93,15 @@ fun VehicleScreen(
     // Two columns, and which consumable the right one is showing (NS-34 ticket 3).
     //
     // Narrower than the event page's analysis column and with a lower floor,
-    // because what goes in it is a two-field form and a ledger rather than a
-    // track map and a stack of charts. Measured against this page's own column
-    // rather than the window's class — see `LayoutMetrics.sideColumnWidth`.
+    // because what goes in it is a two-field form rather than a track map and a
+    // stack of charts. Measured against this page's own column rather than the
+    // window's class — see `LayoutMetrics.sideColumnWidth`.
     val partWidth = LocalLayoutMetrics.current.sideColumnWidth(0.42f, 340.dp, 560.dp)
     val twoColumn = partWidth != null
     var selectedPartId by rememberSaveable { mutableStateOf<Int?>(null) }
+    // The car's own form, open or not. Saveable for the same reason the dialogs
+    // are: a fold or a rotation must not close it under the driver.
+    var editingCar by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
@@ -112,18 +117,39 @@ fun VehicleScreen(
             item("head") {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(vehicle.name, style = TrackTheme.typography.h1, color = colors.textStrong)
+                        Text(
+                            vehicle.name,
+                            style = TrackTheme.typography.h1,
+                            color = colors.textStrong,
+                            modifier = Modifier.weight(1f),
+                        )
                         if (vehicle.isDefault) {
                             Text(
                                 "Default",
                                 style = TrackTheme.typography.xxs,
                                 color = colors.accentInk,
-                                modifier = Modifier.padding(start = 8.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp),
                             )
+                        }
+                        // The car itself — name, mods, the pressure the health
+                        // strip aims at, whether new events start on it. This
+                        // used to live only in Settings, a screen away from the
+                        // garage it describes.
+                        TextButton(onClick = { editingCar = !editingCar }) {
+                            Text("Edit car", style = TrackTheme.typography.sm, color = colors.accentInk)
                         }
                     }
                     vehicle.notes?.takeIf { it.isNotBlank() }?.let {
                         Text(it, style = TrackTheme.typography.sm, color = colors.textMuted)
+                    }
+                }
+            }
+
+            if (editingCar) {
+                item("edit-car") {
+                    VehicleForm(vehicle, onCancel = { editingCar = false }) { name, notes, psi, isDefault ->
+                        model.updateVehicle(name, notes, psi, isDefault)
+                        editingCar = false
                     }
                 }
             }
@@ -203,12 +229,6 @@ fun VehicleScreen(
                 }
             }
 
-            // At expanded width the ledger sits under the measurements in the
-            // right column instead: the hours it lists are what the wear above
-            // them accrued from, and on a phone they are a whole page apart.
-            if (!twoColumn) {
-                item("ledger") { Ledger(model, onOpenEvent) }
-            }
         }
         }
 
@@ -221,7 +241,6 @@ fun VehicleScreen(
                         part = model.activeParts.firstOrNull { it.id == selectedPartId }
                             ?: model.activeParts.firstOrNull(),
                         model = model,
-                        onOpenEvent = onOpenEvent,
                     )
                 }
             }
@@ -304,66 +323,13 @@ private fun MeasurementList(part: Part, model: VehicleModel) {
 }
 
 /**
- * The car's driven events and the hours each contributed.
- *
- * One composable rather than a run of lazy items, because at expanded width it is
- * the bottom of a scrolling column rather than part of the page's own list. A
- * garage has tens of events, not thousands, so composing them together costs
- * nothing measurable — and it is what iOS has always done here.
- */
-@Composable
-private fun Ledger(model: VehicleModel, onOpenEvent: (Int) -> Unit) {
-    if (model.events.isEmpty()) return
-    val colors = TrackTheme.colors
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TESectionHeader("Track-hours ledger")
-        Text(
-            "Hours marked est. use the 2h-per-day default — set exact hours on an " +
-                "event's edit form if a day ran long or short.",
-            style = TrackTheme.typography.xs,
-            color = colors.textMuted,
-        )
-        model.events.forEach { event ->
-            TrackCard(Modifier.fillMaxWidth().clickable { onOpenEvent(event.id) }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            event.trackName,
-                            style = TrackTheme.typography.bodyStrong,
-                            color = colors.textStrong,
-                        )
-                        TEMeta(
-                            listOf(
-                                EventDates.fmtDate(event.startDate),
-                                EventDates.fmtDays(event.days),
-                            ),
-                        )
-                    }
-                    Text(
-                        Garage.fmtHours(event.hours) +
-                            if (event.trackHours == null) " est." else "",
-                        style = TrackTheme.typography.sm,
-                        color = colors.textStrong,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
  * The vehicle page's right-hand column at expanded width (NS-34 ticket 3): the
- * selected consumable's measurements, and the ledger under them.
- *
- * The pairing is the point. Logging a measurement is a two-field form that on a
- * phone sits inside whichever card you happened to scroll to, and the hours its
- * wear accrued from are a whole page further down.
+ * selected consumable's measurements. Logging one is a two-field form that on a
+ * phone sits inside whichever card you happened to scroll to; the column gives
+ * it a fixed place.
  */
 @Composable
-private fun PartColumn(part: Part?, model: VehicleModel, onOpenEvent: (Int) -> Unit) {
+private fun PartColumn(part: Part?, model: VehicleModel) {
     val colors = TrackTheme.colors
     Column(
         Modifier
@@ -389,7 +355,6 @@ private fun PartColumn(part: Part?, model: VehicleModel, onOpenEvent: (Int) -> U
             }
             MeasurementForm(part) { draft -> model.addMeasurement(part.id, draft) }
         }
-        Ledger(model, onOpenEvent)
     }
 }
 
@@ -437,8 +402,7 @@ private fun PartCard(
         TEWearBar(part.wear, modifier = Modifier.padding(vertical = 8.dp))
         WearStory(part)
 
-        // Both move to the column beside this at expanded width, where the
-        // ledger their wear accrued from also lives (NS-34 ticket 3).
+        // Both move to the column beside this at expanded width (NS-34 ticket 3).
         if (!detailInColumn && part.measurements.isNotEmpty()) {
             Column(Modifier.padding(top = 8.dp)) { MeasurementList(part, model) }
         }
@@ -843,3 +807,96 @@ private fun PartPatch.toDraft(): PartDraft = PartDraft(
     wearLimit = (wearLimit as? Patch.Set)?.value,
     notes = (notes as? Patch.Set)?.value,
 )
+
+/**
+ * Edit the car: its name, its modifications and notes, the hot tyre pressure the
+ * health strip's pressure loop aims at, and whether new events start on it —
+ * `viewVehicle`'s `#veh-form` in `public/app.js`. Inline under the heading, as
+ * the part cards' edit forms are.
+ */
+@Composable
+private fun VehicleForm(
+    vehicle: GarageVehicle,
+    onCancel: () -> Unit,
+    onSave: (name: String, notes: String, targetHotPsi: Double?, isDefault: Boolean) -> Unit,
+) {
+    val colors = TrackTheme.colors
+    var name by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.name) }
+    var notes by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.notes.orEmpty()) }
+    var psi by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.targetHotPsi?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }.orEmpty()) }
+    var isDefault by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.isDefault) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    TrackCard(Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TEField(
+                "Car",
+                hint = "Past events match this car by name — renaming it away from what they " +
+                    "say stops their hours accruing here",
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            TEField("Modifications & notes") {
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    placeholder = {
+                        Text("Coilovers, pads, tires, alignment…", style = TrackTheme.typography.sm)
+                    },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            TEField(
+                "Target hot tire pressure (psi, optional)",
+                hint = "What the pressure loop on an imported session's Car tab aims at",
+            ) {
+                OutlinedTextField(
+                    value = psi,
+                    onValueChange = { psi = it },
+                    placeholder = { Text("e.g. 34", style = TrackTheme.typography.sm) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(
+                    checked = isDefault,
+                    onCheckedChange = { isDefault = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = colors.accentInk,
+                        checkedTrackColor = colors.accentTint,
+                    ),
+                )
+                Text("Default car for new events", style = TrackTheme.typography.sm, color = colors.textBody)
+            }
+            error?.let { TEErrorBanner(it) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = {
+                        val raw = psi.trim().replace(',', '.')
+                        val value = if (raw.isEmpty()) null else raw.toDoubleOrNull()
+                        if (raw.isNotEmpty() && (value == null || value < 5 || value > 100)) {
+                            error = "Target pressure should be between 5 and 100 psi."
+                        } else {
+                            error = null
+                            onSave(name, notes, value, isDefault)
+                        }
+                    },
+                    enabled = name.isNotBlank(),
+                ) {
+                    Text("Save", style = TrackTheme.typography.bodyStrong, color = colors.accentInk)
+                }
+                TextButton(onClick = onCancel) {
+                    Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
+                }
+            }
+        }
+    }
+}

@@ -212,6 +212,22 @@ struct APIClientTests {
         #expect(json.keys.sorted() == ["club", "notes"], "untouched fields must not be sent")
     }
 
+    @Test func vehiclePatchSendsOnlyWhatChangedAndAnExplicitNullToClear() throws {
+        var patch = VehiclePatch()
+        patch.targetHotPsi = .set(34.5)
+        let encoded = try JSONEncoder().encode(patch)
+        let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        // The server writes only the columns present, so an unchanged field must
+        // not be sent at all — and the new key has to be the server's spelling.
+        #expect(json.keys.sorted() == ["target_hot_psi"])
+        #expect(json["target_hot_psi"] as? Double == 34.5)
+
+        var clearing = VehiclePatch()
+        clearing.targetHotPsi = .set(nil)
+        let cleared = try JSONEncoder().encode(clearing)
+        #expect(String(decoding: cleared, as: UTF8.self) == #"{"target_hot_psi":null}"#)
+    }
+
     @Test func aSessionPatchAlwaysSendsBothColumns() throws {
         let encoded = try JSONEncoder().encode(SessionPatch(label: "Session 4"))
         let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
