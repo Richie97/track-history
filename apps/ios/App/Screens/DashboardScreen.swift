@@ -65,6 +65,12 @@ struct DashboardScreen: View {
                         .foregroundStyle(Color(.textStrong))
                         .fixedSize()
                 }
+                // On iOS 26 the bar wraps this item in a Liquid Glass capsule sized
+                // to its content, and the disc landed flush against the capsule's
+                // curve on both sides. Padding here goes *inside* the glass — the
+                // capsule grows with it — so this is the breathing room, not a
+                // shift of the item along the bar.
+                .padding(.horizontal, 2)
                 // Hidden rather than combined into a header: the bar is *already*
                 // named "Track Evolution" by `navigationTitle`, so an element
                 // repeating it is a second announcement of the same thing — and
