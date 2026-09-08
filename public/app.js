@@ -2644,10 +2644,9 @@ async function viewVehicle(vehicleId) {
     `);
     return;
   }
-  const [garage, events] = await Promise.all([api("/garage"), api("/events")]);
+  const garage = await api("/garage");
   const v = garage.find((x) => String(x.id) === String(vehicleId));
   if (!v) return viewNotFound();
-  const vehEvents = events.filter((e) => String(e.vehicle_id) === String(v.id) && !isUpcoming(e));
   const active = v.parts.filter((p) => !p.retired_on);
   const retired = v.parts.filter((p) => p.retired_on);
   const spendCents = v.parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0);
@@ -2708,17 +2707,6 @@ async function viewVehicle(vehicleId) {
       ${partEditForm(p)}
     </div>`;
 
-  const ledgerRows = vehEvents
-    .map(
-      (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
-        <td class="date">${fmtDate(e.start_date)}</td>
-        <td>${esc(e.track_name)}</td>
-        <td>${e.days}</td>
-        <td class="num">${fmtHours(e.hours)}${e.track_hours == null ? '<span class="hint-inline"> est.</span>' : ""}</td>
-      </tr>`
-    )
-    .join("");
-
   const retiredRows = retired
     .map((p) => {
       const perHour = p.cost_cents != null && p.wear.hours > 0 ? `$${(p.cost_cents / 100 / p.wear.hours).toFixed(0)}/h` : "—";
@@ -2737,6 +2725,23 @@ async function viewVehicle(vehicleId) {
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
     <h1>${esc(v.name)}${v.is_default ? ' <span class="default-badge">Default</span>' : ""}</h1>
     ${v.notes ? `<p class="sub">${esc(v.notes)}</p>` : ""}
+    <div class="btn-row"><button class="btn small" id="veh-edit">Edit car</button></div>
+    <form class="panel vehicle-edit" id="veh-form" hidden>
+      <div class="field"><label>Car</label><input name="name" required value="${esc(v.name)}"></div>
+      <div class="field"><label>Modifications &amp; notes</label>
+        <textarea name="notes" placeholder="Coilovers, pads, tires, alignment…">${esc(v.notes ?? "")}</textarea>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Target hot tire pressure (psi, optional)</label>
+          <input name="target_hot_psi" type="number" min="5" max="100" step="0.5" value="${v.target_hot_psi ?? ""}" placeholder="e.g. 34"></div>
+        <div class="field"><label><input type="checkbox" name="is_default" ${v.is_default ? "checked" : ""}> Default car for new events</label></div>
+      </div>
+      <div id="veh-error"></div>
+      <div class="btn-row">
+        <button class="btn small primary">Save</button>
+        <button class="btn small" type="button" id="veh-cancel">Cancel</button>
+      </div>
+    </form>
     ${alertStripHtml([v])}
     <div class="tiles">
       <div class="tile"><div class="label">Track hours</div><div class="value">${fmtHours(v.hours).replace(" h", "")}<span class="unit">h</span></div></div>
@@ -2764,12 +2769,37 @@ async function viewVehicle(vehicleId) {
     ${retired.length ? `<h2>Retired parts</h2>
     <div class="table-wrap"><table><thead><tr><th>Type</th><th>Part</th><th>In service</th><th class="num">Hours</th><th class="num">Cost</th><th class="num">Cost/hour</th></tr></thead>
     <tbody>${retiredRows}</tbody></table></div>` : ""}
-    ${vehEvents.length ? `<h2>Track-hours ledger</h2>
-    <div class="hint" style="margin:0 0 4px">Hours marked <em>est.</em> use the 2h-per-day default — set exact hours on an event's edit form if a day ran long or short.</div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th class="num">Hours</th></tr></thead>
-    <tbody>${ledgerRows}</tbody></table></div>` : ""}
   `);
-  wireRowLinks(view);
+
+  // The car itself — name, mods, the pressure the health strip aims at, and
+  // whether new events start on it. This used to live only in Settings, a page
+  // away from the garage it describes.
+  const vehForm = view.querySelector("#veh-form");
+  view.querySelector("#veh-edit").onclick = () => {
+    vehForm.hidden = !vehForm.hidden;
+    if (!vehForm.hidden) vehForm.querySelector('[name="name"]').focus();
+  };
+  view.querySelector("#veh-cancel").onclick = () => {
+    vehForm.hidden = true;
+  };
+  vehForm.onsubmit = async (evt) => {
+    evt.preventDefault();
+    const psiRaw = vehForm.target_hot_psi.value.trim();
+    const body = {
+      name: vehForm.name.value.trim(),
+      notes: vehForm.notes.value.trim() || null,
+      target_hot_psi: psiRaw === "" ? null : Number(psiRaw),
+    };
+    // Only when it changed: a PUT with is_default false would silently unset
+    // the default when the box was merely left alone.
+    if (vehForm.is_default.checked !== Boolean(v.is_default)) body.is_default = vehForm.is_default.checked;
+    try {
+      await api(`/vehicles/${v.id}`, { method: "PUT", body });
+      route();
+    } catch (err) {
+      view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+    }
+  };
 
   const partError = (err) => {
     view.querySelector("#part-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;

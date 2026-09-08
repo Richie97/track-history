@@ -342,7 +342,10 @@ Features added after the rewrite shipped, and where they landed:
   sentence in the spec is about the balance table alone. Sector headings are a
   hit source, the track page's two-lap compare opens as its right column, and
   the vehicle page splits into consumables and the selected part's
-  measurements over the track-hours ledger. One rule the ticket left behind:
+  measurements (the track-hours ledger that sat under them was dropped in
+  2026-09 on every client — the tile carries the total and each event's own
+  form carries its override — and an *Edit car* form joined the page in its
+  place). One rule the ticket left behind:
   these chart cards are each a *single* accessibility element, so anything
   tappable added inside one needs a named accessibility action on the card as
   well, or it ships unreachable with VoiceOver and TalkBack.

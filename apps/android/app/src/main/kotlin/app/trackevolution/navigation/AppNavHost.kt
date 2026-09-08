@@ -361,7 +361,6 @@ fun AppNavHost(
             val model = rememberScreenModel { scope, _ -> VehicleModel(scope, api, route.id) }
             VehicleScreen(
                 model = model,
-                onOpenEvent = { nav.navigate(Route.Event(it)) },
                 onRequirePro = onRequirePro,
             )
         }

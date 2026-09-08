@@ -950,7 +950,7 @@ doesn't retain the previous user's logbook.
 Each garage vehicle has a page (`#/vehicle/:id`) that folds the parts
 spreadsheet and the paper setup notebook into the logbook:
 
-- **Track-hours ledger** — every event computes on-track `hours`: an explicit
+- **Track hours** — every event computes on-track `hours`: an explicit
   per-event override (`events.track_hours`, "On-track hours" on the edit
   form), else `max(days × 2h, total logged lap time)`. The 2h/day default is
   `DEFAULT_HOURS_PER_DAY` in `src/lib/wear.ts`; lap time only ever pushes the
