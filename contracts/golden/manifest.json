@@ -74,6 +74,24 @@
       "source": "src/routes/tracks.ts"
     },
     {
+      "name": "units-set",
+      "file": "units-set.json",
+      "method": "PUT",
+      "path": "/me/units",
+      "status": 200,
+      "description": "Choose the unit system the logbook is shown in: \"metric\" or \"imperial\". Display-only — nothing stored changes.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "me-units-metric",
+      "file": "me-units-metric.json",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "description": "The signed-in user after choosing metric units.",
+      "source": "src/routes/me.ts"
+    },
+    {
       "name": "events-list",
       "file": "events-list.json",
       "method": "GET",

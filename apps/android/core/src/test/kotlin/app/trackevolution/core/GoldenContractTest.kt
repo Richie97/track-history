@@ -73,7 +73,7 @@ class GoldenContractTest {
         }
 
         when (entry.name) {
-            "me", "me-checklist-template", "me-pro-legacy" -> roundTrip(entry.name, Me.serializer())
+            "me", "me-checklist-template", "me-pro-legacy", "me-units-metric" -> roundTrip(entry.name, Me.serializer())
             "billing-legacy-claim" -> roundTrip(entry.name, BillingResponse.serializer())
             "events-list" -> roundTrip(entry.name, ListSerializer(Event.serializer()))
             "event-detail", "event-detail-no-laps" ->
@@ -96,7 +96,7 @@ class GoldenContractTest {
             "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
             "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
-            "checklist-template-set", "leaderboard-opt-in",
+            "checklist-template-set", "leaderboard-opt-in", "units-set",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(

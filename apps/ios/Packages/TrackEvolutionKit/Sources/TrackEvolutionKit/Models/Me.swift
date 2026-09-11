@@ -30,6 +30,13 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// separate consent stacked on ``leaderboardOptIn``, never implied by it.
     /// Optional for the same reason: an older cached response has no such key.
     public var leaderboardShareLaps: Bool?
+    /// The unit system the user sees the logbook in (`PUT /api/me/units`).
+    /// Display-only: the server stores and returns the same numbers either way —
+    /// temperatures whole °F, channel speeds km/h, setup pressures psi, fuel
+    /// gallons. The server always answers one of the two; optional here only so a
+    /// `/me` cached before the field existed still decodes, with nil read as
+    /// `.imperial` (what the app always showed) via `effectiveUnits`.
+    public var units: UnitSystem?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
@@ -37,12 +44,21 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
         case checklistTemplate = "checklist_template"
         case leaderboardOptIn = "leaderboard_opt_in"
         case leaderboardShareLaps = "leaderboard_share_laps"
+        case units
     }
+
+    public var effectiveUnits: UnitSystem { units ?? .imperial }
 
     /// The list "Use my list" actually uses.
     public var effectiveChecklistTemplate: [String] {
         checklistTemplate ?? EventDates.DEFAULT_CHECKLIST
     }
+}
+
+/// Mirrors `UNIT_SYSTEMS` in `src/lib/validate.ts` and `public/js/units.js`.
+public enum UnitSystem: String, Codable, Hashable, Sendable, CaseIterable {
+    case imperial
+    case metric
 }
 
 /// Headline counts shown on the dashboard and the public share page.

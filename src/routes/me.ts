@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { userTotalsStmt } from "../db";
-import { sanitizeChecklistTemplate } from "../lib/validate";
+import { DEFAULT_UNITS, isValidUnits, sanitizeChecklistTemplate } from "../lib/validate";
 import { entitlementResponse, type SubscriptionRow } from "../lib/entitlement";
 import { subscriptionsForUserStmt } from "../lib/billing/store";
 
@@ -26,7 +26,7 @@ me.get("/me", async (c) => {
   // batched round trip.
   const [userRes, totalsRes, subsRes] = await c.env.DB.batch([
     c.env.DB.prepare(
-      "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in, leaderboard_share_laps FROM users WHERE id = ?"
+      "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in, leaderboard_share_laps, units FROM users WHERE id = ?"
     ).bind(userId),
     userTotalsStmt(c.env.DB, userId),
     subscriptionsForUserStmt(c.env.DB, userId),
@@ -37,6 +37,10 @@ me.get("/me", async (c) => {
     checklist_template: parseTemplate(row.checklist_template),
     leaderboard_opt_in: Boolean(row.leaderboard_opt_in),
     leaderboard_share_laps: Boolean(row.leaderboard_share_laps),
+    // `units` is always a concrete system, never null: the default lives here,
+    // in one place, rather than in three clients that would each have to agree
+    // on what "unset" means.
+    units: isValidUnits(row.units) ? row.units : DEFAULT_UNITS,
   };
   // Tier comes from entitled_until as loaded with the session; the rows only
   // say where it came from (NS-32 requirement 1).
@@ -89,5 +93,19 @@ me.put("/me/checklist-template", async (c) => {
   await c.env.DB.prepare("UPDATE users SET checklist_template = ? WHERE id = ?")
     .bind(template ? JSON.stringify(template) : null, userId)
     .run();
+  return c.json({ ok: true });
+});
+
+// Choose the unit system the logbook is shown in ("metric" or "imperial").
+// Display-only — nothing stored changes — so there is no "clear" here: a user
+// always sees one system or the other, and the default is what GET /me answers
+// for an account that never chose.
+me.put("/me/units", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== "object") return c.json({ error: "invalid body" }, 400);
+  const units = (body as Record<string, unknown>).units;
+  if (!isValidUnits(units)) return c.json({ error: "units must be \"metric\" or \"imperial\"" }, 400);
+  await c.env.DB.prepare("UPDATE users SET units = ? WHERE id = ?").bind(units, userId).run();
   return c.json({ ok: true });
 });

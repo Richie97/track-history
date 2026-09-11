@@ -23,7 +23,7 @@ struct GoldenContractTests {
         }
 
         switch entry.name {
-        case "me", "me-checklist-template", "me-pro-legacy": try roundTrip(Me.self, entry.name)
+        case "me", "me-checklist-template", "me-pro-legacy", "me-units-metric": try roundTrip(Me.self, entry.name)
         case "billing-legacy-claim": try roundTrip(BillingResponse.self, entry.name)
         case "events-list": try roundTrip([Event].self, entry.name)
         case "event-detail", "event-detail-no-laps": try roundTrip(EventDetail.self, entry.name)
@@ -45,7 +45,7 @@ struct GoldenContractTests {
         case "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
              "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
              "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
-             "checklist-template-set", "leaderboard-opt-in":
+             "checklist-template-set", "leaderboard-opt-in", "units-set":
             try roundTrip(OKResponse.self, entry.name)
         default:
             Issue.record("""

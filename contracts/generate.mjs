@@ -75,10 +75,16 @@ async function startWorker() {
   mkdirSync(PERSIST, { recursive: true });
 
   // Apply migrations/ to the scratch D1 before the Worker starts. Wrangler owns
-  // migration ordering, so shell out rather than reimplement it.
+  // migration ordering, so shell out rather than reimplement it — to the
+  // installed wrangler's entry point directly, via this Node, rather than
+  // through `npx`: on Windows that is npx.cmd, which can't be spawned without a
+  // shell, and a shell would need every path quoted.
   execFileSync(
-    "npx",
-    ["wrangler", "d1", "migrations", "apply", "track-history", "--local", "--persist-to", PERSIST],
+    process.execPath,
+    [
+      path.join(ROOT, "node_modules", "wrangler", "bin", "wrangler.js"),
+      "d1", "migrations", "apply", "track-history", "--local", "--persist-to", PERSIST,
+    ],
     { cwd: ROOT, stdio: "pipe" }
   );
 
@@ -380,6 +386,17 @@ async function captureAll(api, anon, f) {
     "src/routes/tracks.ts",
     await api("GET", `/tracks/${track}/leaderboard/laps/${lb.body.entries[0].lap_id}`));
 
+  // The unit system is display-only, so the fixture is left on the default
+  // afterwards: every other golden must read the way the app always has.
+  record("units-set", "PUT", "/me/units",
+    "Choose the unit system the logbook is shown in: \"metric\" or \"imperial\". " +
+    "Display-only — nothing stored changes.", "src/routes/me.ts",
+    await api("PUT", "/me/units", { units: "metric" }));
+  record("me-units-metric", "GET", "/me",
+    "The signed-in user after choosing metric units.",
+    "src/routes/me.ts", await api("GET", "/me"));
+  await api("PUT", "/me/units", { units: "imperial" });
+
   record("events-list", "GET", "/events",
     "All events with lap aggregates and computed stats (withComputed).",
     "src/routes/events.ts", await api("GET", "/events"));
@@ -534,7 +551,7 @@ async function captureAll(api, anon, f) {
 // Every route registered under /api must appear in the manifest. A silently
 // uncovered endpoint is a silently unprotected client.
 const EXPECTED_ROUTES = [
-  "GET /me", "PUT /me/checklist-template", "PUT /me/leaderboard",
+  "GET /me", "PUT /me/checklist-template", "PUT /me/leaderboard", "PUT /me/units",
   "GET /events", "POST /events", "GET /events/:id", "PUT /events/:id", "DELETE /events/:id",
   "PUT /events/:id/setups/:day", "DELETE /events/:id/setups/:day", "GET /events/:id/setups/prefill",
   "POST /events/:id/sessions", "PUT /sessions/:id", "DELETE /sessions/:id",

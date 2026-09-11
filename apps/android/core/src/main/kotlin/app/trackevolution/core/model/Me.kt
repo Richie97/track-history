@@ -42,7 +42,25 @@ public data class User(
      * Defaulted for the same reason: an older cached response has no such key.
      */
     @SerialName("leaderboard_share_laps") val leaderboardShareLaps: Boolean = false,
-)
+    /**
+     * The unit system the user sees the logbook in (`PUT /api/me/units`).
+     * Display-only: the server stores and returns the same numbers either way —
+     * temperatures whole °F, channel speeds km/h, setup pressures psi, fuel
+     * gallons. The server always answers one of the two; nullable here only so a
+     * `/me` cached before the field existed still decodes, with null read as
+     * [UnitSystem.IMPERIAL] (what the app always showed) via [effectiveUnits].
+     */
+    val units: UnitSystem? = null,
+) {
+    val effectiveUnits: UnitSystem get() = units ?: UnitSystem.IMPERIAL
+}
+
+/** Mirrors `UNIT_SYSTEMS` in `src/lib/validate.ts` and `public/js/units.js`. */
+@Serializable
+public enum class UnitSystem {
+    @SerialName("imperial") IMPERIAL,
+    @SerialName("metric") METRIC,
+}
 
 /** Headline counts shown on the dashboard and the public share page. */
 @Serializable

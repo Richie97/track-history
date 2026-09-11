@@ -23,7 +23,8 @@ export type Conditions = (typeof CONDITIONS)[number];
 export const isValidConditions = (v: unknown): v is Conditions | null | undefined =>
   v == null || (typeof v === "string" && (CONDITIONS as readonly string[]).includes(v));
 
-// Ambient temperature in °F: cleared, or a plausible whole number.
+// Ambient temperature in °F (always stored in °F — a metric user's client converts
+// before sending): cleared, or a plausible whole number.
 export const isValidTemp = (v: unknown): v is number | null | undefined =>
   v == null || (typeof v === "number" && Number.isInteger(v) && v >= -40 && v <= 150);
 
@@ -210,7 +211,7 @@ export const isValidPartKind = (v: unknown): v is PartKind =>
 // A per-event-day setup sheet. Structured enough to diff and chart, loose
 // enough that field applicability varies by car: every field is optional,
 // unknown keys are dropped, out-of-range values reject the sheet.
-// Keep the field list in sync with SETUP_FIELDS in public/js/setup.js,
+// Keep the field list in sync with SETUP_FIELDS in public/js/garage.js,
 // which renders the form from the same spec.
 type CornerKey = "fl" | "fr" | "rl" | "rr";
 type AxleKey = "f" | "r";
@@ -283,6 +284,14 @@ export function sanitizeSetup(v: unknown): SetupSheet | null | undefined {
 
   return Object.keys(out).length ? out : null;
 }
+
+// The unit system a user sees the logbook in. Display-only: the API stores and
+// returns the same numbers either way (see migrations/0022_units.sql).
+export const UNIT_SYSTEMS = ["imperial", "metric"] as const;
+export type UnitSystem = (typeof UNIT_SYSTEMS)[number];
+export const DEFAULT_UNITS: UnitSystem = "imperial";
+export const isValidUnits = (v: unknown): v is UnitSystem =>
+  typeof v === "string" && (UNIT_SYSTEMS as readonly string[]).includes(v);
 
 export type ChecklistItem = { text: string; done: boolean };
 

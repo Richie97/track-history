@@ -14,6 +14,7 @@ import { KIND_LABELS, SUPPORTED_EXT, parseTelemetryFile } from "./parse.js";
 import { bestLapTrace, buildGate, deriveLaps, projectTrace } from "./geo.js";
 import { anchorPdrBatch } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
+import { currentUnits, fmtSpeedKph } from "../units.js";
 
 export function bindTelemetryImport(view, event, onDone) {
   const fileInput = view.querySelector("#pdr-files");
@@ -180,12 +181,15 @@ function defaultLabel(r) {
 }
 
 // "top speed 121 mph · max 6,703 rpm · 1.43 G lateral" from a PDR file's car
-// channels; "" when the source has none. Exported for unit tests.
-export function metricsSummary(p) {
+// channels; "" when the source has none. The speed is written in the user's
+// unit system at import time — it lands in the session's free-text notes, so
+// it is a record of what was said, not a value a later toggle can re-render.
+// Exported for unit tests.
+export function metricsSummary(p, units = currentUnits()) {
   const m = p.metrics;
   if (!m) return "";
   const parts = [];
-  if (m.topSpeedKph != null) parts.push(`top speed ${Math.round(m.topSpeedKph / 1.609344)} mph`);
+  if (m.topSpeedKph != null) parts.push(`top speed ${fmtSpeedKph(m.topSpeedKph, units)}`);
   if (m.maxRpm != null) parts.push(`max ${Math.round(m.maxRpm).toLocaleString()} rpm`);
   if (m.maxLatG != null) parts.push(`${m.maxLatG.toFixed(2)} G lateral`);
   return parts.join(" · ");
