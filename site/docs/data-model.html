@@ -118,6 +118,44 @@
       a pace slope over the stint, and warmup-lap detection.
     </p>
 
+    <h2 id="sectors">Sectors and the theoretical best</h2>
+    <p>
+      Sessions with telemetry (an imported video or logger file, or laps
+      recorded with the phone) get <strong>sector splits</strong> with no setup:
+      each lap is cut into three equal slices of its own driven distance and
+      the time in each slice is read off the lap's speed trace, so every lap's
+      three splits add up to exactly its lap time. The best of each sector
+      across the session summed together is the <strong>theoretical best
+      lap</strong> — shown beside your actual best when it's quicker. The gap
+      between the two is what stringing your best sectors into one lap would
+      have been worth. Sectors are fractions of each lap's own length rather
+      than fixed points on the track, which keeps the same corner in the same
+      sector even when laps differ a little in driven distance.
+    </p>
+
+    <h2 id="conditions">Conditions</h2>
+    <p>
+      Lap times across a day are confounded by air temperature — a morning
+      session and an afternoon session are not really comparable, and a
+      progress chart that plots them side by side invites the wrong
+      conclusion. So the track page's <strong>best lap per event</strong>
+      chart carries a faint <strong>shaded band</strong> behind it, one panel
+      per event, deepening with the air temperature, with a key underneath.
+      A hot weekend looks like a hot weekend. Each session's header also shows
+      the <strong>temperature that session was driven in</strong>, and the
+      track's <strong>elevation change</strong> sits on its summary line.
+    </p>
+    <p>
+      Where a video import recorded the outside air temperature, that is what
+      you see — as a range when the day warmed up between sessions. Where it
+      didn't, the temperature you typed on the event is used instead. The two
+      never overwrite each other, and the band works either way, so a logbook
+      with no telemetry in it still gets one. An event with no temperature at
+      all simply isn't shaded, and the band is left off entirely when there is
+      nothing to compare — two events at much the same temperature are not a
+      story.
+    </p>
+
     <h2 id="hours">On-track hours</h2>
     <p>
       Each event also carries an <strong>on-track hours</strong> figure — 2
@@ -133,7 +171,44 @@
       (<code>trackevolution.app/share/&lt;your-slug&gt;</code>). The share page
       shows stats and times but <strong>strips notes, your email, and per-lap
       data</strong> — it's the only part of your logbook visible without
-      signing in.
+      signing in. Pasting the link into a chat previews with your name, event
+      count and headline bests; the preview uses only what the share page
+      itself shows.
+    </p>
+
+    <h2 id="leaderboards">Leaderboards</h2>
+    <p>
+      Every track the app's catalog knows has a per-track leaderboard of
+      Track Evolution drivers' best laps, behind the <em>Leaderboard</em>
+      button on the track page — there before you're on it, and before your
+      first event there. It is <strong>strictly opt-in</strong> (Settings →
+      Leaderboards, or the join button on the leaderboard), and joining shares
+      exactly two things per track: your display name and your best
+      device-timed lap, with its date. Your events, notes, laps, garage and
+      setup sheets stay private, and leaving removes you from every
+      leaderboard immediately. Leaderboards never mix layouts — the full
+      course and a short configuration are separate tracks.
+    </p>
+    <p>
+      <strong>Only laps the app timed are ranked</strong> — laps recorded
+      with the phone's GPS or imported from telemetry (GoPro, Corvette PDR,
+      VBO). Times you type in, and the manual "best time" on an event, stay in
+      your logbook and count toward your own bests and progress chart, but
+      never reach a leaderboard. If your logbook best at a track is faster
+      than your leaderboard row, that is why, and the leaderboard says so.
+    </p>
+    <p>
+      <strong>Opening a lap</strong> is a second, separate choice, off unless
+      you turn it on (Settings → Leaderboards → <em>Let other drivers open my
+      ranked laps</em>, or the button on the leaderboard). With it on, a driver
+      ranked at the same track can tap your row and see that lap — its racing
+      line and its speed, throttle, brake and steering traces — next to their
+      own best there, corner for corner. It publishes <em>one</em> lap per
+      track, the ranked one already on the board: never another lap, never the
+      session it came from, and never your notes, session labels, car,
+      conditions, setup sheets or garage. Leaving the leaderboards turns it
+      off, and turning it off closes those laps straight away. Seeing another
+      driver's traces needs Pro; their line and their times don't.
     </p>
 
     <h2 id="privacy">Privacy posture</h2>
@@ -143,6 +218,8 @@
       <li>Telemetry and video parsing is entirely client-side — recordings are
         never uploaded.</li>
       <li>Share pages are opt-in and strip notes, your email, and per-lap data.</li>
+      <li>Leaderboards are opt-in and carry only your name and best lap per
+        track.</li>
     </ul>
     <p>
       The full details — what's collected, retention, deletion — are in the

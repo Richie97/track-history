@@ -1,0 +1,8 @@
+{
+  "method": "PUT",
+  "path": "/me/leaderboard",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

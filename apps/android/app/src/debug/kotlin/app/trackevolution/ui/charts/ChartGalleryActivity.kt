@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.Limits
+import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.TracePoint
 import app.trackevolution.core.TraceSample
 import app.trackevolution.core.model.Lap
@@ -103,11 +105,29 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
             goalMs = 119_000,
         )
 
-        Text("Progress — sparkline", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-        ProgressChart(
-            points = (1..8).map { ProgressPoint(it.toDouble(), "", 128_000 - it * 700) },
-            style = ProgressChartStyle.Sparkline,
+        // The conditions band (#191). Four events warming through the season,
+        // with the third one's temperature unknown — the case that must draw
+        // nothing rather than the coolest shade.
+        Text(
+            "Progress — with the conditions band (#191)",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
         )
+        val banded = listOf(
+            ProgressPoint(1.0, "May 1", 128_400),
+            ProgressPoint(2.0, "Jun 12", 125_100),
+            ProgressPoint(3.0, "Jul 3", 126_800),
+            ProgressPoint(4.0, "Aug 2", 124_450),
+        )
+        val bandEvents = listOf(
+            GalleryEvent(ambientLoC = 11.0, ambientHiC = 14.0),
+            GalleryEvent(ambientLoC = 19.0, ambientHiC = 24.0),
+            GalleryEvent(),
+            GalleryEvent(ambientLoC = 30.0, ambientHiC = 34.0),
+        )
+        val band = SessionConditions.conditionsBand(bandEvents)
+        ProgressChart(points = banded, goalMs = 119_000, band = band)
+        band?.let { ConditionsKey(it) }
 
         Text("Progress — identical times (degenerate)", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
         ProgressChart(points = (1..3).map { ProgressPoint(it.toDouble(), "E$it", 120_000) })
@@ -115,23 +135,17 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
         Text("Trackmap — speed ramp", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
         TrackMap(trace = lapTrace)
 
-        Text("Lap overlay", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-        LapChannelChart(
-            channels = SessionChannels(
-                v = 1,
-                dStepM = 20.0,
-                laps = (1..5).map { n ->
-                    LapChannels(
-                        n = n,
-                        timeMs = 123_000 - n * 400,
-                        speed = (0 until 150).map { 60 + 90 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
-                        rpm = (0 until 150).map { 3000 + 3500 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
-                        latG = (0 until 150).map { 1.1 * sin(it / 4.5 + n) },
-                    )
-                },
-            ),
-            laps = (1..5).map { Lap(id = it, sessionId = 1, lapNum = it, timeMs = 123_000 - it * 400) },
+        Text(
+            "Trackmap — limit marks (#188)",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
         )
+        val markers = Limits.limitMarkers(gallerySession.laps[0], gallerySession.dStepM, lapTrace)
+        TrackMap(trace = lapTrace, markers = markers)
+        LimitLegend(markers, Modifier.padding(top = 6.dp))
+
+        Text("Lap overlay", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+        LapChannelChart(channels = gallerySession, laps = galleryLaps)
 
         Text(
             "Line picker — 20,000 fixes (drag/pinch to profile)",
@@ -153,6 +167,78 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
     }
 }
 
+/**
+ * Five laps carrying every gridded channel the panel draws, including the three
+ * that only a PDR import produces — `gear`, `wheelSlip` and the ABS/TC/VSC
+ * `flags` bitfield (#187, #188), so the gear ribbon, the shift table, the limit
+ * bands and the map's marks all have something to draw on the bench.
+ */
+private val gallerySession = SessionChannels(
+    v = 1,
+    dStepM = 20.0,
+    laps = (1..5).map { n ->
+        LapChannels(
+            n = n,
+            timeMs = 123_000 - n * 400,
+            speed = (0 until 150).map { 60 + 90 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
+            rpm = (0 until 150).map { 3000 + 3500 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
+            latG = (0 until 150).map { 1.1 * sin(it / 4.5 + n) },
+            // A quarter-turn out of phase with the cornering, so the samples
+            // fill the friction circle rather than drawing its cross (#186).
+            longG = (0 until 150).map { -1.2 * cos(it / 4.5 + n) },
+            // Pedals trade off against each other (0–100%), the steering trace
+            // is signed degrees around zero.
+            throttle = (0 until 150).map { 100 * (0.5 + 0.5 * sin(it / 9.0 + n)) },
+            brake = (0 until 150).map { 100 * (0.5 - 0.5 * sin(it / 9.0 + n)) },
+            steering = (0 until 150).map { 180 * sin(it / 4.5 + n) },
+            // Rotation that mostly follows the steering, but falls short through
+            // the second half of the lap — so the balance scatter has a band to
+            // draw and its table has a corner that pushes (#189).
+            yaw = (0 until 150).map { k ->
+                val speed = 60 + 90 * (0.5 + 0.5 * sin(k / 9.0 + n))
+                val steer = 180 * sin(k / 4.5 + n)
+                0.012 * (speed / 3.6) * steer * (if (k > 75) 0.7 else 1.0)
+            },
+            // Gear steps with the speed wave and drops to 0 through one shift,
+            // which is the clutch-in gap the ribbon has to draw as a gap.
+            gear = (0 until 150).map { k ->
+                val wave = 0.5 + 0.5 * sin(k / 9.0 + n)
+                if (k % 37 == 18) 0.0 else (2 + (wave * 3).toInt()).toDouble()
+            },
+            // The per-lap scalars the Car tab reads (#190): oil climbing past its
+            // line by the last lap, fuel draining, and a tyre spread that is a
+            // camber question rather than noise.
+            oilC = 112 + n * 6.0,
+            oilKpa = 330 - n * 30.0,
+            coolantC = 98 + n * 5.0,
+            transC = 92 + n * 7.0,
+            fuelPct = 78 - n * 11.0,
+            battV = 13.7 - n * 0.3,
+            tyreKpaLF = 212 + n * 8.0,
+            tyreKpaRF = 208 + n * 7.0,
+            tyreKpaLR = 204 + n * 6.0,
+            tyreKpaRR = 203 + n * 6.0,
+            tyreCLF = 80 + n * 8.0,
+            tyreCRF = 72 + n * 6.0,
+            tyreCLR = 67 + n * 5.0,
+            tyreCRR = 65 + n * 5.0,
+            // Wheelspin on the exits, lockup into the braking zones.
+            wheelSlip = (0 until 150).map { 5.0 * sin(it / 9.0 + n) },
+            // ABS under braking, traction control on a couple of exits.
+            flags = (0 until 150).map { k ->
+                val wave = sin(k / 9.0 + n)
+                when {
+                    wave < -0.85 -> Limits.FLAG_ABS.toDouble()
+                    wave > 0.9 -> Limits.FLAG_TC.toDouble()
+                    else -> 0.0
+                }
+            },
+        )
+    },
+)
+
+private val galleryLaps = (1..5).map { Lap(id = it, sessionId = 1, lapNum = it, timeMs = 123_000 - it * 400) }
+
 /** A closed circuit with a couple of corners, in projected metres. */
 private fun syntheticTrace(n: Int): List<TracePoint> = (0 until n).map { i ->
     val a = i / n.toDouble() * 2 * Math.PI * 4 // four laps
@@ -167,3 +253,11 @@ private fun syntheticTrace(n: Int): List<TracePoint> = (0 until n).map { i ->
 private fun syntheticSamples(n: Int): List<TraceSample> = syntheticTrace(n).map {
     TraceSample(x = it.x, y = it.y, v = it.v ?: 0.0)
 }
+
+/** An event in the four fields the conditions band reads (#191). */
+private data class GalleryEvent(
+    override val ambientLoC: Double? = null,
+    override val ambientHiC: Double? = null,
+    override val elevationM: Double? = null,
+    override val tempF: Int? = null,
+) : SessionConditions.AmbientEvent

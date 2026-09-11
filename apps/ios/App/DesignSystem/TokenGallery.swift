@@ -20,6 +20,7 @@ struct TokenGallery: View {
                     colors
                     typeScale
                     radii
+                    layout
                 }
                 .padding(TESpacing.pageGutter)
             }
@@ -52,19 +53,6 @@ struct TokenGallery: View {
                 ],
                 goalMs: 118_000
             )
-            Text("…and the dashboard's sparkline of the same series")
-                .teStyle(.xs)
-                .foregroundStyle(Color(.textFaint))
-            ProgressChart(
-                points: [
-                    .init(x: 0, label: "Apr 10", ms: 124_500),
-                    .init(x: 1, label: "May 1", ms: 122_800),
-                    .init(x: 2, label: "Jun 1", ms: 121_500),
-                    .init(x: 3, label: "Jul 4", ms: 119_900)
-                ],
-                style: .sparkline
-            )
-            .frame(width: 140, height: 44)
             Text("Trackmap — speed ramp over tarmac")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
@@ -158,10 +146,59 @@ struct TokenGallery: View {
         }
     }
 
+    /// The layout class this window is in, and the breakpoints it sits between.
+    ///
+    /// Resize the window in Stage Manager or Split View and watch the highlight
+    /// move: that it moves *at all* is the thing worth seeing, since a class read
+    /// once at launch is the failure this section exists to make visible.
+    private var layout: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            section("Layout classes")
+            LayoutClassRow()
+            Text(
+                "Breakpoints \(Int(LayoutClass.MEDIUM_MIN_DP)) / \(Int(LayoutClass.EXPANDED_MIN_DP)) pt · "
+                    + "page-max \(Int(LayoutTokens.PAGE_MAX)) · gutter \(Int(LayoutTokens.PAGE_GUTTER))"
+            )
+            .teStyle(.xxs)
+            .foregroundStyle(Color(.textMuted))
+        }
+    }
+
     private func section(_ title: String) -> some View {
         Text(title)
             .teStyle(.eyebrow)
             .foregroundStyle(Color(.textMuted))
+    }
+}
+
+/// The three classes with the live one lit, plus the measured window width.
+///
+/// Its own view so it reads `@Environment(\.layout)`, which the gallery's own
+/// body cannot: the value is published by the modifier `TokenGallery` is
+/// rendered inside, and a `body` cannot both install and read it.
+private struct LayoutClassRow: View {
+    @Environment(\.layout) private var layout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ForEach(LayoutClass.allCases, id: \.self) { entry in
+                    let live = entry == layout.layoutClass
+                    Text(entry.rawValue)
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(live ? .accentContrast : .textMuted))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Color(live ? .accent : .surfaceRaised),
+                            in: .rect(cornerRadius: TERadius.sm)
+                        )
+                }
+            }
+            Text("content column \(Int(layout.contentWidth))pt · \(layout.columns(minimum: TESpacing.cardGridMinimum)) card columns")
+                .teStyle(.xxs)
+                .foregroundStyle(Color(.textFaint))
+        }
     }
 }
 

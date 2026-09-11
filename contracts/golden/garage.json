@@ -78,6 +78,7 @@
           "wear_limit": 3
         }
       ],
+      "target_hot_psi": 32,
       "updated_at": 0
     },
     {
@@ -89,6 +90,7 @@
       "name": "Miata",
       "notes": null,
       "parts": [],
+      "target_hot_psi": null,
       "updated_at": 0
     }
   ]

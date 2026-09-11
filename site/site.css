@@ -260,6 +260,48 @@ section.alt { background: var(--bg-subtle); border-block: 1px solid var(--border
 }
 .feature .glyph svg { width: 18px; height: 18px; }
 
+/* Which tier a feature belongs to, on its card's heading. */
+.tier {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+.tier.pro { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+
+/* ---------- Pricing ---------- */
+.tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+.tier-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius);
+  padding: 26px;
+}
+.tier-card.featured { border-color: var(--accent-ring); }
+.tier-card h3 { font-size: 17px; margin-bottom: 4px; }
+.tier-price {
+  margin: 0 0 18px;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  color: var(--text-strong);
+}
+.tier-price span { font-size: 14px; color: var(--text-muted); }
+.tier-price em { font-style: normal; font-size: 14px; color: var(--text-faint); }
+.tier-card ul { margin: 0; padding-left: 20px; color: var(--text-muted); font-size: 15px; }
+.tier-card li { margin-bottom: 7px; }
+.tier-note { margin: 18px 0 0; font-size: 14px; color: var(--text-faint); }
+
 /* ---------- Steps ---------- */
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: step; }
 .step {

@@ -30,7 +30,7 @@ final class CoreScreensUITests: XCTestCase {
     // MARK: - Dashboard
 
     func testDashboardShowsTheLogbook() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         XCTAssertTrue(
             app.buttons["trackCard"].firstMatch.waitForExistence(timeout: 20),
@@ -38,7 +38,6 @@ final class CoreScreensUITests: XCTestCase {
         )
         attach(app, named: "dashboard")
         XCTAssertTrue(app.staticTexts["Track days"].exists, "the totals tiles should be there")
-        XCTAssertTrue(app.buttons["recentEventCard"].firstMatch.exists, "with recent events under them")
         // Matched among any descendants: the hero is one combined accessibility
         // element, which SwiftUI doesn't necessarily publish as a button. Needs the
         // example seed, whose last event is in the future.
@@ -62,7 +61,7 @@ final class CoreScreensUITests: XCTestCase {
     /// recording left on disk by an earlier test puts the recorder in `.stopped`, and
     /// this button is idle-only, so the dashboard would legitimately not show it.
     func testDashboardStartsARecording() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         let record = app.buttons["dashboardRecord"]
         XCTAssertTrue(
@@ -85,7 +84,7 @@ final class CoreScreensUITests: XCTestCase {
     /// It also covers a SwiftUI hazard no assertion would otherwise notice — a
     /// confirmation dialog that wedges the view hangs the app rather than failing.
     func testDashboardDiscardsAnUnsavedRecording() throws {
-        let app = try launchSignedIn(extraLaunchArguments: ["-pendingRecording"])
+        let app = try launchSignedIn(tier: .pro, extraLaunchArguments: ["-pendingRecording"])
 
         let banner = app.staticTexts["Unsaved track recording"]
         XCTAssertTrue(
@@ -116,15 +115,21 @@ final class CoreScreensUITests: XCTestCase {
     /// The event page's real content, on data this test owns: create the event, add a
     /// session with lap times, check what the page makes of them, delete it again.
     func testEventLogsLapsAndShowsTheirStats() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         try createEvent(app, named: "Summit Point (Shenandoah)")
 
-        // Add a session with laps. These four are chosen so every line of
-        // `LapStats` has something to say: an out-lap outside the 107% cutoff, then a
-        // clean improving run.
+        // Hand entry is the third option in the event page's "Add a session" card, and
+        // it is collapsed until asked for — recording and importing are the two ways
+        // laps normally arrive.
+        let manual = app.buttons["manualEntry"]
+        XCTAssertTrue(scrollTo(manual, in: app), "the Add a session card should offer hand entry")
+        manual.tap()
+
+        // The laps are chosen so every line of `LapStats` has something to say: an
+        // out-lap outside the 107% cutoff, then a clean improving run.
         let label = app.textFields["Day 1 — Session 2"]
-        XCTAssertTrue(label.waitForExistence(timeout: 15), "the add-session form should be on the event page")
+        XCTAssertTrue(label.waitForExistence(timeout: 15), "the add-session form should open")
         label.tap()
         label.typeText("Session 1")
 
@@ -162,7 +167,7 @@ final class CoreScreensUITests: XCTestCase {
     // MARK: - Track page
 
     func testTrackPageChartsProgressAndCarriesTheGoal() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         let card = app.buttons["trackCard"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))
@@ -187,7 +192,7 @@ final class CoreScreensUITests: XCTestCase {
     /// Privacy and terms are required on every platform. The web app carries them in
     /// its footer and in Settings; a native app with no footer has only Settings.
     func testPrivacyAndTermsAreReachableFromSettings() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         app.buttons["Account"].tap()
 
@@ -196,7 +201,15 @@ final class CoreScreensUITests: XCTestCase {
             "the privacy policy must be reachable from Settings"
         )
         XCTAssertTrue(app.staticTexts["Terms of use"].exists, "so must the terms of use")
-        XCTAssertTrue(app.staticTexts["dev@example.com"].exists, "with the signed-in account")
+        // The account's own email, read from the server rather than written here:
+        // `DEV_USER_EMAIL` is whatever the developer's `.dev.vars` says, and it has
+        // to match the seed's `USER_EMAIL` for this logbook to belong to them at
+        // all. A literal makes those two settings mutually exclusive — one value
+        // passes this assertion, the other owns the data every other test needs.
+        let email = (try api("GET", "/api/me")["user"] as? [String: Any])?["email"] as? String
+        XCTAssertTrue(
+            app.staticTexts[try XCTUnwrap(email)].exists, "with the signed-in account"
+        )
         XCTAssertTrue(app.staticTexts["Vehicles"].exists, "the garage's vehicle list lives here")
         XCTAssertTrue(app.buttons["Sign out"].exists)
 
@@ -210,6 +223,48 @@ final class CoreScreensUITests: XCTestCase {
             "the copyright year must not be group-separated"
         )
         attach(app, named: "settings")
+    }
+
+    /// The subscription row (NS-32 phase B) and the paywall behind it.
+    ///
+    /// This is the one test that needs the account *free*: the paywall is reachable
+    /// from Settings only when there is something to sell, and a legacy grant shows
+    /// no button at all. Hence `tier: .free` — and hence the tier being a required
+    /// argument, since the overlay and garage suites want the opposite.
+    ///
+    /// A free account means Settings must say so and offer the way in; the
+    /// sheet must carry what App Store guideline 3.1.2 checks for regardless of
+    /// whether any product loaded — Restore Purchases and both legal links — which
+    /// is why this needs no store: the scheme's `.storekit` file may or may not be
+    /// in play under `xcodebuild test`, and the assertions don't depend on it.
+    func testSettingsOffersTheSubscriptionAndThePaywallCarriesTheLegalLinks() throws {
+        let app = try launchSignedIn(tier: .free)
+
+        app.buttons["Account"].tap()
+
+        let summary = app.staticTexts["subscriptionSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15), "Settings should carry the subscription row")
+        XCTAssertEqual(summary.label, "Free", "a free account reads Free")
+
+        let subscribe = app.buttons["subscribeButton"]
+        XCTAssertTrue(scrollTo(subscribe, in: app), "a free account should be offered Pro")
+        subscribe.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["Track Evolution Pro"].waitForExistence(timeout: 10),
+            "Subscribe should open the paywall sheet"
+        )
+        XCTAssertTrue(app.buttons["paywallRestore"].waitForExistence(timeout: 10), "Restore Purchases is mandatory")
+        XCTAssertTrue(app.links["paywallPrivacy"].exists || app.buttons["paywallPrivacy"].exists, "with the privacy policy")
+        XCTAssertTrue(app.links["paywallTerms"].exists || app.buttons["paywallTerms"].exists, "and the terms")
+        XCTAssertTrue(
+            app.staticTexts["Free is the logbook. Pro is the analysis."].exists,
+            "and the tier boundary in one line"
+        )
+        attach(app, named: "paywall")
+
+        app.buttons["paywallDone"].tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), "Done should return to Settings")
     }
 
     // MARK: - Helpers

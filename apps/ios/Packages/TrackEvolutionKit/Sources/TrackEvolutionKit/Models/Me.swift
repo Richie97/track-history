@@ -4,6 +4,9 @@ import Foundation
 public struct Me: Codable, Hashable, Sendable {
     public var user: User
     public var totals: Totals
+    /// The account's tier (NS-32). Optional so a cached response from a server
+    /// that predates subscriptions still decodes; absent reads as free.
+    public var entitlement: Entitlement?
 }
 
 public struct User: Codable, Hashable, Sendable, Identifiable {
@@ -18,6 +21,15 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// and `EventDates.DEFAULT_CHECKLIST` applies. Strings, not `ChecklistItem`s:
     /// a template is what a checklist starts *from*, so it carries no done flags.
     public var checklistTemplate: [String]?
+    /// Whether the user appears on per-track community leaderboards. Optional
+    /// so a cached response from an older server still decodes; absent means
+    /// false.
+    public var leaderboardOptIn: Bool?
+    /// Whether the user's *ranked lap itself* — its racing line and telemetry —
+    /// is open to other drivers ranked at the same track (NS-35). A second,
+    /// separate consent stacked on ``leaderboardOptIn``, never implied by it.
+    /// Optional for the same reason: an older cached response has no such key.
+    public var leaderboardShareLaps: Bool?
     /// The unit system the user sees the logbook in (`PUT /api/me/units`).
     /// Display-only: the server stores and returns the same numbers either way —
     /// temperatures whole °F, channel speeds km/h, setup pressures psi, fuel
@@ -30,6 +42,8 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
         case id, email, name, picture
         case shareSlug = "share_slug"
         case checklistTemplate = "checklist_template"
+        case leaderboardOptIn = "leaderboard_opt_in"
+        case leaderboardShareLaps = "leaderboard_share_laps"
         case units
     }
 

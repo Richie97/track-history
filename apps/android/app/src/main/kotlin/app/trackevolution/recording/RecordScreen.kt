@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -20,7 +21,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.LapTime
+import app.trackevolution.ui.FoldGeometry
+import app.trackevolution.ui.FoldPosture
+import app.trackevolution.ui.Folds
+import app.trackevolution.ui.LocalFoldGeometry
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.coroutines.delay
@@ -59,9 +67,14 @@ fun RecordScreen(
     onStart: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * How the device is folded. Read from the window by default and passed in by
+     * tests, the same seam `TwoPaneShell` uses for its width: a posture nobody
+     * can produce on a desk is a posture nobody can test.
+     */
+    fold: FoldGeometry = LocalFoldGeometry.current,
 ) {
     val colors = TrackTheme.colors
-    val type = TrackTheme.typography
 
     // A clock only so "no fixes for N seconds" can be noticed while nothing is
     // arriving — by definition there is no fix to trigger a recomposition.
@@ -76,103 +89,254 @@ fun RecordScreen(
         state.lastFixAtMs > 0 &&
         now - state.lastFixAtMs > STALL_AFTER_MS
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.bgPage)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Text(
-            if (state.isRecording) "Recording" else "Record laps",
-            style = type.h1,
-            color = colors.textStrong,
+    if (fold.posture == FoldPosture.Tabletop) {
+        TabletopLayout(
+            fold = fold,
+            state = state,
+            isAttached = isAttached,
+            eventLabel = eventLabel,
+            stalled = stalled,
+            onStart = onStart,
+            onStop = onStop,
+            modifier = modifier,
         )
-        Text(
-            attachmentText(isAttached, eventLabel),
-            style = type.sm,
-            color = colors.textMuted,
-        )
-
-        TrackCard {
-            Text(
-                RecordingNotification.formatElapsed(state.elapsedS),
-                style = type.lapTimeHero,
-                color = if (state.isRecording) colors.accentInk else colors.textMuted,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Stat("Fixes", state.fixCount.toString())
-                Stat("Speed", state.lastSpeedMps?.let { "%.0f mph".format(it * 2.23694) } ?: "—")
-                Stat("Accuracy", state.lastAccuracyM?.let { "±%.0f m".format(it) } ?: "—")
-            }
-        }
-
-        if (stalled) {
-            // Said out loud rather than left to a frozen number: a silent stall
-            // mid-session is the failure this screen exists to make impossible.
-            TrackCard(color = colors.dangerTint, border = colors.danger) {
-                Text("No GPS fixes are arriving", style = type.h3, color = colors.dangerInk)
-                Text(
-                    "The recording is still running and everything captured so far is safe. " +
-                        "Check the phone has a view of the sky.",
-                    style = type.sm,
-                    color = colors.textBody,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        }
-
-        // Accuracy worth mentioning before someone drives 20 minutes on it.
-        val accuracy = state.lastAccuracyM
-        if (state.isRecording && accuracy != null && accuracy > 25) {
-            TrackCard(color = colors.dangerTint, border = colors.danger) {
-                Text(
-                    "GPS accuracy is poor (±%.0f m). Lap times will be rough.".format(accuracy),
-                    style = type.sm,
-                    color = colors.dangerInk,
-                )
-            }
-        }
-
-        state.blocker?.let {
-            TrackCard(color = colors.dangerTint, border = colors.danger) {
-                Text(it.message, style = type.sm, color = colors.dangerInk)
-            }
-        }
-
-        if (state.autoStopped) {
-            TrackCard(color = colors.accentTint, border = colors.accent) {
-                Text("Recording stopped itself", style = type.h3, color = colors.textStrong)
-                Text(
-                    "Either it hit the four-hour cap, or the car had been parked for a while " +
-                        "after being driven.",
-                    style = type.sm,
-                    color = colors.textBody,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        }
-
-        Button(
-            onClick = if (state.isRecording) onStop else onStart,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (state.isRecording) colors.danger else colors.accent,
-                contentColor = colors.accentContrast,
-            ),
+    } else {
+        // The phone layout, in the order it has always been in. Posture adds a
+        // shape above this one; it does not get to reorder it.
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(colors.bgPage)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(if (state.isRecording) "Stop" else "Start recording", style = type.h3)
+            Heading(state)
+            Attachment(isAttached, eventLabel)
+            FixQuality(state)
+            LiveTiming(state)
+            Warnings(state, stalled)
+            StartStop(state, onStart, onStop)
+            Footnote()
         }
+    }
+}
 
+/**
+ * The pit-wall shape: half-open on a dash, hinge across the middle (NS-34
+ * ticket 4).
+ *
+ * The **timing goes above the crease and the controls below it**, because the
+ * half you glance at from the driver's seat and the half you reach for are
+ * different halves and only one of them is worth a glance at speed. Nothing is
+ * laid across the hinge: the two halves are siblings weighted by where the hinge
+ * actually is, so a device whose crease is not at the midpoint still gets its
+ * content in one piece rather than folded through the middle of a lap time.
+ *
+ * Every other posture — flat, closed, book — gets the ordinary layout. This one
+ * earns a shape of its own because it is the only one where the device is
+ * standing up by itself with the driver looking at it from a metre away.
+ */
+@Composable
+private fun TabletopLayout(
+    fold: FoldGeometry,
+    state: RecorderState,
+    isAttached: Boolean,
+    eventLabel: String?,
+    stalled: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = TrackTheme.colors
+    val above = (fold.hingeFraction ?: 0.5f).coerceIn(0.2f, 0.8f)
+
+    Column(modifier = modifier.fillMaxSize().background(colors.bgPage)) {
+        Box(
+            modifier = Modifier.fillMaxWidth().weight(above).padding(20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                LiveTiming(state, centred = true)
+            }
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth().weight(1f - above).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Attachment(isAttached, eventLabel)
+            FixQuality(state)
+            Warnings(state, stalled)
+            StartStop(state, onStart, onStop)
+        }
+    }
+}
+
+@Composable
+private fun Heading(state: RecorderState) {
+    Text(
+        if (state.isRecording) "Recording" else "Record laps",
+        style = TrackTheme.typography.h1,
+        color = TrackTheme.colors.textStrong,
+    )
+}
+
+@Composable
+private fun Attachment(isAttached: Boolean, eventLabel: String?) {
+    Text(
+        attachmentText(isAttached, eventLabel),
+        style = TrackTheme.typography.sm,
+        color = TrackTheme.colors.textMuted,
+    )
+}
+
+@Composable
+private fun FixQuality(state: RecorderState) {
+    val colors = TrackTheme.colors
+    TrackCard {
         Text(
-            "You can lock the phone and put it away — recording carries on.",
+            RecordingNotification.formatElapsed(state.elapsedS),
+            style = TrackTheme.typography.lapTimeHero,
+            color = if (state.isRecording) colors.accentInk else colors.textMuted,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Stat("Fixes", state.fixCount.toString())
+            Stat("Speed", state.lastSpeedMps?.let { "%.0f mph".format(it * 2.23694) } ?: "—")
+            Stat("Accuracy", state.lastAccuracyM?.let { "±%.0f m".format(it) } ?: "—")
+        }
+    }
+}
+
+/**
+ * Live lap timing: unofficial (the saved laps come from the review line pick),
+ * but on track it's what matters. Arms once the car reaches track pace; laps
+ * count from the first pass of the timing point.
+ *
+ * `centred` is the tabletop half: the same numbers, centred in the space above
+ * the hinge rather than stacked in a card, because there it is the only thing on
+ * that half of the screen and it is read from a metre away.
+ */
+@Composable
+private fun LiveTiming(state: RecorderState, centred: Boolean = false) {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
+    if (!state.isRecording) return
+    val timing = state.timing
+    if (timing?.currentLapS == null) {
+        Text(
+            "Lap timing arms once you're at track pace; laps count from your first flying pass.",
             style = type.xs,
             color = colors.textFaint,
         )
+        return
     }
+
+    @Composable
+    fun figures() {
+        val delta = timing.deltaS
+        if (delta != null) {
+            Text(
+                formatDelta(delta),
+                style = type.lapTimeHero,
+                color = if (delta <= 0) colors.accentInk else colors.dangerInk,
+                modifier = Modifier.semantics {
+                    contentDescription = "%.2f seconds %s your best lap"
+                        .format(kotlin.math.abs(delta), if (delta <= 0) "ahead of" else "behind")
+                },
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Stat("Lap", (timing.lapCount + 1).toString())
+            Stat("Current", RecordingNotification.formatElapsed(timing.currentLapS!!))
+            Stat("Last", LapTime.fmtMs(timing.lastLapMs))
+            Stat("Best", LapTime.fmtMs(timing.bestLapMs))
+        }
+    }
+
+    if (centred) figures() else TrackCard { figures() }
+}
+
+@Composable
+private fun Warnings(state: RecorderState, stalled: Boolean) {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
+    if (stalled) {
+        // Said out loud rather than left to a frozen number: a silent stall
+        // mid-session is the failure this screen exists to make impossible.
+        TrackCard(color = colors.dangerTint, border = colors.danger) {
+            Text("No GPS fixes are arriving", style = type.h3, color = colors.dangerInk)
+            Text(
+                "The recording is still running and everything captured so far is safe. " +
+                    "Check the phone has a view of the sky.",
+                style = type.sm,
+                color = colors.textBody,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+
+    // Accuracy worth mentioning before someone drives 20 minutes on it.
+    val accuracy = state.lastAccuracyM
+    if (state.isRecording && accuracy != null && accuracy > 25) {
+        TrackCard(color = colors.dangerTint, border = colors.danger) {
+            Text(
+                "GPS accuracy is poor (±%.0f m). Lap times will be rough.".format(accuracy),
+                style = type.sm,
+                color = colors.dangerInk,
+            )
+        }
+    }
+
+    state.blocker?.let {
+        TrackCard(color = colors.dangerTint, border = colors.danger) {
+            Text(it.message, style = type.sm, color = colors.dangerInk)
+        }
+    }
+
+    if (state.autoStopped) {
+        TrackCard(color = colors.accentTint, border = colors.accent) {
+            Text("Recording stopped itself", style = type.h3, color = colors.textStrong)
+            Text(
+                "Either it hit the four-hour cap, or the car had been parked for a while " +
+                    "after being driven.",
+                style = type.sm,
+                color = colors.textBody,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun StartStop(state: RecorderState, onStart: () -> Unit, onStop: () -> Unit) {
+    val colors = TrackTheme.colors
+    Button(
+        onClick = if (state.isRecording) onStop else onStart,
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (state.isRecording) colors.danger else colors.accent,
+            contentColor = colors.accentContrast,
+        ),
+    ) {
+        Text(if (state.isRecording) "Stop" else "Start recording", style = TrackTheme.typography.h3)
+    }
+}
+
+@Composable
+private fun Footnote() {
+    Text(
+        "You can lock the phone and put it away — recording carries on.",
+        style = TrackTheme.typography.xs,
+        color = TrackTheme.colors.textFaint,
+    )
 }
 
 /**
@@ -188,6 +352,10 @@ fun RecordScreen(
  * it can't be loaded at all: we know there is an event, we just can't name it,
  * and that is not the same as there being none.
  */
+/** "+0.42" / "−0.42": the sign is the message, so it is always shown. */
+internal fun formatDelta(seconds: Double): String =
+    "%s%.2f".format(if (seconds < 0) "−" else "+", kotlin.math.abs(seconds))
+
 internal fun attachmentText(isAttached: Boolean, eventLabel: String?): String = when {
     isAttached && eventLabel != null -> "Laps will be saved to $eventLabel."
     isAttached -> "Laps will be saved to this event."

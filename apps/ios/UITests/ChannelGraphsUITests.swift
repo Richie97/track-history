@@ -26,17 +26,21 @@ final class ChannelGraphsUITests: XCTestCase {
     }
 
     override func tearDown() {
+        // A safety net for a test that failed before it got to the in-app delete,
+        // so it must not assert: on the happy path the event is already gone and
+        // this 404s. `api` records a failure on any non-2xx, which is right for a
+        // seed and wrong for a best-effort cleanup.
         if let id = seededEventId {
-            _ = try? api("DELETE", "/api/events/\(id)")
+            deleteEventBestEffort(id)
             seededEventId = nil
         }
     }
 
     func testChannelGraphsOverlayLapsForAnImportedSession() throws {
         try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
-        try seedImportedSession()
+        seededEventId = try seedImportedSession(track: Self.track)
 
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .pro)
 
         // By name, not by identifier: every track card shares one identifier, and the
         // point of this test is to reach *our* track.
@@ -51,12 +55,23 @@ final class ChannelGraphsUITests: XCTestCase {
         XCTAssertTrue(event.waitForExistence(timeout: 15), "the track page should list the seeded event")
         event.tap()
 
-        let entry = app.buttons["channelGraphs"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 20), "an imported session offers the lap overlay")
-        scrollTo(entry, in: app)
-        // The row says which channels the session actually stored.
+        // The best lap's trace comes first on the page, carrying the limit marks
+        // and the legend that names them (#188).
+        let map = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", "marked where")
+        ).firstMatch
         XCTAssertTrue(
-            app.staticTexts["Speed · RPM · Lateral G vs distance"].exists,
+            scrollTo(map, in: app),
+            "the track map should say which systems fired on the best lap"
+        )
+        attach(app, named: "trace-limit-marks")
+
+        let entry = app.buttons["channelGraphs"]
+        XCTAssertTrue(scrollTo(entry, in: app), "an imported session offers the lap overlay")
+        // The row says which channels the session actually stored, in the order
+        // `CHANNEL_DEFS` fixes.
+        XCTAssertTrue(
+            app.staticTexts["Speed · Throttle · Brake · Steering · RPM · Lateral G · Yaw rate vs distance"].exists,
             "the row should name the channels it has"
         )
         entry.tap()
@@ -64,9 +79,11 @@ final class ChannelGraphsUITests: XCTestCase {
         // A sheet of its own, not an expanding panel — see `LapChannelChart`.
         let speed = app.descendants(matching: .any)["Speed by driven distance, per lap"]
         XCTAssertTrue(speed.waitForExistence(timeout: 20), "the sheet draws the speed overlay")
-        XCTAssertTrue(
+        // One question per tab (#193): lateral G answers "how much grip", so it is
+        // a tab away rather than stacked under the speed trace.
+        XCTAssertFalse(
             app.descendants(matching: .any)["Lateral G by driven distance, per lap"].exists,
-            "and one chart per stored channel"
+            "the Grip channel should not be stacked under Time"
         )
         // The chips are the legend — a lap is never identified by color alone. Lap 2
         // is the fastest of the three seeded laps, so it starts highlighted.
@@ -88,60 +105,58 @@ final class ChannelGraphsUITests: XCTestCase {
         )
         attach(app, named: "channel-graphs-readout")
 
+        // One question per tab (#193): the driver inputs, the gear ribbon and the
+        // shift points are one tap away, not stacked under the speed trace.
+        let inputs = app.buttons["Inputs"]
+        XCTAssertTrue(inputs.exists, "a session with pedal traces offers the Inputs tab")
+        inputs.tap()
+        let ribbon = app.descendants(matching: .any)["gearRibbon"]
+        XCTAssertTrue(
+            ribbon.waitForExistence(timeout: 10),
+            "the gear ribbon draws under the RPM trace for a session that stored gear (#187)"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["shiftTable"].exists,
+            "and the shift points are tabulated above the traces"
+        )
+        attach(app, named: "channel-graphs-gears")
+
+        app.buttons["Grip"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["Lateral G by driven distance, per lap"].waitForExistence(timeout: 10),
+            "and one chart per stored channel, on the tab its question belongs to"
+        )
+        // The friction circle (#186) sits above that trace: a square scatter of
+        // latG against longG, which is a drawn thing and so worth a screenshot.
+        XCTAssertTrue(
+            app.descendants(matching: .any)["frictionCircle"].waitForExistence(timeout: 10),
+            "a session storing both G channels draws the friction circle"
+        )
+        attach(app, named: "channel-graphs-friction-circle")
+        // And under it the balance scatter (#189) with its per-corner table —
+        // also drawn rather than laid out, so it gets its own screenshot.
+        let balance = app.descendants(matching: .any)["balanceScatter"]
+        XCTAssertTrue(
+            scrollTo(balance, in: app),
+            "a session storing yaw, steering and speed draws the balance scatter"
+        )
+        attach(app, named: "channel-graphs-balance")
+
+        // The Car tab (#190): the per-lap scalars as cards with sparklines, the
+        // tab that was reserved and empty until this session carried scalars.
+        app.buttons["Car"].tap()
+        let health = app.descendants(matching: .any)["healthStrip"]
+        XCTAssertTrue(
+            health.waitForExistence(timeout: 10),
+            "a session storing per-lap scalars fills the Car tab"
+        )
+        attach(app, named: "channel-graphs-health")
+
         app.buttons["Done"].tap()
         deleteEventFromMenu(app)
     }
 
     // MARK: - Seeding
-
-    /// An event with one session carrying three laps of channel data, shaped like a
-    /// telemetry import: 120 points per lap on a 20 m grid, all three channels.
-    private func seedImportedSession() throws {
-        let event = try api(
-            "POST", "/api/events",
-            body: [
-                "track_name": Self.track,
-                // Fixed and in the past, so this event never lands in the dashboard's
-                // hero slot and never changes which event another test finds there.
-                "start_date": "2024-03-15",
-                "days": 1,
-                "club": "UITest",
-                "car": "Test car"
-            ]
-        )
-        let id = try XCTUnwrap(event["id"] as? Int, "the dev server should return the created event")
-        seededEventId = id
-
-        let times = [118_400, 116_900, 117_600]
-        _ = try api(
-            "POST", "/api/events/\(id)/sessions",
-            body: [
-                "label": "Imported session",
-                "laps": times,
-                "channels": [
-                    "v": 1,
-                    "dStepM": 20,
-                    "laps": times.enumerated().map { index, ms in
-                        [
-                            "n": index + 1,
-                            "timeMs": ms,
-                            // A lap of a circuit: speed rising and falling through
-                            // corners, RPM tracking it, lateral G peaking between.
-                            "speed": (0..<120).map { k in
-                                90 + 60 * sin(Double(k) / 9 + Double(index) * 0.15)
-                            },
-                            "rpm": (0..<120).map { k in
-                                3000 + 3500 * (1 + sin(Double(k) / 9 + Double(index) * 0.15)) / 2
-                            },
-                            "latG": (0..<120).map { k in
-                                abs(cos(Double(k) / 9 + Double(index) * 0.15)) * 1.2
-                            }
-                        ] as [String: Any]
-                    }
-                ]
-            ]
-        )
-    }
 
     // MARK: - Helpers
 

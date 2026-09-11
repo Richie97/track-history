@@ -22,37 +22,44 @@ struct VehicleScreen: View {
 
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
 
     @State private var model: VehicleModel?
     /// Sheet and dialog presentation state, held here rather than in the model:
     /// the model is re-read from the server after every write.
-    @State private var partForm: PartForm?
+    @State private var sheet: VehicleSheet?
+    /// Which consumable the right column is showing (NS-34 ticket 3).
+    @State private var selectedPartId: Int?
     @State private var confirmingRefresh: Part?
 
-    /// Which part form is on screen. One value rather than a bool plus an optional,
-    /// so there is one `.sheet` to present it — see the comment on that modifier.
-    enum PartForm: Identifiable, Hashable {
-        case add
-        case edit(Part)
+    /// Which form is on screen. One value rather than a bool per form, so there
+    /// is one `.sheet` to present them all — see the comment on that modifier.
+    enum VehicleSheet: Identifiable, Hashable {
+        case addPart
+        case editPart(Part)
+        /// The car itself: name, mods, target hot pressure, default.
+        case car
 
         var id: Int {
             switch self {
-            case .add: 0
-            case .edit(let part): part.id
+            case .addPart: 0
+            case .editPart(let part): part.id
+            case .car: -1
             }
         }
 
         var part: Part? {
             switch self {
-            case .add: nil
-            case .edit(let part): part
+            case .editPart(let part): part
+            case .addPart, .car: nil
             }
         }
 
-        var mode: PartFormSheet.Mode {
+        var partMode: PartFormSheet.Mode? {
             switch self {
-            case .add: .add
-            case .edit(let part): .edit(part)
+            case .addPart: .add
+            case .editPart(let part): .edit(part)
+            case .car: nil
             }
         }
     }
@@ -60,7 +67,7 @@ struct VehicleScreen: View {
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let vehicle = model.vehicle {
-                content(model, vehicle)
+                page(model, vehicle)
             } else {
                 TEPage { TEEmpty("That vehicle isn't in your garage.") }
             }
@@ -74,24 +81,42 @@ struct VehicleScreen: View {
                 await model.load()
             }
         }
-        // One `.sheet`, not two. Stacking a second on the same view is not merely
-        // redundant — SwiftUI presents one sheet per view, and the pair of them
-        // (add / edit) fought over the presentation and took the process down with
-        // them. The enum is what makes "which form" a single piece of state.
-        .sheet(item: $partForm) { form in
+        // One `.sheet`, not three. Stacking a second on the same view is not
+        // merely redundant — SwiftUI presents one sheet per view, and the pair of
+        // them (add / edit) fought over the presentation and took the process down
+        // with them. The enum is what makes "which form" a single piece of state.
+        .sheet(item: $sheet) { form in
             if let model {
-                PartFormSheet(
-                    mode: form.mode,
-                    submit: { draft, patch in
-                        switch form {
-                        case .add: await model.addPart(draft)
-                        case .edit(let part): await model.updatePart(id: part.id, patch)
+                if let mode = form.partMode {
+                    PartFormSheet(
+                        mode: mode,
+                        submit: { draft, patch in
+                            switch form {
+                            case .addPart: await model.addPart(draft)
+                            case .editPart(let part): await model.updatePart(id: part.id, patch)
+                            case .car: false
+                            }
+                        },
+                        onDelete: form.part.map { part in
+                            { await model.deletePart(id: part.id) }
                         }
-                    },
-                    onDelete: form.part.map { part in
-                        { await model.deletePart(id: part.id) }
+                    )
+                } else if let vehicle = model.vehicle {
+                    VehicleFormSheet(vehicle: vehicle) { patch in
+                        await model.updateVehicle(patch)
                     }
-                )
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                // The car itself — name, mods, the pressure the health strip aims
+                // at, whether new events start on it. This used to live only in
+                // Settings, a screen away from the garage it describes, and on
+                // iOS not even there.
+                Button("Edit") { sheet = .car }
+                    .accessibilityLabel("Edit car")
+                    .accessibilityIdentifier("editVehicle")
             }
         }
         .confirmationDialog(
@@ -108,6 +133,72 @@ struct VehicleScreen: View {
             }
             Button("Cancel", role: .cancel) { confirmingRefresh = nil }
         }
+    }
+
+    /// One column, or the garage beside its detail (NS-34 ticket 3).
+    ///
+    /// At expanded width the consumables stay on the left and the **selected
+    /// part's measurements** move to the right. That is the split the spec asks
+    /// for: logging a measurement is a two-field form that on a phone sits inside
+    /// whichever card you scrolled to, and the column gives it a fixed place.
+    @ViewBuilder
+    private func page(_ model: VehicleModel, _ vehicle: GarageVehicle) -> some View {
+        if let partWidth {
+            HStack(spacing: 0) {
+                content(model, vehicle)
+                    // Inside the frame on both columns — see the note on
+                    // `EventScreen.page`: a greedy `GeometryReader` around a fixed
+                    // frame splits the row in half instead.
+                    .measuringPaneWidth()
+                    .frame(maxWidth: .infinity)
+                Divider()
+                partColumn(model)
+                    .measuringPaneWidth()
+                    .frame(width: partWidth)
+            }
+        } else {
+            content(model, vehicle)
+        }
+    }
+
+    private var isTwoColumn: Bool { partWidth != nil }
+
+    /// How wide the selected part's column gets, or nil for one column.
+    ///
+    /// Narrower than the event page's analysis column and with a lower floor,
+    /// because what goes in it is a two-field form rather than a track map and a
+    /// stack of charts. Measured against this page's own column for the reason
+    /// `sideColumnWidth` states.
+    private var partWidth: CGFloat? {
+        layout.sideColumnWidth(fraction: 0.42, minimum: 340, maximum: 560)
+    }
+
+    /// The selected part's measurements.
+    private func partColumn(_ model: VehicleModel) -> some View {
+        let part = model.activeParts.first { $0.id == selectedPartId } ?? model.activeParts.first
+        return ScrollView {
+            VStack(alignment: .leading, spacing: TESpacing.gridGap) {
+                if let part {
+                    Text(part.name ?? part.kind.label)
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textStrong))
+                    WearStatusLine(part: part)
+                    if !part.measurements.isEmpty {
+                        TESectionHeader("Measurements")
+                        measurements(model, part)
+                    }
+                    MeasurementField(part: part) { draft in
+                        await model.addMeasurement(partId: part.id, draft)
+                    }
+                } else {
+                    TEEmpty("Add a consumable and its measurements will show here.")
+                }
+            }
+            .padding(TESpacing.pageGutter)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(.bgPage))
+        .accessibilityIdentifier("partColumn")
     }
 
     private func content(_ model: VehicleModel, _ vehicle: GarageVehicle) -> some View {
@@ -148,7 +239,7 @@ struct VehicleScreen: View {
                 }
             }
 
-            Button("+ Add part") { partForm = .add }
+            Button("+ Add part") { sheet = .addPart }
                 .buttonStyle(TEButtonStyle(kind: .accent))
                 .accessibilityIdentifier("addPart")
 
@@ -159,35 +250,6 @@ struct VehicleScreen: View {
                 }
             }
 
-            if !model.ledger.isEmpty {
-                TESectionHeader("Track-hours ledger")
-                Text("Hours marked *est.* use the 2 h-per-day default — set exact hours on an event to correct a day that ran long or short.")
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textFaint))
-                ForEach(model.ledger) { event in
-                    TENavCard(route: .event(event.id), identifier: "ledgerRow") {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(event.trackName)
-                                    .teStyle(.bodyStrong)
-                                    .foregroundStyle(Color(.textStrong))
-                                TEMeta([EventDates.fmtDate(event.startDate), fmtDays(event.days)])
-                            }
-                            Spacer(minLength: 8)
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(Garage.fmtHours(event.hours))
-                                    .teStyle(.bodyStrong)
-                                    .foregroundStyle(Color(.textStrong))
-                                if event.trackHours == nil {
-                                    Text("est.")
-                                        .teStyle(.xxs)
-                                        .foregroundStyle(Color(.textFaint))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
         .refreshable { await model.load() }
     }
@@ -195,7 +257,8 @@ struct VehicleScreen: View {
     // MARK: - A part in service
 
     private func partCard(_ model: VehicleModel, _ part: Part) -> some View {
-        TECard(padding: 16) {
+        let selected = isTwoColumn && selectedPart(model)?.id == part.id
+        return TECard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(part.kind.label)
@@ -224,12 +287,14 @@ struct VehicleScreen: View {
                 WearBar(wear: part.wear)
                 WearStatusLine(part: part)
 
-                if !part.measurements.isEmpty {
-                    measurements(model, part)
-                }
-
-                MeasurementField(part: part) { draft in
-                    await model.addMeasurement(partId: part.id, draft)
+                // Both move to the right column at expanded width (NS-34 ticket 3).
+                if !isTwoColumn {
+                    if !part.measurements.isEmpty {
+                        measurements(model, part)
+                    }
+                    MeasurementField(part: part) { draft in
+                        await model.addMeasurement(partId: part.id, draft)
+                    }
                 }
 
                 HStack(spacing: 10) {
@@ -237,12 +302,30 @@ struct VehicleScreen: View {
                         .buttonStyle(TEButtonStyle(kind: .quiet))
                     Button("Retire") { Task { await model.retirePart(id: part.id) } }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
-                    Button("Edit") { partForm = .edit(part) }
+                    Button("Edit") { sheet = .editPart(part) }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
                 }
             }
         }
+        // Selecting a card fills the column beside it. The buttons inside keep
+        // their own taps — SwiftUI gives a `Button` priority over a container's
+        // tap gesture — so Refresh, Retire and Edit still do what they say.
+        .contentShape(Rectangle())
+        .onTapGesture { if isTwoColumn { selectedPartId = part.id } }
+        .overlay(
+            RoundedRectangle(cornerRadius: TERadius.lg)
+                .strokeBorder(Color(.accent), lineWidth: selected ? 2 : 0)
+        )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("partCard")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// The part the right column is showing: the selection, or the first in
+    /// service. Never nothing while there is something to show — an empty column
+    /// beside a list of parts reads as broken rather than as unselected.
+    private func selectedPart(_ model: VehicleModel) -> Part? {
+        model.activeParts.first { $0.id == selectedPartId } ?? model.activeParts.first
     }
 
     private func measurements(_ model: VehicleModel, _ part: Part) -> some View {
@@ -615,7 +698,6 @@ final class VehicleModel {
 
     private(set) var state: LoadState = .loading
     private(set) var vehicle: GarageVehicle?
-    private(set) var events: [Event] = []
     var writeError: String?
 
     init(api: APIClient, vehicleId: Int) {
@@ -625,14 +707,13 @@ final class VehicleModel {
 
     func load() async {
         do {
-            async let garage = api.garage()
-            async let eventList = api.events()
-            let loaded = try await (garage: garage, events: eventList)
-            vehicle = loaded.garage.first { $0.id == vehicleId }
-            events = loaded.events
+            vehicle = try await api.garage().first { $0.id == vehicleId }
             state = .ready
         } catch let error as APIError {
-            state = .failed(error.message)
+            // A 402 is an offer, not a failure: GET /api/garage is Pro since
+            // phase D, and "Couldn't load this — pro required" would read as a
+            // bug rather than as a price.
+            state = error.isProRequired ? .paywall : .failed(error.message)
         } catch {
             state = .failed(error.localizedDescription)
         }
@@ -648,13 +729,14 @@ final class VehicleModel {
         return total == 0 ? nil : total
     }
 
-    /// The events whose hours this car accrued — past only, matching the server's
-    /// rule that an upcoming event isn't wear yet.
-    var ledger: [Event] {
-        events.filter { $0.vehicleId == vehicleId && !EventDates.isUpcoming($0.startDate) }
-    }
-
     // MARK: Writes
+
+    /// The car itself. Renaming matters more than it looks: `events.car` is free
+    /// text matched to a vehicle **by name** server-side, so a car renamed away
+    /// from what past events say stops accruing their hours. The form says so.
+    func updateVehicle(_ patch: VehiclePatch) async -> Bool {
+        await write { try await $0.updateVehicle(id: self.vehicleId, patch) }
+    }
 
     func addPart(_ draft: PartDraft) async -> Bool {
         await write { _ = try await $0.createPart(vehicleId: self.vehicleId, draft) }
@@ -698,6 +780,132 @@ final class VehicleModel {
         } catch {
             writeError = error.localizedDescription
             return false
+        }
+    }
+}
+
+// MARK: - The car itself
+
+/// Edit the car: its name, its modifications and notes, the hot tyre pressure the
+/// health strip's pressure loop aims at, and whether new events start on it.
+/// `viewVehicle`'s `#veh-form` in `public/app.js` is the reference.
+///
+/// Presented from the garage page rather than Settings because that is where
+/// the car is being looked at — and, until now, iOS could not edit one at all.
+struct VehicleFormSheet: View {
+    let vehicle: GarageVehicle
+    /// Returns true when the write landed.
+    let submit: (VehiclePatch) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var notes = ""
+    @State private var targetHotPsi = ""
+    @State private var isDefault = false
+    @State private var saving = false
+    @State private var loaded = false
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            TEPage {
+                TECard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TEField(
+                            label: "Car",
+                            hint: "Past events match this car by name — renaming it away from what they say stops their hours accruing here"
+                        ) {
+                            TextField("2023 Corvette Z06", text: $name)
+                                .teInput()
+                        }
+
+                        TEField(label: "Modifications & notes") {
+                            TextField("Coilovers, pads, tires, alignment…", text: $notes, axis: .vertical)
+                                .teInput()
+                                .lineLimit(3...8)
+                        }
+
+                        TEField(
+                            label: "Target hot tire pressure (psi, optional)",
+                            hint: "What the pressure loop on an imported session's Car tab aims at"
+                        ) {
+                            TextField("e.g. 34", text: $targetHotPsi)
+                                .teInput()
+                                .keyboardType(.decimalPad)
+                        }
+
+                        Toggle("Default car for new events", isOn: $isDefault)
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.textBody))
+                            .tint(Color(.accent))
+                    }
+                }
+
+                if let error {
+                    TEErrorBanner(message: error)
+                }
+
+                Button(saving ? "Saving…" : "Save changes") {
+                    Task { await save() }
+                }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityIdentifier("saveVehicle")
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Edit car")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            // Once: re-running on every appearance would wipe what's been typed.
+            guard !loaded else { return }
+            loaded = true
+            name = vehicle.name
+            notes = vehicle.notes ?? ""
+            targetHotPsi = vehicle.targetHotPsi.map(Self.formatPsi) ?? ""
+            isDefault = vehicle.isDefault
+        }
+    }
+
+    /// 34.0 reads as "34"; 34.5 stays "34.5" — what a driver would have typed.
+    private static func formatPsi(_ value: Double) -> String {
+        value.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(value)) : String(value)
+    }
+
+    private func save() async {
+        error = nil
+        let trimmedPsi = targetHotPsi.trimmingCharacters(in: .whitespaces)
+        var psi: Double?
+        if !trimmedPsi.isEmpty {
+            guard let value = Double(trimmedPsi.replacingOccurrences(of: ",", with: ".")), value >= 5, value <= 100 else {
+                error = "Target pressure should be between 5 and 100 psi."
+                Haptics.warn()
+                return
+            }
+            psi = value
+        }
+        var patch = VehiclePatch()
+        patch.name = .set(name.trimmingCharacters(in: .whitespaces))
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        patch.notes = .set(trimmedNotes.isEmpty ? nil : trimmedNotes)
+        patch.targetHotPsi = .set(psi)
+        // Only when it changed: a false sent for a default left alone would
+        // silently unset it.
+        if isDefault != vehicle.isDefault { patch.isDefault = .set(isDefault) }
+
+        saving = true
+        let ok = await submit(patch)
+        saving = false
+        if ok {
+            dismiss()
+        } else {
+            Haptics.warn()
         }
     }
 }

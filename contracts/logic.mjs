@@ -28,7 +28,101 @@ import { parseTelemetryFile } from "../public/js/import/parse.js";
 import { applyGate } from "../public/js/import/ui.js";
 import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
 import { attachLapChannels } from "../public/js/import/channels.js";
-import { matchLapsToChannels } from "../public/js/channel-graphs.js";
+import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
+import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
+import { traceIndexAtFraction } from "../public/js/trackmap.js";
+import {
+  activeLimitLabels,
+  limitMarkers,
+  limitRuns,
+  limitSummary,
+  sessionLimits,
+} from "../public/js/limits.js";
+import {
+  gearDisagreements,
+  gearSegments,
+  lapShifts,
+  shiftNotes,
+  shiftPoints,
+} from "../public/js/gears.js";
+import {
+  gripPoints,
+  gripShares,
+  latSign,
+  peakCombinedG,
+  sessionGrip,
+} from "../public/js/grip.js";
+import {
+  cornerAt,
+  cornerLabel,
+  cornerMask,
+  cornersFromMask,
+  lapCorners,
+  sessionCorners,
+} from "../public/js/corners.js";
+import {
+  balanceLabel,
+  balancePoints,
+  balanceSummary,
+  cornerBalance,
+  fmtBalance,
+  median,
+  referenceGain,
+  sessionBalance,
+  usableAt,
+  yawGain,
+  yawSign,
+} from "../public/js/balance.js";
+import {
+  HEALTH_DEFS,
+  HEALTH_GROUPS,
+  TYRE_CORNERS,
+  defFor,
+  displayDelta,
+  displayValue,
+  fuelBurn,
+  hasHealthData,
+  healthLaps,
+  healthStatus,
+  healthSummary,
+  hotPressures,
+  lapValue,
+  roundPsi,
+  scalarSeries,
+  sessionHealth,
+  sessionSpread,
+  suggestCold,
+  tyreSpread,
+} from "../public/js/health.js";
+import {
+  BAND_MAX_ALPHA,
+  BAND_MIN_ALPHA,
+  BAND_MIN_EVENTS,
+  BAND_MIN_SPAN_C,
+  ambientMidC,
+  ambientText,
+  bandAlpha,
+  bandLabel,
+  cToF,
+  conditionsBand,
+  elevationText,
+  eventAmbient,
+  fToC,
+  mToFt,
+  sessionAmbientC,
+  sessionElevationM,
+  tempText,
+  trackElevationM,
+} from "../public/js/conditions.js";
+import {
+  alignLapPair,
+  comparableLaps,
+  defaultComparePicks,
+  drivenLengthM,
+  lapMetrics,
+  lengthMismatchRatio,
+  resampleChannelLap,
+} from "../public/js/compare-laps.js";
 import {
   PART_KINDS,
   WEAR_LIMIT_HINTS,
@@ -47,7 +141,23 @@ import {
   trimIdle,
 } from "../public/js/record/core.js";
 import { pickRecordingEvent } from "../public/js/record/remote.js";
+import {
+  addTimingFix,
+  createLiveTiming,
+  liveTimingDisplay,
+} from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
+import {
+  canRecord,
+  canUseGarage,
+  canUseSetups,
+  canViewChannels,
+  canViewYearInReview,
+  canCompareEvents,
+  entitlementSummary,
+  isPro,
+  manageUrl,
+} from "../public/js/entitlement.js";
 import {
   LAP_S,
   buildGpmfMp4,
@@ -190,6 +300,74 @@ const recorderFixture = {
 
 
 // ---------------------------------------------------------------------------
+// Live lap timing (public/js/record/live-timing.js): the recorder's on-track
+// lap counter and predictive delta. The ports must agree fix-for-fix — a gate
+// anchored one fix later, or a delta interpolated differently, shows the
+// driver a different number at 130 mph — so the fixture pins the delta after
+// every fix, not just the end state.
+//
+// The input is a synthetic session on a 200 m circle at 5 Hz: a slow lead-in
+// below track pace (the disarmed phase), then laps at 25, 25, 20 and 28 m/s —
+// a repeat, a slower lap (positive delta), and a new best in progress.
+
+const LT_LAT0 = 36.56;
+const LT_LON0 = -79.2;
+const LT_KX = 111320 * Math.cos((LT_LAT0 * Math.PI) / 180);
+const LT_KY = 110540;
+const LT_R = 200;
+
+function liveTimingFixes() {
+  const fixes = [];
+  let t = 0;
+  let a = 0;
+  const dt = 1 / 5;
+  const push = (v) => {
+    fixes.push([
+      Math.round(t * 100) / 100,
+      Math.round((LT_LAT0 + (LT_R * Math.sin(a)) / LT_KY) * 1e6) / 1e6,
+      Math.round((LT_LON0 + (LT_R * Math.cos(a)) / LT_KX) * 1e6) / 1e6,
+      v,
+      5,
+    ]);
+    t += dt;
+    a += (v * dt) / LT_R;
+  };
+  // 10 s below ARM_MPS: the gate must not anchor here.
+  for (let i = 0; i < 50; i++) push(5);
+  for (const v of [25, 25, 20, 28]) {
+    const n = Math.round(((2 * Math.PI * LT_R) / v) * 5);
+    for (let i = 0; i < n; i++) push(v);
+  }
+  return fixes;
+}
+
+const ltFixes = liveTimingFixes();
+const lt = createLiveTiming();
+const ltDeltas = [];
+for (const f of ltFixes) {
+  addTimingFix(lt, f);
+  ltDeltas.push(lt.deltaS);
+}
+
+const liveTimingFixture = {
+  description:
+    "Live lap timing reference output from public/js/record/live-timing.js. " +
+    "Ports must reproduce the gate to 1e-9, lap times exactly, and every " +
+    "per-fix delta to 1e-9 (null included). Regenerate with `npm run contracts:logic`.",
+  source: "public/js/record/live-timing.js",
+  input: { fixes: ltFixes },
+  expected: {
+    gate: lt.gate,
+    lapCount: lt.lapCount,
+    lastLapMs: lt.lastLapMs,
+    bestLapMs: lt.bestLapMs,
+    // lt.deltaS after every addTimingFix call, in input order.
+    deltaAfterEachFix: ltDeltas,
+    finalDisplay: liveTimingDisplay(lt, ltFixes[ltFixes.length - 1][0]),
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Lap overlay: matching a session's stored lap rows to its channel entries.
 //
 // The reference is matchLapsToChannels in public/js/channel-graphs.js. Both
@@ -222,6 +400,763 @@ const channelsFixture = {
     chIdx: matchLapsToChannels(sessionLaps, channelLaps).map((r) => r.chIdx),
   },
 };
+// ---------------------------------------------------------------------------
+// Lap delta: the time-delta trace between two laps on the shared distance grid
+// (lapTimeSeries / deltaSeries in public/js/channel-graphs.js). Two things are
+// worth pinning: the trapezoidal integration with its walking-pace clamp, and
+// the end-scaling to the timed duration — a port that skips the scale still
+// draws a plausible chart, it just quietly disagrees with the lap timer.
+//
+// Speeds are analytic (a sinusoid, rounded to 1 decimal exactly as
+// buildLapChannels stores them) and the second lap is slower mid-lap and has a
+// slightly shorter grid, so truncation to the overlap is exercised too.
+const round1 = (v) => Math.round(v * 10) / 10;
+const deltaRefLap = {
+  timeMs: 91200,
+  speed: Array.from({ length: 90 }, (_, k) => round1(130 + 45 * Math.sin(k / 7))),
+};
+const deltaSlowLap = {
+  timeMs: 93450,
+  speed: Array.from({ length: 87 }, (_, k) => round1(126 + 44 * Math.sin(k / 7 + 0.15))),
+};
+const deltaZeroClampLap = {
+  // Two stationary samples at the start: the DELTA_MIN_KPH clamp keeps the
+  // cell finite and the end-scale absorbs the error.
+  timeMs: 95000,
+  speed: [0, 0, ...Array.from({ length: 85 }, (_, k) => round1(120 + 40 * Math.sin(k / 6)))],
+};
+
+const lapDeltaFixture = {
+  description:
+    "Lap-delta reference output from public/js/channel-graphs.js (lapTimeSeries / " +
+    "deltaSeries). Ports must reproduce every value to within 1e-9. Regenerate " +
+    "with `npm run contracts:logic`.",
+  source: "public/js/channel-graphs.js",
+  input: {
+    dStepM: 20,
+    refLap: deltaRefLap,
+    slowLap: deltaSlowLap,
+    zeroClampLap: deltaZeroClampLap,
+  },
+  expected: {
+    refTimeSeries: lapTimeSeries(deltaRefLap.speed, 20, deltaRefLap.timeMs),
+    // Unscaled integration (no timed duration): the raw trapezoid sums.
+    refTimeSeriesUnscaled: lapTimeSeries(deltaRefLap.speed, 20, null),
+    slowVsRef: deltaSeries(deltaSlowLap, deltaRefLap, 20),
+    zeroClampVsRef: deltaSeries(deltaZeroClampLap, deltaRefLap, 20),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Sectors and the theoretical best lap (#146): public/js/sectors.js. What is
+// worth pinning: the fractional-of-own-distance boundaries with their linear
+// interpolation of the time series, the round-then-residual rule that makes
+// every lap's splits sum exactly to its lap time (a port that rounds all n
+// sectors is off by a millisecond and disagrees with the lap timer), and the
+// best-per-sector reduction with its earliest-lap tie rule. The laps are the
+// delta fixture's, plus a lap with no speed series that must be skipped.
+const sectorLaps = [
+  deltaRefLap,
+  deltaSlowLap,
+  deltaZeroClampLap,
+  { timeMs: 92000, rpm: Array.from({ length: 90 }, () => 5000) }, // no speed: left out
+  { timeMs: 91200, speed: deltaRefLap.speed }, // ties every sector with lap 0: the earlier lap keeps it
+];
+const sectorChannels = { v: 1, dStepM: 20, laps: sectorLaps.map((l, i) => ({ n: i + 1, ...l })) };
+const sectorsFixture = {
+  description:
+    "Sector-split reference output from public/js/sectors.js (sectorTimes / " +
+    "sessionSectors). Ports must reproduce every integer exactly. Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/sectors.js",
+  input: { channels: sectorChannels, n: 3, microsectorN: 6 },
+  expected: {
+    session: sessionSectors(sectorChannels, 3),
+    // A finer split of one lap (microsectors), and the degenerate single sector.
+    refMicrosectors: sectorTimes(deltaRefLap, 20, 6),
+    refSingleSector: sectorTimes(deltaRefLap, 20, 1),
+    // An untimed lap falls back to the integrated duration.
+    untimedSectors: sectorTimes({ speed: deltaRefLap.speed, timeMs: null }, 20, 3),
+    noSpeed: sectorTimes(sectorLaps[3], 20, 3),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Gear ribbon and shift points (#187): public/js/gears.js. What is worth
+// pinning: the run cutting (gear 0 kept as its own run), the shift rule that
+// reads rpm at the last sample in the *old* gear and skips a clutch-in blip
+// between two gears (3 → 0 → 4 is one shift from 3rd, read before the blip),
+// the per-gear min / median / max with its round-the-median rule, the
+// disagreement runs with their MIN_DISAGREE_POINTS threshold, and the note
+// phrasing — the ports must say the same sentence. Lap A short-shifts out of
+// 2nd and lap B takes 3rd to the top, so both notes fire.
+const gearLapA = {
+  n: 1,
+  timeMs: 90000,
+  gear: [2, 2, 2, 3, 3, 3, 3, 0, 4, 4, 4, 4, 4, 4, 3, 3, 3, 4, 4, 4],
+  rpm: [5000, 6000, 6100, 4500, 5500, 6500, 7100, 7100, 4800, 5200, 5600, 6000, 6300, 6600, 6900, 5000, 6200, 4700, 5100, 5500],
+};
+const gearLapB = {
+  n: 2,
+  timeMs: 89000,
+  gear: [2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4], // stays in 3rd where lap A takes 4th
+  rpm: [5000, 6000, 6200, 6300, 4700, 5300, 5800, 6200, 6600, 6900, 7100, 7200, 7250, 7300, 7300, 7300, 7300, 4900, 5200, 5600],
+};
+const gearLapC = { n: 3, timeMs: 91000, gear: [2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3] }; // no rpm: shifts but no rpm figures
+const gearLapD = { n: 4, timeMs: 92000, speed: Array.from({ length: 20 }, () => 100) }; // no gear
+const gearChannels = { v: 1, dStepM: 20, laps: [gearLapA, gearLapB, gearLapC, gearLapD] };
+const gearPoints = shiftPoints(gearChannels);
+const gearsFixture = {
+  description:
+    "Gear ribbon / shift-point reference output from public/js/gears.js " +
+    "(gearSegments / lapShifts / shiftPoints / shiftNotes / gearDisagreements). " +
+    "Ports must reproduce every integer and every note string exactly. " +
+    "Regenerate with `npm run contracts:logic`.",
+  source: "public/js/gears.js",
+  input: { channels: gearChannels },
+  expected: {
+    segments: gearChannels.laps.map((l) => gearSegments(l.gear)),
+    shifts: gearChannels.laps.map((l) => lapShifts(l)),
+    shiftPoints: gearPoints,
+    notes: shiftNotes(gearPoints),
+    // Only laps with gear and rpm count; a session without any is null.
+    noRpm: shiftPoints({ v: 1, dStepM: 20, laps: [gearLapC, gearLapD] }),
+    disagreementsAB: gearDisagreements([gearLapA.gear, gearLapB.gear]),
+    disagreementsABC: gearDisagreements([gearLapA.gear, gearLapB.gear, gearLapC.gear]),
+    // A one-point offset is a shift, not a choice — dropped at the default
+    // threshold, kept at 1.
+    offsetDefault: gearDisagreements([[2, 2, 3, 3, 3], [2, 2, 2, 3, 3]]),
+    offsetMinRun1: gearDisagreements([[2, 2, 3, 3, 3], [2, 2, 2, 3, 3]], 1),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Where the car is at its limit (#188): public/js/limits.js. What is worth
+// pinning: the flag bits and the slip thresholds, the run merging across
+// MERGE_GAP_POINTS clear points (an ABS pulse train is one braking zone),
+// the per-kind union across laps that counts *places* rather than events,
+// the summary sentence, and the distance-fraction placement of a run onto a
+// trace whose length differs from the grid's.
+const limitLapA = {
+  n: 1,
+  timeMs: 90000,
+  speed: Array.from({ length: 20 }, () => 100),
+  flags: [0, 0, 1, 0, 1, 1, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  wheelSlip: [0, 0, 0, -3, -1, 0, 0, 0, 0.5, 3, 4.5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+};
+const limitLapB = {
+  n: 2,
+  timeMs: 91000,
+  speed: Array.from({ length: 20 }, () => 100),
+  flags: [0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 4], // ABS in a second zone, VSC once; no slip channel
+};
+const limitLapC = { n: 3, timeMs: 92000, speed: Array.from({ length: 20 }, () => 100) }; // neither channel
+const limitChannels = { v: 1, dStepM: 20, laps: [limitLapA, limitLapB, limitLapC] };
+// A 190 m straight-line trace at 10 m spacing: half the grid's 380 m, so the
+// placement has to scale by fraction rather than by metres.
+const limitTrace = Array.from({ length: 20 }, (_, i) => [i * 10, 0, 50]);
+const limitsFixture = {
+  description:
+    "Limit-event reference output from public/js/limits.js (limitRuns / " +
+    "sessionLimits / limitSummary / activeLimitLabels / limitMarkers). Ports " +
+    "must reproduce every integer and the summary string exactly. Regenerate " +
+    "with `npm run contracts:logic`.",
+  source: "public/js/limits.js",
+  input: { channels: limitChannels, trace: limitTrace },
+  expected: {
+    runs: limitChannels.laps.map((l) => limitRuns(l)),
+    session: sessionLimits(limitChannels),
+    summary: limitSummary(limitChannels),
+    quietSummary: limitSummary({ v: 1, dStepM: 20, laps: [{ n: 1, flags: Array.from({ length: 20 }, () => 0) }] }),
+    noData: limitSummary({ v: 1, dStepM: 20, laps: [limitLapC] }),
+    labelsAt: [0, 3, 10].map((k) => activeLimitLabels(limitLapA, k)),
+    markers: limitMarkers(limitLapA, 20, limitTrace),
+    noTrace: limitMarkers(limitLapA, 20, null),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// The friction circle (#186): public/js/grip.js. What is worth pinning: the
+// side derivation (the stored latG is a magnitude, so left/right comes from
+// the sign of the steering trace, and a lap without steering is one-sided —
+// get that wrong and one port draws half a circle), the two quadrant
+// thresholds at their exact boundaries (both are inclusive), the MIN_LOAD_G
+// gate that decides the denominator, and the percentile that must *not* be the
+// maximum. Lap A trails the brake and feeds the power out of two corners in
+// opposite directions; lap B brakes in a straight line and stores no steering;
+// lap C carries neither channel and must drop out everywhere.
+const gripLapA = {
+  n: 1,
+  timeMs: 90000,
+  latG: [0, 0.3, 0.9, 1.3, 1.5, 1.4, 1.1, 0.7, 0.3, 0, 0.2, 0.8, 1.2, 1.5, 1.5, 1.2, 0.8, 0.4, 0.1, 0],
+  longG: [0.4, -1.2, -1, -0.6, -0.2, 0.1, 0.4, 0.6, 0.7, 0.5, -1.4, -0.9, -0.4, 0, 0.3, 0.5, 0.6, 0.6, 0.5, 0.4],
+  // first corner left (negative steering), second right
+  steering: [0, -5, -20, -60, -90, -80, -60, -30, -10, 0, 5, 25, 70, 95, 90, 60, 30, 10, 2, 0],
+};
+const gripLapB = {
+  n: 2,
+  timeMs: 92000,
+  latG: [0, 0, 0, 0, 1.4, 1.4, 1.3, 0, 0, 0, 0, 0, 0, 1.5, 1.5, 1.3, 0, 0, 0, 0],
+  longG: [0.4, -1.3, -1.3, -1.2, 0, 0, 0, 0.5, 0.6, 0.6, 0.4, -1.4, -1.3, 0, 0, 0, 0.5, 0.6, 0.6, 0.4],
+  // no steering: every sample plots on one side, which is a legitimate outcome
+};
+const gripLapC = { n: 3, timeMs: 93000, speed: Array.from({ length: 20 }, () => 100) };
+const gripChannels = { v: 1, dStepM: 20, laps: [gripLapA, gripLapB, gripLapC] };
+// Each sample sits exactly on a threshold: k0/k1 count as trail braking (both
+// bounds are inclusive), k2 fails the lateral bound, k3 counts as power, k4
+// fails the longitudinal bound, and k5 never loads the tyre at all.
+const gripEdgeLap = {
+  n: 1,
+  timeMs: 60000,
+  latG: [0.25, 0.2, 0.19, 1, 1, 0.2],
+  longG: [-0.25, -0.25, -1, 0.2, 0.19, 0.22],
+};
+// 100 samples at 1 G with one 3 G kerb strike: the arc must stay at 1 G.
+const gripSpikeLap = {
+  n: 1,
+  timeMs: 60000,
+  latG: Array.from({ length: 100 }, (_, i) => (i === 42 ? 3 : 1)),
+  longG: Array.from({ length: 100 }, () => 0),
+};
+const gripSpikeChannels = { v: 1, dStepM: 20, laps: [gripSpikeLap] };
+const gripFixture = {
+  description:
+    "Friction-circle reference output from public/js/grip.js (latSign / " +
+    "gripPoints / gripShares / peakCombinedG / sessionGrip). Ports must " +
+    "reproduce the counts exactly and the doubles to 1e-9. Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/grip.js",
+  input: { channels: gripChannels, edgeLap: gripEdgeLap, spikeChannels: gripSpikeChannels },
+  expected: {
+    // The side derivation, sampled where it matters: straight, left, right,
+    // past the end of the trace, and a lap with no steering at all.
+    latSignA: [0, 3, 13, 99].map((k) => latSign(gripLapA, k)),
+    latSignB: [0, 4, 13].map((k) => latSign(gripLapB, k)),
+    points: gripChannels.laps.map((l) => gripPoints(l)),
+    shares: gripChannels.laps.map((l) => gripShares(l)),
+    edgeShares: gripShares(gripEdgeLap),
+    session: sessionGrip(gripChannels),
+    peak: peakCombinedG(gripChannels),
+    // The percentile is the point: at 0.99 the kerb strike is outside the
+    // envelope, at 1 it sets it.
+    spikePeak: peakCombinedG(gripSpikeChannels),
+    spikeMax: peakCombinedG(gripSpikeChannels, 1),
+    noData: sessionGrip({ v: 1, dStepM: 20, laps: [gripLapC] }),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Corner segmentation (#189): public/js/corners.js. Sectors cut a lap by
+// distance; this cuts it by lateral load, and everything per-corner segments
+// through it — so a port that disagrees about where T4 is disagrees about
+// every reading hung off it. What is worth pinning: the threshold at its exact
+// boundary (inclusive, and a stored sign is still a magnitude), the merge that
+// makes a chicane one corner rather than two, the minimum length that drops a
+// kerb strike, and the *union* rule — the session's corner list comes from
+// every lap's mask together, so a lap that took a corner wider widens the
+// window for all of them.
+const cornerLatG = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0, 0.7, 0.8, 0.2, 0.9, 0.7, 0.1, 0, 0, 1.4, 0, 0, 0.1, 0, 0, 0];
+const cornerLapA = { n: 1, timeMs: 90000, speed: Array.from({ length: 24 }, () => 100), latG: cornerLatG };
+// Takes the first corner a point wider and never loads the tyre in the chicane.
+const cornerLapB = {
+  n: 2,
+  timeMs: 91000,
+  speed: Array.from({ length: 24 }, () => 100),
+  latG: cornerLatG.map((g, k) => (k === 1 ? 0.4 : k >= 9 && k <= 13 ? 0.1 : g)),
+};
+// Carries no latG at all: it must drop out of the union rather than shorten it.
+const cornerLapC = { n: 3, timeMs: 92000, speed: Array.from({ length: 24 }, () => 100) };
+const cornerChannels = { v: 1, dStepM: 20, laps: [cornerLapA, cornerLapB, cornerLapC] };
+const cornersFixture = {
+  description:
+    "Corner-segmentation reference output from public/js/corners.js " +
+    "(cornerMask / cornersFromMask / lapCorners / sessionCorners / cornerAt). " +
+    "Ports must reproduce the windows exactly and the peaks to 1e-9. " +
+    "Regenerate with `npm run contracts:logic`.",
+  source: "public/js/corners.js",
+  input: { channels: cornerChannels, mask: [0, 0.34, 0.35, -0.9] },
+  expected: {
+    // The threshold is inclusive and reads |latG|, so a negative is a corner.
+    mask: cornerMask([0, 0.34, 0.35, -0.9]),
+    // The chicane's one-point dip merges; the single-point kerb strike drops.
+    runs: cornersFromMask(cornerMask(cornerLatG)),
+    // Both options, so a port can't hard-code either bound.
+    tightRuns: cornersFromMask(cornerMask(cornerLatG), { mergeGap: 0 }),
+    shortRuns: cornersFromMask(cornerMask(cornerLatG), { mergeGap: 0, minPoints: 2 }),
+    strikeRuns: cornersFromMask(cornerMask(cornerLatG), { minPoints: 1 }),
+    lapA: lapCorners(cornerLapA),
+    session: sessionCorners(cornerChannels),
+    labels: sessionCorners(cornerChannels).map(cornerLabel),
+    // Inside a corner, inside the chicane's dip (still the chicane), on a
+    // straight, and past the end of the lap.
+    at: [3, 11, 7, 99].map((k) => cornerAt(sessionCorners(cornerChannels), k)?.n ?? null),
+    noData: sessionCorners({ v: 1, dStepM: 20, laps: [cornerLapC] }),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Balance — understeer or oversteer (#189): public/js/balance.js. What is
+// worth pinning: the alignment sign, which is *measured* rather than assumed
+// (a recorder whose yaw opposes its steering must read the same corners the
+// same way); the two usability bounds at their exact values (both inclusive)
+// and the stationary sample that leaves the scatter entirely; the reference
+// gain, which is a median over the session and not a per-lap figure; the
+// per-corner reading as Σ delivered ÷ Σ asked-for rather than a mean of
+// per-sample ratios (`mixedLap` below reads +46% summed and +100% averaged,
+// so a port that averages fails on that one number); the corner a segmenter
+// finds but the diagnosis can't read; and the wording, including the point at
+// which corners are counted rather than named.
+const balK = 0.03;
+const balV = 100 / 3.6;
+const balSteering = [0, 0, 20, 40, 40, 20, 0, 0, 0, -30, -30, -30, 0, 0, 0];
+const balLatG = [0, 0, 0.5, 0.9, 0.9, 0.5, 0, 0, 0, 0.8, 0.8, 0.8, 0, 0, 0];
+const balSpeed = Array.from({ length: 15 }, () => 100);
+const balYaw = (scaleAt) => balSteering.map((d, k) => balK * balV * d * scaleAt(k));
+// A right-hander at k 2–5 and a left-hander at k 9–11. The neutral lap answers
+// the steering exactly in both; the pushing lap delivers three quarters of the
+// rotation asked for in the left-hander.
+const balNeutral = { n: 1, timeMs: 90000, speed: balSpeed, steering: balSteering, latG: balLatG, yaw: balYaw(() => 1) };
+const balPushing = {
+  n: 2,
+  timeMs: 91000,
+  speed: balSpeed,
+  steering: balSteering,
+  latG: balLatG,
+  yaw: balYaw((k) => (k >= 9 ? 0.75 : 1)),
+};
+// Cornering force but no yaw channel: it shapes the corner list and appears in
+// none of the readings.
+const balNoYaw = { n: 3, timeMs: 92000, speed: balSpeed, steering: balSteering, latG: balLatG };
+const balanceChannels = { v: 1, dStepM: 20, laps: [balNeutral, balPushing, balNoYaw] };
+// The same lap on a recorder whose yaw convention opposes its steering.
+const balFlipped = { v: 1, dStepM: 20, laps: [{ ...balNeutral, yaw: balNeutral.yaw.map((y) => -y) }] };
+// k0 sits exactly on the steering bound and k2 exactly on the speed bound —
+// both count. k1 is a tenth under, k3 a tenth slow, and k4 is stationary, so it
+// has no rotation per metre and leaves the scatter altogether.
+const balEdgeLap = {
+  n: 1,
+  timeMs: 60000,
+  speed: [100, 100, 30, 29.9, 0, 100],
+  steering: [10, 9.9, 40, 40, 40, 40],
+  yaw: [10, 10, 20, 20, 20, 20].map((d, k) => balK * balV * d * (k === 5 ? 1.2 : 1)),
+  latG: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+};
+// One corner taken with two big steering inputs answered exactly and two small
+// ones answered three times over — the case that separates summing from
+// averaging.
+const balMixedLap = {
+  n: 1,
+  timeMs: 60000,
+  speed: Array.from({ length: 6 }, () => 100),
+  steering: [0, 40, 40, 12, 12, 0],
+  yaw: [0, 40, 40, 36, 36, 0].map((d) => balK * balV * d),
+  latG: [0, 0.8, 0.8, 0.8, 0.8, 0],
+};
+// Lateral load with the wheel straight — a banked straight, say. The segmenter
+// finds a corner; the diagnosis has nothing to divide by and drops it.
+const balBankedLap = { ...balNeutral, steering: balSteering.map((d, k) => (k >= 9 ? 0 : d)) };
+// Eight corners, the odd ones pushing: past three, corners are counted.
+const balManySteer = [], balManyLatG = [], balManyYaw = [];
+for (let c = 0; c < 8; c++) {
+  balManySteer.push(0, 0, 30, 30, 30, 0);
+  balManyLatG.push(0, 0, 0.8, 0.8, 0.8, 0);
+  const s = c % 2 ? 0.7 : 1;
+  balManyYaw.push(0, 0, balK * balV * 30 * s, balK * balV * 30 * s, balK * balV * 30 * s, 0);
+}
+const balManyLap = {
+  n: 1,
+  timeMs: 90000,
+  speed: Array.from({ length: balManySteer.length }, () => 100),
+  steering: balManySteer,
+  latG: balManyLatG,
+  yaw: balManyYaw,
+};
+const balFewLap = {
+  n: 1,
+  timeMs: 90000,
+  speed: Array.from({ length: 36 }, () => 100),
+  steering: balManySteer.slice(0, 36),
+  latG: balManyLatG.slice(0, 36),
+  yaw: balManyYaw.slice(0, 36),
+};
+const balCorners = sessionCorners(balanceChannels);
+// Either side of both wording thresholds, and the two figures the JS rounds.
+const balPcts = [0, 7.9, -8, 19.9, -20, 40, -25.4, 12, 3];
+const balanceFixture = {
+  description:
+    "Balance reference output from public/js/balance.js (yawSign / usableAt / " +
+    "yawGain / referenceGain / balancePoints / cornerBalance / sessionBalance / " +
+    "balanceLabel / fmtBalance / balanceSummary). Ports must reproduce the " +
+    "wording exactly and the doubles to 1e-9. Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/balance.js",
+  input: {
+    channels: balanceChannels,
+    flipped: balFlipped,
+    edgeLap: balEdgeLap,
+    mixedLap: balMixedLap,
+    bankedLap: balBankedLap,
+    manyLap: balManyLap,
+    fewLap: balFewLap,
+    refGain: balK,
+    pcts: balPcts,
+  },
+  expected: {
+    // Measured, not assumed: the flipped recorder reads -1 and, once aligned,
+    // reports the same balance.
+    sign: yawSign(balanceChannels),
+    flippedSign: yawSign(balFlipped),
+    flippedSummary: balanceSummary(balFlipped),
+    // Both bounds inclusive; the stationary sample is absent from the points.
+    edgeUsable: balEdgeLap.speed.map((_, k) => usableAt(balEdgeLap, k)),
+    edgePoints: balancePoints(balEdgeLap),
+    // A gain per usable sample, null elsewhere — and the same gain whatever the
+    // corner's direction, since the sign cancels.
+    gainsAt: [0, 3, 9].map((k) => yawGain(balNeutral, k)),
+    pushingGainsAt: [3, 9].map((k) => yawGain(balPushing, k)),
+    refGain: referenceGain(balanceChannels),
+    medians: [median([3, 1, 2]), median([4, 1, 3, 2]), median([])],
+    points: [balancePoints(balNeutral), balancePoints(balPushing)],
+    corners: balCorners,
+    // Every readable lap through every corner, at a reference passed in rather
+    // than measured, so the reading is pinned independently of the median.
+    cornerReadings: balCorners.map((c) => [cornerBalance(balNeutral, c, balK), cornerBalance(balPushing, c, balK)]),
+    // Summed, not averaged: +46% here, +100% for a port that means the ratios.
+    mixed: cornerBalance(balMixedLap, sessionCorners({ v: 1, dStepM: 20, laps: [balMixedLap] })[0], balK),
+    session: sessionBalance(balanceChannels),
+    // The segmenter finds two corners on the banked lap; only one can be read.
+    banked: sessionBalance({ v: 1, dStepM: 20, laps: [balBankedLap] }).corners.map((c) => c.n),
+    labels: balPcts.map(balanceLabel),
+    formatted: balPcts.map(fmtBalance),
+    summary: balanceSummary(balanceChannels),
+    neutralSummary: balanceSummary({ v: 1, dStepM: 20, laps: [balNeutral] }),
+    manySummary: balanceSummary({ v: 1, dStepM: 20, laps: [balManyLap] }),
+    fewSummary: balanceSummary({ v: 1, dStepM: 20, laps: [balFewLap] }),
+    noData: balanceSummary({ v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 1000, speed: [100] }] }),
+    // Cornering force, no yaw: nowhere to read a balance from.
+    noYaw: sessionBalance({ v: 1, dStepM: 20, laps: [balNoYaw] }),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Session health (#190): public/js/health.js. What is worth pinning: the
+// reduction per column (the importer's own rule — a peak, a minimum, or the
+// value at lap end — restated, never re-derived), the one derivation (boost's
+// per-lap peak off the gridded trace), both threshold bounds at their exact
+// values *and* the floor columns whose hazard is below the line rather than
+// above it (a port that spells one `>=` where a `<=` belongs shades the wrong
+// half of the session), the cross-corner spread that needs all four corners,
+// the fuel median over drops with a refuel skipped, and the wording of the
+// stats line in both unit systems — the numbers are stored units, the words
+// are not.
+const healthFull = {
+  n: 1,
+  timeMs: 118_000,
+  // Everything inside its lines: this lap must contribute no status.
+  oilC: 104,
+  coolantC: 96,
+  transC: 88,
+  oilKpa: 340,
+  fuelPct: 62,
+  battV: 13.8,
+  tyreKpaLF: 214,
+  tyreKpaRF: 210,
+  tyreKpaLR: 206,
+  tyreKpaRR: 205,
+  tyreCLF: 78,
+  tyreCRF: 71,
+  tyreCLR: 66,
+  tyreCRR: 64,
+  // A gridded trace, not a scalar: its per-lap peak is the only figure this
+  // module derives.
+  boost: [12, 88, 141.5, 96, 33],
+};
+// Exactly on the lines, which is the case a port gets wrong: oil temp at
+// `watch`, oil pressure at `watch`, battery at `over`, fuel at `over`.
+const healthEdge = {
+  n: 2,
+  timeMs: 117_400,
+  oilC: 120,
+  coolantC: 110,
+  oilKpa: 200,
+  fuelPct: 10,
+  battV: 12.5,
+  tyreKpaLF: 231,
+  tyreKpaRF: 228,
+  tyreKpaLR: 219,
+  tyreKpaRR: 214,
+  tyreCLF: 96,
+  tyreCRF: 84,
+  tyreCLR: 71,
+  tyreCRR: 70,
+  boost: [40, 152, 120],
+};
+// Past every line, and the session's worst case for each: the extreme is the
+// maximum for a peak and the *minimum* for a floor, so a port that takes one
+// max for everything reports this lap's oil pressure as fine.
+const healthHot = {
+  n: 3,
+  timeMs: 119_900,
+  oilC: 134,
+  coolantC: 122,
+  transC: 128,
+  oilKpa: 110,
+  fuelPct: 41,
+  battV: 12.2,
+  tyreKpaLF: 244,
+  tyreKpaRF: 236,
+  tyreKpaLR: 225,
+  tyreKpaRR: 221,
+  tyreCLF: 108,
+  tyreCRF: 92,
+  tyreCLR: 77,
+  tyreCRR: 75,
+};
+// Three corners and a guess is not a spread, so `tyreSpread` must refuse it.
+const healthPartial = { n: 4, timeMs: 120_500, oilC: 118, tyreCLF: 90, tyreCRF: 82, tyreCLR: 70 };
+// A hand-entered lap: no health figure at all, so it never reaches the strip.
+const healthBare = { n: 5, timeMs: 121_000, speed: [80, 90, 100] };
+const healthChannels = {
+  v: 1,
+  dStepM: 20,
+  laps: [healthFull, healthEdge, healthHot, healthPartial, healthBare],
+};
+// Fuel: one refuel (an increase between laps) that must be skipped rather than
+// counted as a negative drop, and enough real drops to clear MIN_FUEL_DROPS.
+const fuelLap = (n, fuelPct) => ({ n, timeMs: 118_000, fuelPct });
+const healthFuelChannels = {
+  v: 1,
+  dStepM: 20,
+  laps: [fuelLap(1, 80), fuelLap(2, 68), fuelLap(3, 57), fuelLap(4, 95), fuelLap(5, 84)],
+};
+// Exactly MIN_FUEL_DROPS − 1 drops: one lap's noise is not a burn rate.
+const healthOneDropChannels = { v: 1, dStepM: 20, laps: [fuelLap(1, 50), fuelLap(2, 42)] };
+// A single lap of fuel left, so the sentence has to read "1 lap", not "1 laps".
+const healthLastLapChannels = {
+  v: 1,
+  dStepM: 20,
+  laps: [fuelLap(1, 30), fuelLap(2, 20), fuelLap(3, 10)],
+};
+const healthFixture = {
+  description:
+    "Session-health reference output from public/js/health.js (lapValue / " +
+    "healthStatus / sessionExtreme / sessionHealth / tyreSpread / sessionSpread / " +
+    "fuelBurn / hotPressures / roundPsi / suggestCold / displayValue / " +
+    "displayDelta / healthSummary). Values are the stored units (°C, kPa, V, %); " +
+    "only the display helpers convert. Ports must reproduce the wording exactly " +
+    "and the doubles to 1e-9. Regenerate with `npm run contracts:logic`.",
+  source: "public/js/health.js",
+  input: {
+    channels: healthChannels,
+    fuelChannels: healthFuelChannels,
+    oneDropChannels: healthOneDropChannels,
+    lastLapChannels: healthLastLapChannels,
+    // The columns a port must know about, in display order, so a port that
+    // drops one or reorders them fails here rather than on a screen.
+    defs: HEALTH_DEFS,
+    groups: HEALTH_GROUPS,
+    corners: TYRE_CORNERS,
+    // Values either side of both lines for a peak column (oil temp) and a
+    // floor column (oil pressure), plus the exact bounds.
+    statusProbes: [
+      ["oilC", 119.9],
+      ["oilC", 120],
+      ["oilC", 129.9],
+      ["oilC", 130],
+      ["oilKpa", 200.1],
+      ["oilKpa", 200],
+      ["oilKpa", 120.1],
+      ["oilKpa", 120],
+      ["tyreCLF", 300],
+    ],
+    psiProbes: [34.2, 34.25, 34.26, 34.75, -0.3],
+    suggestProbes: [
+      [31, 36, 34],
+      [30, 30, 34],
+      [31.4, 36.9, 34],
+      [null, 36, 34],
+      [31, 36, null],
+    ],
+  },
+  expected: {
+    // The importer's rule per column, and the one derived figure.
+    lapValues: HEALTH_DEFS.map((d) => [d.key, lapValue(healthFull, d.key), lapValue(healthPartial, d.key)]),
+    boostPeak: lapValue(healthFull, "boost"),
+    noBoost: lapValue(healthHot, "boost"),
+    hasData: healthChannels.laps.map((l) => hasHealthData(l)),
+    healthLaps: healthLaps(healthChannels).map((l) => l.chIdx),
+    series: scalarSeries(healthChannels, "oilC"),
+    statuses: [
+      ["oilC", 119.9],
+      ["oilC", 120],
+      ["oilC", 129.9],
+      ["oilC", 130],
+      ["oilKpa", 200.1],
+      ["oilKpa", 200],
+      ["oilKpa", 120.1],
+      ["oilKpa", 120],
+      ["tyreCLF", 300],
+    ].map(([key, v]) => healthStatus(defFor(key), v)),
+    // The worst case per column: a max for a peak, a min for a floor.
+    session: sessionHealth(healthChannels),
+    spreadFull: tyreSpread(healthFull),
+    spreadPressures: tyreSpread(healthFull, "tyreKpa"),
+    spreadPartial: tyreSpread(healthPartial),
+    sessionSpread: sessionSpread(healthChannels),
+    fuel: fuelBurn(healthFuelChannels),
+    fuelOneDrop: fuelBurn(healthOneDropChannels),
+    hot: hotPressures(healthChannels),
+    noHot: hotPressures({ v: 1, dStepM: 20, laps: [healthBare] }),
+    roundPsi: [34.2, 34.25, 34.26, 34.75, -0.3].map(roundPsi),
+    suggestions: [
+      [31, 36, 34],
+      [30, 30, 34],
+      [31.4, 36.9, 34],
+      [null, 36, 34],
+      [31, 36, null],
+    ].map(([c, h, t]) => suggestCold(c, h, t)),
+    // Stored units in, both systems out — the numbers are pinned, the locale
+    // is not.
+    displayMetric: HEALTH_DEFS.map((d) => displayValue(d, 100, "metric")),
+    displayUs: HEALTH_DEFS.map((d) => displayValue(d, 100, "us")),
+    // A temperature delta scales but must not offset: +10 °C is +18 °F, not 50.
+    deltaMetric: [displayDelta(defFor("tyreCLF"), 10, "metric"), displayDelta(defFor("tyreKpaLF"), 13.8, "metric")],
+    deltaUs: [displayDelta(defFor("tyreCLF"), 10, "us"), displayDelta(defFor("tyreKpaLF"), 13.8, "us")],
+    // Worst first, then the fuel outlook; the plural is a real case.
+    summaryMetric: healthSummary(healthChannels, "metric"),
+    summaryUs: healthSummary(healthChannels, "us"),
+    summaryFuelOnly: healthSummary(healthFuelChannels, "metric"),
+    summaryOneLap: healthSummary(healthLastLapChannels, "metric"),
+    summaryQuiet: healthSummary({ v: 1, dStepM: 20, laps: [healthFull] }, "metric"),
+    summaryNoData: healthSummary({ v: 1, dStepM: 20, laps: [healthBare] }, "metric"),
+    noData: sessionHealth({ v: 1, dStepM: 20, laps: [healthBare] }),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Compare two laps (#165): the pure half of the cross-event lap comparison
+// (public/js/compare-laps.js). What is worth pinning: the picker flattening
+// (which rides on matchLapsToChannels, so hand-added laps drop out), the
+// "current me vs best me" default picks, the linear resample that puts two
+// sessions' grids together (exercised at a non-integer ratio), and the
+// head-to-head reductions with their inclusive thresholds.
+
+const cmpRound1 = (v) => Math.round(v * 10) / 10;
+const cmpSpeed = (len, phase) =>
+  Array.from({ length: len }, (_, k) => cmpRound1(120 + 45 * Math.sin(k / 7 + phase)));
+
+const cmpEvents = [
+  {
+    id: 71,
+    start_date: "2026-05-02",
+    club: "NASA",
+    sessions: [
+      {
+        id: 401,
+        label: "Sat AM",
+        laps: [
+          { lap_num: 1, time_ms: 92150 },
+          { lap_num: 2, time_ms: 90480 },
+          // Hand-added after the import: no channel entry, must not be pickable.
+          { lap_num: 3, time_ms: 90100 },
+        ],
+        channels: {
+          v: 1,
+          dStepM: 20,
+          laps: [
+            { n: 1, timeMs: 92150, speed: cmpSpeed(90, 0) },
+            { n: 2, timeMs: 90480, speed: cmpSpeed(90, 0.1) },
+          ],
+        },
+      },
+      // A session with laps but no stored channels contributes nothing.
+      { id: 402, label: "Sat PM", laps: [{ lap_num: 1, time_ms: 91000 }], channels: null },
+    ],
+  },
+  {
+    id: 72,
+    start_date: "2026-07-11",
+    club: null,
+    sessions: [
+      {
+        id: 410,
+        label: null,
+        laps: [
+          { lap_num: 1, time_ms: 93400 },
+          { lap_num: 2, time_ms: 91020 },
+        ],
+        // A coarser grid than the May session, so the pair needs resampling.
+        channels: {
+          v: 1,
+          dStepM: 25,
+          laps: [
+            { n: 1, timeMs: 93400, speed: cmpSpeed(72, 0.2) },
+            { n: 2, timeMs: 91020, speed: cmpSpeed(72, 0.3) },
+          ],
+        },
+      },
+    ],
+  },
+];
+
+const cmpRows = comparableLaps(cmpEvents);
+const cmpPicks = defaultComparePicks(cmpRows);
+
+// The overall best is also the latest event's best: the fallback case.
+// defaultComparePicks reads only date and timeMs, so the rows carry no more.
+const cmpFallbackRows = [
+  { date: "2026-05-01", timeMs: 95000 },
+  { date: "2026-07-01", timeMs: 90000 },
+  { date: "2026-07-01", timeMs: 91000 },
+];
+
+// A fully-instrumented entry (every channel a PDR import stores) for the
+// metrics and resample expectations. Values rounded exactly as
+// buildLapChannels would store them.
+const cmpFullEntry = {
+  n: 2,
+  timeMs: 90480,
+  speed: cmpSpeed(90, 0),
+  rpm: Array.from({ length: 90 }, (_, k) => Math.round(4500 + 1800 * Math.sin(k / 5))),
+  latG: Array.from({ length: 90 }, (_, k) => Math.round(1.1 * Math.abs(Math.sin(k / 9)) * 1000) / 1000),
+  throttle: Array.from({ length: 90 }, (_, k) => cmpRound1(50 + 50 * Math.sin(k / 4))),
+  brake: Array.from({ length: 90 }, (_, k) => cmpRound1(Math.max(0, 80 * Math.sin(k / 3)))),
+  steering: Array.from({ length: 90 }, (_, k) => cmpRound1(120 * Math.sin(k / 8))),
+};
+const cmpSpeedOnlyEntry = { n: 1, timeMs: 93400, speed: cmpSpeed(72, 0.2) };
+
+const cmpPairA = cmpEvents[0].sessions[0].channels.laps[1];
+const cmpPairB = cmpEvents[1].sessions[0].channels.laps[1];
+
+const compareLapsFixture = {
+  description:
+    "Cross-event lap comparison reference output from public/js/compare-laps.js. " +
+    "Ports must reproduce the rows and picks exactly, and every resampled or " +
+    "reduced value to within 1e-9 (null included). Regenerate with " +
+    "`npm run contracts:logic`.",
+  source: "public/js/compare-laps.js",
+  input: {
+    events: cmpEvents,
+    fallbackRows: cmpFallbackRows,
+    fullEntry: cmpFullEntry,
+    speedOnlyEntry: cmpSpeedOnlyEntry,
+  },
+  expected: {
+    comparableLaps: cmpRows,
+    defaultComparePicks: cmpPicks,
+    defaultPicksFallback: defaultComparePicks(cmpFallbackRows),
+    // 25 m → 20 m is a non-integer ratio, so every interior point interpolates.
+    resampledTo20: resampleChannelLap(cmpPairB, 25, 20),
+    resampledTo50: resampleChannelLap(cmpFullEntry, 20, 50),
+    alignedPair: alignLapPair(cmpPairA, 20, cmpPairB, 25),
+    drivenLengthA: drivenLengthM(cmpPairA, 20),
+    drivenLengthB: drivenLengthM(cmpPairB, 25),
+    lengthMismatchRatio: lengthMismatchRatio(cmpPairA, 20, cmpPairB, 25),
+    metricsFull: lapMetrics(cmpFullEntry),
+    metricsSpeedOnly: lapMetrics(cmpSpeedOnlyEntry),
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Garage: how a server-computed wear estimate is turned into words.
 //
@@ -429,6 +1364,17 @@ function parsedOut(p) {
           topSpeedKph: p.metrics.topSpeedKph ?? null,
           maxRpm: p.metrics.maxRpm ?? null,
           maxLatG: p.metrics.maxLatG ?? null,
+          maxBrakeG: p.metrics.maxBrakeG ?? null,
+          maxBoostKpa: p.metrics.maxBoostKpa ?? null,
+          maxOilC: p.metrics.maxOilC ?? null,
+        }
+      : null,
+    sessionMeta: p.sessionMeta
+      ? {
+          ambientC: p.sessionMeta.ambientC ?? null,
+          intakeC: p.sessionMeta.intakeC ?? null,
+          elevationM: p.sessionMeta.elevationM ?? null,
+          odometerKm: p.sessionMeta.odometerKm ?? null,
         }
       : null,
     gpsCount: p.gps?.length ?? 0,
@@ -569,12 +1515,214 @@ const checklistFixture = {
   DEFAULT_CHECKLIST,
 };
 
+// ---------------------------------------------------------------------------
+// entitlement predicates (NS-32): the `entitlement` object on GET /api/me → every
+// client-side tier decision. Both ports must agree with public/js/entitlement.js
+// case for case, including that a stale-but-pro cached answer still records.
+// ---------------------------------------------------------------------------
+
+const FIXED_EXPIRY = 1_800_000_000_000;
+const entitlementCases = [
+  { name: "free, never subscribed", entitlement: { tier: "free", source: null, expires_at: null, auto_renew: null } },
+  { name: "nothing cached (signed out / never fetched)", entitlement: null },
+  { name: "pro via apple, renewing", entitlement: { tier: "pro", source: "apple", expires_at: FIXED_EXPIRY, auto_renew: true } },
+  { name: "pro via google, cancelled but paid up", entitlement: { tier: "pro", source: "google", expires_at: FIXED_EXPIRY, auto_renew: false } },
+  { name: "pro via apple, auto_renew unknown", entitlement: { tier: "pro", source: "apple", expires_at: FIXED_EXPIRY, auto_renew: null } },
+  { name: "legacy (paid app)", entitlement: { tier: "pro", source: "legacy", expires_at: null, auto_renew: null } },
+  { name: "lapsed apple subscriber", entitlement: { tier: "free", source: "apple", expires_at: 1_700_000_000_000, auto_renew: false } },
+  { name: "lapsed google subscriber", entitlement: { tier: "free", source: "google", expires_at: 1_700_000_000_000, auto_renew: false } },
+  { name: "stale cached pro — expires_at already past on the client's clock", entitlement: { tier: "pro", source: "apple", expires_at: 1, auto_renew: true } },
+].map((c) => ({
+  ...c,
+  expected: {
+    isPro: isPro(c.entitlement),
+    canRecord: canRecord(c.entitlement),
+    canViewChannels: canViewChannels(c.entitlement),
+    canUseGarage: canUseGarage(c.entitlement),
+    canUseSetups: canUseSetups(c.entitlement),
+    canViewYearInReview: canViewYearInReview(c.entitlement),
+    canCompareEvents: canCompareEvents(c.entitlement),
+    manageUrl: manageUrl(c.entitlement),
+    // The date text is locale work; the fixture pins the shape around it.
+    summary: entitlementSummary(c.entitlement, (ms) => `<${ms}>`),
+  },
+}));
+
+const entitlementFixture = {
+  description:
+    "Tier predicates from public/js/entitlement.js over the `entitlement` object GET /api/me " +
+    "returns. Ports (Entitlement in the iOS Kit and Android :core) must match every expected " +
+    "value; the summary's date is rendered as <ms> so the ports pin the wording without a locale. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/entitlement.js",
+  cases: entitlementCases,
+};
+
+// --- session conditions (#191) ----------------------------------------------
+// The band behind the progress chart, the per-session chip and the track's
+// elevation line, over events shaped like the rows GET /api/events returns.
+const condEvent = (o = {}) => ({
+  ambient_lo_c: null,
+  ambient_hi_c: null,
+  elevation_m: null,
+  temp_f: null,
+  ...o,
+});
+// Oldest to newest, the order the chart plots: a cool recorded day, a day that
+// warmed up 12 °C between sessions (so a port that shades by `lo` or by `hi`
+// instead of the midpoint lands somewhere else), a day with only a typed
+// temperature — most logbooks have no telemetry and must still get a band — an
+// event with nothing known at all, which must produce a *null* cell rather than
+// the coolest shade, and the hottest day of the set.
+const condEvents = [
+  condEvent({ ambient_lo_c: 10, ambient_hi_c: 10, elevation_m: 38 }),
+  condEvent({ ambient_lo_c: 14, ambient_hi_c: 26, elevation_m: 41.4 }),
+  condEvent({ temp_f: 86 }),
+  condEvent({}),
+  condEvent({ ambient_lo_c: 31.8, ambient_hi_c: 31.8, elevation_m: 39 }),
+];
+// Exactly BAND_MIN_SPAN_C apart, and a hair under it: the bound is inclusive,
+// so a port that spells one `<` for a `<=` draws a band on the wrong one.
+const condSpanAtLimit = [condEvent({ ambient_lo_c: 10, ambient_hi_c: 10 }), condEvent({ ambient_lo_c: 10 + BAND_MIN_SPAN_C, ambient_hi_c: 10 + BAND_MIN_SPAN_C })];
+const condSpanUnder = [condEvent({ ambient_lo_c: 10, ambient_hi_c: 10 }), condEvent({ ambient_lo_c: 12.9, ambient_hi_c: 12.9 })];
+// One known event is not a comparison; an empty list is not a chart.
+const condOneKnown = [condEvent({ ambient_lo_c: 10, ambient_hi_c: 30 }), condEvent({})];
+// A recorded column, a blob-only fallback (a response cached before migration
+// 0020, or a free account whose `channels` survived locally), and a session
+// with neither — hand-entered or GPS-recorded.
+const condSessions = [
+  { ambient_c: 18.5, elevation_m: 38, channels: { meta: { ambientC: 99, elevationM: 99 } } },
+  { ambient_c: null, elevation_m: null, channels: { meta: { ambientC: 24, elevationM: 12 } } },
+  { ambient_c: null, elevation_m: null, channels: null },
+  {},
+];
+// Rounding probes. The negative halves are the port trap: JavaScript's
+// Math.round is half-*up* (-12.5 → -12), while Swift's `rounded()` and any
+// "away from zero" rule give -13. A port must round toward +infinity on a tie.
+const condTempProbes = [21.4, 21.8, 0, -0.5, -12.5, -17.5, 31.8];
+const condElevProbes = [41.4, 0.5, 12];
+
+const conditionsFixture = {
+  description:
+    "Session-conditions reference output from public/js/conditions.js " +
+    "(sessionAmbientC / sessionElevationM / eventAmbient / ambientMidC / trackElevationM / " +
+    "tempText / ambientText / elevationText / conditionsBand / bandAlpha / bandLabel). " +
+    "Temperatures are °C and elevations metres in; only the text helpers convert, so the " +
+    "numbers are pinned and the locale is not. Ports (SessionConditions in the iOS Kit and " +
+    "Android :core — the plain name is taken by the dry/damp/wet enum) must reproduce the " +
+    "wording exactly and the doubles to 1e-9. Regenerate with `npm run contracts:logic`.",
+  source: "public/js/conditions.js",
+  input: {
+    events: condEvents,
+    spanAtLimit: condSpanAtLimit,
+    spanUnder: condSpanUnder,
+    oneKnown: condOneKnown,
+    sessions: condSessions,
+    tempProbes: condTempProbes,
+    elevProbes: condElevProbes,
+    alphaProbes: [-1, 0, 0.5, 1, 2],
+    constants: {
+      BAND_MIN_EVENTS,
+      BAND_MIN_SPAN_C,
+      BAND_MIN_ALPHA,
+      BAND_MAX_ALPHA,
+    },
+  },
+  expected: {
+    convert: { cToF: [cToF(0), cToF(21.4), cToF(-40)], fToC: [fToC(32), fToC(86), fToC(-40)], mToFt: [mToFt(41.4), mToFt(1)] },
+    sessionAmbientC: condSessions.map((x) => sessionAmbientC(x)),
+    sessionElevationM: condSessions.map((x) => sessionElevationM(x)),
+    eventAmbient: condEvents.map((e) => eventAmbient(e)),
+    // A range handed over the wrong way round is ordered, not trusted.
+    reversedRange: eventAmbient(condEvent({ ambient_lo_c: 30, ambient_hi_c: 12 })),
+    ambientMidC: condEvents.map((e) => ambientMidC(eventAmbient(e))),
+    trackElevationM: [trackElevationM(condEvents), trackElevationM([condEvent({}), condEvent({})]), trackElevationM([])],
+    tempTextMetric: condTempProbes.map((c) => tempText(c, "metric")),
+    tempTextUs: condTempProbes.map((c) => tempText(c, "us")),
+    // The last case is the collapse: 21.4–21.8 °C is 70.5–71.2 °F, one number.
+    ambientText: [
+      ambientText(eventAmbient(condEvents[1]), "us"),
+      ambientText(eventAmbient(condEvents[1]), "metric"),
+      ambientText(eventAmbient(condEvents[2]), "us"),
+      ambientText(null, "us"),
+      ambientText({ loC: 21.4, hiC: 21.8 }, "us"),
+    ],
+    elevationTextMetric: condElevProbes.map((m) => elevationText(m, "metric")),
+    elevationTextUs: condElevProbes.map((m) => elevationText(m, "us")),
+    noElevationText: elevationText(null, "us"),
+    band: conditionsBand(condEvents),
+    bandAtLimit: conditionsBand(condSpanAtLimit),
+    bandUnder: conditionsBand(condSpanUnder),
+    bandOneKnown: conditionsBand(condOneKnown),
+    bandEmpty: conditionsBand([]),
+    bandAlpha: [-1, 0, 0.5, 1, 2].map(bandAlpha),
+    bandLabel: [bandLabel(conditionsBand(condEvents), "us"), bandLabel(conditionsBand(condEvents), "metric"), bandLabel(null, "us")],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Placing a driven-distance fraction on a stored trace (NS-34 ticket 3):
+// public/js/trackmap.js `traceIndexAtFraction`. This is the mapping behind
+// "which corner is this dot" — the friction circle and balance scatter hand
+// over a fraction of the lap, and the map rings the point that far along the
+// racing line. What is worth pinning is that the walk is along *cumulative
+// chord length*, not sample index: a trace is denser where the car was slower,
+// so the two answers differ by whole corners on any real lap. The clamping at
+// both ends and the degenerate cases (a single point, a stationary trace whose
+// total length is zero) are the rest of the contract.
+const traceRing = [
+  [0, 0, 30],
+  [100, 0, 30],
+  // A dense, slow section: five samples covering the same 100m as one above.
+  [120, 0, 12],
+  [140, 0, 12],
+  [160, 0, 12],
+  [180, 0, 12],
+  [200, 0, 12],
+  [200, 100, 25],
+  [0, 100, 25],
+  [0, 0, 30],
+];
+const trackmapFixture = {
+  description:
+    "Reference output from public/js/trackmap.js `traceIndexAtFraction` — the " +
+    "fraction-to-trace-point mapping the friction circle's hover uses to ring a " +
+    "corner on the map. Ports must reproduce every index exactly. Regenerate " +
+    "with `npm run contracts:logic`.",
+  source: "public/js/trackmap.js",
+  input: { trace: traceRing },
+  expected: {
+    // Across the lap, including both ends and the out-of-range clamp.
+    atFraction: [-0.5, 0, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 1, 1.5].map((f) => ({
+      frac: f,
+      idx: traceIndexAtFraction(traceRing, f),
+    })),
+    // Degenerate traces answer null rather than 0 — there is no point to ring.
+    tooShort: traceIndexAtFraction([[0, 0, 10]], 0.5),
+    empty: traceIndexAtFraction([], 0.5),
+    stationary: traceIndexAtFraction([[5, 5, 0], [5, 5, 0], [5, 5, 0]], 0.5),
+  },
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "lap-delta.json"), JSON.stringify(lapDeltaFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "compare-laps.json"), JSON.stringify(compareLapsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "sectors.json"), JSON.stringify(sectorsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "gears.json"), JSON.stringify(gearsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "limits.json"), JSON.stringify(limitsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "grip.json"), JSON.stringify(gripFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "corners.json"), JSON.stringify(cornersFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "balance.json"), JSON.stringify(balanceFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "health.json"), JSON.stringify(healthFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "conditions.json"), JSON.stringify(conditionsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
 console.log(
@@ -584,9 +1732,31 @@ console.log(
   `wrote contracts/logic/recorder.json (${rec.fixes.length} fixes, ${recorderFixture.expected.laps.length} laps)`
 );
 console.log(`wrote contracts/logic/channels.json (${channelsFixture.expected.chIdx.length} laps)`);
+console.log(`wrote contracts/logic/lap-delta.json (${lapDeltaFixture.expected.slowVsRef.length} grid points)`);
+console.log(`wrote contracts/logic/compare-laps.json (${cmpRows.length} pickable laps)`);
+console.log(`wrote contracts/logic/sectors.json (${sectorsFixture.expected.session.laps.length} laps split)`);
+console.log(`wrote contracts/logic/gears.json (${gearsFixture.expected.shiftPoints.gears.length} gears with upshifts)`);
+console.log(`wrote contracts/logic/limits.json (${limitsFixture.expected.markers.length} markers placed)`);
+console.log(
+  `wrote contracts/logic/grip.json (peak ${gripFixture.expected.peak.toFixed(3)} G over ` +
+    `${gripFixture.expected.session.all.samples} samples)`
+);
+console.log(`wrote contracts/logic/corners.json (${cornersFixture.expected.session.length} corners on the union)`);
+console.log(
+  `wrote contracts/logic/balance.json (reference gain ${balanceFixture.expected.refGain.toFixed(5)}/m, ` +
+    `"${balanceFixture.expected.summary}")`
+);
+console.log(
+  `wrote contracts/logic/health.json (${healthFixture.expected.session.columns.length} columns, ` +
+    `"${healthFixture.expected.summaryUs}")`
+);
+console.log(
+  `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
+);
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
+console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);
 console.log(
   `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`
 );

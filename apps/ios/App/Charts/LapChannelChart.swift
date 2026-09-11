@@ -22,17 +22,119 @@ import TrackEvolutionKit
 /// The data only ever comes from the *web* telemetry importer (`sessions.channels`)
 /// — file import is deliberately not ported — so a natively-recorded session has
 /// nothing to show here and the event page offers no way in.
+/// A place on a lap, pointed at from one chart and answered on the others.
+///
+/// The port of the `hit` the web's `bindGripCircle` / `bindBalance` hand to
+/// `onHover` (`{ chIdx, k, d, frac }`), under the same field names. It exists so
+/// tapping a sample on the friction circle can mark that distance across every
+/// chart *and* ring the place on the track map — the behaviour NS-34 ticket 3
+/// takes back from the web now that the panel sits beside the map rather than
+/// over it.
+///
+/// `chIdx` is nil for a place every lap shares — a corner row rather than a
+/// sample — which is what tells the map it may ring it whichever lap the trace
+/// happens to be.
+struct ChannelHit: Equatable {
+    var chIdx: Int?
+    /// The grid sample index. The panel's read-out is parked here.
+    var k: Int
+    /// How far round the lap, 0…1. What the map is placed by.
+    var frac: Double
+}
+
 struct LapChannelChart: View {
     let channels: SessionChannels
     let laps: [Lap]
+    /// Where the panel is currently pointing, for whatever is drawn beside it.
+    var onHit: (ChannelHit?) -> Void = { _ in }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                LapChannelPanel(channels: channels, laps: laps, onHit: onHit)
+            }
+            .padding(TESpacing.pageGutter)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(.bgPage))
+    }
+}
+
+/// The chips, the delta chart and the stacked channel charts, embeddable in any
+/// scroller — `LapChannelChart` above wraps it as the event page's sheet, and
+/// `CompareLapsScreen` embeds it under the head-to-head table with both laps of
+/// the pair pre-highlighted.
+struct LapChannelPanel: View {
+    let channels: SessionChannels
+    let laps: [Lap]
+    /// Channel-lap indexes to start highlighted, in slot order. nil means the
+    /// fastest lap, which is what the event page's overlay wants.
+    var preselect: [Int]? = nil
+    /// Where the panel is currently pointing (NS-34 ticket 3). Defaulted to a
+    /// no-op, because everywhere the panel is a *sheet* there is nothing beside
+    /// it to answer.
+    var onHit: (ChannelHit?) -> Void = { _ in }
 
     /// Channel-lap indexes in slot order — oldest first, so the eviction in
     /// `ChannelGraphs.toggle` drops the one you selected longest ago.
     @State private var lit: [Int] = []
+    /// What a **tap** has parked the panel on, and what a **pointer** is
+    /// borrowing (NS-34 ticket 5).
+    ///
+    /// Two states rather than one because hover is *additive to tap, never a
+    /// replacement* — the same iPad is used by touch a moment later. A pointer
+    /// crossing the plot marks as it goes and hands the tapped mark back the
+    /// moment it leaves, so a mark you committed survives a pointer passing over
+    /// it. Without the pair, moving the trackpad would silently throw away the
+    /// place you had chosen.
+    @State private var parked: Mark?
+    @State private var hovered: Mark?
+    /// Whether the friction circle draws the laps that aren't highlighted (⌘F).
+    @State private var showEnvelope = true
+
+    /// Where the panel is pointing: the pointer's mark if there is one, else the
+    /// tapped one.
+    private var mark: Mark? { hovered ?? parked }
+
     /// The grid point the read-out is parked on. Shared across the stacked charts
     /// because they share the distance axis: tapping the speed trace at the braking
     /// zone also shows you the RPM and the lateral G there.
-    @State private var readout: Int?
+    private var readout: Int? { mark?.k }
+
+    /// A place the panel is pointing at.
+    ///
+    /// `k` is the grid sample every chart marks; `hit` is the place on *track* it
+    /// names, when it names one. A read-out taken from a trace marks a distance
+    /// and rings nothing — the charts share the distance axis, but the map is one
+    /// lap's racing line and a distance alone doesn't say whose. The friction
+    /// circle's samples, the balance corners and the sector headings all carry a
+    /// `ChannelHit`, so those reach the map too.
+    private struct Mark: Equatable {
+        var k: Int
+        var hit: ChannelHit?
+    }
+
+    /// A tap: commits a mark, or clears it.
+    private func park(_ hit: ChannelHit?) {
+        parked = hit.map { Mark(k: $0.k, hit: $0) }
+        emit()
+    }
+
+    /// A pointer: borrows a mark for as long as it is over the plot. Nil is the
+    /// pointer leaving, which hands back whatever a tap had parked.
+    private func borrow(_ hit: ChannelHit?) {
+        hovered = hit.map { Mark(k: $0.k, hit: $0) }
+        emit()
+    }
+
+    /// Tell whatever is drawn beside the panel where it is pointing. One funnel,
+    /// so a tap and a pointer can't disagree about what the map should ring.
+    private func emit() {
+        onHit(mark?.hit)
+    }
 
     /// The slot colors, in the order laps take them.
     private static let slots: [Color] = [Color(.chartLine), Color(.chartLineB), Color(.chartLineC)]
@@ -46,22 +148,243 @@ struct LapChannelChart: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values.")
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textFaint))
-                chips
-                ForEach(present, id: \.self) { channel in
-                    channelChart(channel)
+        VStack(alignment: .leading, spacing: 14) {
+            chips
+            // One question per tab (epic #193). Only populated tabs are offered,
+            // and a single one renders flat — a tab bar with one tab in it is a
+            // control that does nothing.
+            let tabs = populatedTabs
+            if tabs.count > 1 {
+                tabBar(tabs)
+            }
+            ForEach(tabs, id: \.self) { tabKey in
+                if tabs.count == 1 || tabKey == selectedTab {
+                    tabContent(tabKey)
                 }
             }
-            .padding(TESpacing.pageGutter)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color(.bgPage))
+        .background { keyboardCommands }
         .onAppear {
-            if lit.isEmpty { lit = ChannelGraphs.initialSelection(matches) }
+            if lit.isEmpty { lit = preselect ?? ChannelGraphs.initialSelection(matches) }
+        }
+    }
+
+    // MARK: - Keyboard (NS-34 ticket 5)
+
+    /// The commands an iPad keyboard drives that no visible control carries.
+    ///
+    /// Titled `Button`s with `.keyboardShortcut` rather than `onKeyPress`, and
+    /// deliberately: a shortcut declared this way becomes a `UIKeyCommand`, which
+    /// is what lists it — by its title — in the ⌘-key overlay. A shortcut nobody
+    /// can discover is a shortcut nobody uses, and holding ⌘ is where an iPad
+    /// user looks. The tab shortcuts are on the tab buttons themselves, since
+    /// those exist; these three have no control to hang off.
+    ///
+    /// Invisible, because the panel has no room for three more buttons, and
+    /// hidden from accessibility rather than merely unlabelled: VoiceOver reaches
+    /// the same two things through the chips and the friction circle, and a
+    /// zero-sized button in the rotor is noise.
+    @ViewBuilder
+    private var keyboardCommands: some View {
+        Group {
+            Button("Previous lap") { stepLit(by: -1) }
+                .keyboardShortcut("[", modifiers: [])
+            Button("Next lap") { stepLit(by: 1) }
+                .keyboardShortcut("]", modifiers: [])
+            Button(showEnvelope ? "Hide the other laps" : "Show the other laps") {
+                showEnvelope.toggle()
+            }
+            .keyboardShortcut("f", modifiers: .command)
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+    }
+
+    /// Step the newest highlighted lap one place through the laps that have
+    /// channels.
+    private func stepLit(by direction: Int) {
+        let stepped = Self.stepped(lit, by: direction, over: matches.filter(\.hasChannels).map(\.chIdx))
+        guard stepped != lit else { return }
+        lit = stepped
+        Haptics.select()
+    }
+
+    /// Move the **most recently lit** lap one place along, keeping the rest.
+    ///
+    /// The newest slot rather than the whole selection, because that is what
+    /// makes the key useful: pin the two laps you are comparing against and scrub
+    /// a third through the session without losing them. Laps already lit are
+    /// skipped — two slots showing one lap is a selection with a hole in it — and
+    /// the walk wraps, so neither key is ever a dead one. With nothing lit at all
+    /// it lights an end, whichever end the direction points at.
+    ///
+    /// Pure and static so it can be tested without a view: `LapChannelChartTests`.
+    static func stepped(_ lit: [Int], by direction: Int, over available: [Int]) -> [Int] {
+        guard direction != 0, !available.isEmpty else { return lit }
+        guard let current = lit.last, let from = available.firstIndex(of: current) else {
+            return [direction > 0 ? available[0] : available[available.count - 1]]
+        }
+        let pinned = Set(lit.dropLast())
+        for step in 1...available.count {
+            let index = ((from + step * direction) % available.count + available.count) % available.count
+            let candidate = available[index]
+            if !pinned.contains(candidate) {
+                return Array(lit.dropLast()) + [candidate]
+            }
+        }
+        // Every lap is already lit, so there is nowhere to step to.
+        return lit
+    }
+
+    // MARK: - Tabs
+
+    /// The panel's tabs, in order — `TABS` in `public/js/channel-graphs.js`.
+    /// Car is reserved for the per-lap scalars (#190) and so draws nothing yet;
+    /// it is listed here so the two implementations stay diffable.
+    enum Tab: String, CaseIterable, Hashable {
+        case time, inputs, grip, car
+
+        var label: String {
+            switch self {
+            case .time: "Time"
+            case .inputs: "Inputs"
+            case .grip: "Grip"
+            case .car: "Car"
+            }
+        }
+    }
+
+    /// Which tab a channel's chart lands on — `TAB_OF` in the JS.
+    private static func tab(of channel: ChannelGraphs.Channel) -> Tab {
+        switch channel {
+        case .speed: .time
+        case .throttle, .brake, .steering, .rpm: .inputs
+        case .latG, .yaw: .grip
+        }
+    }
+
+    @State private var tab: Tab?
+
+    /// The tab actually shown: the selection when it still has content, else the
+    /// first populated one — a lap selection that empties a tab must not leave
+    /// the panel blank.
+    private var selectedTab: Tab? {
+        let tabs = populatedTabs
+        if let tab, tabs.contains(tab) { return tab }
+        return tabs.first
+    }
+
+    private var populatedTabs: [Tab] {
+        Tab.allCases.filter { hasContent($0) }
+    }
+
+    private func hasContent(_ tabKey: Tab) -> Bool {
+        switch tabKey {
+        case .time:
+            return true // the sector table and the speed chart both live here
+        case .inputs, .grip:
+            return present.contains { Self.tab(of: $0) == tabKey }
+        case .car:
+            // The per-lap scalars (#190). A session of hand-entered laps carries
+            // none, and the tab is then absent rather than empty.
+            return Health.sessionHealth(channels) != nil
+        }
+    }
+
+    private func tabBar(_ tabs: [Tab]) -> some View {
+        HStack(spacing: 2) {
+            ForEach(Array(tabs.enumerated()), id: \.element) { index, tabKey in
+                let on = tabKey == selectedTab
+                Button {
+                    tab = tabKey
+                    Haptics.select()
+                } label: {
+                    Text(tabKey.label)
+                        .teStyle(.sm)
+                        .foregroundStyle(on ? Color(.accentContrast) : Color(.textMuted))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(on ? Color(.accent) : .clear, in: .capsule)
+                }
+                .buttonStyle(.plain)
+                // 1…4 on an attached keyboard (NS-34 ticket 5). Numbered by the
+                // tab's **place in the bar**, not by the `Tab` case: an unpopulated
+                // tab isn't drawn, and a shortcut that skips a number to honour a
+                // tab nobody can see would be a puzzle. Safe as an index because
+                // there are only ever four cases.
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [])
+                .accessibilityLabel(tabKey.label)
+                .accessibilityAddTraits(on ? [.isSelected] : [])
+            }
+        }
+        .padding(3)
+        .background(Color(.surfaceRaised), in: .capsule)
+        .overlay(Capsule().strokeBorder(Color(.borderHairline), lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("channelTabs")
+    }
+
+    @ViewBuilder
+    private func tabContent(_ tabKey: Tab) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            switch tabKey {
+            case .time:
+                // Sector splits + theoretical best for the highlighted laps (#146).
+                SectorTable(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:),
+                    onHit: park,
+                    onHover: borrow
+                )
+                deltaChart
+            case .inputs:
+                // The session's shift points (#187) above the traces they explain.
+                ShiftTable(channels: channels)
+            case .grip:
+                // The friction circle (#186) above the lateral-G trace it
+                // summarises. It draws nothing unless the session stored longG
+                // too, so a source with only lateral G still gets its trace.
+                FrictionCircle(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:),
+                    // The point of the column (NS-34 ticket 3): the tapped
+                    // sample's distance is marked across every chart that shares
+                    // the axis — which is what `readout` already does — and
+                    // handed outward so the map can ring the place. A pointer
+                    // does the same without committing it (ticket 5).
+                    onHit: park,
+                    onHover: borrow,
+                    showEnvelope: showEnvelope
+                )
+                // Under it, the balance scatter and its per-corner table (#189),
+                // above the lateral-G and yaw traces they are read from. It draws
+                // nothing unless the session stored yaw, steering and speed.
+                BalanceScatter(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:),
+                    onHit: park,
+                    onHover: borrow
+                )
+            case .car:
+                // The session health strip (#190): what the car was doing while
+                // you drove it, which is the other half of a track day.
+                HealthStrip(
+                    channels: channels, lit: lit, slots: Self.slots,
+                    lapNumber: lapNumber(forLapIndex:)
+                )
+            }
+            ForEach(present.filter { Self.tab(of: $0) == tabKey }, id: \.self) { channel in
+                channelChart(channel)
+                // The gear ribbon rides under the RPM trace, where each shift is
+                // the drop in the sawtooth above it (#187).
+                if channel == .rpm {
+                    GearRibbon(
+                        channels: channels, lit: lit, slots: Self.slots,
+                        lapNumber: lapNumber(forLapIndex:)
+                    )
+                }
+            }
         }
     }
 
@@ -166,6 +489,13 @@ struct LapChannelChart: View {
                 }
                 .chartYScale(domain: domain.low...domain.high)
                 .chartXScale(domain: 0...max(1, ChannelGraphs.distanceSpan(channel, in: channels)))
+                // Limit bands (#188) go in the *background* rather than as marks:
+                // a `RectangleMark` beside the lines would break the one
+                // homogeneous `ForEach` rule above, and these shade the plot
+                // rather than plotting anything.
+                .chartBackground { proxy in
+                    limitBands(channel, proxy: proxy)
+                }
                 .chartYAxis {
                     AxisMarks(values: .automatic(desiredCount: 3)) { value in
                         AxisGridLine().foregroundStyle(Color(.chartGrid))
@@ -194,6 +524,9 @@ struct LapChannelChart: View {
                             .onTapGesture { location in
                                 readOut(at: location, channel, proxy: proxy, geometry: geometry)
                             }
+                            .onContinuousHover { phase in
+                                hoverReadOut(phase, channel, proxy: proxy, geometry: geometry)
+                            }
                     }
                 }
                 // Belt and braces with the per-mark suppression above: this alone does
@@ -207,6 +540,227 @@ struct LapChannelChart: View {
             .accessibilityLabel("\(channel.label) by driven distance, per lap")
             .accessibilityValue(summary(channel))
         }
+    }
+
+    // MARK: - Limit bands
+
+    /// Where the car was at its limit, shaded behind the trace that explains it
+    /// (#188): ABS and lockup on the brake chart, traction control and
+    /// wheelspin on the throttle, stability control on steering. One band per
+    /// highlighted lap, so the map, the panel and the session line tell one
+    /// story. Colour is by *kind*, not severity — a corner where traction
+    /// control cuts is a throttle problem and one where ABS cuts is a braking
+    /// problem, and the driver needs to know which.
+    @ViewBuilder
+    private func limitBands(_ channel: ChannelGraphs.Channel, proxy: ChartProxy) -> some View {
+        let kinds = Limits.LIMIT_KINDS.filter { $0.channel == channel }
+        if !kinds.isEmpty {
+            GeometryReader { geometry in
+                if let plotFrame = proxy.plotFrame {
+                    let plot = geometry[plotFrame]
+                    ForEach(bands(kinds), id: \.id) { band in
+                        if let x0 = proxy.position(forX: band.from), let x1 = proxy.position(forX: band.to) {
+                            Rectangle()
+                                .fill(Self.color(band.side).opacity(band.filled ? 0.22 : 0.12))
+                                .frame(width: max(1, x1 - x0), height: plot.height)
+                                .position(x: plot.minX + (x0 + x1) / 2, y: plot.midY)
+                        }
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// One shaded stretch of the distance axis.
+    private struct Band {
+        let id: String
+        let from: Double
+        let to: Double
+        let side: Limits.Side
+        let filled: Bool
+    }
+
+    private func bands(_ kinds: [Limits.Kind]) -> [Band] {
+        var out: [Band] = []
+        for chIdx in lit where channels.laps.indices.contains(chIdx) {
+            let entry = channels.laps[chIdx]
+            for run in Limits.limitRuns(entry) {
+                guard let kind = kinds.first(where: { $0.key == run.kind }) else { continue }
+                out.append(
+                    Band(
+                        id: "\(chIdx)-\(run.kind)-\(run.k0)",
+                        from: max(0, Double(run.k0) - 0.5) * channels.dStepM,
+                        to: (Double(run.k1) + 0.5) * channels.dStepM,
+                        side: kind.side,
+                        filled: kind.filled
+                    )
+                )
+            }
+        }
+        return out
+    }
+
+    /// A side's colour. Generated tokens, never a hex literal, and the map draws
+    /// from the same two so a mark and its band cannot disagree.
+    static func color(_ side: Limits.Side) -> Color {
+        switch side {
+        case .brake: Color(.limitBrake)
+        case .power: Color(.limitPower)
+        case .stability: Color(.textStrong)
+        }
+    }
+
+    // MARK: - Lap delta
+
+    /// The delta chart: highlighted laps vs the fastest of the selection, on
+    /// the same distance axis as the channels below it. Positive is slower, so
+    /// a climbing trace is time slipping away. The reference lap draws no
+    /// trace — it *is* the zero line. The maths is `ChannelGraphs.deltaSeries`,
+    /// pinned to the web implementation by `contracts/logic/lap-delta.json`.
+    @ViewBuilder
+    private var deltaChart: some View {
+        if let refIdx = ChannelGraphs.deltaReference(lit, in: channels) {
+            let deltas: [(chIdx: Int, series: [Double])] = lit
+                .filter { $0 != refIdx && channels.laps.indices.contains($0) }
+                .compactMap { chIdx in
+                    ChannelGraphs.deltaSeries(channels.laps[chIdx], channels.laps[refIdx], channels.dStepM)
+                        .map { (chIdx, $0) }
+                }
+            if !deltas.isEmpty, let domain = ChannelGraphs.deltaDomain(deltas.map(\.series)) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Delta (s) vs lap \(String(lapNumber(forLapIndex: refIdx))) — above the line is slower")
+                            .teStyle(.eyebrow)
+                            .foregroundStyle(Color(.textMuted))
+                        Spacer()
+                        if let readout {
+                            Text(deltaReadoutText(deltas, refIdx: refIdx, at: readout))
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textStrong))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                    }
+                    // Same one-homogeneous-ForEach rule as the channel charts
+                    // (see the comment there): the zero line and the read-out
+                    // rule are two-point series inside the same sample array.
+                    Chart {
+                        ForEach(deltaSamples(deltas, domain), id: \.id) { sample in
+                            LineMark(
+                                x: .value("Distance", sample.distance),
+                                y: .value("Delta", sample.value),
+                                series: .value("Lap", sample.lapIndex)
+                            )
+                            .foregroundStyle(sample.color)
+                            .lineStyle(.init(lineWidth: sample.lineWidth, lineCap: .round, lineJoin: .round))
+                            .interpolationMethod(.linear)
+                            .accessibilityHidden(true)
+                        }
+                    }
+                    .chartYScale(domain: domain.low...domain.high)
+                    .chartXScale(domain: 0...max(1, ChannelGraphs.distanceSpan(.speed, in: channels)))
+                    .chartYAxis {
+                        AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                            AxisGridLine().foregroundStyle(Color(.chartGrid))
+                            AxisValueLabel {
+                                if let v = value.as(Double.self) {
+                                    Text(Self.fmtDelta(v, decimals: 1)).teStyle(.xxs)
+                                }
+                            }
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                            AxisGridLine().foregroundStyle(Color(.chartGrid))
+                            AxisValueLabel {
+                                if let d = value.as(Double.self) {
+                                    Text(ChannelGraphs.fmtDist(d)).teStyle(.xxs)
+                                }
+                            }
+                        }
+                    }
+                    .foregroundStyle(Color(.textMuted))
+                    .frame(height: 150)
+                    .chartOverlay { proxy in
+                        GeometryReader { geometry in
+                            Rectangle().fill(.clear).contentShape(.rect)
+                                .onTapGesture { location in
+                                    readOut(at: location, .speed, proxy: proxy, geometry: geometry)
+                                }
+                                .onContinuousHover { phase in
+                                    hoverReadOut(phase, .speed, proxy: proxy, geometry: geometry)
+                                }
+                        }
+                    }
+                    .accessibilityHidden(true)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Time delta to lap \(String(lapNumber(forLapIndex: refIdx))) by driven distance — above the zero line is slower")
+                .accessibilityValue(deltaSummary(deltas, refIdx: refIdx))
+            }
+        }
+    }
+
+    /// Delta traces in painter's order plus the zero line (the reference lap)
+    /// and, last, the read-out's vertical rule — all in one homogeneous array.
+    private func deltaSamples(
+        _ deltas: [(chIdx: Int, series: [Double])], _ domain: (low: Double, high: Double)
+    ) -> [Sample] {
+        var out: [Sample] = []
+        let span = max(1, ChannelGraphs.distanceSpan(.speed, in: channels))
+        for (k, x) in [0.0, span].enumerated() {
+            out.append(Sample(id: -10 - k, lapIndex: -2, distance: x, value: 0, color: Color(.textFaint), lineWidth: 1))
+        }
+        for (chIdx, series) in deltas {
+            let color = color(forLapIndex: chIdx) ?? Color(.chartDim)
+            for (k, v) in series.enumerated() {
+                out.append(
+                    Sample(
+                        id: chIdx * 100_000 + k,
+                        lapIndex: chIdx,
+                        distance: Double(k) * channels.dStepM,
+                        value: v,
+                        color: color,
+                        lineWidth: 2
+                    )
+                )
+            }
+        }
+        if let readout {
+            let x = Double(readout) * channels.dStepM
+            for (k, y) in [domain.low, domain.high].enumerated() {
+                out.append(Sample(id: -1 - k, lapIndex: -1, distance: x, value: y, color: Color(.textFaint), lineWidth: 1))
+            }
+        }
+        return out
+    }
+
+    /// "1.2 km · L3 +0.42 s" — the distance once, then each lap's delta to the
+    /// reference at that point.
+    private func deltaReadoutText(_ deltas: [(chIdx: Int, series: [Double])], refIdx: Int, at index: Int) -> String {
+        let values = deltas.compactMap { (chIdx, series) -> String? in
+            guard series.indices.contains(index) else { return nil }
+            return "L\(String(lapNumber(forLapIndex: chIdx))) \(Self.fmtDelta(series[index], decimals: 2)) s"
+        }
+        let distance = ChannelGraphs.fmtDist(Double(index) * channels.dStepM)
+        return values.isEmpty ? distance : "\(distance) · \(values.joined(separator: " · "))"
+    }
+
+    /// What VoiceOver gets: where each lap ends up against the reference.
+    private func deltaSummary(_ deltas: [(chIdx: Int, series: [Double])], refIdx: Int) -> String {
+        let parts = deltas.compactMap { (chIdx, series) -> String? in
+            guard let last = series.last else { return nil }
+            return "Lap \(String(lapNumber(forLapIndex: chIdx))), \(Self.fmtDelta(last, decimals: 2)) seconds vs lap \(String(lapNumber(forLapIndex: refIdx)))"
+        }
+        return parts.isEmpty ? "No comparable laps" : parts.joined(separator: ". ")
+    }
+
+    /// "+0.4" / "−0.4" — the sign is the message, so it is always shown.
+    private static func fmtDelta(_ value: Double, decimals: Int) -> String {
+        let rounded = (value * pow(10, Double(decimals))).rounded() / pow(10, Double(decimals))
+        let magnitude = String(format: "%.\(decimals)f", abs(rounded))
+        return rounded < 0 ? "−\(magnitude)" : "+\(magnitude)"
     }
 
     /// One point of one lap's trace, ready to plot.
@@ -270,19 +824,54 @@ struct LapChannelChart: View {
     /// A tap rather than a drag, for the reason spelled out in `ProgressChart`: the
     /// charts sit in a scroller, and a `DragGesture` over the plot takes the touch
     /// that would have scrolled it.
+    ///
+    /// The toggle compares against the **parked** mark rather than the one on
+    /// screen: with a pointer resting on the plot the mark under your finger is
+    /// borrowed, not committed, and tapping there means "keep this", never
+    /// "cancel it".
     private func readOut(
         at location: CGPoint, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
     ) {
-        guard let plotFrame = proxy.plotFrame else { return }
-        let x = location.x - geometry[plotFrame].origin.x
-        guard let metres: Double = proxy.value(atX: x) else { return }
-        let index = ChannelGraphs.gridIndex(atDistance: metres, channel, in: channels)
-        if readout == index {
-            readout = nil
+        guard let index = gridIndex(at: location, channel, proxy: proxy, geometry: geometry) else { return }
+        if parked?.k == index {
+            parked = nil
         } else {
-            readout = index
+            // No `hit`: a distance on the shared axis names no lap, so this marks
+            // every chart and rings nothing. See `Mark`.
+            parked = Mark(k: index, hit: nil)
             Haptics.select()
         }
+        emit()
+    }
+
+    /// The same read-out under a pointer (NS-34 ticket 5): no haptic, because
+    /// nothing was committed, and no toggle, because a pointer that stays still
+    /// is not asking twice.
+    private func hoverReadOut(
+        _ phase: HoverPhase, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
+    ) {
+        switch phase {
+        case .active(let location):
+            guard let index = gridIndex(at: location, channel, proxy: proxy, geometry: geometry) else { return }
+            hovered = Mark(k: index, hit: nil)
+            emit()
+        case .ended:
+            hovered = nil
+            emit()
+        @unknown default:
+            hovered = nil
+            emit()
+        }
+    }
+
+    /// Which grid sample a point in the plot lands on, or nil off the axis.
+    private func gridIndex(
+        at location: CGPoint, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
+    ) -> Int? {
+        guard let plotFrame = proxy.plotFrame else { return nil }
+        let x = location.x - geometry[plotFrame].origin.x
+        guard let metres: Double = proxy.value(atX: x) else { return nil }
+        return ChannelGraphs.gridIndex(atDistance: metres, channel, in: channels)
     }
 
     /// "1.2 km · Lap 3 92 · Lap 5 88" — the distance once, then a value per
@@ -292,7 +881,11 @@ struct LapChannelChart: View {
             guard let v = ChannelGraphs.value(channel, lapIndex: chIdx, gridIndex: index, in: channels) else {
                 return nil
             }
-            return "L\(String(lapNumber(forLapIndex: chIdx))) \(fmtValue(v, channel))"
+            // What was active there, if anything (#188) — the read-out says "ABS"
+            // where the band is shaded, so the two never have to be matched by eye.
+            let active = Limits.activeLimitLabels(channels.laps[chIdx], index)
+            let suffix = active.isEmpty ? "" : " (\(active.joined(separator: ", ")))"
+            return "L\(String(lapNumber(forLapIndex: chIdx))) \(fmtValue(v, channel))\(suffix)"
         }
         let distance = ChannelGraphs.fmtDist(Double(index) * channels.dStepM)
         return values.isEmpty ? distance : "\(distance) · \(values.joined(separator: " · "))"
@@ -329,7 +922,11 @@ struct LapChannelChart: View {
 extension LapChannelChart {
     /// The panel on synthetic data, for `-channelGraphs` (see `RootView`) and for
     /// previews. Shaped like a real import: three laps of a 2.4 km circuit on the
-    /// importer's 20 m grid, all three channels.
+    /// importer's 20 m grid, all seven charted channels plus the ones a PDR
+    /// import adds — `gear`, `wheelSlip`, the ABS/TC/VSC `flags` bitfield and
+    /// the per-lap scalars (#187, #188, #190) — so the gear ribbon, the shift
+    /// table, the limit bands, the balance scatter (#189) and the Car tab's
+    /// health strip all have something to draw.
     static var demoScreen: some View {
         let times = [118_400, 116_900, 117_600]
         let channels = SessionChannels(
@@ -341,7 +938,50 @@ extension LapChannelChart {
                 let speed: [Double] = wave.map { v in 90 + 60 * v }
                 let rpm: [Double] = wave.map { v in 3000 + 3500 * (1 + v) / 2 }
                 let latG: [Double] = (0..<120).map { k in abs(cos(Double(k) / 9 + phase)) * 1.2 }
-                return LapChannels(n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG)
+                // Pedals alternate: throttle on the wave's positive half, brake
+                // on the negative; steering swings signed degrees.
+                let throttle: [Double] = wave.map { v in max(0, v) * 100 }
+                let brake: [Double] = wave.map { v in max(0, -v) * 100 }
+                let steering: [Double] = (0..<120).map { k in cos(Double(k) / 9 + phase) * 120 }
+                // Longitudinal G a quarter turn out of phase with the cornering
+                // — braking into the corners, power out of them — so the
+                // friction circle fills rather than drawing a cross (#186).
+                let longG: [Double] = wave.map { v in v * 1.3 }
+                // Rotation that mostly follows the steering but falls short
+                // through the back half of the lap, so the balance scatter has a
+                // band to draw and its table a corner that pushes (#189).
+                let yaw: [Double] = (0..<120).map { (k: Int) -> Double in
+                    let mps: Double = speed[k] / 3.6
+                    let slip: Double = k > 60 ? 0.7 : 1
+                    return steering[k] * mps * 0.012 * slip
+                }
+                // Gear steps with the speed wave, dropping to 0 through one
+                // shift — the clutch-in gap the ribbon has to draw as a gap.
+                let gear: [Double] = wave.enumerated().map { k, v in
+                    k % 37 == 18 ? 0 : Double(2 + Int((v + 1) / 2 * 3))
+                }
+                // Wheelspin on the exits, lockup into the braking zones; ABS
+                // under heavy braking and traction control on the hardest exits.
+                let wheelSlip: [Double] = wave.map { v in v * 5 }
+                let flags: [Double] = wave.map { v in
+                    v < -0.85 ? Double(Limits.FLAG_ABS) : v > 0.9 ? Double(Limits.FLAG_TC) : 0
+                }
+                // The per-lap scalars the Car tab reads (#190): oil climbing past
+                // its line by the last lap, fuel draining, and a tyre spread that
+                // is a camber question rather than noise.
+                let heat = Double(index)
+                return LapChannels(
+                    n: index + 1, timeMs: ms, speed: speed, rpm: rpm, latG: latG,
+                    throttle: throttle, brake: brake, steering: steering, longG: longG,
+                    yaw: yaw, gear: gear, wheelSlip: wheelSlip,
+                    boost: wave.map { v in 60 + 90 * (1 + v) / 2 }, flags: flags,
+                    oilC: 118 + heat * 8, oilKpa: 320 - heat * 20, coolantC: 99 + heat * 5,
+                    transC: 94 + heat * 6, fuelPct: 74 - heat * 12, battV: 13.6 - heat * 0.4,
+                    tyreKpaLF: 214 + heat * 9, tyreKpaRF: 210 + heat * 8,
+                    tyreKpaLR: 205 + heat * 7, tyreKpaRR: 204 + heat * 7,
+                    tyreCLF: 82 + heat * 9, tyreCRF: 74 + heat * 7,
+                    tyreCLR: 68 + heat * 6, tyreCRR: 66 + heat * 6
+                )
             }
         )
         return LapChannelChart(

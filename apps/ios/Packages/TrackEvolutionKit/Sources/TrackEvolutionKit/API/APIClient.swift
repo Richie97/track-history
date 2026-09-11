@@ -181,10 +181,38 @@ public actor APIClient {
     /// Stand-in body type for requests that don't have one.
     private struct NoBody: Encodable {}
 
+    /// Toggle the per-track leaderboard opt-in, and optionally the lap-sharing
+    /// consent stacked on it (NS-35). Deliberately a live write, never queued
+    /// offline: publishing your name — still less your telemetry — is not
+    /// something to replay silently later. Passing nil for `shareLaps` leaves
+    /// the stored value alone.
+    public func setLeaderboardOptIn(_ optIn: Bool, shareLaps: Bool? = nil) async throws {
+        _ = try await send(
+            "PUT", "/me/leaderboard",
+            body: LeaderboardOptInDraft(optIn: optIn, shareLaps: shareLaps),
+            as: OKResponse.self
+        )
+    }
+
     // MARK: - Tracks
 
     public func tracks() async throws -> [Track] {
         try await get("/tracks", as: [Track].self)
+    }
+
+    /// The per-track community leaderboard: opted-in users' best laps at the same
+    /// catalog track. `catalogId` nil means the catalog doesn't know this track —
+    /// no cross-user identity, so no leaderboard.
+    public func trackLeaderboard(id: Int) async throws -> TrackLeaderboard {
+        try await get("/tracks/\(id)/leaderboard", as: TrackLeaderboard.self)
+    }
+
+    /// One shared leaderboard lap, opened from a row whose `lapId` is non-nil
+    /// (NS-35). `id` is the viewer's own track — a lap is only reachable from a
+    /// track the viewer actually has — and the server re-checks every condition,
+    /// answering 404 rather than 403 for anything it will not publish.
+    public func leaderboardLap(trackId: Int, lapId: Int) async throws -> LeaderboardLap {
+        try await get("/tracks/\(trackId)/leaderboard/laps/\(lapId)", as: LeaderboardLap.self)
     }
 
     /// The seeded canonical catalog behind the event form's name suggestions.
@@ -264,6 +292,31 @@ public actor APIClient {
         _ = try await send(
             "DELETE", "/parts/\(partId)/measurements/\(id)", body: NoBody?.none, as: OKResponse.self
         )
+    }
+
+    // MARK: - Billing (NS-32)
+
+    /// Hand a verified StoreKit transaction to the server, which verifies the JWS
+    /// itself and upserts the subscription row. **The caller finishes the
+    /// transaction only after this returns** — a `finish()` before the server has
+    /// the row is how a paying user ends up free. Every billing route answers with
+    /// the fresh entitlement so the UI can update without a second round trip.
+    ///
+    /// Never queued offline: a purchase the server hasn't seen is redelivered by
+    /// StoreKit (`Transaction.updates`, `Transaction.unfinished`) until it is
+    /// finished, which is a better queue than ours — it survives reinstalls.
+    public func verifyAppleTransaction(jws: String, renewalJws: String? = nil) async throws -> BillingResponse {
+        try await send(
+            "POST", "/billing/apple",
+            body: AppleTransactionBody(jws: jws, renewalJws: renewalJws), as: BillingResponse.self
+        )
+    }
+
+    /// The paid-app grandfather claim: the `AppTransaction` JWS, once per account.
+    /// A 409 means the app transaction is already bound to another account, which
+    /// the caller treats as done rather than retrying.
+    public func claimAppleLegacy(jws: String) async throws -> BillingResponse {
+        try await send("POST", "/billing/apple/legacy", body: AppleLegacyBody(jws: jws), as: BillingResponse.self)
     }
 
     // MARK: - Sharing

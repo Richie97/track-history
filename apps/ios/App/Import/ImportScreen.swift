@@ -19,9 +19,15 @@ struct ImportScreen: View {
     var incoming: URL?
 
     @Environment(AppRouter.self) private var router
+    @Environment(AuthController.self) private var auth
     @State private var model = ImportModel()
     @State private var showingFileImporter = false
     @State private var showingPhotoPicker = false
+
+    /// There is no gate here. Importing is free on every client (NS-32): what a
+    /// free account gets out of a clip is the lap times, the racing line and the
+    /// car metrics, and the per-lap channels the same import writes are withheld
+    /// by the server on the way back out, not by a paywall on the way in.
 
     var body: some View {
         Group {
@@ -38,7 +44,9 @@ struct ImportScreen: View {
             }
         }
         .task {
-            if let incoming { await model.parse([PickedVideo(name: incoming.lastPathComponent, url: incoming)]) }
+            if let incoming, model.clips == nil, !model.isParsing {
+                await model.parse([PickedVideo(name: incoming.lastPathComponent, url: incoming)])
+            }
         }
     }
 

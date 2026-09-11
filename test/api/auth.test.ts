@@ -86,6 +86,82 @@ describe("DEV_MODE login", () => {
   });
 });
 
+describe("DEV_MODE entitlement", () => {
+  // The tier control the UI suites use to declare what they exercise. Same gate
+  // as the login bypass: DEV_MODE *and* a local dev host.
+  const login = async () => {
+    const res = await SELF.fetch("http://localhost:8787/auth/login", { redirect: "manual" });
+    return /session=([0-9a-f]+)/.exec(res.headers.get("set-cookie") ?? "")![1];
+  };
+  const setTier = (token: string | undefined, body: unknown, origin = "http://localhost:8787") =>
+    SELF.fetch(`${origin}/auth/dev/entitlement`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { Cookie: `session=${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+
+  it("grants and revokes Pro for the signed-in account", async () => {
+    const token = await login();
+    expect((await apiClient(token)("GET", "/me")).body.entitlement.tier).toBe("free");
+
+    const on = await setTier(token, { pro: true });
+    expect(on.status).toBe(200);
+    const granted = await apiClient(token)("GET", "/me");
+    expect(granted.body.entitlement.tier).toBe("pro");
+    expect(granted.body.entitlement.source).toBe("legacy");
+
+    const off = await setTier(token, { pro: false });
+    expect(off.status).toBe(200);
+    expect((await off.json<{ entitled_until: number | null }>()).entitled_until).toBeNull();
+    expect((await apiClient(token)("GET", "/me")).body.entitlement.tier).toBe("free");
+  });
+
+  it("is idempotent, so a suite can set the tier it wants on every test", async () => {
+    const token = await login();
+    for (const pro of [true, true, false, false]) {
+      expect((await setTier(token, { pro })).status).toBe(200);
+    }
+    expect((await apiClient(token)("GET", "/me")).body.entitlement.tier).toBe("free");
+  });
+
+  // A separate account, so the store row it plants can't follow the dev user
+  // into the tests below — D1 is reset per *file*, not per test.
+  it("leaves a real purchase alone when asked for Free", async () => {
+    const { id, token, api } = await signedInUser();
+    // A row this route does not own: turning the dev grant off must not
+    // silently strip an account of a subscription it is actually paying for.
+    await env.DB.prepare(
+      `INSERT INTO subscriptions (user_id, provider, product_id, external_id, status, expires_at, created_at, updated_at)
+       VALUES (?, 'apple', 'pro.monthly', 'apple-real', 'active', ?, 0, 0)`
+    )
+      .bind(id, Date.now() + 30 * 86_400_000)
+      .run();
+    await setTier(token, { pro: true });
+    await setTier(token, { pro: false });
+    const me = await api("GET", "/me");
+    expect(me.body.entitlement.tier).toBe("pro");
+    expect(me.body.entitlement.source).toBe("apple");
+  });
+
+  it("rejects a request without a session, and a body that isn't a boolean", async () => {
+    expect((await setTier(undefined, { pro: true })).status).toBe(401);
+    const token = await login();
+    expect((await setTier(token, { pro: "yes" })).status).toBe(400);
+    expect((await setTier(token, {})).status).toBe(400);
+  });
+
+  it("reads as absent on a non-local host, so a leaked DEV_MODE grants nothing", async () => {
+    const token = await login();
+    await setTier(token, { pro: false });
+    const res = await setTier(token, { pro: true }, "https://example.com");
+    expect(res.status).toBe(404);
+    expect((await apiClient(token)("GET", "/me")).body.entitlement.tier).toBe("free");
+  });
+});
+
 describe("logout", () => {
   it("deletes the session so the token stops working", async () => {
     const { token, api } = await signedInUser();

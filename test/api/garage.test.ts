@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { createEvent, signedInUser } from "./helpers";
+import { createEvent, signedInProUser } from "./helpers";
 
 // The garage logbook: consumable parts + wear, per-event-day setup sheets,
 // and the event → vehicle link they hang off.
+//
+// Everything here except the vehicle list is Pro since phase D, so the users
+// are entitled ones — including the second user in the ownership cases, who
+// would otherwise meet the 402 before the 404 those tests are about.
 
 async function garageUser() {
-  const u = await signedInUser();
+  const u = await signedInProUser();
   const veh = await u.api("POST", "/vehicles", { name: "Corvette Z06" });
   return { ...u, vehicleId: veh.body.id as number };
 }
@@ -32,7 +36,7 @@ describe("event ↔ vehicle link", () => {
 
   it("never links across users", async () => {
     const a = await garageUser();
-    const b = await signedInUser();
+    const b = await signedInProUser();
     const id = await createEvent(b.api, { car: "Corvette Z06" });
     expect((await b.api("GET", `/events/${id}`)).body.vehicle_id).toBeNull();
   });
@@ -40,7 +44,7 @@ describe("event ↔ vehicle link", () => {
 
 describe("event track_hours and computed hours", () => {
   it("defaults hours to 2h per day and accepts an override", async () => {
-    const { api } = await signedInUser();
+    const { api } = await signedInProUser();
     const id = await createEvent(api, { start_date: PAST, days: 2 });
     expect((await api("GET", `/events/${id}`)).body.hours).toBe(4);
     await api("PUT", `/events/${id}`, { track_hours: 5.5 });
@@ -48,7 +52,7 @@ describe("event track_hours and computed hours", () => {
   });
 
   it("rejects implausible overrides", async () => {
-    const { api } = await signedInUser();
+    const { api } = await signedInProUser();
     const id = await createEvent(api);
     expect((await api("PUT", `/events/${id}`, { track_hours: -1 })).status).toBe(400);
     expect((await api("PUT", `/events/${id}`, { track_hours: 500 })).status).toBe(400);
@@ -90,7 +94,7 @@ describe("parts CRUD", () => {
 
   it("isolates parts between users", async () => {
     const a = await garageUser();
-    const b = await signedInUser();
+    const b = await signedInProUser();
     await a.api("POST", `/vehicles/${a.vehicleId}/parts`, {
       kind: "tires",
       name: "Private Tires",
@@ -238,7 +242,7 @@ describe("part refresh", () => {
 
   it("rejects retired parts, bad swap dates, and foreign parts", async () => {
     const a = await garageUser();
-    const b = await signedInUser();
+    const b = await signedInProUser();
     await addPads(a.api, a.vehicleId, { installed_on: PAST });
     const partId = (await a.api("GET", "/garage")).body[0].parts[0].id;
     expect((await b.api("POST", `/parts/${partId}/refresh`)).status).toBe(404);
@@ -254,7 +258,7 @@ describe("setup sheets", () => {
   const SHEET = { tp_cold: { fl: 31, fr: 31, rl: 30, rr: 30 }, camber: { f: -2.5, r: -2 }, notes: "baseline" };
 
   it("upserts, returns in event detail, and deletes", async () => {
-    const { api } = await signedInUser();
+    const { api } = await signedInProUser();
     const id = await createEvent(api, { days: 2 });
     expect((await api("PUT", `/events/${id}/setups/1`, SHEET)).status).toBe(200);
     expect((await api("PUT", `/events/${id}/setups/1`, { ...SHEET, camber: { f: -3.2, r: -2 } })).status).toBe(200);
@@ -267,8 +271,8 @@ describe("setup sheets", () => {
   });
 
   it("rejects invalid sheets, days, and foreign events", async () => {
-    const a = await signedInUser();
-    const b = await signedInUser();
+    const a = await signedInProUser();
+    const b = await signedInProUser();
     const id = await createEvent(a.api);
     expect((await a.api("PUT", `/events/${id}/setups/0`, SHEET)).status).toBe(400);
     expect((await a.api("PUT", `/events/${id}/setups/1`, { tp_cold: { fl: 900 } })).status).toBe(400);

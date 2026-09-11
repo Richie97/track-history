@@ -77,6 +77,33 @@ describe("PUT /api/vehicles/:id", () => {
     expect(row.notes).toBe("Öhlins DFV");
   });
 
+  it("stores, updates and clears the target hot tyre pressure", async () => {
+    const { api } = await signedInUser();
+    // Set on create, read back on the list and the garage.
+    const { body: v } = await api("POST", "/vehicles", { name: "Corvette", target_hot_psi: 32 });
+    expect(v.target_hot_psi).toBe(32);
+    expect((await api("GET", "/vehicles")).body[0].target_hot_psi).toBe(32);
+    // Rounded to a tenth on update; null clears; absent leaves it alone.
+    expect((await api("PUT", `/vehicles/${v.id}`, { target_hot_psi: 33.26 })).status).toBe(200);
+    expect((await api("GET", "/vehicles")).body[0].target_hot_psi).toBe(33.3);
+    await api("PUT", `/vehicles/${v.id}`, { notes: "PS4S" });
+    expect((await api("GET", "/vehicles")).body[0].target_hot_psi).toBe(33.3);
+    await api("PUT", `/vehicles/${v.id}`, { target_hot_psi: null });
+    expect((await api("GET", "/vehicles")).body[0].target_hot_psi).toBeNull();
+    // A car with no target reads null, never 0.
+    const { body: bare } = await api("POST", "/vehicles", { name: "Miata" });
+    expect(bare.target_hot_psi).toBeNull();
+  });
+
+  it("rejects an implausible target hot pressure", async () => {
+    const { api } = await signedInUser();
+    const { body: v } = await api("POST", "/vehicles", { name: "Miata" });
+    expect((await api("PUT", `/vehicles/${v.id}`, { target_hot_psi: "32" })).status).toBe(400);
+    expect((await api("PUT", `/vehicles/${v.id}`, { target_hot_psi: 0 })).status).toBe(400);
+    expect((await api("PUT", `/vehicles/${v.id}`, { target_hot_psi: 250 })).status).toBe(400);
+    expect((await api("POST", "/vehicles", { name: "GT3", target_hot_psi: -1 })).status).toBe(400);
+  });
+
   it("clears notes with empty/null", async () => {
     const { api } = await signedInUser();
     const { body: v } = await api("POST", "/vehicles", { name: "Miata", notes: "stock" });

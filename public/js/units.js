@@ -11,6 +11,8 @@
 // Import-safe in Node (no top-level `localStorage`): the cache is read lazily
 // and every access is try/catch-wrapped, like theme.js.
 
+import { niceNumTicks } from "./chart.js";
+
 export const UNIT_SYSTEMS = [
   ["imperial", "Imperial", "mph · °F · psi · gal"],
   ["metric", "Metric", "km/h · °C · bar · L"],
@@ -21,6 +23,10 @@ export const UNIT_SYSTEMS = [
 export const DEFAULT_UNITS = "imperial";
 export const isUnitSystem = (u) => UNIT_SYSTEMS.some(([id]) => id === u);
 export const isMetric = (u) => u === "metric";
+// conditions.js and health.js spell the two systems "us" / "metric" (theirs is
+// the stored-vs-shown split: °C and kPa in the channel meta, °F and psi on the
+// page). This maps the account's choice onto that vocabulary.
+export const usUnits = (units = currentUnits()) => (isMetric(units) ? "metric" : "us");
 
 // ---------- the cached choice -----------------------------------------------
 
@@ -86,6 +92,14 @@ export function fmtDist(m, units) {
     return `${Math.round(m * FT_PER_M)} ft`;
   }
   return m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`;
+}
+
+// Distance-axis ticks for a lap of x1 meters: nice numbers in the unit the
+// axis is labelled in (metres, or miles — nice metre ticks come out as 0.31,
+// 0.62 mi otherwise). [{m, label}] with m the tick's position in metres.
+export function distAxisTicks(x1, units, n = 6) {
+  if (isMetric(units)) return niceNumTicks(0, x1, n).map((m) => ({ m, label: fmtDist(m, units) }));
+  return niceNumTicks(0, x1 / M_PER_MI, n).map((mi) => ({ m: mi * M_PER_MI, label: fmtDist(mi * M_PER_MI, units) }));
 }
 
 // GPS accuracy style: "±4 m" / "±13 ft".

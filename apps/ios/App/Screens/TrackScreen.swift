@@ -6,19 +6,53 @@ import TrackEvolutionKit
 ///
 /// `viewTrack` in `public/app.js` is the reference. The **setup-vs-lap-times table
 /// is deferred** with the rest of the garage feature and is absent rather than
-/// stubbed; so is the two-event lap overlay (`viewCompare`).
+/// stubbed; so is the two-event lap overlay (`viewCompare`). The two-lap telemetry
+/// compare (`viewLapCompare`, #165) *is* here, as a sheet. The leaderboard is
+/// **not** a section of this page any more — it is `LeaderboardScreen`, behind a
+/// button, for the reason stated there.
 struct TrackScreen: View {
     let trackId: Int
 
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
 
     @State private var model: TrackModel?
+    @State private var showingCompareLaps = false
+
+    /// How wide the compare column gets, or nil for the sheet.
+    ///
+    /// The event page's numbers, because it is the same kind of content: two laps
+    /// of channel traces need the width a track map and its charts need.
+    /// Measured against this page's own column rather than the window's class,
+    /// for the reason `sideColumnWidth` states.
+    private var compareWidth: CGFloat? {
+        layout.sideColumnWidth(fraction: 0.46, minimum: 380, maximum: 620)
+    }
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let track = model.track {
-                content(model, track)
+                // At expanded width the compare opens in a **column beside** the
+                // page rather than as a sheet over it (NS-34 ticket 3). The view
+                // is the same `CompareLapsScreen`; only its container changes,
+                // which is the whole claim the ticket makes about it.
+                if let compareWidth, showingCompareLaps {
+                    HStack(spacing: 0) {
+                        content(model, track)
+                            // Inside the frame on both columns — see the note on
+                            // `EventScreen.page`: a greedy `GeometryReader` around
+                            // a fixed frame splits the row in half instead.
+                            .measuringPaneWidth()
+                            .frame(maxWidth: .infinity)
+                        Divider()
+                        compareColumn
+                            .measuringPaneWidth()
+                            .frame(width: compareWidth)
+                    }
+                } else {
+                    content(model, track)
+                }
             }
         }
         .navigationTitle(model?.track?.name ?? "Track")
@@ -30,6 +64,40 @@ struct TrackScreen: View {
                 await model.load()
             }
         }
+    }
+
+    /// The compare as a sheet — only where there is no room for it as a column.
+    ///
+    /// "Where there is room" is `compareWidth`, the same value the column is
+    /// drawn from, so the two can never both be showing the same compare — which
+    /// is what a width check there and a class check here would eventually allow.
+    private var compareSheet: Binding<Bool> {
+        .init(
+            get: { showingCompareLaps && compareWidth == nil },
+            set: { showingCompareLaps = $0 }
+        )
+    }
+
+    /// The compare as this page's right-hand column, with a way to close it —
+    /// a sheet has a swipe-down and a column has nothing, so it needs one.
+    private var compareColumn: some View {
+        // The screen already titles itself, so the column adds only the way out
+        // — overlaid rather than stacked above, which would push its heading down
+        // and put two headings in a row.
+        CompareLapsScreen(trackId: trackId)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    showingCompareLaps = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textFaint))
+                        .padding(TESpacing.pageGutter)
+                }
+                .accessibilityLabel("Close the comparison")
+            }
+            .background(Color(.bgPage))
+            .accessibilityIdentifier("compareColumn")
     }
 
     private func content(_ model: TrackModel, _ track: Track) -> some View {
@@ -50,11 +118,40 @@ struct TrackScreen: View {
                     Text("· \(fmtCount(model.events.count, "event"))\(model.dryOnly ? " (dry)" : "")")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
+                    // How much the track climbs and falls (#191), from whatever
+                    // telemetry has been imported here. Context, not coaching —
+                    // one line, and no more.
+                    if !model.elevationLine.isEmpty {
+                        Text("· \(model.elevationLine)")
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.textMuted))
+                    }
                 }
             }
 
             chartCard(model, track)
             goalCard(model, track)
+
+            // Web parity: offered whenever any event here has laps — the screen
+            // explains itself when none of them stored telemetry channels.
+            if model.hasComparableLaps {
+                Button("Compare two laps") { showingCompareLaps = true }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityHint("Pick two laps with telemetry and see where the time is gained or lost")
+            }
+
+            // The leaderboard is its own screen rather than a section here: this
+            // page is the driver's own history, and a board they may not care
+            // about was costing it a screen of space. Offered for every catalog
+            // track — before the driver is on it, and before they have been here
+            // at all. A push, not a sheet: it is a place you go, and the lap it
+            // opens is the sheet.
+            if track.catalogId != nil {
+                Button("Leaderboard") { router.push(.leaderboard(trackId: trackId)) }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityHint("Best device-timed laps by other drivers at this track — opt-in only")
+                    .accessibilityIdentifier("trackLeaderboard")
+            }
 
             // The page title already says which track, so the button doesn't repeat
             // it — a circuit name with a layout suffix wraps to three lines.
@@ -126,6 +223,18 @@ struct TrackScreen: View {
             }
         }
         .refreshable { await model.load() }
+        // The screen's one modal presentation — a second `.sheet` on this view
+        // would be the SwiftUI hazard that takes the app down with a watchdog
+        // "lost connection" rather than a stack trace. The leaderboard lap used
+        // to share this sheet; it now opens from `LeaderboardScreen`, which has
+        // its own.
+        //
+        // Where there is no room for a second column the compare stays the sheet
+        // it has always been: there is nowhere to put one, and a half-width lap
+        // comparison is a worse comparison rather than a smaller one.
+        .sheet(isPresented: compareSheet) {
+            CompareLapsScreen(trackId: trackId)
+        }
         .toolbar {
             if let url = model.shareURL(serverURL: auth.server.url) {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -155,9 +264,15 @@ struct TrackScreen: View {
                 ProgressChart(
                     points: model.chartPoints,
                     goalMs: track.goalMs,
+                    band: model.conditionsBand,
                     xLabel: { EventDates.fmtDate(EventDates.isoString(from: Date(timeIntervalSince1970: $0))) },
                     unit: "events"
                 )
+                // The wash's key: pale is the coolest event in view, deep the
+                // hottest. Absent when the band is, which is most young logbooks.
+                if let band = model.conditionsBand {
+                    ConditionsKey(band: band)
+                }
                 // Only offered once something here was logged as damp/wet/mixed:
                 // "Dry only" keeps a rain weekend from reading as regression, and it
                 // hides events *known* not to be dry — unlabelled history stays.
@@ -262,28 +377,52 @@ final class TrackModel {
         allEvents.contains { $0.conditions != nil && $0.conditions != .dry }
     }
 
+    /// Whether the two-lap compare is worth offering: any event here has laps.
+    /// Channel data can't be known from the list — the compare screen's empty
+    /// state covers a track whose laps carry none, same as the web.
+    var hasComparableLaps: Bool {
+        allEvents.contains { $0.lapCount > 0 }
+    }
+
     var personalBest: Int? {
         events.compactMap(\.bestMs).min()
     }
 
-    /// Chronological, and only events that set a time — the server does the same for
-    /// `Track.series`.
-    var chartPoints: [ProgressChart.Point] {
+    /// Chronological, and only events that set a time the chart can place — the
+    /// server does the same for `Track.series`. The band's cells are built from
+    /// this same list so the two line up one for one; deriving them separately
+    /// is how an unparseable date shifts every event's shading by one.
+    var plottedEvents: [Event] {
         events
-            .filter { $0.bestMs != nil }
+            .filter { $0.bestMs != nil && EventDates.date(fromISO: $0.startDate) != nil }
             .sorted { $0.startDate < $1.startDate }
-            .compactMap { event in
-                guard let best = event.bestMs,
-                      let date = EventDates.date(fromISO: event.startDate)
-                else { return nil }
-                // Time-proportional x, like the web chart: a two-year gap should look
-                // like a gap, not like the next event along.
-                return .init(
-                    x: date.timeIntervalSince1970,
-                    label: EventDates.fmtDate(event.startDate),
-                    ms: best
-                )
+    }
+
+    var chartPoints: [ProgressChart.Point] {
+        plottedEvents.compactMap { event in
+            guard let best = event.bestMs, let date = EventDates.date(fromISO: event.startDate) else {
+                return nil
             }
+            // Time-proportional x, like the web chart: a two-year gap should look
+            // like a gap, not like the next event along.
+            return .init(
+                x: date.timeIntervalSince1970,
+                label: EventDates.fmtDate(event.startDate),
+                ms: best
+            )
+        }
+    }
+
+    /// The ambient wash behind the chart (#191) — nil when too few events here
+    /// carry a temperature, or when they were all run in much the same air.
+    var conditionsBand: SessionConditions.Band? {
+        SessionConditions.conditionsBand(plottedEvents)
+    }
+
+    /// The track's elevation change, from every event at it — the dry-only
+    /// filter has nothing to do with the hill.
+    var elevationLine: String {
+        SessionConditions.elevationText(SessionConditions.trackElevationM(allEvents), .us)
     }
 
     /// How the personal best stands against the goal, in the web app's words.

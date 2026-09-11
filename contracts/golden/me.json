@@ -3,17 +3,25 @@
   "path": "/me",
   "status": 200,
   "body": {
+    "entitlement": {
+      "auto_renew": null,
+      "expires_at": null,
+      "source": null,
+      "tier": "free"
+    },
     "totals": {
-      "events": 3,
-      "track_days": 4
+      "events": 0,
+      "track_days": 0
     },
     "user": {
       "checklist_template": null,
       "email": "dev@example.com",
       "id": 1,
+      "leaderboard_opt_in": false,
+      "leaderboard_share_laps": false,
       "name": "Dev User",
       "picture": null,
-      "share_slug": "contract-fixture",
+      "share_slug": null,
       "units": "imperial"
     }
   }

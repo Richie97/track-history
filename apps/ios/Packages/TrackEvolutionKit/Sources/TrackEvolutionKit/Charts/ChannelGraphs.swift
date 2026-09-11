@@ -25,37 +25,56 @@ public enum ChannelGraphs {
     /// charts stack in.
     public enum Channel: String, CaseIterable, Sendable {
         case speed
+        case throttle
+        case brake
+        case steering
         case rpm
         case latG
+        /// Yaw rate, the honest baseline for the balance read-out (`Balance`,
+        /// #189): signed, so it swings both ways around zero like steering does.
+        case yaw
 
         public var label: String {
             switch self {
             case .speed: "Speed"
+            case .throttle: "Throttle"
+            case .brake: "Brake"
+            case .steering: "Steering"
             case .rpm: "RPM"
             case .latG: "Lateral G"
+            case .yaw: "Yaw rate"
             }
         }
 
         public var unit: String {
             switch self {
             case .speed: "mph"
+            case .throttle, .brake: "%"
+            case .steering: "°"
             case .rpm: "rpm"
             case .latG: "G"
+            case .yaw: "°/s"
             }
         }
 
         /// Decimal places a readout of this channel shows.
         public var decimals: Int {
             switch self {
-            case .speed, .rpm: 0
+            case .speed, .throttle, .brake, .steering, .rpm, .yaw: 0
             case .latG: 2
             }
         }
 
         /// Whether the axis is pinned at zero rather than padded below the minimum.
-        /// Lateral G is a magnitude — an axis starting at 0.3 G reads as if the car
-        /// never went straight.
-        public var floorAtZero: Bool { self == .latG }
+        /// Lateral G and the pedals are magnitudes — an axis starting at 0.3 G (or
+        /// 20% throttle) reads as if the car never went straight (or lifted).
+        /// Steering and yaw rate are signed, so they keep the padded axis.
+        public var floorAtZero: Bool {
+            switch self {
+            case .throttle, .brake, .latG: true
+            case .speed, .steering, .rpm, .yaw: false
+            }
+        }
 
         /// Stored units → displayed units. Speed is stored in km/h.
         public func convert(_ raw: Double) -> Double {
@@ -66,8 +85,12 @@ public enum ChannelGraphs {
         public func series(of lap: LapChannels) -> [Double]? {
             switch self {
             case .speed: lap.speed
+            case .throttle: lap.throttle
+            case .brake: lap.brake
+            case .steering: lap.steering
             case .rpm: lap.rpm
             case .latG: lap.latG
+            case .yaw: lap.yaw
             }
         }
     }
@@ -193,5 +216,74 @@ public enum ChannelGraphs {
         let m = Int(metres.rounded())
         guard m >= 1000 else { return "\(m) m" }
         return String(format: m % 1000 != 0 ? "%.1f km" : "%.0f km", Double(m) / 1000)
+    }
+
+    // MARK: - Lap delta
+
+    /// A 0 km/h sample would make its grid cell take near-forever; clamp the
+    /// cell average to walking pace instead. The end-scale to the timed lap
+    /// absorbs the error. `DELTA_MIN_KPH` in the JS.
+    public static let DELTA_MIN_KPH: Double = 3
+
+    /// Cumulative elapsed seconds at each grid point (d = 0, dStepM, 2·dStepM…)
+    /// from a lap's speed samples (km/h): trapezoidal dt per cell, then scaled
+    /// so the last point equals `timeMs / 1000` when a timed duration is given
+    /// — the integral alone drifts, and the timer is ground truth.
+    ///
+    /// `lapTimeSeries` in the JS, pinned by `contracts/logic/lap-delta.json`.
+    public static func lapTimeSeries(_ speedKph: [Double], _ dStepM: Double, _ timeMs: Int?) -> [Double] {
+        guard !speedKph.isEmpty else { return [] }
+        var t = [Double](repeating: 0, count: speedKph.count)
+        for k in 1..<speedKph.count {
+            let vAvg = Swift.max(DELTA_MIN_KPH, (speedKph[k - 1] + speedKph[k]) / 2) / 3.6 // m/s
+            t[k] = t[k - 1] + dStepM / vAvg
+        }
+        if let timeMs, let total = t.last, total > 0 {
+            let scale = Double(timeMs) / 1000 / total
+            for k in t.indices { t[k] *= scale }
+        }
+        return t
+    }
+
+    /// Delta seconds (lap − ref, positive = the lap is slower) at each shared
+    /// grid point, over the points both laps cover. nil when either lap has no
+    /// speed data or the overlap is too short to mean anything.
+    ///
+    /// `deltaSeries` in the JS, pinned by `contracts/logic/lap-delta.json`.
+    public static func deltaSeries(_ lap: LapChannels, _ ref: LapChannels, _ dStepM: Double) -> [Double]? {
+        guard let lapSpeed = lap.speed, let refSpeed = ref.speed else { return nil }
+        let a = lapTimeSeries(lapSpeed, dStepM, lap.timeMs)
+        let b = lapTimeSeries(refSpeed, dStepM, ref.timeMs)
+        let n = Swift.min(a.count, b.count)
+        guard n >= 10 else { return nil }
+        return (0..<n).map { a[$0] - b[$0] }
+    }
+
+    /// The reference the delta measures against: the fastest of the highlight
+    /// selection. nil until two or more laps are highlighted — a delta of one
+    /// lap against itself says nothing.
+    public static func deltaReference(_ lit: [Int], in channels: SessionChannels) -> Int? {
+        guard lit.count >= 2 else { return nil }
+        return lit.min { a, b in
+            guard channels.laps.indices.contains(a), channels.laps.indices.contains(b) else { return a < b }
+            return channels.laps[a].timeMs < channels.laps[b].timeMs
+        }
+    }
+
+    /// The y window for a delta chart: always includes zero (the reference lap
+    /// *is* the zero line), padded by 8% of the range with the JS's 0.05 s
+    /// floor so a near-identical pair of laps still draws a readable band.
+    public static func deltaDomain(_ deltas: [[Double]]) -> (low: Double, high: Double)? {
+        guard !deltas.isEmpty else { return nil }
+        var low = 0.0
+        var high = 0.0
+        for series in deltas {
+            for v in series {
+                low = Swift.min(low, v)
+                high = Swift.max(high, v)
+            }
+        }
+        let pad = Swift.max((high - low) * 0.08, 0.05)
+        return (low - pad, high + pad)
     }
 }

@@ -1,0 +1,1231 @@
+{
+  "description": "Session-health reference output from public/js/health.js (lapValue / healthStatus / sessionExtreme / sessionHealth / tyreSpread / sessionSpread / fuelBurn / hotPressures / roundPsi / suggestCold / displayValue / displayDelta / healthSummary). Values are the stored units (°C, kPa, V, %); only the display helpers convert. Ports must reproduce the wording exactly and the doubles to 1e-9. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/health.js",
+  "input": {
+    "channels": {
+      "v": 1,
+      "dStepM": 20,
+      "laps": [
+        {
+          "n": 1,
+          "timeMs": 118000,
+          "oilC": 104,
+          "coolantC": 96,
+          "transC": 88,
+          "oilKpa": 340,
+          "fuelPct": 62,
+          "battV": 13.8,
+          "tyreKpaLF": 214,
+          "tyreKpaRF": 210,
+          "tyreKpaLR": 206,
+          "tyreKpaRR": 205,
+          "tyreCLF": 78,
+          "tyreCRF": 71,
+          "tyreCLR": 66,
+          "tyreCRR": 64,
+          "boost": [
+            12,
+            88,
+            141.5,
+            96,
+            33
+          ]
+        },
+        {
+          "n": 2,
+          "timeMs": 117400,
+          "oilC": 120,
+          "coolantC": 110,
+          "oilKpa": 200,
+          "fuelPct": 10,
+          "battV": 12.5,
+          "tyreKpaLF": 231,
+          "tyreKpaRF": 228,
+          "tyreKpaLR": 219,
+          "tyreKpaRR": 214,
+          "tyreCLF": 96,
+          "tyreCRF": 84,
+          "tyreCLR": 71,
+          "tyreCRR": 70,
+          "boost": [
+            40,
+            152,
+            120
+          ]
+        },
+        {
+          "n": 3,
+          "timeMs": 119900,
+          "oilC": 134,
+          "coolantC": 122,
+          "transC": 128,
+          "oilKpa": 110,
+          "fuelPct": 41,
+          "battV": 12.2,
+          "tyreKpaLF": 244,
+          "tyreKpaRF": 236,
+          "tyreKpaLR": 225,
+          "tyreKpaRR": 221,
+          "tyreCLF": 108,
+          "tyreCRF": 92,
+          "tyreCLR": 77,
+          "tyreCRR": 75
+        },
+        {
+          "n": 4,
+          "timeMs": 120500,
+          "oilC": 118,
+          "tyreCLF": 90,
+          "tyreCRF": 82,
+          "tyreCLR": 70
+        },
+        {
+          "n": 5,
+          "timeMs": 121000,
+          "speed": [
+            80,
+            90,
+            100
+          ]
+        }
+      ]
+    },
+    "fuelChannels": {
+      "v": 1,
+      "dStepM": 20,
+      "laps": [
+        {
+          "n": 1,
+          "timeMs": 118000,
+          "fuelPct": 80
+        },
+        {
+          "n": 2,
+          "timeMs": 118000,
+          "fuelPct": 68
+        },
+        {
+          "n": 3,
+          "timeMs": 118000,
+          "fuelPct": 57
+        },
+        {
+          "n": 4,
+          "timeMs": 118000,
+          "fuelPct": 95
+        },
+        {
+          "n": 5,
+          "timeMs": 118000,
+          "fuelPct": 84
+        }
+      ]
+    },
+    "oneDropChannels": {
+      "v": 1,
+      "dStepM": 20,
+      "laps": [
+        {
+          "n": 1,
+          "timeMs": 118000,
+          "fuelPct": 50
+        },
+        {
+          "n": 2,
+          "timeMs": 118000,
+          "fuelPct": 42
+        }
+      ]
+    },
+    "lastLapChannels": {
+      "v": 1,
+      "dStepM": 20,
+      "laps": [
+        {
+          "n": 1,
+          "timeMs": 118000,
+          "fuelPct": 30
+        },
+        {
+          "n": 2,
+          "timeMs": 118000,
+          "fuelPct": 20
+        },
+        {
+          "n": 3,
+          "timeMs": 118000,
+          "fuelPct": 10
+        }
+      ]
+    },
+    "defs": [
+      {
+        "key": "oilC",
+        "label": "Oil temp",
+        "group": "temps",
+        "unit": "°C",
+        "reduce": "max",
+        "watch": 120,
+        "over": 130
+      },
+      {
+        "key": "coolantC",
+        "label": "Coolant",
+        "group": "temps",
+        "unit": "°C",
+        "reduce": "max",
+        "watch": 110,
+        "over": 120
+      },
+      {
+        "key": "transC",
+        "label": "Transmission",
+        "group": "temps",
+        "unit": "°C",
+        "reduce": "max",
+        "watch": 110,
+        "over": 125
+      },
+      {
+        "key": "tyreCLF",
+        "label": "Tyre LF",
+        "group": "temps",
+        "unit": "°C",
+        "reduce": "max"
+      },
+      {
+        "key": "tyreCRF",
+        "label": "Tyre RF",
+        "group": "temps",
+        "unit": "°C",
+        "reduce": "max"
+      },
+      {
+        "key": "tyreCLR",
+        "label": "Tyre LR",
+        "group": "temps",
+        "unit": "°C",
+        "reduce": "max"
+      },
+      {
+        "key": "tyreCRR",
+        "label": "Tyre RR",
+        "group": "temps",
+        "unit": "°C",
+        "reduce": "max"
+      },
+      {
+        "key": "oilKpa",
+        "label": "Oil pressure",
+        "group": "pressures",
+        "unit": "kPa",
+        "reduce": "min",
+        "low": true,
+        "watch": 200,
+        "over": 120
+      },
+      {
+        "key": "boost",
+        "label": "Boost",
+        "group": "pressures",
+        "unit": "kPa",
+        "reduce": "max",
+        "derived": true
+      },
+      {
+        "key": "tyreKpaLF",
+        "label": "Tyre LF",
+        "group": "pressures",
+        "unit": "kPa",
+        "reduce": "end"
+      },
+      {
+        "key": "tyreKpaRF",
+        "label": "Tyre RF",
+        "group": "pressures",
+        "unit": "kPa",
+        "reduce": "end"
+      },
+      {
+        "key": "tyreKpaLR",
+        "label": "Tyre LR",
+        "group": "pressures",
+        "unit": "kPa",
+        "reduce": "end"
+      },
+      {
+        "key": "tyreKpaRR",
+        "label": "Tyre RR",
+        "group": "pressures",
+        "unit": "kPa",
+        "reduce": "end"
+      },
+      {
+        "key": "fuelPct",
+        "label": "Fuel",
+        "group": "electrical",
+        "unit": "%",
+        "reduce": "end",
+        "low": true,
+        "watch": 20,
+        "over": 10
+      },
+      {
+        "key": "battV",
+        "label": "Battery",
+        "group": "electrical",
+        "unit": "V",
+        "reduce": "min",
+        "low": true,
+        "watch": 13,
+        "over": 12.5
+      }
+    ],
+    "groups": [
+      [
+        "temps",
+        "Temperatures"
+      ],
+      [
+        "pressures",
+        "Pressures"
+      ],
+      [
+        "electrical",
+        "Fuel & electrical"
+      ]
+    ],
+    "corners": [
+      [
+        "LF",
+        "fl"
+      ],
+      [
+        "RF",
+        "fr"
+      ],
+      [
+        "LR",
+        "rl"
+      ],
+      [
+        "RR",
+        "rr"
+      ]
+    ],
+    "statusProbes": [
+      [
+        "oilC",
+        119.9
+      ],
+      [
+        "oilC",
+        120
+      ],
+      [
+        "oilC",
+        129.9
+      ],
+      [
+        "oilC",
+        130
+      ],
+      [
+        "oilKpa",
+        200.1
+      ],
+      [
+        "oilKpa",
+        200
+      ],
+      [
+        "oilKpa",
+        120.1
+      ],
+      [
+        "oilKpa",
+        120
+      ],
+      [
+        "tyreCLF",
+        300
+      ]
+    ],
+    "psiProbes": [
+      34.2,
+      34.25,
+      34.26,
+      34.75,
+      -0.3
+    ],
+    "suggestProbes": [
+      [
+        31,
+        36,
+        34
+      ],
+      [
+        30,
+        30,
+        34
+      ],
+      [
+        31.4,
+        36.9,
+        34
+      ],
+      [
+        null,
+        36,
+        34
+      ],
+      [
+        31,
+        36,
+        null
+      ]
+    ]
+  },
+  "expected": {
+    "lapValues": [
+      [
+        "oilC",
+        104,
+        118
+      ],
+      [
+        "coolantC",
+        96,
+        null
+      ],
+      [
+        "transC",
+        88,
+        null
+      ],
+      [
+        "tyreCLF",
+        78,
+        90
+      ],
+      [
+        "tyreCRF",
+        71,
+        82
+      ],
+      [
+        "tyreCLR",
+        66,
+        70
+      ],
+      [
+        "tyreCRR",
+        64,
+        null
+      ],
+      [
+        "oilKpa",
+        340,
+        null
+      ],
+      [
+        "boost",
+        141.5,
+        null
+      ],
+      [
+        "tyreKpaLF",
+        214,
+        null
+      ],
+      [
+        "tyreKpaRF",
+        210,
+        null
+      ],
+      [
+        "tyreKpaLR",
+        206,
+        null
+      ],
+      [
+        "tyreKpaRR",
+        205,
+        null
+      ],
+      [
+        "fuelPct",
+        62,
+        null
+      ],
+      [
+        "battV",
+        13.8,
+        null
+      ]
+    ],
+    "boostPeak": 141.5,
+    "noBoost": null,
+    "hasData": [
+      true,
+      true,
+      true,
+      true,
+      false
+    ],
+    "healthLaps": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "series": [
+      {
+        "chIdx": 0,
+        "v": 104
+      },
+      {
+        "chIdx": 1,
+        "v": 120
+      },
+      {
+        "chIdx": 2,
+        "v": 134
+      },
+      {
+        "chIdx": 3,
+        "v": 118
+      }
+    ],
+    "statuses": [
+      "ok",
+      "low",
+      "low",
+      "due",
+      "ok",
+      "low",
+      "low",
+      "due",
+      null
+    ],
+    "session": {
+      "laps": [
+        {
+          "chIdx": 0,
+          "values": {
+            "oilC": 104,
+            "coolantC": 96,
+            "transC": 88,
+            "tyreCLF": 78,
+            "tyreCRF": 71,
+            "tyreCLR": 66,
+            "tyreCRR": 64,
+            "oilKpa": 340,
+            "boost": 141.5,
+            "tyreKpaLF": 214,
+            "tyreKpaRF": 210,
+            "tyreKpaLR": 206,
+            "tyreKpaRR": 205,
+            "fuelPct": 62,
+            "battV": 13.8
+          }
+        },
+        {
+          "chIdx": 1,
+          "values": {
+            "oilC": 120,
+            "coolantC": 110,
+            "tyreCLF": 96,
+            "tyreCRF": 84,
+            "tyreCLR": 71,
+            "tyreCRR": 70,
+            "oilKpa": 200,
+            "boost": 152,
+            "tyreKpaLF": 231,
+            "tyreKpaRF": 228,
+            "tyreKpaLR": 219,
+            "tyreKpaRR": 214,
+            "fuelPct": 10,
+            "battV": 12.5
+          }
+        },
+        {
+          "chIdx": 2,
+          "values": {
+            "oilC": 134,
+            "coolantC": 122,
+            "transC": 128,
+            "tyreCLF": 108,
+            "tyreCRF": 92,
+            "tyreCLR": 77,
+            "tyreCRR": 75,
+            "oilKpa": 110,
+            "tyreKpaLF": 244,
+            "tyreKpaRF": 236,
+            "tyreKpaLR": 225,
+            "tyreKpaRR": 221,
+            "fuelPct": 41,
+            "battV": 12.2
+          }
+        },
+        {
+          "chIdx": 3,
+          "values": {
+            "oilC": 118,
+            "tyreCLF": 90,
+            "tyreCRF": 82,
+            "tyreCLR": 70
+          }
+        }
+      ],
+      "columns": [
+        {
+          "key": "oilC",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 104
+            },
+            {
+              "chIdx": 1,
+              "v": 120
+            },
+            {
+              "chIdx": 2,
+              "v": 134
+            },
+            {
+              "chIdx": 3,
+              "v": 118
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 134
+          },
+          "status": "due"
+        },
+        {
+          "key": "coolantC",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 96
+            },
+            {
+              "chIdx": 1,
+              "v": 110
+            },
+            {
+              "chIdx": 2,
+              "v": 122
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 122
+          },
+          "status": "due"
+        },
+        {
+          "key": "transC",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 88
+            },
+            {
+              "chIdx": 2,
+              "v": 128
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 128
+          },
+          "status": "due"
+        },
+        {
+          "key": "tyreCLF",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 78
+            },
+            {
+              "chIdx": 1,
+              "v": 96
+            },
+            {
+              "chIdx": 2,
+              "v": 108
+            },
+            {
+              "chIdx": 3,
+              "v": 90
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 108
+          },
+          "status": null
+        },
+        {
+          "key": "tyreCRF",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 71
+            },
+            {
+              "chIdx": 1,
+              "v": 84
+            },
+            {
+              "chIdx": 2,
+              "v": 92
+            },
+            {
+              "chIdx": 3,
+              "v": 82
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 92
+          },
+          "status": null
+        },
+        {
+          "key": "tyreCLR",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 66
+            },
+            {
+              "chIdx": 1,
+              "v": 71
+            },
+            {
+              "chIdx": 2,
+              "v": 77
+            },
+            {
+              "chIdx": 3,
+              "v": 70
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 77
+          },
+          "status": null
+        },
+        {
+          "key": "tyreCRR",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 64
+            },
+            {
+              "chIdx": 1,
+              "v": 70
+            },
+            {
+              "chIdx": 2,
+              "v": 75
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 75
+          },
+          "status": null
+        },
+        {
+          "key": "oilKpa",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 340
+            },
+            {
+              "chIdx": 1,
+              "v": 200
+            },
+            {
+              "chIdx": 2,
+              "v": 110
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 110
+          },
+          "status": "due"
+        },
+        {
+          "key": "boost",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 141.5
+            },
+            {
+              "chIdx": 1,
+              "v": 152
+            }
+          ],
+          "extreme": {
+            "chIdx": 1,
+            "v": 152
+          },
+          "status": null
+        },
+        {
+          "key": "tyreKpaLF",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 214
+            },
+            {
+              "chIdx": 1,
+              "v": 231
+            },
+            {
+              "chIdx": 2,
+              "v": 244
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 244
+          },
+          "status": null
+        },
+        {
+          "key": "tyreKpaRF",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 210
+            },
+            {
+              "chIdx": 1,
+              "v": 228
+            },
+            {
+              "chIdx": 2,
+              "v": 236
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 236
+          },
+          "status": null
+        },
+        {
+          "key": "tyreKpaLR",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 206
+            },
+            {
+              "chIdx": 1,
+              "v": 219
+            },
+            {
+              "chIdx": 2,
+              "v": 225
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 225
+          },
+          "status": null
+        },
+        {
+          "key": "tyreKpaRR",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 205
+            },
+            {
+              "chIdx": 1,
+              "v": 214
+            },
+            {
+              "chIdx": 2,
+              "v": 221
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 221
+          },
+          "status": null
+        },
+        {
+          "key": "fuelPct",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 62
+            },
+            {
+              "chIdx": 1,
+              "v": 10
+            },
+            {
+              "chIdx": 2,
+              "v": 41
+            }
+          ],
+          "extreme": {
+            "chIdx": 0,
+            "v": 62
+          },
+          "status": "ok"
+        },
+        {
+          "key": "battV",
+          "series": [
+            {
+              "chIdx": 0,
+              "v": 13.8
+            },
+            {
+              "chIdx": 1,
+              "v": 12.5
+            },
+            {
+              "chIdx": 2,
+              "v": 12.2
+            }
+          ],
+          "extreme": {
+            "chIdx": 2,
+            "v": 12.2
+          },
+          "status": "due"
+        }
+      ]
+    },
+    "spreadFull": {
+      "front": 7,
+      "rear": 2,
+      "axle": 9.5
+    },
+    "spreadPressures": {
+      "front": 4,
+      "rear": 1,
+      "axle": 6.5
+    },
+    "spreadPartial": null,
+    "sessionSpread": [
+      {
+        "chIdx": 0,
+        "front": 7,
+        "rear": 2,
+        "axle": 9.5
+      },
+      {
+        "chIdx": 1,
+        "front": 12,
+        "rear": 1,
+        "axle": 19.5
+      },
+      {
+        "chIdx": 2,
+        "front": 16,
+        "rear": 2,
+        "axle": 24
+      }
+    ],
+    "fuel": {
+      "perLapPct": 11,
+      "lastPct": 84,
+      "lapsRemaining": 7,
+      "drops": 3
+    },
+    "fuelOneDrop": null,
+    "hot": {
+      "LF": {
+        "peakKpa": 244,
+        "peakChIdx": 2,
+        "lastKpa": 244
+      },
+      "RF": {
+        "peakKpa": 236,
+        "peakChIdx": 2,
+        "lastKpa": 236
+      },
+      "LR": {
+        "peakKpa": 225,
+        "peakChIdx": 2,
+        "lastKpa": 225
+      },
+      "RR": {
+        "peakKpa": 221,
+        "peakChIdx": 2,
+        "lastKpa": 221
+      }
+    },
+    "noHot": null,
+    "roundPsi": [
+      34,
+      34.5,
+      34.5,
+      35,
+      -0.5
+    ],
+    "suggestions": [
+      {
+        "coldPsi": 31,
+        "hotPsi": 36,
+        "targetPsi": 34,
+        "suggestedPsi": 29,
+        "deltaPsi": -2
+      },
+      {
+        "coldPsi": 30,
+        "hotPsi": 30,
+        "targetPsi": 34,
+        "suggestedPsi": 34,
+        "deltaPsi": 4
+      },
+      {
+        "coldPsi": 31.4,
+        "hotPsi": 36.9,
+        "targetPsi": 34,
+        "suggestedPsi": 28.5,
+        "deltaPsi": -2.8999999999999986
+      },
+      null,
+      null
+    ],
+    "displayMetric": [
+      {
+        "value": 100,
+        "unit": "°C",
+        "dp": 0,
+        "text": "100 °C"
+      },
+      {
+        "value": 100,
+        "unit": "°C",
+        "dp": 0,
+        "text": "100 °C"
+      },
+      {
+        "value": 100,
+        "unit": "°C",
+        "dp": 0,
+        "text": "100 °C"
+      },
+      {
+        "value": 100,
+        "unit": "°C",
+        "dp": 0,
+        "text": "100 °C"
+      },
+      {
+        "value": 100,
+        "unit": "°C",
+        "dp": 0,
+        "text": "100 °C"
+      },
+      {
+        "value": 100,
+        "unit": "°C",
+        "dp": 0,
+        "text": "100 °C"
+      },
+      {
+        "value": 100,
+        "unit": "°C",
+        "dp": 0,
+        "text": "100 °C"
+      },
+      {
+        "value": 100,
+        "unit": "kPa",
+        "dp": 0,
+        "text": "100 kPa"
+      },
+      {
+        "value": 100,
+        "unit": "kPa",
+        "dp": 0,
+        "text": "100 kPa"
+      },
+      {
+        "value": 100,
+        "unit": "kPa",
+        "dp": 0,
+        "text": "100 kPa"
+      },
+      {
+        "value": 100,
+        "unit": "kPa",
+        "dp": 0,
+        "text": "100 kPa"
+      },
+      {
+        "value": 100,
+        "unit": "kPa",
+        "dp": 0,
+        "text": "100 kPa"
+      },
+      {
+        "value": 100,
+        "unit": "kPa",
+        "dp": 0,
+        "text": "100 kPa"
+      },
+      {
+        "value": 100,
+        "unit": "%",
+        "dp": 0,
+        "text": "100 %"
+      },
+      {
+        "value": 100,
+        "unit": "V",
+        "dp": 1,
+        "text": "100.0 V"
+      }
+    ],
+    "displayUs": [
+      {
+        "value": 212,
+        "unit": "°F",
+        "dp": 0,
+        "text": "212 °F"
+      },
+      {
+        "value": 212,
+        "unit": "°F",
+        "dp": 0,
+        "text": "212 °F"
+      },
+      {
+        "value": 212,
+        "unit": "°F",
+        "dp": 0,
+        "text": "212 °F"
+      },
+      {
+        "value": 212,
+        "unit": "°F",
+        "dp": 0,
+        "text": "212 °F"
+      },
+      {
+        "value": 212,
+        "unit": "°F",
+        "dp": 0,
+        "text": "212 °F"
+      },
+      {
+        "value": 212,
+        "unit": "°F",
+        "dp": 0,
+        "text": "212 °F"
+      },
+      {
+        "value": 212,
+        "unit": "°F",
+        "dp": 0,
+        "text": "212 °F"
+      },
+      {
+        "value": 14.50377438972831,
+        "unit": "psi",
+        "dp": 1,
+        "text": "14.5 psi"
+      },
+      {
+        "value": 14.50377438972831,
+        "unit": "psi",
+        "dp": 1,
+        "text": "14.5 psi"
+      },
+      {
+        "value": 14.50377438972831,
+        "unit": "psi",
+        "dp": 1,
+        "text": "14.5 psi"
+      },
+      {
+        "value": 14.50377438972831,
+        "unit": "psi",
+        "dp": 1,
+        "text": "14.5 psi"
+      },
+      {
+        "value": 14.50377438972831,
+        "unit": "psi",
+        "dp": 1,
+        "text": "14.5 psi"
+      },
+      {
+        "value": 14.50377438972831,
+        "unit": "psi",
+        "dp": 1,
+        "text": "14.5 psi"
+      },
+      {
+        "value": 100,
+        "unit": "%",
+        "dp": 0,
+        "text": "100 %"
+      },
+      {
+        "value": 100,
+        "unit": "V",
+        "dp": 1,
+        "text": "100.0 V"
+      }
+    ],
+    "deltaMetric": [
+      {
+        "value": 10,
+        "unit": "°C",
+        "text": "+10 °C"
+      },
+      {
+        "value": 13.8,
+        "unit": "kPa",
+        "text": "+14 kPa"
+      }
+    ],
+    "deltaUs": [
+      {
+        "value": 18,
+        "unit": "°F",
+        "text": "+18 °F"
+      },
+      {
+        "value": 2.0015208657825068,
+        "unit": "psi",
+        "text": "+2.0 psi"
+      }
+    ],
+    "summaryMetric": "car: oil temp 134 °C, coolant 122 °C, transmission 128 °C, oil pressure 110 kPa, battery 12.2 V",
+    "summaryUs": "car: oil temp 273 °F, coolant 252 °F, transmission 262 °F, oil pressure 16.0 psi, battery 12.2 V",
+    "summaryFuelOnly": "car: ≈7 laps of fuel at this rate",
+    "summaryOneLap": "car: ≈1 lap of fuel at this rate",
+    "summaryQuiet": null,
+    "summaryNoData": null,
+    "noData": null
+  }
+}

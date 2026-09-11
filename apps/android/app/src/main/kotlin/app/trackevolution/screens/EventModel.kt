@@ -3,7 +3,13 @@ package app.trackevolution.screens
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import app.trackevolution.core.Balance
+import app.trackevolution.core.Gears
+import app.trackevolution.core.Health
 import app.trackevolution.core.LapStats
+import app.trackevolution.core.LapTime
+import app.trackevolution.core.Limits
+import app.trackevolution.core.Sectors
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.ChecklistItem
@@ -164,5 +170,33 @@ val Session.lapTimesMs: List<Int> get() = laps.map { it.timeMs }
 
 val Session.bestLapMs: Int? get() = laps.minOfOrNull { it.timeMs }
 
-/** The one-line pace summary under a session header. */
-val Session.statsSummary: String? get() = LapStats.summary(lapTimesMs)
+/**
+ * The one-line pace summary under a session header, plus — for a session with
+ * channel data — the theoretical best lap from its sector splits (`Sectors`,
+ * #146), when stringing the best sectors together would beat the best lap.
+ * The splits themselves are in the channel panel below.
+ */
+val Session.statsSummary: String?
+    get() {
+        val sec = channels?.let { Sectors.sessionSectors(it) }
+        val theoretical = sec?.takeIf { it.laps.size >= 2 && it.gapMs > 0 }
+            ?.let { "theoretical best ${LapTime.fmtMs(it.theoreticalBestMs)}" }
+        // The typical upshift rpm across the session (`Gears`, #187); the
+        // per-gear breakdown sits in the channel panel's Inputs tab.
+        val upshifts = channels?.let { Gears.shiftPoints(it) }
+            ?.let { "upshifts ≈ ${Gears.fmtRpm(it.medianRpm.toDouble())} rpm" }
+        // Where the car hit its limit (`Limits`, #188), counted as places on
+        // track across the session. The marks themselves are on the best-lap
+        // trace and shaded on the pedal traces.
+        val limits = channels?.let { Limits.limitSummary(it) }
+        // The corners whose rotation sits off this car's typical response
+        // (`Balance`, #189), pooled across the session; the per-corner table and
+        // the scatter are on the channel panel's Grip tab.
+        val balance = channels?.let { Balance.balanceSummary(it) }
+        // What the car was doing (`Health`, #190): any figure past its line and
+        // the fuel outlook; the cards themselves are on the panel's Car tab.
+        val health = channels?.let { Health.healthSummary(it, Health.Units.US) }
+        return listOfNotNull(LapStats.summary(lapTimesMs), theoretical, upshifts, limits, balance, health)
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString(" · ")
+    }

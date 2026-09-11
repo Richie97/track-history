@@ -13,6 +13,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,10 +26,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import app.trackevolution.BuildConfig
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.TEConfirmDialog
@@ -39,6 +43,8 @@ import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
+import java.text.DateFormat
+import java.util.Date
 
 /** Where the legal pages live. The app links out; it does not embed them. */
 private const val DOCS_URL = "https://docs.trackevolution.app"
@@ -68,6 +74,10 @@ fun SettingsScreen(
     onOpenVehicle: (Int) -> Unit,
     onShare: (String) -> Unit,
     onSignOut: () -> Unit,
+    /** The account's tier, as the server last said it (NS-32). */
+    entitlement: Entitlement = Entitlement.FREE,
+    /** Opens the paywall sheet. */
+    onSubscribe: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -89,6 +99,11 @@ fun SettingsScreen(
 
             item("account") { AccountCard(model, serverUrl) }
 
+            item("subscription-header") { TESectionHeader("Subscription") }
+            item("subscription") {
+                SubscriptionCard(entitlement = entitlement, onSubscribe = onSubscribe, onOpenLink = onOpenLink)
+            }
+
             item("appearance-header") { TESectionHeader("Appearance") }
             item("appearance") { ThemeCard(themeChoice, onThemeChange) }
 
@@ -102,6 +117,9 @@ fun SettingsScreen(
                     onDisable = { confirmDisableShare = true },
                 )
             }
+
+            item("leaderboards-header") { TESectionHeader("Leaderboards") }
+            item("leaderboards") { LeaderboardOptInCard(model) }
 
             item("checklist-header") { TESectionHeader("Prep checklist") }
             item("checklist") {
@@ -191,6 +209,80 @@ private fun AccountCard(model: SettingsModel, serverUrl: String) {
     }
 }
 
+/**
+ * Tier and source, and the one action that fits it (NS-32 phase C): Subscribe
+ * when free, Manage when a store sold it, nothing for a legacy grant — there is
+ * no subscription behind it to manage. The wording comes from `:core`'s
+ * `entitlementSummary`, pinned to the web's by `contracts/logic/entitlement.json`;
+ * only the date is formatted here, in the device's locale.
+ */
+@Composable
+private fun SubscriptionCard(
+    entitlement: Entitlement,
+    onSubscribe: () -> Unit,
+    onOpenLink: (String) -> Unit,
+) {
+    val colors = TrackTheme.colors
+    val pro = Entitlement.isPro(entitlement)
+    val manageUrl = Entitlement.manageUrl(entitlement)
+    val summary = Entitlement.entitlementSummary(entitlement) { ms ->
+        DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(ms))
+    }
+    TrackCard(Modifier.fillMaxWidth().testTag("subscription")) {
+        Text(summary, style = TrackTheme.typography.h3, color = if (pro) colors.accentInk else colors.textStrong)
+        Text(
+            entitlementDetail(entitlement),
+            style = TrackTheme.typography.xs,
+            color = colors.textMuted,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Row(
+            modifier = Modifier.padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (!pro) {
+                Button(
+                    onClick = onSubscribe,
+                    modifier = Modifier.testTag("subscribe"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = colors.accentContrast,
+                    ),
+                ) {
+                    Text("Subscribe", style = TrackTheme.typography.bodyStrong)
+                }
+            }
+            if (manageUrl != null) {
+                TextButton(onClick = { onOpenLink(manageUrl) }, modifier = Modifier.testTag("manageSubscription")) {
+                    Text(
+                        if (pro) "Manage subscription ↗" else "Manage in Google Play ↗",
+                        style = TrackTheme.typography.sm,
+                        color = if (pro) colors.accentInk else colors.textMuted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The line under the summary: where the tier came from, or what Pro would add. */
+private fun entitlementDetail(entitlement: Entitlement): String = when {
+    entitlement.source == Entitlement.Source.LEGACY ->
+        "Pro (legacy) — you bought Track Evolution before subscriptions, so Pro is yours for life."
+    Entitlement.isPro(entitlement) && entitlement.source == Entitlement.Source.GOOGLE ->
+        "Subscribed through Google Play. Renewal and cancellation are handled there."
+    Entitlement.isPro(entitlement) && entitlement.source == Entitlement.Source.APPLE ->
+        "Subscribed through the App Store. Manage it from your iPhone's Settings, or the link below."
+    Entitlement.isPro(entitlement) -> "Track Evolution Pro."
+    entitlement.source != null ->
+        "Your subscription has ended. The logbook is yours for free; Pro brings back the recorder, " +
+            "telemetry import, channel graphs and garage consumables."
+    else ->
+        "The logbook is free. Pro adds the GPS lap recorder, telemetry import, channel graphs " +
+            "and garage consumables — $1.99 a month or $19.99 a year."
+}
+
 @Composable
 private fun ThemeCard(choice: ThemeChoice, onChange: (ThemeChoice) -> Unit) {
     val colors = TrackTheme.colors
@@ -212,6 +304,79 @@ private fun ThemeCard(choice: ThemeChoice, onChange: (ThemeChoice) -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The per-track leaderboard opt-in — the same privacy posture as the web's
+ * Settings section: exactly two things are shared per track, and everything
+ * else stays private.
+ */
+@Composable
+private fun LeaderboardOptInCard(model: SettingsModel) {
+    val colors = TrackTheme.colors
+    TrackCard(Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = model.leaderboardOptIn,
+                onCheckedChange = { model.updateLeaderboardOptIn(it) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.accentInk,
+                    checkedTrackColor = colors.accentTint,
+                ),
+            )
+            Text(
+                "Appear on per-track leaderboards",
+                style = TrackTheme.typography.body,
+                color = colors.textBody,
+            )
+        }
+        Text(
+            "Opting in shares exactly two things with other signed-in drivers, per track: " +
+                "your name and your best device-timed lap (with its date). Only laps recorded with " +
+                "the app or imported from telemetry are ranked — hand-entered times stay in your " +
+                "logbook. Your events, notes, laps and garage stay private. Leaderboards exist only " +
+                "for tracks the app's catalog knows.",
+            style = TrackTheme.typography.xs,
+            color = colors.textFaint,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        HorizontalDivider(color = colors.borderHairline, modifier = Modifier.padding(vertical = 10.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = model.leaderboardShareLaps,
+                onCheckedChange = { model.updateLeaderboardShareLaps(it) },
+                enabled = model.leaderboardOptIn,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.accentInk,
+                    checkedTrackColor = colors.accentTint,
+                ),
+            )
+            Text(
+                "Let other drivers open my ranked laps",
+                style = TrackTheme.typography.body,
+                color = colors.textBody,
+            )
+        }
+        Text(
+            "A second, separate choice, off unless you turn it on. It publishes one lap per track " +
+                "— the ranked one already on the board — as its racing line and telemetry traces, so a " +
+                "driver ranked at the same track can compare corner for corner. It never publishes any " +
+                "other lap, your notes, your session labels, your car, the conditions you typed, your " +
+                "setup sheets or your garage. Leaving the leaderboards turns it off.",
+            style = TrackTheme.typography.xs,
+            color = colors.textFaint,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        model.leaderboardError?.let {
+            TEErrorBanner(it, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

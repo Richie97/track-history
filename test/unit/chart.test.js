@@ -41,12 +41,6 @@ describe("lineChart", () => {
     expect(cys[2]).toBeGreaterThan(cys[0]);
   });
 
-  it("renders sparklines with a single end dot and no grid", () => {
-    const { svg } = lineChart(points, { sparkline: true });
-    expect(svg.match(/<circle /g)).toHaveLength(1);
-    expect(svg).not.toContain("<line ");
-  });
-
   it("draws an unbeaten goal in the danger colour", () => {
     const { svg } = lineChart(points, { goal: 120000 });
     expect(svg).toContain("var(--danger)");
@@ -63,5 +57,26 @@ describe("lineChart", () => {
     const { svg } = lineChart([{ x: 1, y: 100000, xlabel: "<img>" }]);
     expect(svg).not.toContain("<img>");
     expect(svg).toContain("&lt;img&gt;");
+  });
+
+  // The conditions band (#191): one cell per point, spanning the midpoints
+  // between neighbours, and behind everything else.
+  const bands = { cells: [{ alpha: 0.05 }, null, { alpha: 0.3 }], label: "shaded by ambient temperature, 50 °F to 86 °F" };
+
+  it("washes the plot with one band cell per point, skipping unknown ones", () => {
+    const { svg } = lineChart(points, { bands });
+    const rects = [...svg.matchAll(/<rect [^>]*fill-opacity="([\d.]+)"/g)].map((m) => Number(m[1]));
+    expect(rects).toEqual([0.05, 0.3]); // the null point draws nothing
+    expect(svg.indexOf("<rect")).toBeLessThan(svg.indexOf("<path")); // behind the line
+    expect(svg).toContain("var(--heat)");
+  });
+
+  it("speaks the shading in the chart's label", () => {
+    expect(lineChart(points, { bands }).svg).toContain("50 °F to 86 °F");
+    expect(lineChart(points).svg).toContain('aria-label="Lap time trend"');
+  });
+
+  it("ignores bands that don't line up with the points", () => {
+    expect(lineChart(points, { bands: { cells: [{ alpha: 0.2 }], label: "x" } }).svg).not.toContain("<rect");
   });
 });

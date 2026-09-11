@@ -7,13 +7,15 @@
       "id": 1,
       "is_default": 1,
       "name": "Corvette C7",
-      "notes": "Track car."
+      "notes": "Track car.",
+      "target_hot_psi": 32
     },
     {
       "id": 1,
       "is_default": 0,
       "name": "Miata",
-      "notes": null
+      "notes": null,
+      "target_hot_psi": null
     }
   ]
 }

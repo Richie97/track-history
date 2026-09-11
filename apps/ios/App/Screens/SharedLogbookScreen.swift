@@ -69,21 +69,6 @@ struct SharedLogbookScreen: View {
                                 fmtCount(track.trackDays, "day"),
                                 EventDates.fmtDate(track.lastDate)
                             ])
-                            if track.series.count >= 2 {
-                                ProgressChart(
-                                    points: track.series.enumerated().map { index, point in
-                                        .init(
-                                            x: Double(index),
-                                            label: EventDates.fmtDate(point.date),
-                                            ms: point.bestMs
-                                        )
-                                    },
-                                    style: .sparkline
-                                )
-                                // Laid out full-width under the text rather than beside
-                                // it, so nothing else fixes its height.
-                                .frame(height: 44)
-                            }
                         }
                     }
                 }

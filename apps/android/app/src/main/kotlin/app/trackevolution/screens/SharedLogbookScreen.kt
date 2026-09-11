@@ -31,7 +31,6 @@ import app.trackevolution.ui.TEMeta
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.charts.ProgressChart
-import app.trackevolution.ui.charts.ProgressChartStyle
 import app.trackevolution.ui.charts.ProgressPoint
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -114,7 +113,7 @@ fun SharedLogbookScreen(model: SharedLogbookModel, modifier: Modifier = Modifier
                 items(data.tracks, key = { "tr-${it.id}" }) { track ->
                     TrackCard(Modifier.fillMaxWidth()) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -128,14 +127,6 @@ fun SharedLogbookScreen(model: SharedLogbookModel, modifier: Modifier = Modifier
                                 )
                             }
                             Text(LapTime.fmtMs(track.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
-                        }
-                        if (track.series.size >= 2) {
-                            ProgressChart(
-                                points = track.series.mapIndexed { i, point ->
-                                    ProgressPoint(x = i.toDouble(), label = "", ms = point.bestMs)
-                                },
-                                style = ProgressChartStyle.Sparkline,
-                            )
                         }
                     }
                 }

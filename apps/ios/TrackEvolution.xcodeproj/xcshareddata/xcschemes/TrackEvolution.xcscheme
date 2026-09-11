@@ -29,6 +29,20 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7D67BDDA1A330AF1D1231FA5"
+               BuildableName = "TrackEvolutionTests.xctest"
+               BlueprintName = "TrackEvolutionTests"
+               ReferencedContainer = "container:TrackEvolution.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "7759B992E68D75E18E12DBF1"
                BuildableName = "TrackEvolutionUITests.xctest"
                BlueprintName = "TrackEvolutionUITests"
@@ -53,6 +67,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7D67BDDA1A330AF1D1231FA5"
+               BuildableName = "TrackEvolutionTests.xctest"
+               BlueprintName = "TrackEvolutionTests"
+               ReferencedContainer = "container:TrackEvolution.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
          <TestableReference
             skipped = "NO"
             parallelizable = "NO">
@@ -90,6 +115,9 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
       </CommandLineArguments>
+      <StoreKitConfigurationFileReference
+         identifier = "../../Configuration.storekit">
+      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

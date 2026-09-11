@@ -149,7 +149,7 @@ public data class SessionDraft(
     val laps: List<Int>? = null,
     /** Best-lap GPS trace in local meters. */
     val trace: List<TracePoint>? = null,
-    /** Per-lap channel data. Written by the web importer only. */
+    /** Per-lap channel data, built by `TelemetryChannels.buildLapChannels` (NS-32). */
     val channels: SessionChannels? = null,
 )
 

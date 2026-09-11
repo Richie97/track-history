@@ -25,13 +25,26 @@ export async function sessionFor(userId: number, expiresAt = Date.now() + 86_400
 export type ApiResponse = { status: number; body: any; headers: Headers };
 
 // JSON client for /api/* as a given session token (or anonymous).
-export function apiClient(token?: string) {
-  return async (method: string, path: string, body?: unknown): Promise<ApiResponse> => {
-    const res = await SELF.fetch(`https://example.com/api${path}`, {
+//
+// `origin` exists for the billing tests: the DEV_MODE shortcuts (the login
+// bypass, and the extra Apple trust anchor whose private key is committed in
+// test/fixtures) answer only on a local dev host, so a test that needs one has
+// to arrive on localhost the way wrangler dev does.
+export const DEV_ORIGIN = "http://localhost:8787";
+
+export function apiClient(token?: string, origin = "https://example.com") {
+  return async (
+    method: string,
+    path: string,
+    body?: unknown,
+    headers: Record<string, string> = {}
+  ): Promise<ApiResponse> => {
+    const res = await SELF.fetch(`${origin}/api${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Cookie: `session=${token}` } : {}),
+        ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -40,10 +53,27 @@ export function apiClient(token?: string) {
 }
 
 // A fresh user with a live session, plus a bound client.
-export async function signedInUser() {
+export async function signedInUser(origin?: string) {
   const user = await createUser();
   const token = await sessionFor(user.id);
-  return { ...user, token, api: apiClient(token) };
+  return { ...user, token, api: apiClient(token, origin) };
+}
+
+// The same, entitled. Pro is a `subscriptions` row like any other — a `legacy`
+// one here, because it never expires and needs no store payload, so a test
+// about the garage or a setup sheet doesn't have to sign a receipt to get past
+// requireEntitlement. `users.entitled_until` follows from the triggers in
+// migration 0017, exactly as it would in production.
+export async function signedInProUser(origin?: string) {
+  const user = await signedInUser(origin);
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO subscriptions (user_id, provider, product_id, external_id, status, expires_at, auto_renew, environment, created_at, updated_at)
+     VALUES (?, 'legacy', 'apple-paid-app', ?, 'legacy', NULL, NULL, 'production', ?, ?)`
+  )
+    .bind(user.id, `test-legacy-${user.id}-${now}`, now, now)
+    .run();
+  return user;
 }
 
 // Convenience: create an event (find-or-creating its track by name).

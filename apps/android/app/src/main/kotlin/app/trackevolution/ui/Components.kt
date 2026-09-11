@@ -16,6 +16,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.trackevolution.ui.theme.TrackCard
@@ -36,6 +38,15 @@ sealed interface LoadState {
 
     /** Carries the server's own message — the API contract is `{ error }`. */
     data class Failed(val message: String) : LoadState
+
+    /**
+     * The 402 (NS-32 rule 5). Its own case rather than a [Failed] carrying
+     * "pro required": a Pro-gated *read* has to look like an offer, not like a
+     * server error, which is the same reason `ApiException.PaymentRequired` is
+     * distinct from `Server`. The screen supplies the words, since only it
+     * knows which feature the reader was reaching for.
+     */
+    data class Paywall(val title: String, val blurb: String) : LoadState
 }
 
 /**
@@ -49,6 +60,7 @@ fun TELoadable(
     state: LoadState,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onSubscribe: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     when (state) {
@@ -69,6 +81,33 @@ fun TELoadable(
             )
             TextButton(onClick = onRetry) {
                 Text("Retry", style = TrackTheme.typography.bodyStrong, color = TrackTheme.colors.accentInk)
+            }
+        }
+
+        is LoadState.Paywall -> Column(
+            modifier = modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                state.title,
+                style = TrackTheme.typography.h3,
+                color = TrackTheme.colors.textStrong,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                state.blurb,
+                style = TrackTheme.typography.sm,
+                color = TrackTheme.colors.textMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            TextButton(onClick = onSubscribe) {
+                Text(
+                    "See Track Evolution Pro",
+                    style = TrackTheme.typography.bodyStrong,
+                    color = TrackTheme.colors.accentInk,
+                )
             }
         }
 
@@ -144,10 +183,30 @@ fun TEStatRow(tiles: List<Pair<String, String>>, modifier: Modifier = Modifier) 
     }
 }
 
-/** A tappable card that navigates. */
+/**
+ * A tappable card that navigates.
+ *
+ * [selected] marks the row the detail pane is currently showing (NS-34), and is
+ * only ever true beside a visible detail. The mark is a border *and* a tint,
+ * never colour alone: the accent tint is a few percent of lime and disappears
+ * entirely for anyone who cannot see it, so the border carries the same
+ * information and `selected` semantics carry it to TalkBack.
+ */
 @Composable
-fun TENavCard(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    TrackCard(modifier = modifier.fillMaxWidth().clickable(onClick = onClick)) { content() }
+fun TENavCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    TrackCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .semantics { this.selected = selected },
+        color = if (selected) TrackTheme.colors.accentTint else null,
+        border = if (selected) TrackTheme.colors.accent else null,
+    ) { content() }
 }
 
 /**

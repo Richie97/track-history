@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { channelChartSvg, channelDefs, distAxisTicks, matchLapsToChannels } from "../../public/js/channel-graphs.js";
+import {
+  CHANNEL_DEFS,
+  channelChartSvg,
+  channelDefs,
+  deltaChartSvg,
+  deltaSeries,
+  distAxisTicks,
+  lapTimeSeries,
+  matchLapsToChannels,
+} from "../../public/js/channel-graphs.js";
 import { niceNumTicks } from "../../public/js/chart.js";
 
 const mkChannels = () => ({
@@ -25,10 +34,16 @@ describe("channelDefs / distAxisTicks", () => {
   it("labels speed in the user's system and leaves rpm and G alone", () => {
     const imp = channelDefs("imperial");
     const met = channelDefs("metric");
-    expect(imp.map((d) => d.unit)).toEqual(["mph", "rpm", "G"]);
-    expect(met.map((d) => d.unit)).toEqual(["km/h", "rpm", "G"]);
+    expect(imp.find((d) => d.key === "speed").unit).toBe("mph");
+    expect(met.find((d) => d.key === "speed").unit).toBe("km/h");
+    // Only speed changes; every other channel reads the same in both systems.
+    expect(imp.filter((d) => d.key !== "speed").map((d) => d.unit)).toEqual(
+      met.filter((d) => d.key !== "speed").map((d) => d.unit)
+    );
     expect(Math.round(imp[0].conv(100))).toBe(62);
     expect(met[0].conv(100)).toBe(100);
+    // CHANNEL_DEFS is the imperial table, kept for callers that pin it.
+    expect(CHANNEL_DEFS.map((d) => d.unit)).toEqual(imp.map((d) => d.unit));
   });
 
   it("ticks a metric axis in nice metres and an imperial one in nice miles", () => {
@@ -77,6 +92,70 @@ describe("matchLapsToChannels", () => {
   });
 });
 
+describe("lapTimeSeries", () => {
+  it("integrates elapsed time from constant speed: one second per 20 m cell at 72 km/h", () => {
+    const t = lapTimeSeries(Array(11).fill(72), 20, null);
+    expect(t[0]).toBe(0);
+    expect(t[10]).toBeCloseTo(10, 9);
+    expect(t[3]).toBeCloseTo(3, 9);
+  });
+
+  it("scales so the last point lands exactly on the timed duration", () => {
+    const t = lapTimeSeries(Array(11).fill(72), 20, 25000); // integral says 10 s, timer says 25 s
+    expect(t[10]).toBeCloseTo(25, 9);
+    expect(t[5]).toBeCloseTo(12.5, 9); // uniformly rescaled
+  });
+
+  it("clamps zero-speed samples instead of producing Infinity", () => {
+    const t = lapTimeSeries([0, 0, 72, 72], 20, null);
+    expect(t.every(Number.isFinite)).toBe(true);
+    expect(t[3]).toBeGreaterThan(t[2]);
+  });
+});
+
+describe("deltaSeries", () => {
+  it("is positive where the lap is slower than the reference", () => {
+    const ref = { speed: Array(30).fill(144), timeMs: null }; // 0.5 s/cell
+    const lap = { speed: Array(30).fill(72), timeMs: null }; // 1 s/cell
+    const d = deltaSeries(lap, ref, 20);
+    expect(d[0]).toBe(0);
+    expect(d[10]).toBeCloseTo(5, 9); // +0.5 s per cell
+    expect(d).toHaveLength(30);
+  });
+
+  it("ends at the timed lap-time difference when durations are given", () => {
+    const ref = { speed: Array(30).fill(100), timeMs: 47000 };
+    const lap = { speed: Array(30).fill(100), timeMs: 48200 };
+    const d = deltaSeries(lap, ref, 20);
+    expect(d[d.length - 1]).toBeCloseTo(1.2, 9);
+  });
+
+  it("truncates to the shorter lap and rejects laps without speed or too little overlap", () => {
+    const ref = { speed: Array(30).fill(100), timeMs: null };
+    expect(deltaSeries({ speed: Array(20).fill(100), timeMs: null }, ref, 20)).toHaveLength(20);
+    expect(deltaSeries({ rpm: Array(30).fill(5000) }, ref, 20)).toBeNull();
+    expect(deltaSeries({ speed: Array(5).fill(100), timeMs: null }, ref, 20)).toBeNull();
+  });
+});
+
+describe("deltaChartSvg", () => {
+  it("draws one delta path per highlighted lap, none for the reference itself", () => {
+    const lit = new Map([
+      [0, "var(--chart-line)"],
+      [1, "var(--chart-line-b)"],
+    ]);
+    const svg = deltaChartSvg(mkChannels(), lit, 1, 2); // lap 2 (idx 1) is the reference
+    expect(svg).toContain('data-channel="delta"');
+    expect((svg.match(/<path/g) || []).length).toBe(1); // only lap 1's delta
+    expect(svg).toContain("vs lap 2");
+  });
+
+  it("returns '' when only the reference is highlighted", () => {
+    const lit = new Map([[1, "var(--chart-line)"]]);
+    expect(deltaChartSvg(mkChannels(), lit, 1, 2)).toBe("");
+  });
+});
+
 describe("channelChartSvg", () => {
   it("draws every lap, highlighted on top of the dim envelope", () => {
     const lit = new Map([[1, "var(--chart-line)"]]);
@@ -111,5 +190,20 @@ describe("channelChartSvg", () => {
       new Map()
     );
     expect(none).toBe("");
+  });
+});
+
+describe("yaw rate trace (#189)", () => {
+  it("is a channel of its own, signed, and draws only for laps that stored it", () => {
+    const def = CHANNEL_DEFS.find((d) => d.key === "yaw");
+    expect(def).toBeTruthy();
+    expect(def.unit).toBe("°/s");
+    expect(def.floor0).toBe(false); // swings both ways around zero, like steering
+    const ch = mkChannels();
+    expect(channelChartSvg(def, ch, new Map())).toBe(""); // no lap stored yaw
+    ch.laps[0].yaw = Array.from({ length: 90 }, (_, k) => 30 * Math.sin(k / 6));
+    const svg = channelChartSvg(def, ch, new Map([[0, "#fff"]]));
+    expect(svg).toContain('data-channel="yaw"');
+    expect(svg).toContain("Yaw rate (°/s)");
   });
 });

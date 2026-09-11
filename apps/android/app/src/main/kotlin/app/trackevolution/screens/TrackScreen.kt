@@ -2,6 +2,8 @@ package app.trackevolution.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,13 +47,17 @@ import app.trackevolution.ui.theme.TrackTheme
  *
  * See [TrackModel] for what is deliberately not here — the setup-vs-lap-times
  * table and the two-event lap overlay are web-only, so there is no dead link to
- * either.
+ * either. The leaderboard is not a section of this page any more either — it is
+ * [LeaderboardScreen], behind a button, for the reason stated there.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TrackScreen(
     model: TrackModel,
     onOpenEvent: (Int) -> Unit,
     onAddEvent: (String) -> Unit,
+    onCompareLaps: () -> Unit,
+    onLeaderboard: () -> Unit,
     onShare: (String) -> Unit,
     serverUrl: String,
     modifier: Modifier = Modifier,
@@ -101,7 +107,12 @@ fun TrackScreen(
             item("goal") { GoalCard(model, hasGoal = track.goalMs != null) }
 
             item("actions") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Wraps rather than clips: four controls will not fit one phone
+                // line once the leaderboard joined the row.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Button(
                         onClick = { onAddEvent(track.name) },
                         colors = ButtonDefaults.buttonColors(
@@ -112,6 +123,36 @@ fun TrackScreen(
                         // The heading above already says which track — a circuit
                         // name with a layout suffix wraps to three lines here.
                         Text("+ Add event here", style = TrackTheme.typography.bodyStrong)
+                    }
+                    // Web parity (#165): offered whenever any event here has laps —
+                    // the compare screen explains itself when none of them stored
+                    // telemetry channels.
+                    if (model.hasComparableLaps) {
+                        TextButton(
+                            onClick = onCompareLaps,
+                            modifier = Modifier.semantics {
+                                contentDescription = "Compare two laps: pick two laps with telemetry " +
+                                    "and see where the time is gained or lost"
+                            },
+                        ) {
+                            Text("Compare laps", style = TrackTheme.typography.sm, color = colors.accentInk)
+                        }
+                    }
+                    // The leaderboard is its own destination rather than a section
+                    // here: this page is the driver's own history, and a board they
+                    // may not care about was costing it a screen of space. Offered
+                    // for every catalog track — before the driver is on it, and
+                    // before they have been here at all.
+                    if (track.catalogId != null) {
+                        TextButton(
+                            onClick = onLeaderboard,
+                            modifier = Modifier.semantics {
+                                contentDescription = "Leaderboard: best device-timed laps by other drivers " +
+                                    "at this track, opt-in only"
+                            },
+                        ) {
+                            Text("Leaderboard", style = TrackTheme.typography.sm, color = colors.accentInk)
+                        }
                     }
                     model.shareUrl(serverUrl)?.let { url ->
                         TextButton(onClick = { onShare(url) }) {

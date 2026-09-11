@@ -1,0 +1,19 @@
+{
+  "method": "GET",
+  "path": "/tracks/:id/leaderboard",
+  "status": 200,
+  "body": {
+    "catalog_id": 1,
+    "entries": [
+      {
+        "best_ms": 121900,
+        "date": "2026-04-10",
+        "lap_id": 1,
+        "name": "Dev User",
+        "you": true
+      }
+    ],
+    "opted_in": true,
+    "share_laps": true
+  }
+}

@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,13 +9,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,14 +32,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Limits
+import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -43,6 +57,7 @@ import app.trackevolution.ui.TEMeta
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.charts.LapChannelChart
+import app.trackevolution.ui.charts.LimitLegend
 import app.trackevolution.ui.charts.TrackMap
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -51,9 +66,12 @@ import app.trackevolution.ui.theme.TrackTheme
  * One event: its sessions, laps, prep checklist and best-lap trace (NS-26).
  *
  * Deliberately absent, and not by omission: the per-day **setup notebook** and
- * the **telemetry import dropzone**. Both stay web-only per the product split —
- * a `.vbo` reaches a laptop on an SD card, and the setup notebook is desk work.
- * Video import is native on iOS only (NS-30).
+ * `.vbo` import. Both stay web-only per the product split — a `.vbo` reaches a
+ * laptop on an SD card, and the setup notebook is desk work. **Video** import is
+ * here, though: a PDR or GoPro clip is already on the phone that shot or
+ * received it, which is the argument NS-30 made for iOS and it was never
+ * platform-specific. The card below opens the chooser; the review that follows
+ * is the recorder's.
  */
 @Composable
 fun EventScreen(
@@ -62,6 +80,7 @@ fun EventScreen(
     onEdit: (Int) -> Unit,
     onOpenTrack: (Int) -> Unit,
     onRecord: (Int) -> Unit,
+    onImport: (Int) -> Unit,
     onDeleted: () -> Unit,
     recorderAvailable: Boolean,
     modifier: Modifier = Modifier,
@@ -71,6 +90,17 @@ fun EventScreen(
     var confirmDeleteEvent by remember { mutableStateOf(false) }
     var confirmDeleteSession by remember { mutableStateOf<Int?>(null) }
 
+    // Two columns, and which session the right one is showing (NS-34 ticket 3).
+    //
+    // Just under half, with a floor and a ceiling — the floor is what a track map
+    // over a stack of channel charts needs before it stops being readable, the
+    // ceiling stops the page being squeezed on a very wide window. Measured
+    // against this page's own column rather than the window's class: a tablet in
+    // portrait is an expanded window whose detail pane has no room for two.
+    val analysisWidth = LocalLayoutMetrics.current.sideColumnWidth(0.46f, 380.dp, 620.dp)
+    val twoColumn = analysisWidth != null
+    var selectedSessionId by rememberSaveable { mutableStateOf<Int?>(null) }
+
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
     LaunchedEffect(model.isDeleted) { if (model.isDeleted) onDeleted() }
 
@@ -78,6 +108,15 @@ fun EventScreen(
         val detail = model.detail ?: return@TELoadable
         val event = detail.event
 
+        // The best lap's session, ready to read: analysis is there the moment the
+        // page opens rather than an empty column asking to be filled.
+        LaunchedEffect(detail.sessions.map { it.id }) {
+            if (selectedSessionId == null) {
+                selectedSessionId = defaultChannelSession(detail.sessions)?.id
+            }
+        }
+
+        val page = @Composable {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -165,44 +204,21 @@ fun EventScreen(
                 }
             }
 
-            if (recorderAvailable) {
-                item("recorder") {
-                    TrackCard(Modifier.fillMaxWidth()) {
-                        Text(
-                            "Record laps with your phone",
-                            style = TrackTheme.typography.bodyStrong,
-                            color = colors.textStrong,
-                        )
-                        Text(
-                            "Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.",
-                            style = TrackTheme.typography.xs,
-                            color = colors.textMuted,
-                            modifier = Modifier.padding(vertical = 6.dp),
-                        )
-                        Button(
-                            onClick = { onRecord(model.eventId) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = colors.accent,
-                                contentColor = colors.accentContrast,
-                            ),
-                        ) {
-                            Text("Start recording", style = TrackTheme.typography.bodyStrong)
-                        }
-                    }
-                }
-            }
-
-            bestLapTrace(detail.sessions)?.let { (trace, lapMs) ->
+            // At expanded width the trace moves to the analysis column, so the map
+            // and the charts of the session being read are in one eyeline — which
+            // is the whole point of that column.
+            bestLapTrace(detail.sessions).takeIf { !twoColumn }?.let { traced ->
                 item("trace") {
                     Column {
                         TESectionHeader("Best lap trace", detail = "brighter is faster")
                         Text(
-                            LapTime.fmtMs(lapMs),
+                            LapTime.fmtMs(traced.lapMs),
                             style = TrackTheme.typography.lapTime,
                             color = colors.textStrong,
                             modifier = Modifier.padding(vertical = 4.dp),
                         )
-                        TrackMap(trace = trace)
+                        TrackMap(trace = traced.trace, markers = traced.markers)
+                        LimitLegend(traced.markers, Modifier.padding(top = 6.dp))
                     }
                 }
             }
@@ -219,14 +235,41 @@ fun EventScreen(
                             onDelete = { confirmDeleteSession = session.id },
                             onAddLaps = { model.appendLaps(session.id, it) },
                             onDeleteLap = model::deleteLap,
+                            // At expanded width the panel is the column beside
+                            // this, so the card offers a way to *select* it
+                            // rather than drawing a second copy inline.
+                            channelsInColumn = twoColumn,
+                            selected = twoColumn && selectedSessionId == session.id,
+                            onSelect = { selectedSessionId = session.id },
                         )
                     }
                 }
             }
 
             item("add-session") {
-                AddSessionCard { label, notes, laps -> model.addSession(label, notes, laps) }
+                AddSessionCard(
+                    recorderAvailable = recorderAvailable,
+                    onRecord = { onRecord(model.eventId) },
+                    onImport = { onImport(model.eventId) },
+                    onAdd = { label, notes, laps -> model.addSession(label, notes, laps) },
+                )
             }
+        }
+        }
+
+        if (analysisWidth != null) {
+            Row(Modifier.fillMaxSize()) {
+                PaneWidth(Modifier.weight(1f)) { page() }
+                VerticalDivider(color = colors.borderHairline)
+                PaneWidth(Modifier.width(analysisWidth)) {
+                    AnalysisColumn(
+                        sessions = detail.sessions,
+                        selectedSessionId = selectedSessionId,
+                    )
+                }
+            }
+        } else {
+            page()
         }
     }
 
@@ -250,19 +293,57 @@ fun EventScreen(
 }
 
 /**
+ * The session the analysis column opens on: the one holding the event's best lap,
+ * among those that actually stored channels (NS-34 ticket 3).
+ *
+ * Channels only ever come from an import or a phone recording, so most sessions
+ * have none and are not candidates at all. Null is an ordinary answer — an event
+ * of hand-entered laps has nothing to analyse — and the column says so rather
+ * than sitting empty.
+ */
+internal fun defaultChannelSession(sessions: List<Session>): Session? =
+    sessions
+        .filter { it.channels != null && it.bestLapMs != null }
+        .minByOrNull { it.bestLapMs ?: Int.MAX_VALUE }
+
+/**
  * The session holding the event's fastest lap, and its trace.
  *
  * Ten points is `TrackMap`'s floor — below that it is a GPS glitch rather than a
  * lap, and drawing it would claim more than we know.
  */
-private fun bestLapTrace(sessions: List<Session>): Pair<List<TraceSample>, Int>? {
+private fun bestLapTrace(sessions: List<Session>): TracedLap? {
     val candidate = sessions
         .filter { (it.trace?.size ?: 0) >= 10 && it.laps.isNotEmpty() }
         .minByOrNull { it.bestLapMs ?: Int.MAX_VALUE }
         ?: return null
     val best = candidate.bestLapMs ?: return null
     val trace = candidate.trace.orEmpty().map { TraceSample(x = it.x, y = it.y, v = it.v) }
-    return trace to best
+    return TracedLap(trace, best, limitMarkers(candidate, trace))
+}
+
+/** The trace to draw, its lap time, and where that lap hit its limit (#188). */
+private data class TracedLap(
+    val trace: List<TraceSample>,
+    val lapMs: Int,
+    val markers: List<Limits.Marker>,
+)
+
+/**
+ * Where the best lap hit its limit (#188), for the trace map.
+ *
+ * The stored trace is the **best lap only**, so the runs come from that lap's
+ * channel entry: placing another lap's runs on it would put marks where that lap
+ * never was. Other laps get the shaded bands on the channel panel's distance
+ * axis instead, which is the same constraint the web works under.
+ */
+internal fun limitMarkers(session: Session, trace: List<TraceSample>): List<Limits.Marker> {
+    val channels = session.channels?.takeIf { it.laps.isNotEmpty() } ?: return emptyList()
+    val best = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps)
+        .filter { it.hasChannels }
+        .minByOrNull { it.lap.timeMs }
+        ?: return emptyList()
+    return Limits.limitMarkers(channels.laps[best.chIdx], channels.dStepM, trace)
 }
 
 @Composable
@@ -357,12 +438,22 @@ private fun SessionCard(
     onDelete: () -> Unit,
     onAddLaps: (List<Int>) -> Unit,
     onDeleteLap: (Int) -> Unit,
+    /** Whether the channel panel lives in the analysis column rather than here. */
+    channelsInColumn: Boolean = false,
+    selected: Boolean = false,
+    onSelect: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
     val best = session.bestLapMs
 
-    TrackCard(Modifier.fillMaxWidth()) {
+    TrackCard(
+        Modifier.fillMaxWidth(),
+        // Marked the same way a list-pane row is (NS-34): a tint *and* a border,
+        // never colour alone.
+        color = if (selected) colors.accentTint else null,
+        border = if (selected) colors.accent else null,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -382,6 +473,25 @@ private fun SessionCard(
                     },
                     style = TrackTheme.typography.xs,
                     color = colors.textMuted,
+                )
+            }
+            // The air this session was driven in (#191) — context for the times
+            // under it, so it rides in the header as a tag rather than joining
+            // the stats line. Only what this session's own recording measured:
+            // the event's typed figure is on the event header and is not
+            // repeated down the page.
+            SessionConditions.sessionAmbientC(session)?.let { ambientC ->
+                val text = SessionConditions.tempText(ambientC, SessionConditions.Units.US)
+                Text(
+                    text,
+                    style = TrackTheme.typography.xxs,
+                    color = colors.textMuted,
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(colors.heat.copy(alpha = 0.14f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .semantics { contentDescription = "Ambient $text" },
                 )
             }
             TextButton(onClick = onDelete) {
@@ -410,7 +520,18 @@ private fun SessionCard(
         // An imported session's channels replace the plain lap chips: the chips
         // are the overlay's legend, so showing both would be two lap lists.
         val channels = session.channels
-        if (channels != null) {
+        if (channels != null && channelsInColumn) {
+            // The way into the column, in place of a second copy of the panel.
+            // Selecting rather than expanding is what keeps the map and the
+            // charts together on the right (NS-34 ticket 3).
+            TextButton(onClick = onSelect, modifier = Modifier.padding(top = 4.dp)) {
+                Text(
+                    if (selected) "Showing channel graphs →" else "Channel graphs →",
+                    style = TrackTheme.typography.sm,
+                    color = if (selected) colors.accentInk else colors.textMuted,
+                )
+            }
+        } else if (channels != null) {
             LapChannelChart(
                 channels = channels,
                 laps = session.laps,
@@ -457,56 +578,139 @@ private fun SessionCard(
     }
 }
 
+/**
+ * The one place laps get into an event, with the three ways side by side: record
+ * them, pull them out of a video, or type them in.
+ *
+ * These used to be three stacked cards, which made "how do I add a session" a
+ * question with three separate-looking answers spread down the page. Hand entry is
+ * collapsed because it is the fallback of the three — and because an always-open
+ * three-field form pushed the other two out of one screenful.
+ */
 @Composable
-private fun AddSessionCard(onAdd: (String?, String?, List<Int>) -> Unit) {
+private fun AddSessionCard(
+    recorderAvailable: Boolean,
+    onRecord: () -> Unit,
+    onImport: () -> Unit,
+    onAdd: (String?, String?, List<Int>) -> Unit,
+) {
     val colors = TrackTheme.colors
     var label by rememberSaveable { mutableStateOf("") }
     var laps by rememberSaveable { mutableStateOf("") }
     var notes by rememberSaveable { mutableStateOf("") }
+    var manual by rememberSaveable { mutableStateOf(false) }
     val parsed = LapTime.parseLapList(laps)
 
     TrackCard(Modifier.fillMaxWidth()) {
-        TESectionHeader("Add session")
-        OutlinedTextField(
-            value = label,
-            onValueChange = { label = it },
-            placeholder = { Text("Day 1 — Session 2", style = TrackTheme.typography.sm) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        TESectionHeader("Add a session")
+
+        if (recorderAvailable) {
+            Text(
+                "Record laps with your phone",
+                style = TrackTheme.typography.bodyStrong,
+                color = colors.textStrong,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                "Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.",
+                style = TrackTheme.typography.xs,
+                color = colors.textMuted,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+            Button(
+                onClick = onRecord,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accent,
+                    contentColor = colors.accentContrast,
+                ),
+            ) {
+                Text("Start recording", style = TrackTheme.typography.bodyStrong)
+            }
+            HorizontalDivider(
+                color = colors.borderHairline,
+                modifier = Modifier.padding(vertical = 14.dp),
+            )
+        }
+
+        Text(
+            "Import a video",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
         )
-        OutlinedTextField(
-            value = laps,
-            onValueChange = { laps = it },
-            placeholder = { Text("2:01.24, 2:03.1 …", style = TrackTheme.typography.sm) },
-            supportingText = {
-                Text(
-                    "Formats: 2:01.24 · 2:01 · 121.24 (seconds)",
-                    style = TrackTheme.typography.xxs,
-                    color = colors.textFaint,
-                )
-            },
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        Text(
+            "Corvette PDR or GoPro clips already on this phone — laps, racing line and " +
+                "channel graphs come out of the telemetry track. The video is read in " +
+                "place, never copied or uploaded.",
+            style = TrackTheme.typography.xs,
+            color = colors.textMuted,
+            modifier = Modifier.padding(vertical = 6.dp),
         )
-        OutlinedTextField(
-            value = notes,
-            onValueChange = { notes = it },
-            placeholder = {
-                Text("Traffic, tire pressures, line changes…", style = TrackTheme.typography.sm)
-            },
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        TextButton(onClick = onImport, modifier = Modifier.testTag("eventImportVideo")) {
+            Text("Import video…", style = TrackTheme.typography.sm, color = colors.accentInk)
+        }
+
+        HorizontalDivider(
+            color = colors.borderHairline,
+            modifier = Modifier.padding(vertical = 14.dp),
         )
-        Button(
-            onClick = {
-                onAdd(label.ifBlank { null }, notes.ifBlank { null }, parsed)
-                label = ""; laps = ""; notes = ""
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.accent,
-                contentColor = colors.accentContrast,
-            ),
-            modifier = Modifier.padding(top = 8.dp),
-        ) {
-            Text("Add session", style = TrackTheme.typography.bodyStrong)
+
+        Text(
+            "Enter lap times by hand",
+            style = TrackTheme.typography.bodyStrong,
+            color = colors.textStrong,
+        )
+        if (!manual) {
+            Text(
+                "Timing sheet from the instructor, or laps off a stopwatch.",
+                style = TrackTheme.typography.xs,
+                color = colors.textMuted,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+            TextButton(onClick = { manual = true }, modifier = Modifier.testTag("eventEnterLapsByHand")) {
+                Text("Enter lap times…", style = TrackTheme.typography.sm, color = colors.accentInk)
+            }
+        } else {
+            OutlinedTextField(
+                value = label,
+                onValueChange = { label = it },
+                placeholder = { Text("Day 1 — Session 2", style = TrackTheme.typography.sm) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+            OutlinedTextField(
+                value = laps,
+                onValueChange = { laps = it },
+                placeholder = { Text("2:01.24, 2:03.1 …", style = TrackTheme.typography.sm) },
+                supportingText = {
+                    Text(
+                        "Formats: 2:01.24 · 2:01 · 121.24 (seconds)",
+                        style = TrackTheme.typography.xxs,
+                        color = colors.textFaint,
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                placeholder = {
+                    Text("Traffic, tire pressures, line changes…", style = TrackTheme.typography.sm)
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+            Button(
+                onClick = {
+                    onAdd(label.ifBlank { null }, notes.ifBlank { null }, parsed)
+                    label = ""; laps = ""; notes = ""; manual = false
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accent,
+                    contentColor = colors.accentContrast,
+                ),
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Text("Add session", style = TrackTheme.typography.bodyStrong)
+            }
         }
     }
 }

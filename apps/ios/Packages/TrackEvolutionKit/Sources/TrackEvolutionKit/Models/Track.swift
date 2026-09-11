@@ -20,7 +20,12 @@ public struct Track: Codable, Hashable, Sendable, Identifiable {
     public var bestMs: Int?
     /// Start date of the most recent past event; nil when there are none.
     public var lastDate: String?
-    /// Chronological best-per-event series for the sparkline.
+    /// Chronological best-per-event series.
+    ///
+    /// Decoded and not drawn: the track cards' sparkline came off every client
+    /// (a track usually holds two or three events, and two points is not a
+    /// trend). The field stays because it is non-optional here and on Android,
+    /// so the server cannot stop sending it while these builds are in the wild.
     public var series: [TrackSeriesPoint]
 
     public enum CodingKeys: String, CodingKey {
@@ -52,6 +57,82 @@ public struct TrackSeriesPoint: Codable, Hashable, Sendable {
 public struct CatalogTrack: Codable, Hashable, Sendable, Identifiable {
     public var id: Int
     public var name: String
+}
+
+/// The per-track community leaderboard (`GET /api/tracks/:id/leaderboard`):
+/// opted-in users' best laps at the same catalog track. `catalogId` is nil for
+/// a track the catalog doesn't know — no cross-user identity, so no
+/// leaderboard. `optedIn` and `shareLaps` are the viewer's own flags, so the UI
+/// can offer both consents without a second request.
+public struct TrackLeaderboard: Codable, Hashable, Sendable {
+    public var catalogId: Int?
+    public var optedIn: Bool
+    /// The viewer's own lap-sharing consent (NS-35). Optional so a response
+    /// cached before the field existed still decodes; absent means false.
+    public var shareLaps: Bool?
+    public var entries: [LeaderboardEntry]
+
+    public enum CodingKeys: String, CodingKey {
+        case entries
+        case catalogId = "catalog_id"
+        case optedIn = "opted_in"
+        case shareLaps = "share_laps"
+    }
+}
+
+/// One leaderboard row. `you` marks the viewer's own entry.
+public struct LeaderboardEntry: Codable, Hashable, Sendable {
+    public var name: String?
+    public var bestMs: Int
+    public var date: String
+    public var you: Bool
+    /// The ranked lap, when its owner published the lap itself (NS-35) — nil
+    /// otherwise, which is the normal case and means this row is a time rather
+    /// than a lap. Non-nil is what makes a row openable; the server re-checks
+    /// every condition on the way in, so a nil here is a refusal to offer the
+    /// tap, never the only thing standing between a viewer and the lap.
+    public var lapId: Int?
+
+    public enum CodingKeys: String, CodingKey {
+        case name, date, you
+        case bestMs = "best_ms"
+        case lapId = "lap_id"
+    }
+}
+
+/// One shared leaderboard lap (`GET /api/tracks/:id/leaderboard/laps/:lapId`,
+/// NS-35): the ranked lap another driver published, opened.
+///
+/// Everything the server publishes is here, and the shape is the point — there
+/// is no session, no event, no car and nothing else user-entered to decode,
+/// because none of it is shared at any setting. `ambientC` and `elevationM` are
+/// the recorder's own, the same two columns the logbook shows outside the Pro
+/// strip. `channels` is the one Pro field and arrives nil for a free account,
+/// exactly as it does on a session; `trace` and the times do not.
+public struct LeaderboardLap: Codable, Hashable, Sendable, Identifiable {
+    public var lapId: Int
+    public var name: String?
+    public var you: Bool
+    public var timeMs: Int
+    public var date: String
+    public var ambientC: Double?
+    public var elevationM: Double?
+    public var trace: [TracePoint]?
+    public var channels: SessionChannels?
+
+    public var id: Int { lapId }
+
+    public enum CodingKeys: String, CodingKey {
+        case name, you, date, trace, channels
+        case lapId = "lap_id"
+        case timeMs = "time_ms"
+        case ambientC = "ambient_c"
+        case elevationM = "elevation_m"
+    }
+
+    /// The single published entry, or nil when the account is free (channels
+    /// stripped) or the lap stored no traces.
+    public var entry: LapChannels? { channels?.laps.first }
 }
 
 /// One row of "setup vs. lap times" for a track (`GET /api/tracks/:id/setups`):

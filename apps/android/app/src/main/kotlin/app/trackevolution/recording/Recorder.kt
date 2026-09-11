@@ -3,6 +3,7 @@ package app.trackevolution.recording
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import app.trackevolution.core.LiveTimingDisplay
 import app.trackevolution.core.Recording
 import app.trackevolution.core.RecordingJournal
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,12 @@ data class RecorderState(
      * anything arrived", and a stalled stream has no fix time to ask.
      */
     val lastFixAtMs: Long = 0L,
+    /**
+     * Live lap timing (lap counter, last/best lap, predictive delta), refreshed
+     * per accepted fix. Null until a recording is running; `currentLapS` inside
+     * stays null until the car reaches track pace and arms the timing gate.
+     */
+    val timing: LiveTimingDisplay? = null,
     /** Set when the recorder stopped itself — the 4-hour cap or forgot-to-stop. */
     val autoStopped: Boolean = false,
     /** Why a recording could not start or had to end. */

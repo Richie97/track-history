@@ -26,7 +26,6 @@ const SHELL = [
   "/js/chart.js",
   "/js/format.js",
   "/js/lap-stats.js",
-  "/js/platform.js",
   "/js/theme.js",
   "/js/trackmap.js",
   "/js/year-review.js",

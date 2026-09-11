@@ -10,9 +10,14 @@ import TrackEvolutionKit
 /// the view tree and keeps going with this screen closed and the phone locked.
 struct RecordingScreen: View {
     @Environment(RecordingController.self) private var recorder
+    @Environment(AuthController.self) private var auth
 
     /// The event a saved session will hang off, when it's already known.
     let eventId: Int?
+
+    /// The Pro gate's answer to a Start tap (NS-32 rule 5). Off the button, not
+    /// the screen: the screen already presents an alert.
+    @State private var showingPaywall = false
 
     /// Where "done with this recording" leads once it has been discarded.
     ///
@@ -101,6 +106,10 @@ struct RecordingScreen: View {
                         .contentTransition(.numericText())
                 }
 
+                if recorder.isRecording {
+                    liveTimingRow
+                }
+
                 HStack(spacing: 24) {
                     stat("Fixes", value: "\(recorder.fixCount)")
                     stat("Speed", value: Self.speed(recorder.lastSpeedMps))
@@ -126,16 +135,71 @@ struct RecordingScreen: View {
                     }
                     .buttonStyle(TEButtonStyle(kind: .danger))
                 } else {
-                    Button("Start recording") {
-                        do {
-                            try recorder.start(eventId: eventId)
-                            if recorder.isRecording { Haptics.confirm() }
-                        } catch {
-                            Haptics.warn()
-                        }
-                    }
-                    .buttonStyle(TEButtonStyle(kind: .accent))
+                    startButton
                 }
+            }
+        }
+    }
+
+    /// Start — behind the Pro gate, which is a paywall sheet rather than a disabled
+    /// button (NS-32 rule 5). Decided from the **cached** entitlement, so a driver
+    /// who was Pro at the last sync records in a paddock with no signal; and
+    /// `Entitlement.gatesEnabled` is off until phase D, so today everyone starts.
+    ///
+    /// The sheet hangs off this button, not the screen: the screen's root already
+    /// presents the "Can't record" alert, and two presentations on one view is a
+    /// documented way to wedge SwiftUI here.
+    private var startButton: some View {
+        Button("Start recording") {
+            switch ProGate.decide(.record, entitlement: auth.entitlement) {
+            case .paywall:
+                showingPaywall = true
+            case .proceed:
+                do {
+                    try recorder.start(eventId: eventId)
+                    if recorder.isRecording { Haptics.confirm() }
+                } catch {
+                    Haptics.warn()
+                }
+            }
+        }
+        .buttonStyle(TEButtonStyle(kind: .accent))
+        .sheet(isPresented: $showingPaywall) {
+            PaywallSheet(context: .record)
+        }
+    }
+
+    /// Live lap timing: lap counter, running lap, last/best, and the predictive
+    /// delta to the session's best lap. Times here are unofficial — the saved
+    /// laps come from the review line pick — but on track they're what matters.
+    @ViewBuilder
+    private var liveTimingRow: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+            let timing = recorder.liveTiming.display(nowS: recorder.elapsedS)
+            if let currentLapS = timing.currentLapS {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let deltaS = timing.deltaS {
+                        Text(Self.delta(deltaS))
+                            .teStyle(.lapTimeHero)
+                            .foregroundStyle(deltaS <= 0 ? Color(.accentInk) : Color(.dangerInk))
+                            .contentTransition(.numericText())
+                            .accessibilityLabel(String(
+                                format: "%.2f seconds %@ your best lap",
+                                abs(deltaS),
+                                deltaS <= 0 ? "ahead of" : "behind"
+                            ))
+                    }
+                    HStack(spacing: 24) {
+                        stat("Lap", value: "\(timing.lapCount + 1)")
+                        stat("Current", value: Self.elapsed(currentLapS))
+                        stat("Last", value: LapTime.fmtMs(timing.lastLapMs))
+                        stat("Best", value: LapTime.fmtMs(timing.bestLapMs))
+                    }
+                }
+            } else {
+                Text("Lap timing arms once you're at track pace; laps count from your first flying pass.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
             }
         }
     }
@@ -231,6 +295,11 @@ struct RecordingScreen: View {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
+    /// "+0.42" / "−0.42": the sign is the message, so it is always shown.
+    private static func delta(_ seconds: Double) -> String {
+        String(format: "%@%.2f", seconds < 0 ? "−" : "+", abs(seconds))
+    }
+
     private static func speed(_ mps: Double?) -> String {
         guard let mps else { return "—" }
         return String(format: "%.0f mph", mps * 2.236936)
@@ -267,6 +336,7 @@ struct TEButtonStyle: ButtonStyle {
     /// A custom style has to dim itself: `.disabled()` alone leaves a lime button
     /// looking perfectly tappable.
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.layout) private var layout
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -274,7 +344,11 @@ struct TEButtonStyle: ButtonStyle {
             .foregroundStyle(foreground)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            .frame(maxWidth: .infinity)
+            // A button fills its column on a phone, where the column *is* its
+            // natural width, and stops growing above that (NS-34): an 1120pt
+            // "Save" is a banner, not a button. A max, never a fixed width — the
+            // narrow case is still the phone's.
+            .frame(maxWidth: layout.layoutClass.isCompact ? .infinity : TESpacing.controlMax)
             .background(background, in: .rect(cornerRadius: TERadius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: TERadius.md)

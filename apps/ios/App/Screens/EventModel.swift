@@ -183,6 +183,34 @@ extension Session {
             let trend = slope > 150 ? " — fading (tires? heat?)" : slope < -150 ? " — still improving" : ""
             parts.append("pace \(LapTime.fmtDelta(Int(slope.rounded())))/lap\(trend)")
         }
+        // Sector analysis (`Sectors`): what stringing the session's best sectors
+        // together would have been worth. The splits themselves are in the
+        // channel-graphs sheet.
+        if let channels, let sec = Sectors.sessionSectors(channels), sec.laps.count >= 2, sec.gapMs > 0 {
+            parts.append("theoretical best \(LapTime.fmtMs(sec.theoreticalBestMs))")
+        }
+        // Shift points (`Gears`, #187): the typical upshift rpm across the
+        // session; the per-gear breakdown sits in the channel panel's Inputs tab.
+        if let channels, let sp = Gears.shiftPoints(channels) {
+            parts.append("upshifts ≈ \(Gears.fmtRpm(Double(sp.medianRpm))) rpm")
+        }
+        // Where the car hit its limit (`Limits`, #188), counted as places on
+        // track across the session. The marks themselves are on the best-lap
+        // trace and shaded on the pedal traces.
+        if let channels, let limits = Limits.limitSummary(channels) {
+            parts.append(limits)
+        }
+        // The corners whose rotation sits off this car's typical response
+        // (`Balance`, #189), pooled across the session; the per-corner table and
+        // the scatter are on the channel panel's Grip tab.
+        if let channels, let balance = Balance.balanceSummary(channels) {
+            parts.append(balance)
+        }
+        // What the car was doing (`Health`, #190): any figure past its line and
+        // the fuel outlook; the cards themselves are on the panel's Car tab.
+        if let channels, let health = Health.healthSummary(channels, .us) {
+            parts.append(health)
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

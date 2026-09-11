@@ -24,11 +24,6 @@ import org.junit.Test
 /**
  * The vehicle page's own rules — the ones that are about *this* car rather than
  * about wear arithmetic, which is the server's and is pinned in `GarageTest`.
- *
- * The ledger filter is the one worth a test: it has to drop other cars' events
- * **and** this car's upcoming ones, because an event that hasn't been driven has
- * accrued no hours — the server's wear window excludes it too, so a ledger that
- * listed it would not add up to the hours shown in the tile above it.
  */
 class VehicleModelTest {
 
@@ -40,7 +35,6 @@ class VehicleModelTest {
             val path = request.url.encodedPath
             val body = when {
                 path.endsWith("/garage") -> garage
-                path.endsWith("/events") -> EVENTS
                 else -> """{"ok":true}"""
             }
             respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
@@ -73,12 +67,6 @@ class VehicleModelTest {
         // set of pads you wore out last season is exactly the spend worth seeing.
         val model = loaded()
         assertEquals(38900 + 120000, model.spendCents)
-    }
-
-    @Test
-    fun `the ledger is this car's driven events only`() {
-        val model = loaded()
-        assertEquals(listOf(1), model.events.map { it.id })
     }
 
     @Test
@@ -116,12 +104,34 @@ class VehicleModelTest {
     }
 
     @Test
+    fun `editing the car sends every field but only a changed default`() = runBlocking {
+        val model = loaded()
+        sent.clear()
+        // The car is already the default, and the form left the switch on.
+        model.updateVehicle(name = "Corvette Z06 ", notes = "  ", targetHotPsi = 34.5, isDefault = true)
+
+        val put = withTimeout(5_000) {
+            var found = sent.firstOrNull { it.method.value == "PUT" }
+            while (found == null) {
+                delay(5)
+                found = sent.firstOrNull { it.method.value == "PUT" }
+            }
+            found
+        }
+        val body = bodyOf(put)
+        assertEquals(setOf("name", "notes", "target_hot_psi"), body.keys)
+        assertEquals("Corvette Z06", body["name"]!!.jsonPrimitive.content)
+        // A blank notes field means cleared — an explicit null, not an omission.
+        assertTrue(body["notes"] is kotlinx.serialization.json.JsonNull)
+        assertEquals("34.5", body["target_hot_psi"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun `a rejected write keeps the page and surfaces the server's message`() = runBlocking {
         val engine = MockEngine { request ->
             val path = request.url.encodedPath
             when {
                 path.endsWith("/garage") -> respond(GARAGE, HttpStatusCode.OK, JSON)
-                path.endsWith("/events") -> respond(EVENTS, HttpStatusCode.OK, JSON)
                 else -> respond(
                     """{"error":"A part needs an install date."}""",
                     HttpStatusCode.BadRequest,
@@ -158,20 +168,6 @@ class VehicleModelTest {
                  "installed_on":"2025-01-01","retired_on":"2026-01-01","cost_cents":120000,
                  "measurements":[],
                  "wear":{"hours":18,"events":6,"cycles":8,"remaining_hours":0,"pct_used":1}}]}]
-        """
-
-        /**
-         * Event 1 is this car, driven. 2 is this car but years out — the date is
-         * deliberately far future so the "upcoming events aren't in the ledger"
-         * rule keeps being tested rather than quietly expiring. 3 is another car.
-         */
-        const val EVENTS = """
-            [{"id":1,"track_id":1,"track_name":"VIR (Full)","start_date":"2026-03-01","days":2,
-              "vehicle_id":1,"lap_count":10,"session_count":2,"hours":4,"updated_at":1},
-             {"id":2,"track_id":1,"track_name":"VIR (Full)","start_date":"2099-03-01","days":2,
-              "vehicle_id":1,"lap_count":0,"session_count":0,"hours":4,"updated_at":2},
-             {"id":3,"track_id":1,"track_name":"VIR (Full)","start_date":"2026-04-01","days":1,
-              "vehicle_id":2,"lap_count":5,"session_count":1,"hours":2,"updated_at":3}]
         """
     }
 }

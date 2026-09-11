@@ -60,6 +60,16 @@
                 <data android:scheme="trackevolution" android:host="auth" />
             </intent-filter>
 
+            <!-- "Send to Track Evolution" from Files, Photos or the camera app:
+                 a PDR or GoPro clip arrives as a content:// URI the importer
+                 reads in place, never copied. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+
             <!-- App Links: open share pages in the app, verified against
                  https://trackevolution.app/.well-known/assetlinks.json. The
                  fingerprint there is the Play app-signing key, so verification

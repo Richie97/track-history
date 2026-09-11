@@ -20,8 +20,10 @@ struct SettingsScreen: View {
     @Environment(AuthController.self) private var auth
     @Environment(ThemeStore.self) private var theme
     @Environment(AppRouter.self) private var router
+    @Environment(StoreController.self) private var store
 
     @State private var model: SettingsModel?
+    @State private var showingPaywall = false
     @State private var confirmingSignOut = false
     @State private var confirmingDisableShare = false
     @State private var deletingVehicle: Vehicle?
@@ -91,6 +93,9 @@ struct SettingsScreen: View {
         return TEPage {
             accountCard(model)
 
+            TESectionHeader("Subscription")
+            subscriptionCard
+
             TESectionHeader("Appearance")
             TECard {
                 Picker("Theme", selection: Binding(get: { theme.preference }, set: { theme.preference = $0 })) {
@@ -103,6 +108,9 @@ struct SettingsScreen: View {
 
             TESectionHeader("Share your history")
             shareCard(model)
+
+            TESectionHeader("Leaderboards")
+            leaderboardCard(model)
 
             TESectionHeader("Prep checklist")
             checklistTemplateCard(model)
@@ -208,6 +216,82 @@ struct SettingsScreen: View {
                 .foregroundStyle(Color(.accentContrast))
                 .frame(width: 44, height: 44)
                 .background(Color(.accent), in: .circle)
+        }
+    }
+
+    // MARK: - Subscription
+
+    /// Tier and source, as the server last said them (NS-32): "Pro · renews Mar 4,
+    /// 2027", "Pro · lifetime" for a paid-app buyer, or "Free" with the way in.
+    /// Manage goes to the store that sold it — the system sheet for the App Store,
+    /// a link for Google Play — and legacy has nothing to manage.
+    ///
+    /// The paywall hangs off its button. This screen already presents three
+    /// confirmation dialogs, and a fourth presentation on its root is the SwiftUI
+    /// hazard the README documents.
+    private var subscriptionCard: some View {
+        let entitlement = auth.entitlement
+        return TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Entitlement.entitlementSummary(entitlement, fmtDate: PaywallSheet.fmtDate))
+                    .teStyle(.h3)
+                    .foregroundStyle(Color(.textStrong))
+                    .accessibilityIdentifier("subscriptionSummary")
+                Text(subscriptionDetail(entitlement))
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+
+                if Entitlement.isPro(entitlement) {
+                    manageControl(entitlement)
+                } else {
+                    Button("Subscribe to Pro") { showingPaywall = true }
+                        .buttonStyle(TEButtonStyle(kind: .accent))
+                        .accessibilityIdentifier("subscribeButton")
+                        .sheet(isPresented: $showingPaywall) {
+                            PaywallSheet(context: .general)
+                        }
+                    if let url = Entitlement.manageUrl(entitlement), entitlement?.source == .google {
+                        // Lapsed on Android: the way back is Play's, not ours.
+                        Link("Manage on Google Play", destination: url)
+                            .buttonStyle(TEButtonStyle(kind: .quiet))
+                    }
+                }
+
+                if let error = store.error {
+                    TEErrorBanner(message: error)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func manageControl(_ entitlement: Entitlement?) -> some View {
+        switch entitlement?.source {
+        case .apple:
+            Button("Manage subscription") { Task { await store.showManageSubscriptions() } }
+                .buttonStyle(TEButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("manageSubscription")
+        case .google:
+            if let url = Entitlement.manageUrl(entitlement) {
+                Link("Manage on Google Play", destination: url)
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("manageSubscription")
+            }
+        case .legacy, nil:
+            EmptyView()
+        }
+    }
+
+    private func subscriptionDetail(_ entitlement: Entitlement?) -> String {
+        guard Entitlement.isPro(entitlement) else {
+            return "Free is the logbook. Pro adds the GPS lap recorder, video telemetry import, "
+                + "channel graphs and garage wear tracking — on every device you sign in on."
+        }
+        switch entitlement?.source {
+        case .legacy: return "You bought the app before subscriptions — Pro is yours for life."
+        case .apple: return "Billed through the App Store. Cancel or switch plans in your Apple ID subscriptions."
+        case .google: return "Billed through Google Play. Cancel or switch plans there."
+        case nil: return "Track Evolution Pro is active on this account."
         }
     }
 
@@ -381,6 +465,62 @@ struct SettingsScreen: View {
         .padding(.vertical, 4)
     }
 
+    // MARK: - Leaderboards
+
+    /// The per-track leaderboard opt-in — the same privacy posture as the web's
+    /// Settings section: exactly two things are shared per track, and everything
+    /// else stays private.
+    private func leaderboardCard(_ model: SettingsModel) -> some View {
+        @Bindable var model = model
+        return TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(
+                    "Appear on per-track leaderboards",
+                    isOn: Binding(
+                        get: { model.leaderboardOptIn },
+                        set: { newValue in Task { await model.setLeaderboardOptIn(newValue) } }
+                    )
+                )
+                .teStyle(.body)
+                .foregroundStyle(Color(.textBody))
+                .tint(Color(.accent))
+                Text("""
+                    Opting in shares exactly two things with other signed-in drivers, per track: your \
+                    name and your best device-timed lap (with its date). Only laps recorded with the app \
+                    or imported from telemetry are ranked — hand-entered times stay in your logbook. Your \
+                    events, notes, laps and garage stay private. Leaderboards exist only for tracks the \
+                    app's catalog knows.
+                    """)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                Divider().overlay(Color(.borderHairline))
+                Toggle(
+                    "Let other drivers open my ranked laps",
+                    isOn: Binding(
+                        get: { model.leaderboardShareLaps },
+                        set: { newValue in Task { await model.setLeaderboardShareLaps(newValue) } }
+                    )
+                )
+                .teStyle(.body)
+                .foregroundStyle(Color(.textBody))
+                .tint(Color(.accent))
+                .disabled(!model.leaderboardOptIn)
+                Text("""
+                    A second, separate choice, off unless you turn it on. It publishes one lap per track \
+                    — the ranked one already on the board — as its racing line and telemetry traces, so a \
+                    driver ranked at the same track can compare corner for corner. It never publishes any \
+                    other lap, your notes, your session labels, your car, the conditions you typed, your \
+                    setup sheets or your garage. Leaving the leaderboards turns it off.
+                    """)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                if let error = model.leaderboardError {
+                    TEErrorBanner(message: error)
+                }
+            }
+        }
+    }
+
     // MARK: - Share link
 
     private func shareCard(_ model: SettingsModel) -> some View {
@@ -469,6 +609,12 @@ final class SettingsModel {
     var newChecklistItem = ""
     var checklistError: String?
 
+    /// The per-track leaderboard opt-in, mirrored from `/me`.
+    private(set) var leaderboardOptIn = false
+    /// The lap-sharing consent stacked on it (NS-35), mirrored from `/me`.
+    private(set) var leaderboardShareLaps = false
+    var leaderboardError: String?
+
     init(api: APIClient, auth: AuthController) {
         self.api = api
         self.auth = auth
@@ -525,6 +671,8 @@ final class SettingsModel {
             user = me.user
             slug = me.user.shareSlug
             slugDraft = me.user.shareSlug ?? ""
+            leaderboardOptIn = me.user.leaderboardOptIn ?? false
+            leaderboardShareLaps = me.user.leaderboardShareLaps ?? false
             hasUnsyncedChanges = (await api.syncStatus()?.pending ?? 0) > 0
             state = .ready
         } catch let error as APIError {
@@ -575,6 +723,50 @@ final class SettingsModel {
         } catch {
             vehicleError = error.localizedDescription
             Haptics.warn()
+        }
+    }
+
+    /// Join or leave the per-track leaderboards. A live write on purpose — never
+    /// queued offline: publishing your name shouldn't replay silently later. On
+    /// failure the toggle snaps back rather than lying about the state.
+    func setLeaderboardOptIn(_ optIn: Bool) async {
+        leaderboardError = nil
+        let previous = leaderboardOptIn
+        let previousShare = leaderboardShareLaps
+        leaderboardOptIn = optIn
+        // Leaving the board clears lap sharing server-side, so the second toggle
+        // follows rather than showing a consent that is no longer stored.
+        if !optIn { leaderboardShareLaps = false }
+        do {
+            try await api.setLeaderboardOptIn(optIn, shareLaps: optIn ? leaderboardShareLaps : false)
+            Haptics.select()
+        } catch let error as APIError {
+            leaderboardOptIn = previous
+            leaderboardShareLaps = previousShare
+            leaderboardError = error.message
+        } catch {
+            leaderboardOptIn = previous
+            leaderboardShareLaps = previousShare
+            leaderboardError = error.localizedDescription
+        }
+    }
+
+    /// Publish the ranked lap itself, or stop (NS-35). A second consent, never
+    /// implied by the opt-in, and a live write for the same reason: publishing
+    /// your telemetry should not replay silently later.
+    func setLeaderboardShareLaps(_ share: Bool) async {
+        leaderboardError = nil
+        let previous = leaderboardShareLaps
+        leaderboardShareLaps = share
+        do {
+            try await api.setLeaderboardOptIn(true, shareLaps: share)
+            Haptics.select()
+        } catch let error as APIError {
+            leaderboardShareLaps = previous
+            leaderboardError = error.message
+        } catch {
+            leaderboardShareLaps = previous
+            leaderboardError = error.localizedDescription
         }
     }
 

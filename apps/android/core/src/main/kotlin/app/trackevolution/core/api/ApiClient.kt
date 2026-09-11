@@ -1,11 +1,13 @@
 package app.trackevolution.core.api
 
+import app.trackevolution.core.model.BillingResponse
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.EventDraft
 import app.trackevolution.core.model.EventPatch
+import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
 import app.trackevolution.core.model.SessionDraft
@@ -13,6 +15,7 @@ import app.trackevolution.core.model.SessionPatch
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
+import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.core.model.VehicleDraft
@@ -74,6 +77,13 @@ public class ApiClient(
      * server, which is what the contract tests want.
      */
     private val offline: OfflineStore? = null,
+    /**
+     * Sent on **every** request, `/api` and `/auth` alike. How `:app` adds
+     * `X-TE-Client: android/<versionCode>` — the transitional build's
+     * identification for the legacy claim (NS-32 requirement 6) — without
+     * `:core` learning about `BuildConfig`.
+     */
+    private val defaultHeaders: Map<String, String> = emptyMap(),
 ) {
     private val client = HttpClient(engine) {
         // Non-2xx is mapped by hand below, into the server's own message.
@@ -191,6 +201,24 @@ public class ApiClient(
         send("PUT", "/me/checklist-template", body = body, deserializer = OkResponse.serializer())
     }
 
+    /**
+     * Toggles the per-track leaderboard opt-in, and optionally the lap-sharing
+     * consent stacked on it (NS-35). Deliberately a live write, never queued
+     * offline: publishing your name — still less your telemetry — is not
+     * something to replay silently later.
+     *
+     * [shareLaps] null omits the key, which the server reads as "leave the
+     * stored value alone", so a screen meaning only to toggle the opt-in cannot
+     * clear a consent it never asked about.
+     */
+    public suspend fun setLeaderboardOptIn(optIn: Boolean, shareLaps: Boolean? = null) {
+        val body = buildJsonObject {
+            put("opt_in", JsonPrimitive(optIn))
+            if (shareLaps != null) put("share_laps", JsonPrimitive(shareLaps))
+        }
+        send("PUT", "/me/leaderboard", body = body, deserializer = OkResponse.serializer())
+    }
+
     // ---- Events -----------------------------------------------------------
 
     public suspend fun events(trackId: Int? = null): List<Event> = get(
@@ -261,6 +289,23 @@ public class ApiClient(
     /** The seeded canonical catalog behind the event form's name suggestions. */
     public suspend fun catalog(): List<CatalogTrack> =
         get("/catalog", ListSerializer(CatalogTrack.serializer()))
+
+    /**
+     * The per-track community leaderboard: opted-in users' best laps at the
+     * same catalog track. `catalogId` null means the catalog doesn't know this
+     * track — no cross-user identity, so no leaderboard.
+     */
+    public suspend fun trackLeaderboard(id: Int): TrackLeaderboard =
+        get("/tracks/$id/leaderboard", TrackLeaderboard.serializer())
+
+    /**
+     * One shared leaderboard lap, opened from a row whose `lapId` is non-null
+     * (NS-35). [trackId] is the viewer's own track — a lap is only reachable
+     * from a track the viewer actually has — and the server re-checks every
+     * condition, answering 404 rather than 403 for anything it will not publish.
+     */
+    public suspend fun leaderboardLap(trackId: Int, lapId: Int): LeaderboardLap =
+        get("/tracks/$trackId/leaderboard/laps/$lapId", LeaderboardLap.serializer())
 
     public suspend fun updateTrack(id: Int, patch: TrackPatch) {
         send("PUT", "/tracks/$id", encode(TrackPatch.serializer(), patch), OkResponse.serializer())
@@ -361,6 +406,38 @@ public class ApiClient(
     /** The public share page. Unauthenticated on purpose — no token is sent. */
     public suspend fun sharedLogbook(slug: String): ShareData =
         get("/share/$slug", ShareData.serializer(), authenticated = false)
+
+    // ---- Billing (NS-32) --------------------------------------------------
+    //
+    // The phone is a purchase terminal for its store; the server is the only
+    // thing that decides tier. Both writes answer with the fresh entitlement.
+    // Neither is on the offline queue (a purchase token replayed later is the
+    // wrong shape of durability — Play keeps the purchase, and every cold start
+    // re-posts anything the server doesn't yet know), so offline they fail with
+    // a Transport error the caller retries on the next launch.
+
+    /**
+     * Posts a Play purchase. **Acknowledge the purchase only after this returns**
+     * — Play refunds an unacknowledged subscription after three days, so
+     * acknowledging first is how a paying user ends up free, and never
+     * acknowledging is how they end up refunded. A 409 means the token is bound
+     * to another account and must not be acknowledged from this one.
+     */
+    public suspend fun postGooglePurchase(purchaseToken: String, productId: String): BillingResponse {
+        val body = buildJsonObject {
+            put("purchase_token", JsonPrimitive(purchaseToken))
+            put("product_id", JsonPrimitive(productId))
+        }
+        return send("POST", "/billing/google", body, BillingResponse.serializer())
+    }
+
+    /**
+     * The transitional build's grandfathering claim (requirement 6): no body
+     * fields, identified by the `X-TE-Client` header [defaultHeaders] carries.
+     * `403 legacy claim window closed` after the server's `LEGACY_CUTOFF`.
+     */
+    public suspend fun claimGoogleLegacy(): BillingResponse =
+        send("POST", "/billing/google/legacy", buildJsonObject { }, BillingResponse.serializer())
 
     // ---- Sign-in (NS-09) --------------------------------------------------
     //
@@ -557,6 +634,7 @@ public class ApiClient(
                     takeFrom(serverUrl + prefix + path)
                     query.forEach { (name, value) -> parameters.append(name, value) }
                 }
+                defaultHeaders.forEach { (name, value) -> header(name, value) }
                 if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
                 if (body != null) {
                     contentType(ContentType.Application.Json)

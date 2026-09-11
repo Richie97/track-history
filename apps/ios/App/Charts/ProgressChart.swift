@@ -30,17 +30,12 @@ struct ProgressChart: View {
         var id: Double { x }
     }
 
-    enum Style {
-        /// The full chart: axes, goal rule, drag-to-read.
-        case full
-        /// The dashboard card's 44pt trend line — no axes, no interaction.
-        case sparkline
-    }
-
     let points: [Point]
-    /// The target lap time, drawn as a rule when there is one. Ignored by sparklines.
+    /// The target lap time, drawn as a rule when there is one.
     var goalMs: Int?
-    var style: Style = .full
+    /// The conditions wash behind the plot (#191): one cell per point, nil where
+    /// that event has no temperature at all.
+    var band: SessionConditions.Band?
     /// What the axis labels say, given a plot position. Defaults to the nearest
     /// point's own label.
     var xLabel: ((Double) -> String)?
@@ -51,11 +46,9 @@ struct ProgressChart: View {
 
     var body: some View {
         if points.isEmpty {
-            if style == .full {
-                Text("No lap times here yet.")
-                    .teStyle(.sm)
-                    .foregroundStyle(Color(.textMuted))
-            }
+            Text("No lap times here yet.")
+                .teStyle(.sm)
+                .foregroundStyle(Color(.textMuted))
         } else {
             chart
         }
@@ -64,7 +57,7 @@ struct ProgressChart: View {
     private var domain: (low: Double, high: Double) {
         // The goal belongs inside the axis, or a goal faster than every lap would
         // sit off the bottom of the plot.
-        let values = points.map(\.ms) + [style == .full ? goalMs : nil].compactMap { $0 }
+        let values = points.map(\.ms) + [goalMs].compactMap { $0 }
         return ChartScale.lapTimeDomain(values) ?? (0, 1)
     }
 
@@ -95,13 +88,11 @@ struct ProgressChart: View {
                     // tracks — it bulges into an arch that reads as a story the data
                     // doesn't tell. `public/js/chart.js` polylines for the same reason.
                     .interpolationMethod(.linear)
-                if style == .full {
-                    PointMark(x: .value("Position", point.x), y: .value("Lap", point.ms))
-                        .foregroundStyle(Color(.chartLine))
-                        .symbolSize(selected?.id == point.id ? 90 : 40)
-                }
+                PointMark(x: .value("Position", point.x), y: .value("Lap", point.ms))
+                    .foregroundStyle(Color(.chartLine))
+                    .symbolSize(selected?.id == point.id ? 90 : 40)
             }
-            if style == .full, let goalMs {
+            if let goalMs {
                 RuleMark(y: .value("Goal", goalMs))
                     .foregroundStyle(Color(.accentRing))
                     .lineStyle(.init(lineWidth: 1, dash: [4, 3]))
@@ -123,14 +114,22 @@ struct ProgressChart: View {
         // the modifier rather than the maths.
         .chartYScale(domain: domain.low...domain.high)
         .chartXScale(domain: xDomain)
-        .modifier(ChartChrome(style: style, points: points, xLabel: xLabel))
+        // The conditions band goes in the *background* rather than as a
+        // `RectangleMark` in the builder above: a mark of a second type beside
+        // the lines breaks Swift Charts' one-homogeneous-`ForEach` rule and
+        // wedges layout, the same trap `LapChannelChart` documents.
+        .chartBackground { proxy in
+            GeometryReader { geometry in
+                if let band, band.cells.count == points.count,
+                   let plotFrame = proxy.plotFrame {
+                    ConditionsBandLayer(band: band, points: points, proxy: proxy, plot: geometry[plotFrame])
+                }
+            }
+        }
+        .modifier(ChartChrome(points: points, xLabel: xLabel))
         .foregroundStyle(Color(.textMuted))
-        .modifier(ReadOutGesture(style: style, points: points, selected: $selected))
-        // Only the full chart fixes its own height. A sparkline is sized by whatever
-        // it sits beside — on a dashboard card that's the height of the track's name,
-        // best lap and meta line, and a hardcoded 44 left it floating in the middle of
-        // a card twice that tall.
-        .modifier(SparklineSizing(style: style))
+        .modifier(ReadOutGesture(points: points, selected: $selected))
+        .frame(height: 200)
         .overlay(alignment: .topTrailing) {
             if let selected {
                 Text("\(selected.label) · \(LapTime.fmtMs(selected.ms))")
@@ -143,8 +142,15 @@ struct ProgressChart: View {
         }
         // A chart that's only visual is incomplete.
         .accessibilityElement()
-        .accessibilityLabel(style == .full ? "Lap times over \(unit)" : "Trend of best laps")
-        .accessibilityValue(Self.trendSummary(points, unit: unit))
+        .accessibilityLabel("Lap times over \(unit)")
+        // The wash is exactly what a screen-reader user cannot see, so the
+        // trend summary says it out loud — same reason the summary says which
+        // way the trend goes.
+        .accessibilityValue(
+            [Self.trendSummary(points, unit: unit), SessionConditions.bandLabel(band, .us)]
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+        )
     }
 
     /// What VoiceOver reads: the trend, not the pixels.
@@ -160,75 +166,123 @@ struct ProgressChart: View {
     }
 }
 
-/// The full chart is 200pt tall; a sparkline takes the height it's given.
+/// The ambient-temperature wash behind the plot (#191).
 ///
-/// `maxHeight: .infinity` rather than no frame at all: `Chart` has no intrinsic
-/// height, so left entirely unconstrained inside a vertically-unbounded scroll view
-/// it collapses. This makes it *fill* the height its container settles on, which the
-/// text column next to it determines.
-private struct SparklineSizing: ViewModifier {
-    let style: ProgressChart.Style
+/// One cell per event, spanning the midpoints between neighbouring points — so
+/// each event owns the width around its own mark and the shading reads as
+/// territory rather than as a bar per event, which is how the web draws it too.
+/// A cell the band left nil draws nothing at all: an unknown day must not be
+/// painted the coolest shade, which would claim a measurement never made.
+private struct ConditionsBandLayer: View {
+    let band: SessionConditions.Band
+    let points: [ProgressChart.Point]
+    let proxy: ChartProxy
+    let plot: CGRect
 
-    func body(content: Content) -> some View {
-        switch style {
-        case .full: content.frame(height: 200)
-        case .sparkline:
-            // The inset is for the stroke, not for looks: the domain pads by 4% of the
-            // range, which at sparkline scale is less than half the line's width, so
-            // the fastest and slowest laps — the two points you actually look at — get
-            // sliced in half by the plot edge.
-            //
-            // `idealHeight` is what stops a card being sized *by* its chart. `Chart`
-            // reports an ideal height around 100pt, and an HStack sizes itself from its
-            // children's ideals — so a one-line track card came out taller than a
-            // two-line one beside it, with the extra height showing as dead space under
-            // the meta line. A low ideal (and an explicit zero minimum, since `Chart`'s
-            // own minimum would otherwise leak through) leaves the text column as the
-            // only thing setting the row height, while `maxHeight: .infinity` still
-            // stretches the line to fill whatever that turns out to be.
-            content
-                .padding(.vertical, 5)
-                .frame(minHeight: 0, idealHeight: 44, maxHeight: .infinity)
+    var body: some View {
+        Canvas { context, _ in
+            let xs = points.map { proxy.position(forX: $0.x) ?? 0 }
+            for (i, cell) in band.cells.enumerated() {
+                guard let cell else { continue }
+                let left = i == 0 ? 0 : (xs[i - 1] + xs[i]) / 2
+                let right = i == points.count - 1 ? plot.width : (xs[i] + xs[i + 1]) / 2
+                guard right > left else { continue }
+                let rect = CGRect(
+                    x: plot.minX + left, y: plot.minY, width: right - left, height: plot.height
+                )
+                context.fill(Path(rect), with: .color(Color(.heat).opacity(cell.alpha)))
+            }
         }
     }
 }
 
-/// Axes and grid, or none at all for a sparkline.
+/// The conditions band's key, for under the chart: pale is the coolest event in
+/// view, deep the hottest. The same two alphas the wash itself is drawn with, so
+/// the key is the legend for the thing above it rather than an approximation.
+///
+/// Hidden from VoiceOver on purpose — the chart's own accessibility value
+/// already says what the shading means, and a second reading of the same two
+/// temperatures is noise.
+struct ConditionsKey: View {
+    let band: SessionConditions.Band
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(SessionConditions.tempText(band.loC, .us))
+            LinearGradient(
+                colors: [
+                    Color(.heat).opacity(SessionConditions.BAND_MIN_ALPHA),
+                    Color(.heat).opacity(SessionConditions.BAND_MAX_ALPHA),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 110, height: 6)
+            .clipShape(.capsule)
+            Text(SessionConditions.tempText(band.hiC, .us))
+        }
+        .teStyle(.xxs)
+        .foregroundStyle(Color(.textFaint))
+        .accessibilityHidden(true)
+    }
+}
+
+/// Axes and grid.
 private struct ChartChrome: ViewModifier {
-    let style: ProgressChart.Style
     let points: [ProgressChart.Point]
     let xLabel: ((Double) -> String)?
 
     func body(content: Content) -> some View {
-        switch style {
-        case .sparkline:
-            content.chartXAxis(.hidden).chartYAxis(.hidden)
-        case .full:
-            content
-                .chartYAxis {
-                    AxisMarks { value in
-                        AxisGridLine().foregroundStyle(Color(.chartGrid))
-                        AxisValueLabel {
-                            if let ms = value.as(Double.self) {
-                                Text(LapTime.fmtMs(Int(ms)))
-                                    .teStyle(.xxs)
-                            }
+        content
+            .chartYAxis {
+                AxisMarks { value in
+                    AxisGridLine().foregroundStyle(Color(.chartGrid))
+                    AxisValueLabel {
+                        if let ms = value.as(Double.self) {
+                            Text(LapTime.fmtMs(Int(ms)))
+                                .teStyle(.xxs)
                         }
                     }
                 }
-                .chartXAxis {
-                    // Four labels at most: the axis is a reference, and a label per
-                    // event turns into overlapping mush by the fifth track day.
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                        AxisGridLine().foregroundStyle(Color(.chartGrid))
-                        AxisValueLabel {
-                            if let x = value.as(Double.self) {
-                                Text(label(for: x)).teStyle(.xxs)
-                            }
+            }
+            .chartXAxis {
+                // Grid lines on the automatic ticks; labels on the ends only.
+                //
+                // A date reads as "Feb 12, 2019" and a phone leaves the plot
+                // around 280pt, so four of them do not fit — what shipped was
+                // five overlapping labels with the last one truncated. The axis
+                // here is a *range*, not a lookup table: which day a point is
+                // belongs to the drag read-out, which answers it exactly, so the
+                // axis says where the series starts and where it ends and stops
+                // there. The wider web chart (`public/js/chart.js`) still draws
+                // its two intermediate labels — it has the room, this doesn't.
+                AxisMarks(values: .automatic(desiredCount: 4)) { _ in
+                    AxisGridLine().foregroundStyle(Color(.chartGrid))
+                }
+                // Anchored by their inside corner, so the first label grows
+                // rightwards off its mark and the last one leftwards; centred,
+                // both would hang half a date past the end of the plot.
+                AxisMarks(values: endpoints) { value in
+                    AxisValueLabel(anchor: anchor(for: value)) {
+                        if let x = value.as(Double.self) {
+                            Text(label(for: x)).teStyle(.xxs)
                         }
                     }
                 }
-        }
+            }
+    }
+
+    /// The first and last plot positions — one value when there is a single point,
+    /// which then sits centred with nothing to collide with.
+    private var endpoints: [Double] {
+        let xs = points.map(\.x)
+        guard let low = xs.min(), let high = xs.max() else { return [] }
+        return low < high ? [low, high] : [low]
+    }
+
+    private func anchor(for value: AxisValue) -> UnitPoint {
+        guard value.count > 1 else { return .top }
+        return value.index == 0 ? .topLeading : .topTrailing
     }
 
     /// The caller's formatter, or the nearest point's own label.
@@ -239,7 +293,7 @@ private struct ChartChrome: ViewModifier {
 }
 
 /// Drag to read a value off the line, with a detent per point — this is where
-/// native earns its keep over the web chart. Sparklines get none of it.
+/// native earns its keep over the web chart.
 ///
 /// **Simultaneous, and horizontal-only**, both deliberately. Every chart here sits
 /// inside a vertical scroller — the track page's `ScrollView`, the event page's
@@ -252,21 +306,16 @@ private struct ChartChrome: ViewModifier {
 /// dominant-axis check means a vertical scroll doesn't also drag the read-out
 /// tooltip around behind it.
 private struct ReadOutGesture: ViewModifier {
-    let style: ProgressChart.Style
     let points: [ProgressChart.Point]
     @Binding var selected: ProgressChart.Point?
 
     func body(content: Content) -> some View {
-        if style == .sparkline {
-            content
-        } else {
-            content.chartOverlay { proxy in
-                GeometryReader { geometry in
-                    Rectangle().fill(.clear).contentShape(.rect)
-                        .onTapGesture { location in
-                            select(at: location, proxy: proxy, geometry: geometry)
-                        }
-                }
+        content.chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle().fill(.clear).contentShape(.rect)
+                    .onTapGesture { location in
+                        select(at: location, proxy: proxy, geometry: geometry)
+                    }
             }
         }
     }

@@ -9,11 +9,13 @@ directory is the home of every `NS-*` spec marked **iOS**.
 ```
 apps/ios/
   project.yml                  XcodeGen source of truth for the project
+  Configuration.storekit       local StoreKit products for the TrackEvolution scheme
   generate.sh                  regenerates TrackEvolution.xcodeproj
   Schemes/                     hand-written shared schemes copied in by generate.sh
   TrackEvolution.xcodeproj      generated, but COMMITTED (see below)
   App/                         app target — SwiftUI views, scenes, platform services
     Import/                    video telemetry import: pickers, file byte source
+    Billing/                   StoreKit 2: purchase, restore, listener, paywall (NS-32)
     Info.plist                 hand-maintained (GENERATE_INFOPLIST_FILE is off)
     TrackEvolution.entitlements
     Assets.xcassets/
@@ -21,6 +23,7 @@ apps/ios/
     Sources/TrackEvolutionKit/
       Models/                  Codable models + LapTime formatting
       API/                     APIClient, APIError, request bodies
+      Billing/                 tier predicates and gates (port of public/js/entitlement.js)
       Recorder/                lap geometry, recorder core
       Telemetry/               PDR + GoPro parsers, per-lap channels, lap recovery
     Tests/TrackEvolutionKitTests/
@@ -45,9 +48,24 @@ xcodebuild -project TrackEvolution.xcodeproj -scheme TrackEvolution \
 xcodebuild test -project TrackEvolution.xcodeproj -scheme TrackEvolutionKit \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 
+# the app target's own unit tests — see below for what belongs in them
+xcodebuild test -project TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:TrackEvolutionTests
+
 # or just open it
 open TrackEvolution.xcodeproj
 ```
+
+**Almost nothing belongs in `Tests/`.** Testable logic lives in the Kit, which
+is exactly why the Kit builds for macOS: `swift test` runs it in seconds with no
+simulator, and this target needs one. It exists for the handful of values that
+are facts about a *window* rather than about the domain — the NS-34 layout
+breakpoints, which the spec keeps out of the Kit because the class is derived
+from UIKit's size class and the window's width, and which Android duplicates for
+the same reason. A test on each platform is what stops that duplication becoming
+drift, so `LayoutClassTests` and Android's `LayoutClassTest` fail together or not
+at all. Adding a second case here should feel like a decision.
 
 ## Design system
 
@@ -301,6 +319,35 @@ xcrun simctl launch <device> app.trackevolution -channelGraphs   # synthetic dat
 can't create what it asserts on through the UI, so it seeds a session over the dev
 API (the same `DEV_MODE` door `DevServerSignIn` uses) and deletes the event again.
 
+The panel also answers a **keyboard and a pointer** on an iPad (NS-34 ticket 5),
+and both are additive to touch rather than replacing it:
+
+- `1`–`4` select tabs *by their place in the bar* (an unpopulated tab isn't
+  drawn, and skipping a number to honour one nobody can see would be a puzzle),
+  `[` / `]` step the newest highlighted lap through the session leaving the
+  others pinned, and ⌘F hides the friction circle's dim envelope.
+- They are **titled `Button`s carrying `.keyboardShortcut`**, not `onKeyPress`:
+  that is what registers them as `UIKeyCommand`s and so lists them, by title, in
+  the ⌘-key overlay. The three with no visible control to hang off are
+  zero-sized invisible buttons — which does register, and
+  `ChannelPanelKeyboardUITests` is what proves it still does.
+- With a trackpad, **hovering** does what tapping does — mark the distance
+  across the charts, ring the place on the track map — through
+  `.onContinuousHover` on the friction circle, the balance corner rows, the
+  sector headings and the traces. A tap *parks* a mark; a pointer only
+  *borrows* one and hands the parked mark back on its way out, so a mouse
+  passing over never throws away a choice somebody made.
+
+And a clip can be **dropped onto an event page** from Files to start an import.
+The trap there is worth knowing before touching it:
+`loadInPlaceFileRepresentation` gives a URL that is valid **only inside its
+callback**. In place, opening the security scope inside that callback is what
+extends it; not in place, the provider has already made a copy and deletes it as
+soon as you return, so the file has to be moved out first. `DroppedClip` holds
+whichever of the two it was, and `Tests/DroppedClipTests` covers both — a real
+drag between two apps is not something a simulator can be made to perform, but
+everything after the drop lands is ordinary code.
+
 Three things about Swift Charts are load-bearing here, all found by the app wedging
 rather than by any assertion failing:
 
@@ -327,12 +374,129 @@ cached logbook still reads, that a queued write is on screen immediately, that t
 sync banner says so, and that all of it survives a relaunch. They skip when no dev
 server answers, so `xcodebuild test` and CI stay green.
 
+**Every launch declares the account's tier.** `launchSignedIn(tier:)` has no
+default on purpose: entitlement is server-owned, so nothing on the client can fake
+it, and the suites disagree about what they need — the lap overlay and the garage
+are gated (`channels` is stripped, `GET /garage` is 402), the recorder's Start is
+gated client-side, and the Settings subscription test asserts the *free* state to
+reach the paywall. A default would let one suite inherit whatever the last one left
+in the shared dev logbook, which is how the database ends up deciding which tests
+pass. It is set over `POST /auth/dev/entitlement`, which answers only under
+DEV_MODE on a local dev host.
+
 ```sh
 npm run dev
 xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -only-testing:TrackEvolutionUITests/CoreScreensUITests
+
+# …and on an iPad, which is the only place the large-screen layout exists
+xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' \
+  -only-testing:TrackEvolutionUITests/CoreScreensUITests
 ```
+
+`UITests/TwoPaneUITests` is the one to run on both: it asserts the dashboard
+stays beside the detail at expanded width and goes behind it at compact, taking
+its expectation from the **window's own width** rather than from the destination,
+so one test states the rule on either device.
+
+The iPad run is still a *manual* one: CI runs none of these suites, because they
+need `npm run dev`. Wiring it up is now a question of standing a dev server up in
+the workflow rather than of the tests themselves — the browser step that used to
+make them fragile is gone (below), and they pass unattended.
+
+One suite needs no server at all and is the cheapest first step if that is ever
+wired up: `UITests/ChannelPanelKeyboardUITests` (NS-34 ticket 5) needs **neither
+a dev server nor sign-in**, because `-channelGraphs` opens the panel on synthetic
+data before the shell is built. What it would need in CI is the hardware keyboard
+turned on for the runner's simulator (`defaults write
+com.apple.iphonesimulator ConnectHardwareKeyboard -bool true`), since it types.
+
+## The suites sign in without the browser
+
+Every suite that needs real data gets its session from **`-authToken`**, a
+DEBUG-only launch argument, rather than by tapping through
+`ASWebAuthenticationSession`:
+
+- `devSessionToken()` in `DevServerSignIn` performs the app's *own* PKCE
+  exchange over HTTP — `GET /auth/login?client=app&code_challenge=…` answers with
+  a redirect to `trackevolution://auth?code=…` under the `DEV_MODE` bypass, and
+  `POST /auth/exchange` trades that single-use code for a bearer token.
+- `AuthController.restore()` reads `-authToken` and saves it, after `-resetAuth`
+  has cleared whatever the Keychain held.
+
+**This is not a way around authentication, it is a way around the browser.** The
+token is a real one, minted by the same endpoints the app uses, and the PKCE
+check still runs against it. `SignInUITests` still drives the real browser flow,
+so that coverage moved rather than vanished.
+
+It exists because `ASWebAuthenticationSession` is a system service these suites
+never meant to exercise, and on some machines it takes the app down with an XPC
+fault inside Apple's BoardServices — reproducibly, on `main`, before any
+assertion runs. That left every screen test unrunnable for a reason that had
+nothing to do with the screens, which is how a real regression can sit in `main`
+unnoticed (see the garage note below).
+
+Two environment things to know when running them:
+
+- **`DEV_USER_EMAIL` in `.dev.vars` must match the seed data's `USER_EMAIL`**
+  (`you@example.com` for `seed/data.example.mjs`). They are the same account: if
+  they differ, the dev sign-in creates an empty user and every suite that reads
+  the logbook fails for lack of data.
+- The dev logbook is **shared between suites and between runs**. `db:seed:local`
+  is not idempotent over an existing user row, so a re-seed wants
+  `rm -rf .wrangler/state` and a fresh `db:migrate:local` first.
+
+### What the suites say today
+
+The first full run — 24 tests, since they became runnable — was 19 passing and 5
+failing. `GarageUITests` has since been fixed; the rest are recorded here rather
+than left to be rediscovered, and **none of them is about signing in**:
+
+- `SignInUITests.testSignsInThroughTheSystemBrowser` — the XPC fault above. This
+  one is the known-bad path, and the reason the rest no longer take it.
+- `GarageUITests` — **fixed**, and it was three separate things, none of them the
+  VoiceOver regression it first looked like (see *Identifiers propagate*, below).
+  The card's buttons were always reachable and always spoken; only their
+  *identifiers* were masked.
+- `RecordAndSaveUITests` (both) and `VideoImportUITests.testAGoProClipAsksForThe`
+  `StartFinishLine` — not yet diagnosed.
+
+### Identifiers propagate, and it is silent
+
+`.accessibilityIdentifier` on a **container** is inherited by every element
+inside it, overwriting identifiers those elements set for themselves. The part
+card carried one, so `Measure`, `Refresh`, `Retire` and `Edit` all reported as
+`partCard` and `app.buttons["measurePart"]` matched nothing at all.
+
+Nothing about this is visible from the outside: the buttons still exist as
+separate elements and VoiceOver still reads their labels, so it is not an
+accessibility bug — it breaks *tests*, and only tests, which is why it survived
+in `main` while the suites could not run. The fix is
+`.accessibilityElement(children: .contain)` above the identifier: it says the
+card is a group that keeps its children, so the identifier lands on the card and
+stops there. **Any card here that wants an identifier of its own and holds
+controls needs that pair.**
+
+Two more things that suite had wrong, both of the same family — a query that
+matches nothing and then reports something else:
+
+- `matching(identifier: "Delete")` where the button sets no identifier. SwiftUI
+  synthesizes none, so it matched nothing; match a plain `Button("Delete")` by
+  **label**.
+- `for … where element.isHittable` over a list nobody had scrolled to. Every
+  element was off-screen, so the filter skipped all of them and the loop fell
+  through to its own failure message. Scroll first, then filter.
+
+The suite also now removes its car in `tearDown` over the API, however the run
+ended. It used to leave one behind on failure and add a part to the *same* car
+next time, so a few failures in, the page carried a dozen cards and the scrolling
+helpers failed for reasons unrelated to the test. A suite whose failures make the
+next failure worse is one nobody can debug.
+
+All four are pre-existing: they are what became *visible* when the suites started
+running, not what running them broke.
 
 **Connect the simulator's hardware keyboard** (Simulator → I/O → Keyboard →
 Connect Hardware Keyboard, or `defaults write com.apple.iphonesimulator
@@ -666,6 +830,78 @@ the laptop is the kind of drift nobody files a bug about.
 Editing the template never rewrites a checklist already on an event. Those are a
 copy taken when the list was started, and rewriting one would untick items the
 driver had already dealt with — `ChecklistTemplateUITests` asserts exactly that.
+
+## Subscriptions: the phone is a purchase terminal
+
+`App/Billing/` is NS-32 phase B — Track Evolution Pro sold through StoreKit 2,
+with the **server** owning the entitlement. `StoreController` loads the two
+products (`Entitlement.APPLE_PRODUCT_IDS`), sells them, restores them
+(`AppStore.sync()`), opens the system Manage sheet, and listens to
+`Transaction.updates` from `TrackEvolutionApp.init` for the life of the process.
+`PaywallSheet` is what a free account sees; the Settings screen carries the tier
+row. Nothing in the app decides tier: every billing route answers with the fresh
+entitlement, `AuthController.applyEntitlement` writes it into `me`, and the Kit's
+predicates (`Entitlement.isPro`, `canRecord`, `canImport`, …, the port of
+`public/js/entitlement.js`) read it.
+
+Three rules are load-bearing, and each one is the difference between a paying
+user and a paying user who reads as free:
+
+- **Finish after 200.** A transaction is `finish()`ed only once
+  `POST /api/billing/apple` has accepted it. StoreKit never redelivers a finished
+  transaction, so finishing first and posting second makes a failed post the last
+  anyone hears of that purchase. Unfinished, it comes back through
+  `Transaction.updates` and `Transaction.unfinished` on the next launch — a better
+  queue than ours, since it survives a reinstall. A 400 or 409 from the server
+  *is* finished (neither changes on retry) and its message is shown.
+- **The listener is not a view's.** Renewals, Ask to Buy approvals and purchases
+  made on another device arrive with no paywall on screen. Start it from a
+  `.task` and it dies with the view that started it.
+- **Signed out is held, not dropped.** A transaction with no account to land on
+  waits — in memory, and in StoreKit — and posts when someone signs in
+  (`withObservationTracking` over `auth.state`), with a retry on every return to
+  the foreground.
+
+**Grandfathering** is `AppTransaction.shared` on launch: a paid install posts the
+app transaction's JWS to `/api/billing/apple/legacy` once per account per server
+(`LegacyClaimRecord`, a `UserDefaults` flag; 409 and 400 also count as done, and
+Restore Purchases re-runs it past the flag). The cutoff,
+`Entitlement.APPLE_FIRST_SUBSCRIPTION_BUILD`, ships **`nil`** — "the app is still
+a paid download, so every install bought it" — and mirrors the Worker's unset
+`APPLE_FIRST_SUBSCRIPTION_BUILD`. It can't be set earlier: the build number is
+Xcode Cloud's, not `CURRENT_PROJECT_VERSION`'s, so phase D reads it off the first
+free archive and sets both. Sandbox reports `originalAppVersion` as `1.0`
+regardless, which nil treats as paid, so sandbox testers see the legacy path.
+
+**The gates are off.** `Entitlement.gatesEnabled` is `false` until phase D. The
+record screen's Start, `ImportScreen` and CarPlay's `RemoteRecorder` all ask
+`ProGate.decide(_:entitlement:)` against the *cached* entitlement — offline, the
+last `/api/me` stands, so a driver who was Pro at the last sync records — and
+`EntitlementTests` covers both states with the constant injected. A 402 is
+`APIError.proRequired`, its own case like 401, so a gated read can show the
+paywall instead of the sync banner.
+
+### Testing it locally
+
+The `TrackEvolution` scheme runs against `Configuration.storekit` — one group,
+the two products at $1.99 / $19.99 with a 14-day free trial, pinned to the Kit's
+ids by `EntitlementTests`. That exercises the **UI**: Settings → Subscribe, the
+sheet, the purchase confirmation, Restore, Manage. It does not exercise the
+server: Xcode's local store signs the transactions, the Worker rejects them
+with `400 invalid receipt`, and the app finishes them and shows that message —
+which is the correct behaviour for an unverifiable payload, not a bug. The
+legacy claim is skipped outright in that environment (`AppTransaction.environment
+== .xcode`). Use Xcode's transaction manager (Debug → StoreKit → Manage
+Transactions) to refund, expire or approve an Ask to Buy and watch the listener
+react.
+
+The **server round trip** needs the sandbox: a TestFlight build, or a device
+signed into a Sandbox Apple ID (Settings → App Store → Sandbox Account), with the
+products created in App Store Connect and the `APPLE_IAP_*` secrets on the
+Worker. Sandbox renewals run in minutes, which is how the renewal → row path is
+checked before the price flips. `UITests/CoreScreensUITests` covers the Settings
+row and the sheet's mandatory parts (Restore, both legal links) against the dev
+server; it needs no store because none of those depend on a product loading.
 
 ## The project file is generated *and* committed
 

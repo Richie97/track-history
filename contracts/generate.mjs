@@ -49,6 +49,7 @@ const VOLATILE = {
   part_id: 1,
   catalog_id: 1,
   user_id: 1,
+  lap_id: 1,
   created_at: 0,
   updated_at: 0,
 };
@@ -121,12 +122,13 @@ async function signIn(base) {
 }
 
 function apiClient(base, token) {
-  return async (method, apiPath, body) => {
+  return async (method, apiPath, body, headers = {}) => {
     const res = await fetch(new URL(`/api${apiPath}`, base), {
       method,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Cookie: `session=${token}` } : {}),
+        ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -171,6 +173,34 @@ const FIXTURE = {
 };
 
 async function build(api) {
+  // --- the free tier, before anything else --------------------------------
+  // Phase D put requireEntitlement in front of the garage and the setups
+  // routes, and this harness builds the fixture through those routes — so it
+  // has to be Pro before it can create a part or a setup sheet, and every
+  // capture after the claim below is a Pro one. The two captures that have to
+  // be free therefore happen here, first: a fresh account's /me, and the 402
+  // body every client maps to its paywall.
+  record("me", "GET", "/me",
+    "A fresh account: tier free, and checklist_template null — the common case, " +
+    "where the client falls back to its built-in DEFAULT_CHECKLIST.",
+    "src/routes/me.ts", await api("GET", "/me"));
+
+  record("error-402", "GET", "/garage",
+    "402: the Pro gate (requireEntitlement). Returned by GET /garage, the " +
+    "parts/measurements routes and the setups routes for a free account; every " +
+    "client maps this one body to its paywall rather than to a sync error.",
+    "src/middleware.ts", await api("GET", "/garage"));
+
+  // The Android transitional build's paid-app claim — the one billing route
+  // that needs no store payload, so it is where the { ok, entitlement } shape
+  // every billing route answers with gets pinned. It also makes this user Pro
+  // for life, which is what lets the rest of the fixture be built.
+  record("billing-legacy-claim", "POST", "/billing/google/legacy",
+    "The Android transitional build's paid-app claim (X-TE-Client required; honoured before " +
+    "LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
+    "src/routes/billing.ts",
+    await api("POST", "/billing/google/legacy", {}, { "X-TE-Client": "android/1" }));
+
   // --- tracks -------------------------------------------------------------
   // Created via an event so resolveTrack's find-or-create path is exercised and
   // catalog_id gets matched by name where the catalog has an entry.
@@ -213,8 +243,8 @@ async function build(api) {
   // sanitizeTrace / sanitizeChannels shapes are pinned. Values are synthetic
   // but structurally identical to what an import produces: sanitizeTrace wants
   // 10-600 [x, y, speed] points, and sanitizeChannels wants
-  // { dStepM, laps: [{ n, timeMs, speed?/rpm?/latG? }] } with 10-800 samples
-  // per channel, all channels on the same grid length.
+  // { dStepM, laps: [{ n, timeMs, speed?/rpm?/latG?/throttle?/brake?/steering? }] }
+  // with 10-800 samples per channel, all channels on the same grid length.
   const N = 12;
   const ring = (i) => {
     const a = (i / N) * 2 * Math.PI;
@@ -226,6 +256,12 @@ async function build(api) {
     trace: Array.from({ length: N }, (_, i) => [...ring(i), 30 + i * 2]),
     channels: {
       dStepM: 20,
+      // Session meta, so the conditions columns migration 0020 derives from it
+      // (#191) are pinned with real values rather than nulls: `ambient_c` and
+      // `elevation_m` on the session, and the event's `ambient_lo_c` /
+      // `ambient_hi_c` / `elevation_m` aggregates. They survive the Pro strip
+      // that nulls `channels`, which is the point of their being columns.
+      meta: { ambientC: 21.4, intakeC: 44, elevationM: 38, odometerKm: 71_087 },
       laps: [
         {
           n: 1,
@@ -233,6 +269,9 @@ async function build(api) {
           speed: Array.from({ length: N }, (_, i) => 30 + i * 2),
           rpm: Array.from({ length: N }, (_, i) => 3000 + i * 150),
           latG: Array.from({ length: N }, (_, i) => Math.round((i % 4) * 0.4 * 1000) / 1000),
+          throttle: Array.from({ length: N }, (_, i) => Math.round((i / (N - 1)) * 1000) / 10),
+          brake: Array.from({ length: N }, (_, i) => Math.round(Math.max(0, 60 - i * 6) * 10) / 10),
+          steering: Array.from({ length: N }, (_, i) => Math.round((i - N / 2) * 85) / 10), // signed deg
         },
       ],
     },
@@ -256,7 +295,11 @@ async function build(api) {
 
   // --- garage -------------------------------------------------------------
   // Vehicle name matches the rich event's `car` so vehicleIdForCar links them.
-  const vehicle = await api("POST", "/vehicles", { name: "Corvette C7", notes: "Track car." });
+  const vehicle = await api("POST", "/vehicles", {
+    name: "Corvette C7",
+    notes: "Track car.",
+    target_hot_psi: 32,
+  });
   // A bare vehicle with no parts — the empty branch of the garage response.
   await api("POST", "/vehicles", { name: "Miata", is_default: false });
 
@@ -305,13 +348,12 @@ async function captureAll(api, anon, f) {
   const track = f.trackId;
 
   // --- reads --------------------------------------------------------------
-  record("me", "GET", "/me",
-    "The signed-in user. checklist_template is null — the common case, where the " +
-    "client falls back to its built-in DEFAULT_CHECKLIST.",
-    "src/routes/me.ts", await api("GET", "/me"));
-
-  // The other branch: a user who edited their prep list in Settings. Captured
-  // second so the null case above is what a fresh account really looks like.
+  // Everything from here on is captured as a Pro account (see build()), which
+  // is the tier that produces the fullest response shapes — a free account's
+  // event detail is the same thing with `channels` nulled.
+  //
+  // The other branch of the prep list: a user who edited theirs in Settings.
+  // The null case is `me`, captured before the claim.
   record("checklist-template-set", "PUT", "/me/checklist-template",
     "Replace the prep-checklist template. Null or [] clears it.", "src/routes/me.ts",
     await api("PUT", "/me/checklist-template", {
@@ -320,6 +362,29 @@ async function captureAll(api, anon, f) {
   record("me-checklist-template", "GET", "/me",
     "The signed-in user with a customized prep-checklist template.",
     "src/routes/me.ts", await api("GET", "/me"));
+
+  // Leaderboard opt-in before the leaderboard read, so the capture has a row.
+  // Both consents, so `lap_id` is populated and the lap detail below is
+  // reachable — the withheld case is a null of the same type, pinned by the
+  // route tests rather than by a second capture.
+  record("leaderboard-opt-in", "PUT", "/me/leaderboard",
+    "Toggle the per-track leaderboard opt-in, and the lap-sharing consent (NS-35) " +
+    "stacked on top of it.", "src/routes/me.ts",
+    await api("PUT", "/me/leaderboard", { opt_in: true, share_laps: true }));
+
+  const lb = await api("GET", `/tracks/${track}/leaderboard`);
+  record("track-leaderboard", "GET", "/tracks/:id/leaderboard",
+    "The per-track community leaderboard: opted-in users' best laps at the same " +
+    "catalog track. `you` marks the viewer's own row; `lap_id` is non-null only " +
+    "when that row's owner shares the lap itself.",
+    "src/routes/tracks.ts", lb);
+
+  record("leaderboard-lap", "GET", "/tracks/:id/leaderboard/laps/:lapId",
+    "One shared leaderboard lap: its racing line and gridded channel traces, with " +
+    "nothing user-entered. `channels` is the one Pro field and is null for a free " +
+    "account.",
+    "src/routes/tracks.ts",
+    await api("GET", `/tracks/${track}/leaderboard/laps/${lb.body.entries[0].lap_id}`));
 
   // The unit system is display-only, so the fixture is left on the default
   // afterwards: every other golden must read the way the app always has.
@@ -349,7 +414,8 @@ async function captureAll(api, anon, f) {
     "src/routes/events.ts", await api("GET", `/events/${ev}/setups/prefill`));
 
   record("tracks-list", "GET", "/tracks",
-    "Tracks with per-track aggregates and the best-per-event sparkline series.",
+    "Tracks with per-track aggregates, plus the best-per-event series no client "
+      + "renders any more (kept so shipped app builds keep decoding — see src/db.ts).",
     "src/routes/tracks.ts", await api("GET", "/tracks"));
 
   record("track-setups", "GET", "/tracks/:id/setups",
@@ -466,6 +532,16 @@ async function captureAll(api, anon, f) {
 
   record("error-404", "GET", "/events/:id", "404: not found, or owned by another user.",
     "src/routes/events.ts", await api("GET", "/events/99999"));
+
+  // --- billing (NS-32) ----------------------------------------------------
+  // The claim itself is in build(), because the fixture cannot be built
+  // without it. The three store routes need payloads signed by Apple or an
+  // answer from Play, which this harness cannot mint against the pinned root,
+  // so they are exercised by test/api/billing.test.ts instead; all four answer
+  // with the same { ok, entitlement } shape as the claim.
+  record("me-pro-legacy", "GET", "/me",
+    "The signed-in user once entitled: tier pro, source legacy, no expiry.",
+    "src/routes/me.ts", await api("GET", "/me"));
 }
 
 // ---------------------------------------------------------------------------
@@ -475,18 +551,26 @@ async function captureAll(api, anon, f) {
 // Every route registered under /api must appear in the manifest. A silently
 // uncovered endpoint is a silently unprotected client.
 const EXPECTED_ROUTES = [
-  "GET /me", "PUT /me/checklist-template", "PUT /me/units",
+  "GET /me", "PUT /me/checklist-template", "PUT /me/leaderboard", "PUT /me/units",
   "GET /events", "POST /events", "GET /events/:id", "PUT /events/:id", "DELETE /events/:id",
   "PUT /events/:id/setups/:day", "DELETE /events/:id/setups/:day", "GET /events/:id/setups/prefill",
   "POST /events/:id/sessions", "PUT /sessions/:id", "DELETE /sessions/:id",
   "POST /sessions/:id/laps", "DELETE /laps/:id",
   "GET /tracks", "POST /tracks", "PUT /tracks/:id", "DELETE /tracks/:id",
-  "GET /tracks/:id/setups", "GET /catalog",
+  "GET /tracks/:id/setups", "GET /tracks/:id/leaderboard",
+  "GET /tracks/:id/leaderboard/laps/:lapId", "GET /catalog",
   "GET /vehicles", "POST /vehicles", "PUT /vehicles/:id", "DELETE /vehicles/:id",
   "GET /garage",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug",
+  // Billing (NS-32). The three store routes — POST /billing/apple,
+  // /billing/apple/legacy and /billing/google — need payloads signed by the
+  // stores (or a Play API answer) that this harness cannot mint against the
+  // pinned Apple root, so they are exercised by test/api/billing.test.ts
+  // instead; all four answer with the same { ok, entitlement } shape, pinned
+  // here through the one route that needs no store.
+  "POST /billing/google/legacy",
 ];
 
 function checkCoverage() {

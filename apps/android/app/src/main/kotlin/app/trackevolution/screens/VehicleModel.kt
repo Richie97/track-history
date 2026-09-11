@@ -7,7 +7,6 @@ import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
-import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
@@ -15,14 +14,13 @@ import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefreshDraft
 import app.trackevolution.core.model.Patch
+import app.trackevolution.core.model.VehiclePatch
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 /**
- * One car's garage page (NS-31): what is fitted, how much life is left in it,
- * and the events that wore it out.
+ * One car's garage page (NS-31): what is fitted, and how much life is left in it.
  *
  * **Nothing here computes wear.** `GET /api/garage` returns every part with its
  * estimate already computed by `src/lib/wear.ts`; this model fetches, and
@@ -46,33 +44,33 @@ class VehicleModel(
     var vehicle by mutableStateOf<GarageVehicle?>(null)
         private set
 
-    /** This car's past events — the track-hours ledger. */
-    var events by mutableStateOf<List<Event>>(emptyList())
-        private set
-
     var writeError by mutableStateOf<String?>(null)
         private set
 
     fun load() {
         scope.launch {
             try {
-                val garageJob = async { api.garage() }
-                val eventsJob = async { runCatching { api.events() }.getOrDefault(events) }
-                val found = garageJob.await().firstOrNull { it.id == vehicleId }
-                val allEvents = eventsJob.await()
+                val found = api.garage().firstOrNull { it.id == vehicleId }
                 if (found == null) {
                     state = LoadState.Failed("That car isn't in your garage any more.")
                     return@launch
                 }
                 vehicle = found
-                // Upcoming events have not been driven, so their hours have not
-                // been accrued — the server's wear window excludes them too.
-                events = allEvents.filter {
-                    it.vehicleId == vehicleId && !EventDates.isUpcoming(it.startDate)
-                }
                 state = LoadState.Ready
             } catch (e: ApiException) {
-                if (vehicle == null) state = LoadState.Failed(e.message ?: "Couldn't load this car.")
+                if (vehicle != null) return@launch
+                // GET /api/garage is Pro since phase D. "Couldn't load this car
+                // — pro required" would read as a bug rather than as a price.
+                state = if (e.isPaymentRequired) {
+                    LoadState.Paywall(
+                        title = "Garage wear tracking is Pro",
+                        blurb = "Pads, tires, rotors and fluid, each with the hours it has actually " +
+                            "done — accrued from your own track days — and what's left of them " +
+                            "before the next event. Your cars themselves stay free.",
+                    )
+                } else {
+                    LoadState.Failed(e.message ?: "Couldn't load this car.")
+                }
             }
         }
     }
@@ -97,6 +95,28 @@ class VehicleModel(
         get() = Garage.garageAlerts(vehicle?.let { listOf(it) })
 
     // ---- Writes -------------------------------------------------------------
+
+    /**
+     * The car itself. Every field the form shows is sent, so a cleared one means
+     * cleared — except the default flag, which goes only when it changed: a
+     * `false` sent for a default left alone would silently unset it.
+     *
+     * Renaming matters more than it looks: `events.car` is free text matched to
+     * a vehicle **by name** server-side, so a car renamed away from what past
+     * events say stops accruing their hours. The form says so.
+     */
+    fun updateVehicle(name: String, notes: String, targetHotPsi: Double?, isDefault: Boolean) = write {
+        val current = vehicle
+        api.updateVehicle(
+            vehicleId,
+            VehiclePatch(
+                name = Patch.Set(name.trim()),
+                notes = Patch.Set(notes.trim().ifEmpty { null }),
+                targetHotPsi = Patch.Set(targetHotPsi),
+                isDefault = if (current != null && isDefault != current.isDefault) Patch.Set(isDefault) else Patch.Unchanged,
+            ),
+        )
+    }
 
     fun addPart(draft: PartDraft) = write { api.createPart(vehicleId, draft) }
 

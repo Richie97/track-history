@@ -21,11 +21,9 @@ final class GestureUITests: XCTestCase {
     /// The read-out is a tap now. This asserts the scroll: swipe *starting on the
     /// chart* and the record panel, far below it, must come into view.
     func testTheEventPageScrollsWhenTheSwipeStartsOnTheChart() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
-        let event = app.buttons["recentEventCard"].firstMatch
-        XCTAssertTrue(event.waitForExistence(timeout: 20))
-        event.tap()
+        XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Lap times"].waitForExistence(timeout: 10), "the chart should be on screen")
 
@@ -48,7 +46,7 @@ final class GestureUITests: XCTestCase {
     }
 
     func testSwipeBackFromTheTrackPageOverTheChart() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         let card = app.buttons["trackCard"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))
@@ -65,24 +63,24 @@ final class GestureUITests: XCTestCase {
     }
 
     func testSwipeBackFromTheEventPageOverTheLapList() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
-        let event = app.buttons["recentEventCard"].firstMatch
-        XCTAssertTrue(event.waitForExistence(timeout: 20))
-        event.tap()
+        XCTAssertTrue(openADrivenEvent(app))
         XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 15))
 
         // Low on the screen, across the `List` whose rows carry `swipeActions`.
         swipeBack(app, atHeight: 0.75)
 
+        // Back to the track page, which is the step the event was reached from —
+        // the dashboard no longer opens an event directly.
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 10),
-            "an edge swipe over the lap list should still pop back to the dashboard"
+            app.staticTexts["Personal best"].waitForExistence(timeout: 10),
+            "an edge swipe over the lap list should still pop back a step"
         )
     }
 
     func testSwipeBackFromSettings() throws {
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         app.buttons["Account"].tap()
         XCTAssertTrue(app.staticTexts["Privacy policy"].waitForExistence(timeout: 15))

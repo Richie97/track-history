@@ -6,31 +6,111 @@ import TrackEvolutionKit
 /// reads as layout rather than as styling.
 
 /// What a screen's data is doing. Every screen model exposes one of these, so the
-/// three cases are handled once rather than reinvented per screen — and "failed"
+/// cases are handled once rather than reinvented per screen — and "failed"
 /// always carries the server's own message.
+///
+/// `paywall` is the 402 (NS-32 rule 5): a Pro-gated *read* has to look like an
+/// offer, not like a server error, so it is its own case rather than a `failed`
+/// carrying "pro required" — the same reason `APIError.proRequired` is distinct
+/// from the rest.
 enum LoadState: Equatable {
     case loading
     case ready
     case failed(String)
+    case paywall
 }
 
 /// A page of cards on the app background.
+///
+/// The one place the content column is capped (NS-34). Above phone width the
+/// page stops at `--page-max` and centres, the way the web app's `.shell` does,
+/// instead of stretching a phone layout across an iPad — and it republishes the
+/// narrowed width, so a grid inside it counts columns against the column it is
+/// actually in rather than against the window.
 struct TEPage<Content: View>: View {
     private let content: Content
+    @Environment(\.layout) private var layout
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
+        let gutter = TESpacing.pageGutter(for: layout.layoutClass)
         ScrollView {
             VStack(alignment: .leading, spacing: TESpacing.gridGap) {
                 content
             }
-            .padding(TESpacing.pageGutter)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(gutter)
+            // The cap includes the gutters, matching the web's border-box
+            // `.shell { max-width: var(--page-max); padding: 0 var(--page-gutter) }`.
+            // Below the cap this is the same full-width leading frame as before,
+            // so a phone renders exactly as it did.
+            .frame(maxWidth: LayoutTokens.PAGE_MAX, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .environment(\.layout, layout.narrowed(to: LayoutTokens.PAGE_MAX - 2 * gutter))
         }
         .background(Color(.bgPage))
+    }
+}
+
+/// Cards that take as many columns as the width allows — the web's
+/// `repeat(auto-fill, minmax(280px, 1fr))`.
+///
+/// One column at compact width, which is where a phone always lands, so this is
+/// a no-op on a phone by construction rather than by a branch.
+///
+/// Deliberately **not** a `LazyVGrid`, for the reason spelled out on `TEStatRow`:
+/// a lazy row below the fold does not exist yet, which makes it invisible to
+/// VoiceOver's element order and to any test that looks for a card without
+/// scrolling first. These lists are tens of items, not thousands.
+struct TECardGrid<Item: Identifiable, Content: View>: View {
+    let items: [Item]
+    /// The narrowest a card may be before the grid drops a column.
+    var minimum: CGFloat = TESpacing.cardGridMinimum
+    @ViewBuilder let content: (Item) -> Content
+
+    @Environment(\.layout) private var layout
+
+    var body: some View {
+        let columns = layout.layoutClass == .compact ? 1 : layout.columns(minimum: minimum)
+        // Each card is told how wide *it* is, not how wide the page is. A card
+        // that lays itself out differently when narrow has no other way to know,
+        // and the page's width is the wrong answer as soon as there are two
+        // columns. Same rule as the panes and the analysis column.
+        //
+        // No card reads it today — the track card's sparkline, which is what it
+        // was added for, came off every client. It stays because the rule is the
+        // grid's to enforce rather than each card's to rediscover, and because a
+        // card that needs it and cannot see it fails silently: the branch simply
+        // never fires.
+        let cardWidth = max(
+            0,
+            (layout.contentWidth - TESpacing.gridGap * CGFloat(columns - 1)) / CGFloat(columns)
+        )
+        VStack(spacing: TESpacing.gridGap) {
+            ForEach(Array(rows(columns).enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: TESpacing.gridGap) {
+                    ForEach(row) { item in
+                        content(item)
+                            .environment(\.layout, layout.narrowed(to: cardWidth))
+                    }
+                    // Keeps a short last row's cards the width of the ones above
+                    // rather than stretching two cards across four columns.
+                    if row.count < columns {
+                        ForEach(0..<(columns - row.count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func rows(_ columns: Int) -> [[Item]] {
+        stride(from: 0, to: items.count, by: columns).map {
+            Array(items[$0..<min($0 + columns, items.count)])
+        }
     }
 }
 
@@ -62,8 +142,50 @@ struct TELoadable<Content: View>: View {
                     }
                 }
             }
+        case .paywall:
+            TEPage {
+                ProUpsellCard(
+                    title: "Garage wear tracking is Pro",
+                    blurb: """
+                        Pads, tires, rotors and fluid, each with the hours it has actually done — \
+                        accrued from your own track days — and what's left of them before the next \
+                        event. Your cars themselves stay free.
+                        """
+                )
+            }
         case .ready:
             content()
+        }
+    }
+}
+
+/// The paywall as a page element: what the feature is, and one button to the
+/// sheet. The sheet hangs off the *button*, never off the screen — a second
+/// `.sheet` on a view that already presents one is the SwiftUI hazard documented
+/// on `VehicleScreen`.
+struct ProUpsellCard: View {
+    let title: String
+    let blurb: String
+    var context: PaywallSheet.Context = .general
+
+    @State private var showingPaywall = false
+
+    var body: some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .teStyle(.h3)
+                    .foregroundStyle(Color(.textStrong))
+                Text(blurb)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                Button("See Track Evolution Pro") { showingPaywall = true }
+                    .buttonStyle(TEButtonStyle(kind: .accent))
+                    .accessibilityIdentifier("proUpsell")
+                    .sheet(isPresented: $showingPaywall) {
+                        PaywallSheet(context: context)
+                    }
+            }
         }
     }
 }
@@ -103,6 +225,7 @@ struct TEStatTile: View {
 struct TEStatRow: View {
     let tiles: [TEStatTile]
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.layout) private var layout
 
     var body: some View {
         VStack(spacing: 10) {
@@ -121,8 +244,19 @@ struct TEStatRow: View {
     }
 
     /// One column once the text is big enough that even two across would truncate.
+    ///
+    /// The four-up row goes two-and-two on a phone because `0:45.184` at `h2` is
+    /// wider than a quarter of 390pt. That is a width argument, not a design one,
+    /// so once there is room the four tiles go across in one row, as they do on
+    /// the web — while large text still collapses them to one.
+    ///
+    /// Measured against the **column this row is in**, not the window's class: in
+    /// a list pane the window is expanded and the column is a phone's width, and
+    /// reading the class there would put four tiles across 360pt.
     private var columns: Int {
-        typeSize >= .accessibility1 ? 1 : (tiles.count > 3 ? 2 : max(1, tiles.count))
+        if typeSize >= .accessibility1 { return 1 }
+        if layout.contentWidth >= LayoutClass.MEDIUM_MIN_DP { return max(1, tiles.count) }
+        return tiles.count > 3 ? 2 : max(1, tiles.count)
     }
 
     private var rows: [[TEStatTile]] {
@@ -245,12 +379,28 @@ struct TENavCard<Content: View>: View {
     /// A stable handle for UI tests. Card *titles* are user data — a seeded track
     /// name today, a renamed one tomorrow — so tests navigate by this instead.
     var identifier: String?
+    /// Whether this card lives in the **list pane** (NS-34).
+    ///
+    /// A list-pane card replaces the detail rather than pushing onto it, and shows
+    /// which row the detail is currently showing. Everywhere else — an event page
+    /// linking to its track, a track page linking to an event — a card is a push
+    /// and nothing is "selected", so this stays false and the card is what it
+    /// always was.
+    var listPane = false
     @ViewBuilder let content: () -> Content
     @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
+
+    /// Only ever true beside a visible detail pane: at compact and medium width
+    /// the detail *is* the screen you just left, and highlighting a row you can no
+    /// longer see would be describing something off-screen.
+    private var isSelected: Bool {
+        listPane && layout.layoutClass == .expanded && router.selection == route
+    }
 
     var body: some View {
         Button {
-            router.push(route)
+            if listPane { router.open(route) } else { router.push(route) }
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) { content() }
@@ -261,14 +411,24 @@ struct TENavCard<Content: View>: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.surfaceCard), in: .rect(cornerRadius: TERadius.md))
+            .background(
+                Color(isSelected ? .accentTint : .surfaceCard),
+                in: .rect(cornerRadius: TERadius.md)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: TERadius.md)
-                    .strokeBorder(Color(.borderHairline), lineWidth: 1)
+                    // Selection is a border *and* a tint, never colour alone: the
+                    // accent tint is a few percent of lime and disappears entirely
+                    // for anyone who can't see it.
+                    .strokeBorder(
+                        Color(isSelected ? .accent : .borderHairline),
+                        lineWidth: isSelected ? 2 : 1
+                    )
             )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(identifier ?? "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

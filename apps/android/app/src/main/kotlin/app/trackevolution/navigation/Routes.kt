@@ -31,6 +31,32 @@ public sealed interface Route {
     @Serializable
     public data class Track(val id: Int) : Route
 
+    /** Compare any two laps with telemetry at one track (#165). */
+    @Serializable
+    public data class CompareLaps(val trackId: Int) : Route
+
+    /**
+     * A track's leaderboard, behind the track page's button. Keyed by the
+     * viewer's own track, because that is what the server keys the board on.
+     * Not a `DeepLink` case: the web reaches it as `#/track/:id/leaderboard`,
+     * a hash the share page never advertises.
+     */
+    @Serializable
+    public data class Leaderboard(val trackId: Int) : Route
+
+    /**
+     * One leaderboard row, opened (NS-35). [trackId] is the viewer's own track,
+     * because a shared lap is only reachable from a track the viewer has — the
+     * server checks that, so this is not merely how the screen finds its way
+     * back.
+     *
+     * Deliberately **not** a `DeepLink` case: a lap id is only meaningful next
+     * to the leaderboard it came from, and a link to one would go stale the
+     * moment its owner set a faster lap or turned sharing off.
+     */
+    @Serializable
+    public data class LeaderboardLap(val trackId: Int, val lapId: Int) : Route
+
     @Serializable
     public data object Settings : Route
 
@@ -41,6 +67,14 @@ public sealed interface Route {
     /** The recorder. Null [eventId] is a recording with no event yet (NS-18). */
     @Serializable
     public data class Record(val eventId: Int? = null) : Route
+
+    /**
+     * Video telemetry import: the chooser half. [eventId] is the event whose
+     * page it was opened from, pre-selected in the review that follows; null
+     * for a clip handed in by the share sheet.
+     */
+    @Serializable
+    public data class Import(val eventId: Int? = null) : Route
 
     @Serializable
     public data class Shared(val slug: String) : Route

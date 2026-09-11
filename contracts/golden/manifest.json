@@ -7,8 +7,26 @@
       "method": "GET",
       "path": "/me",
       "status": 200,
-      "description": "The signed-in user. checklist_template is null — the common case, where the client falls back to its built-in DEFAULT_CHECKLIST.",
+      "description": "A fresh account: tier free, and checklist_template null — the common case, where the client falls back to its built-in DEFAULT_CHECKLIST.",
       "source": "src/routes/me.ts"
+    },
+    {
+      "name": "error-402",
+      "file": "error-402.json",
+      "method": "GET",
+      "path": "/garage",
+      "status": 402,
+      "description": "402: the Pro gate (requireEntitlement). Returned by GET /garage, the parts/measurements routes and the setups routes for a free account; every client maps this one body to its paywall rather than to a sync error.",
+      "source": "src/middleware.ts"
+    },
+    {
+      "name": "billing-legacy-claim",
+      "file": "billing-legacy-claim.json",
+      "method": "POST",
+      "path": "/billing/google/legacy",
+      "status": 200,
+      "description": "The Android transitional build's paid-app claim (X-TE-Client required; honoured before LEGACY_CUTOFF). Every billing write answers with the fresh entitlement.",
+      "source": "src/routes/billing.ts"
     },
     {
       "name": "checklist-template-set",
@@ -27,6 +45,33 @@
       "status": 200,
       "description": "The signed-in user with a customized prep-checklist template.",
       "source": "src/routes/me.ts"
+    },
+    {
+      "name": "leaderboard-opt-in",
+      "file": "leaderboard-opt-in.json",
+      "method": "PUT",
+      "path": "/me/leaderboard",
+      "status": 200,
+      "description": "Toggle the per-track leaderboard opt-in, and the lap-sharing consent (NS-35) stacked on top of it.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "track-leaderboard",
+      "file": "track-leaderboard.json",
+      "method": "GET",
+      "path": "/tracks/:id/leaderboard",
+      "status": 200,
+      "description": "The per-track community leaderboard: opted-in users' best laps at the same catalog track. `you` marks the viewer's own row; `lap_id` is non-null only when that row's owner shares the lap itself.",
+      "source": "src/routes/tracks.ts"
+    },
+    {
+      "name": "leaderboard-lap",
+      "file": "leaderboard-lap.json",
+      "method": "GET",
+      "path": "/tracks/:id/leaderboard/laps/:lapId",
+      "status": 200,
+      "description": "One shared leaderboard lap: its racing line and gridded channel traces, with nothing user-entered. `channels` is the one Pro field and is null for a free account.",
+      "source": "src/routes/tracks.ts"
     },
     {
       "name": "units-set",
@@ -88,7 +133,7 @@
       "method": "GET",
       "path": "/tracks",
       "status": 200,
-      "description": "Tracks with per-track aggregates and the best-per-event sparkline series.",
+      "description": "Tracks with per-track aggregates, plus the best-per-event series no client renders any more (kept so shipped app builds keep decoding — see src/db.ts).",
       "source": "src/routes/tracks.ts"
     },
     {
@@ -378,6 +423,15 @@
       "status": 404,
       "description": "404: not found, or owned by another user.",
       "source": "src/routes/events.ts"
+    },
+    {
+      "name": "me-pro-legacy",
+      "file": "me-pro-legacy.json",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "description": "The signed-in user once entitled: tier pro, source legacy, no expiry.",
+      "source": "src/routes/me.ts"
     }
   ]
 }

@@ -8,6 +8,7 @@ import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.api.AuthProvider
 import app.trackevolution.core.api.AuthProviders
 import app.trackevolution.core.api.Pkce
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.User
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,8 +31,20 @@ sealed interface AuthState {
     /** The browser is open, or the code is being exchanged. */
     data object SigningIn : AuthState
 
-    data class SignedIn(val user: User) : AuthState
+    data class SignedIn(
+        val user: User,
+        /**
+         * The account's tier as the server last said it (NS-32). From `/api/me`
+         * — which offline is the cached copy, so a driver who was Pro at the
+         * last sync stays Pro here — and refreshed by every billing answer.
+         */
+        val entitlement: Entitlement = Entitlement.FREE,
+    ) : AuthState
 }
+
+/** The entitlement the gates read; null when there is no session at all. */
+val AuthState.entitlement: Entitlement?
+    get() = (this as? AuthState.SignedIn)?.entitlement
 
 /**
  * The prep list a new event's checklist starts from — the user's own, or the
@@ -112,7 +125,8 @@ class AuthController(
 
     private suspend fun loadUser() {
         try {
-            _state.value = AuthState.SignedIn(api.me().user)
+            val me = api.me()
+            _state.value = AuthState.SignedIn(me.user, me.entitlement)
         } catch (e: ApiException) {
             if (e.isUnauthorized) {
                 // Expired or revoked server-side. No silent retry.
@@ -196,9 +210,20 @@ class AuthController(
     suspend fun setChecklistTemplate(items: List<String>) {
         api.updateChecklistTemplate(items)
         val current = _state.value as? AuthState.SignedIn ?: return
-        _state.value = AuthState.SignedIn(
-            current.user.copy(checklistTemplate = items.ifEmpty { null }),
+        _state.value = current.copy(
+            user = current.user.copy(checklistTemplate = items.ifEmpty { null }),
         )
+    }
+
+    /**
+     * A billing write answered with a fresh entitlement (a purchase, a restore,
+     * the legacy claim). Kept on the auth state so the gates, Settings and the
+     * paywall all read one value — the same reason the checklist template
+     * lives here.
+     */
+    fun setEntitlement(entitlement: Entitlement) {
+        val current = _state.value as? AuthState.SignedIn ?: return
+        _state.value = current.copy(entitlement = entitlement)
     }
 
     /** A 401 from any request: the session is gone. Drop to sign-in, no retry. */

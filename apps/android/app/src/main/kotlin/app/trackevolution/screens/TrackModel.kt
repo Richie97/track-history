@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Conditions
@@ -24,7 +25,10 @@ import kotlinx.coroutines.launch
  *
  * `viewTrack` in `public/app.js` is the reference. The **setup-vs-lap-times
  * table** and the **two-event lap overlay** (`viewCompare`) stay web-only per the
- * product split, and are absent rather than stubbed.
+ * product split, and are absent rather than stubbed. The two-lap telemetry
+ * compare (`viewLapCompare`, #165) *is* here — see [CompareLapsModel]. The
+ * leaderboard is **not** a section of this page any more — it is
+ * [LeaderboardModel], behind a button, for the reason stated there.
  */
 class TrackModel(
     private val scope: CoroutineScope,
@@ -61,6 +65,14 @@ class TrackModel(
 
     var notesSaved by mutableStateOf(false)
         private set
+
+    /**
+     * Whether the two-lap compare is worth offering: any event here has laps.
+     * Channel data can't be known from the event list — the compare screen's
+     * empty state covers a track whose laps carry none, same as the web.
+     */
+    val hasComparableLaps: Boolean
+        get() = allEvents.any { it.lapCount > 0 }
 
     /**
      * The share slug, read separately from the page's own load: a missing or
@@ -119,15 +131,40 @@ class TrackModel(
         get() = events.mapNotNull { it.bestMs }.minOrNull()
 
     /** Chronological, and only events that actually set a time. */
-    val chartPoints: List<ProgressPoint>
+    /**
+     * Chronological, and only events that set a time the chart can place. The
+     * band's cells are built from this same list so the two line up one for one;
+     * deriving them separately is how an unparseable date shifts every event's
+     * shading by one.
+     */
+    val plottedEvents: List<Event>
         get() = events
-            .filter { it.bestMs != null }
+            .filter { it.bestMs != null && EventDates.epochDay(it.startDate) != null }
             .sortedBy { it.startDate }
-            .mapNotNull { event ->
-                val best = event.bestMs ?: return@mapNotNull null
-                val x = EventDates.epochDay(event.startDate) ?: return@mapNotNull null
-                ProgressPoint(x = x, label = EventDates.fmtDate(event.startDate), ms = best)
-            }
+
+    val chartPoints: List<ProgressPoint>
+        get() = plottedEvents.mapNotNull { event ->
+            val best = event.bestMs ?: return@mapNotNull null
+            val x = EventDates.epochDay(event.startDate) ?: return@mapNotNull null
+            ProgressPoint(x = x, label = EventDates.fmtDate(event.startDate), ms = best)
+        }
+
+    /**
+     * The ambient wash behind the chart (#191) — null when too few events here
+     * carry a temperature, or when they were all run in much the same air.
+     */
+    val conditionsBand: SessionConditions.Band?
+        get() = SessionConditions.conditionsBand(plottedEvents)
+
+    /**
+     * The track's elevation change, from every event at it — the dry-only filter
+     * has nothing to do with the hill.
+     */
+    val elevationLine: String
+        get() = SessionConditions.elevationText(
+            SessionConditions.trackElevationM(allEvents),
+            SessionConditions.Units.US,
+        )
 
     /** How the personal best stands against the goal, in the web app's words. */
     val goalStatus: GoalStatus?

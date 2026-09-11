@@ -18,6 +18,7 @@ export const VEHICLES = [
     name: "2023 Corvette Z06",
     notes: "Z07 package, stock aero. Track alignment.",
     default: true,
+    target_hot_psi: 34, // optional: what the health strip's pressure loop aims for
     parts: [
       // Current consumables
       {
@@ -59,6 +60,17 @@ export const VEHICLES = [
   { name: "1999 Mazda Miata", notes: "Spec-ish backup car.", parts: [] },
 ];
 
+// The next track day, as a date rather than a fixed one.
+//
+// The last event below is deliberately in the **future**: the dashboard's hero
+// slot and its upcoming section only have something to show when one is, and
+// `CoreScreensUITests` asserts exactly that. Written as a literal it stopped
+// being upcoming the moment that date passed — which is a fixture that expires
+// quietly and takes a screen test with it, rather than one that fails when
+// something is actually wrong.
+const inDays = (days) =>
+  new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
 // [start_date, days, club, group, track, best|null, notes|null, sessionBests[], car?]
 export const EVENTS = [
   ["2025-04-12", 2, "NASA Mid-Atlantic", "HPDE3", "Virginia International Raceway (Full)", "2:15.4",
@@ -76,7 +88,7 @@ export const EVENTS = [
     ["2:11.0", "2:09.8"]],
   ["2026-06-13", 2, "NASA Mid-Atlantic", "HPDE4", "Virginia International Raceway (Full)", "2:08.6",
     "Best weekend yet.", ["2:10.1", "2:09.0", "2:08.6"]],
-  ["2026-08-08", 2, "NASA Mid-Atlantic", "HPDE4", "Virginia International Raceway (Full)", null, null, []],
+  [inDays(21), 2, "NASA Mid-Atlantic", "HPDE4", "Virginia International Raceway (Full)", null, null, []],
 ];
 
 // Per-event-day setup sheets. `event` matches an EVENTS start_date; part refs

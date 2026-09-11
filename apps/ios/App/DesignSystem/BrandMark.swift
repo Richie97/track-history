@@ -27,6 +27,12 @@ struct BrandMark: View {
             )
             .frame(width: size, height: size)
             .background(Color(.accent), in: .circle)
+            // Rasterized, so the bars are pixels rather than a foreground shape.
+            // Inside an iOS 26 glass toolbar item, foreground content is drawn
+            // vibrant — translucent, showing whatever has scrolled under the
+            // pill — and the dark bars came out white over the page. The disc
+            // was never affected, and neither is a bitmap.
+            .drawingGroup()
             .accessibilityHidden(true)
     }
 }

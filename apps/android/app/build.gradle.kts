@@ -16,13 +16,30 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Read through Gradle's provider API rather than System.getenv, so a value is a
+// tracked build input: changing a version override re-runs the build instead of
+// being served a stale one from the cache. Blank counts as unset — GitHub Actions
+// hands an omitted workflow input to the job as an empty string, not as nothing.
+//
+// An extension on Project rather than a plain top-level function: inside
+// android { } the innermost receiver is the Android extension, and hanging this
+// off Project is what makes it resolve against the script's own receiver.
+fun Project.env(name: String): String? =
+    providers.environmentVariable(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+
 android {
     // Inherited from the web-view shell this replaced — load-bearing. It makes
     // this an in-place Play Store update that keeps ratings, the install base
     // and the App Links association in public/.well-known/assetlinks.json,
     // rather than a second listing.
     namespace = "app.trackevolution"
-    compileSdk = 36
+    // 37 because `androidx.compose.material3.adaptive` 1.3.0 — the list-detail
+    // scaffold behind NS-34's two-pane shell — refuses to compile against
+    // anything older. Raising this is safe on its own: `compileSdk` only says
+    // which APIs may be *referenced*, while `targetSdk` below (still 36) is what
+    // opts the app into new runtime behaviour and what Play enforces at upload.
+    // The two move independently and deliberately do here.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "app.trackevolution"
@@ -38,22 +55,74 @@ android {
         targetSdk = 36
         // versionCode must be strictly greater than the highest already
         // uploaded to Play — including builds that were rejected, since a
-        // rejected submission still burns its code. That is why this is 3 and
-        // not 2: version code 1 was the Android Auto submission Play rejected,
-        // and 2 is what is live. Check the Console before uploading rather than
-        // trusting this number; it is the one release value the repo cannot
-        // verify for itself.
-        versionCode = 3
-        versionName = "1.0.1"
+        // rejected submission still burns its code (version code 1 was the
+        // Android Auto submission Play rejected; 2 was the first accepted one).
+        //
+        // Every uploaded build sets TE_VERSION_CODE: the deploy workflow
+        // (android-release.yml) derives it from main's commit count — strictly
+        // monotonic, already far past anything burned in the Console — so the
+        // per-merge internal-track uploads never need a human to mint numbers,
+        // and its dispatch input can still override past whatever the Console
+        // actually holds. The 3 below is only what local builds get; it is not
+        // kept in step with Play.
+        versionCode = env("TE_VERSION_CODE")?.toInt() ?: 3
+        versionName = env("TE_VERSION_NAME") ?: "1.8"
+    }
+
+    signingConfigs {
+        // The release build must be signed with the *existing* upload key, or
+        // Play rejects the update as a different app (NS-27). So the key lives
+        // in neither a checkout nor a keystore.properties file: the deploy
+        // workflow writes it from a repository secret, and it dies with the
+        // runner.
+        val keystore = env("TE_UPLOAD_KEYSTORE")
+        if (keystore != null) {
+            create("upload") {
+                storeFile = file(keystore)
+                storePassword = env("TE_UPLOAD_KEYSTORE_PASSWORD")
+                keyAlias = env("TE_UPLOAD_KEY_ALIAS")
+                keyPassword = env("TE_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 on: shrink, optimize and obfuscate. Not optional — Google Play
+            // scores every app's "app optimization" (obfuscation, code and
+            // resource shrinking) and warns that a category under 25% "may
+            // impact your visibility and publishing capabilities"; an
+            // unminified bundle scored 1% on obfuscation and drew exactly that
+            // notice. It also makes the release the size Play expects and
+            // strips the debug-only surfaces' dependencies for good measure.
+            //
+            // Two consequences to keep in view. Stack traces from a release
+            // build are obfuscated, so the deploy workflow uploads
+            // build/outputs/mapping/release/mapping.txt with the bundle and
+            // Play deobfuscates crashes in the Console. And anything reached by
+            // reflection needs a keep rule in proguard-rules.pro — the libraries
+            // in use (Room, WorkManager, kotlinx.serialization, Tink) ship their
+            // own consumer rules, so that file only carries what they don't.
+            // A missing class fails the build rather than the app: R8 lists it
+            // in build/outputs/mapping/release/missing_rules.txt.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signing is deliberately unconfigured: the release build must use
-            // the *existing* upload key or Play rejects the update as a
-            // different app. NS-27 wires that up with the real keystore.
+            // Deliberately no `ndk { debugSymbolLevel = … }`. Play warns on
+            // every bundle that it "contains native code, and you've not
+            // uploaded debug symbols" — the native code is AndroidX's
+            // (graphics-path, datastore's shared counter; the app has none of
+            // its own), and those .so files ship in their AARs already
+            // stripped. Setting debugSymbolLevel makes AGP log "native debug
+            // metadata has already been stripped" for each one and emit no
+            // zip, so there is nothing to upload and the warning cannot be
+            // cleared from this side. It is a warning, not a rejection.
+            // Without that environment — every local build — the release variant
+            // stays *unsigned* rather than falling back to the debug key:
+            // `assembleRelease` still works on a laptop, and an artifact signed
+            // with anything but the real upload key cannot be produced by
+            // accident. The deploy workflow verifies the signer before uploading.
+            signingConfigs.findByName("upload")?.let { signingConfig = it }
         }
     }
 
@@ -112,6 +181,12 @@ dependencies {
     // Version floor only; see the note in libs.versions.toml.
     implementation(libs.androidx.fragment)
 
+    // Play Billing (NS-32 phase C) — the Android purchase terminal. Here and
+    // never in :core: the server owns the entitlement, so :core only needs the
+    // model and the `/billing` client methods, and checkNoAndroidDependency
+    // fails the build if the store SDK leaks across. See billing/BillingController.
+    implementation(libs.play.billing.ktx)
+
     // The engine :core's ApiClient is constructed with. Choosing it here rather
     // than there is what keeps :core a plain JVM module.
     implementation(libs.ktor.client.okhttp)
@@ -145,6 +220,15 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    // The two-pane shell (NS-34 ticket 2). `adaptive-layout` carries
+    // ListDetailPaneScaffold; `adaptive-navigation` is deliberately *not* here,
+    // because the app's navigation is the type-safe NavHost from NS-26 and a
+    // second navigator would be a second answer to "where am I".
+    implementation(libs.compose.material3.adaptive)
+    implementation(libs.compose.material3.adaptive.layout)
+    // Fold posture (NS-34 ticket 4) — `:app` only. `:core` must never see it,
+    // and `checkNoAndroidDependency` is what enforces that.
+    implementation(libs.androidx.window)
 
     debugImplementation(libs.compose.ui.tooling)
 

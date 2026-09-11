@@ -1,6 +1,7 @@
 package app.trackevolution
 
 import android.app.Activity
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -24,19 +25,30 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthState
+import app.trackevolution.auth.CustomTabs
 import app.trackevolution.auth.checklistTemplate
+import app.trackevolution.auth.entitlement
 import app.trackevolution.auth.hasCustomChecklistTemplate
+import app.trackevolution.billing.BillingController
+import app.trackevolution.billing.PaywallSheet
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.navigation.AppNavHost
+import app.trackevolution.navigation.DashboardPane
 import app.trackevolution.navigation.Route
 import app.trackevolution.navigation.Router
+import app.trackevolution.navigation.selectionRoute
 import app.trackevolution.navigation.showDeepLink
+import app.trackevolution.ui.LayoutClass
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.TwoPaneShell
 import app.trackevolution.recording.RecordingBanner
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecordingFlow
 import app.trackevolution.recording.ReviewScreen
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.TrackTheme
+import app.trackevolution.videoimport.ImportedClip
 
 /**
  * The signed-in shell: the recording banner, the navigation graph, and the
@@ -61,6 +73,8 @@ fun SignedInScaffold(
     api: ApiClient,
     auth: AuthController,
     authState: AuthState,
+    /** The purchase terminal behind the paywall sheet (NS-32 phase C). */
+    billing: BillingController,
     router: Router,
     flow: RecordingFlow,
     serverUrl: String,
@@ -70,6 +84,9 @@ fun SignedInScaffold(
     onConsumedStartOnRecord: () -> Unit,
     onStartRecording: (Int?) -> Unit,
     onSignOut: () -> Unit,
+    /** Videos the share sheet handed the app, waiting for the import chooser. */
+    incomingImport: List<Uri>? = null,
+    onConsumedIncomingImport: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val nav = rememberNavController()
@@ -84,8 +101,35 @@ fun SignedInScaffold(
     // that there is a recording waiting to be saved.
     var reviewing by rememberSaveable { mutableStateOf(false) }
 
+    // The paywall (NS-32 rule 5): a sheet over whatever asked for Pro — the
+    // recorder's Start, Settings' Subscribe, a Pro-gated read that came back
+    // 402 — never a disabled control. The gate itself is decided in :core
+    // (`Entitlement.recordGate`) against the entitlement on the auth state,
+    // which offline is the cached `/api/me`.
+    var paywall by rememberSaveable { mutableStateOf(false) }
+    val entitlement = authState.entitlement
+
     val onRecordScreen = entry?.destination?.hasRoute(Route.Record::class) == true
     val atRoot = entry?.destination?.hasRoute(Route.Dashboard::class) == true
+
+    // Two panes, or one (NS-34).
+    //
+    // Expanded width and nothing that owns the window. The record screen is a
+    // phone-in-a-mount layout meant to be read at a glance and the importer hands
+    // straight over to the modal review, so both drop to a single pane rather than
+    // being squeezed into half a tablet — the same rule iOS spells as
+    // `Route.ownsTheWindow`. Dropping the *scaffold* rather than presenting over
+    // it is what keeps navigation in one place: these are ordinary destinations on
+    // the ordinary back stack, at every width.
+    val onImportScreen = entry?.destination?.hasRoute(Route.Import::class) == true
+    val twoPane = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded &&
+        !onRecordScreen && !onImportScreen
+
+    // Which list row the detail is showing. Null below expanded width, where the
+    // detail is the whole screen and there is no list beside it to mark.
+    val selection = if (twoPane) entry?.selectionRoute() else null
+
+    val recorderIdle = !recorder.isRecording && pending == null
 
     // A link that arrived before there was a graph to send it to — a cold start
     // hands the intent over long before this composes.
@@ -122,9 +166,23 @@ fun SignedInScaffold(
     LaunchedEffect(saved) {
         if (saved) {
             reviewing = false
+            val importedInto = if (review.isImport) flow.savedEventId else null
             nav.popBackStack(Route.Dashboard, inclusive = false)
+            // An import came from an event's page and its sessions are now on
+            // it, so that is where it lands — on a fresh destination, which is
+            // what makes the page re-fetch and show them. A recording keeps
+            // landing on the dashboard, as it always has.
+            if (importedInto != null) nav.navigate(Route.Event(importedInto))
             flow.acknowledgeSaved()
         }
+    }
+
+    // Videos shared into the app open the chooser, which parses them on arrival.
+    // Signed-out arrivals park here until there is a graph to send them to.
+    // Ungated, like the event page's button — importing is free.
+    LaunchedEffect(incomingImport) {
+        if (incomingImport == null) return@LaunchedEffect
+        nav.navigate(Route.Import())
     }
 
     // Leaving review does not stop or discard anything: the recording stays
@@ -171,29 +229,69 @@ fun SignedInScaffold(
         Box(modifier = Modifier.weight(1f)) {
             // The graph stays composed underneath: review is a cover, not a
             // replacement, so returning from it does not rebuild the back stack.
-            AppNavHost(
-                nav = nav,
-                api = api,
-                auth = auth,
-                checklistTemplate = authState.checklistTemplate,
-                hasCustomChecklistTemplate = authState.hasCustomChecklistTemplate,
-                themeChoice = themeChoice,
-                onThemeChange = onThemeChange,
-                serverUrl = serverUrl,
-                recorderState = recorder,
-                // Idle is "nothing to say about a recording": none running, and
-                // none stopped-but-unsaved. Either of those already has a
-                // visible affordance above, so the dashboard's door stands down.
-                recorderIdle = !recorder.isRecording && pending == null,
-                onStartRecording = onStartRecording,
-                onStopRecording = { Recorder.stop(context) },
-                onSignOut = onSignOut,
-            )
+            //
+            // At expanded width it is the *detail* of a two-pane scaffold with the
+            // dashboard beside it (NS-34). Both panes are inside this Box, so the
+            // banners above still span the window and the review overlay below
+            // still covers both — which is the rule NS-18 set and a second pane is
+            // the easiest way to break by accident.
+            TwoPaneShell(
+                twoPane = twoPane,
+                listPane = {
+                    DashboardPane(
+                        nav = nav,
+                        api = api,
+                        recorderIdle = recorderIdle,
+                        selection = selection,
+                        inListPane = true,
+                    )
+                },
+            ) {
+                AppNavHost(
+                    nav = nav,
+                    api = api,
+                    auth = auth,
+                    checklistTemplate = authState.checklistTemplate,
+                    hasCustomChecklistTemplate = authState.hasCustomChecklistTemplate,
+                    themeChoice = themeChoice,
+                    onThemeChange = onThemeChange,
+                    serverUrl = serverUrl,
+                    recorderState = recorder,
+                    // Idle is "nothing to say about a recording": none running, and
+                    // none stopped-but-unsaved. Either of those already has a
+                    // visible affordance above, so the dashboard's door stands down.
+                    recorderIdle = !recorder.isRecording && pending == null,
+                    onStartRecording = onStartRecording,
+                    onStopRecording = { Recorder.stop(context) },
+                    onSignOut = onSignOut,
+                    entitlement = entitlement,
+                    onRequirePro = { paywall = true },
+                    onImportParsed = { eventId, clips: List<ImportedClip> ->
+                        // Same shape as a recording stopping: the review covers the
+                        // graph, and the chooser comes off the stack underneath it
+                        // so backing out of the review lands on the event page.
+                        flow.beginImport(clips, eventId)
+                        reviewing = true
+                        nav.popBackStack()
+                    },
+                    incomingImport = incomingImport,
+                    onConsumedIncomingImport = onConsumedIncomingImport,
+                    // At expanded width the dashboard is the pane beside this, so the
+                    // graph's start destination renders the empty state instead — the
+                    // one thing NS-34 rules out by name is showing the dashboard
+                    // twice. The *route* is unchanged, which is what keeps deep links,
+                    // `popUpTo(Route.Dashboard)` and the minimize-at-root handler
+                    // working identically at both widths.
+                    dashboardAsDetailPlaceholder = twoPane,
+                    selection = selection,
+                )
+            }
             if (reviewing) {
                 ReviewScreen(
                     state = review,
                     onPick = flow::pick,
                     onLabelChange = flow::setLabel,
+                    onIncludeChange = flow::setInclude,
                     onNotesChange = flow::setNotes,
                     onSelectEvent = flow::selectEvent,
                     onSave = { flow.save(context) },
@@ -201,5 +299,13 @@ fun SignedInScaffold(
                 )
             }
         }
+    }
+
+    if (paywall) {
+        PaywallSheet(
+            billing = billing,
+            onDismiss = { paywall = false; billing.clearMessage() },
+            onOpenLink = { CustomTabs.open(context, it) },
+        )
     }
 }

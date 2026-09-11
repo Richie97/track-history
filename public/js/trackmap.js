@@ -14,10 +14,62 @@ function hex2rgb(h) {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-// points: [[x, y, v], ...] in meters. Returns nothing; the renderer owns the
-// canvas until it leaves the document (checked each frame / theme change).
-export function renderTrackMap(canvas, points) {
-  if (!points || points.length < 10) return;
+// A limit marker on the line (js/limits.js): a shape at trace point `idx`,
+// filled or hollow in its side's colour with a 2px surface ring, so the map
+// says *which* system fired and where, never colour-alone.
+function drawMarker(ctx, x, y, { shape, filled, side }, cssVar) {
+  const color = cssVar(side === "stability" ? "--text-strong" : `--limit-${side}`);
+  const surface = cssVar("--surface-card");
+  const r = 6.5;
+  ctx.beginPath();
+  if (shape === "circle") ctx.arc(x, y, r, 0, Math.PI * 2);
+  else if (shape === "triangle") {
+    ctx.moveTo(x, y - r * 1.15);
+    ctx.lineTo(x + r * 1.05, y + r * 0.75);
+    ctx.lineTo(x - r * 1.05, y + r * 0.75);
+    ctx.closePath();
+  } else {
+    ctx.moveTo(x, y - r * 1.2);
+    ctx.lineTo(x + r * 1.2, y);
+    ctx.lineTo(x, y + r * 1.2);
+    ctx.lineTo(x - r * 1.2, y);
+    ctx.closePath();
+  }
+  ctx.fillStyle = filled ? color : surface;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = filled ? surface : color;
+  ctx.stroke();
+}
+
+// The trace point index at a fraction of the lap's driven distance —
+// the same cumulative-length walk limitMarkers does, exposed for callers that
+// have a fraction rather than a limit run: the friction circle (js/grip.js)
+// hovers a 20 m grid sample back onto the line. Kept here rather than in
+// limits.js because that module is ported and this is web-only plumbing.
+export function traceIndexAtFraction(points, frac) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const cum = new Array(points.length);
+  cum[0] = 0;
+  for (let i = 1; i < points.length; i++) {
+    cum[i] = cum[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+  }
+  const total = cum[points.length - 1];
+  if (!(total > 0)) return null;
+  const target = Math.max(0, Math.min(1, frac)) * total;
+  let idx = 0;
+  while (idx < points.length - 1 && cum[idx] < target) idx++;
+  return idx;
+}
+
+// points: [[x, y, v], ...] in meters; markers: [{idx, shape, filled, side}]
+// (limitMarkers output joined to its LIMIT_KINDS entry). Returns a handle
+// whose setHighlight(idx | null) rings one trace point — the friction
+// circle's hover uses it to answer "which corner is this dot" — or null when
+// there was nothing to draw. The renderer owns the canvas until it leaves the
+// document (checked each frame / theme change).
+export function renderTrackMap(canvas, points, { markers = [] } = {}) {
+  if (!points || points.length < 10) return null;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -43,6 +95,7 @@ export function renderTrackMap(canvas, points) {
 
   const ctx = canvas.getContext("2d");
   let dot = 0;
+  let highlight = null; // trace point index, from setHighlight
 
   function draw() {
     const styles = getComputedStyle(document.documentElement);
@@ -91,6 +144,33 @@ export function renderTrackMap(canvas, points) {
     ctx.lineTo(sx - nx * 10, sy - ny * 10);
     ctx.stroke();
 
+    // where the best lap hit ABS / traction control / slip (#188). Two kinds
+    // often fire in one place (traction control *because of* wheelspin), so
+    // a marker landing on top of an earlier one is stepped off the line
+    // rather than hidden under it.
+    const placed = [];
+    for (const m of markers) {
+      const p = px[Math.min(px.length - 1, Math.max(0, m.idx | 0))];
+      let [x, y] = p;
+      while (placed.some(([qx, qy]) => Math.hypot(qx - x, qy - y) < 14)) y -= 15;
+      placed.push([x, y]);
+      drawMarker(ctx, x, y, m, cssVar);
+    }
+
+    // The hovered sample from the friction circle: a ring rather than a dot,
+    // so it reads as "this place" over the line rather than as another marker.
+    if (highlight != null) {
+      const [hx2, hy2] = px[Math.min(px.length - 1, Math.max(0, highlight | 0))];
+      ctx.beginPath();
+      ctx.arc(hx2, hy2, 8, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = cssVar("--surface-card");
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = cssVar("--accent");
+      ctx.stroke();
+    }
+
     if (!reduceMotion) {
       const d = px[Math.floor(dot) % px.length];
       ctx.save();
@@ -104,6 +184,16 @@ export function renderTrackMap(canvas, points) {
     }
   }
 
+  // Under reduced motion nothing repaints on its own, so a highlight change
+  // has to draw; otherwise the next animation frame picks it up.
+  const handle = {
+    setHighlight(idx) {
+      if (idx === highlight) return;
+      highlight = idx;
+      if (reduceMotion && canvas.isConnected) draw();
+    },
+  };
+
   if (reduceMotion) {
     draw();
     // repaint on theme flips; stop watching once the canvas is gone
@@ -112,7 +202,7 @@ export function renderTrackMap(canvas, points) {
       draw();
     });
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return;
+    return handle;
   }
   // ~8s per lap regardless of point count; faster sections move the dot faster.
   const meanV = vNorm.reduce((a, b) => a + b, 0) / vNorm.length || 0.5;
@@ -123,4 +213,5 @@ export function renderTrackMap(canvas, points) {
     draw();
     requestAnimationFrame(loop);
   })();
+  return handle;
 }

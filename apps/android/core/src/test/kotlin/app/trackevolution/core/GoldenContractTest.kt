@@ -1,12 +1,14 @@
 package app.trackevolution.core
 
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.model.BillingResponse
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.CreatedTrack
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
 import app.trackevolution.core.model.PartRefresh
@@ -15,6 +17,7 @@ import app.trackevolution.core.model.SetupPrefill
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
+import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackSetupRow
 import app.trackevolution.core.model.Vehicle
 import kotlinx.serialization.KSerializer
@@ -70,13 +73,16 @@ class GoldenContractTest {
         }
 
         when (entry.name) {
-            "me", "me-checklist-template", "me-units-metric" -> roundTrip(entry.name, Me.serializer())
+            "me", "me-checklist-template", "me-pro-legacy", "me-units-metric" -> roundTrip(entry.name, Me.serializer())
+            "billing-legacy-claim" -> roundTrip(entry.name, BillingResponse.serializer())
             "events-list" -> roundTrip(entry.name, ListSerializer(Event.serializer()))
             "event-detail", "event-detail-no-laps" ->
                 roundTrip(entry.name, EventDetail.serializer())
             "event-setups-prefill" -> roundTrip(entry.name, SetupPrefill.serializer())
             "tracks-list" -> roundTrip(entry.name, ListSerializer(Track.serializer()))
             "track-setups" -> roundTrip(entry.name, ListSerializer(TrackSetupRow.serializer()))
+            "track-leaderboard" -> roundTrip(entry.name, TrackLeaderboard.serializer())
+            "leaderboard-lap" -> roundTrip(entry.name, LeaderboardLap.serializer())
             "catalog" -> roundTrip(entry.name, ListSerializer(CatalogTrack.serializer()))
             "vehicles-list" -> roundTrip(entry.name, ListSerializer(Vehicle.serializer()))
             "garage" -> roundTrip(entry.name, ListSerializer(GarageVehicle.serializer()))
@@ -90,7 +96,7 @@ class GoldenContractTest {
             "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
             "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
-            "checklist-template-set", "units-set",
+            "checklist-template-set", "leaderboard-opt-in", "units-set",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(

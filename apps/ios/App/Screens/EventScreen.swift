@@ -1,5 +1,6 @@
 import SwiftUI
 import TrackEvolutionKit
+import UniformTypeIdentifiers
 
 /// A track day: what the car did, session by session.
 ///
@@ -12,7 +13,8 @@ import TrackEvolutionKit
 /// Out of scope here, and absent rather than stubbed: the per-day setup notebook,
 /// the setup-vs-lap-times diff, and telemetry file import — all web-only
 /// (`docs/specs/native/README.md`). The lap *recorder* is native, and its entry
-/// point is the panel near the bottom.
+/// point is the "Add a session" card at the bottom, alongside video import and hand
+/// entry — one card, because they are three answers to one question.
 struct EventScreen: View {
     let eventId: Int
 
@@ -20,6 +22,7 @@ struct EventScreen: View {
     @Environment(AppRouter.self) private var router
     @Environment(RecordingController.self) private var recorder
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layout) private var layout
 
     @State private var model: EventModel?
     @State private var editingSession: Session?
@@ -27,13 +30,54 @@ struct EventScreen: View {
     @State private var newChecklistItem = ""
     @State private var newSession = SessionFormFields()
     @State private var appendLapText: [Int: String] = [:]
-    /// The session whose lap overlay is open, if any.
+    /// The session whose lap overlay is open **as a sheet**, if any.
+    ///
+    /// Compact and medium width only. At expanded width the panel is a column
+    /// beside the page and the same control selects rather than presents — see
+    /// `selectedChannelSessionId`.
     @State private var channelSession: Session?
+    /// The session the analysis column is showing (NS-34 ticket 3).
+    @State private var selectedChannelSessionId: Int?
+    /// Whether a clip is being dragged over the page (NS-34 ticket 5).
+    @State private var isDropTargeted = false
+    /// Whether the "Add a session" card's hand-entry form is expanded.
+    ///
+    /// Collapsed by default: recording and importing are the two ways laps normally
+    /// arrive, and an always-open three-field form under them made the card read as a
+    /// form with two buttons above it rather than as three ways in.
+    @State private var showingManualEntry = false
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let detail = model.detail {
-                list(model, detail)
+                page(model, detail)
+                    // The best lap's session, ready to read: a Pro user with
+                    // channel data sees analysis the moment the page opens rather
+                    // than an empty column asking to be filled.
+                    .task(id: detail.sessions.map(\.id)) {
+                        if selectedChannelSessionId == nil {
+                            selectedChannelSessionId = Self.defaultChannelSession(detail.sessions)?.id
+                        }
+                    }
+            }
+        }
+        // Drop a clip from Files onto the page to import it (NS-34 ticket 5).
+        //
+        // On the whole page rather than on the "Add a session" card at the bottom
+        // of it: a drag is held in one hand across a screen you cannot scroll
+        // with the other, so a target you have to reach is a target you drop
+        // beside. The page already knows which event it is, which is the only
+        // thing the drop has to say.
+        .onDrop(of: [.movie], isTargeted: $isDropTargeted) { providers in
+            acceptDroppedClip(providers)
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: TERadius.md)
+                    .strokeBorder(Color(.accent), lineWidth: 2)
+                    .padding(4)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
         .navigationTitle(model?.event?.trackName ?? "Event")
@@ -106,6 +150,61 @@ struct EventScreen: View {
 
     // MARK: - The page
 
+    /// One column, or the page beside its analysis (NS-34 ticket 3).
+    ///
+    /// The right column is a **sibling of the `List`**, never a row in it. That is
+    /// the constraint `LapChannelChart` documents rather than a layout preference:
+    /// a Swift Charts chart of that many marks inside a `List` row never settles.
+    /// Putting the panel in the list to save a column is precisely the bug that
+    /// note exists to prevent.
+    @ViewBuilder
+    private func page(_ model: EventModel, _ detail: EventDetail) -> some View {
+        if let analysisWidth {
+            HStack(spacing: 0) {
+                list(model, detail)
+                    // The measurement goes **inside** the frame on both columns.
+                    // Outside it, `measuringPaneWidth()`'s `GeometryReader` is
+                    // greedy and the fixed width stops deciding anything: the
+                    // `HStack` sees two flexible children and hands each exactly
+                    // half the pane, so the analysis column got a slot that had
+                    // nothing to do with the width it had been given — 80pt of
+                    // dead background beside it on a full window, and 90pt of it
+                    // off the side of the screen with the sidebar showing.
+                    .measuringPaneWidth()
+                    .frame(maxWidth: .infinity)
+                Divider()
+                AnalysisColumn(
+                    detail: detail,
+                    selectedSessionId: $selectedChannelSessionId
+                )
+                .measuringPaneWidth()
+                .frame(width: analysisWidth)
+            }
+        } else {
+            list(model, detail)
+        }
+    }
+
+    /// Two columns only where there is width for both to be worth having.
+    private var isTwoColumn: Bool { analysisWidth != nil }
+
+    /// How wide the analysis column gets, or nil for one column.
+    ///
+    /// Just under half, with a floor and a ceiling. The floor is what a track map
+    /// over a stack of channel charts needs before it stops being readable; the
+    /// ceiling stops the left column being squeezed on a very wide window, where
+    /// the extra room is better spent on the page than on a wider chart.
+    ///
+    /// Measured against **this page's own column** rather than the window's
+    /// class, which is `sideColumnWidth`'s whole subject: an iPad in portrait is
+    /// an expanded window with a 683pt detail pane once the sidebar is showing,
+    /// and two columns do not go into that. There it is one column, the trace
+    /// returns to the list, and the channel panel opens as the sheet it is at
+    /// every other narrow width — the layout the pane actually has room for.
+    private var analysisWidth: CGFloat? {
+        layout.sideColumnWidth(fraction: 0.46, minimum: 380, maximum: 620)
+    }
+
     private func list(_ model: EventModel, _ detail: EventDetail) -> some View {
         List {
             summarySection(model, detail.event)
@@ -113,7 +212,12 @@ struct EventScreen: View {
                 row { TEErrorBanner(message: error) }
             }
             checklistSection(model, detail.event)
-            traceSection(detail)
+            // At expanded width the trace moves to the analysis column, so the map
+            // and the charts of the session you are reading are in one eyeline —
+            // which is the whole point of the column.
+            if !isTwoColumn {
+                traceSection(detail)
+            }
             paceSection(detail)
             ForEach(detail.sessions) { session in
                 sessionSection(model, session)
@@ -121,9 +225,7 @@ struct EventScreen: View {
             if detail.sessions.isEmpty {
                 row { TEEmpty("No sessions recorded yet.") }
             }
-            recorderSection(detail.event)
-            importSection(detail.event)
-            addSessionSection(model)
+            addSessionSection(model, detail.event)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -282,6 +384,7 @@ struct EventScreen: View {
     @ViewBuilder
     private func traceSection(_ detail: EventDetail) -> some View {
         if let session = Self.tracedSession(detail.sessions), let best = session.bestLapMs {
+            let markers = Self.limitMarkers(session)
             Section {
                 row {
                     TECard {
@@ -293,8 +396,9 @@ struct EventScreen: View {
                                 Spacer()
                                 TETime(ms: best, emphasized: true)
                             }
-                            TrackMapView(trace: session.trace ?? [])
+                            TrackMapView(trace: session.trace ?? [], markers: markers)
                                 .frame(height: 220)
+                            LimitLegend(markers: markers)
                         }
                     }
                 }
@@ -302,6 +406,22 @@ struct EventScreen: View {
                 header("Best lap trace")
             }
         }
+    }
+
+    /// Where the best lap hit its limit (#188), for the trace map.
+    ///
+    /// The stored trace is the **best lap only**, so the runs come from that
+    /// lap's channel entry: placing another lap's runs on it would put marks
+    /// where that lap never was. Other laps get the shaded bands on the channel
+    /// panel's distance axis instead, which is the same constraint the web works
+    /// under.
+    static func limitMarkers(_ session: Session) -> [Limits.Marker] {
+        guard let channels = session.channels, !channels.laps.isEmpty, let trace = session.trace else {
+            return []
+        }
+        let matched = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps).filter(\.hasChannels)
+        guard let bestRow = matched.min(by: { $0.lap.timeMs < $1.lap.timeMs }) else { return [] }
+        return Limits.limitMarkers(channels.laps[bestRow.chIdx], channels.dStepM, trace)
     }
 
     /// Among sessions with a usable trace, the one holding the event's fastest lap.
@@ -429,6 +549,20 @@ struct EventScreen: View {
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                 }
+                // The air this session was driven in (#191) — context for the
+                // times under it, so it rides in the header as a tag rather than
+                // joining the stats line. Only what this session's own recording
+                // measured: the event's typed figure is on the event header and
+                // is not repeated down the page.
+                if let ambientC = SessionConditions.sessionAmbientC(session) {
+                    Text(SessionConditions.tempText(ambientC, .us))
+                        .teStyle(.xxs)
+                        .foregroundStyle(Color(.textMuted))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color(.heat).opacity(0.14), in: .capsule)
+                        .accessibilityLabel("Ambient \(SessionConditions.tempText(ambientC, .us))")
+                }
                 Spacer()
                 Menu {
                     Button {
@@ -469,9 +603,18 @@ struct EventScreen: View {
     private func channelSection(_ session: Session) -> some View {
         let present = session.channels.map { ChannelGraphs.presentChannels($0) } ?? []
         if !present.isEmpty {
+            let selected = isTwoColumn && selectedChannelSessionId == session.id
             row {
                 Button {
-                    channelSession = session
+                    // The same control, two meanings, decided by whether there is
+                    // a column to put the answer in (NS-34): at expanded width it
+                    // *selects* the session the analysis column shows, and below
+                    // that it presents the sheet it always did.
+                    if isTwoColumn {
+                        selectedChannelSessionId = session.id
+                    } else {
+                        channelSession = session
+                    }
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -483,22 +626,51 @@ struct EventScreen: View {
                                 .foregroundStyle(Color(.textMuted))
                         }
                         Spacer(minLength: 8)
-                        Image(systemName: "chevron.right")
+                        // A chevron promises a push, which is not what this does
+                        // once the answer appears beside it.
+                        Image(systemName: isTwoColumn ? "chart.xyaxis.line" : "chevron.right")
                             .teStyle(.xs)
-                            .foregroundStyle(Color(.textFaint))
+                            .foregroundStyle(Color(selected ? .accentInk : .textFaint))
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.surfaceCard), in: .rect(cornerRadius: TERadius.md))
+                    .background(
+                        Color(selected ? .accentTint : .surfaceCard),
+                        in: .rect(cornerRadius: TERadius.md)
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: TERadius.md)
-                            .strokeBorder(Color(.borderHairline), lineWidth: 1)
+                            .strokeBorder(
+                                Color(selected ? .accent : .borderHairline),
+                                lineWidth: selected ? 2 : 1
+                            )
                     )
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("channelGraphs")
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
+    }
+
+    /// The session the analysis column opens on: the one holding the event's best
+    /// lap, among those that actually stored channels.
+    ///
+    /// Channels only ever come from an import or a phone recording, so most
+    /// sessions have none and are not candidates at all. Nil is a perfectly
+    /// ordinary answer — an event of hand-entered laps has nothing to analyse —
+    /// and the column says so rather than sitting empty.
+    static func defaultChannelSession(_ sessions: [Session]) -> Session? {
+        sessions
+            .filter { session in
+                session.channels.map { !ChannelGraphs.presentChannels($0).isEmpty } ?? false
+            }
+            .compactMap { session -> (Session, Int)? in
+                guard let best = session.bestLapMs else { return nil }
+                return (session, best)
+            }
+            .min { $0.1 < $1.1 }?
+            .0
     }
 
     private func appendLaps(_ model: EventModel, _ session: Session) {
@@ -512,32 +684,53 @@ struct EventScreen: View {
         }
     }
 
+    // MARK: - Add a session
+
+    /// The one place laps get into an event, with the three ways side by side:
+    /// record them, pull them out of a video, or type them in.
+    ///
+    /// These used to be three stacked cards, which made "how do I add a session" a
+    /// question with three separate-looking answers spread down the page. Hand entry
+    /// is collapsed because it is the fallback of the three — and because an open
+    /// three-field form pushed the other two options out of one screenful.
+    private func addSessionSection(_ model: EventModel, _ event: Event) -> some View {
+        Section {
+            row {
+                TECard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        recorderOption(event)
+                        Divider().overlay(Color(.borderHairline))
+                        importOption(event)
+                        Divider().overlay(Color(.borderHairline))
+                        manualOption(model)
+                    }
+                }
+            }
+        } header: {
+            header("Add a session")
+        }
+    }
+
     // MARK: - Recorder entry point
 
     /// The live lap recorder (NS-17). Doubles as the way back into a running
     /// recording and the recovery path for an unsaved one — and opening it from this
     /// event is what adopts an event-less recording into it.
-    private func recorderSection(_ event: Event) -> some View {
-        Section {
-            row {
-                TECard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Record laps with your phone")
-                            .teStyle(.h3)
-                            .foregroundStyle(Color(.textStrong))
-                        Text("Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.")
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.textMuted))
-                        Button(recorderCallToAction(event)) {
-                            router.push(.record(eventId: recorderTargetEvent(event)))
-                        }
-                        .buttonStyle(TEButtonStyle(kind: recorderIsBusy ? .accent : .quiet))
-                        // The label changes with the recorder's state, so tests reach
-                        // it by identifier instead.
-                        .accessibilityIdentifier("recordEntry")
-                    }
-                }
+    private func recorderOption(_ event: Event) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Record laps with your phone")
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            Text("Start before heading out, stow the phone, stop back in the paddock — laps are timed from GPS.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+            Button(recorderCallToAction(event)) {
+                router.push(.record(eventId: recorderTargetEvent(event)))
             }
+            .buttonStyle(TEButtonStyle(kind: recorderIsBusy ? .accent : .quiet))
+            // The label changes with the recorder's state, so tests reach
+            // it by identifier instead.
+            .accessibilityIdentifier("recordEntry")
         }
     }
 
@@ -571,72 +764,159 @@ struct EventScreen: View {
 
     // MARK: - Video import entry point
 
-    /// Lap times out of a video already on the phone (NS-30). Only *video* import
-    /// is native — `.vbo` and the rest of the desk-bound long tail stay on the web
-    /// app (`docs/specs/native/README.md`).
-    private func importSection(_ event: Event) -> some View {
-        Section {
-            row {
-                TECard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Import a video")
-                            .teStyle(.h3)
-                            .foregroundStyle(Color(.textStrong))
-                        Text("PDR and GoPro clips carry telemetry. Pick one from Files or Photos and the laps come out of it — the video stays on this phone.")
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.textMuted))
-                        Button("Import video") {
-                            router.push(.importVideo(eventId: event.id, incoming: nil))
-                        }
-                        .buttonStyle(TEButtonStyle(kind: .quiet))
-                        .accessibilityIdentifier("importEntry")
-                    }
-                }
-            }
+    /// The page's own drop handler: a clip lands, and the importer opens on this
+    /// event.
+    private func acceptDroppedClip(_ providers: [NSItemProvider]) -> Bool {
+        Self.droppedClip(from: providers) { url in
+            router.push(.importVideo(eventId: eventId, incoming: url))
         }
     }
 
-    // MARK: - Add a session
+    /// A clip dragged onto the page (NS-34 ticket 5).
+    ///
+    /// **In place where the system allows it**, via `loadInPlaceFileRepresentation`
+    /// — the drop is a third door onto NS-30's importer and inherits its first
+    /// rule, that the video is not copied. `loadFileRepresentation`, the obvious
+    /// sibling, always materialises the whole clip into the sandbox before handing
+    /// anything back, which for a 4 GB track-day recording is minutes of waiting
+    /// for bytes the parsers never read.
+    ///
+    /// Both of its outcomes have to be handled, and the second is the one that
+    /// bites. The URL it yields is valid **only inside the callback**:
+    ///
+    /// - *In place* — a drag from Files — the URL is the file itself, and opening
+    ///   its security scope here is precisely what extends it past the callback.
+    ///   `DroppedClip` holds that scope until the import has read it.
+    /// - *Not in place*, which is what a provider that cannot share the original
+    ///   does: the copy has **already been made** by the time we are called, and
+    ///   the system deletes it the instant we return. Moving it out is then the
+    ///   only way to keep it, and within one container a move is a rename, so it
+    ///   costs nothing on top of a copy nobody asked for. `DroppedClip` deletes
+    ///   that one when it is finished with, since it is ours.
+    ///
+    /// Static and routerless so all of that can be tested — a drag session between
+    /// two apps is not something a simulator can be made to perform, but
+    /// everything after the drop lands is ordinary code.
+    static func droppedClip(
+        from providers: [NSItemProvider],
+        // `@Sendable @MainActor` because the item provider answers on a queue of
+        // its own choosing and the opening has to happen back on the main actor:
+        // the closure crosses one boundary and is called on the other side of it.
+        then open: @escaping @Sendable @MainActor (URL) -> Void
+    ) -> Bool {
+        let movie = UTType.movie.identifier
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(movie) })
+        else { return false }
+        // The clip's real name, for the review's "Imported from …" note: a copy
+        // the system made carries a name of its own invention.
+        let suggested = provider.suggestedName
+        provider.loadInPlaceFileRepresentation(forTypeIdentifier: movie) { url, isInPlace, _ in
+            guard let url else { return }
+            if isInPlace, url.startAccessingSecurityScopedResource() {
+                Task { @MainActor in
+                    DroppedClip.shared.hold(url, scoped: true, temporary: false)
+                    open(url)
+                }
+                return
+            }
+            guard let kept = try? Self.keepBeforeItIsDeleted(url, named: suggested) else { return }
+            Task { @MainActor in
+                DroppedClip.shared.hold(kept, scoped: false, temporary: true)
+                open(kept)
+            }
+        }
+        return true
+    }
 
-    private func addSessionSection(_ model: EventModel) -> some View {
-        Section {
-            row {
-                TECard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        TEField(label: "Session label") {
-                            TextField("Day 1 — Session 2", text: $newSession.label)
-                                .teInput()
-                        }
-                        TEField(
-                            label: "Lap times",
-                            hint: "Comma, space or newline separated. Formats: 2:01.24 · 2:01 · 121.24 (seconds)"
+    /// Move a copy the provider made into somewhere it will still exist a moment
+    /// from now, under the clip's own name.
+    private static func keepBeforeItIsDeleted(_ url: URL, named suggested: String?) throws -> URL {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("dropped-clips", isDirectory: true)
+        var name = suggested ?? url.lastPathComponent
+        if URL(fileURLWithPath: name).pathExtension.isEmpty {
+            name += ".\(url.pathExtension)"
+        }
+        // A directory per drop, so the file can keep its own name — which is what
+        // the imported session's notes end up quoting.
+        let box = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: box, withIntermediateDirectories: true)
+        let kept = box.appendingPathComponent(name)
+        do {
+            try FileManager.default.moveItem(at: url, to: kept)
+        } catch {
+            try FileManager.default.copyItem(at: url, to: kept)
+        }
+        return kept
+    }
+
+    /// Lap times out of a video already on the phone (NS-30). Only *video* import
+    /// is native — `.vbo` and the rest of the desk-bound long tail stay on the web
+    /// app (`docs/specs/native/README.md`).
+    private func importOption(_ event: Event) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Import a video")
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            Text("PDR and GoPro clips carry telemetry. Pick one from Files or Photos and the laps come out of it — the video stays on this phone.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+            Button("Import video") {
+                router.push(.importVideo(eventId: event.id, incoming: nil))
+            }
+            .buttonStyle(TEButtonStyle(kind: .quiet))
+            .accessibilityIdentifier("importEntry")
+        }
+    }
+
+    // MARK: - Hand entry
+
+    @ViewBuilder
+    private func manualOption(_ model: EventModel) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Enter lap times by hand")
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            if showingManualEntry {
+                TEField(label: "Session label") {
+                    TextField("Day 1 — Session 2", text: $newSession.label)
+                        .teInput()
+                }
+                TEField(
+                    label: "Lap times",
+                    hint: "Comma, space or newline separated. Formats: 2:01.24 · 2:01 · 121.24 (seconds)"
+                ) {
+                    TextField("2:03.55, 2:01.24, 2:02.61", text: $newSession.laps, axis: .vertical)
+                        .teInput()
+                        .keyboardType(.numbersAndPunctuation)
+                        .autocorrectionDisabled()
+                        .lineLimit(2...5)
+                }
+                TEField(label: "Session notes") {
+                    TextField("Traffic, tire pressures, line changes…", text: $newSession.notes)
+                        .teInput()
+                }
+                Button("Add session") {
+                    Task {
+                        if await model.addSession(
+                            label: newSession.label, notes: newSession.notes, laps: newSession.laps
                         ) {
-                            TextField("2:03.55, 2:01.24, 2:02.61", text: $newSession.laps, axis: .vertical)
-                                .teInput()
-                                .keyboardType(.numbersAndPunctuation)
-                                .autocorrectionDisabled()
-                                .lineLimit(2...5)
+                            newSession = SessionFormFields()
+                            showingManualEntry = false
+                            Haptics.confirm()
                         }
-                        TEField(label: "Session notes") {
-                            TextField("Traffic, tire pressures, line changes…", text: $newSession.notes)
-                                .teInput()
-                        }
-                        Button("Add session") {
-                            Task {
-                                if await model.addSession(
-                                    label: newSession.label, notes: newSession.notes, laps: newSession.laps
-                                ) {
-                                    newSession = SessionFormFields()
-                                    Haptics.confirm()
-                                }
-                            }
-                        }
-                        .buttonStyle(TEButtonStyle(kind: .accent))
                     }
                 }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .accessibilityIdentifier("addSessionSubmit")
+            } else {
+                Text("Timing sheet from the instructor, or laps off a stopwatch.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+                Button("Enter lap times") { showingManualEntry = true }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("manualEntry")
             }
-        } header: {
-            header("Add session")
         }
     }
 

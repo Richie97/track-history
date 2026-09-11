@@ -65,6 +65,7 @@ public fun Route.remapTempId(from: Int, to: Int): Route = when (this) {
     is Route.Event -> if (id == from) Route.Event(to) else this
     is Route.EventForm -> if (editId == from) copy(editId = to) else this
     is Route.Record -> if (eventId == from) copy(eventId = to) else this
+    is Route.Import -> if (eventId == from) copy(eventId = to) else this
     // Tracks are never created offline — an event's track is found-or-created
     // server-side by name — and slugs and settings carry no id at all.
     else -> this

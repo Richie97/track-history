@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telemetry import — Track Evolution docs</title>
-  <meta name="description" content="Import Corvette PDR, GoPro and Racelogic VBO recordings into Track Evolution — parsed entirely on your own device, in the browser or on your iPhone.">
+  <meta name="description" content="Import Corvette PDR, GoPro and Racelogic VBO recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Track Evolution">
   <meta property="og:title" content="Telemetry import — Track Evolution docs">
-  <meta property="og:description" content="Import Corvette PDR, GoPro and Racelogic VBO recordings into Track Evolution — parsed entirely on your own device, in the browser or on your iPhone.">
+  <meta property="og:description" content="Import Corvette PDR, GoPro and Racelogic VBO recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:url" content="https://docs.trackevolution.app/docs/telemetry-import.html">
   <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -63,13 +63,25 @@
       phone.</strong>
     </p>
 
+    <div class="callout">
+      <strong>Importing is free</strong> — the lap times, the racing line and the
+      car's top speed, max RPM and max lateral G come out of any supported file
+      at no cost. The <strong>per-lap channel graphs, sector splits and
+      lap-vs-lap deltas</strong> inside that same file are part of Track
+      Evolution Pro ($1.99/month or $19.99/year, one subscription across the
+      iPhone, Android and web apps). See
+      <a href="./#subscription">Free and Pro</a>.
+    </div>
+
     <h2 id="on-your-phone">On your phone</h2>
     <p>
-      Video imports on the iPhone app as well as in the browser: tap
+      Video imports in the iPhone and Android apps as well as in the browser: tap
       <strong>Import video</strong> on an event page and pick the clip from Files
-      or Photos, or choose <strong>Open with Track Evolution</strong> from
-      wherever the clip already is. It is the same import — the same lap times, the
-      same racing line, the same channel graphs.
+      or Photos, or share it to Track Evolution (<strong>Open with</strong> on
+      iPhone, <strong>Share</strong> on Android) from wherever the clip already
+      is. On an iPad you can also drag a clip out of Files and drop it straight
+      onto an event page. It is the same import — the same lap times, the same
+      racing line, the same channel graphs.
     </p>
     <p>
       That is where the footage usually is first: a GoPro clip comes over Wi-Fi
@@ -144,14 +156,145 @@
         import preview also reads the car channels and shows each session's
         <strong>top speed, max RPM and max lateral&nbsp;G</strong>, saved into
         the session notes.</li>
+      <li>A PDR recording also carries slow readings that change over a lap
+        rather than through one — oil, coolant and transmission temperatures,
+        oil pressure, fuel level, tyre pressures and temperatures, battery
+        voltage — so those are kept as <strong>one figure per lap</strong>,
+        along with the ambient temperature, the track's elevation range and
+        the car's odometer reading for the session. The per-lap figures are
+        the channel panel's <strong>Car</strong> tab (below); the ambient
+        temperature shows on the session's header and shades the track page's
+        progress chart, so a hot afternoon reads as a hot afternoon rather
+        than as a bad session (see
+        <a href="data-model.html#conditions">Conditions</a>). All of it is
+        saved at import because the video stays on your device and is never
+        uploaded, so a reading not taken now is gone.</li>
       <li>Each imported session also stores <strong>per-lap channel data</strong> —
-        speed for every source, plus RPM and lateral&nbsp;G for PDR — sampled
+        speed for every source, plus, from a PDR recording, RPM, lateral and
+        longitudinal&nbsp;G, throttle, brake, steering angle, yaw rate, gear,
+        wheel slip, boost and whether ABS or traction control was active
+        (whichever channels the recording carries — a channel the file lacks
+        simply draws no graph) — sampled
         along the lap's driven distance. On the event page the session's lap
         chips double as the picker for the expandable
         <strong>channel graphs</strong>: laps overlaid on a shared distance
-        axis, comparing up to three laps side by side. (This
+        axis, comparing up to three laps side by side. With two or more laps
+        selected, a <strong>delta chart</strong> appears above the channels
+        showing where time is gained or lost against the fastest of the
+        selection — the trace climbing means time slipping away, so the corner
+        that costs you shows up as the spot where it climbs. Above the charts,
+        a <strong>sector table</strong> splits each highlighted lap into three
+        sectors along its own driven distance — no setup needed — marking the
+        session's best in each sector and the gap to it otherwise, and the best
+        sectors summed give a <strong>theoretical best lap</strong> that also
+        appears in the session's stats line when it beats your actual best: the
+        gap is what stringing your best sectors together would have been worth.
+        The panel is split into tabs — <strong>Time</strong> (delta, sectors,
+        speed), <strong>Inputs</strong> (pedals, steering, RPM, gears),
+        <strong>Grip</strong> (the friction circle, balance, lateral G and
+        yaw rate) and <strong>Car</strong> (is the car okay, and is it set up
+        right) — so each answers one question. From
+        a PDR recording, a <strong>gear ribbon</strong> sits under the
+        RPM trace — one band per selected lap, one block per gear with the
+        number in it, a gap where the clutch was in — and with two or more
+        laps selected the stretches where they were in different gears are
+        outlined, so "third on my best lap, fourth on this one" is visible
+        without reading a chart. Beside it, a <strong>shift points</strong>
+        table gives your upshift RPM from each gear (earliest, typical and
+        latest across the session) with a note when a gear is taken to the top
+        of the day's rev range or shifted out of noticeably earlier than
+        another; the typical upshift RPM also joins the session's stats line.
+        A PDR recording's wheel-slip and ABS / traction / stability channels
+        become <strong>marks on the best-lap track map</strong> rather than
+        graphs: a shape wherever that lap hit ABS, locked a wheel, spun the
+        driven wheels or had a system cut in, coloured by kind — braking-side
+        events in one colour, power-side in another, each told apart by
+        shape as well — with the same stretches shaded on the brake, throttle
+        and steering traces for every selected lap, and a line in the
+        session's stats counting the places where each happened, or "no
+        interventions" when nothing fired (which is normal on track with the
+        systems off). On the <strong>Grip</strong> tab, a PDR recording's
+        cornering and braking/acceleration forces are plotted against each
+        other as a <strong>friction circle</strong>: one point per 20&nbsp;m of
+        track for each selected lap, braking at the top, power at the bottom
+        and cornering to the sides, with a dashed arc at the strongest
+        combined grip of the session. A tyre has one grip budget and it can be
+        spent in any direction — brake in a straight line, turn, then
+        accelerate and your points draw a cross; trail the brake into the
+        corner and feed the throttle out of it and they fill the circle. The
+        space between the two is time. Under it, two numbers say how much of
+        your tyre work was combined — braking while cornering, and cornering
+        while on the power — for each selected lap and for the session, and
+        they are worth watching across a day. Point at a dot to see where on the
+        lap it happened — the distance is marked on the other graphs and, for
+        the lap the map was drawn from, the spot is ringed on the track map.
+        Hover it with a mouse or trackpad; on a touchscreen, tap it. Two things to know: left and right come from your steering, since
+        the recording stores cornering force without a side; and 20&nbsp;m
+        samples smooth the spikes, so the circle shows the <em>shape</em> of
+        your grip use rather than your peak G (that's the max lateral G in the
+        session's stats). The circle and its two numbers are on the iPhone and
+        Android apps too. The <strong>Car</strong> tab is the other half of a
+        track day: every slow reading a PDR recording carries — oil, coolant
+        and transmission temperature, oil pressure, boost, the four tyre
+        pressures and temperatures, fuel and battery voltage — as one small
+        chart per figure across the session's laps, each with the number that
+        matters for it (the peak of a temperature, the lowest oil pressure or
+        voltage, the tyre pressure as the lap ended), shaded when a figure
+        approaches or passes a line worth watching, such as oil over about
+        130&nbsp;°C or the battery under 12.5&nbsp;V. Under the charts, the
+        <strong>tyre spread</strong> per lap — left minus right on each axle
+        and front minus rear, for temperatures and pressures — is the camber
+        and balance evidence a setup change gets judged by, a fuel line gives
+        your burn per lap and the laps left at that rate (it joins the
+        session's stats line too), and on the web a per-lap table carries every
+        figure — on the phones the small charts carry it, which is the same
+        reading in the width a phone has. The strip is on the iPhone and
+        Android apps too.
+        A session typed in by hand has none of this and shows no Car tab. On
+        the web app the tab also closes the loop with your
+        <a href="./garage.html#setups">setup notebook</a>: the sheet's cold
+        pressures, the hot pressures the import measured and your car's
+        target hot pressure become the cold pressure to start from next time,
+        recordable onto the day's sheet in one tap.
+        Under it, the same tab answers <strong>am I understeering or
+        oversteering?</strong> from the recording's yaw rate and steering
+        angle. In a neutral car the two rise together: steering the car
+        doesn't answer means the front is washing out — understeer — and
+        rotation you didn't ask for means the rear is coming round —
+        oversteer. Most of us believe we're oversteering when we're actually
+        understeering, because understeer feels like nothing happening. The
+        <strong>balance</strong> chart plots each selected lap's samples with
+        steering across and how much the car rotated per metre up, with a
+        dashed line for how this car typically responds: points above the
+        line are oversteer, below it understeer. Under the chart, the lap is
+        split into <strong>corners</strong> — stretches of sustained
+        cornering force, numbered T1, T2… from the start/finish line (the
+        app's numbering, not the circuit's) — and each corner gets a reading
+        per selected lap and for the session: <em>"T1 understeer 14%, T7
+        neutral, T10 slight oversteer 9%"</em> is something you can take to
+        the setup sheet, and the corners that stand out join the session's
+        stats line. On the web app you can hover a point or a corner row to see
+        where on the lap it is. One thing to know: the reading is
+        <em>relative</em>. The exact
+        version needs your car's wheelbase and steering ratio, which aren't
+        recorded, so each corner is compared with how the car responded on
+        average across the session — a car that pushes in every corner reads
+        neutral in every corner, and what shows up is the corner that behaves
+        differently from the rest. Balance is on the iPhone and Android apps too.
+        (This
         is derived at import time; the recording itself is never uploaded, so
         re-import a file if you delete a session.)</li>
+      <li>Laps from <strong>different sessions and events</strong> compare too:
+        the track page's <strong>Compare two laps</strong> puts any two laps
+        with channel data side by side — it opens on your latest event's best
+        lap against your all-time best — with a head-to-head table (lap time,
+        top/min/average speed, throttle and braking shares), the pair's sector
+        splits and combined theoretical best, the delta chart
+        and the channel graphs on one distance axis. It's on the phone apps as
+        well as the web, and works offline for laps you've viewed before. If
+        the two laps cover clearly different driven distances (a different
+        layout, or a different start/finish line between imports), the page
+        says so rather than lining them up silently.</li>
       <li>If a recording's GPS can't be decoded, a beacon-less file still gets
         lap times: latitude as a function of odometer distance repeats every
         lap, so the lap length is that profile's autocorrelation peak and laps

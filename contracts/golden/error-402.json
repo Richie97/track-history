@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/garage",
+  "status": 402,
+  "body": {
+    "error": "pro required"
+  }
+}

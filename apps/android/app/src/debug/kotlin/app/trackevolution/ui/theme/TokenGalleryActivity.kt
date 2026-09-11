@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -31,6 +33,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import app.trackevolution.ui.CARD_GRID_MINIMUM
+import app.trackevolution.ui.LayoutClass
+import app.trackevolution.ui.LayoutMetrics
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.pageGutter
 import kotlinx.coroutines.launch
 
 /**
@@ -136,6 +143,9 @@ private fun TokenGalleryScreen() {
                 }
             }
 
+            item { SectionHeading("Layout classes") }
+            item { LayoutClassRow() }
+
             item { SectionHeading("Depth") }
             item {
                 TrackCard {
@@ -185,8 +195,80 @@ private fun Swatch(name: String, css: String, color: Color) {
     }
 }
 
+/**
+ * The layout class this window is in, and the breakpoints it sits between.
+ *
+ * Resize the window — a foldable, a freeform window, split screen — and watch
+ * the highlight move: that it moves *at all* is the thing worth seeing here,
+ * since a class read once at launch would look identical until someone folded a
+ * phone in the paddock.
+ */
+@Composable
+private fun LayoutClassRow() {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
+    val metrics = LocalLayoutMetrics.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LayoutClass.entries.forEach { entry ->
+                val live = entry == metrics.layoutClass
+                Text(
+                    entry.name.lowercase(),
+                    style = type.sm,
+                    color = if (live) colors.accentContrast else colors.textMuted,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(TrackTheme.radii.sm))
+                        .background(if (live) colors.accent else colors.surfaceRaised)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+        Text(
+            "breakpoints ${LayoutClass.MEDIUM_MIN_DP} / ${LayoutClass.EXPANDED_MIN_DP}dp · " +
+                "page-max ${LayoutTokens.PAGE_MAX.value.toInt()} · " +
+                "gutter ${LayoutTokens.PAGE_GUTTER.value.toInt()}",
+            style = type.xxs,
+            color = colors.textMuted,
+        )
+        Text(
+            "content column ${metrics.contentWidth.value.toInt()}dp · " +
+                "${metrics.columns(CARD_GRID_MINIMUM)} card columns",
+            style = type.xxs,
+            color = colors.textFaint,
+        )
+    }
+}
+
 @Preview(showBackground = true, heightDp = 1400)
 @Composable
 private fun TokenGalleryPreview() {
     TokenGalleryScreen()
+}
+
+// The three layout classes, side by side in the IDE. The gallery is the one
+// screen that can be previewed without standing up a screen model and a fake
+// server, so it is where the widths are looked at (NS-34 ticket 1).
+@Preview(name = "compact 400dp", widthDp = 400, heightDp = 900)
+@Preview(name = "medium 700dp", widthDp = 700, heightDp = 900)
+@Preview(name = "expanded 1000dp", widthDp = 1000, heightDp = 900)
+@Composable
+private fun LayoutClassPreviews() {
+    // `@Preview(widthDp = …)` resizes the *composable*, not the configuration
+    // that ProvideLayoutMetrics reads, so the class is fed in from the preview's
+    // own constraints here. On a device the provider is the only source.
+    BoxWithConstraints {
+        val layoutClass = LayoutClass.ofWidth(maxWidth.value.toInt())
+        CompositionLocalProvider(
+            LocalLayoutMetrics provides LayoutMetrics(
+                layoutClass = layoutClass,
+                contentWidth = maxWidth - pageGutter(layoutClass) * 2,
+            ),
+        ) {
+            TrackTheme {
+                Column(Modifier.background(TrackTheme.colors.bgPage).padding(16.dp)) {
+                    LayoutClassRow()
+                }
+            }
+        }
+    }
 }

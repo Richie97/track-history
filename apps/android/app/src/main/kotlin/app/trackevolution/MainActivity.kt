@@ -1,6 +1,7 @@
 package app.trackevolution
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -25,8 +26,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.IntentCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthProvidersStore
@@ -42,7 +48,10 @@ import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
 import app.trackevolution.recording.RecordingFlow
+import app.trackevolution.navigation.rememberScreenModel
 import app.trackevolution.recording.RecordingService
+import app.trackevolution.ui.ProvideFoldGeometry
+import app.trackevolution.ui.ProvideLayoutMetrics
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.ThemePreference
 import app.trackevolution.ui.theme.TrackTheme
@@ -70,13 +79,21 @@ class MainActivity : ComponentActivity() {
      */
     private val router = Router()
 
-    private lateinit var flow: RecordingFlow
 
     /**
      * Set when the app was opened by tapping the recording notification, which
      * must land on the recording rather than the dashboard.
      */
     private var openRecorder by mutableStateOf(false)
+
+    /**
+     * Videos shared into the app ("Send to Track Evolution" from Files, Photos or
+     * the camera app), parked until the signed-in graph can open the import
+     * chooser on them. The read grant travels with this task, which is why the
+     * activity is `singleTask` and the URIs are read from here rather than
+     * persisted.
+     */
+    private var incomingImport by mutableStateOf<List<Uri>?>(null)
 
     /**
      * Fine location and notifications, asked for at the moment the user asks to
@@ -115,8 +132,21 @@ class MainActivity : ComponentActivity() {
             providersStore = AuthProvidersStore(this),
             serverPreference = serverPreference,
         )
-        flow = RecordingFlow(scope = lifecycleScope, api = api)
         auth.start()
+        // Billing follows the session (NS-32 phase C). Each time the app becomes
+        // signed in — at launch on a stored token, or after the browser hop — the
+        // once-per-install legacy claim runs and any purchase held while signed
+        // out is posted. Thirty-day sessions mean this cannot hang off the code
+        // exchange: an already-signed-in user never passes through it again.
+        lifecycleScope.launch {
+            auth.state.map { it is AuthState.SignedIn }.distinctUntilChanged().filter { it }
+                .collect { services.billing.onSignedIn() }
+        }
+        // Every billing answer carries the fresh entitlement; it lands on the auth
+        // state so the gates, Settings and the paywall read one value.
+        lifecycleScope.launch {
+            services.billing.entitlement.filterNotNull().collect(auth::setEntitlement)
+        }
         // A recording a previous launch never finished is offered back rather
         // than left on disk unmentioned.
         Recorder.recoverPending(this)
@@ -124,45 +154,80 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         setContent {
+            // Retained across configuration changes, which is the whole point.
+            //
+            // It used to be built in `onCreate` against `lifecycleScope`, and the
+            // review state went with the activity: folding a device, rotating one,
+            // or changing the font scale destroys the activity, and the next one
+            // started a fresh `RecordingFlow` with an empty `ReviewUiState`. The
+            // picked start/finish line, the edited session labels, the notes and
+            // the include flags were all gone — while `SignedInScaffold`'s
+            // `reviewing` flag is `rememberSaveable` and came *back*, so the review
+            // reopened with nothing in it. NS-34 ticket 4 is what looked for this;
+            // the spec had assumed it already survived.
+            //
+            // A `ViewModel` is the right lifetime: longer than the activity, shorter
+            // than the process. `viewModelScope` is cancelled when the flow is
+            // actually finished with, rather than at every recreation.
+            val recordingFlow = rememberScreenModel { scope, _ ->
+                RecordingFlow(scope = scope, api = api)
+            }
             val preference = remember { ThemePreference(applicationContext) }
             val choice by preference.choice.collectAsState(initial = ThemeChoice.System)
             val state by auth.state.collectAsState()
             val server by serverPreference.url.collectAsState(initial = ApiClient.DEFAULT_BASE_URL)
-            TrackTheme(choice) {
-                when (state) {
-                    is AuthState.SignedIn -> SignedInScaffold(
-                        api = api,
-                        auth = auth,
-                        authState = state,
-                        router = router,
-                        flow = flow,
-                        serverUrl = server,
-                        themeChoice = choice,
-                        onThemeChange = { next ->
-                            lifecycleScope.launch { preference.set(next) }
-                        },
-                        startOnRecord = openRecorder,
-                        onConsumedStartOnRecord = { openRecorder = false },
-                        onStartRecording = ::requestPermissionsThenRecord,
-                        onSignOut = {
-                            // A deep link parked for a session that no longer
-                            // exists must not fire under the next one.
-                            router.clear()
-                            auth.signOut()
-                        },
-                    )
-                    AuthState.Loading -> LoadingScreen()
-                    else -> SignInScreen(
-                        state = state,
-                        onSignIn = { auth.signIn(it, this@MainActivity) },
-                        // Debug only: pointing the app at `wrangler dev` is a
-                        // development affordance, not a user-facing setting.
-                        serverOverride = if (BuildConfig.DEBUG) {
-                            ServerOverride(current = server, onChange = auth::setServer)
-                        } else {
-                            null
-                        },
-                    )
+            // Measured once at the root and published downwards (NS-34), so every
+            // screen reads one window width rather than measuring its own — and so
+            // folding, rotating or resizing across a breakpoint re-lays out the
+            // whole app rather than nothing at all. Outside the theme because it
+            // is a fact about the window, not a design token.
+            ProvideLayoutMetrics {
+                // Posture beside width, and outside the theme for the same reason
+                // (NS-34 ticket 4): how the device is folded is a fact about the
+                // window. On anything that does not fold this resolves to flat and
+                // costs one flow that never emits.
+                ProvideFoldGeometry {
+                    TrackTheme(choice) {
+                        when (state) {
+                            is AuthState.SignedIn -> SignedInScaffold(
+                                api = api,
+                                auth = auth,
+                                authState = state,
+                                billing = services.billing,
+                                router = router,
+                                flow = recordingFlow,
+                                serverUrl = server,
+                                themeChoice = choice,
+                                onThemeChange = { next ->
+                                    lifecycleScope.launch { preference.set(next) }
+                                },
+                                startOnRecord = openRecorder,
+                                onConsumedStartOnRecord = { openRecorder = false },
+                                onStartRecording = ::requestPermissionsThenRecord,
+                                onSignOut = {
+                                    // A deep link parked for a session that no longer
+                                    // exists must not fire under the next one.
+                                    router.clear()
+                                    incomingImport = null
+                                    auth.signOut()
+                                },
+                                incomingImport = incomingImport,
+                                onConsumedIncomingImport = { incomingImport = null },
+                            )
+                            AuthState.Loading -> LoadingScreen()
+                            else -> SignInScreen(
+                                state = state,
+                                onSignIn = { auth.signIn(it, this@MainActivity) },
+                                // Debug only: pointing the app at `wrangler dev` is a
+                                // development affordance, not a user-facing setting.
+                                serverOverride = if (BuildConfig.DEBUG) {
+                                    ServerOverride(current = server, onChange = auth::setServer)
+                                } else {
+                                    null
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -218,6 +283,10 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(RecordingService.EXTRA_OPEN_RECORDER, false) == true) {
             openRecorder = true
         }
+        sharedVideos(intent)?.let {
+            incomingImport = it
+            return
+        }
         val uri = intent?.data ?: return
         if (auth.handleRedirect(uri)) return
         // Parked rather than navigated to: the nav graph consumes it once it
@@ -225,6 +294,19 @@ class MainActivity : ComponentActivity() {
         DeepLink.parse(uri.toString())?.let(router::offer)
     }
 }
+
+/**
+ * The videos an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent carries, or null
+ * when the intent is anything else. `IntentCompat` rather than the typed
+ * `getParcelableExtra`, which is API 33+.
+ */
+private fun sharedVideos(intent: Intent?): List<Uri>? = when (intent?.action) {
+    Intent.ACTION_SEND ->
+        listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+    Intent.ACTION_SEND_MULTIPLE ->
+        IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)?.toList()
+    else -> null
+}?.takeIf { it.isNotEmpty() }
 
 @Composable
 private fun LoadingScreen() {

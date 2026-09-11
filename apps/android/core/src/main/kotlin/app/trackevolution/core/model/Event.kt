@@ -13,6 +13,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import app.trackevolution.core.RemoteRecording
+import app.trackevolution.core.SessionConditions
 
 /** One item of an event's prep checklist. */
 @Serializable
@@ -43,7 +44,7 @@ public value class Conditions(public val rawValue: String) {
 
 /**
  * A track day. The canonical shape is `ComputedEvent` in `src/lib/stats.ts`
- * (`EVENT_SELECT` in `src/db.ts` for the columns).
+ * (`eventSelect` in `src/db.ts` for the columns).
  *
  * Optionality here is load-bearing and mirrors `withComputed`:
  *  - [bestMs] is null when the event has neither a manual best nor any laps.
@@ -75,7 +76,7 @@ public data class Event(
     val notes: String? = null,
     val conditions: Conditions? = null,
     /** Ambient temperature in °F — a whole number (`isValidTemp`). */
-    @SerialName("temp_f") val tempF: Int? = null,
+    @SerialName("temp_f") override val tempF: Int? = null,
     val checklist: List<ChecklistItem>? = null,
     /** Manually entered best lap, independent of logged laps. */
     @SerialName("best_time_ms") val bestTimeMs: Int? = null,
@@ -89,6 +90,17 @@ public data class Event(
      * and still mean the same thing.)
      */
     @SerialName("updated_at") val updatedAt: Long,
+    /**
+     * Session conditions (#191), derived from the sessions' channel meta by
+     * migration 0020's triggers: the coolest and hottest ambient any session of
+     * this event recorded (°C, equal when there is one), and the largest
+     * elevation range seen at it (m). Null when nothing was imported — the
+     * manual [tempF] is the fallback, and `SessionConditions.eventAmbient` is
+     * where the two reconcile.
+     */
+    @SerialName("ambient_lo_c") override val ambientLoC: Double? = null,
+    @SerialName("ambient_hi_c") override val ambientHiC: Double? = null,
+    @SerialName("elevation_m") override val elevationM: Double? = null,
     @SerialName("lap_best_ms") val lapBestMs: Int? = null,
     @SerialName("lap_count") val lapCount: Int,
     @SerialName("session_count") val sessionCount: Int,
@@ -98,7 +110,7 @@ public data class Event(
     val consistency: Double? = null,
     /** On-track hours: the override, else `max(days × 2h, logged lap time)`. */
     val hours: Double,
-) : RemoteRecording.EventCandidate
+) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent
 
 /**
  * `GET /api/events/:id` — an event plus its sessions and per-day setup sheets.

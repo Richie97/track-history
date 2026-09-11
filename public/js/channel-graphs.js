@@ -1,11 +1,16 @@
 // Lap chips + per-lap channel graphs for an imported session. The chips are
 // the session's lap list (rendered from the stored lap rows), and stacked
-// small-multiple SVG charts (speed / rpm / lateral G, whichever the session
-// stored) sit under them in a collapsible <details>, every lap overlaid on a
+// small-multiple SVG charts (speed / throttle / brake / steering / rpm /
+// lateral G / yaw rate, whichever the session stored — a channel no lap carries renders
+// no chart) sit under them in a collapsible <details>, every lap overlaid on a
 // shared driven-distance axis so laps line up corner-for-corner. Unselected
 // laps draw as a dim context envelope; up to three laps at a time are
 // highlighted in the chart series colors, picked via the lap chips (which
-// double as the legend — identity is never color-alone).
+// double as the legend — identity is never color-alone). With two or more
+// laps highlighted, a time-delta chart (vs the fastest of the selection)
+// renders above the channels — see the "lap delta" section below. The caller
+// can slot extra markup above the charts that re-renders with the selection
+// (`renderExtras`): app.js uses it for the sector table from js/sectors.js.
 // Channel data shape is sessions.channels (see js/import/channels.js).
 //
 // Same conventions as chart.js: pure string building for the SVG, one bind
@@ -13,25 +18,32 @@
 
 import { esc, fmtMs } from "./format.js";
 import { niceNumTicks } from "./chart.js";
-import { convSpeedKph, currentUnits, fmtDist, isMetric, M_PER_MI, speedUnit } from "./units.js";
+import { DEFAULT_UNITS, convSpeedKph, currentUnits, distAxisTicks, fmtDist, speedUnit } from "./units.js";
+// Re-exported for the unit tests that pin the axis alongside the charts.
+export { distAxisTicks };
+import { ordinal } from "./gears.js";
+import { LIMIT_KINDS, activeLimitLabels, limitRuns, sideColorVar } from "./limits.js";
 
 const SLOTS = ["var(--chart-line)", "var(--chart-line-b)", "var(--chart-line-c)"];
 
 // The channel specs in the user's unit system: stored speed is km/h, shown as
-// mph or km/h; rpm and G are the same everywhere. Exported for unit tests.
+// mph or km/h; every other channel reads the same in both. Exported for the
+// cross-event compare view (app.js viewLapCompare), which renders these charts
+// outside bindChannelGraphs and needs the defs for its own tooltip readouts,
+// and for unit tests. CHANNEL_DEFS is the imperial (default) table.
 export const channelDefs = (units) => [
   { key: "speed", label: "Speed", unit: speedUnit(units), conv: (v) => convSpeedKph(v, units), dp: 0, floor0: false },
+  { key: "throttle", label: "Throttle", unit: "%", conv: (v) => v, dp: 0, floor0: true },
+  { key: "brake", label: "Brake", unit: "%", conv: (v) => v, dp: 0, floor0: true },
+  { key: "steering", label: "Steering", unit: "°", conv: (v) => v, dp: 0, floor0: false },
   { key: "rpm", label: "RPM", unit: "rpm", conv: (v) => v, dp: 0, floor0: false },
   { key: "latG", label: "Lateral G", unit: "G", conv: (v) => v, dp: 2, floor0: true },
+  // Yaw rate is the honest baseline for the balance read-out (js/balance.js,
+  // #189): signed, so it swings both ways around zero like steering does.
+  { key: "yaw", label: "Yaw rate", unit: "°/s", conv: (v) => v, dp: 0, floor0: false },
 ];
+export const CHANNEL_DEFS = channelDefs(DEFAULT_UNITS);
 
-// Distance-axis ticks for a lap of x1 meters: nice numbers in the unit the
-// axis is labelled in (metres, or miles — nice metre ticks come out as 0.31,
-// 0.62 mi otherwise). [{m, label}] with m the tick's position in metres.
-export function distAxisTicks(x1, units, n = 6) {
-  if (isMetric(units)) return niceNumTicks(0, x1, n).map((m) => ({ m, label: fmtDist(m, units) }));
-  return niceNumTicks(0, x1 / M_PER_MI, n).map((mi) => ({ m: mi * M_PER_MI, label: fmtDist(mi * M_PER_MI, units) }));
-}
 
 // One channel's overlay chart. laps: the stored entries; lit: Map(lapIdx ->
 // slot color). Returns "" when no lap carries this channel.
@@ -73,6 +85,27 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190,
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
   labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">${esc(def.label)} (${esc(def.unit)})</text>`;
 
+  // Limit bands (js/limits.js): the kinds this chart's trace explains — ABS
+  // and lockup on the brake trace, traction control and wheelspin on the
+  // throttle, stability control on steering — shaded at the distances they
+  // were active on each highlighted lap, behind the traces.
+  let bands = "";
+  const bandKinds = LIMIT_KINDS.filter((k) => k.channel === def.key);
+  const bandsUsed = new Set();
+  for (const { l, i } of withCh) {
+    if (!bandKinds.length || !lit.get(i)) continue;
+    for (const r of limitRuns(l)) {
+      const kd = bandKinds.find((k) => k.key === r.kind);
+      if (!kd) continue;
+      bandsUsed.add(kd.label);
+      const xa = X(Math.max(0, r.k0 - 0.5) * dStep), xb = X((r.k1 + 0.5) * dStep);
+      bands += `<rect x="${xa.toFixed(1)}" y="${pad.t}" width="${(xb - xa).toFixed(1)}" height="${height - pad.t - pad.b}" fill="var(${sideColorVar(kd.side)})" fill-opacity="${kd.filled ? 0.22 : 0.12}" data-limit="${kd.key}"/>`;
+    }
+  }
+  if (bandsUsed.size) {
+    labels += `<text x="${width - pad.r}" y="12" text-anchor="end" fill="var(--text-faint)" font-size="11">shaded: ${esc([...bandsUsed].join(" / "))}</text>`;
+  }
+
   const pathFor = (arr) =>
     arr.map((raw, k) => `${k ? "L" : "M"}${X(k * dStep).toFixed(1)},${Y(def.conv(raw)).toFixed(1)}`).join(" ");
   // dim context first, then highlighted laps on top (slot order, best last)
@@ -87,7 +120,112 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190,
   }
 
   return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(def.label)} by distance, per lap" data-channel="${def.key}" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
-    ${grid}${labels}${dimPaths}${litPaths}
+    ${grid}${labels}${bands}${dimPaths}${litPaths}
+  </svg>`;
+}
+
+// --- lap delta -----------------------------------------------------------
+// Time delta between laps on the shared distance grid. Every stored channel
+// lap carries a speed array (buildLapChannels synthesizes one when the source
+// had none), so elapsed time at each grid point can be integrated from speed
+// (trapezoidal dt per cell) and scaled so the total lands exactly on the
+// lap's timed duration — the speed integral alone drifts a little, and the
+// timed duration is the ground truth. Subtracting two laps' series gives the
+// classic "where is the time gained or lost" delta trace.
+
+// A 0 km/h sample would make its grid cell take near-forever; clamp the cell
+// average to walking pace instead. The end-scale to timeMs absorbs the error.
+const DELTA_MIN_KPH = 3;
+
+// Cumulative elapsed seconds at each grid point (d = 0, dStepM, 2*dStepM …)
+// from a lap's speed samples (km/h). Scaled so the last point equals
+// timeMs/1000 when a timed duration is given. Exported for unit tests.
+export function lapTimeSeries(speedKph, dStepM, timeMs) {
+  const t = new Array(speedKph.length);
+  t[0] = 0;
+  for (let k = 1; k < speedKph.length; k++) {
+    const vAvg = Math.max(DELTA_MIN_KPH, (speedKph[k - 1] + speedKph[k]) / 2) / 3.6; // m/s
+    t[k] = t[k - 1] + dStepM / vAvg;
+  }
+  const total = t[t.length - 1];
+  if (timeMs != null && Number.isFinite(timeMs) && total > 0) {
+    const scale = timeMs / 1000 / total;
+    for (let k = 0; k < t.length; k++) t[k] = t[k] * scale;
+  }
+  return t;
+}
+
+// Delta seconds (lap − ref, positive = lap is slower) at each shared grid
+// point, over the grid points both laps cover. null when either lap has no
+// speed data or the overlap is too short to mean anything.
+export function deltaSeries(lap, ref, dStepM) {
+  if (!Array.isArray(lap?.speed) || !Array.isArray(ref?.speed)) return null;
+  const a = lapTimeSeries(lap.speed, dStepM, lap.timeMs);
+  const b = lapTimeSeries(ref.speed, dStepM, ref.timeMs);
+  const n = Math.min(a.length, b.length);
+  if (n < 10) return null;
+  const out = new Array(n);
+  for (let k = 0; k < n; k++) out[k] = a[k] - b[k];
+  return out;
+}
+
+// The delta chart: highlighted laps vs the reference lap (the fastest of the
+// highlight selection), on the same distance axis as the channel charts.
+// Positive is slower than the reference, so a climbing trace is time slipping
+// away. refLabel is the reference's display lap number. Returns "" when
+// fewer than one comparable lap is highlighted. Exported for unit tests.
+export function deltaChartSvg(channels, lit, refIdx, refLabel, { width = 900, height = 190, units = currentUnits() } = {}) {
+  const dStep = channels.dStepM;
+  const laps = channels.laps;
+  const ref = laps[refIdx];
+  if (!Array.isArray(ref?.speed)) return "";
+  const rows = [...lit.entries()]
+    .filter(([i]) => i !== refIdx)
+    .map(([i, color]) => ({ i, color, d: deltaSeries(laps[i], ref, dStep) }))
+    .filter((r) => r.d);
+  if (!rows.length) return "";
+  const pad = { l: 56, r: 14, t: 20, b: 22 };
+
+  // Same x-axis as the channel charts (longest lap), so the charts align.
+  let maxN = 0;
+  for (const l of laps) if (Array.isArray(l.speed) && l.speed.length > maxN) maxN = l.speed.length;
+  let y0 = 0, y1 = 0;
+  for (const { d } of rows) {
+    for (const v of d) {
+      if (v < y0) y0 = v;
+      if (v > y1) y1 = v;
+    }
+  }
+  const ypad = Math.max((y1 - y0) * 0.08, 0.05);
+  y0 -= ypad;
+  y1 += ypad;
+  const x1 = (maxN - 1) * dStep;
+  const X = (d) => pad.l + (d / Math.max(1, x1)) * (width - pad.l - pad.r);
+  const Y = (v) => pad.t + ((y1 - v) / (y1 - y0)) * (height - pad.t - pad.b);
+
+  let grid = "", labels = "";
+  for (const tv of niceNumTicks(y0, y1, 3)) {
+    const y = Y(tv).toFixed(1);
+    grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
+    labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${tv > 0 ? "+" : ""}${tv.toFixed(1)}</text>`;
+  }
+  for (const { m, label } of distAxisTicks(x1, units)) {
+    labels += `<text x="${X(m).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
+  }
+  // The zero line is the reference lap — everything is measured against it.
+  const zy = Y(0).toFixed(1);
+  grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${zy}" y2="${zy}" stroke="var(--text-faint)" stroke-width="1" stroke-dasharray="4 3"/>`;
+  grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Delta (s) vs lap ${esc(String(refLabel))} — above the line is slower</text>`;
+
+  let paths = "";
+  for (const { color, d } of rows) {
+    const path = d.map((v, k) => `${k ? "L" : "M"}${X(k * dStep).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+    paths += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Time delta to lap ${esc(String(refLabel))} by distance — above the zero line is slower" data-channel="delta" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
+    ${grid}${labels}${paths}
   </svg>`;
 }
 
@@ -107,12 +245,71 @@ export function matchLapsToChannels(sessionLaps, chLaps) {
   });
 }
 
+// A vertical mark at one driven distance across every chart in `root` — the
+// friction circle's hover (js/grip.js) uses it to answer "where on the lap is
+// this dot" on the charts that do have a distance axis. Passing null clears
+// it. Reads the axis geometry back off the data attributes every chart
+// already carries, so it needs to know nothing about how they were drawn.
+export function showDistanceMark(root, d) {
+  root.querySelectorAll("svg[data-channel]").forEach((svgEl) => {
+    let line = svgEl.querySelector(".ch-dmark");
+    if (d == null) {
+      line?.remove();
+      return;
+    }
+    const x1 = Number(svgEl.dataset.x1) || 1;
+    const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
+    const vb = svgEl.viewBox.baseVal;
+    const x = padL + Math.max(0, Math.min(1, d / x1)) * (vb.width - padL - padR);
+    if (!line) {
+      line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "ch-dmark");
+      line.setAttribute("stroke", "var(--text-faint)");
+      line.setAttribute("stroke-width", "1.5");
+      line.setAttribute("stroke-dasharray", "3 3");
+      line.setAttribute("pointer-events", "none");
+      svgEl.appendChild(line);
+    }
+    line.setAttribute("x1", x.toFixed(1));
+    line.setAttribute("x2", x.toFixed(1));
+    line.setAttribute("y1", "0");
+    line.setAttribute("y2", String(vb.height));
+  });
+}
+
+// The panel's tabs (epic #193): one question per tab, so the analysis area
+// holds more views without becoming a page nobody scrolls to the bottom of.
+// A chart lands on the tab its channel answers for; only tabs with content
+// render, and a single populated tab renders flat without a tab bar.
+export const TABS = [
+  { key: "time", label: "Time" },
+  { key: "inputs", label: "Inputs" },
+  { key: "grip", label: "Grip" },
+  { key: "car", label: "Car" },
+];
+const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "inputs", steering: "inputs", rpm: "inputs", latG: "grip", yaw: "grip" };
+
 // Render + wire the whole panel into `container`: the lap chips (always
 // visible — they are the session's lap list) and the charts inside a
 // collapsible <details>, rendered lazily on first expand. Chips toggle laps
 // into the highlight slots (max 3 at once; oldest is evicted). The fastest
-// lap starts highlighted.
-export function bindChannelGraphs(container, channels, sessionLaps, { units = currentUnits() } = {}) {
+// lap starts highlighted. `renderExtras(litMap, dispN)` — litMap being
+// Map(chIdx -> slot color) and dispN the display lap number per channel lap —
+// returns HTML rendered above the charts and re-rendered with them — either
+// a string (goes on the Time tab) or { [tabKey]: html } to place markup per
+// tab. `renderAfter` — { [channelKey]: (litMap, dispN) => svg } — slots a
+// chart straight under that channel's chart on the same distance axis:
+// app.js hangs the gear ribbon from js/gears.js under the RPM trace.
+// `memory` — a plain object the caller keeps across re-renders — is read for
+// the panel's initial state (`open`, `tab`, `lit`) and written back on every
+// change, so a route() re-render after a save (recording hot pressures on a
+// setup sheet from the Car tab, say) lands back on the same tab with the
+// same laps lit rather than on a collapsed panel.
+// Returns { rerender }, which redraws the charts with the current selection
+// — for a caller whose extras depend on state the panel doesn't own.
+// `units` — the unit system to label speed and distance in (defaults to the
+// account's cached choice).
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits() } = {}) {
   const CHANNEL_DEFS = channelDefs(units);
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
@@ -125,24 +322,31 @@ export function bindChannelGraphs(container, channels, sessionLaps, { units = cu
   const bestRow = matched.length
     ? matched.reduce((a, b) => (b.lap.time_ms < a.lap.time_ms ? b : a))
     : null;
-  const state = { lit: bestRow ? [bestRow.chIdx] : [] }; // channel-lap indexes in slot order
+  const remembered = memory?.lit?.filter((i) => Number.isInteger(i) && i >= 0 && i < chLaps.length);
+  const state = {
+    lit: remembered?.length ? remembered.slice(0, SLOTS.length) : bestRow ? [bestRow.chIdx] : [], // channel-lap indexes in slot order
+    tab: memory?.tab ?? null,
+  };
 
   const litMap = () => new Map(state.lit.map((lapIdx, slot) => [lapIdx, SLOTS[slot]]));
 
-  const chanNames = ["speed", chLaps.some((l) => l.rpm) && "rpm", chLaps.some((l) => l.latG) && "lateral G"]
-    .filter(Boolean)
+  const chanNames = CHANNEL_DEFS.filter((def) => chLaps.some((l) => l[def.key]))
+    .map((def) => def.label.toLowerCase())
     .join(" · ");
   container.innerHTML = `
     <div class="laps ch-chips"></div>
-    <details class="ch-details">
+    <details class="ch-details"${memory?.open ? " open" : ""}>
       <summary>Channel graphs <span class="hint">${chanNames} vs distance</span></summary>
-      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3)</div>
+      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3). With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.</div>
       <div class="ch-graphs"></div>
     </details>`;
   const chipsEl = container.querySelector(".ch-chips");
   const details = container.querySelector(".ch-details");
   const chartsEl = container.querySelector(".ch-graphs");
   let chartsDirty = true;
+  const remember = () => {
+    if (memory) Object.assign(memory, { open: details.open, tab: state.tab, lit: [...state.lit] });
+  };
 
   const renderChips = () => {
     const lit = litMap();
@@ -166,6 +370,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { units = cu
           state.lit.push(i);
           if (state.lit.length > SLOTS.length) state.lit.shift(); // evict oldest
         }
+        remember();
         renderChips();
         if (details.open) renderCharts();
         else chartsDirty = true;
@@ -178,8 +383,55 @@ export function bindChannelGraphs(container, channels, sessionLaps, { units = cu
   const renderCharts = () => {
     chartsDirty = false;
     const lit = litMap();
-    const charts = CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit, { units })).filter(Boolean);
-    chartsEl.innerHTML = charts.map((c) => `<div class="ch-chart">${c}</div>`).join("");
+    // Delta chart first when 2+ laps are highlighted: reference is the
+    // fastest of the selection, deltas cached for the tooltip.
+    let refIdx = null;
+    const deltaByIdx = new Map();
+    if (state.lit.length >= 2) {
+      refIdx = state.lit.reduce((a, b) => (chLaps[b].timeMs < chLaps[a].timeMs ? b : a));
+      for (const i of state.lit) {
+        if (i === refIdx) continue;
+        const d = deltaSeries(chLaps[i], chLaps[refIdx], channels.dStepM);
+        if (d) deltaByIdx.set(i, d);
+      }
+    }
+    const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx], { units }) : "";
+    const chart = (c) => `<div class="ch-chart">${c}</div>`;
+    const byTab = new Map(TABS.map((t) => [t.key, []]));
+    const extras = renderExtras ? renderExtras(lit, dispN) : "";
+    const extraByTab = typeof extras === "string" ? { time: extras } : (extras ?? {});
+    for (const t of TABS) if (extraByTab[t.key]) byTab.get(t.key).push(extraByTab[t.key]);
+    if (deltaSvg) byTab.get("time").push(chart(deltaSvg));
+    for (const def of CHANNEL_DEFS) {
+      const list = byTab.get(TAB_OF[def.key]);
+      const svg = channelChartSvg(def, channels, lit, { units });
+      if (svg) list.push(chart(svg));
+      const after = renderAfter?.[def.key]?.(lit, dispN);
+      if (after) list.push(chart(after));
+    }
+    const tabs = TABS.filter((t) => byTab.get(t.key).length);
+    if (!tabs.some((t) => t.key === state.tab)) state.tab = tabs[0]?.key ?? null;
+    if (tabs.length <= 1) {
+      chartsEl.innerHTML = tabs.map((t) => byTab.get(t.key).join("")).join("");
+    } else {
+      chartsEl.innerHTML =
+        `<div class="ch-tabs" role="tablist">${tabs
+          .map((t) => `<button type="button" role="tab" aria-selected="${t.key === state.tab}" data-ch-tab="${t.key}">${t.label}</button>`)
+          .join("")}</div>` +
+        tabs
+          .map((t) => `<div class="ch-tabpanel" role="tabpanel" data-ch-panel="${t.key}"${t.key === state.tab ? "" : " hidden"}>${byTab.get(t.key).join("")}</div>`)
+          .join("");
+      // Switching tabs only toggles visibility — every tab is rendered, so
+      // the selection and the tooltips survive the switch.
+      chartsEl.querySelectorAll("[data-ch-tab]").forEach((btn) => {
+        btn.onclick = () => {
+          state.tab = btn.dataset.chTab;
+          remember();
+          chartsEl.querySelectorAll("[data-ch-tab]").forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
+          chartsEl.querySelectorAll("[data-ch-panel]").forEach((p) => (p.hidden = p.dataset.chPanel !== state.tab));
+        };
+      });
+    }
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
     const $tooltip = document.getElementById("tooltip");
@@ -195,9 +447,21 @@ export function bindChannelGraphs(container, channels, sessionLaps, { units = cu
         const d = Math.round(k * channels.dStepM);
         const tipRows = state.lit
           .map((lapIdx, slot) => {
+            if (svgEl.dataset.channel === "delta") {
+              const arr = deltaByIdx.get(lapIdx);
+              if (!arr || k >= arr.length) return "";
+              const v = arr[k];
+              return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${v >= 0 ? "+" : ""}${v.toFixed(2)} s vs lap ${dispN[refIdx]}</div>`;
+            }
+            if (svgEl.dataset.channel === "gear") {
+              const arr = chLaps[lapIdx]?.gear;
+              if (!arr || k >= arr.length) return "";
+              return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${esc(ordinal(arr[k]))}</div>`;
+            }
             const arr = chLaps[lapIdx]?.[def.key];
             if (!arr || k >= arr.length) return "";
-            return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}</div>`;
+            const lim = activeLimitLabels(chLaps[lapIdx], k);
+            return `<div class="t-sub"><span style="color:${SLOTS[slot]}">●</span> Lap ${dispN[lapIdx]} — ${def.conv(arr[k]).toFixed(def.dp)} ${esc(def.unit)}${lim.length ? ` · ${esc(lim.join(", "))}` : ""}</div>`;
           })
           .join("");
         if (!tipRows) { $tooltip.hidden = true; return; }
@@ -214,7 +478,15 @@ export function bindChannelGraphs(container, channels, sessionLaps, { units = cu
   };
 
   details.addEventListener("toggle", () => {
+    remember();
     if (details.open && chartsDirty) renderCharts();
   });
   renderChips();
+  if (details.open) renderCharts();
+  return {
+    rerender: () => {
+      if (details.open) renderCharts();
+      else chartsDirty = true;
+    },
+  };
 }

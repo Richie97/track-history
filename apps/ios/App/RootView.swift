@@ -12,9 +12,14 @@ struct RootView: View {
     @Environment(ThemeStore.self) private var theme
     @Environment(AuthController.self) private var auth
     @Environment(RecordingController.self) private var recorder
+    @Environment(\.layout) private var layout
 
     @State private var router = AppRouter()
 
+    /// The window's measurement arrives from `TrackEvolutionApp`, which applies
+    /// `measuringLayoutClass()` around this view — a body cannot both install an
+    /// environment value and read it.
+    @ViewBuilder
     var body: some View {
         #if DEBUG
         // Lets the gallery be opened without tapping through, for screenshots in
@@ -57,21 +62,57 @@ struct RootView: View {
     }
 
     private var signedIn: some View {
-        NavigationStack(path: $router.path) {
-            DashboardScreen()
-                .navigationDestination(for: Route.self) { route in
-                    destination(route)
-                }
-        }
+        navigationShell
         .environment(router)
         // A recording must be visible from wherever you are in the app,
         // since navigating away deliberately doesn't stop it.
+        //
+        // Outside the shell, so at expanded width both banners span the **window**
+        // rather than one pane (NS-34). A recording visible only above the detail
+        // would be invisible exactly when the driver is looking at the list.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if recorder.isRecording {
                 RecordingBanner()
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) { SyncBanner() }
+        // The two routes that own the window rather than a pane. Over the banners
+        // as well as the panes: the recorder *is* the recording, so it does not
+        // need one above it, and the review inside it must not be dismissable by
+        // anything but its own save or discard.
+        .fullScreenCover(item: $router.fullWindow) { route in
+            NavigationStack {
+                destination(route)
+                    // The way out.
+                    //
+                    // A cover has no back button and no swipe — it is the *root* of
+                    // its own stack, not a push onto one — so a route that owns the
+                    // window has to carry its own, or the recorder is a room with no
+                    // door. At compact width the same screen is a push and the system
+                    // draws this for us; here it has to be drawn.
+                    //
+                    // On the root only, which is what the toolbar's own scoping gives
+                    // us for free: the review is *pushed* onto this stack, so it keeps
+                    // its own back-to-the-recorder and nothing here can dismiss it out
+                    // from under an unsaved session.
+                    //
+                    // Leaving does not stop a recording — that is the whole reason the
+                    // banner spans the window — so this is "put the logbook back in
+                    // front of me", never "throw the laps away".
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button {
+                                router.dismissFullWindow()
+                            } label: {
+                                Label("Back", systemImage: "chevron.backward")
+                                    .labelStyle(.titleAndIcon)
+                            }
+                            .accessibilityIdentifier("fullWindowBack")
+                        }
+                    }
+            }
+            .environment(router)
+        }
         .onOpenURL { url in
             // A video handed over by Files or the share sheet is a file URL, not one
             // of our links — `DeepLink` doesn't know about it and shouldn't.
@@ -101,8 +142,120 @@ struct RootView: View {
         }
     }
 
+    /// One column, or two (NS-34).
+    ///
+    /// The split view is used only at **expanded** width, not handed the whole job
+    /// and left to collapse itself. Its own collapsing follows the *size class*,
+    /// and an iPad in portrait is `.regular` at 834pt — squarely in medium, where
+    /// the spec wants the phone layout with its column capped, not two panes. So
+    /// the class decides, as it does everywhere else in this spec.
+    ///
+    /// The cost is real and worth stating: crossing 840pt swaps one container for
+    /// the other, and a screen's `@State` model goes with it — a half-typed event
+    /// form would not survive being dragged across the breakpoint in Stage
+    /// Manager. It survives rotation, Split View within a tier, and every ordinary
+    /// resize; only crossing the boundary itself is destructive. Android has
+    /// `SavedStateHandle` for this and iOS has nothing equivalent at this level,
+    /// so the alternative is a scene-storage draft on the form — NS-34 ticket 4's
+    /// fold audit is where that question belongs, on the platform that has it.
     @ViewBuilder
+    private var navigationShell: some View {
+        if layout.layoutClass == .expanded {
+            splitShell
+        } else {
+            stackShell
+        }
+    }
+
+    /// Today's shell, unchanged: the dashboard is the root and everything pushes.
+    private var stackShell: some View {
+        NavigationStack(path: $router.path) {
+            DashboardScreen()
+                .navigationDestination(for: Route.self) { route in
+                    destination(route)
+                }
+        }
+    }
+
+    /// List and detail, sharing the one path.
+    ///
+    /// `router.path` means exactly what it meant before — the pushes on top of the
+    /// root — and only the *root* differs: the dashboard in the stack shell, the
+    /// empty state here, because the dashboard is already the pane beside it and
+    /// showing it twice is the one thing the spec rules out by name. That is why a
+    /// deep link needs no width check: `show(_:)` sets the path, and the path is
+    /// the detail either way.
+    private var splitShell: some View {
+        NavigationSplitView {
+            DashboardScreen()
+                // Never narrower than a phone. The dashboard's own content sets
+                // this floor — a hero card with a countdown, three stat tiles and
+                // track cards carrying lap times were all drawn for ~390pt, and a
+                // 320pt sidebar squeezes every one of them for the sake of a
+                // detail pane that already has room to spare.
+                .navigationSplitViewColumnWidth(min: 390, ideal: 420, max: 520)
+                .measuringPaneWidth()
+        } detail: {
+            NavigationStack(path: $router.path) {
+                DetailPlaceholder()
+                    .navigationDestination(for: Route.self) { route in
+                        destination(route)
+                    }
+            }
+            .measuringPaneWidth()
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    /// A destination, keyed by the route it came from.
+    ///
+    /// The `.id(route)` is load-bearing at expanded width and does nothing at
+    /// compact, which is why it is easy to leave out and impossible to notice in a
+    /// stack. `AppRouter.open` **replaces** the detail rather than deepening it, so
+    /// picking a second event from the list pane rewrites `path[0]` in place —
+    /// same stack depth, same view type, so SwiftUI keeps the view's identity and
+    /// with it every `@State` it owns. Each screen creates its model in a
+    /// `.task { if model == nil … }`, so a preserved model means the pane keeps
+    /// showing the *first* event you tapped no matter how many more you pick.
+    ///
+    /// Tying identity to the route is the general fix rather than a per-screen one:
+    /// it resets the model *and* the rest of the screen's state (the analysis
+    /// column's selected session, a half-typed lap, an expanded form), all of which
+    /// belong to the row that is no longer on screen. In the stack shell a push
+    /// lands at a new depth, so identity was already fresh and nothing changes.
+    /// It also **measures its own container**, which is the other thing a pushed
+    /// screen cannot inherit. `measuringPaneWidth()` applied to a
+    /// `NavigationStack` publishes into that stack's root and not into what
+    /// `navigationDestination` builds, so until this every detail screen read the
+    /// *window's* width while being laid out in a pane a third narrower — and a
+    /// column sized for a 1366pt window ran off the side of a 1025pt pane. Here
+    /// the reader is inside the container it is measuring, so there is nothing
+    /// left to inherit through. It is applied to all three callers: at compact
+    /// width, and in a window-owning cover, the container *is* the window, so it
+    /// measures the number `measuringLayoutClass()` already published and changes
+    /// nothing — no width branch to keep in step, because no branch.
     private func destination(_ route: Route) -> some View {
+        keyed(route).measuringPaneWidth()
+    }
+
+    @ViewBuilder
+    private func keyed(_ route: Route) -> some View {
+        if route.ownsTheWindow {
+            // Never keyed, and the exclusion is the point rather than an omission.
+            // These two are never *replaced* in place — they are a cover or a push,
+            // never a list-pane pick — while `remapTempIds` does rewrite their ids
+            // when an offline-created event's insert flushes. Keying them would make
+            // that rewrite tear the screen down: a video parse in flight would
+            // restart, and an unsaved recording's review would be popped out from
+            // under the driver. Their state is the state worth keeping.
+            routeContent(route)
+        } else {
+            routeContent(route).id(route)
+        }
+    }
+
+    @ViewBuilder
+    private func routeContent(_ route: Route) -> some View {
         switch route {
         case .event(let id):
             EventScreen(eventId: id)
@@ -110,6 +263,8 @@ struct RootView: View {
             EventFormScreen(target: target)
         case .track(let id):
             TrackScreen(trackId: id)
+        case .leaderboard(let trackId):
+            LeaderboardScreen(trackId: trackId)
         case .vehicle(let id):
             VehicleScreen(vehicleId: id)
         case .settings:
@@ -152,7 +307,7 @@ struct RootView: View {
         case .eventForm(.edit(let id)): id
         case .record(let id): id
         case .importVideo(let id, _): id
-        case .track, .vehicle, .settings, .shared, .eventForm(.new): nil
+        case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new): nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }
         return id
@@ -164,8 +319,10 @@ struct RootView: View {
 }
 
 #Preview {
+    let auth = AuthController()
     RootView()
         .environment(ThemeStore())
         .environment(RecordingController())
-        .environment(AuthController())
+        .environment(auth)
+        .environment(StoreController(auth: auth))
 }

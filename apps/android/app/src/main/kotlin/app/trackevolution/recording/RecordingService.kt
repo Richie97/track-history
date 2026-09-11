@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ServiceCompat
+import app.trackevolution.core.LiveTiming
 import app.trackevolution.core.LocationFix
 import app.trackevolution.core.RecorderCore
 import app.trackevolution.core.Recording
@@ -38,6 +39,13 @@ class RecordingService : Service() {
     private var source: LocationSource? = null
     private var recording: Recording? = null
     private var autoStopped = false
+
+    /**
+     * Live lap timing, fed the same accepted fixes as the journal. Core logic,
+     * pinned to the web implementation by contracts/logic/live-timing.json.
+     * Rebuilt per recording; never persisted — recovery replays the journal.
+     */
+    private var liveTiming: LiveTiming? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -83,6 +91,7 @@ class RecordingService : Service() {
         val rec = RecorderCore.createRecording(eventId, startedAtMs)
         recording = rec
         autoStopped = false
+        liveTiming = LiveTiming()
         journal.begin(rec)
 
         Recorder.publish(
@@ -115,6 +124,7 @@ class RecordingService : Service() {
 
         val elapsed = RecorderCore.elapsedS(rec, fix.timeMs)
         val stored = rec.fixes.last()
+        liveTiming?.addTimingFix(stored)
         Recorder.publish(
             Recorder.state.value.copy(
                 fixCount = rec.fixes.size,
@@ -124,6 +134,7 @@ class RecordingService : Service() {
                 lastSpeedMps = stored.speed,
                 lastAccuracyM = stored.accuracy,
                 lastFixAtMs = System.currentTimeMillis(),
+                timing = liveTiming?.liveTimingDisplay(stored.t),
             ),
         )
         updateNotification(elapsed, rec.fixes.size)
@@ -139,6 +150,7 @@ class RecordingService : Service() {
         source = null
         recording = null
         autoStopped = auto
+        liveTiming = null
         journal.close()
 
         if (rec != null) {

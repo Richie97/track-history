@@ -1,0 +1,373 @@
+{
+  "description": "Limit-event reference output from public/js/limits.js (limitRuns / sessionLimits / limitSummary / activeLimitLabels / limitMarkers). Ports must reproduce every integer and the summary string exactly. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/limits.js",
+  "input": {
+    "channels": {
+      "v": 1,
+      "dStepM": 20,
+      "laps": [
+        {
+          "n": 1,
+          "timeMs": 90000,
+          "speed": [
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100
+          ],
+          "flags": [
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "wheelSlip": [
+            0,
+            0,
+            0,
+            -3,
+            -1,
+            0,
+            0,
+            0,
+            0.5,
+            3,
+            4.5,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "n": 2,
+          "timeMs": 91000,
+          "speed": [
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100
+          ],
+          "flags": [
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            4
+          ]
+        },
+        {
+          "n": 3,
+          "timeMs": 92000,
+          "speed": [
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100
+          ]
+        }
+      ]
+    },
+    "trace": [
+      [
+        0,
+        0,
+        50
+      ],
+      [
+        10,
+        0,
+        50
+      ],
+      [
+        20,
+        0,
+        50
+      ],
+      [
+        30,
+        0,
+        50
+      ],
+      [
+        40,
+        0,
+        50
+      ],
+      [
+        50,
+        0,
+        50
+      ],
+      [
+        60,
+        0,
+        50
+      ],
+      [
+        70,
+        0,
+        50
+      ],
+      [
+        80,
+        0,
+        50
+      ],
+      [
+        90,
+        0,
+        50
+      ],
+      [
+        100,
+        0,
+        50
+      ],
+      [
+        110,
+        0,
+        50
+      ],
+      [
+        120,
+        0,
+        50
+      ],
+      [
+        130,
+        0,
+        50
+      ],
+      [
+        140,
+        0,
+        50
+      ],
+      [
+        150,
+        0,
+        50
+      ],
+      [
+        160,
+        0,
+        50
+      ],
+      [
+        170,
+        0,
+        50
+      ],
+      [
+        180,
+        0,
+        50
+      ],
+      [
+        190,
+        0,
+        50
+      ]
+    ]
+  },
+  "expected": {
+    "runs": [
+      [
+        {
+          "kind": "abs",
+          "k0": 2,
+          "k1": 5
+        },
+        {
+          "kind": "lockup",
+          "k0": 3,
+          "k1": 3
+        },
+        {
+          "kind": "tc",
+          "k0": 9,
+          "k1": 10
+        },
+        {
+          "kind": "wheelspin",
+          "k0": 9,
+          "k1": 10
+        }
+      ],
+      [
+        {
+          "kind": "abs",
+          "k0": 2,
+          "k1": 5
+        },
+        {
+          "kind": "abs",
+          "k0": 15,
+          "k1": 16
+        },
+        {
+          "kind": "vsc",
+          "k0": 19,
+          "k1": 19
+        }
+      ],
+      []
+    ],
+    "session": {
+      "kinds": [
+        {
+          "kind": "abs",
+          "places": 2,
+          "laps": 2
+        },
+        {
+          "kind": "lockup",
+          "places": 1,
+          "laps": 1
+        },
+        {
+          "kind": "tc",
+          "places": 1,
+          "laps": 1
+        },
+        {
+          "kind": "wheelspin",
+          "places": 1,
+          "laps": 1
+        },
+        {
+          "kind": "vsc",
+          "places": 1,
+          "laps": 1
+        }
+      ],
+      "hasFlags": true,
+      "hasSlip": true
+    },
+    "summary": "ABS in 2 places, lockup in 1 place, traction control in 1 place, wheelspin in 1 place, stability control in 1 place",
+    "quietSummary": "no interventions",
+    "noData": null,
+    "labelsAt": [
+      [],
+      [
+        "Lockup"
+      ],
+      [
+        "Traction control",
+        "Wheelspin"
+      ]
+    ],
+    "markers": [
+      {
+        "kind": "abs",
+        "k0": 2,
+        "k1": 5,
+        "idx": 4
+      },
+      {
+        "kind": "lockup",
+        "k0": 3,
+        "k1": 3,
+        "idx": 3
+      },
+      {
+        "kind": "tc",
+        "k0": 9,
+        "k1": 10,
+        "idx": 10
+      },
+      {
+        "kind": "wheelspin",
+        "k0": 9,
+        "k1": 10,
+        "idx": 10
+      }
+    ],
+    "noTrace": []
+  }
+}

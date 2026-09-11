@@ -1,0 +1,109 @@
+{
+  "description": "Reference output from public/js/trackmap.js `traceIndexAtFraction` — the fraction-to-trace-point mapping the friction circle's hover uses to ring a corner on the map. Ports must reproduce every index exactly. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/trackmap.js",
+  "input": {
+    "trace": [
+      [
+        0,
+        0,
+        30
+      ],
+      [
+        100,
+        0,
+        30
+      ],
+      [
+        120,
+        0,
+        12
+      ],
+      [
+        140,
+        0,
+        12
+      ],
+      [
+        160,
+        0,
+        12
+      ],
+      [
+        180,
+        0,
+        12
+      ],
+      [
+        200,
+        0,
+        12
+      ],
+      [
+        200,
+        100,
+        25
+      ],
+      [
+        0,
+        100,
+        25
+      ],
+      [
+        0,
+        0,
+        30
+      ]
+    ]
+  },
+  "expected": {
+    "atFraction": [
+      {
+        "frac": -0.5,
+        "idx": 0
+      },
+      {
+        "frac": 0,
+        "idx": 0
+      },
+      {
+        "frac": 0.1,
+        "idx": 1
+      },
+      {
+        "frac": 0.25,
+        "idx": 4
+      },
+      {
+        "frac": 0.4,
+        "idx": 7
+      },
+      {
+        "frac": 0.5,
+        "idx": 7
+      },
+      {
+        "frac": 0.6,
+        "idx": 8
+      },
+      {
+        "frac": 0.75,
+        "idx": 8
+      },
+      {
+        "frac": 0.9,
+        "idx": 9
+      },
+      {
+        "frac": 1,
+        "idx": 9
+      },
+      {
+        "frac": 1.5,
+        "idx": 9
+      }
+    ],
+    "tooShort": null,
+    "empty": null,
+    "stationary": null
+  }
+}

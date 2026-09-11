@@ -39,7 +39,11 @@ import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Track
+import app.trackevolution.navigation.Route
+import app.trackevolution.ui.CARD_GRID_MINIMUM
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.cardGridItems
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.TELoadable
@@ -48,7 +52,6 @@ import app.trackevolution.ui.TENavCard
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.charts.ProgressChart
-import app.trackevolution.ui.charts.ProgressChartStyle
 import app.trackevolution.ui.charts.ProgressPoint
 import app.trackevolution.ui.theme.BrandMark
 import app.trackevolution.ui.theme.TrackCard
@@ -78,10 +81,20 @@ fun DashboardScreen(
      * third answer to "what is the recorder doing".
      */
     recorderIdle: Boolean,
+    /**
+     * The row the detail pane is showing, when this dashboard is a list pane
+     * beside one (NS-34). Null below expanded width, where the detail *is* the
+     * screen you just left and marking a row you can no longer see would be
+     * describing something off-screen.
+     */
+    selection: Route? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
+    // One column on a phone by construction — a phone is narrower than one
+    // card's minimum — so the compact layout is unchanged without a branch.
+    val cardColumns = LocalLayoutMetrics.current.columns(CARD_GRID_MINIMUM)
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
@@ -138,7 +151,7 @@ fun DashboardScreen(
                 }
 
                 model.heroEvent?.let { hero ->
-                    item("hero") { HeroCard(hero) { onOpenEvent(hero.id) } }
+                    item("hero") { HeroCard(hero, selected = selection == Route.Event(hero.id)) { onOpenEvent(hero.id) } }
                 }
 
                 item("totals") {
@@ -154,7 +167,10 @@ fun DashboardScreen(
                 if (model.alsoUpcoming.isNotEmpty()) {
                     item("also-header") { TESectionHeader("Also upcoming") }
                     items(model.alsoUpcoming, key = { "up-${it.id}" }) { event ->
-                        TENavCard(onClick = { onOpenEvent(event.id) }) {
+                        TENavCard(
+                            onClick = { onOpenEvent(event.id) },
+                            selected = selection == Route.Event(event.id),
+                        ) {
                             Text(event.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
                             TEMeta(
                                 listOf(
@@ -171,41 +187,17 @@ fun DashboardScreen(
                 if (model.tracksWithData.isEmpty()) {
                     item("tracks-empty") { TEEmpty("No events yet — add your first track day.") }
                 } else {
-                    items(model.tracksWithData, key = { "tr-${it.id}" }) { track ->
-                        TrackRow(track) { onOpenTrack(track.id) }
+                    // One card per row on a phone, filling the width above it —
+                    // the web's `.cards` grid (NS-34).
+                    cardGridItems(model.tracksWithData, cardColumns, key = { "tr-${it.id}" }) { track ->
+                        TrackRow(track, selected = selection == Route.Track(track.id)) { onOpenTrack(track.id) }
                     }
                 }
 
                 if (model.garage.isNotEmpty()) {
                     item("garage-header") { TESectionHeader("Garage") }
-                    items(model.garage, key = { "veh-${it.id}" }) { vehicle ->
-                        VehicleRow(vehicle) { onOpenVehicle(vehicle.id) }
-                    }
-                }
-
-                if (model.recent.isNotEmpty()) {
-                    item("recent-header") { TESectionHeader("Recent events") }
-                    items(model.recent, key = { "ev-${it.id}" }) { event ->
-                        TENavCard(onClick = { onOpenEvent(event.id) }) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        event.trackName,
-                                        style = TrackTheme.typography.bodyStrong,
-                                        color = colors.textStrong,
-                                    )
-                                    TEMeta(listOf(EventDates.fmtDate(event.startDate), event.club, event.runGroup))
-                                }
-                                Text(
-                                    LapTime.fmtMs(event.bestMs),
-                                    style = TrackTheme.typography.lapTime,
-                                    color = colors.textStrong,
-                                )
-                            }
-                        }
+                    cardGridItems(model.garage, cardColumns, key = { "veh-${it.id}" }) { vehicle ->
+                        VehicleRow(vehicle, selected = selection == Route.Vehicle(vehicle.id)) { onOpenVehicle(vehicle.id) }
                     }
                 }
             }
@@ -326,10 +318,10 @@ private fun MaintenanceStrip(alerts: List<Garage.Alert>, onOpenVehicle: (Int) ->
 
 /** A car, its accrued hours and how its consumables are doing. */
 @Composable
-private fun VehicleRow(vehicle: GarageVehicle, onClick: () -> Unit) {
+private fun VehicleRow(vehicle: GarageVehicle, selected: Boolean = false, onClick: () -> Unit) {
     val colors = TrackTheme.colors
     val active = vehicle.parts.count { it.retiredOn == null }
-    TENavCard(onClick = onClick) {
+    TENavCard(onClick = onClick, selected = selected) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text(vehicle.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
@@ -347,12 +339,12 @@ private fun VehicleRow(vehicle: GarageVehicle, onClick: () -> Unit) {
 
 /** The nearest upcoming event, with its countdown and checklist progress. */
 @Composable
-private fun HeroCard(event: Event, onClick: () -> Unit) {
+private fun HeroCard(event: Event, selected: Boolean = false, onClick: () -> Unit) {
     val colors = TrackTheme.colors
     val done = event.checklist?.count { it.done } ?: 0
     val total = event.checklist?.size ?: 0
 
-    TENavCard(onClick = onClick) {
+    TENavCard(onClick = onClick, selected = selected) {
         Text("Next event", style = TrackTheme.typography.eyebrow, color = colors.accentInk)
         Text(event.trackName, style = TrackTheme.typography.h2, color = colors.textStrong)
         TEMeta(listOf(EventDates.fmtDate(event.startDate), event.club, event.runGroup))
@@ -373,13 +365,13 @@ private fun HeroCard(event: Event, onClick: () -> Unit) {
     }
 }
 
-/** A track with its best time and, once there are two events, its trend. */
+/** A track with its best time and how much of it you have driven. */
 @Composable
-private fun TrackRow(track: Track, onClick: () -> Unit) {
+private fun TrackRow(track: Track, selected: Boolean = false, onClick: () -> Unit) {
     val colors = TrackTheme.colors
-    TENavCard(onClick = onClick) {
+    TENavCard(onClick = onClick, selected = selected) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(Modifier.weight(1f)) {
@@ -396,15 +388,6 @@ private fun TrackRow(track: Track, onClick: () -> Unit) {
                 LapTime.fmtMs(track.bestMs),
                 style = TrackTheme.typography.lapTime,
                 color = colors.textStrong,
-            )
-        }
-        // Two points is the minimum that can show a direction; one is a dot.
-        if (track.series.size >= 2) {
-            ProgressChart(
-                points = track.series.mapIndexed { i, p ->
-                    ProgressPoint(x = i.toDouble(), label = "", ms = p.bestMs)
-                },
-                style = ProgressChartStyle.Sparkline,
             )
         }
     }

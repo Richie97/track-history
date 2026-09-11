@@ -35,7 +35,7 @@ final class ChecklistTemplateUITests: XCTestCase {
         _ = try api("PUT", "/api/me/checklist-template", body: ["checklist_template": NSNull()])
         let eventId = try seedUpcomingEvent()
 
-        let app = try launchSignedIn()
+        let app = try launchSignedIn(tier: .free)
 
         // --- Settings: the default is visible, and editing it makes it yours ---
         openSettings(app)

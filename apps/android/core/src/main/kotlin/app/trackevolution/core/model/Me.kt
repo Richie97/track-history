@@ -8,6 +8,11 @@ import kotlinx.serialization.Serializable
 public data class Me(
     val user: User,
     val totals: Totals,
+    /**
+     * The account's tier (NS-32). Defaults to free so a cached response from a
+     * server that predates subscriptions still decodes.
+     */
+    val entitlement: Entitlement = Entitlement.FREE,
 )
 
 @Serializable
@@ -25,6 +30,18 @@ public data class User(
      * a template is what a checklist starts *from*, so it carries no done flags.
      */
     @SerialName("checklist_template") val checklistTemplate: List<String>? = null,
+    /**
+     * Whether the user appears on per-track community leaderboards. Defaults to
+     * false so a cached response from an older server still decodes.
+     */
+    @SerialName("leaderboard_opt_in") val leaderboardOptIn: Boolean = false,
+    /**
+     * Whether the user's *ranked lap itself* — its racing line and telemetry —
+     * is open to other drivers ranked at the same track (NS-35). A second,
+     * separate consent stacked on [leaderboardOptIn], never implied by it.
+     * Defaulted for the same reason: an older cached response has no such key.
+     */
+    @SerialName("leaderboard_share_laps") val leaderboardShareLaps: Boolean = false,
     /**
      * The unit system the user sees the logbook in (`PUT /api/me/units`).
      * Display-only: the server stores and returns the same numbers either way —

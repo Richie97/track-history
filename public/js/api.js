@@ -1,8 +1,7 @@
 // Fetch wrapper for the JSON API, routed through the offline layer
-// (offline.js). Throws ApiError so callers can branch on status (the app
-// treats 401 as "show the login screen"). All requests go through the
-// platform seam: on the web apiBase is "" (same-origin, cookie auth); the
-// native shells set an absolute server origin and a bearer token.
+// (offline.js). Requests are same-origin with cookie auth. Throws ApiError so
+// callers can branch on status (the app treats 401 as "show the login
+// screen").
 //
 // GETs are network-first: a successful response refreshes the offline cache;
 // a network failure falls back to it (an ApiError — the server answered —
@@ -10,7 +9,6 @@
 // when the network is down (or when earlier writes are already queued, to
 // keep them ordered) and replayed once the server is reachable.
 
-import { platform } from "./platform.js";
 import * as offline from "./offline.js";
 
 export class ApiError extends Error {
@@ -20,22 +18,10 @@ export class ApiError extends Error {
   }
 }
 
-// Low-level fetch for server endpoints outside /api (e.g. /auth/logout):
-// applies the platform's base URL and bearer token, returns the raw Response.
-export function authFetch(path, opts = {}) {
-  return fetch(`${platform.apiBase}${path}`, {
-    ...opts,
-    headers: {
-      ...(platform.authToken ? { Authorization: `Bearer ${platform.authToken}` } : {}),
-      ...opts.headers,
-    },
-  });
-}
-
 // One request → {ok, status, body}; throws only on network failure. Also the
 // sender the offline layer replays its queue through.
 async function send(method, path, body) {
-  const res = await authFetch(`/api${path}`, {
+  const res = await fetch(`/api${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
     body: body == null ? undefined : JSON.stringify(body),

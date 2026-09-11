@@ -43,10 +43,16 @@ final class RemoteRecorder {
     enum Reason: String, Equatable {
         /// The recorder wouldn't start — no permission, or CoreLocation refused.
         case gps
+        /// The account is free and the recorder is gated (NS-32). A head unit can't
+        /// show a paywall, so the refusal says where to subscribe instead — and
+        /// the gate is decided from the cached entitlement, so a Pro driver with
+        /// no signal in the paddock still records.
+        case pro
 
         var carPlayMessage: String {
             switch self {
             case .gps: "No GPS signal — check location permission on the phone."
+            case .pro: "Recording laps needs Track Evolution Pro — subscribe in the app on your phone."
             }
         }
     }
@@ -79,6 +85,12 @@ final class RemoteRecorder {
         // race, and a second tap must not read as a failure.
         if recorder.isRecording {
             return .started(eventId: recorder.recording?.eventIdValue)
+        }
+        // The same gate the phone's Start button applies, from the same cached
+        // entitlement — so the two doors can't disagree about who may record.
+        if ProGate.decide(.record, entitlement: auth.entitlement) == .paywall {
+            Self.log.notice("remote start refused: pro required")
+            return .refused(.pro)
         }
 
         let event = await todaysEvent()

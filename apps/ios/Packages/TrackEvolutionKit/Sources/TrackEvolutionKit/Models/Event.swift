@@ -29,7 +29,7 @@ public struct Conditions: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// A track day. The canonical shape is `ComputedEvent` in `src/lib/stats.ts`
-/// (`EVENT_SELECT` in `src/db.ts` for the columns).
+/// (`eventSelect` in `src/db.ts` for the columns).
 ///
 /// Optionality here is load-bearing and mirrors `withComputed`:
 /// - `bestMs` is nil when the event has neither a manual best nor any laps.
@@ -63,6 +63,15 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
     /// Manual override of the on-track hours estimate.
     public var trackHours: Double?
     public var updatedAt: Int
+    /// Session conditions (#191), derived from the sessions' channel meta by
+    /// migration 0020's triggers: the coolest and hottest ambient any session
+    /// of this event recorded (°C, equal when there is one), and the largest
+    /// elevation range seen at it (m). Nil when nothing was imported — the
+    /// manual ``tempF`` is the fallback, and `SessionConditions.eventAmbient`
+    /// is where the two reconcile.
+    public var ambientLoC: Double?
+    public var ambientHiC: Double?
+    public var elevationM: Double?
     public var lapBestMs: Int?
     public var lapCount: Int
     public var sessionCount: Int
@@ -90,6 +99,9 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
         case bestTimeMs = "best_time_ms"
         case trackHours = "track_hours"
         case updatedAt = "updated_at"
+        case ambientLoC = "ambient_lo_c"
+        case ambientHiC = "ambient_hi_c"
+        case elevationM = "elevation_m"
         case lapBestMs = "lap_best_ms"
         case lapCount = "lap_count"
         case sessionCount = "session_count"

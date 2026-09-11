@@ -1,19 +1,44 @@
 // Data access helpers. All take (db, userId, ...) explicitly so ownership
 // scoping is visible at every call site and the functions are testable
 // without a Hono context.
+//
+// D1 pays a network round trip per statement, so helpers that back a single
+// endpoint expose prepared *statements* (…Stmt) where useful — routes combine
+// them with db.batch() into one round trip instead of awaiting each in turn.
 
-import { type EventRow, withComputed } from "./lib/stats";
+import { type ComputedEvent, type EventRow, withComputed } from "./lib/stats";
 
-export const EVENT_SELECT = `
+// The session-conditions aggregates (#191) are MIN/MAX rather than an average
+// for two reasons. The laps LEFT JOIN repeats a session's row once per lap, so
+// AVG(s.ambient_c) would silently weight each session by how many laps it ran,
+// while MIN and MAX are duplicate-proof. And a day that started at 15 °C and
+// finished at 32 °C is precisely the confounder the band exists to show, so the
+// honest event-level figure is the range, not a number that hides it.
+// `elevation_m` is a per-recording max−min altitude, so its event figure is the
+// largest one seen — the track's elevation change, not a sum.
+//
+// Event rows with lap aggregates, computed in a single pass: LEFT JOINs plus
+// GROUP BY read each session and lap once, where the correlated-subquery
+// version rescanned an event's laps once per aggregate. `where` must filter on
+// e.* columns (it lands before the GROUP BY); `orderBy` lands after it.
+export const eventSelect = (where: string, orderBy = "") => `
   SELECT e.id, e.track_id, t.name AS track_name,
          e.start_date, e.days, e.club, e.run_group, e.car, e.vehicle_id, e.notes,
          e.conditions, e.temp_f, e.checklist, e.best_time_ms, e.track_hours, e.updated_at,
-    (SELECT MIN(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_best_ms,
-    (SELECT COUNT(*)       FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_count,
-    (SELECT AVG(l.time_ms * 1.0) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_avg,
-    (SELECT AVG(l.time_ms * 1.0 * l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_avg_sq,
-    (SELECT COUNT(*) FROM sessions s WHERE s.event_id = e.id) AS session_count
+         MIN(s.ambient_c) AS ambient_lo_c,
+         MAX(s.ambient_c) AS ambient_hi_c,
+         MAX(s.elevation_m) AS elevation_m,
+         MIN(l.time_ms) AS lap_best_ms,
+         COUNT(l.id) AS lap_count,
+         AVG(l.time_ms * 1.0) AS lap_avg,
+         AVG(l.time_ms * 1.0 * l.time_ms) AS lap_avg_sq,
+         COUNT(DISTINCT s.id) AS session_count
   FROM events e JOIN tracks t ON t.id = e.track_id
+  LEFT JOIN sessions s ON s.event_id = e.id
+  LEFT JOIN laps l ON l.session_id = s.id
+  ${where}
+  GROUP BY e.id
+  ${orderBy}
 `;
 
 export async function ownedEvent(db: D1Database, userId: number, eventId: string | number) {
@@ -75,51 +100,56 @@ export async function resolveTrack(
 // Totals count past events only — an upcoming event isn't a track day driven
 // yet. Matches the frontend's isUpcoming (start_date strictly after today,
 // both in UTC), so an event counts from its start date onward.
-export async function userTotals(db: D1Database, userId: number) {
+export function userTotalsStmt(db: D1Database, userId: number) {
   return db
     .prepare(
       "SELECT COUNT(*) AS events, COALESCE(SUM(days), 0) AS track_days FROM events WHERE user_id = ? AND start_date <= date('now')"
     )
-    .bind(userId)
-    .first();
+    .bind(userId);
+}
+
+export async function userTotals(db: D1Database, userId: number) {
+  return userTotalsStmt(db, userId).first();
+}
+
+export function eventListStmt(db: D1Database, userId: number, trackId?: string | number) {
+  return trackId
+    ? db
+        .prepare(eventSelect("WHERE e.user_id = ? AND e.track_id = ?", "ORDER BY e.start_date DESC"))
+        .bind(userId, trackId)
+    : db
+        .prepare(eventSelect("WHERE e.user_id = ?", "ORDER BY e.start_date DESC"))
+        .bind(userId);
 }
 
 export async function listEvents(db: D1Database, userId: number, trackId?: string | number) {
-  const stmt = trackId
-    ? db
-        .prepare(`${EVENT_SELECT} WHERE e.user_id = ? AND e.track_id = ? ORDER BY e.start_date DESC`)
-        .bind(userId, trackId)
-    : db.prepare(`${EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.start_date DESC`).bind(userId);
-  return (await stmt.all<EventRow>()).results.map(withComputed);
+  return (await eventListStmt(db, userId, trackId).all<EventRow>()).results.map(withComputed);
 }
 
-// Tracks with per-track aggregates and a best-per-event sparkline series.
-// Aggregates cover past events only (same rule as userTotals) — upcoming
-// events live in the dashboard's upcoming section, not the tracks list.
-export async function tracksSummary(db: D1Database, userId: number) {
-  const tracks = (
-    await db
-      .prepare(
-        "SELECT id, name, goal_ms, notes, catalog_id, updated_at FROM tracks WHERE user_id = ? ORDER BY name"
-      )
-      .bind(userId)
-      .all<{
-        id: number;
-        name: string;
-        goal_ms: number | null;
-        notes: string | null;
-        catalog_id: number | null;
-        updated_at: number;
-      }>()
-  ).results;
-  const events = (
-    await db
-      .prepare(`${EVENT_SELECT} WHERE e.user_id = ? AND e.start_date <= date('now') ORDER BY e.start_date ASC`)
-      .bind(userId)
-      .all<EventRow>()
-  ).results.map(withComputed);
+export type TrackRow = {
+  id: number;
+  name: string;
+  goal_ms: number | null;
+  notes: string | null;
+  catalog_id: number | null;
+  updated_at: number;
+};
 
-  const byTrack = new Map<number, ReturnType<typeof withComputed>[]>();
+export function trackRowsStmt(db: D1Database, userId: number) {
+  return db
+    .prepare(
+      "SELECT id, name, goal_ms, notes, catalog_id, updated_at FROM tracks WHERE user_id = ? ORDER BY name"
+    )
+    .bind(userId);
+}
+
+// Per-track aggregates, computed from the track rows plus the user's *past*
+// events in ascending date order (same rule as userTotals — upcoming events live
+// in the dashboard's upcoming section, not the tracks list). Pure so the share
+// endpoint can feed it the events it already fetched instead of querying them a
+// second time.
+export function summarizeTracks(tracks: TrackRow[], events: ComputedEvent[]) {
+  const byTrack = new Map<number, ComputedEvent[]>();
   for (const ev of events) {
     if (!byTrack.has(ev.track_id)) byTrack.set(ev.track_id, []);
     byTrack.get(ev.track_id)!.push(ev);
@@ -133,12 +163,40 @@ export async function tracksSummary(db: D1Database, userId: number) {
       track_days: evs.reduce((sum, e) => sum + (e.days ?? 0), 0),
       best_ms: bests.length ? Math.min(...bests) : null,
       last_date: evs.length ? evs[evs.length - 1].start_date : null,
-      // chronological best-per-event series for sparklines
+      // The chronological best-per-event series. **Nothing renders it any more** —
+      // it fed the track cards' sparkline, which came off every client because a
+      // track usually holds two or three events and two points is not a trend.
+      //
+      // It stays because removing it would break the apps already on people's
+      // phones: `series` is a non-optional field on `Track` and `SharedTrack` in
+      // both the Swift and Kotlin models, so a shipped build stops decoding
+      // GET /api/tracks the day the server leaves it out. It costs one array per
+      // track out of events already in memory, not a query. Drop it once the
+      // builds that need it have aged out.
       series: evs
         .filter((e) => e.best_ms != null)
         .map((e) => ({ date: e.start_date, best_ms: e.best_ms })),
     };
   });
+}
+
+export function pastEventsAscStmt(db: D1Database, userId: number) {
+  return db
+    .prepare(
+      eventSelect("WHERE e.user_id = ? AND e.start_date <= date('now')", "ORDER BY e.start_date ASC")
+    )
+    .bind(userId);
+}
+
+export async function tracksSummary(db: D1Database, userId: number) {
+  const [tracksRes, eventsRes] = await db.batch([
+    trackRowsStmt(db, userId),
+    pastEventsAscStmt(db, userId),
+  ]);
+  return summarizeTracks(
+    tracksRes.results as TrackRow[],
+    (eventsRes.results as EventRow[]).map(withComputed)
+  );
 }
 
 // The garage's vehicle link for a free-text car name (COLLATE NOCASE), or
@@ -157,52 +215,46 @@ export async function vehicleIdForCar(
   return row ? row.id : null;
 }
 
-// A part owned (via its vehicle) by the user, or null.
-export async function ownedPart(db: D1Database, userId: number, partId: string | number) {
-  return db
-    .prepare(
-      "SELECT p.id, p.vehicle_id FROM parts p JOIN vehicles v ON v.id = p.vehicle_id WHERE p.id = ? AND v.user_id = ?"
-    )
-    .bind(partId, userId)
-    .first<{ id: number; vehicle_id: number }>();
-}
+export type VehicleHoursEvent = {
+  id: number;
+  vehicle_id: number;
+  start_date: string;
+  days: number;
+  track_hours: number | null;
+  lap_ms_sum: number | null;
+};
 
 // Past vehicle-linked events with the raw inputs for eventHours — the ledger
 // the garage's wear math runs over (lib/wear.ts).
-export async function vehicleHoursEvents(db: D1Database, userId: number) {
-  return (
-    await db
-      .prepare(
-        `SELECT e.id, e.vehicle_id, e.start_date, e.days, e.track_hours,
-           (SELECT SUM(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_ms_sum
-         FROM events e
-         WHERE e.user_id = ? AND e.vehicle_id IS NOT NULL AND e.start_date <= date('now')
-         ORDER BY e.start_date ASC`
-      )
-      .bind(userId)
-      .all<{
-        id: number;
-        vehicle_id: number;
-        start_date: string;
-        days: number;
-        track_hours: number | null;
-        lap_ms_sum: number | null;
-      }>()
-  ).results;
+export function vehicleHoursEventsStmt(db: D1Database, userId: number) {
+  return db
+    .prepare(
+      `SELECT e.id, e.vehicle_id, e.start_date, e.days, e.track_hours,
+         (SELECT SUM(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_ms_sum
+       FROM events e
+       WHERE e.user_id = ? AND e.vehicle_id IS NOT NULL AND e.start_date <= date('now')
+       ORDER BY e.start_date ASC`
+    )
+    .bind(userId);
 }
 
-export async function insertLaps(
-  db: D1Database,
-  sessionId: number,
-  laps: number[],
-  startLapNum: number
-) {
+export async function vehicleHoursEvents(db: D1Database, userId: number) {
+  return (await vehicleHoursEventsStmt(db, userId).all<VehicleHoursEvent>()).results;
+}
+
+// Lap numbers continue from the session's current MAX(lap_num), computed
+// inside each INSERT so no separate lookup round trip is needed. db.batch runs
+// its statements in order inside one transaction, so consecutive laps see the
+// rows inserted before them and number sequentially.
+export async function insertLaps(db: D1Database, sessionId: number, laps: number[]) {
   if (!laps.length) return;
   await db.batch(
-    laps.map((ms, i) =>
+    laps.map((ms) =>
       db
-        .prepare("INSERT INTO laps (session_id, lap_num, time_ms) VALUES (?, ?, ?)")
-        .bind(sessionId, startLapNum + i, ms)
+        .prepare(
+          "INSERT INTO laps (session_id, lap_num, time_ms) VALUES (?1, (SELECT COALESCE(MAX(lap_num), 0) + 1 FROM laps WHERE session_id = ?1), ?2)"
+        )
+        .bind(sessionId, ms)
     )
   );
 }

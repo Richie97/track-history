@@ -147,6 +147,24 @@ struct PDRTests {
             #expect((metrics.maxLatG ?? 0) > 0.5)
             #expect((metrics.maxLatG ?? 0) < 0.65)
         }
+
+        @Test func decodesThrottleBrakeAndSteeringCarChannels() throws {
+            let out = try parse()
+            // pedals are raw 0-255 scaled by the dictionary's "%" units to 0-100,
+            // alternating (throttle on the sine's positive half, brake the negative)
+            let th = try #require(out.carChannels.throttle).map(\.v)
+            let br = try #require(out.carChannels.brake).map(\.v)
+            #expect(th.min() == 0)
+            #expect((th.max() ?? 0) > 99)
+            #expect((th.max() ?? 0) <= 100)
+            #expect((br.max() ?? 0) > 99)
+            // steering is stored in radians with an empty units string (the real
+            // firmware shape); the parser converts to degrees itself: ±0.5 rad = ±28.6°
+            let st = try #require(out.carChannels.steering).map(\.v)
+            #expect((st.max() ?? 0) > 28)
+            #expect((st.max() ?? 0) < 29.2)
+            #expect((st.min() ?? 0) < -28)
+        }
     }
 
     // MARK: - boxes

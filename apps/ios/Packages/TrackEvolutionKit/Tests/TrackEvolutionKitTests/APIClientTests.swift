@@ -105,6 +105,78 @@ struct APIClientTests {
         #expect(error == .server(status: 500, message: "Request failed (500)"))
     }
 
+    /// NS-32 rule 5: a Pro read from a free account is its own case, the way 401 is,
+    /// so a screen can answer it with the paywall rather than a generic error.
+    @Test func a402BecomesTheProRequiredCase() async throws {
+        let api = client { _ in (402, Data(#"{"error":"pro required"}"#.utf8)) }
+        do {
+            _ = try await api.garage()
+            Issue.record("expected a 402")
+        } catch let error as APIError {
+            #expect(error == .proRequired("pro required"))
+            #expect(error.status == 402)
+            #expect(error.message == "pro required")
+            #expect(error.isProRequired)
+            #expect(!error.isUnauthorized, "a paywall is not a sign-out")
+        }
+    }
+
+    // MARK: - Billing (NS-32)
+
+    @Test func aVerifiedAppleTransactionIsPostedWithItsRenewalInfo() async throws {
+        let seen = Recorder()
+        let api = client { request in
+            seen.record(request)
+            return (200, try Goldens.body("billing-legacy-claim"))
+        }
+        let response = try await api.verifyAppleTransaction(jws: "eyJ.tx.sig", renewalJws: "eyJ.renewal.sig")
+
+        #expect(response.ok)
+        #expect(response.entitlement.tier == .pro)
+        let request = try #require(seen.last)
+        #expect(request.url?.absoluteString == "https://example.test/api/billing/apple")
+        #expect(request.httpMethod == "POST")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer tok_123")
+        let body = try #require(seen.lastBody)
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["jws"] as? String == "eyJ.tx.sig")
+        #expect(json["renewal_jws"] as? String == "eyJ.renewal.sig")
+    }
+
+    @Test func aTransactionWithoutRenewalInfoOmitsTheKey() async throws {
+        let seen = Recorder()
+        let api = client { request in
+            seen.record(request)
+            return (200, try Goldens.body("billing-legacy-claim"))
+        }
+        _ = try await api.verifyAppleTransaction(jws: "eyJ.tx.sig")
+        let body = try #require(seen.lastBody)
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json.keys.sorted() == ["jws"], "renewal_jws is optional server-side; absent, not null")
+    }
+
+    @Test func theLegacyClaimPostsTheAppTransactionJws() async throws {
+        let seen = Recorder()
+        let api = client { request in
+            seen.record(request)
+            return (200, try Goldens.body("billing-legacy-claim"))
+        }
+        let response = try await api.claimAppleLegacy(jws: "eyJ.app.sig")
+
+        #expect(response.entitlement.source == .legacy)
+        #expect(seen.last?.url?.absoluteString == "https://example.test/api/billing/apple/legacy")
+        let body = try #require(seen.lastBody)
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["jws"] as? String == "eyJ.app.sig")
+    }
+
+    @Test func aPurchaseBoundToAnotherAccountIsA409WithTheServersWords() async throws {
+        let api = client { _ in (409, Data(#"{"error":"purchase belongs to another account"}"#.utf8)) }
+        await #expect(throws: APIError.server(status: 409, message: "purchase belongs to another account")) {
+            try await api.verifyAppleTransaction(jws: "eyJ.tx.sig")
+        }
+    }
+
     @Test func aTransportFailureIsDistinctFromAServerError() async throws {
         let api = client { _ in throw URLError(.notConnectedToInternet) }
         do {
@@ -138,6 +210,22 @@ struct APIClientTests {
         #expect(json["notes"] as? String == "Rained after lunch")
         #expect(json["club"] is NSNull, "an explicit null is what clears a column")
         #expect(json.keys.sorted() == ["club", "notes"], "untouched fields must not be sent")
+    }
+
+    @Test func vehiclePatchSendsOnlyWhatChangedAndAnExplicitNullToClear() throws {
+        var patch = VehiclePatch()
+        patch.targetHotPsi = .set(34.5)
+        let encoded = try JSONEncoder().encode(patch)
+        let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        // The server writes only the columns present, so an unchanged field must
+        // not be sent at all — and the new key has to be the server's spelling.
+        #expect(json.keys.sorted() == ["target_hot_psi"])
+        #expect(json["target_hot_psi"] as? Double == 34.5)
+
+        var clearing = VehiclePatch()
+        clearing.targetHotPsi = .set(nil)
+        let cleared = try JSONEncoder().encode(clearing)
+        #expect(String(decoding: cleared, as: UTF8.self) == #"{"target_hot_psi":null}"#)
     }
 
     @Test func aSessionPatchAlwaysSendsBothColumns() throws {

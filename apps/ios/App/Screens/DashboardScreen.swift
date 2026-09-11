@@ -16,6 +16,7 @@ struct DashboardScreen: View {
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
     @Environment(RecordingController.self) private var recorder
+    @Environment(\.layout) private var layout
 
     @State private var model: DashboardModel?
     @State private var showingDiscardConfirmation = false
@@ -26,14 +27,67 @@ struct DashboardScreen: View {
                 content(model)
             }
         }
+        // The title stays for what reads it — the back button on every pushed
+        // screen and VoiceOver's name for the bar — while what the bar *draws*
+        // is the brand below.
         .navigationTitle("Track Evolution")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // The web topbar's `.brand` (`appLogoHtml()` + "Track Evolution" in
+            // `shell()`) and Android's `DashboardTopBar`: the mark at the web
+            // header's 26px beside the wordmark at its 17px semibold, which is
+            // also the size of an inline navigation title. A large title has no
+            // room for a mark — the bar owns its layout — so the dashboard joins
+            // every other screen at inline, and the brand becomes the bar's
+            // principal item. Only the dashboard draws it: inner screens lead
+            // with their own title and a back affordance.
+            //
+            // **Leading, not centred**, which is what the other two clients do:
+            // the web's `.brand` opens the topbar and Android's `DashboardTopBar`
+            // opens its row. It stays the *principal* item and is stretched to the
+            // leading edge rather than moving to `.topBarLeading`, because the
+            // principal slot is also what suppresses the centred title — take the
+            // brand out of it and the bar draws "Track Evolution" in the middle
+            // with the wordmark beside it, saying the name twice.
+            // The principal slot is emptied rather than left unset. It is what
+            // suppresses the centred title, and the title itself cannot go — it
+            // is the label every pushed screen's back button carries — so
+            // dropping the item would draw "Track Evolution" in the middle of the
+            // bar with the wordmark beside it, saying the name twice.
+            ToolbarItem(placement: .principal) {
+                Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                HStack(spacing: 9) {
+                    BrandMark(size: 26)
+                    Text("Track Evolution")
+                        .teStyle(.h2)
+                        .foregroundStyle(Color(.textStrong))
+                        .fixedSize()
+                }
+                // On iOS 26 the bar wraps this item in a Liquid Glass capsule sized
+                // to its content, and the disc landed flush against the capsule's
+                // curve on both sides. Padding here goes *inside* the glass — the
+                // capsule grows with it — so this is the breathing room, not a
+                // shift of the item along the bar.
+                .padding(.horizontal, 2)
+                // Hidden rather than combined into a header: the bar is *already*
+                // named "Track Evolution" by `navigationTitle`, so an element
+                // repeating it is a second announcement of the same thing — and
+                // `.isHeader` would put that repeat in VoiceOver's heading rotor.
+                // Measured on a simulator: the bar exposed the name three times
+                // with the combined header, twice without it, and once before the
+                // brand existed at all. Two is the floor while the wordmark is
+                // drawn, since the title itself cannot go — it is the label every
+                // pushed screen's back button carries.
+                .accessibilityHidden(true)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 // The web app's account dropdown, which carries Settings, the theme
                 // toggle and sign-out. All three live on the settings screen here —
                 // a popover menu duplicating them would be two places to change.
                 Button {
-                    router.push(.settings)
+                    openFromList(.settings)
                 } label: {
                     Image(systemName: "person.crop.circle")
                 }
@@ -63,7 +117,10 @@ struct DashboardScreen: View {
             // event first, which is exactly the wrong amount of friction with a helmet
             // in your other hand.
             HStack(spacing: TESpacing.gridGap) {
-                Button("+ Add event") { router.push(.eventForm(.new(presetTrack: nil))) }
+                // The form opens in the detail pane, and at compact width — where
+                // this screen is the stack's root — that is the push it always was
+                // (NS-34, `AppRouter.open`).
+                Button("+ Add event") { openFromList(.eventForm(.new(presetTrack: nil))) }
                     .buttonStyle(TEButtonStyle(kind: .accent))
 
                 // Only when the recorder is idle. A live recording already has the
@@ -71,7 +128,11 @@ struct DashboardScreen: View {
                 // above; a third control would be a third answer to the same question.
                 if recorder.phase == .idle {
                     Button("Record laps") {
-                        router.push(.record(eventId: model.todaysEvent?.id))
+                        // Full-window at every width. The record screen is a
+                        // phone-in-a-mount layout designed to be read at a glance
+                        // through a helmet, and half of an iPad is a worse version
+                        // of it, not a bigger one (NS-34).
+                        openFromList(.record(eventId: model.todaysEvent?.id))
                     }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityIdentifier("dashboardRecord")
@@ -92,7 +153,7 @@ struct DashboardScreen: View {
             if !model.alsoUpcoming.isEmpty {
                 TESectionHeader("Also upcoming")
                 ForEach(model.alsoUpcoming) { event in
-                    TENavCard(route: .event(event.id), identifier: "upcomingCard") {
+                    TENavCard(route: .event(event.id), identifier: "upcomingCard", listPane: true) {
                         Text(event.trackName)
                             .teStyle(.h3)
                             .foregroundStyle(Color(.textStrong))
@@ -110,37 +171,36 @@ struct DashboardScreen: View {
             if model.tracksWithData.isEmpty {
                 TEEmpty("No events yet — add your first track day.")
             } else {
-                ForEach(model.tracksWithData) { track in
-                    trackCard(track)
+                // One card per row on a phone, filling the width above it — the
+                // web's `.cards` grid (NS-34).
+                TECardGrid(items: model.tracksWithData) { track in
+                    TrackCard(track: track)
                 }
             }
 
             if !model.garage.isEmpty {
                 TESectionHeader("Garage")
-                ForEach(model.garage) { vehicle in
+                TECardGrid(items: model.garage) { vehicle in
                     garageCard(vehicle)
-                }
-            }
-
-            if !model.recent.isEmpty {
-                TESectionHeader("Recent events")
-                ForEach(model.recent) { event in
-                    TENavCard(route: .event(event.id), identifier: "recentEventCard") {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(event.trackName)
-                                    .teStyle(.bodyStrong)
-                                    .foregroundStyle(Color(.textStrong))
-                                TEMeta([EventDates.fmtDate(event.startDate), event.club])
-                            }
-                            Spacer(minLength: 8)
-                            TETime(ms: event.bestMs)
-                        }
-                    }
                 }
             }
         }
         .refreshable { await model.load() }
+    }
+
+    /// Open a route from the list pane.
+    ///
+    /// The one width check on this screen, and it exists so there are none of them
+    /// anywhere else: a route that `ownsTheWindow` is presented over everything at
+    /// expanded width, and everything else replaces the detail. At compact and
+    /// medium both branches collapse to what this screen has always done, because
+    /// the dashboard is the stack's root there.
+    private func openFromList(_ route: Route) {
+        if layout.layoutClass == .expanded, route.ownsTheWindow {
+            router.presentFullWindow(route)
+        } else {
+            router.open(route)
+        }
     }
 
     /// Where the laps are going to land, said out loud. The button can't carry a
@@ -157,7 +217,7 @@ struct DashboardScreen: View {
     /// app's `heroEventHtml`.
     private func heroCard(_ event: Event) -> some View {
         Button {
-            router.push(.event(event.id))
+            openFromList(.event(event.id))
         } label: {
             TECard {
                 VStack(alignment: .leading, spacing: 8) {
@@ -243,52 +303,6 @@ struct DashboardScreen: View {
 
     // MARK: - Track cards
 
-    private func trackCard(_ track: Track) -> some View {
-        TENavCard(route: .track(track.id), identifier: "trackCard") {
-            // The text column sets the row's height and the sparkline fills it, so the
-            // trend line reads as part of the card rather than a stamp floating in it.
-            // `.fixedSize(vertical:)` is what pins that height to the text: without it
-            // the flexible chart and the flexible stack negotiate with each other and
-            // the row collapses.
-            //
-            // Since the text is the only thing setting the height, the name reserves two
-            // lines whether it needs them or not — that's what makes every card in the
-            // list the same height instead of a row of ragged ones, and two lines is
-            // what a track name with its layout suffix ("… — Grand West") actually
-            // takes at this width.
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(track.name)
-                        .teStyle(.h3)
-                        .lineLimit(2, reservesSpace: true)
-                        .foregroundStyle(Color(.textStrong))
-                    Text(LapTime.fmtMs(track.bestMs))
-                        .teStyle(.lapTimeHero)
-                        .foregroundStyle(Color(.textStrong))
-                    TEMeta([
-                        fmtCount(track.eventCount, "event"),
-                        fmtCount(track.trackDays, "day"),
-                        EventDates.fmtDate(track.lastDate)
-                    ])
-                }
-                .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 0)
-                // Two points is the least that can show a direction; one would be a
-                // dot pretending to be a trend.
-                if track.series.count >= 2 {
-                    ProgressChart(
-                        points: track.series.enumerated().map { index, point in
-                            .init(x: Double(index), label: EventDates.fmtDate(point.date), ms: point.bestMs)
-                        },
-                        style: .sparkline
-                    )
-                    .frame(width: 110)
-                }
-            }
-        }
-    }
-
     // MARK: - Garage cards
 
     /// A car's accrued hours and the worst thing fitted to it — enough to know
@@ -296,12 +310,17 @@ struct DashboardScreen: View {
     private func garageCard(_ vehicle: GarageVehicle) -> some View {
         let active = vehicle.parts.filter { $0.retiredOn == nil }
         let worst = Garage.garageAlerts([vehicle]).first?.status
-        return TENavCard(route: .vehicle(vehicle.id), identifier: "garageCard") {
+        return TENavCard(route: .vehicle(vehicle.id), identifier: "garageCard", listPane: true) {
             Text(vehicle.name)
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
+            // Same rule as the track card's time: one line, scaled to fit. "12.5 h"
+            // is short enough to be safe today, and this card sits in the same
+            // grid, so it would break the same way the first time it isn't.
             Text(Garage.fmtHours(vehicle.hours))
                 .teStyle(.lapTimeHero)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
                 .foregroundStyle(Color(.textStrong))
             TEMeta([
                 fmtCount(vehicle.eventDays, "track day"),
@@ -387,7 +406,7 @@ struct DashboardScreen: View {
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
                 HStack(spacing: TESpacing.gridGap) {
-                    Button(action) { router.push(route) }
+                    Button(action) { openFromList(route) }
                         .buttonStyle(TEButtonStyle(kind: .accent))
                     if discardable {
                         Button("Discard") { showingDiscardConfirmation = true }
@@ -485,9 +504,44 @@ final class DashboardModel {
         RemoteRecording.pickRecordingEvent(events, todayIso: RemoteRecording.localTodayIso())
     }
     var alsoUpcoming: [Event] { Array(upcoming.dropFirst()) }
+}
 
-    /// The server already returns events newest-first.
-    var recent: [Event] {
-        Array(events.filter { !EventDates.isUpcoming($0.startDate) }.prefix(6))
+/// One track's card on the dashboard: its name, its best lap and its counts.
+///
+/// It carried a sparkline of best lap per event too, until that came off every
+/// client: a track usually holds two or three visits, and two points is a dot
+/// and a dot rather than a trend. What the chart cost was the card's own
+/// layout — the text column and the plot negotiating for a width neither could
+/// state — and with it gone the card is a stack of three things.
+struct TrackCard: View {
+    let track: Track
+
+    var body: some View {
+        TENavCard(route: .track(track.id), identifier: "trackCard", listPane: true) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track.name)
+                    .teStyle(.h3)
+                    // Two lines whether it needs them or not, so every card in the
+                    // list is the same height rather than a ragged row — and two is
+                    // what a name with its layout suffix ("… — Grand West") takes.
+                    .lineLimit(2, reservesSpace: true)
+                    .foregroundStyle(Color(.textStrong))
+                // One line, shrinking to fit rather than wrapping: the monospaced
+                // digits make a wrapped time worse, because each fragment looks
+                // deliberate. The same rule `TEStatTile` has carried since NS-25.
+                // Still earned without the chart beside it — a long name in a
+                // narrow list-pane column is enough to break the time on its own.
+                Text(LapTime.fmtMs(track.bestMs))
+                    .teStyle(.lapTimeHero)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .foregroundStyle(Color(.textStrong))
+                TEMeta([
+                    fmtCount(track.eventCount, "event"),
+                    fmtCount(track.trackDays, "day"),
+                    EventDates.fmtDate(track.lastDate)
+                ])
+            }
+        }
     }
 }
