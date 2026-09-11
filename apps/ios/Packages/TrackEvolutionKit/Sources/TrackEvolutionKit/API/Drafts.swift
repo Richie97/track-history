@@ -152,6 +152,15 @@ public struct ChecklistTemplateDraft: Encodable, Hashable, Sendable {
     }
 }
 
+/// `PUT /api/me/units` — the unit system the logbook is shown in.
+public struct UnitsDraft: Codable, Hashable, Sendable {
+    public var units: UnitSystem
+
+    public init(units: UnitSystem) {
+        self.units = units
+    }
+}
+
 /// `PUT /api/sessions/:id`. Both columns are written unconditionally by the
 /// server, so nil really does clear them here.
 public struct SessionPatch: Encodable, Hashable, Sendable {

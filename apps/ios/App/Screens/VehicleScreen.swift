@@ -401,6 +401,9 @@ struct MeasurementField: View {
     let part: Part
     let submit: (MeasurementDraft) async -> Bool
 
+    /// For the default unit of a first measurement (tread depth: 32nds or mm).
+    @Environment(\.unitSystem) private var units
+
     @State private var value = ""
     @State private var unit = ""
     @State private var measuredOn = Date()
@@ -464,7 +467,7 @@ struct MeasurementField: View {
     }
 
     private var defaultUnit: String {
-        part.measurements.last?.unit ?? part.kind.defaultUnit
+        part.measurements.last?.unit ?? Units.defaultMeasurementUnit(part.kind, units)
     }
 }
 
@@ -494,6 +497,8 @@ struct PartFormSheet: View {
     var onDelete: (() async -> Bool)?
 
     @Environment(\.dismiss) private var dismiss
+    /// For the replace-at placeholder (tread depth: 32nds or mm).
+    @Environment(\.unitSystem) private var units
     @State private var confirmingDelete = false
 
     @State private var kind: PartKind = .padsFront
@@ -568,7 +573,7 @@ struct PartFormSheet: View {
                         }
 
                         TEField(label: "Replace at (optional)", hint: "The measured value at which it's used up") {
-                            TextField(kind.wearLimitHint ?? "3", text: $wearLimit)
+                            TextField(Units.wearLimitHint(kind, units) ?? "3", text: $wearLimit)
                                 .teInput()
                                 .keyboardType(.decimalPad)
                         }

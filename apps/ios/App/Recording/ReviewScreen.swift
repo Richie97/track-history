@@ -56,6 +56,7 @@ struct ReviewScreen: View {
                     source: source,
                     preferredEventId: preferredEventId
                 )
+                model.units = auth.units
                 self.model = model
                 await model.load()
             }
@@ -331,6 +332,10 @@ final class ReviewModel {
     private let recorder: RecordingController?
     private let source: ReviewScreen.Source
     private let preferredEventId: Int?
+    /// The unit system the import summary and the notes line are written in —
+    /// the account's, set by the screen. A note is text, so the top speed in it is
+    /// written once, in the system chosen at import time, like the web's.
+    var units: UnitSystem = Units.DEFAULT_UNITS
 
     var items: [ReviewItem] = []
 
@@ -412,7 +417,7 @@ final class ReviewModel {
     }
 
     func metrics(for parsed: ParsedTelemetry) -> String? {
-        let summary = Telemetry.metricsSummary(parsed)
+        let summary = Telemetry.metricsSummary(parsed, units)
         return summary.isEmpty ? nil : summary
     }
 
@@ -592,6 +597,6 @@ final class ReviewModel {
             let typed = notes.trimmingCharacters(in: .whitespaces)
             return typed.isEmpty ? nil : typed
         }
-        return Telemetry.importNotes(parsed, file: item.file)
+        return Telemetry.importNotes(parsed, file: item.file, units: units)
     }
 }

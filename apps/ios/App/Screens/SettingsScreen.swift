@@ -106,6 +106,9 @@ struct SettingsScreen: View {
                 .pickerStyle(.segmented)
             }
 
+            TESectionHeader("Units")
+            unitsCard(model)
+
             TESectionHeader("Share your history")
             shareCard(model)
 
@@ -292,6 +295,39 @@ struct SettingsScreen: View {
         case .apple: return "Billed through the App Store. Cancel or switch plans in your Apple ID subscriptions."
         case .google: return "Billed through Google Play. Cancel or switch plans there."
         case nil: return "Track Evolution Pro is active on this account."
+        }
+    }
+
+    // MARK: - Units
+
+    /// The unit system the logbook is shown in. It follows the account rather than
+    /// the device — the web and the phone show the same numbers — and it is
+    /// display-only: nothing stored changes, so there is nothing to lose by
+    /// switching. The picker snaps back if the save fails, which is honest.
+    private func unitsCard(_ model: SettingsModel) -> some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker(
+                    "Units",
+                    selection: Binding(
+                        get: { auth.units },
+                        set: { units in Task { await model.setUnits(units) } }
+                    )
+                ) {
+                    ForEach(Units.UNIT_SYSTEMS, id: \.id) { system in
+                        Text(system.label).tag(system.id)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("unitsPicker")
+                Text(Units.UNIT_SYSTEMS.first { $0.id == auth.units }?.detail ?? "")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+                    .accessibilityIdentifier("unitsDetail")
+                if let error = model.unitsError {
+                    TEErrorBanner(message: error)
+                }
+            }
         }
     }
 
@@ -608,6 +644,7 @@ final class SettingsModel {
 
     var newChecklistItem = ""
     var checklistError: String?
+    var unitsError: String?
 
     /// The per-track leaderboard opt-in, mirrored from `/me`.
     private(set) var leaderboardOptIn = false
@@ -659,6 +696,20 @@ final class SettingsModel {
             checklistError = error.message
         } catch {
             checklistError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Units
+
+    func setUnits(_ units: UnitSystem) async {
+        unitsError = nil
+        do {
+            try await auth.setUnits(units)
+            Haptics.select()
+        } catch let error as APIError {
+            unitsError = error.message
+        } catch {
+            unitsError = error.localizedDescription
         }
     }
 

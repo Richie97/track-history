@@ -38,6 +38,10 @@ struct TrackEvolutionApp: App {
                 .environment(recorder)
                 .environment(auth)
                 .environment(store)
+                // The account's unit system, as one environment *value*: the
+                // charts read it without an `AuthController`, which the
+                // `-channelGraphs` launch opens them without.
+                .environment(\.unitSystem, auth.units)
                 .preferredColorScheme(theme.preference.colorScheme)
                 // A recording the app died on is offered back on next launch.
                 .task { recorder.recoverIfNeeded() }
@@ -50,5 +54,41 @@ struct TrackEvolutionApp: App {
                 Task { await store.retryPending() }
             }
         }
+    }
+}
+
+// MARK: - The unit system
+
+/// The account's unit system, for every view that shows a speed, a distance or a
+/// temperature (`Units` in the Kit does the converting).
+///
+/// An environment *value* rather than a read of `AuthController`, because the
+/// charts are also opened without one (the `-channelGraphs` launch argument), and
+/// a missing `@Environment(AuthController.self)` traps where a missing value falls
+/// back to imperial — what the app always showed, and the server's own default.
+private struct UnitSystemKey: EnvironmentKey {
+    static let defaultValue: UnitSystem = Units.DEFAULT_UNITS
+}
+
+extension EnvironmentValues {
+    var unitSystem: UnitSystem {
+        get { self[UnitSystemKey.self] }
+        set { self[UnitSystemKey.self] = newValue }
+    }
+}
+
+/// `SessionConditions` and `Health` name their two systems the stored one and the
+/// US one — the channels' units against what the app showed before the preference
+/// existed — so the account's choice maps onto that pair, as `condUnits()` does in
+/// `public/app.js`.
+extension SessionConditions.Units {
+    init(_ units: UnitSystem) {
+        self = units == .metric ? .metric : .us
+    }
+}
+
+extension Health.Units {
+    init(_ units: UnitSystem) {
+        self = units == .metric ? .metric : .us
     }
 }

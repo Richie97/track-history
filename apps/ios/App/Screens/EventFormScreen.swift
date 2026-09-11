@@ -34,7 +34,7 @@ struct EventFormScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = EventFormModel(api: auth.api, target: target)
+                let model = EventFormModel(api: auth.api, target: target, units: auth.units)
                 self.model = model
                 await model.load()
             }
@@ -120,8 +120,8 @@ struct EventFormScreen: View {
                         .pickerStyle(.segmented)
                     }
 
-                    TEField(label: "Temp °F (optional)") {
-                        TextField("72", text: $model.tempF)
+                    TEField(label: "Temp \(Units.tempUnit(auth.units)) (optional)") {
+                        TextField(String(Units.tempInputSpec(auth.units).placeholder), text: $model.temp)
                             .teInput()
                             .keyboardType(.numbersAndPunctuation)
                     }
@@ -246,7 +246,9 @@ final class EventFormModel {
     var runGroup = ""
     var car = ""
     var conditions: Conditions?
-    var tempF = ""
+    /// The temperature as typed, in the account's unit system. Stored as whole °F
+    /// (`Units.tempToStored`), so a metric entry never drifts on the next edit.
+    var temp = ""
     var bestTime = ""
     var notes = ""
 
@@ -254,8 +256,12 @@ final class EventFormModel {
     private(set) var carOptions: [String] = []
     /// The track id the event already has, so an unedited name doesn't re-resolve.
     private var existingTrackId: Int?
+    /// The system the temperature field is typed in — the account's when the form
+    /// opened. Fixed for the form's life so a pre-fill and its save agree.
+    let units: UnitSystem
 
-    init(api: APIClient, target: EventFormTarget) {
+    init(api: APIClient, target: EventFormTarget, units: UnitSystem) {
+        self.units = units
         self.api = api
         self.target = target
     }
@@ -306,9 +312,14 @@ final class EventFormModel {
         runGroup = event.runGroup ?? ""
         car = event.car ?? ""
         conditions = event.conditions
-        tempF = event.tempF.map(String.init) ?? ""
+        temp = Units.tempToDisplay(event.tempF, units).map(String.init) ?? ""
         bestTime = event.bestTimeMs.map { LapTime.fmtMs($0) } ?? ""
         notes = event.notes ?? ""
+    }
+
+    /// The typed temperature as the whole °F the server stores; nil clears it.
+    private var storedTemp: Int? {
+        Units.tempToStored(Double(temp.trimmingCharacters(in: .whitespaces)), units)
     }
 
     /// Create or update. Returns the event's id on success.
@@ -347,7 +358,7 @@ final class EventFormModel {
                 draft.runGroup = nilIfEmpty(runGroup)
                 draft.car = nilIfEmpty(car)
                 draft.conditions = conditions
-                draft.tempF = Int(tempF.trimmingCharacters(in: .whitespaces))
+                draft.tempF = storedTemp
                 draft.bestTimeMs = best
                 draft.notes = nilIfEmpty(notes)
                 return try await api.createEvent(draft)
@@ -363,7 +374,7 @@ final class EventFormModel {
                 patch.runGroup = .set(nilIfEmpty(runGroup))
                 patch.car = .set(nilIfEmpty(car))
                 patch.conditions = .set(conditions)
-                patch.tempF = .set(Int(tempF.trimmingCharacters(in: .whitespaces)))
+                patch.tempF = .set(storedTemp)
                 patch.bestTimeMs = .set(best)
                 patch.notes = .set(nilIfEmpty(notes))
                 try await api.updateEvent(id: id, patch)

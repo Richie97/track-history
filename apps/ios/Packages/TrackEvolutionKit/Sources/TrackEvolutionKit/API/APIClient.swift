@@ -119,6 +119,13 @@ public actor APIClient {
         )
     }
 
+    /// Choose the unit system the logbook is shown in. Display-only — nothing
+    /// stored changes — so there is no "clear": the server always answers one of
+    /// the two, imperial for an account that never chose.
+    public func setUnits(_ units: UnitSystem) async throws {
+        _ = try await send("PUT", "/me/units", body: UnitsDraft(units: units), as: OKResponse.self)
+    }
+
     // MARK: - Events
 
     public func events(trackId: Int? = nil) async throws -> [Event] {
