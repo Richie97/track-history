@@ -13,22 +13,30 @@
 
 import { esc, fmtMs } from "./format.js";
 import { niceNumTicks } from "./chart.js";
+import { convSpeedKph, currentUnits, fmtDist, isMetric, M_PER_MI, speedUnit } from "./units.js";
 
 const SLOTS = ["var(--chart-line)", "var(--chart-line-b)", "var(--chart-line-c)"];
-const KPH_TO_MPH = 0.621371;
 
-const CHANNEL_DEFS = [
-  { key: "speed", label: "Speed", unit: "mph", conv: (v) => v * KPH_TO_MPH, dp: 0, floor0: false },
+// The channel specs in the user's unit system: stored speed is km/h, shown as
+// mph or km/h; rpm and G are the same everywhere. Exported for unit tests.
+export const channelDefs = (units) => [
+  { key: "speed", label: "Speed", unit: speedUnit(units), conv: (v) => convSpeedKph(v, units), dp: 0, floor0: false },
   { key: "rpm", label: "RPM", unit: "rpm", conv: (v) => v, dp: 0, floor0: false },
   { key: "latG", label: "Lateral G", unit: "G", conv: (v) => v, dp: 2, floor0: true },
 ];
 
-const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
+// Distance-axis ticks for a lap of x1 meters: nice numbers in the unit the
+// axis is labelled in (metres, or miles — nice metre ticks come out as 0.31,
+// 0.62 mi otherwise). [{m, label}] with m the tick's position in metres.
+export function distAxisTicks(x1, units, n = 6) {
+  if (isMetric(units)) return niceNumTicks(0, x1, n).map((m) => ({ m, label: fmtDist(m, units) }));
+  return niceNumTicks(0, x1 / M_PER_MI, n).map((mi) => ({ m: mi * M_PER_MI, label: fmtDist(mi * M_PER_MI, units) }));
+}
 
 // One channel's overlay chart. laps: the stored entries; lit: Map(lapIdx ->
 // slot color). Returns "" when no lap carries this channel.
 // Exported for unit tests.
-export function channelChartSvg(def, channels, lit, { width = 900, height = 190 } = {}) {
+export function channelChartSvg(def, channels, lit, { width = 900, height = 190, units = currentUnits() } = {}) {
   const dStep = channels.dStepM;
   const laps = channels.laps;
   const withCh = laps.map((l, i) => ({ l, i })).filter(({ l }) => Array.isArray(l[def.key]));
@@ -59,8 +67,8 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190 
     grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
     labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${tv.toFixed(def.dp)}</text>`;
   }
-  for (const tv of niceNumTicks(0, x1, 6)) {
-    labels += `<text x="${X(tv).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(fmtDist(tv))}</text>`;
+  for (const { m, label } of distAxisTicks(x1, units)) {
+    labels += `<text x="${X(m).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
   }
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
   labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">${esc(def.label)} (${esc(def.unit)})</text>`;
@@ -104,7 +112,8 @@ export function matchLapsToChannels(sessionLaps, chLaps) {
 // collapsible <details>, rendered lazily on first expand. Chips toggle laps
 // into the highlight slots (max 3 at once; oldest is evicted). The fastest
 // lap starts highlighted.
-export function bindChannelGraphs(container, channels, sessionLaps) {
+export function bindChannelGraphs(container, channels, sessionLaps, { units = currentUnits() } = {}) {
+  const CHANNEL_DEFS = channelDefs(units);
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
   const bestMs = Math.min(...sessionLaps.map((l) => l.time_ms));
@@ -169,7 +178,7 @@ export function bindChannelGraphs(container, channels, sessionLaps) {
   const renderCharts = () => {
     chartsDirty = false;
     const lit = litMap();
-    const charts = CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit)).filter(Boolean);
+    const charts = CHANNEL_DEFS.map((def) => channelChartSvg(def, channels, lit, { units })).filter(Boolean);
     chartsEl.innerHTML = charts.map((c) => `<div class="ch-chart">${c}</div>`).join("");
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
@@ -192,7 +201,7 @@ export function bindChannelGraphs(container, channels, sessionLaps) {
           })
           .join("");
         if (!tipRows) { $tooltip.hidden = true; return; }
-        $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${tipRows}`;
+        $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d, units))}</div>${tipRows}`;
         $tooltip.hidden = false;
         const tw = $tooltip.offsetWidth;
         let left = evt.clientX + 14;

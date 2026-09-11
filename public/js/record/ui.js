@@ -12,6 +12,7 @@
 
 import { platform } from "../platform.js";
 import { esc } from "../format.js";
+import { currentUnits, fmtAccuracy } from "../units.js";
 import { reviewResults } from "../import/ui.js";
 import {
   addFix,
@@ -226,7 +227,7 @@ export function bindRecorder(view, event, onSaved) {
       const acc = active.lastFix?.accuracy;
       const gpsLine = !fixCount
         ? `<span style="color:var(--text-muted)">Waiting for GPS…</span>`
-        : `${fixCount.toLocaleString()} GPS fixes${acc != null ? ` · ±${Math.round(acc)} m` : ""}`;
+        : `${fixCount.toLocaleString()} GPS fixes${acc != null ? ` · ${fmtAccuracy(acc, currentUnits())}` : ""}`;
       panel.innerHTML = `<div class="panel" style="text-align:center">
         <div class="hint" style="letter-spacing:.08em;text-transform:uppercase;color:var(--danger)">● Recording</div>
         <div id="rec-elapsed" style="${recTimerStyle};margin:10px 0 4px">${fmtClock(elapsedS(active.rec, now))}</div>
@@ -308,7 +309,7 @@ export function bindRecorder(view, event, onSaved) {
     if (active.rec && panel.querySelector("#rec-gps")) {
       const acc = active.lastFix?.accuracy;
       panel.querySelector("#rec-gps").textContent = `${active.rec.fixes.length.toLocaleString()} GPS fixes${
-        acc != null ? ` · ±${Math.round(acc)} m` : ""
+        acc != null ? ` · ${fmtAccuracy(acc, currentUnits())}` : ""
       }`;
       return;
     }

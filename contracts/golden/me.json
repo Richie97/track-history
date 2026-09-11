@@ -13,7 +13,8 @@
       "id": 1,
       "name": "Dev User",
       "picture": null,
-      "share_slug": "contract-fixture"
+      "share_slug": "contract-fixture",
+      "units": "imperial"
     }
   }
 }

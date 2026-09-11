@@ -25,7 +25,25 @@ public data class User(
      * a template is what a checklist starts *from*, so it carries no done flags.
      */
     @SerialName("checklist_template") val checklistTemplate: List<String>? = null,
-)
+    /**
+     * The unit system the user sees the logbook in (`PUT /api/me/units`).
+     * Display-only: the server stores and returns the same numbers either way —
+     * temperatures whole °F, channel speeds km/h, setup pressures psi, fuel
+     * gallons. The server always answers one of the two; nullable here only so a
+     * `/me` cached before the field existed still decodes, with null read as
+     * [UnitSystem.IMPERIAL] (what the app always showed) via [effectiveUnits].
+     */
+    val units: UnitSystem? = null,
+) {
+    val effectiveUnits: UnitSystem get() = units ?: UnitSystem.IMPERIAL
+}
+
+/** Mirrors `UNIT_SYSTEMS` in `src/lib/validate.ts` and `public/js/units.js`. */
+@Serializable
+public enum class UnitSystem {
+    @SerialName("imperial") IMPERIAL,
+    @SerialName("metric") METRIC,
+}
 
 /** Headline counts shown on the dashboard and the public share page. */
 @Serializable

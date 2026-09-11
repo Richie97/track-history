@@ -16,9 +16,11 @@ import { renderTrackMap } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
 import {
-  AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS, WEAR_LIMIT_HINTS,
-  diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, partKindLabel, partStatus,
+  AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
+  defaultMeasurementUnit, diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
+  partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit, wearLimitHint,
 } from "./js/garage.js";
+import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtTemp, tempInputSpec, tempToDisplay, tempToStored, tempUnit } from "./js/units.js";
 import {
   activeEventId,
   bindRecorder,
@@ -71,7 +73,7 @@ const CONDITIONS = [
 ];
 const condLabel = (c) => (CONDITIONS.find(([v]) => v === c) || [])[1] ?? "";
 const fmtConditions = (e) =>
-  [condLabel(e.conditions), e.temp_f != null ? `${e.temp_f}°F` : ""].filter(Boolean).join(" · ");
+  [condLabel(e.conditions), fmtTemp(e.temp_f, currentUnits())].filter(Boolean).join(" · ");
 
 // ---------- garage & setup-sheet renderers -----------------------------------
 
@@ -154,16 +156,23 @@ const alertStripHtml = (garage, { collapsible = false } = {}) => {
 // Compact spec-sheet rendering of a setup: one box per field group, values
 // that differ from `prev` highlighted. prev=null renders without highlights.
 function setupSheetHtml(sheet, prev, partsById) {
+  const units = currentUnits();
   const changed = new Set(diffSetups(prev, sheet).map((d) => d.key));
-  const sv = (key, value) =>
-    `<span class="sv${changed.has(key) && prev ? " changed" : ""}">${esc(String(value))}</span>`;
+  // Values are stored in psi/gal and shown in the user's system; the diff
+  // (and the "changed" highlight) runs on stored values, so it is unaffected.
+  const sv = (f, key, value) =>
+    `<span class="sv${changed.has(key) && prev ? " changed" : ""}">${esc(String(setupToDisplay(f, value, units)))}</span>`;
+  const labelHtml = (f) => {
+    const unit = setupUnit(f, units);
+    return `${f.label}${unit ? ` <em>${unit}</em>` : ""}`;
+  };
   const boxes = [];
   for (const f of SETUP_FIELDS) {
     if (f.shape === "number") {
       if (sheet[f.key] == null) continue;
       boxes.push(
-        `<div class="setup-box"><span class="sb-label">${f.label}${f.unit ? ` <em>${f.unit}</em>` : ""}</span>
-         <span class="sb-vals">${sv(f.key, sheet[f.key])}</span></div>`
+        `<div class="setup-box"><span class="sb-label">${labelHtml(f)}</span>
+         <span class="sb-vals">${sv(f, f.key, sheet[f.key])}</span></div>`
       );
       continue;
     }
@@ -172,10 +181,10 @@ function setupSheetHtml(sheet, prev, partsById) {
     const keys = f.shape === "corners" ? CORNER_KEYS : AXLE_KEYS;
     const vals = keys
       .filter(([k]) => group[k] != null)
-      .map(([k, lbl]) => `<span class="sv-wrap" title="${f.label} ${lbl}">${sv(`${f.key}.${k}`, group[k])}</span>`);
+      .map(([k, lbl]) => `<span class="sv-wrap" title="${f.label} ${lbl}">${sv(f, `${f.key}.${k}`, group[k])}</span>`);
     if (!vals.length) continue;
     boxes.push(
-      `<div class="setup-box"><span class="sb-label">${f.label}${f.unit ? ` <em>${f.unit}</em>` : ""}</span>
+      `<div class="setup-box"><span class="sb-label">${labelHtml(f)}</span>
        <span class="sb-vals">${vals.join('<span class="sep">/</span>')}</span></div>`
     );
   }
@@ -194,21 +203,28 @@ function setupSheetHtml(sheet, prev, partsById) {
 // The editable form for one day's sheet. Inputs are named sf:<flat-key> and
 // read back by readSetupForm; blank inputs mean "not recorded".
 function setupFormHtml(day, sheet, partOptions, existing) {
-  const val = (root, sub) => {
-    const v = sub ? sheet?.[root]?.[sub] : sheet?.[root];
-    return v ?? "";
+  const units = currentUnits();
+  // Pre-filled values are converted into the user's system here and back to
+  // the stored one by readSetupForm — the form never holds a stored value.
+  const val = (f, sub) => {
+    const v = sub ? sheet?.[f.key]?.[sub] : sheet?.[f.key];
+    return setupToDisplay(f, v, units) ?? "";
+  };
+  const label = (f) => {
+    const unit = setupUnit(f, units);
+    return `${f.label}${unit ? ` (${unit})` : ""}`;
   };
   const fields = SETUP_FIELDS.map((f) => {
     if (f.shape === "number")
-      return `<div class="field"><label>${f.label}${f.unit ? ` (${f.unit})` : ""}</label>
-        <input name="sf:${f.key}" type="number" step="${f.step}" inputmode="decimal" value="${val(f.key)}"></div>`;
+      return `<div class="field"><label>${label(f)}</label>
+        <input name="sf:${f.key}" type="number" step="${setupStep(f, units)}" inputmode="decimal" value="${val(f)}"></div>`;
     const keys = f.shape === "corners" ? CORNER_KEYS : AXLE_KEYS;
-    return `<div class="field"><label>${f.label}${f.unit ? ` (${f.unit})` : ""}</label>
+    return `<div class="field"><label>${label(f)}</label>
       <div class="setup-inputs ${f.shape}">${keys
         .map(
           ([k, lbl]) =>
-            `<input name="sf:${f.key}.${k}" type="number" step="${f.step}" inputmode="decimal"
-               placeholder="${lbl}" aria-label="${f.label} ${lbl}" value="${val(f.key, k)}">`
+            `<input name="sf:${f.key}.${k}" type="number" step="${setupStep(f, units)}" inputmode="decimal"
+               placeholder="${lbl}" aria-label="${f.label} ${lbl}" value="${val(f, k)}">`
         )
         .join("")}</div></div>`;
   }).join("");
@@ -238,6 +254,7 @@ function setupFormHtml(day, sheet, partOptions, existing) {
 }
 
 function readSetupForm(form) {
+  const units = currentUnits();
   const out = {};
   for (const el of form.elements) {
     if (!el.name?.startsWith("sf:")) continue;
@@ -250,7 +267,8 @@ function readSetupForm(form) {
     }
     const num = Number(raw);
     if (!Number.isFinite(num)) continue;
-    const v = PART_REFS.some(([k]) => k === root) ? Math.round(num) : num;
+    const field = setupFieldFor(root);
+    const v = PART_REFS.some(([k]) => k === root) ? Math.round(num) : field ? setupToStored(field, num, units) : num;
     if (sub) (out[root] ??= {})[sub] = v;
     else out[root] = v;
   }
@@ -265,7 +283,7 @@ function diffChipsHtml(prev, cur, partsById, max = 8) {
       const p = partsById?.get(v);
       return p ? p.name : `#${v}`;
     }
-    return String(v);
+    return fmtSetupValue(key, v, currentUnits());
   };
   const diffs = diffSetups(prev, cur);
   if (!diffs.length) return `<span class="hint-inline">no changes</span>`;
@@ -597,6 +615,7 @@ function shell(content) {
     }
     // Same reasoning for the offline layer's response cache and write queue.
     await clearOffline();
+    clearUnitsCache();
     renderLogin();
   };
   return document.getElementById("view");
@@ -662,6 +681,9 @@ async function ensureMe() {
   const data = await api("/me");
   state.me = data.user;
   state.totals = data.totals;
+  // The account's unit system; cached so share pages and the import review
+  // (which have no /me) read the same value.
+  cacheUnits(state.me.units);
 }
 
 // --- dashboard ---
@@ -1595,6 +1617,8 @@ async function viewEventForm(eventId, presetTrack) {
     api("/vehicles"),
   ]);
   const existing = eventId ? await api(`/events/${eventId}`) : null;
+  const units = currentUnits();
+  const tempSpec = tempInputSpec(units);
   // The user's own tracks first, then the rest of the seeded track catalog.
   const ownNames = tracks.map((t) => t.name);
   const seen = new Set(ownNames.map((n) => n.toLowerCase()));
@@ -1646,8 +1670,8 @@ async function viewEventForm(eventId, presetTrack) {
             ${CONDITIONS.map(([v, l]) => `<option value="${v}"${existing?.conditions === v ? " selected" : ""}>${l}</option>`).join("")}
           </select>
         </div>
-        <div class="field"><label>Temp °F (optional)</label>
-          <input name="temp_f" type="number" min="-40" max="150" step="1" value="${existing?.temp_f ?? ""}" placeholder="72">
+        <div class="field"><label>Temp ${tempUnit(units)} (optional)</label>
+          <input name="temp_f" type="number" min="${tempSpec.min}" max="${tempSpec.max}" step="1" value="${tempToDisplay(existing?.temp_f, units) ?? ""}" placeholder="${tempSpec.placeholder}">
         </div>
         <div class="field"><label>Best time (optional)</label>
           <input name="best_time" value="${existing?.best_time_ms != null ? fmtMs(existing.best_time_ms) : ""}" placeholder="2:01.24">
@@ -1688,7 +1712,8 @@ async function viewEventForm(eventId, presetTrack) {
       run_group: f.run_group.value.trim() || null,
       car: f.car.value.trim() || null,
       conditions: f.conditions.value || null,
-      temp_f: tempRaw === "" ? null : Math.round(Number(tempRaw)),
+      // Entered in the user's system, stored in °F.
+      temp_f: tempRaw === "" ? null : tempToStored(Number(tempRaw), units),
       notes: f.notes.value.trim() || null,
       best_time_ms: best,
     };
@@ -1738,9 +1763,22 @@ async function viewSettings() {
       </form>
     </div>`;
 
+  const units = currentUnits();
+
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
     <h1>Settings</h1>
+    <h2>Units</h2>
+    <div class="hint" style="margin:0 0 4px">How speeds, distances, temperatures, tire pressures and fuel are shown and entered, on every device you sign in on. Nothing already logged changes — the same numbers are just converted.</div>
+    <div class="panel">
+      <div class="btn-row" role="group" aria-label="Unit system" id="units-toggle">
+        ${UNIT_SYSTEMS.map(
+          ([id, label, examples]) =>
+            `<button type="button" class="btn small${units === id ? " primary" : ""}" data-units="${id}" aria-pressed="${units === id}">${label} <span class="hint-inline">${examples}</span></button>`
+        ).join("")}
+      </div>
+      <div id="units-error"></div>
+    </div>
     <h2>Vehicles</h2>
     <div class="hint" style="margin:0 0 4px">Your garage — the event form's Car field suggests these, and the default fills in automatically on new events. Open a car's garage page to track its consumables (pads, tires, fluid…) and see when they'll need replacing.</div>
     ${vehicles.map(vehicleHtml).join("") || `<div class="empty">No cars yet — add your first below.</div>`}
@@ -1789,6 +1827,22 @@ async function viewSettings() {
   const showError = (err) => {
     view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
   };
+
+  // --- units ---
+  view.querySelectorAll("[data-units]").forEach((btn) => {
+    btn.onclick = async () => {
+      const next = btn.dataset.units;
+      if (next === units) return;
+      try {
+        await api("/me/units", { method: "PUT", body: { units: next } });
+        state.me.units = next;
+        cacheUnits(next);
+        route();
+      } catch (err) {
+        view.querySelector("#units-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+      }
+    };
+  });
 
   // --- prep checklist template ---
   // Saved whole, not item by item: it is one ordered list, and a partial write
@@ -1905,6 +1959,7 @@ async function viewVehicle(vehicleId) {
   const retired = v.parts.filter((p) => p.retired_on);
   const spendCents = v.parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0);
   const today = todayISO();
+  const units = currentUnits();
 
   const measurementChips = (p) =>
     p.measurements.length
@@ -1926,7 +1981,7 @@ async function viewVehicle(vehicleId) {
         <div class="field"><label>Retired (blank = in service)</label><input name="retired_on" type="date" value="${esc(p.retired_on ?? "")}"></div>
         <div class="field"><label>Cost ($)</label><input name="cost" type="number" min="0" step="0.01" value="${p.cost_cents != null ? (p.cost_cents / 100).toFixed(2) : ""}"></div>
         <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" value="${p.expected_hours ?? ""}"></div>
-        <div class="field"><label>Replace at (measured value)</label><input name="wear_limit" type="number" min="0" step="0.5" value="${p.wear_limit ?? ""}" placeholder="${WEAR_LIMIT_HINTS[p.kind] ?? ""}"></div>
+        <div class="field"><label>Replace at (measured value)</label><input name="wear_limit" type="number" min="0" step="0.5" value="${p.wear_limit ?? ""}" placeholder="${wearLimitHint(p.kind, units)}"></div>
       </div>
       <div class="field"><label>Notes</label><input name="notes" value="${esc(p.notes ?? "")}" placeholder="Sizes, torque specs, where bought…"></div>
       <div class="btn-row">
@@ -1951,9 +2006,9 @@ async function viewVehicle(vehicleId) {
       ${wearBarHtml(p.wear)}
       <div class="part-status">${wearStatusHtml(p)}</div>
       ${measurementChips(p)}
-      <form class="btn-row meas-form" data-meas-form="${p.id}" hidden>
+      <form class="btn-row meas-form" data-meas-form="${p.id}" data-meas-kind="${esc(p.kind)}" hidden>
         <input name="value" type="number" step="0.1" min="0" required placeholder="Value" style="max-width:110px">
-        <input name="unit" value="${esc(p.measurements[p.measurements.length - 1]?.unit ?? (p.kind === "tires" ? "32nds" : "mm"))}" placeholder="mm" style="max-width:90px">
+        <input name="unit" value="${esc(p.measurements[p.measurements.length - 1]?.unit ?? defaultMeasurementUnit(p.kind, units))}" placeholder="mm" style="max-width:90px">
         <input name="measured_on" type="date" required value="${today}">
         <button class="btn small primary">Log measurement</button>
         <span class="hint-inline">two or more measurements unlock the wear projection</span>
@@ -2008,7 +2063,7 @@ async function viewVehicle(vehicleId) {
         <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${today}"></div>
         <div class="field"><label>Cost ($, optional)</label><input name="cost" type="number" min="0" step="0.01" placeholder="389"></div>
         <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" placeholder="auto from history"></div>
-        <div class="field"><label>Replace at (optional)</label><input name="wear_limit" type="number" min="0" step="0.5" placeholder="3 (mm)"></div>
+        <div class="field"><label>Replace at (optional)</label><input name="wear_limit" type="number" min="0" step="0.5" placeholder="${wearLimitHint("pads_front", units)}"></div>
       </div>
       <div class="field"><label>Notes</label><input name="notes" placeholder="Sizes, torque specs, where bought…"></div>
       <div id="part-error"></div>
@@ -2029,7 +2084,13 @@ async function viewVehicle(vehicleId) {
   };
   const numOrNull = (raw) => (raw.trim() === "" ? null : Number(raw));
 
-  view.querySelector("#part-add").onsubmit = async (evt) => {
+  // The replace-at hint follows the chosen kind (tread depth is not a pad
+  // thickness), in the user's tread-depth idiom.
+  const partAdd = view.querySelector("#part-add");
+  partAdd.kind.onchange = () => {
+    partAdd.wear_limit.placeholder = wearLimitHint(partAdd.kind.value, units);
+  };
+  partAdd.onsubmit = async (evt) => {
     evt.preventDefault();
     const f = evt.target;
     try {
@@ -2067,7 +2128,7 @@ async function viewVehicle(vehicleId) {
           body: {
             measured_on: form.measured_on.value,
             value: Number(form.value.value),
-            unit: form.unit.value.trim() || "mm",
+            unit: form.unit.value.trim() || defaultMeasurementUnit(form.dataset.measKind, units),
           },
         });
         route();

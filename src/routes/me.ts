@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { userTotals } from "../db";
-import { sanitizeChecklistTemplate } from "../lib/validate";
+import { DEFAULT_UNITS, isValidUnits, sanitizeChecklistTemplate } from "../lib/validate";
 
 export const me = new Hono<AppContext>();
 
@@ -21,11 +21,18 @@ function parseTemplate(raw: unknown): string[] | null {
 me.get("/me", async (c) => {
   const userId = c.get("userId");
   const row = await c.env.DB.prepare(
-    "SELECT id, email, name, picture, share_slug, checklist_template FROM users WHERE id = ?"
+    "SELECT id, email, name, picture, share_slug, checklist_template, units FROM users WHERE id = ?"
   )
     .bind(userId)
     .first();
-  const user = row && { ...row, checklist_template: parseTemplate(row.checklist_template) };
+  // `units` is always a concrete system, never null: the default lives here,
+  // in one place, rather than in three clients that would each have to agree
+  // on what "unset" means.
+  const user = row && {
+    ...row,
+    checklist_template: parseTemplate(row.checklist_template),
+    units: isValidUnits(row.units) ? row.units : DEFAULT_UNITS,
+  };
   const totals = await userTotals(c.env.DB, userId);
   return c.json({ user, totals });
 });
@@ -42,5 +49,19 @@ me.put("/me/checklist-template", async (c) => {
   await c.env.DB.prepare("UPDATE users SET checklist_template = ? WHERE id = ?")
     .bind(template ? JSON.stringify(template) : null, userId)
     .run();
+  return c.json({ ok: true });
+});
+
+// Choose the unit system the logbook is shown in ("metric" or "imperial").
+// Display-only — nothing stored changes — so there is no "clear" here: a user
+// always sees one system or the other, and the default is what GET /me answers
+// for an account that never chose.
+me.put("/me/units", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== "object") return c.json({ error: "invalid body" }, 400);
+  const units = (body as Record<string, unknown>).units;
+  if (!isValidUnits(units)) return c.json({ error: "units must be \"metric\" or \"imperial\"" }, 400);
+  await c.env.DB.prepare("UPDATE users SET units = ? WHERE id = ?").bind(units, userId).run();
   return c.json({ ok: true });
 });

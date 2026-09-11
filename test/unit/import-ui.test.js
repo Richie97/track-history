@@ -121,6 +121,15 @@ describe("metricsSummary", () => {
     );
   });
 
+  it("writes the top speed in the user's unit system", () => {
+    expect(metricsSummary({ metrics: { topSpeedKph: 194.5, maxRpm: null, maxLatG: null } }, "metric")).toBe(
+      "top speed 195 km/h"
+    );
+    expect(metricsSummary({ metrics: { topSpeedKph: 194.5, maxRpm: null, maxLatG: null } }, "imperial")).toBe(
+      "top speed 121 mph"
+    );
+  });
+
   it("is empty for sources without metrics", () => {
     expect(metricsSummary({ kind: "gopro" })).toBe("");
     expect(metricsSummary({ metrics: { topSpeedKph: null, maxRpm: null, maxLatG: null } })).toBe("");

@@ -11,6 +11,10 @@ describe("GET /api/me", () => {
     // null, not [] — "I haven't customized this" is what puts the app's built-in
     // default in front of the user.
     expect(res.body.user.checklist_template).toBeNull();
+    // Imperial is what the app always showed, so an account that never chose
+    // must keep seeing it — and the default is answered here, not guessed by
+    // each client.
+    expect(res.body.user.units).toBe("imperial");
   });
 
   it("returns a saved template as an array", async () => {
@@ -33,6 +37,48 @@ describe("GET /api/me", () => {
     const res = await api("GET", "/me");
     expect(res.status).toBe(200);
     expect(res.body.user.checklist_template).toBeNull();
+  });
+});
+
+describe("PUT /api/me/units", () => {
+  it("saves the choice and reports it from GET /me", async () => {
+    const { api } = await signedInUser();
+    const res = await api("PUT", "/me/units", { units: "metric" });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect((await api("GET", "/me")).body.user.units).toBe("metric");
+    await api("PUT", "/me/units", { units: "imperial" });
+    expect((await api("GET", "/me")).body.user.units).toBe("imperial");
+  });
+
+  it("rejects anything but the two systems", async () => {
+    const { api } = await signedInUser();
+    for (const units of ["Metric", "si", "", null, 1, ["metric"]]) {
+      const res = await api("PUT", "/me/units", { units });
+      expect(res.status, JSON.stringify(units)).toBe(400);
+    }
+    expect((await api("PUT", "/me/units", "not json" as any)).status).toBe(400);
+  });
+
+  it("degrades an unknown stored value to the default rather than failing the request", async () => {
+    const { api, id } = await signedInUser();
+    await env.DB.prepare("UPDATE users SET units = ? WHERE id = ?").bind("furlongs", id).run();
+    const res = await api("GET", "/me");
+    expect(res.status).toBe(200);
+    expect(res.body.user.units).toBe("imperial");
+  });
+
+  it("is per user", async () => {
+    const a = await signedInUser();
+    const b = await signedInUser();
+    await a.api("PUT", "/me/units", { units: "metric" });
+    expect((await b.api("GET", "/me")).body.user.units).toBe("imperial");
+    expect((await a.api("GET", "/me")).body.user.units).toBe("metric");
+  });
+
+  it("needs a session", async () => {
+    const anon = apiClient();
+    expect((await anon("PUT", "/me/units", { units: "metric" })).status).toBe(401);
   });
 });
 

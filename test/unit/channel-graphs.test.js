@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelChartSvg, matchLapsToChannels } from "../../public/js/channel-graphs.js";
+import { channelChartSvg, channelDefs, distAxisTicks, matchLapsToChannels } from "../../public/js/channel-graphs.js";
 import { niceNumTicks } from "../../public/js/chart.js";
 
 const mkChannels = () => ({
@@ -18,6 +18,31 @@ describe("niceNumTicks", () => {
     const g = niceNumTicks(0, 1.4, 3);
     expect(g[0]).toBe(0);
     expect(g[g.length - 1]).toBeLessThanOrEqual(1.4);
+  });
+});
+
+describe("channelDefs / distAxisTicks", () => {
+  it("labels speed in the user's system and leaves rpm and G alone", () => {
+    const imp = channelDefs("imperial");
+    const met = channelDefs("metric");
+    expect(imp.map((d) => d.unit)).toEqual(["mph", "rpm", "G"]);
+    expect(met.map((d) => d.unit)).toEqual(["km/h", "rpm", "G"]);
+    expect(Math.round(imp[0].conv(100))).toBe(62);
+    expect(met[0].conv(100)).toBe(100);
+  });
+
+  it("ticks a metric axis in nice metres and an imperial one in nice miles", () => {
+    expect(distAxisTicks(1780, "metric").map((t) => t.label)).toEqual(["0 m", "500 m", "1 km", "1.5 km"]);
+    const mi = distAxisTicks(4000, "imperial");
+    expect(mi.map((t) => t.label)).toEqual(["0 mi", "0.5 mi", "1 mi", "1.5 mi", "2 mi"]);
+    expect(mi[2].m).toBeCloseTo(1609.344, 6);
+  });
+
+  it("renders a metric chart with km/h and kilometre ticks", () => {
+    const svg = channelChartSvg(channelDefs("metric")[0], mkChannels(), new Map(), { units: "metric" });
+    expect(svg).toContain("Speed (km/h)");
+    expect(svg).toContain(">1 km<");
+    expect(svg).not.toContain(" mi<");
   });
 });
 
@@ -65,6 +90,11 @@ describe("channelChartSvg", () => {
     expect(svg).toContain('stroke="var(--chart-dim)"'); // lap 1: context
     expect(svg).toContain('stroke="var(--chart-line)"'); // lap 2: highlighted
     expect(svg).toContain("Speed (mph)");
+    // Without a units option the axis reads in the cached system — imperial
+    // in Node, where nothing has been cached.
+    expect(svg).toContain(">0 mi<");
+    expect(svg).toContain(">1 mi<");
+    expect(svg).not.toContain(" km<");
   });
 
   it("skips laps missing the channel and returns '' when none carry it", () => {
