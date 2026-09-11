@@ -1,0 +1,753 @@
+{
+  "description": "Unit-system conversions captured from public/js/units.js (and the tread-depth helpers in public/js/garage.js). Storage never changes with the preference — temperatures whole °F, speeds km/h, distances metres — so these pin only how a number is shown and read back. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/units.js",
+  "systems": [
+    "imperial",
+    "metric"
+  ],
+  "default": "imperial",
+  "speedKph": [
+    {
+      "kph": 194.5,
+      "dp": 0,
+      "units": "imperial",
+      "output": "121 mph"
+    },
+    {
+      "kph": 150.1,
+      "dp": 0,
+      "units": "imperial",
+      "output": "93 mph"
+    },
+    {
+      "kph": 100,
+      "dp": 0,
+      "units": "imperial",
+      "output": "62 mph"
+    },
+    {
+      "kph": 0,
+      "dp": 0,
+      "units": "imperial",
+      "output": "0 mph"
+    },
+    {
+      "kph": 120.5,
+      "dp": 0,
+      "units": "imperial",
+      "output": "75 mph"
+    },
+    {
+      "kph": 2.5,
+      "dp": 0,
+      "units": "imperial",
+      "output": "2 mph"
+    },
+    {
+      "kph": 100,
+      "dp": 1,
+      "units": "imperial",
+      "output": "62.1 mph"
+    },
+    {
+      "kph": 0.15,
+      "dp": 1,
+      "units": "imperial",
+      "output": "0.1 mph"
+    },
+    {
+      "kph": 194.5,
+      "dp": 2,
+      "units": "imperial",
+      "output": "120.86 mph"
+    },
+    {
+      "kph": 194.5,
+      "dp": 0,
+      "units": "metric",
+      "output": "195 km/h"
+    },
+    {
+      "kph": 150.1,
+      "dp": 0,
+      "units": "metric",
+      "output": "150 km/h"
+    },
+    {
+      "kph": 100,
+      "dp": 0,
+      "units": "metric",
+      "output": "100 km/h"
+    },
+    {
+      "kph": 0,
+      "dp": 0,
+      "units": "metric",
+      "output": "0 km/h"
+    },
+    {
+      "kph": 120.5,
+      "dp": 0,
+      "units": "metric",
+      "output": "121 km/h"
+    },
+    {
+      "kph": 2.5,
+      "dp": 0,
+      "units": "metric",
+      "output": "3 km/h"
+    },
+    {
+      "kph": 100,
+      "dp": 1,
+      "units": "metric",
+      "output": "100.0 km/h"
+    },
+    {
+      "kph": 0.15,
+      "dp": 1,
+      "units": "metric",
+      "output": "0.1 km/h"
+    },
+    {
+      "kph": 194.5,
+      "dp": 2,
+      "units": "metric",
+      "output": "194.50 km/h"
+    }
+  ],
+  "speedMps": [
+    {
+      "mps": 30,
+      "units": "imperial",
+      "output": 67.108068
+    },
+    {
+      "mps": 0,
+      "units": "imperial",
+      "output": 0
+    },
+    {
+      "mps": 44.7,
+      "units": "imperial",
+      "output": 99.99102132000002
+    },
+    {
+      "mps": 0.5,
+      "units": "imperial",
+      "output": 1.1184678000000001
+    },
+    {
+      "mps": 30,
+      "units": "metric",
+      "output": 108
+    },
+    {
+      "mps": 0,
+      "units": "metric",
+      "output": 0
+    },
+    {
+      "mps": 44.7,
+      "units": "metric",
+      "output": 160.92000000000002
+    },
+    {
+      "mps": 0.5,
+      "units": "metric",
+      "output": 1.8
+    }
+  ],
+  "dist": [
+    {
+      "m": 0,
+      "units": "imperial",
+      "output": "0 mi"
+    },
+    {
+      "m": 12.5,
+      "units": "imperial",
+      "output": "41 ft"
+    },
+    {
+      "m": 100,
+      "units": "imperial",
+      "output": "328 ft"
+    },
+    {
+      "m": 402.336,
+      "units": "imperial",
+      "output": "0.25 mi"
+    },
+    {
+      "m": 800,
+      "units": "imperial",
+      "output": "0.5 mi"
+    },
+    {
+      "m": 804.672,
+      "units": "imperial",
+      "output": "0.5 mi"
+    },
+    {
+      "m": 940,
+      "units": "imperial",
+      "output": "0.58 mi"
+    },
+    {
+      "m": 1234.5,
+      "units": "imperial",
+      "output": "0.77 mi"
+    },
+    {
+      "m": 1500,
+      "units": "imperial",
+      "output": "0.93 mi"
+    },
+    {
+      "m": 1609.344,
+      "units": "imperial",
+      "output": "1 mi"
+    },
+    {
+      "m": 2000,
+      "units": "imperial",
+      "output": "1.24 mi"
+    },
+    {
+      "m": 2400,
+      "units": "imperial",
+      "output": "1.49 mi"
+    },
+    {
+      "m": 4000,
+      "units": "imperial",
+      "output": "2.49 mi"
+    },
+    {
+      "m": 0,
+      "units": "metric",
+      "output": "0 m"
+    },
+    {
+      "m": 12.5,
+      "units": "metric",
+      "output": "12.5 m"
+    },
+    {
+      "m": 100,
+      "units": "metric",
+      "output": "100 m"
+    },
+    {
+      "m": 402.336,
+      "units": "metric",
+      "output": "402.336 m"
+    },
+    {
+      "m": 800,
+      "units": "metric",
+      "output": "800 m"
+    },
+    {
+      "m": 804.672,
+      "units": "metric",
+      "output": "804.672 m"
+    },
+    {
+      "m": 940,
+      "units": "metric",
+      "output": "940 m"
+    },
+    {
+      "m": 1234.5,
+      "units": "metric",
+      "output": "1.2 km"
+    },
+    {
+      "m": 1500,
+      "units": "metric",
+      "output": "1.5 km"
+    },
+    {
+      "m": 1609.344,
+      "units": "metric",
+      "output": "1.6 km"
+    },
+    {
+      "m": 2000,
+      "units": "metric",
+      "output": "2 km"
+    },
+    {
+      "m": 2400,
+      "units": "metric",
+      "output": "2.4 km"
+    },
+    {
+      "m": 4000,
+      "units": "metric",
+      "output": "4 km"
+    }
+  ],
+  "accuracy": [
+    {
+      "m": 0.4,
+      "units": "imperial",
+      "output": "±1 ft"
+    },
+    {
+      "m": 4.2,
+      "units": "imperial",
+      "output": "±14 ft"
+    },
+    {
+      "m": 4.5,
+      "units": "imperial",
+      "output": "±15 ft"
+    },
+    {
+      "m": 13.7,
+      "units": "imperial",
+      "output": "±45 ft"
+    },
+    {
+      "m": 20,
+      "units": "imperial",
+      "output": "±66 ft"
+    },
+    {
+      "m": 0.4,
+      "units": "metric",
+      "output": "±0 m"
+    },
+    {
+      "m": 4.2,
+      "units": "metric",
+      "output": "±4 m"
+    },
+    {
+      "m": 4.5,
+      "units": "metric",
+      "output": "±5 m"
+    },
+    {
+      "m": 13.7,
+      "units": "metric",
+      "output": "±14 m"
+    },
+    {
+      "m": 20,
+      "units": "metric",
+      "output": "±20 m"
+    }
+  ],
+  "temp": [
+    {
+      "f": -40,
+      "units": "imperial",
+      "display": -40,
+      "text": "-40°F"
+    },
+    {
+      "f": -1,
+      "units": "imperial",
+      "display": -1,
+      "text": "-1°F"
+    },
+    {
+      "f": 0,
+      "units": "imperial",
+      "display": 0,
+      "text": "0°F"
+    },
+    {
+      "f": 31,
+      "units": "imperial",
+      "display": 31,
+      "text": "31°F"
+    },
+    {
+      "f": 32,
+      "units": "imperial",
+      "display": 32,
+      "text": "32°F"
+    },
+    {
+      "f": 33,
+      "units": "imperial",
+      "display": 33,
+      "text": "33°F"
+    },
+    {
+      "f": 72,
+      "units": "imperial",
+      "display": 72,
+      "text": "72°F"
+    },
+    {
+      "f": 100,
+      "units": "imperial",
+      "display": 100,
+      "text": "100°F"
+    },
+    {
+      "f": 150,
+      "units": "imperial",
+      "display": 150,
+      "text": "150°F"
+    },
+    {
+      "f": -40,
+      "units": "metric",
+      "display": -40,
+      "text": "-40°C"
+    },
+    {
+      "f": -1,
+      "units": "metric",
+      "display": -18,
+      "text": "-18°C"
+    },
+    {
+      "f": 0,
+      "units": "metric",
+      "display": -18,
+      "text": "-18°C"
+    },
+    {
+      "f": 31,
+      "units": "metric",
+      "display": -1,
+      "text": "-1°C"
+    },
+    {
+      "f": 32,
+      "units": "metric",
+      "display": 0,
+      "text": "0°C"
+    },
+    {
+      "f": 33,
+      "units": "metric",
+      "display": 1,
+      "text": "1°C"
+    },
+    {
+      "f": 72,
+      "units": "metric",
+      "display": 22,
+      "text": "22°C"
+    },
+    {
+      "f": 100,
+      "units": "metric",
+      "display": 38,
+      "text": "38°C"
+    },
+    {
+      "f": 150,
+      "units": "metric",
+      "display": 66,
+      "text": "66°C"
+    }
+  ],
+  "tempToStored": [
+    {
+      "v": -40,
+      "units": "imperial",
+      "output": -40
+    },
+    {
+      "v": -0.5,
+      "units": "imperial",
+      "output": 0
+    },
+    {
+      "v": 0,
+      "units": "imperial",
+      "output": 0
+    },
+    {
+      "v": 0.5,
+      "units": "imperial",
+      "output": 1
+    },
+    {
+      "v": 22,
+      "units": "imperial",
+      "output": 22
+    },
+    {
+      "v": 22.5,
+      "units": "imperial",
+      "output": 23
+    },
+    {
+      "v": 36.6,
+      "units": "imperial",
+      "output": 37
+    },
+    {
+      "v": 65,
+      "units": "imperial",
+      "output": 65
+    },
+    {
+      "v": 72,
+      "units": "imperial",
+      "output": 72
+    },
+    {
+      "v": 72.4,
+      "units": "imperial",
+      "output": 72
+    },
+    {
+      "v": 72.5,
+      "units": "imperial",
+      "output": 73
+    },
+    {
+      "v": 150,
+      "units": "imperial",
+      "output": 150
+    },
+    {
+      "v": -40,
+      "units": "metric",
+      "output": -40
+    },
+    {
+      "v": -0.5,
+      "units": "metric",
+      "output": 31
+    },
+    {
+      "v": 0,
+      "units": "metric",
+      "output": 32
+    },
+    {
+      "v": 0.5,
+      "units": "metric",
+      "output": 33
+    },
+    {
+      "v": 22,
+      "units": "metric",
+      "output": 72
+    },
+    {
+      "v": 22.5,
+      "units": "metric",
+      "output": 73
+    },
+    {
+      "v": 36.6,
+      "units": "metric",
+      "output": 98
+    },
+    {
+      "v": 65,
+      "units": "metric",
+      "output": 149
+    },
+    {
+      "v": 72,
+      "units": "metric",
+      "output": 162
+    },
+    {
+      "v": 72.4,
+      "units": "metric",
+      "output": 162
+    },
+    {
+      "v": 72.5,
+      "units": "metric",
+      "output": 163
+    },
+    {
+      "v": 150,
+      "units": "metric",
+      "output": 302
+    }
+  ],
+  "tempInputSpec": {
+    "imperial": {
+      "min": -40,
+      "max": 150,
+      "placeholder": 72
+    },
+    "metric": {
+      "min": -40,
+      "max": 65,
+      "placeholder": 22
+    }
+  },
+  "wearLimitHint": [
+    {
+      "kind": "pads_front",
+      "units": "imperial",
+      "output": "3 (mm)"
+    },
+    {
+      "kind": "pads_rear",
+      "units": "imperial",
+      "output": "3 (mm)"
+    },
+    {
+      "kind": "tires",
+      "units": "imperial",
+      "output": "3 (32nds)"
+    },
+    {
+      "kind": "rotors_front",
+      "units": "imperial",
+      "output": "28 (mm)"
+    },
+    {
+      "kind": "rotors_rear",
+      "units": "imperial",
+      "output": "26 (mm)"
+    },
+    {
+      "kind": "brake_fluid",
+      "units": "imperial",
+      "output": ""
+    },
+    {
+      "kind": "oil",
+      "units": "imperial",
+      "output": ""
+    },
+    {
+      "kind": "other",
+      "units": "imperial",
+      "output": ""
+    },
+    {
+      "kind": "pads_front",
+      "units": "metric",
+      "output": "3 (mm)"
+    },
+    {
+      "kind": "pads_rear",
+      "units": "metric",
+      "output": "3 (mm)"
+    },
+    {
+      "kind": "tires",
+      "units": "metric",
+      "output": "3 (mm)"
+    },
+    {
+      "kind": "rotors_front",
+      "units": "metric",
+      "output": "28 (mm)"
+    },
+    {
+      "kind": "rotors_rear",
+      "units": "metric",
+      "output": "26 (mm)"
+    },
+    {
+      "kind": "brake_fluid",
+      "units": "metric",
+      "output": ""
+    },
+    {
+      "kind": "oil",
+      "units": "metric",
+      "output": ""
+    },
+    {
+      "kind": "other",
+      "units": "metric",
+      "output": ""
+    }
+  ],
+  "defaultMeasurementUnit": [
+    {
+      "kind": "pads_front",
+      "units": "imperial",
+      "output": "mm"
+    },
+    {
+      "kind": "pads_rear",
+      "units": "imperial",
+      "output": "mm"
+    },
+    {
+      "kind": "tires",
+      "units": "imperial",
+      "output": "32nds"
+    },
+    {
+      "kind": "rotors_front",
+      "units": "imperial",
+      "output": "mm"
+    },
+    {
+      "kind": "rotors_rear",
+      "units": "imperial",
+      "output": "mm"
+    },
+    {
+      "kind": "brake_fluid",
+      "units": "imperial",
+      "output": "mm"
+    },
+    {
+      "kind": "oil",
+      "units": "imperial",
+      "output": "mm"
+    },
+    {
+      "kind": "other",
+      "units": "imperial",
+      "output": "mm"
+    },
+    {
+      "kind": "pads_front",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "pads_rear",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "tires",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "rotors_front",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "rotors_rear",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "brake_fluid",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "oil",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "other",
+      "units": "metric",
+      "output": "mm"
+    }
+  ]
+}

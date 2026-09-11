@@ -25,10 +25,13 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChartScale
 import app.trackevolution.core.Limits
+import app.trackevolution.core.Units
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.TraceMap
 import app.trackevolution.core.TracePoint
 import app.trackevolution.core.TraceSample
 import app.trackevolution.ui.theme.TrackColors
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.hypot
 import kotlin.math.min
@@ -71,6 +74,7 @@ fun TrackMap(
     if (trace.size < MIN_POINTS) return
 
     val colors = TrackTheme.colors
+    val units = LocalUnitSystem.current
     val density = LocalDensity.current
     val tarmacWidth = with(density) { 9.dp.toPx() }
     val rampWidth = with(density) { 3.5.dp.toPx() }
@@ -99,7 +103,7 @@ fun TrackMap(
             .border(1.dp, colors.borderHairline, RoundedCornerShape(TrackTheme.radii.md))
             .semantics {
                 testTag = "trackMap"
-                contentDescription = trackMapSummary(trace, markers)
+                contentDescription = trackMapSummary(trace, markers, units)
             },
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -221,8 +225,6 @@ private const val TRACE_PADDING = 14.0
  */
 private const val RAMP_BUCKETS = 16
 
-private const val MS_TO_MPH = 2.236936
-
 /**
  * One limit marker: the kind's shape, filled or hollow in its side's colour with
  * a ring in the card colour, so shape and fill carry identity beside the hue and
@@ -269,12 +271,15 @@ private fun DrawScope.drawLimitMarker(
 internal fun trackMapSummary(
     trace: List<TraceSample>,
     markers: List<Limits.Marker> = emptyList(),
+    units: UnitSystem = Units.DEFAULT_UNITS,
 ): String {
     val range = ChartScale.speedRange(trace)
         ?: return "Track map, ${trace.size} points."
     val (slowest, fastest) = range
+    // The trace's speeds are m/s; said in the account's system.
     val line = "Track map, ${trace.size} points, " +
-        "${(slowest * MS_TO_MPH).roundToInt()} to ${(fastest * MS_TO_MPH).roundToInt()} mph."
+        "${Units.convSpeedMps(slowest, units).roundToInt()} to " +
+        "${Units.convSpeedMps(fastest, units).roundToInt()} ${Units.speedUnit(units)}."
     if (markers.isEmpty()) return line
     val counts = Limits.LIMIT_KINDS.mapNotNull { kind ->
         val n = markers.count { it.kind == kind.key }

@@ -31,9 +31,11 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import app.trackevolution.BuildConfig
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.Units
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -50,8 +52,8 @@ import java.util.Date
 private const val DOCS_URL = "https://docs.trackevolution.app"
 
 /**
- * Account, theme, the public share link, the prep list, the garage's cars, and
- * the legal pages (NS-26).
+ * Account, theme, units, the public share link, the prep list, the garage's
+ * cars, and the legal pages (NS-26).
  *
  * **Privacy and terms are required on every platform.** The web app carries them
  * in Settings and in the footer of signed-out and share pages; a native app
@@ -106,6 +108,9 @@ fun SettingsScreen(
 
             item("appearance-header") { TESectionHeader("Appearance") }
             item("appearance") { ThemeCard(themeChoice, onThemeChange) }
+
+            item("units-header") { TESectionHeader("Units") }
+            item("units") { UnitsCard(model) }
 
             item("share-header") { TESectionHeader("Share your history") }
             item("share") {
@@ -305,6 +310,53 @@ private fun ThemeCard(choice: ThemeChoice, onChange: (ThemeChoice) -> Unit) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Imperial or metric — the web's Settings → Units, in the theme card's shape.
+ *
+ * The choice is the account's, not the device's: it is written to `/me` and
+ * read back through `LocalUnitSystem`, so the card shows whatever the auth
+ * state says rather than a local copy that could disagree with the charts.
+ */
+@Composable
+private fun UnitsCard(model: SettingsModel) {
+    val colors = TrackTheme.colors
+    val current = LocalUnitSystem.current
+    TrackCard(Modifier.fillMaxWidth()) {
+        TEField(
+            "Unit system",
+            hint = "How speeds, distances and temperatures are shown and entered, on every " +
+                "device you sign in on. Nothing already logged changes — the same numbers are " +
+                "just converted.",
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Units.UNIT_SYSTEMS.forEach { option ->
+                    val selected = option.units == current
+                    TrackCard(
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("units:${option.units.name.lowercase()}")
+                            .clickable { model.updateUnits(option.units) },
+                        border = if (selected) colors.accent else colors.borderHairline,
+                        contentPadding = 10.dp,
+                    ) {
+                        Text(
+                            option.label,
+                            style = TrackTheme.typography.sm,
+                            color = if (selected) colors.accentInk else colors.textMuted,
+                        )
+                        Text(
+                            option.examples,
+                            style = TrackTheme.typography.xxs,
+                            color = colors.textFaint,
+                        )
+                    }
+                }
+            }
+        }
+        TEErrorBanner(model.unitsError, modifier = Modifier.padding(top = 8.dp))
     }
 }
 

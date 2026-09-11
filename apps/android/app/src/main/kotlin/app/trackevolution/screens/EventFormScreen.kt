@@ -26,7 +26,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.model.Conditions
+import app.trackevolution.core.Units
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.TEField
 import app.trackevolution.ui.TELoadable
@@ -147,8 +149,13 @@ fun EventFormScreen(
             }
 
             item("temp") {
-                TEField("Temp °F") {
-                    NumberField(model.tempF, placeholder = "72") { model.tempF = it }
+                // Labelled and entered in the user's system; stored as whole °F
+                // by the model.
+                val units = LocalUnitSystem.current
+                TEField("Temp ${Units.tempUnit(units)}") {
+                    NumberField(model.temp, placeholder = Units.tempInputSpec(units).placeholder.toString()) {
+                        model.temp = it
+                    }
                 }
             }
 

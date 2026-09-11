@@ -1,6 +1,7 @@
 package app.trackevolution.recording
 
 import android.content.Context
+import app.trackevolution.core.Units
 import app.trackevolution.core.Gate
 import app.trackevolution.core.GeoTrace
 import app.trackevolution.core.GpsPoint
@@ -12,6 +13,7 @@ import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.SessionDraft
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.telemetry.ParsedTelemetry
 import app.trackevolution.core.telemetry.Telemetry
 import app.trackevolution.core.telemetry.asTelemetry
@@ -298,7 +300,7 @@ class RecordingFlow(
      * still on the phone — but the same rule holds: a failed POST leaves the
      * review up with the server's message, and what was already saved stays.
      */
-    fun save(context: Context) {
+    fun save(context: Context, units: UnitSystem = Units.DEFAULT_UNITS) {
         val current = _state.value
         if (!current.canSave) return
         val eventId = current.selectedEventId ?: run {
@@ -322,7 +324,7 @@ class RecordingFlow(
                         eventId = eventId,
                         draft = SessionDraft(
                             label = item.label.trim().ifBlank { null },
-                            notes = notesFor(item, parsed, current.notes),
+                            notes = notesFor(item, parsed, current.notes, units),
                             laps = parsed.laps.map { it.timeMs },
                             // The best lap's downsampled polyline, drawn as the
                             // racing line on the event page, plus the per-lap
@@ -354,9 +356,11 @@ class RecordingFlow(
      * line the web importer writes, so the same file reads identically either
      * way.
      */
-    private fun notesFor(item: ReviewItem, parsed: ParsedTelemetry, typed: String): String? {
+    private fun notesFor(item: ReviewItem, parsed: ParsedTelemetry, typed: String, units: UnitSystem): String? {
         if (parsed.kind == ParsedTelemetry.Kind.LIVE) return typed.trim().ifBlank { null }
-        return Telemetry.importNotes(parsed, item.file)
+        // The top speed in the notes is in the system chosen at import time, and
+        // stays that way — as on the web.
+        return Telemetry.importNotes(parsed, item.file, units)
     }
 
     /**

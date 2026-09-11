@@ -3,6 +3,7 @@ package app.trackevolution.core
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.core.model.UnitSystem
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -116,10 +117,34 @@ class ChannelGraphsTest {
         assertEquals(80.0, ChannelGraphs.distanceSpan(ChannelGraphs.Channel.SPEED, ch))
     }
 
+    // ---- channelDefs / distAxisTicks (test/unit/channel-graphs.test.js) ------
+
+    @Test
+    fun `labels speed in the user's system and leaves the rest alone`() {
+        val imp = ChannelGraphs.Channel.entries.map { it.unit(UnitSystem.IMPERIAL) }
+        val met = ChannelGraphs.Channel.entries.map { it.unit(UnitSystem.METRIC) }
+        assertEquals(listOf("mph", "%", "%", "°", "rpm", "G", "°/s"), imp)
+        assertEquals(listOf("km/h", "%", "%", "°", "rpm", "G", "°/s"), met)
+        assertEquals(62, Math.round(ChannelGraphs.Channel.SPEED.convert(100.0, UnitSystem.IMPERIAL)).toInt())
+        assertEquals(100.0, ChannelGraphs.Channel.SPEED.convert(100.0, UnitSystem.METRIC))
+        assertEquals(6500.0, ChannelGraphs.Channel.RPM.convert(6500.0, UnitSystem.IMPERIAL))
+    }
+
+    @Test
+    fun `ticks a metric axis in nice metres and an imperial one in nice miles`() {
+        assertEquals(
+            listOf("0 m", "500 m", "1 km", "1.5 km"),
+            ChannelGraphs.distAxisTicks(1780.0, UnitSystem.METRIC).map { it.label },
+        )
+        val mi = ChannelGraphs.distAxisTicks(4000.0, UnitSystem.IMPERIAL)
+        assertEquals(listOf("0 mi", "0.5 mi", "1 mi", "1.5 mi", "2 mi"), mi.map { it.label })
+        assertEquals(1609.344, mi[2].m, 1e-6)
+    }
+
     @Test
     fun `converts stored kph to mph for the speed axis`() {
         val ch = channels(LapChannels(n = 1, timeMs = 1, speed = listOf(100.0)))
-        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.SPEED, ch)!!
+        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.SPEED, ch, UnitSystem.IMPERIAL)!!
         // 100 kph is 62.1371 mph, and a single value gets the 1e-6 pad floor.
         assertTrue(domain.low < 62.1372 && domain.high > 62.137)
     }
@@ -127,7 +152,7 @@ class ChannelGraphsTest {
     @Test
     fun `pins lateral G's axis to zero so left and right compare`() {
         val ch = channels(LapChannels(n = 1, timeMs = 1, latG = listOf(0.4, 1.2)))
-        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.LAT_G, ch)!!
+        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.LAT_G, ch, UnitSystem.IMPERIAL)!!
         assertEquals(0.0, domain.low)
         assertTrue(domain.high > 1.2, "the top is still padded")
     }
@@ -139,10 +164,10 @@ class ChannelGraphsTest {
         val ch = channels(
             LapChannels(n = 1, timeMs = 1, throttle = listOf(20.0, 100.0), brake = listOf(10.0, 80.0)),
         )
-        val throttle = ChannelGraphs.valueDomain(ChannelGraphs.Channel.THROTTLE, ch)!!
+        val throttle = ChannelGraphs.valueDomain(ChannelGraphs.Channel.THROTTLE, ch, UnitSystem.IMPERIAL)!!
         assertEquals(0.0, throttle.low)
         assertTrue(throttle.high > 100.0, "the top is still padded")
-        val brake = ChannelGraphs.valueDomain(ChannelGraphs.Channel.BRAKE, ch)!!
+        val brake = ChannelGraphs.valueDomain(ChannelGraphs.Channel.BRAKE, ch, UnitSystem.IMPERIAL)!!
         assertEquals(0.0, brake.low)
         assertTrue(brake.high > 80.0, "the top is still padded")
     }
@@ -152,7 +177,7 @@ class ChannelGraphsTest {
         // Steering is floor0: false in the JS — signed degrees, padded both
         // ways so neither lock touches the frame.
         val ch = channels(LapChannels(n = 1, timeMs = 1, steering = listOf(-90.0, 110.0)))
-        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.STEERING, ch)!!
+        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.STEERING, ch, UnitSystem.IMPERIAL)!!
         assertEquals(-106.0, domain.low)
         assertEquals(126.0, domain.high)
     }
@@ -160,7 +185,7 @@ class ChannelGraphsTest {
     @Test
     fun `pads both ends for a channel that does not floor at zero`() {
         val ch = channels(LapChannels(n = 1, timeMs = 1, rpm = listOf(2000.0, 7000.0)))
-        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.RPM, ch)!!
+        val domain = ChannelGraphs.valueDomain(ChannelGraphs.Channel.RPM, ch, UnitSystem.IMPERIAL)!!
         assertEquals(1600.0, domain.low)
         assertEquals(7400.0, domain.high)
     }
@@ -168,7 +193,7 @@ class ChannelGraphsTest {
     @Test
     fun `reports no domain for a channel nothing carries`() {
         val ch = channels(LapChannels(n = 1, timeMs = 1, speed = listOf(1.0)))
-        assertNull(ChannelGraphs.valueDomain(ChannelGraphs.Channel.RPM, ch))
+        assertNull(ChannelGraphs.valueDomain(ChannelGraphs.Channel.RPM, ch, UnitSystem.IMPERIAL))
     }
 
     @Test
@@ -227,15 +252,17 @@ class ChannelGraphsTest {
             LapChannels(n = 1, timeMs = 1, speed = listOf(100.0, 110.0)),
             LapChannels(n = 2, timeMs = 2, speed = listOf(100.0)),
         )
-        assertEquals(62.1371, ChannelGraphs.value(ChannelGraphs.Channel.SPEED, 0, 0, ch)!!, 1e-9)
-        assertNull(ChannelGraphs.value(ChannelGraphs.Channel.SPEED, 1, 1, ch))
+        assertEquals(62.1371, ChannelGraphs.value(ChannelGraphs.Channel.SPEED, 0, 0, ch, UnitSystem.IMPERIAL)!!, 1e-9)
+        assertEquals(100.0, ChannelGraphs.value(ChannelGraphs.Channel.SPEED, 0, 0, ch, UnitSystem.METRIC)!!, 1e-9)
+        assertNull(ChannelGraphs.value(ChannelGraphs.Channel.SPEED, 1, 1, ch, UnitSystem.IMPERIAL))
     }
 
     @Test
     fun `formats distances the way the axis labels do`() {
-        assertEquals("800 m", ChannelGraphs.fmtDist(800.0))
-        assertEquals("2 km", ChannelGraphs.fmtDist(2000.0))
-        assertEquals("1.5 km", ChannelGraphs.fmtDist(1500.0))
+        assertEquals("800 m", ChannelGraphs.fmtDist(800.0, UnitSystem.METRIC))
+        assertEquals("2 km", ChannelGraphs.fmtDist(2000.0, UnitSystem.METRIC))
+        assertEquals("1.5 km", ChannelGraphs.fmtDist(1500.0, UnitSystem.METRIC))
+        assertEquals("0.5 mi", ChannelGraphs.fmtDist(800.0, UnitSystem.IMPERIAL))
     }
 }
 

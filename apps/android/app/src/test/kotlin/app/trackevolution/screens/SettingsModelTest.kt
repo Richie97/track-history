@@ -1,6 +1,8 @@
 package app.trackevolution.screens
 
 import app.trackevolution.auth.ChecklistTemplateStore
+import app.trackevolution.auth.UnitsStore
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.ui.LoadState
 import io.ktor.client.engine.mock.MockEngine
@@ -42,6 +44,19 @@ class SettingsModelTest {
         }
     }
 
+    /** The unit preference, standing in for `AuthController` — see [UnitsStore]. */
+    private class FakeUnits(start: UnitSystem = UnitSystem.IMPERIAL) : UnitsStore {
+        override var units: UnitSystem = start
+            private set
+        var writes = 0
+            private set
+
+        override suspend fun set(units: UnitSystem) {
+            writes++
+            this.units = units
+        }
+    }
+
     private fun api(slugStatus: HttpStatusCode = HttpStatusCode.OK): ApiClient {
         val engine = MockEngine { request ->
             sent += request
@@ -61,7 +76,8 @@ class SettingsModelTest {
     private fun model(
         template: ChecklistTemplateStore = FakeTemplate(listOf("Tech inspection", "Torque lug nuts")),
         api: ApiClient = api(),
-    ) = SettingsModel(CoroutineScope(Dispatchers.Default), api, template)
+        units: UnitsStore = FakeUnits(),
+    ) = SettingsModel(CoroutineScope(Dispatchers.Default), api, template, units)
 
     private fun <T> await(timeoutMs: Long = 5_000, block: () -> T?): T = runBlocking {
         withTimeout(timeoutMs) {
@@ -142,6 +158,28 @@ class SettingsModelTest {
 
         Thread.sleep(50)
         assertEquals(listOf("Tech inspection"), template.items)
+    }
+
+    // ---- Units ---------------------------------------------------------------
+
+    @Test
+    fun `choosing a unit system writes through the store`() {
+        val units = FakeUnits(UnitSystem.IMPERIAL)
+        val model = model(units = units)
+        model.updateUnits(UnitSystem.METRIC)
+
+        await { units.units.takeIf { it == UnitSystem.METRIC } }
+        assertEquals(UnitSystem.METRIC, model.units)
+    }
+
+    @Test
+    fun `re-choosing the current system writes nothing`() {
+        val units = FakeUnits(UnitSystem.METRIC)
+        val model = model(units = units)
+        model.updateUnits(UnitSystem.METRIC)
+
+        Thread.sleep(50)
+        assertEquals(0, units.writes)
     }
 
     // ---- The share slug ----------------------------------------------------

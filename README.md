@@ -946,7 +946,10 @@ doesn't retain the previous user's logbook.
   its own unit string, so the preference only changes the default offered for
   a new one (tread depth in 32nds for imperial, mm otherwise). A top speed
   written into an imported session's notes is in the system chosen at import
-  time and stays that way. The iOS and Android models carry the field; their
+  time and stays that way. The Android app renders the preference too
+  (Settings → Units, beside the theme), from the same account value: its
+  `Units` module is the port of `public/js/units.js`, pinned to it by
+  `contracts/logic/units.json`. The iOS model carries the field but its
   screens still render imperial (see `AGENTS.md`).
 - **Vehicles** are a per-user garage (account menu → Settings) with a name,
   free-text modification notes and an optional **target hot tyre pressure**

@@ -3,6 +3,7 @@ package app.trackevolution.core
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.core.model.UnitSystem
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -23,11 +24,11 @@ public object ChannelGraphs {
     /** Highlight slots. Three, because a fourth line stops being readable. */
     public const val SLOT_COUNT: Int = 3
 
-    private const val KPH_TO_MPH = 0.621371
-
     /**
-     * The channels a session can carry, in display order — `CHANNEL_DEFS` in
-     * the JS, same order (speed, throttle, brake, steering, rpm, lateral G).
+     * The channels a session can carry, in display order — `channelDefs(units)`
+     * in the JS, same order (speed, throttle, brake, steering, rpm, lateral G).
+     * The one thing the unit system changes is speed: stored km/h, shown as mph
+     * or km/h ([unit], [convert]); everything else reads the same everywhere.
      *
      * [floorAtZero] is not cosmetic: lateral G, throttle and brake floor their
      * axis at zero so an idle pedal reads as idle and left/right G compare,
@@ -37,11 +38,11 @@ public object ChannelGraphs {
     public enum class Channel(
         public val key: String,
         public val label: String,
-        public val unit: String,
+        private val fixedUnit: String,
         public val decimals: Int,
         public val floorAtZero: Boolean,
     ) {
-        SPEED("speed", "Speed", "mph", 0, false),
+        SPEED("speed", "Speed", "", 0, false),
         THROTTLE("throttle", "Throttle", "%", 0, true),
         BRAKE("brake", "Brake", "%", 0, true),
         STEERING("steering", "Steering", "°", 0, false),
@@ -55,8 +56,12 @@ public object ChannelGraphs {
         YAW("yaw", "Yaw rate", "°/s", 0, false),
         ;
 
-        /** Stored speed is kph; the app reads mph, as the web does. */
-        public fun convert(raw: Double): Double = if (this == SPEED) raw * KPH_TO_MPH else raw
+        /** The axis label's unit in the user's system: "mph" or "km/h" for speed. */
+        public fun unit(units: UnitSystem): String = if (this == SPEED) Units.speedUnit(units) else fixedUnit
+
+        /** Stored speed is kph; shown in the user's system, as the web does. */
+        public fun convert(raw: Double, units: UnitSystem): Double =
+            if (this == SPEED) Units.convSpeedKph(raw, units) else raw
 
         /** This channel's series for one lap, or null when the lap lacks it. */
         public fun series(of: LapChannels): List<Double>? = when (this) {
@@ -156,14 +161,14 @@ public object ChannelGraphs {
      * as an axis bound and nonsense as a description. Anything that reports the
      * range in words (a read-out, a screen-reader summary) wants this one.
      */
-    public fun valueExtent(channel: Channel, channels: SessionChannels): Pair<Double, Double>? {
+    public fun valueExtent(channel: Channel, channels: SessionChannels, units: UnitSystem): Pair<Double, Double>? {
         var low = Double.POSITIVE_INFINITY
         var high = Double.NEGATIVE_INFINITY
         var seen = false
         for (lap in channels.laps) {
             val series = channel.series(lap) ?: continue
             for (raw in series) {
-                val v = channel.convert(raw)
+                val v = channel.convert(raw, units)
                 seen = true
                 if (v < low) low = v
                 if (v > high) high = v
@@ -178,8 +183,8 @@ public object ChannelGraphs {
      * 8% padding, and the asymmetry is the JS's: a [Channel.floorAtZero]
      * channel pads only the top, so the zero line stays exactly at zero.
      */
-    public fun valueDomain(channel: Channel, channels: SessionChannels): ChartScale.Domain? {
-        val (extentLow, high) = valueExtent(channel, channels) ?: return null
+    public fun valueDomain(channel: Channel, channels: SessionChannels, units: UnitSystem): ChartScale.Domain? {
+        val (extentLow, high) = valueExtent(channel, channels, units) ?: return null
         var low = extentLow
 
         if (channel.floorAtZero) low = min(0.0, low)
@@ -191,10 +196,16 @@ public object ChannelGraphs {
     }
 
     /** One converted sample, or null when that lap has no such grid point. */
-    public fun value(channel: Channel, lapIndex: Int, gridIndex: Int, channels: SessionChannels): Double? {
+    public fun value(
+        channel: Channel,
+        lapIndex: Int,
+        gridIndex: Int,
+        channels: SessionChannels,
+        units: UnitSystem,
+    ): Double? {
         val series = channels.laps.getOrNull(lapIndex)?.let { channel.series(it) } ?: return null
         val raw = series.getOrNull(gridIndex) ?: return null
-        return channel.convert(raw)
+        return channel.convert(raw, units)
     }
 
     /** The grid index nearest a driven distance — the read-out's lookup. */
@@ -205,13 +216,27 @@ public object ChannelGraphs {
         return k.coerceIn(0, max(0, n - 1))
     }
 
-    /** `1500` → `"1.5 km"`, `800` → `"800 m"`. */
-    public fun fmtDist(metres: Double): String {
-        val m = metres.roundToInt()
-        if (m < 1000) return "$m m"
-        val km = m / 1000.0
-        // A whole number of kilometres drops the decimal, as the JS does.
-        return if (m % 1000 == 0) "${km.roundToInt()} km" else "${(km * 10).roundToInt() / 10.0} km"
+    /**
+     * `1500` → `"1.5 km"` / `"0.93 mi"`, `800` → `"800 m"` / `"0.5 mi"`. The
+     * axis-tick style, in the user's system — [Units.fmtDist], which the JS
+     * imports from `units.js` too.
+     */
+    public fun fmtDist(metres: Double, units: UnitSystem): String = Units.fmtDist(metres, units)
+
+    /** One distance-axis tick: where it sits in metres, and what it says. */
+    public data class DistTick(val m: Double, val label: String)
+
+    /**
+     * Distance-axis ticks for a lap of [x1] metres: nice numbers in the unit the
+     * axis is labelled in (metres, or miles — nice metre ticks come out as 0.31,
+     * 0.62 mi otherwise). `distAxisTicks` in the JS.
+     */
+    public fun distAxisTicks(x1: Double, units: UnitSystem, n: Int = 6): List<DistTick> {
+        if (Units.isMetric(units)) {
+            return ChartScale.niceNumTicks(0.0, x1, n).map { DistTick(it, fmtDist(it, units)) }
+        }
+        return ChartScale.niceNumTicks(0.0, x1 / Units.M_PER_MI, n)
+            .map { mi -> DistTick(mi * Units.M_PER_MI, fmtDist(mi * Units.M_PER_MI, units)) }
     }
 
     // ---- lap delta ----------------------------------------------------------

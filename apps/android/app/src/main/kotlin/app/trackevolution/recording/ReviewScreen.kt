@@ -33,6 +33,7 @@ import app.trackevolution.core.LineReview
 import app.trackevolution.core.telemetry.ParsedTelemetry
 import app.trackevolution.core.telemetry.Telemetry
 import app.trackevolution.ui.TEErrorBanner
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 
@@ -324,7 +325,7 @@ private fun ItemCard(
             )
         }
 
-        val metrics = Telemetry.metricsSummary(parsed)
+        val metrics = Telemetry.metricsSummary(parsed, LocalUnitSystem.current)
         if (metrics.isNotEmpty()) {
             Text(metrics, style = type.xs, color = colors.textMuted, modifier = Modifier.padding(top = 6.dp))
         }

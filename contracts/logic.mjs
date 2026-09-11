@@ -126,12 +126,26 @@ import {
 import {
   PART_KINDS,
   WEAR_LIMIT_HINTS,
+  defaultMeasurementUnit,
   fmtCost,
   fmtHours,
   fmtRemaining,
   partKindLabel,
   partStatus,
+  wearLimitHint,
 } from "../public/js/garage.js";
+import {
+  DEFAULT_UNITS,
+  UNIT_SYSTEMS,
+  convSpeedMps,
+  fmtAccuracy,
+  fmtDist,
+  fmtSpeedKph,
+  fmtTemp,
+  tempInputSpec,
+  tempToDisplay,
+  tempToStored,
+} from "../public/js/units.js";
 import {
   addFix,
   createRecording,
@@ -1724,6 +1738,64 @@ writeFileSync(path.join(OUT_DIR, "health.json"), JSON.stringify(healthFixture, n
 writeFileSync(path.join(OUT_DIR, "conditions.json"), JSON.stringify(conditionsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
+
+// ---- units: the unit-system conversions (public/js/units.js) -----------------
+//
+// Every display site on every client goes through these, and the inputs are
+// chosen for the two places a port goes wrong: JavaScript's Math.round (ties
+// toward +infinity, so -2.5 → -2) and Number.prototype.toFixed, which rounds
+// the double's *exact* value — (0.15).toFixed(1) is "0.1", not "0.2". The
+// units-independent inputs (a stored km/h, °F, or metre) are run through both
+// systems so a port that forgets to branch differs on half the rows.
+const unitIds = UNIT_SYSTEMS.map(([id]) => id);
+const both = (inputs, run) => unitIds.flatMap((units) => inputs.map((input) => run(input, units)));
+const unitsFixture = {
+  description:
+    "Unit-system conversions captured from public/js/units.js (and the tread-depth helpers in " +
+    "public/js/garage.js). Storage never changes with the preference — temperatures whole °F, " +
+    "speeds km/h, distances metres — so these pin only how a number is shown and read back. " +
+    "Regenerate with `npm run contracts:logic`.",
+  source: "public/js/units.js",
+  systems: unitIds,
+  default: DEFAULT_UNITS,
+  speedKph: both(
+    [
+      [194.5, 0], [150.1, 0], [100, 0], [0, 0], [120.5, 0], [2.5, 0],
+      // toFixed on the exact binary value: 0.15 is 0.1499999…
+      [100, 1], [0.15, 1], [194.5, 2],
+    ],
+    ([kph, dp], units) => ({ kph, dp, units, output: fmtSpeedKph(kph, units, dp) })
+  ),
+  // The recorder's read-out path (m/s), as a number: the caller rounds.
+  speedMps: both([30, 0, 44.7, 0.5], (mps, units) => ({ mps, units, output: convSpeedMps(mps, units) })),
+  dist: both(
+    [0, 12.5, 100, 402.336, 800, 804.672, 940, 1234.5, 1500, 1609.344, 2000, 2400, 4000],
+    (m, units) => ({ m, units, output: fmtDist(m, units) })
+  ),
+  accuracy: both([0.4, 4.2, 4.5, 13.7, 20], (m, units) => ({ m, units, output: fmtAccuracy(m, units) })),
+  temp: both([-40, -1, 0, 31, 32, 33, 72, 100, 150], (f, units) => ({
+    f,
+    units,
+    display: tempToDisplay(f, units),
+    text: fmtTemp(f, units),
+  })),
+  tempToStored: both(
+    [-40, -0.5, 0, 0.5, 22, 22.5, 36.6, 65, 72, 72.4, 72.5, 150],
+    (v, units) => ({ v, units, output: tempToStored(v, units) })
+  ),
+  tempInputSpec: Object.fromEntries(unitIds.map((units) => [units, tempInputSpec(units)])),
+  wearLimitHint: both(PART_KINDS.map(([kind]) => kind), (kind, units) => ({
+    kind,
+    units,
+    output: wearLimitHint(kind, units),
+  })),
+  defaultMeasurementUnit: both(PART_KINDS.map(([kind]) => kind), (kind, units) => ({
+    kind,
+    units,
+    output: defaultMeasurementUnit(kind, units),
+  })),
+};
+writeFileSync(path.join(OUT_DIR, "units.json"), JSON.stringify(unitsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "remote-attach.json"), JSON.stringify(remoteFixture, null, 2) + "\n");
 console.log(
   `wrote contracts/logic/geo-laps.json (${points.length} points, ${fixture.expected.laps.length} laps)`
@@ -1754,6 +1826,7 @@ console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
+console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
 console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);

@@ -10,6 +10,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.compose.rememberNavController
 import app.trackevolution.auth.ChecklistTemplateStore
+import app.trackevolution.auth.UnitsStore
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.navigation.AppNavHost
@@ -66,6 +68,11 @@ class DashboardRecordTest {
     private object NoTemplate : ChecklistTemplateStore {
         override val items: List<String> = emptyList()
         override suspend fun set(items: List<String>) = Unit
+    }
+
+    private object NoUnits : UnitsStore {
+        override val units: UnitSystem = UnitSystem.IMPERIAL
+        override suspend fun set(units: UnitSystem) = Unit
     }
 
     private fun api(events: String): ApiClient {
@@ -172,6 +179,7 @@ class DashboardRecordTest {
                     nav = rememberNavController(),
                     api = api,
                     auth = NoTemplate,
+                    unitsStore = NoUnits,
                     checklistTemplate = emptyList(),
                     hasCustomChecklistTemplate = false,
                     themeChoice = ThemeChoice.System,

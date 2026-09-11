@@ -41,6 +41,7 @@ import app.trackevolution.navigation.selectionRoute
 import app.trackevolution.navigation.showDeepLink
 import app.trackevolution.ui.LayoutClass
 import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TwoPaneShell
 import app.trackevolution.recording.RecordingBanner
 import app.trackevolution.recording.Recorder
@@ -89,6 +90,7 @@ fun SignedInScaffold(
     onConsumedIncomingImport: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val units = LocalUnitSystem.current
     val nav = rememberNavController()
     val recorder by Recorder.state.collectAsState()
     val pending by Recorder.finished.collectAsState()
@@ -251,6 +253,7 @@ fun SignedInScaffold(
                     nav = nav,
                     api = api,
                     auth = auth,
+                    unitsStore = auth,
                     checklistTemplate = authState.checklistTemplate,
                     hasCustomChecklistTemplate = authState.hasCustomChecklistTemplate,
                     themeChoice = themeChoice,
@@ -294,7 +297,7 @@ fun SignedInScaffold(
                     onIncludeChange = flow::setInclude,
                     onNotesChange = flow::setNotes,
                     onSelectEvent = flow::selectEvent,
-                    onSave = { flow.save(context) },
+                    onSave = { flow.save(context, units) },
                     onDiscard = { flow.discard(context); reviewing = false },
                 )
             }

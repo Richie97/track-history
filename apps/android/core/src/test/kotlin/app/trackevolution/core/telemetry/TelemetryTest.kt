@@ -1,6 +1,7 @@
 package app.trackevolution.core.telemetry
 
 import app.trackevolution.core.GeoTrace
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.JsMath
 import app.trackevolution.core.ParsedRecording
 import org.junit.jupiter.api.AfterEach
@@ -229,6 +230,11 @@ class TelemetryTest {
             Telemetry.metricsSummary(withMetrics(194.5, 6702.6, 1.432)),
         )
         assertEquals("top speed 93 mph", Telemetry.metricsSummary(withMetrics(150.1, null, null)))
+        // The system chosen at import time; written into the notes it stays that way.
+        assertEquals(
+            "top speed 195 km/h · max 6,703 rpm · 1.43 G lateral",
+            Telemetry.metricsSummary(withMetrics(194.5, 6702.6, 1.432), UnitSystem.METRIC),
+        )
     }
 
     @Test

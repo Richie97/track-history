@@ -42,6 +42,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.Health
 import app.trackevolution.core.ChartScale
 import app.trackevolution.core.LapTime
@@ -49,6 +50,7 @@ import app.trackevolution.core.Limits
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackTheme
+import app.trackevolution.ui.LocalUnitSystem
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -381,6 +383,7 @@ private fun DeltaPlot(
     slots: List<Color>,
 ) {
     val colors = TrackTheme.colors
+    val units = LocalUnitSystem.current
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val labelStyle = TrackTheme.typography.xxs.copy(color = colors.textFaint)
@@ -442,12 +445,14 @@ private fun DeltaPlot(
                 drawLine(colors.chartGrid, Offset(padLeft, y), Offset(size.width - padRight, y), strokeWidth = 1f)
                 drawText(text, topLeft = Offset(padLeft - gutter - text.size.width, y - text.size.height / 2f))
             }
-            for (tick in ChartScale.niceNumTicks(0.0, span, 6)) {
-                val text = measurer.measure(ChannelGraphs.fmtDist(tick), labelStyle)
+            // Nice numbers in the unit the axis is labelled in — metres, or
+            // miles — rather than nice metres converted (0.31, 0.62 mi…).
+            for (tick in ChannelGraphs.distAxisTicks(span, units)) {
+                val text = measurer.measure(tick.label, labelStyle)
                 drawText(
                     text,
                     topLeft = Offset(
-                        (px(tick) - text.size.width / 2f).coerceIn(0f, size.width - text.size.width),
+                        (px(tick.m) - text.size.width / 2f).coerceIn(0f, size.width - text.size.width),
                         size.height - text.size.height,
                     ),
                 )
@@ -511,12 +516,13 @@ private fun ChannelPlot(
     markDistance: Double? = null,
 ) {
     val colors = TrackTheme.colors
+    val units = LocalUnitSystem.current
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val labelStyle = TrackTheme.typography.xxs.copy(color = colors.textFaint)
     val titleStyle = TrackTheme.typography.xxs.copy(color = colors.textMuted)
 
-    val domain = ChannelGraphs.valueDomain(channel, channels) ?: return
+    val domain = ChannelGraphs.valueDomain(channel, channels, units) ?: return
     val span = ChannelGraphs.distanceSpan(channel, channels)
     val gridCount = ChannelGraphs.gridCount(channel, channels)
     if (gridCount < 2) return
@@ -553,9 +559,10 @@ private fun ChannelPlot(
                 testTag = "channelChart:${channel.key}"
                 contentDescription = channelSummary(
                     channel = channel,
-                    extent = ChannelGraphs.valueExtent(channel, channels),
+                    extent = ChannelGraphs.valueExtent(channel, channels, units),
                     spanMetres = span,
                     litCount = lit.size,
+                    units = units,
                     shaded = bands.map { it.second.label }.distinct(),
                 )
             },
@@ -580,12 +587,14 @@ private fun ChannelPlot(
                 drawLine(colors.chartGrid, Offset(padLeft, y), Offset(size.width - padRight, y), strokeWidth = 1f)
                 drawText(text, topLeft = Offset(padLeft - gutter - text.size.width, y - text.size.height / 2f))
             }
-            for (tick in ChartScale.niceNumTicks(0.0, span, 6)) {
-                val text = measurer.measure(ChannelGraphs.fmtDist(tick), labelStyle)
+            // Nice numbers in the unit the axis is labelled in — metres, or
+            // miles — rather than nice metres converted (0.31, 0.62 mi…).
+            for (tick in ChannelGraphs.distAxisTicks(span, units)) {
+                val text = measurer.measure(tick.label, labelStyle)
                 drawText(
                     text,
                     topLeft = Offset(
-                        (px(tick) - text.size.width / 2f).coerceIn(0f, size.width - text.size.width),
+                        (px(tick.m) - text.size.width / 2f).coerceIn(0f, size.width - text.size.width),
                         size.height - text.size.height,
                     ),
                 )
@@ -612,7 +621,7 @@ private fun ChannelPlot(
                 )
             }
 
-            val title = measurer.measure("${channel.label} (${channel.unit})", titleStyle)
+            val title = measurer.measure("${channel.label} (${channel.unit(units)})", titleStyle)
             drawText(title, topLeft = Offset(padLeft, 0f))
             // Name what is shaded, so a band is never an unexplained colour.
             val shadedKinds = bands.map { it.second.label }.distinct()
@@ -627,7 +636,7 @@ private fun ChannelPlot(
                 val path = Path()
                 series.forEachIndexed { k, raw ->
                     val x = px(k * channels.dStepM)
-                    val y = py(channel.convert(raw))
+                    val y = py(channel.convert(raw, units))
                     if (k == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
                 return path
@@ -687,14 +696,15 @@ internal fun channelSummary(
     extent: Pair<Double, Double>?,
     spanMetres: Double,
     litCount: Int,
+    units: UnitSystem,
     /** Limit kinds shaded on this chart (#188) — invisible to a screen reader. */
     shaded: List<String> = emptyList(),
 ): String = buildString {
-    append("${channel.label} against distance over ${ChannelGraphs.fmtDist(spanMetres)}")
+    append("${channel.label} against distance over ${ChannelGraphs.fmtDist(spanMetres, units)}")
     if (extent != null) {
         // The measured range, not the padded axis — see ChannelGraphs.valueExtent.
         append(", ${formatTick(extent.first, channel.decimals)} to ")
-        append("${formatTick(extent.second, channel.decimals)} ${channel.unit}")
+        append("${formatTick(extent.second, channel.decimals)} ${channel.unit(units)}")
     }
     append(
         when (litCount) {

@@ -3,6 +3,7 @@ package app.trackevolution.core
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartKind
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.WearEstimate
 
 /**
@@ -124,6 +125,27 @@ public object Garage {
             }
             .sortedBy { if (it.status == PartStatus.DUE) 0 else 1 }
 
+    // ---- units ----------------------------------------------------------------
+
+    /**
+     * `wearLimitHint(kind, units)` in `public/js/garage.js`: the suggested
+     * replace-at level as a form placeholder, in the user's tread-depth idiom.
+     * Pads and rotors are specified in millimetres on both sides of the
+     * Atlantic; only tread depth changes idiom (32nds of an inch vs. mm). The
+     * imperial table is [PartKind.wearLimitHint], the one
+     * `contracts/logic/garage-status.json` pins. "" for a kind with no hint.
+     */
+    public fun wearLimitHint(kind: PartKind, units: UnitSystem): String =
+        if (Units.isMetric(units) && kind == PartKind.TIRES) "3 (mm)" else kind.wearLimitHint.orEmpty()
+
+    /**
+     * `defaultMeasurementUnit(kind, units)`: the unit a new wear measurement is
+     * offered in. A measurement stores its own unit string, so this is only a
+     * default — a part's later measurements follow its first one.
+     */
+    public fun defaultMeasurementUnit(kind: PartKind, units: UnitSystem): String =
+        if (kind == PartKind.TIRES && !Units.isMetric(units)) "32nds" else "mm"
+
     /** A number the way JavaScript stringifies it: `4.5` → "4.5", `4.0` → "4". */
     private fun trimmed(value: Double): String =
         if (value == Math.rint(value) && kotlin.math.abs(value) < 1e15) {
@@ -167,8 +189,10 @@ public val PartKind.wearLimitHint: String?
     }
 
 /**
- * The unit a first measurement of this kind is most likely in — the web
- * measurement form's default (`viewVehicle` in `public/app.js`).
+ * The unit a first measurement of this kind is most likely in for an imperial
+ * user — the web measurement form's default before the unit preference
+ * existed. The screens read [Garage.defaultMeasurementUnit], which takes the
+ * account's system; this stays as the imperial table it always was.
  */
 public val PartKind.defaultUnit: String
-    get() = if (this == PartKind.TIRES) "32nds" else "mm"
+    get() = Garage.defaultMeasurementUnit(this, UnitSystem.IMPERIAL)

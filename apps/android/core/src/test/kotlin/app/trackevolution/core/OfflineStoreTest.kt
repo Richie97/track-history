@@ -113,6 +113,10 @@ class OfflineStoreTest {
         assertTrue(OfflineStore.isQueueable("PUT", "/tracks/2"))
         assertTrue(OfflineStore.isQueueable("PUT", "/events/12/setups/1"))
         assertFalse(OfflineStore.isQueueable("PUT", "/share"))
+        // Account preferences are live writes, like the share slug: a refused
+        // one needs the server's answer, not a silent replay.
+        assertFalse(OfflineStore.isQueueable("PUT", "/me/checklist-template"))
+        assertFalse(OfflineStore.isQueueable("PUT", "/me/units"))
         assertFalse(OfflineStore.isQueueable("POST", "/vehicles"))
         // Garage writes need a live server; see the whitelist's comment.
         assertFalse(OfflineStore.isQueueable("POST", "/vehicles/1/parts"))

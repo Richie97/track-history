@@ -36,7 +36,9 @@ import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChartScale
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.SessionConditions
+import app.trackevolution.core.Units
 import app.trackevolution.ui.theme.TrackTheme
+import app.trackevolution.ui.LocalUnitSystem
 
 /** One plotted lap time. [x] is an epoch millisecond or an ordinal. */
 data class ProgressPoint(val x: Double, val label: String, val ms: Int)
@@ -69,6 +71,7 @@ fun ProgressChart(
     if (points.isEmpty()) return
 
     val colors = TrackTheme.colors
+    val condUnits = Units.condUnits(LocalUnitSystem.current)
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
@@ -102,7 +105,7 @@ fun ProgressChart(
                 // it is said out loud too.
                 contentDescription = listOf(
                     trendSummary(points, goalMs),
-                    SessionConditions.bandLabel(band, SessionConditions.Units.US),
+                    SessionConditions.bandLabel(band, condUnits),
                 ).filter { it.isNotEmpty() }.joinToString(", ")
             },
     ) {
@@ -194,13 +197,14 @@ fun ProgressChart(
 @Composable
 fun ConditionsKey(band: SessionConditions.Band, modifier: Modifier = Modifier) {
     val colors = TrackTheme.colors
+    val condUnits = Units.condUnits(LocalUnitSystem.current)
     Row(
         modifier = modifier.padding(top = 8.dp).clearAndSetSemantics {},
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            SessionConditions.tempText(band.loC, SessionConditions.Units.US),
+            SessionConditions.tempText(band.loC, condUnits),
             style = TrackTheme.typography.xxs,
             color = colors.textFaint,
         )
@@ -219,7 +223,7 @@ fun ConditionsKey(band: SessionConditions.Band, modifier: Modifier = Modifier) {
                 ),
         )
         Text(
-            SessionConditions.tempText(band.hiC, SessionConditions.Units.US),
+            SessionConditions.tempText(band.hiC, condUnits),
             style = TrackTheme.typography.xxs,
             color = colors.textFaint,
         )
