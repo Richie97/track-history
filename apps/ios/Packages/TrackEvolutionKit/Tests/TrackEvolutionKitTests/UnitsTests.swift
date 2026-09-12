@@ -87,7 +87,8 @@ struct UnitsTests {
     @Test func boundsTheInputToWhatTheServerAccepts() throws {
         let f = Units.tempInputSpec(.imperial)
         let c = Units.tempInputSpec(.metric)
-        #expect([f.min, f.max] == [-40, 150])
+        #expect(f.min == -40)
+        #expect(f.max == 150)
         #expect(f.placeholder == 72)
         #expect(c.placeholder == 22)
         // The °C bounds convert to inside isValidTemp's -40…150 °F window.
