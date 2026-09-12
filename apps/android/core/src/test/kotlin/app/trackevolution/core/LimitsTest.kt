@@ -34,8 +34,8 @@ class LimitsTest {
         tc, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
     )
     private val slip = listOf(
-        0.0, 0.0, 0.0, -3.0, -1.0, 0.0, 0.0, 0.0, 0.5, 3.0,
-        4.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, -4.0, -1.0, 0.0, 0.0, 0.0, 0.5, 6.0,
+        7.5, 4.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
     )
     private val lap = LapChannels(
         n = 1,
@@ -55,6 +55,9 @@ class LimitsTest {
         assertEquals(false, Limits.limitAt(lap, "vsc", 9))
         assertEquals(true, Limits.limitAt(lap, "wheelspin", 10))
         assertEquals(false, Limits.limitAt(lap, "wheelspin", 8)) // 0.5 % is noise
+        assertEquals(false, Limits.limitAt(lap, "wheelspin", 11)) // 4.5 % is a tyre working, not spinning
+        assertEquals(false, Limits.limitAt(LapChannels(n = 1, timeMs = 0, wheelSlip = listOf(Limits.WHEELSPIN_PCT)), "wheelspin", 0)) // strictly above
+        assertEquals(false, Limits.limitAt(LapChannels(n = 1, timeMs = 0, wheelSlip = listOf(Limits.LOCKUP_PCT)), "lockup", 0)) // strictly below
         assertEquals(true, Limits.limitAt(lap, "lockup", 3))
         assertNull(Limits.limitAt(LapChannels(n = 1, timeMs = 0, flags = flags), "wheelspin", 3))
         assertNull(Limits.limitAt(LapChannels(n = 1, timeMs = 0, wheelSlip = slip), "abs", 3))

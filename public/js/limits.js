@@ -24,9 +24,14 @@
 
 // Thresholds are display semantics, not physics, beside FULL_THROTTLE_PCT /
 // BRAKING_PCT in compare-laps.js in spirit: slip above this is wheelspin,
-// below the negative one is lockup. Tune against real footage.
-export const WHEELSPIN_PCT = 2;
-export const LOCKUP_PCT = -2;
+// below the negative one is lockup. Neither is tight: a tyre makes force
+// *through* slip, so a few percent under throttle is the tyre working, not
+// spinning — and on a staggered car the loaded rear radius under weight
+// transfer adds a bias of its own — which is why ±2 % tagged every corner
+// exit. Wheelspin sits higher than lockup because drive slip has the wider
+// working range. Tune against real footage.
+export const WHEELSPIN_PCT = 5;
+export const LOCKUP_PCT = -3;
 
 export const FLAG_ABS = 1;
 export const FLAG_TC = 2;

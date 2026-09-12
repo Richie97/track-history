@@ -651,7 +651,9 @@ and the session's stats line counts the places on track where each happened
 ("ABS in 3 places, wheelspin in 2"), or says "no interventions" — traction
 and stability control read zero all day with the systems switched off,
 which is normal on track, and "off" and "never needed" can't be told apart.
-Thresholds (slip beyond ±2 %) are display semantics, named constants in
+Thresholds (slip above 5 % for wheelspin, below −3 % for lockup — neither
+tight, because a tyre makes force through a few percent of slip and that is
+the tyre working, not letting go) are display semantics, named constants in
 `public/js/limits.js`, ported as `Limits` and pinned for both native clients
 by `contracts/logic/limits.json`.
 
