@@ -30,6 +30,7 @@ import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.Entitlement
+import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.offline.OfflineStore
 import app.trackevolution.recording.RecordScreen
 import app.trackevolution.recording.RecorderState
@@ -101,7 +102,14 @@ fun AppNavHost(
      * event they were imported from. Defaulted so a test composing the graph
      * for something else need not care.
      */
-    onImportParsed: (Int?, List<ImportedClip>) -> Unit = { _, _ -> },
+    onImportParsed: (Route.Import, List<ImportedClip>) -> Unit = { _, _ -> },
+    /**
+     * Session drafts an import staged for the New Event form (`Route.Import`
+     * with `forNewEvent`), and the call that takes them once the form has.
+     * Defaulted for the same reason as [onImportParsed].
+     */
+    stagedImports: List<SessionDraft> = emptyList(),
+    onConsumeStagedImports: () -> Unit = {},
     /** Videos handed in by the share sheet, waiting for the import chooser. */
     incomingImport: List<Uri>? = null,
     onConsumedIncomingImport: () -> Unit = {},
@@ -199,8 +207,17 @@ fun AppNavHost(
                     saved = handle,
                 )
             }
+            // Drafts handed back by a review begun from this form's "Import
+            // video…": taken the moment the form is back on screen.
+            LaunchedEffect(stagedImports) {
+                if (stagedImports.isNotEmpty() && route.editId == null) {
+                    model.stage(stagedImports)
+                    onConsumeStagedImports()
+                }
+            }
             EventFormScreen(
                 model = model,
+                onImport = { nav.navigate(Route.Import(forNewEvent = true)) },
                 onSaved = { id ->
                     // A new event opens; an edit returns to the event that was
                     // already underneath. Either way the form itself is gone
@@ -371,7 +388,7 @@ fun AppNavHost(
                 model = model,
                 incoming = incomingImport,
                 onConsumedIncoming = onConsumedIncomingImport,
-                onParsed = { clips -> onImportParsed(route.eventId, clips) },
+                onParsed = { clips -> onImportParsed(route, clips) },
             )
         }
 

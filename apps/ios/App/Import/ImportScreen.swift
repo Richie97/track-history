@@ -17,6 +17,10 @@ struct ImportScreen: View {
     var eventId: Int?
     /// A clip handed straight to the app by Files or the share sheet.
     var incoming: URL?
+    /// Opened from the New Event form: the review stages its sessions for the
+    /// form (`AppRouter.stagedSessions`) rather than saving onto an event, and
+    /// finishing pops back to the form rather than to the dashboard.
+    var forNewEvent = false
 
     @Environment(AppRouter.self) private var router
     @Environment(AuthController.self) private var auth
@@ -32,7 +36,20 @@ struct ImportScreen: View {
     var body: some View {
         Group {
             if let clips = model.clips {
-                ReviewScreen(source: .imported(clips), preferredEventId: eventId, onFinish: { router.popToRoot() })
+                ReviewScreen(
+                    source: .imported(clips),
+                    preferredEventId: eventId,
+                    forNewEvent: forNewEvent,
+                    onFinish: {
+                        if forNewEvent {
+                            // Back to the form underneath, which is watching for the
+                            // staged sessions.
+                            if !router.path.isEmpty { router.path.removeLast() }
+                        } else {
+                            router.popToRoot()
+                        }
+                    }
+                )
             } else {
                 ScrollView {
                     chooser

@@ -1,0 +1,126 @@
+{
+  "description": "sessionsToCreate / stagedSummary from public/js/event-form.js. Both ports (EventFormSessions in the Kit and :core) must agree case for case. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/event-form.js",
+  "cases": [
+    {
+      "name": "ordered",
+      "staged": [
+        {
+          "label": "PDR 09:15:00",
+          "notes": "Imported from a.mp4",
+          "laps": [
+            121240,
+            120100
+          ]
+        },
+        {
+          "label": "GoPro 10:30:00",
+          "notes": "Imported from b.mp4",
+          "laps": [
+            119900
+          ]
+        }
+      ],
+      "hand": {
+        "label": " Day 1 — Session 3 ",
+        "laps": "2:03.55\n2:01.24",
+        "notes": "traffic"
+      },
+      "expected": [
+        {
+          "label": "PDR 09:15:00",
+          "notes": "Imported from a.mp4",
+          "laps": [
+            121240,
+            120100
+          ]
+        },
+        {
+          "label": "GoPro 10:30:00",
+          "notes": "Imported from b.mp4",
+          "laps": [
+            119900
+          ]
+        },
+        {
+          "label": "Day 1 — Session 3",
+          "notes": "traffic",
+          "laps": [
+            123550,
+            121240
+          ]
+        }
+      ]
+    },
+    {
+      "name": "emptyHand",
+      "staged": [],
+      "hand": {
+        "label": "Only a label",
+        "laps": "nonsense",
+        "notes": ""
+      },
+      "expected": []
+    },
+    {
+      "name": "blankToNull",
+      "staged": [],
+      "hand": {
+        "label": "  ",
+        "laps": "121.24",
+        "notes": "  "
+      },
+      "expected": [
+        {
+          "label": null,
+          "notes": null,
+          "laps": [
+            121240
+          ]
+        }
+      ]
+    },
+    {
+      "name": "noHand",
+      "staged": [
+        {
+          "label": "PDR 09:15:00",
+          "notes": null,
+          "laps": [
+            121240
+          ]
+        }
+      ],
+      "hand": null,
+      "expected": [
+        {
+          "label": "PDR 09:15:00",
+          "notes": null,
+          "laps": [
+            121240
+          ]
+        }
+      ]
+    }
+  ],
+  "summaries": [
+    {
+      "laps": [
+        121240,
+        120100,
+        125000
+      ],
+      "expected": "3 laps · best 2:00.1"
+    },
+    {
+      "laps": [
+        121240
+      ],
+      "expected": "1 lap · best 2:01.24"
+    },
+    {
+      "laps": [],
+      "expected": "0 laps"
+    }
+  ]
+}

@@ -23,11 +23,19 @@ struct ReviewScreen: View {
     /// The event an import came from, pre-selected in the picker below. A
     /// recording gets this from its own checkpoint instead.
     var preferredEventId: Int?
-    /// Where to go once the recording is discarded — see `RecordingScreen.onFinish`.
+    /// An import begun from the New Event form: there is no event to save onto,
+    /// so the picker stands down and "save" hands the drafts to the form through
+    /// `AppRouter.stagedSessions` — the form posts them after `POST /events`.
+    var forNewEvent = false
+    /// Where to go once the recording is discarded — see `RecordingScreen.onFinish`
+    /// — and, for a new-event import, once its sessions are staged.
     var onFinish: (() -> Void)?
 
     @Environment(RecordingController.self) private var recorder
     @Environment(AuthController.self) private var auth
+    /// Optional: the `-recorder` debug launch shows this screen with no router
+    /// installed, and only a new-event import ever reads it.
+    @Environment(AppRouter.self) private var router: AppRouter?
     @Environment(\.dismiss) private var dismiss
 
     @State private var model: ReviewModel?
@@ -54,7 +62,8 @@ struct ReviewScreen: View {
                     api: auth.api,
                     recorder: isRecording ? recorder : nil,
                     source: source,
-                    preferredEventId: preferredEventId
+                    preferredEventId: preferredEventId,
+                    forNewEvent: forNewEvent
                 )
                 model.units = auth.units
                 self.model = model
@@ -255,7 +264,13 @@ struct ReviewScreen: View {
                     .teStyle(.eyebrow)
                     .foregroundStyle(Color(.textMuted))
 
-                if model.events.isEmpty {
+                if model.forNewEvent {
+                    // Started from the New Event form: the event is the one being
+                    // typed, so there is nothing to pick.
+                    Text("The event you're creating. These sessions are added to it when you tap Create event.")
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                } else if model.events.isEmpty {
                     Text(
                         model.loadFailure
                             ?? "No events yet — create one in the app, then come back to save this."
@@ -294,12 +309,21 @@ struct ReviewScreen: View {
                 }
 
                 Button(model.isSaving ? "Saving…" : model.saveTitle) {
+                    if model.forNewEvent {
+                        // Nothing to post onto yet: the same drafts `save()` would
+                        // send go to the form, which sends them once the event exists.
+                        router?.stagedSessions += model.stagedDrafts()
+                        Haptics.confirm()
+                        if let onFinish { onFinish() } else { dismiss() }
+                        return
+                    }
                     Task {
                         if await model.save() { dismiss() }
                     }
                 }
                 .buttonStyle(TEButtonStyle(kind: .accent))
                 .disabled(!model.canSave)
+                .accessibilityIdentifier("reviewSave")
             }
         }
     }
@@ -332,6 +356,9 @@ final class ReviewModel {
     private let recorder: RecordingController?
     private let source: ReviewScreen.Source
     private let preferredEventId: Int?
+    /// See `ReviewScreen.forNewEvent`: no event picker, no event fetch, and the
+    /// drafts go to the form instead of the server.
+    let forNewEvent: Bool
     /// The unit system the import summary and the notes line are written in —
     /// the account's, set by the screen. A note is text, so the top speed in it is
     /// written once, in the system chosen at import time, like the web's.
@@ -358,12 +385,14 @@ final class ReviewModel {
         api: APIClient,
         recorder: RecordingController?,
         source: ReviewScreen.Source,
-        preferredEventId: Int? = nil
+        preferredEventId: Int? = nil,
+        forNewEvent: Bool = false
     ) {
         self.api = api
         self.recorder = recorder
         self.source = source
         self.preferredEventId = preferredEventId
+        self.forNewEvent = forNewEvent
     }
 
     // MARK: - Derived state
@@ -381,11 +410,12 @@ final class ReviewModel {
     }
 
     var saveTitle: String {
-        selectedCount > 1 ? "Save \(selectedCount) sessions" : "Save session"
+        if forNewEvent { return "Add to new event" }
+        return selectedCount > 1 ? "Save \(selectedCount) sessions" : "Save session"
     }
 
     var canSave: Bool {
-        selectedCount > 0 && eventId != nil && !isSaving
+        selectedCount > 0 && (forNewEvent || eventId != nil) && !isSaving
     }
 
     private var selectedCount: Int {
@@ -473,6 +503,9 @@ final class ReviewModel {
         }
         rebuildPickTrace()
 
+        // No event list for a new-event import: there is nothing to pick from,
+        // and the form underneath is the event.
+        if forNewEvent { return }
         do {
             events = try await api.events()
             // Newest first: a session being saved almost always belongs to the
@@ -545,6 +578,31 @@ final class ReviewModel {
 
     // MARK: - Saving
 
+    /// The included items as the bodies of `POST /events/:id/sessions`, in
+    /// order. What `save()` posts, and what a new-event import hands to the form.
+    func stagedDrafts() -> [SessionDraft] {
+        items.compactMap { item in
+            guard item.include, let parsed = item.parsed, !parsed.laps.isEmpty else { return nil }
+            return sessionDraft(for: item, parsed)
+        }
+    }
+
+    /// One reviewed item as the body of `POST /events/:id/sessions`.
+    private func sessionDraft(for item: ReviewItem, _ parsed: ParsedTelemetry) -> SessionDraft {
+        let label = item.label.trimmingCharacters(in: .whitespaces)
+        return SessionDraft(
+            label: label.isEmpty ? nil : label,
+            notes: notesFor(item, parsed),
+            laps: parsed.laps.map(\.timeMs),
+            // The best lap's downsampled polyline, drawn as the racing line on
+            // the event page, plus the per-lap channel arrays the lap overlay
+            // (NS-23) draws. Both are produced by the same pick that timed the
+            // laps, so neither needs recomputing here.
+            trace: parsed.bestLapTrace,
+            channels: parsed.lapChannels
+        )
+    }
+
     /// `POST /events/:id/sessions` per included clip. Keeps a recording on any
     /// failure — it is only forgotten once the server has it.
     func save() async -> Bool {
@@ -560,18 +618,7 @@ final class ReviewModel {
         for i in selected {
             let item = items[i]
             guard let parsed = item.parsed else { continue }
-            let label = item.label.trimmingCharacters(in: .whitespaces)
-            let draft = SessionDraft(
-                label: label.isEmpty ? nil : label,
-                notes: notesFor(item, parsed),
-                laps: parsed.laps.map(\.timeMs),
-                // The best lap's downsampled polyline, drawn as the racing line on
-                // the event page, plus the per-lap channel arrays the lap overlay
-                // (NS-23) draws. Both are produced by the same pick that timed the
-                // laps, so neither needs recomputing here.
-                trace: parsed.bestLapTrace,
-                channels: parsed.lapChannels
-            )
+            let draft = sessionDraft(for: item, parsed)
             do {
                 _ = try await api.createSession(eventId: eventId, draft)
             } catch let error as APIError {
