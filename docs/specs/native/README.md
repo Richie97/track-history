@@ -410,6 +410,23 @@ Features added after the rewrite shipped, and where they landed:
   so "it is saveable" was an inspection rather than a fact until
   `StateRestorationTester` said so.
 
+- **Season Wrapped** (2026-09, [NS-36](NS-36-season-wrapped.md)) —
+  **web-first, server-computed.** Year in review as a story: full-screen cards
+  for the season's numbers, the most-driven track, the biggest improvement,
+  the fastest lap and the favourite tyre, ending on a poster the driver can
+  share as an image, with a dashboard hero from 1 November to 31 January. Web
+  first by the frontier rule, and portrait-first because the link is opened on
+  a phone. The two new stats — **track miles** (`track_catalog.length_m`,
+  migration 0022, with the driver's own telemetry as the fallback) and the
+  **favourite tyre** (the garage's `eventsInWindow` rule) — are computed in
+  `src/lib/wrapped.ts` behind `GET /api/wrapped/:year`, not on the client like
+  `year-review.js`, because they need the catalog and every session's channel
+  blob. That choice is what makes a native Wrapped next year an endpoint plus a
+  screen rather than a port. The story and the share are **Free**; the tyre
+  and top-speed cards are **Pro** and draw locked on a free account. A link-out
+  from the phone apps was considered and refused: bearer-authenticated apps
+  cannot hand a signed-in session to the phone's browser, so the link would
+  land on the web login.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
@@ -501,12 +518,13 @@ change* rule does not apply — see the spec for why.
 | NS-33 | [Leaderboards rank only device-timed laps](NS-33-leaderboard-device-timed-laps.md) | Shared | Leaderboards, NS-30, NS-32 |
 | NS-34 | [Large screens: iPad, foldables and tablets](NS-34-large-screens.md) | iOS + Android | NS-23, NS-24, NS-25, NS-26 |
 | NS-35 | [Open a leaderboard lap](NS-35-leaderboard-lap-detail.md) | Shared | Leaderboards, NS-33, #165 |
+| NS-36 | [Season Wrapped](NS-36-season-wrapped.md) | Web (server + web app) | Year in review, share pages, NS-32, the garage |
 
 ## Deferred — not in this programme
 
 Available on web throughout, ported to native later or never: the setup notebook,
-the setup-vs-lap-times diff, year in review, the **two-event** compare view
-(`viewCompare`), and **`.vbo` telemetry file import**.
+the setup-vs-lap-times diff, year in review and Season Wrapped (NS-36), the
+**two-event** compare view (`viewCompare`), and **`.vbo` telemetry file import**.
 
 Three things were on this list and came off it, all for the reason the split
 predicts — the work happens where the web app isn't:

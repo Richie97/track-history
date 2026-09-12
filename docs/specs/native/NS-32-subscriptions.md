@@ -60,6 +60,8 @@ turns lap times into analysis.
 | Setup notebook + setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes |
 | Session health strip (the Car tab, [#190](https://github.com/Richie97/track-history/issues/190)) and its tyre-pressure loop (web) | **Pro** | Server: rides on `channels` (rule 4) and, for the loop, the setups routes; the vehicle's `target_hot_psi` itself is a free vehicle-list field |
 | Year in review (web) | **Pro** | Client |
+| Season Wrapped — the story, the poster and its public share (web, [NS-36](NS-36-season-wrapped.md)) | Free | — (the share is the acquisition loop; a paywalled poster is a dead one) |
+| Season Wrapped — the favourite-tyre and top-speed cards | **Pro** | Server: the `pro` field of `GET /api/wrapped/:year` is `null` for a free account, the way `channels` is stripped (rule 4); the client draws the two cards locked |
 
 > **Revised after phase D: telemetry import is free.** It was `Pro`, gated on
 > the client at the point of import. The gate is gone on all three clients and
