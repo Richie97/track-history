@@ -78,6 +78,9 @@ struct LapChannelPanel: View {
     /// it to answer.
     var onHit: (ChannelHit?) -> Void = { _ in }
 
+    /// The account's unit system — the speed axis and the distance ticks follow it.
+    @Environment(\.unitSystem) private var units
+
     /// Channel-lap indexes in slot order — oldest first, so the eviction in
     /// `ChannelGraphs.toggle` drops the one you selected longest ago.
     @State private var lit: [Int] = []
@@ -441,14 +444,30 @@ struct LapChannelPanel: View {
         return Self.slots[slot]
     }
 
+    /// The distance axis in the account's system — nice numbers in the unit the
+    /// axis is labelled in (`ChannelGraphs.distAxisTicks`), because nice metre
+    /// ticks read as 0.31, 0.62 mi otherwise. Every chart in the panel shares it,
+    /// so the charts align.
+    private func distanceAxis(_ span: Double) -> some AxisContent {
+        let ticks = ChannelGraphs.distAxisTicks(max(1, span), units, n: 4)
+        return AxisMarks(values: ticks.map(\.m)) { value in
+            AxisGridLine().foregroundStyle(Color(.chartGrid))
+            AxisValueLabel {
+                if let d = value.as(Double.self) {
+                    Text(ticks.first { abs($0.m - d) < 0.5 }?.label ?? Units.fmtDist(d, units)).teStyle(.xxs)
+                }
+            }
+        }
+    }
+
     // MARK: - One channel's overlay
 
     @ViewBuilder
     private func channelChart(_ channel: ChannelGraphs.Channel) -> some View {
-        if let domain = ChannelGraphs.valueDomain(channel, in: channels) {
+        if let domain = ChannelGraphs.valueDomain(channel, in: channels, units: units) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("\(channel.label) (\(channel.unit))")
+                    Text("\(channel.label) (\(channel.unit(units)))")
                         .teStyle(.eyebrow)
                         .foregroundStyle(Color(.textMuted))
                     Spacer()
@@ -507,14 +526,7 @@ struct LapChannelPanel: View {
                     }
                 }
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                        AxisGridLine().foregroundStyle(Color(.chartGrid))
-                        AxisValueLabel {
-                            if let d = value.as(Double.self) {
-                                Text(ChannelGraphs.fmtDist(d)).teStyle(.xxs)
-                            }
-                        }
-                    }
+                    distanceAxis(ChannelGraphs.distanceSpan(channel, in: channels))
                 }
                 .foregroundStyle(Color(.textMuted))
                 .frame(height: 150)
@@ -671,14 +683,7 @@ struct LapChannelPanel: View {
                         }
                     }
                     .chartXAxis {
-                        AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                            AxisGridLine().foregroundStyle(Color(.chartGrid))
-                            AxisValueLabel {
-                                if let d = value.as(Double.self) {
-                                    Text(ChannelGraphs.fmtDist(d)).teStyle(.xxs)
-                                }
-                            }
-                        }
+                        distanceAxis(ChannelGraphs.distanceSpan(.speed, in: channels))
                     }
                     .foregroundStyle(Color(.textMuted))
                     .frame(height: 150)
@@ -743,7 +748,7 @@ struct LapChannelPanel: View {
             guard series.indices.contains(index) else { return nil }
             return "L\(String(lapNumber(forLapIndex: chIdx))) \(Self.fmtDelta(series[index], decimals: 2)) s"
         }
-        let distance = ChannelGraphs.fmtDist(Double(index) * channels.dStepM)
+        let distance = Units.fmtDist(Double(index) * channels.dStepM, units)
         return values.isEmpty ? distance : "\(distance) · \(values.joined(separator: " · "))"
     }
 
@@ -791,7 +796,7 @@ struct LapChannelPanel: View {
                         id: chIdx * 100_000 + k,
                         lapIndex: chIdx,
                         distance: Double(k) * channels.dStepM,
-                        value: channel.convert(raw),
+                        value: channel.convert(raw, units),
                         color: color ?? Color(.chartDim),
                         lineWidth: color == nil ? 1 : 2
                     )
@@ -878,7 +883,7 @@ struct LapChannelPanel: View {
     /// highlighted lap in its slot order.
     private func readoutText(_ channel: ChannelGraphs.Channel, at index: Int) -> String {
         let values = lit.compactMap { chIdx -> String? in
-            guard let v = ChannelGraphs.value(channel, lapIndex: chIdx, gridIndex: index, in: channels) else {
+            guard let v = ChannelGraphs.value(channel, lapIndex: chIdx, gridIndex: index, in: channels, units: units) else {
                 return nil
             }
             // What was active there, if anything (#188) — the read-out says "ABS"
@@ -887,7 +892,7 @@ struct LapChannelPanel: View {
             let suffix = active.isEmpty ? "" : " (\(active.joined(separator: ", ")))"
             return "L\(String(lapNumber(forLapIndex: chIdx))) \(fmtValue(v, channel))\(suffix)"
         }
-        let distance = ChannelGraphs.fmtDist(Double(index) * channels.dStepM)
+        let distance = Units.fmtDist(Double(index) * channels.dStepM, units)
         return values.isEmpty ? distance : "\(distance) · \(values.joined(separator: " · "))"
     }
 
@@ -895,12 +900,12 @@ struct LapChannelPanel: View {
     private func summary(_ channel: ChannelGraphs.Channel) -> String {
         let parts = lit.compactMap { chIdx -> String? in
             guard let series = channel.series(of: channels.laps[chIdx]),
-                  let low = series.map(channel.convert).min(),
-                  let high = series.map(channel.convert).max()
+                  let low = series.map({ channel.convert($0, units) }).min(),
+                  let high = series.map({ channel.convert($0, units) }).max()
             else { return nil }
             return """
                 Lap \(String(lapNumber(forLapIndex: chIdx))), \
-                \(fmtValue(low, channel)) to \(fmtValue(high, channel)) \(channel.unit)
+                \(fmtValue(low, channel)) to \(fmtValue(high, channel)) \(channel.unit(units))
                 """
         }
         guard !parts.isEmpty else { return "No lap highlighted" }

@@ -290,7 +290,8 @@ struct EventScreen: View {
     /// Temperature and conditions read as one phrase, like `fmtConditions`.
     private func conditionsText(_ event: Event) -> String? {
         let condition = event.conditions?.label
-        let temp = event.tempF.map { "\($0)°F" }
+        // Stored whole °F, shown in the account's system.
+        let temp: String? = event.tempF == nil ? nil : Units.fmtTemp(event.tempF, auth.units)
         let parts = [condition, temp].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
@@ -469,7 +470,7 @@ struct EventScreen: View {
 
     private func sessionSection(_ model: EventModel, _ session: Session) -> some View {
         Section {
-            if let stats = session.statsSummary {
+            if let stats = session.statsSummary(units: auth.units) {
                 row {
                     Text(stats)
                         .teStyle(.xs)
@@ -555,13 +556,13 @@ struct EventScreen: View {
                 // measured: the event's typed figure is on the event header and
                 // is not repeated down the page.
                 if let ambientC = SessionConditions.sessionAmbientC(session) {
-                    Text(SessionConditions.tempText(ambientC, .us))
+                    Text(SessionConditions.tempText(ambientC, SessionConditions.Units(auth.units)))
                         .teStyle(.xxs)
                         .foregroundStyle(Color(.textMuted))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
                         .background(Color(.heat).opacity(0.14), in: .capsule)
-                        .accessibilityLabel("Ambient \(SessionConditions.tempText(ambientC, .us))")
+                        .accessibilityLabel("Ambient \(SessionConditions.tempText(ambientC, SessionConditions.Units(auth.units)))")
                 }
                 Spacer()
                 Menu {

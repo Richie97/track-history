@@ -121,8 +121,8 @@ struct TrackScreen: View {
                     // How much the track climbs and falls (#191), from whatever
                     // telemetry has been imported here. Context, not coaching —
                     // one line, and no more.
-                    if !model.elevationLine.isEmpty {
-                        Text("· \(model.elevationLine)")
+                    if !model.elevationLine(auth.units).isEmpty {
+                        Text("· \(model.elevationLine(auth.units))")
                             .teStyle(.sm)
                             .foregroundStyle(Color(.textMuted))
                     }
@@ -421,8 +421,8 @@ final class TrackModel {
 
     /// The track's elevation change, from every event at it — the dry-only
     /// filter has nothing to do with the hill.
-    var elevationLine: String {
-        SessionConditions.elevationText(SessionConditions.trackElevationM(allEvents), .us)
+    func elevationLine(_ units: UnitSystem) -> String {
+        SessionConditions.elevationText(SessionConditions.trackElevationM(allEvents), SessionConditions.Units(units))
     }
 
     /// How the personal best stands against the goal, in the web app's words.

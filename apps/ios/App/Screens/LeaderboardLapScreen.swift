@@ -27,8 +27,6 @@ struct LeaderboardLapScreen: View {
     @Environment(AuthController.self) private var auth
     @State private var model: LeaderboardLapModel?
 
-    private static let kphToMph = 0.621371
-
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let lap = model.lap {
@@ -133,8 +131,8 @@ struct LeaderboardLapScreen: View {
     private func subtitle(_ lap: LeaderboardLap) -> String {
         var parts = [lap.you ? "Your leaderboard lap" : "\(lap.name ?? "Driver")'s leaderboard lap"]
         parts.append(EventDates.fmtDate(lap.date))
-        if let c = lap.ambientC { parts.append(SessionConditions.tempText(c, .us)) }
-        let elevation = SessionConditions.elevationText(lap.elevationM, .us)
+        if let c = lap.ambientC { parts.append(SessionConditions.tempText(c, SessionConditions.Units(auth.units))) }
+        let elevation = SessionConditions.elevationText(lap.elevationM, SessionConditions.Units(auth.units))
         if !elevation.isEmpty { parts.append(elevation) }
         return parts.joined(separator: " · ")
     }
@@ -269,10 +267,10 @@ struct LeaderboardLapScreen: View {
         return LapTime.fmtDelta(mine.timeMs - view.theirMetrics.timeMs)
     }
 
-    private func mph(_ kph: Double) -> String { "\(Int((kph * Self.kphToMph).rounded())) mph" }
+    private func mph(_ kph: Double) -> String { Units.fmtSpeedKph(kph, auth.units) }
 
     private func mphDelta(_ d: Double) -> String {
-        signed(d, "\(Int((abs(d) * Self.kphToMph).rounded())) mph")
+        signed(d, Units.fmtSpeedKph(abs(d), auth.units))
     }
 
     private func ppDelta(_ d: Double) -> String { signed(d, String(format: "%.1fpp", abs(d))) }

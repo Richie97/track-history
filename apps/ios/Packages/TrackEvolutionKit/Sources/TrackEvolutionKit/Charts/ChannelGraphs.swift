@@ -17,8 +17,6 @@ public enum ChannelGraphs {
     /// (`--chart-line` / `-b` / `-c`). `SLOTS.length` in the JS.
     public static let SLOT_COUNT = 3
 
-    private static let KPH_TO_MPH = 0.621371
-
     /// A channel the importer may have stored, and how it reads.
     ///
     /// `CHANNEL_DEFS` in the JS, in the same order — which is also the order the
@@ -46,9 +44,12 @@ public enum ChannelGraphs {
             }
         }
 
-        public var unit: String {
+        /// The unit a readout of this channel carries, in the account's system:
+        /// speed is stored km/h and shown as mph or km/h (`Units.speedUnit`); every
+        /// other channel reads the same in both. `channelDefs(units)` in the JS.
+        public func unit(_ units: UnitSystem) -> String {
             switch self {
-            case .speed: "mph"
+            case .speed: Units.speedUnit(units)
             case .throttle, .brake: "%"
             case .steering: "°"
             case .rpm: "rpm"
@@ -76,9 +77,10 @@ public enum ChannelGraphs {
             }
         }
 
-        /// Stored units → displayed units. Speed is stored in km/h.
-        public func convert(_ raw: Double) -> Double {
-            self == .speed ? raw * KPH_TO_MPH : raw
+        /// Stored units → displayed units. Speed is stored in km/h and shown in the
+        /// account's system (`Units.convSpeedKph`); nothing else converts.
+        public func convert(_ raw: Double, _ units: UnitSystem) -> Double {
+            self == .speed ? Units.convSpeedKph(raw, units) : raw
         }
 
         /// This channel's series on one lap, or nil when that lap didn't record it.
@@ -174,13 +176,13 @@ public enum ChannelGraphs {
     /// nil when no lap carries the channel. A channel with one constant value gets a
     /// window anyway — the 1e-6 floor is the JS's, and it keeps a flat lap on a line
     /// rather than dividing by a zero range.
-    public static func valueDomain(_ channel: Channel, in channels: SessionChannels) -> (low: Double, high: Double)? {
+    public static func valueDomain(_ channel: Channel, in channels: SessionChannels, units: UnitSystem) -> (low: Double, high: Double)? {
         var low = Double.infinity
         var high = -Double.infinity
         for lap in channels.laps {
             guard let series = channel.series(of: lap) else { continue }
             for raw in series {
-                let v = channel.convert(raw)
+                let v = channel.convert(raw, units)
                 low = Swift.min(low, v)
                 high = Swift.max(high, v)
             }
@@ -194,13 +196,13 @@ public enum ChannelGraphs {
     /// One lap's value at a grid point, converted — nil when that lap is shorter
     /// than the point, which happens whenever laps differ in driven distance.
     public static func value(
-        _ channel: Channel, lapIndex: Int, gridIndex: Int, in channels: SessionChannels
+        _ channel: Channel, lapIndex: Int, gridIndex: Int, in channels: SessionChannels, units: UnitSystem
     ) -> Double? {
         guard channels.laps.indices.contains(lapIndex),
               let series = channel.series(of: channels.laps[lapIndex]),
               series.indices.contains(gridIndex)
         else { return nil }
-        return channel.convert(series[gridIndex])
+        return channel.convert(series[gridIndex], units)
     }
 
     /// The grid point nearest a distance in metres, clamped to the axis.
@@ -210,12 +212,42 @@ public enum ChannelGraphs {
         return Swift.min(last, Swift.max(0, Int((metres / channels.dStepM).rounded())))
     }
 
-    /// Driven distance as an axis label — `fmtDist` in the JS: metres until a
-    /// kilometre, then kilometres with a decimal only when it isn't round.
-    public static func fmtDist(_ metres: Double) -> String {
-        let m = Int(metres.rounded())
-        guard m >= 1000 else { return "\(m) m" }
-        return String(format: m % 1000 != 0 ? "%.1f km" : "%.0f km", Double(m) / 1000)
+    // MARK: - The distance axis
+
+    /// "Nice" tick values across a range — `niceNumTicks` in `public/js/chart.js`:
+    /// a step of 1, 2, 2.5, 5 or 10 times a power of ten, the smallest that fits
+    /// `count` steps, rounded to six decimals like the JS.
+    public static func niceNumTicks(_ lo: Double, _ hi: Double, count: Int = 4) -> [Double] {
+        let span = Swift.max(1e-9, hi - lo)
+        let raw = span / Double(count)
+        let pow10 = pow(10.0, floor(log10(raw)))
+        let step = [1.0, 2, 2.5, 5, 10].map { $0 * pow10 }.first { $0 >= raw } ?? 10 * pow10
+        var ticks: [Double] = []
+        var v = ceil(lo / step - 1e-9) * step
+        while v <= hi + 1e-9 {
+            ticks.append(JSMath.round(v, 1e6))
+            v += step
+        }
+        return ticks
+    }
+
+    /// One distance-axis tick: its position in metres, and what it says.
+    public struct DistTick: Hashable, Sendable {
+        public let m: Double
+        public let label: String
+    }
+
+    /// Distance-axis ticks for a lap of `x1` metres: nice numbers in the unit the
+    /// axis is labelled in — metres, or miles, because nice metre ticks come out
+    /// as 0.31, 0.62 mi otherwise. `distAxisTicks` in the JS; the labels are
+    /// `Units.fmtDist`'s.
+    public static func distAxisTicks(_ x1: Double, _ units: UnitSystem, n: Int = 6) -> [DistTick] {
+        if Units.isMetric(units) {
+            return niceNumTicks(0, x1, count: n).map { DistTick(m: $0, label: Units.fmtDist($0, units)) }
+        }
+        return niceNumTicks(0, x1 / Units.M_PER_MI, count: n).map { mi in
+            DistTick(m: mi * Units.M_PER_MI, label: Units.fmtDist(mi * Units.M_PER_MI, units))
+        }
     }
 
     // MARK: - Lap delta

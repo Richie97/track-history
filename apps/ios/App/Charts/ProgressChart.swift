@@ -36,6 +36,8 @@ struct ProgressChart: View {
     /// The conditions wash behind the plot (#191): one cell per point, nil where
     /// that event has no temperature at all.
     var band: SessionConditions.Band?
+    /// For the wash's spoken temperatures.
+    @Environment(\.unitSystem) private var units
     /// What the axis labels say, given a plot position. Defaults to the nearest
     /// point's own label.
     var xLabel: ((Double) -> String)?
@@ -147,7 +149,7 @@ struct ProgressChart: View {
         // trend summary says it out loud — same reason the summary says which
         // way the trend goes.
         .accessibilityValue(
-            [Self.trendSummary(points, unit: unit), SessionConditions.bandLabel(band, .us)]
+            [Self.trendSummary(points, unit: unit), SessionConditions.bandLabel(band, SessionConditions.Units(units))]
                 .filter { !$0.isEmpty }
                 .joined(separator: ", ")
         )
@@ -205,10 +207,11 @@ private struct ConditionsBandLayer: View {
 /// temperatures is noise.
 struct ConditionsKey: View {
     let band: SessionConditions.Band
+    @Environment(\.unitSystem) private var units
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(SessionConditions.tempText(band.loC, .us))
+            Text(SessionConditions.tempText(band.loC, SessionConditions.Units(units)))
             LinearGradient(
                 colors: [
                     Color(.heat).opacity(SessionConditions.BAND_MIN_ALPHA),
@@ -219,7 +222,7 @@ struct ConditionsKey: View {
             )
             .frame(width: 110, height: 6)
             .clipShape(.capsule)
-            Text(SessionConditions.tempText(band.hiC, .us))
+            Text(SessionConditions.tempText(band.hiC, SessionConditions.Units(units)))
         }
         .teStyle(.xxs)
         .foregroundStyle(Color(.textFaint))
