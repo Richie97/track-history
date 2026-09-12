@@ -134,9 +134,9 @@ class ChannelGraphsTest {
     fun `ticks a metric axis in nice metres and an imperial one in nice miles`() {
         assertEquals(
             listOf("0 m", "500 m", "1 km", "1.5 km"),
-            ChannelGraphs.distAxisTicks(1780.0, UnitSystem.METRIC).map { it.label },
+            Units.distAxisTicks(1780.0, UnitSystem.METRIC).map { it.label },
         )
-        val mi = ChannelGraphs.distAxisTicks(4000.0, UnitSystem.IMPERIAL)
+        val mi = Units.distAxisTicks(4000.0, UnitSystem.IMPERIAL)
         assertEquals(listOf("0 mi", "0.5 mi", "1 mi", "1.5 mi", "2 mi"), mi.map { it.label })
         assertEquals(1609.344, mi[2].m, 1e-6)
     }

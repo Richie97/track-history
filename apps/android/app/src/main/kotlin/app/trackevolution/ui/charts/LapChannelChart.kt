@@ -42,6 +42,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
+import app.trackevolution.core.Units
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.Health
 import app.trackevolution.core.ChartScale
@@ -447,7 +448,7 @@ private fun DeltaPlot(
             }
             // Nice numbers in the unit the axis is labelled in — metres, or
             // miles — rather than nice metres converted (0.31, 0.62 mi…).
-            for (tick in ChannelGraphs.distAxisTicks(span, units)) {
+            for (tick in Units.distAxisTicks(span, units)) {
                 val text = measurer.measure(tick.label, labelStyle)
                 drawText(
                     text,
@@ -589,7 +590,7 @@ private fun ChannelPlot(
             }
             // Nice numbers in the unit the axis is labelled in — metres, or
             // miles — rather than nice metres converted (0.31, 0.62 mi…).
-            for (tick in ChannelGraphs.distAxisTicks(span, units)) {
+            for (tick in Units.distAxisTicks(span, units)) {
                 val text = measurer.measure(tick.label, labelStyle)
                 drawText(
                     text,

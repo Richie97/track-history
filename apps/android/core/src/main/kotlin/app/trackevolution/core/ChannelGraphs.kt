@@ -223,22 +223,6 @@ public object ChannelGraphs {
      */
     public fun fmtDist(metres: Double, units: UnitSystem): String = Units.fmtDist(metres, units)
 
-    /** One distance-axis tick: where it sits in metres, and what it says. */
-    public data class DistTick(val m: Double, val label: String)
-
-    /**
-     * Distance-axis ticks for a lap of [x1] metres: nice numbers in the unit the
-     * axis is labelled in (metres, or miles — nice metre ticks come out as 0.31,
-     * 0.62 mi otherwise). `distAxisTicks` in the JS.
-     */
-    public fun distAxisTicks(x1: Double, units: UnitSystem, n: Int = 6): List<DistTick> {
-        if (Units.isMetric(units)) {
-            return ChartScale.niceNumTicks(0.0, x1, n).map { DistTick(it, fmtDist(it, units)) }
-        }
-        return ChartScale.niceNumTicks(0.0, x1 / Units.M_PER_MI, n)
-            .map { mi -> DistTick(mi * Units.M_PER_MI, fmtDist(mi * Units.M_PER_MI, units)) }
-    }
-
     // ---- lap delta ----------------------------------------------------------
 
     /**

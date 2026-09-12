@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHANNEL_DEFS,
   channelChartSvg,
   channelDefs,
   deltaChartSvg,
-  distAxisTicks,
   deltaSeries,
+  distAxisTicks,
   lapTimeSeries,
   matchLapsToChannels,
 } from "../../public/js/channel-graphs.js";
@@ -30,13 +31,19 @@ describe("niceNumTicks", () => {
 });
 
 describe("channelDefs / distAxisTicks", () => {
-  it("labels speed in the user's system and leaves the rest alone", () => {
+  it("labels speed in the user's system and leaves rpm and G alone", () => {
     const imp = channelDefs("imperial");
     const met = channelDefs("metric");
-    expect(imp.map((d) => d.unit)).toEqual(["mph", "%", "%", "°", "rpm", "G", "°/s"]);
-    expect(met.map((d) => d.unit)).toEqual(["km/h", "%", "%", "°", "rpm", "G", "°/s"]);
+    expect(imp.find((d) => d.key === "speed").unit).toBe("mph");
+    expect(met.find((d) => d.key === "speed").unit).toBe("km/h");
+    // Only speed changes; every other channel reads the same in both systems.
+    expect(imp.filter((d) => d.key !== "speed").map((d) => d.unit)).toEqual(
+      met.filter((d) => d.key !== "speed").map((d) => d.unit)
+    );
     expect(Math.round(imp[0].conv(100))).toBe(62);
     expect(met[0].conv(100)).toBe(100);
+    // CHANNEL_DEFS is the imperial table, kept for callers that pin it.
+    expect(CHANNEL_DEFS.map((d) => d.unit)).toEqual(imp.map((d) => d.unit));
   });
 
   it("ticks a metric axis in nice metres and an imperial one in nice miles", () => {
@@ -188,7 +195,7 @@ describe("channelChartSvg", () => {
 
 describe("yaw rate trace (#189)", () => {
   it("is a channel of its own, signed, and draws only for laps that stored it", () => {
-    const def = channelDefs("imperial").find((d) => d.key === "yaw");
+    const def = CHANNEL_DEFS.find((d) => d.key === "yaw");
     expect(def).toBeTruthy();
     expect(def.unit).toBe("°/s");
     expect(def.floor0).toBe(false); // swings both ways around zero, like steering

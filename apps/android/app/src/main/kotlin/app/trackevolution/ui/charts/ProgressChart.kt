@@ -71,7 +71,7 @@ fun ProgressChart(
     if (points.isEmpty()) return
 
     val colors = TrackTheme.colors
-    val condUnits = Units.condUnits(LocalUnitSystem.current)
+    val usUnits = Units.usUnits(LocalUnitSystem.current)
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
@@ -105,7 +105,7 @@ fun ProgressChart(
                 // it is said out loud too.
                 contentDescription = listOf(
                     trendSummary(points, goalMs),
-                    SessionConditions.bandLabel(band, condUnits),
+                    SessionConditions.bandLabel(band, usUnits),
                 ).filter { it.isNotEmpty() }.joinToString(", ")
             },
     ) {
@@ -197,14 +197,14 @@ fun ProgressChart(
 @Composable
 fun ConditionsKey(band: SessionConditions.Band, modifier: Modifier = Modifier) {
     val colors = TrackTheme.colors
-    val condUnits = Units.condUnits(LocalUnitSystem.current)
+    val usUnits = Units.usUnits(LocalUnitSystem.current)
     Row(
         modifier = modifier.padding(top = 8.dp).clearAndSetSemantics {},
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            SessionConditions.tempText(band.loC, condUnits),
+            SessionConditions.tempText(band.loC, usUnits),
             style = TrackTheme.typography.xxs,
             color = colors.textFaint,
         )
@@ -223,7 +223,7 @@ fun ConditionsKey(band: SessionConditions.Band, modifier: Modifier = Modifier) {
                 ),
         )
         Text(
-            SessionConditions.tempText(band.hiC, condUnits),
+            SessionConditions.tempText(band.hiC, usUnits),
             style = TrackTheme.typography.xxs,
             color = colors.textFaint,
         )

@@ -33,10 +33,7 @@ import {
   defaultMeasurementUnit, diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit, wearLimitHint,
 } from "./js/garage.js";
-import {
-  UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtSpeedKph, isMetric, tempInputSpec, tempToDisplay,
-  fmtDist as fmtDistUnits, tempToStored, tempUnit,
-} from "./js/units.js";
+import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtDist, fmtSpeedKph, speedUnit, tempInputSpec, tempToDisplay, tempToStored, tempUnit, usUnits } from "./js/units.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 import {
   canCompareEvents, canUseGarage, canUseSetups, canViewChannels,
@@ -74,11 +71,8 @@ const condLabel = (c) => (CONDITIONS.find(([v]) => v === c) || [])[1] ?? "";
 // than showing both (#191): what the sessions' telemetry recorded if any did —
 // a range when the day warmed up — else the number the driver typed. Neither
 // is ever written from the other; they only meet here.
-// The conditions and health modules spell the two systems "us" | "metric";
-// this maps the account's choice (imperial | metric) onto that once.
-const condUnits = () => (isMetric(currentUnits()) ? "metric" : "us");
 const fmtConditions = (e) =>
-  [condLabel(e.conditions), ambientText(eventAmbient(e), condUnits())].filter(Boolean).join(" · ");
+  [condLabel(e.conditions), ambientText(eventAmbient(e), usUnits())].filter(Boolean).join(" · ");
 
 // ---------- tier / paywall ---------------------------------------------------
 
@@ -927,7 +921,7 @@ async function viewTrack(trackId, params) {
   const chart = points.length
     ? lineChart(points, {
         goal: track.goal_ms,
-        bands: band ? { cells: band.cells, label: bandLabel(band, condUnits()) } : null,
+        bands: band ? { cells: band.cells, label: bandLabel(band, usUnits()) } : null,
       })
     : null;
   // Elevation change is a property of the track, so it comes from every event
@@ -997,7 +991,7 @@ async function viewTrack(trackId, params) {
 
   const view = shell(`
     <h1>${esc(track.name)}</h1>
-    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, condUnits()))}` : ""}</p>
+    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
     <div class="btn-row">
       <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a>
@@ -1185,7 +1179,6 @@ async function viewCompare(trackId, params) {
 
 // --- compare two laps: full telemetry for any two laps at one track (#165) ---
 
-
 // Tooltip for a hand-built set of channel charts: nearest grid point by x, one
 // row per side. The multi-lap version of the readout `bindChannelGraphs` binds
 // for a whole session, used wherever a small fixed set of laps is drawn
@@ -1197,12 +1190,13 @@ async function viewCompare(trackId, params) {
 function bindPairTooltip(container, aligned, { sideColors, sideLabels, delta = null, refIdx = -1 }) {
   if (!container) return;
   const $tooltip = document.getElementById("tooltip");
+  const units = currentUnits();
+  const defs = channelDefs(units);
   container.querySelectorAll("svg[data-channel]").forEach((svgEl) => {
-    const def = channelDefs(currentUnits()).find((d) => d.key === svgEl.dataset.channel);
+    const def = defs.find((d) => d.key === svgEl.dataset.channel);
     const x1 = Number(svgEl.dataset.x1);
     const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
     const vbW = svgEl.viewBox.baseVal.width;
-    const fmtDist = (m) => fmtDistUnits(m, currentUnits());
     svgEl.addEventListener("mousemove", (evt) => {
       const rect = svgEl.getBoundingClientRect();
       const frac = (((evt.clientX - rect.left) / rect.width) * vbW - padL) / (vbW - padL - padR);
@@ -1227,7 +1221,7 @@ function bindPairTooltip(container, aligned, { sideColors, sideLabels, delta = n
         })
         .join("");
       if (!tipRows) { $tooltip.hidden = true; return; }
-      $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${tipRows}`;
+      $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d, units))}</div>${tipRows}`;
       $tooltip.hidden = false;
       const tw = $tooltip.offsetWidth;
       let left = evt.clientX + 14;
@@ -1461,8 +1455,8 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   const who = lap.you ? "Your leaderboard lap" : `${lap.name ?? "Driver"}'s leaderboard lap`;
   const context = [
     fmtDate(lap.date),
-    lap.ambient_c != null ? tempText(lap.ambient_c, condUnits()) : "",
-    elevationText(lap.elevation_m, condUnits()),
+    lap.ambient_c != null ? tempText(lap.ambient_c, usUnits()) : "",
+    elevationText(lap.elevation_m, usUnits()),
   ].filter(Boolean);
 
   const headHtml = `${backHtml}
@@ -1703,13 +1697,13 @@ async function viewEvent(eventId) {
       if (bal) stats.push(esc(bal));
       // Car health (js/health.js): any slow reading past its watch line, and
       // the fuel outlook; the strip itself is the panel's Car tab.
-      const car = s.channels?.laps?.length ? healthSummary(s.channels, condUnits()) : null;
+      const car = s.channels?.laps?.length ? healthSummary(s.channels, usUnits()) : null;
       if (car) stats.push(esc(car));
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
           <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "no laps"}</span>
-          ${conditionsChipHtml(s)}
+          ${conditionsChipHtml(s, usUnits())}
           <span class="grow"></span>
           <button class="btn small danger" data-del-session="${s.id}">Delete</button>
         </div>
@@ -2099,7 +2093,7 @@ async function viewEvent(eventId) {
           gripCircleHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) +
           balanceHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
         car: healthHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`, {
-          units: condUnits(),
+          units: usUnits(),
           loopHtml: setupsAllowed ? pressureLoopHtml(loopContext(), (chIdx) => `Lap ${dispN[chIdx]}`) : "",
         }),
       }),
@@ -3176,7 +3170,7 @@ function shareTrack(trackId) {
   const chart = points.length
     ? lineChart(points, {
         goal: track.goal_ms,
-        bands: band ? { cells: band.cells, label: bandLabel(band, condUnits()) } : null,
+        bands: band ? { cells: band.cells, label: bandLabel(band, usUnits()) } : null,
       })
     : null;
   const elevM = trackElevationM(events);
@@ -3186,7 +3180,7 @@ function shareTrack(trackId) {
   const view = shareShell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← All tracks</a></p>
     <h1>${esc(track.name)}</h1>
-    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, condUnits()))}` : ""}</p>
+    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}</div>` : ""}
     <h2>Events</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>

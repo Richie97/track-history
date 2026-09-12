@@ -248,8 +248,8 @@ class UnitsTest {
 
     @Test
     fun `maps the account's choice onto the conditions and health enums`() {
-        assertEquals(SessionConditions.Units.US, Units.condUnits(UnitSystem.IMPERIAL))
-        assertEquals(SessionConditions.Units.METRIC, Units.condUnits(UnitSystem.METRIC))
+        assertEquals(SessionConditions.Units.US, Units.usUnits(UnitSystem.IMPERIAL))
+        assertEquals(SessionConditions.Units.METRIC, Units.usUnits(UnitSystem.METRIC))
         assertEquals(Health.Units.US, Units.healthUnits(UnitSystem.IMPERIAL))
         assertEquals(Health.Units.METRIC, Units.healthUnits(UnitSystem.METRIC))
     }

@@ -164,7 +164,7 @@ class TrackModel(
      */
     fun elevationLine(units: UnitSystem): String = SessionConditions.elevationText(
         SessionConditions.trackElevationM(allEvents),
-        Units.condUnits(units),
+        Units.usUnits(units),
     )
 
     /** How the personal best stands against the goal, in the web app's words. */

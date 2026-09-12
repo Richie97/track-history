@@ -96,6 +96,22 @@ public object Units {
         return "${jsNumber(m)} m"
     }
 
+    /** One distance-axis tick: where it sits in metres, and what it says. */
+    public data class DistTick(val m: Double, val label: String)
+
+    /**
+     * Distance-axis ticks for a lap of [x1] metres: nice numbers in the unit the
+     * axis is labelled in (metres, or miles — nice metre ticks come out as 0.31,
+     * 0.62 mi otherwise). `distAxisTicks` in the JS.
+     */
+    public fun distAxisTicks(x1: Double, units: UnitSystem, n: Int = 6): List<DistTick> {
+        if (isMetric(units)) {
+            return ChartScale.niceNumTicks(0.0, x1, n).map { DistTick(it, fmtDist(it, units)) }
+        }
+        return ChartScale.niceNumTicks(0.0, x1 / M_PER_MI, n)
+            .map { mi -> DistTick(mi * M_PER_MI, fmtDist(mi * M_PER_MI, units)) }
+    }
+
     /** GPS accuracy style: "±4 m" / "±13 ft". */
     public fun fmtAccuracy(m: Double, units: UnitSystem): String =
         if (isMetric(units)) "±${JsMath.roundToInt(m)} m" else "±${JsMath.roundToInt(m * FT_PER_M)} ft"
@@ -139,10 +155,11 @@ public object Units {
     // ---- the two-valued enums the older modules spell -------------------------
 
     /**
-     * `condUnits()` in `public/app.js`: the conditions module spells the two
-     * systems `US` | `METRIC`, and this maps the account's choice onto that once.
+     * `usUnits` in the JS: the conditions module spells the two systems
+     * `US` | `METRIC` (theirs is the stored-vs-shown split — °C in the channel
+     * meta, °F on the page), and this maps the account's choice onto that once.
      */
-    public fun condUnits(units: UnitSystem): SessionConditions.Units =
+    public fun usUnits(units: UnitSystem): SessionConditions.Units =
         if (isMetric(units)) SessionConditions.Units.METRIC else SessionConditions.Units.US
 
     /** The same mapping for the health strip's enum. */

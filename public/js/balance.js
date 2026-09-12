@@ -49,6 +49,7 @@
 // contracts/logic/ until a port exists.
 
 import { CORNER_MIN_G, cornerAt, cornerLabel, sessionCorners } from "./corners.js";
+import { currentUnits, fmtDist as fmtDistIn, fmtSpeedKph } from "./units.js";
 import { esc } from "./format.js";
 import { niceNumTicks } from "./chart.js";
 
@@ -66,7 +67,6 @@ export const NEUTRAL_PCT = 8;
 export const SLIGHT_PCT = 20;
 
 const KPH_TO_MPS = 1 / 3.6;
-const KPH_TO_MPH = 0.621371;
 
 // True when the lap stored the three channels the diagnosis reads.
 export function hasBalanceData(entry) {
@@ -248,7 +248,8 @@ export function balanceSummary(channels) {
 
 // --- web rendering (not ported) --------------------------------------------
 
-const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
+// Distances read in the account's unit system (js/units.js).
+const fmtDist = (m) => fmtDistIn(m, currentUnits());
 const fmtG = (g) => g.toFixed(2);
 
 // The scatter: steering angle across, rotation per metre up, one point per
@@ -426,7 +427,7 @@ export function bindBalance(container, channels, { onHover } = {}) {
       if ($tooltip) {
         $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}${corner ? ` · ${esc(cornerLabel(corner))}` : ""}</div>
           <div class="t-sub">${esc(g.dataset.balanceLabel)} — ${Math.round(entry.steering[k])}° steering · ${Math.round(entry.yaw[k])}°/s yaw</div>
-          <div class="t-sub">${Math.round(entry.speed[k] * KPH_TO_MPH)} mph</div>`;
+          <div class="t-sub">${fmtSpeedKph(entry.speed[k], currentUnits())}</div>`;
         place($tooltip, evt);
       }
       onHover?.({ chIdx, k, d, frac: n > 1 ? k / (n - 1) : 0, label: g.dataset.balanceLabel });

@@ -18,17 +18,19 @@
 
 import { esc, fmtMs } from "./format.js";
 import { niceNumTicks } from "./chart.js";
+import { DEFAULT_UNITS, convSpeedKph, currentUnits, distAxisTicks, fmtDist, speedUnit } from "./units.js";
+// Re-exported for the unit tests that pin the axis alongside the charts.
+export { distAxisTicks };
 import { ordinal } from "./gears.js";
 import { LIMIT_KINDS, activeLimitLabels, limitRuns, sideColorVar } from "./limits.js";
-import { convSpeedKph, currentUnits, fmtDist, isMetric, M_PER_MI, speedUnit } from "./units.js";
 
 const SLOTS = ["var(--chart-line)", "var(--chart-line-b)", "var(--chart-line-c)"];
 
 // The channel specs in the user's unit system: stored speed is km/h, shown as
-// mph or km/h; everything else is the same everywhere. Exported for unit tests
-// and for the cross-event compare view (app.js viewLapCompare), which renders
-// these charts outside bindChannelGraphs and needs the defs for its own
-// tooltip readouts.
+// mph or km/h; every other channel reads the same in both. Exported for the
+// cross-event compare view (app.js viewLapCompare), which renders these charts
+// outside bindChannelGraphs and needs the defs for its own tooltip readouts,
+// and for unit tests. CHANNEL_DEFS is the imperial (default) table.
 export const channelDefs = (units) => [
   { key: "speed", label: "Speed", unit: speedUnit(units), conv: (v) => convSpeedKph(v, units), dp: 0, floor0: false },
   { key: "throttle", label: "Throttle", unit: "%", conv: (v) => v, dp: 0, floor0: true },
@@ -40,14 +42,8 @@ export const channelDefs = (units) => [
   // #189): signed, so it swings both ways around zero like steering does.
   { key: "yaw", label: "Yaw rate", unit: "°/s", conv: (v) => v, dp: 0, floor0: false },
 ];
+export const CHANNEL_DEFS = channelDefs(DEFAULT_UNITS);
 
-// Distance-axis ticks for a lap of x1 meters: nice numbers in the unit the
-// axis is labelled in (metres, or miles — nice metre ticks come out as 0.31,
-// 0.62 mi otherwise). [{m, label}] with m the tick's position in metres.
-export function distAxisTicks(x1, units, n = 6) {
-  if (isMetric(units)) return niceNumTicks(0, x1, n).map((m) => ({ m, label: fmtDist(m, units) }));
-  return niceNumTicks(0, x1 / M_PER_MI, n).map((mi) => ({ m: mi * M_PER_MI, label: fmtDist(mi * M_PER_MI, units) }));
-}
 
 // One channel's overlay chart. laps: the stored entries; lit: Map(lapIdx ->
 // slot color). Returns "" when no lap carries this channel.
@@ -311,6 +307,8 @@ const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "input
 // same laps lit rather than on a collapsed panel.
 // Returns { rerender }, which redraws the charts with the current selection
 // — for a caller whose extras depend on state the panel doesn't own.
+// `units` — the unit system to label speed and distance in (defaults to the
+// account's cached choice).
 export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits() } = {}) {
   const CHANNEL_DEFS = channelDefs(units);
   const chLaps = channels.laps;
@@ -397,7 +395,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
         if (d) deltaByIdx.set(i, d);
       }
     }
-    const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx]) : "";
+    const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx], { units }) : "";
     const chart = (c) => `<div class="ch-chart">${c}</div>`;
     const byTab = new Map(TABS.map((t) => [t.key, []]));
     const extras = renderExtras ? renderExtras(lit, dispN) : "";

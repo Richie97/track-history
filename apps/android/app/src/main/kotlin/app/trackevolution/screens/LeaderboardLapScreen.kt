@@ -210,8 +210,8 @@ private fun subtitle(lap: LeaderboardLap, units: UnitSystem): String {
         if (lap.you) "Your leaderboard lap" else "${lap.name ?: "Driver"}'s leaderboard lap",
         EventDates.fmtDate(lap.date),
     )
-    lap.ambientC?.let { parts += SessionConditions.tempText(it, Units.condUnits(units)) }
-    SessionConditions.elevationText(lap.elevationM, Units.condUnits(units))
+    lap.ambientC?.let { parts += SessionConditions.tempText(it, Units.usUnits(units)) }
+    SessionConditions.elevationText(lap.elevationM, Units.usUnits(units))
         .takeIf { it.isNotEmpty() }
         ?.let { parts += it }
     return parts.joinToString(" · ")

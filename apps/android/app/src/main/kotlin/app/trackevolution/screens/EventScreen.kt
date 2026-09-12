@@ -483,7 +483,7 @@ private fun SessionCard(
             // the event's typed figure is on the event header and is not
             // repeated down the page.
             SessionConditions.sessionAmbientC(session)?.let { ambientC ->
-                val text = SessionConditions.tempText(ambientC, Units.condUnits(LocalUnitSystem.current))
+                val text = SessionConditions.tempText(ambientC, Units.usUnits(LocalUnitSystem.current))
                 Text(
                     text,
                     style = TrackTheme.typography.xxs,
