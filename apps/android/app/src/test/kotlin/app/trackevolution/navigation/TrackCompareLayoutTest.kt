@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
 import app.trackevolution.auth.ChecklistTemplateStore
+import app.trackevolution.auth.UnitsStore
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.recording.RecorderState
 import app.trackevolution.ui.PaneWidth
@@ -64,6 +66,11 @@ class TrackCompareLayoutTest {
     private object NoTemplate : ChecklistTemplateStore {
         override val items: List<String> = emptyList()
         override suspend fun set(items: List<String>) = Unit
+    }
+
+    private object NoUnits : UnitsStore {
+        override val units: UnitSystem = UnitSystem.IMPERIAL
+        override suspend fun set(units: UnitSystem) = Unit
     }
 
     @Test
@@ -130,6 +137,7 @@ class TrackCompareLayoutTest {
                             nav = nav,
                             api = api,
                             auth = NoTemplate,
+                            unitsStore = NoUnits,
                             checklistTemplate = emptyList(),
                             hasCustomChecklistTemplate = false,
                             themeChoice = ThemeChoice.System,
