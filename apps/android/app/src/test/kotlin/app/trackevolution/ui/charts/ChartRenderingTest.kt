@@ -13,6 +13,7 @@ import app.trackevolution.core.TraceSample
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.theme.TrackTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -136,8 +137,11 @@ class ChartRenderingTest {
         compose.setContent { TrackTheme { TrackMap(trace = circuit()) } }
         compose.onNodeWithTag("trackMap").assertIsDisplayed()
 
-        val summary = trackMapSummary(circuit())
+        val summary = trackMapSummary(circuit(), units = UnitSystem.IMPERIAL)
         assertTrue(summary, summary.contains("mph"))
+        // The same trace read by a metric account: km/h, never mph.
+        val metric = trackMapSummary(circuit(), units = UnitSystem.METRIC)
+        assertTrue(metric, metric.contains("km/h") && !metric.contains("mph"))
     }
 
     @Test

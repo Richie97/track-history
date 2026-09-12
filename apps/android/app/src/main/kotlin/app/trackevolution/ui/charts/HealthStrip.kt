@@ -35,9 +35,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.Health
+import app.trackevolution.core.Units
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.LayoutClass
 import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.abs
@@ -45,8 +47,14 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** Every figure shows in °F and psi, as the rest of the logbook does. */
-private val UNITS = Health.Units.US
+/**
+ * Every figure shows in the account's system — °F and psi for an imperial
+ * account, °C and kPa for a metric one — while the maths stays in the stored
+ * units. Read from `LocalUnitSystem`, so it is a composable getter: capture it
+ * into a local before handing it to anything that isn't.
+ */
+private val UNITS: Health.Units
+    @Composable get() = Units.healthUnits(LocalUnitSystem.current)
 
 /**
  * The session health strip (#190) — the counterpart of `healthStripHtml` and
@@ -72,8 +80,8 @@ private val UNITS = Health.Units.US
  * "min", "at lap end"), because "oil 134 °C" means nothing without knowing it is
  * the lap's peak rather than its average.
  *
- * **The figures show in °F and psi** ([UNITS]) while the maths stays in the
- * stored units — the conversion is the last step, exactly as on the web.
+ * **The figures show in the account's system** ([UNITS]) while the maths stays
+ * in the stored units — the conversion is the last step, exactly as on the web.
  *
  * **The web's per-lap table is deliberately absent.** Fifteen columns is a desk
  * layout; on a phone the sparkline carries the shape and the highlighted laps
@@ -319,11 +327,12 @@ private fun SpreadLines(channels: SessionChannels) {
     val pressures = remember(channels) { Health.sessionSpread(channels, "tyreKpa").lastOrNull() }
     if (temps == null && pressures == null) return
     val colors = TrackTheme.colors
+    val units = UNITS
 
     fun text(def: Health.Def, spread: Health.LapSpread, label: String): String {
-        val front = Health.displayDelta(def, spread.front, UNITS).text
-        val rear = Health.displayDelta(def, spread.rear, UNITS).text
-        val axle = Health.displayDelta(def, spread.axle, UNITS).text
+        val front = Health.displayDelta(def, spread.front, units).text
+        val rear = Health.displayDelta(def, spread.rear, units).text
+        val axle = Health.displayDelta(def, spread.axle, units).text
         return "$label — front L−R $front, rear L−R $rear, front−rear $axle"
     }
 

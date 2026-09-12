@@ -38,7 +38,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
-import app.trackevolution.core.defaultUnit
 import app.trackevolution.core.label
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
@@ -47,9 +46,9 @@ import app.trackevolution.core.model.PartKind
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.Patch
-import app.trackevolution.core.wearLimitHint
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
@@ -514,9 +513,12 @@ private fun partById(model: VehicleModel, id: Int?): Part? {
 @Composable
 private fun MeasurementForm(part: Part, onSubmit: (MeasurementDraft) -> Unit) {
     val colors = TrackTheme.colors
+    // The account's tread-depth idiom only sets the *default*: a measurement
+    // stores its own unit string, and a part's later ones follow its first.
+    val units = LocalUnitSystem.current
     var value by rememberSaveable(part.id) { mutableStateOf("") }
     var unit by rememberSaveable(part.id) {
-        mutableStateOf(part.measurements.lastOrNull()?.unit ?: part.kind.defaultUnit)
+        mutableStateOf(part.measurements.lastOrNull()?.unit ?: Garage.defaultMeasurementUnit(part.kind, units))
     }
     var measuredOn by rememberSaveable(part.id) { mutableStateOf(EventDates.todayIso()) }
 
@@ -560,7 +562,7 @@ private fun MeasurementForm(part: Part, onSubmit: (MeasurementDraft) -> Unit) {
                     MeasurementDraft(
                         measuredOn = measuredOn.trim(),
                         value = parsed,
-                        unit = unit.trim().ifEmpty { part.kind.defaultUnit },
+                        unit = unit.trim().ifEmpty { Garage.defaultMeasurementUnit(part.kind, units) },
                     ),
                 )
             },
@@ -682,7 +684,7 @@ private fun PartForm(
             }
         }
         TEField("Replace at", hint = "The measured value this part is used up at") {
-            NumberField(wearLimit, PartKind(kind).wearLimitHint.orEmpty()) { wearLimit = it }
+            NumberField(wearLimit, Garage.wearLimitHint(PartKind(kind), LocalUnitSystem.current)) { wearLimit = it }
         }
         TEField("Notes") {
             OutlinedTextField(

@@ -4,6 +4,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.navigation.compose.rememberNavController
 import app.trackevolution.auth.ChecklistTemplateStore
+import app.trackevolution.auth.UnitsStore
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.recording.RecorderState
 import app.trackevolution.ui.ProvideLayoutMetrics
@@ -41,6 +43,11 @@ class DetailPaneTest {
     private object NoTemplate : ChecklistTemplateStore {
         override val items: List<String> = emptyList()
         override suspend fun set(items: List<String>) = Unit
+    }
+
+    private object NoUnits : UnitsStore {
+        override val units: UnitSystem = UnitSystem.IMPERIAL
+        override suspend fun set(units: UnitSystem) = Unit
     }
 
     @Test
@@ -88,6 +95,7 @@ class DetailPaneTest {
                         nav = rememberNavController(),
                         api = api,
                         auth = NoTemplate,
+                        unitsStore = NoUnits,
                         checklistTemplate = emptyList(),
                         hasCustomChecklistTemplate = false,
                         themeChoice = ThemeChoice.System,

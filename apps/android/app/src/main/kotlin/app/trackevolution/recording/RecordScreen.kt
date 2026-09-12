@@ -25,13 +25,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Units
 import app.trackevolution.ui.FoldGeometry
 import app.trackevolution.ui.FoldPosture
 import app.trackevolution.ui.Folds
 import app.trackevolution.ui.LocalFoldGeometry
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /**
  * How long without a fix before the stream counts as stalled.
@@ -195,6 +198,7 @@ private fun Attachment(isAttached: Boolean, eventLabel: String?) {
 @Composable
 private fun FixQuality(state: RecorderState) {
     val colors = TrackTheme.colors
+    val units = LocalUnitSystem.current
     TrackCard {
         Text(
             RecordingNotification.formatElapsed(state.elapsedS),
@@ -206,8 +210,9 @@ private fun FixQuality(state: RecorderState) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Stat("Fixes", state.fixCount.toString())
-            Stat("Speed", state.lastSpeedMps?.let { "%.0f mph".format(it * 2.23694) } ?: "—")
-            Stat("Accuracy", state.lastAccuracyM?.let { "±%.0f m".format(it) } ?: "—")
+            // The fix is m/s and metres; shown in the account's system.
+            Stat("Speed", state.lastSpeedMps?.let { "${Units.convSpeedMps(it, units).roundToInt()} ${Units.speedUnit(units)}" } ?: "—")
+            Stat("Accuracy", state.lastAccuracyM?.let { Units.fmtAccuracy(it, units) } ?: "—")
         }
     }
 }

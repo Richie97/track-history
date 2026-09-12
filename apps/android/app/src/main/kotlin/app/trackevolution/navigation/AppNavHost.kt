@@ -25,6 +25,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.toRoute
 import app.trackevolution.auth.ChecklistTemplateStore
+import app.trackevolution.auth.UnitsStore
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.Entitlement
@@ -81,6 +83,8 @@ fun AppNavHost(
      * store, which is what #108's dashboard → record test needs.
      */
     auth: ChecklistTemplateStore,
+    /** The unit preference's write seam, likewise only reaching [SettingsModel]. */
+    unitsStore: UnitsStore,
     checklistTemplate: List<String>,
     hasCustomChecklistTemplate: Boolean,
     themeChoice: ThemeChoice,
@@ -181,12 +185,17 @@ fun AppNavHost(
             // nothing else — the screen underneath might be the dashboard, an
             // event, or a track page.
             val formDestination = entry.destination.id
+            // The system the temperature is typed in. Read once, at construction:
+            // the draft holds the *typed* number, and a model that changed its
+            // mind about what that number meant would move the driver's entry.
+            val units = LocalUnitSystem.current
             val model = rememberScreenModel { scope, handle ->
                 EventFormModel(
                     scope = scope,
                     api = api,
                     editId = route.editId,
                     presetTrack = route.presetTrack,
+                    units = units,
                     saved = handle,
                 )
             }
@@ -295,7 +304,7 @@ fun AppNavHost(
         }
 
         pageComposable<Route.Settings> {
-            val model = rememberScreenModel { scope, _ -> SettingsModel(scope, api, auth) }
+            val model = rememberScreenModel { scope, _ -> SettingsModel(scope, api, auth, unitsStore) }
             SettingsScreen(
                 model = model,
                 checklistTemplate = checklistTemplate,

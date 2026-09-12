@@ -36,10 +36,13 @@ import androidx.compose.ui.unit.dp
 import app.trackevolution.core.CompareLaps
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.SessionConditions
+import app.trackevolution.core.Units
 import app.trackevolution.core.TraceSample
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.model.LeaderboardLap
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.charts.LapChannelChart
@@ -94,7 +97,7 @@ fun LeaderboardLapScreen(
             item("head") {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(LapTime.fmtMs(lap.timeMs), style = TrackTheme.typography.h1, color = colors.textStrong)
-                    Text(subtitle(lap), style = TrackTheme.typography.sm, color = colors.textMuted)
+                    Text(subtitle(lap, LocalUnitSystem.current), style = TrackTheme.typography.sm, color = colors.textMuted)
                 }
             }
 
@@ -202,13 +205,13 @@ fun LeaderboardLapScreen(
  * Whose lap, when, and what the recorder measured around it. Nothing here is
  * user-entered — the typed `temp_f` deliberately has no counterpart.
  */
-private fun subtitle(lap: LeaderboardLap): String {
+private fun subtitle(lap: LeaderboardLap, units: UnitSystem): String {
     val parts = mutableListOf(
         if (lap.you) "Your leaderboard lap" else "${lap.name ?: "Driver"}'s leaderboard lap",
         EventDates.fmtDate(lap.date),
     )
-    lap.ambientC?.let { parts += SessionConditions.tempText(it, SessionConditions.Units.US) }
-    SessionConditions.elevationText(lap.elevationM, SessionConditions.Units.US)
+    lap.ambientC?.let { parts += SessionConditions.tempText(it, Units.usUnits(units)) }
+    SessionConditions.elevationText(lap.elevationM, Units.usUnits(units))
         .takeIf { it.isNotEmpty() }
         ?.let { parts += it }
     return parts.joinToString(" · ")
@@ -255,12 +258,11 @@ private fun MinePicker(color: Color, model: LeaderboardLapModel) {
     }
 }
 
-private const val KPH_TO_MPH = 0.621371
-
 @Composable
 private fun HeadToHead(panel: LeaderboardLapModel.Panel) {
-    val mph = { kph: Double -> "${(kph * KPH_TO_MPH).roundToInt()} mph" }
-    val mphDelta = { kph: Double -> signed(kph, "${(abs(kph) * KPH_TO_MPH).roundToInt()} mph") }
+    val units = LocalUnitSystem.current
+    val mph = { kph: Double -> Units.fmtSpeedKph(kph, units) }
+    val mphDelta = { kph: Double -> signed(kph, Units.fmtSpeedKph(abs(kph), units)) }
     val ppDelta = { d: Double -> signed(d, "${(abs(d) * 10).roundToInt() / 10.0}pp") }
 
     TrackCard(Modifier.fillMaxWidth()) {

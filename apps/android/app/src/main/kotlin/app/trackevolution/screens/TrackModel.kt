@@ -6,9 +6,11 @@ import androidx.compose.runtime.setValue
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.SessionConditions
+import app.trackevolution.core.Units
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Conditions
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.Track
@@ -160,11 +162,10 @@ class TrackModel(
      * The track's elevation change, from every event at it — the dry-only filter
      * has nothing to do with the hill.
      */
-    val elevationLine: String
-        get() = SessionConditions.elevationText(
-            SessionConditions.trackElevationM(allEvents),
-            SessionConditions.Units.US,
-        )
+    fun elevationLine(units: UnitSystem): String = SessionConditions.elevationText(
+        SessionConditions.trackElevationM(allEvents),
+        Units.usUnits(units),
+    )
 
     /** How the personal best stands against the goal, in the web app's words. */
     val goalStatus: GoalStatus?

@@ -37,14 +37,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.Balance
 import app.trackevolution.core.Corners
+import app.trackevolution.core.JsMath
+import app.trackevolution.core.Units
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToLong
 
 /**
  * The axes are padded this much past the furthest sample, and floored so a
@@ -368,6 +370,8 @@ private fun CornerTable(
 ) {
     if (columns.isEmpty()) return
     val colors = TrackTheme.colors
+    // Distances read in the account's unit system (`Units`), as on the web.
+    val units = LocalUnitSystem.current
     // Place and peak G get columns of their own once the table has room for
     // them (NS-34 ticket 3), which is how the web has always drawn them and what
     // makes two corners comparable down the column. Measured against the column
@@ -440,7 +444,7 @@ private fun CornerTable(
                     )
                     if (!wideColumns) {
                         Text(
-                            "${fmtDist((row.corner.k0 * dStepM).roundToLong())} · " +
+                            "${Units.fmtDist(JsMath.roundToInt(row.corner.k0 * dStepM).toDouble(), units)} · " +
                                 "${"%.2f".format(row.corner.peakG)} G",
                             style = TrackTheme.typography.xxs,
                             color = colors.textFaint,
@@ -449,7 +453,7 @@ private fun CornerTable(
                 }
                 if (wideColumns) {
                     Text(
-                        fmtDist((row.corner.k0 * dStepM).roundToLong()),
+                        Units.fmtDist(JsMath.roundToInt(row.corner.k0 * dStepM).toDouble(), units),
                         style = TrackTheme.typography.xs,
                         color = colors.textMuted,
                         textAlign = TextAlign.End,
@@ -493,13 +497,6 @@ private fun Cell(pct: Double?, modifier: Modifier = Modifier) {
         modifier = modifier,
     )
 }
-
-private fun fmtDist(m: Long): String =
-    if (m >= 1000) {
-        if (m % 1000 != 0L) "%.1f km".format(m / 1000.0) else "%.0f km".format(m / 1000.0)
-    } else {
-        "$m m"
-    }
 
 /**
  * Where a corner is, as a place on the lap — null when there is no grid to place

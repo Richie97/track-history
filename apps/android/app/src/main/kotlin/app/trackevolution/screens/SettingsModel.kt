@@ -4,9 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.auth.ChecklistTemplateStore
+import app.trackevolution.auth.UnitsStore
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Patch
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.User
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.core.model.VehicleDraft
@@ -36,6 +38,11 @@ class SettingsModel(
      * event page reads are one value rather than two copies that drift.
      */
     private val template: ChecklistTemplateStore,
+    /**
+     * The account's unit system, for the same reason: the toggle here and every
+     * chart reading `LocalUnitSystem` are one value.
+     */
+    private val unitsStore: UnitsStore,
 ) {
     var state by mutableStateOf<LoadState>(LoadState.Loading)
         private set
@@ -65,6 +72,9 @@ class SettingsModel(
         private set
 
     var checklistError by mutableStateOf<String?>(null)
+        private set
+
+    var unitsError by mutableStateOf<String?>(null)
         private set
 
     /** The per-track leaderboard opt-in, mirrored from `/me`. */
@@ -190,6 +200,28 @@ class SettingsModel(
                 onSuccess()
             } catch (e: ApiException) {
                 checklistError = e.message
+            }
+        }
+    }
+
+    // ---- Units ---------------------------------------------------------------
+
+    /** The system the logbook is shown in, as the toggle reads it. */
+    val units: UnitSystem get() = unitsStore.units
+
+    /**
+     * Choose imperial or metric. A live write, like the template: a preference
+     * the server refused is shown with its reason, never queued. Nothing already
+     * logged changes — the same numbers are converted at the edges.
+     */
+    fun updateUnits(units: UnitSystem) {
+        if (units == unitsStore.units) return
+        scope.launch {
+            unitsError = null
+            try {
+                unitsStore.set(units)
+            } catch (e: ApiException) {
+                unitsError = e.message
             }
         }
     }

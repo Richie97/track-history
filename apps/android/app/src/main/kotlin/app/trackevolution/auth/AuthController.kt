@@ -10,6 +10,8 @@ import app.trackevolution.core.api.AuthProviders
 import app.trackevolution.core.api.Pkce
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.User
+import app.trackevolution.core.Units
+import app.trackevolution.core.model.UnitSystem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -64,6 +66,16 @@ val AuthState.hasCustomChecklistTemplate: Boolean
     get() = (this as? AuthState.SignedIn)?.user?.checklistTemplate?.isNotEmpty() == true
 
 /**
+ * The unit system the logbook is shown in — the account's choice, or imperial
+ * (what the app always showed) with no session or a `/me` cached before the
+ * field existed. Derived from [AuthState] for the same reason the template is:
+ * Settings writes it and every chart reads it, and one value cannot disagree
+ * with itself. `MainActivity` publishes it as `LocalUnitSystem`.
+ */
+val AuthState.units: UnitSystem
+    get() = (this as? AuthState.SignedIn)?.user?.effectiveUnits ?: Units.DEFAULT_UNITS
+
+/**
  * The prep-checklist template as the Settings editor needs it: read the current
  * list, write a new one.
  *
@@ -77,6 +89,18 @@ interface ChecklistTemplateStore {
 
     /** Throws [ApiException] on rejection: a template is never queued offline. */
     suspend fun set(items: List<String>)
+}
+
+/**
+ * The unit preference as the Settings toggle needs it: read the current
+ * system, write a new one. The same seam as [ChecklistTemplateStore], for the
+ * same reason — the toggle's test should not have to stand up a token store.
+ */
+interface UnitsStore {
+    val units: UnitSystem
+
+    /** Throws [ApiException] on rejection: a preference is never queued offline. */
+    suspend fun set(units: UnitSystem)
 }
 
 /**
@@ -102,7 +126,7 @@ class AuthController(
     private val store: AuthStore,
     private val providersStore: AuthProvidersStore,
     private val serverPreference: ServerPreference,
-) : ChecklistTemplateStore {
+) : ChecklistTemplateStore, UnitsStore {
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
     val state: StateFlow<AuthState> = _state.asStateFlow()
 
@@ -213,6 +237,22 @@ class AuthController(
         _state.value = current.copy(
             user = current.user.copy(checklistTemplate = items.ifEmpty { null }),
         )
+    }
+
+    /**
+     * Chooses the unit system, and keeps the in-memory user in step so every
+     * chart on the back stack redraws in it without a reload — the web app
+     * writes back to `state.me` after the same save. Display-only, and like the
+     * template a live write: a rejection surfaces the server's reason.
+     */
+    override val units: UnitSystem get() = _state.value.units
+
+    override suspend fun set(units: UnitSystem): Unit = setUnits(units)
+
+    suspend fun setUnits(units: UnitSystem) {
+        api.setUnits(units)
+        val current = _state.value as? AuthState.SignedIn ?: return
+        _state.value = current.copy(user = current.user.copy(units = units))
     }
 
     /**

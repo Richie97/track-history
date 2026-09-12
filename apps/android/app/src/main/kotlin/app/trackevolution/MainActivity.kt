@@ -17,6 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,7 @@ import kotlinx.coroutines.launch
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthProvidersStore
 import app.trackevolution.auth.AuthState
+import app.trackevolution.auth.units
 import app.trackevolution.auth.ServerPreference
 import app.trackevolution.auth.ServerOverride
 import app.trackevolution.auth.SignInScreen
@@ -52,6 +54,7 @@ import app.trackevolution.navigation.rememberScreenModel
 import app.trackevolution.recording.RecordingService
 import app.trackevolution.ui.ProvideFoldGeometry
 import app.trackevolution.ui.ProvideLayoutMetrics
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.ThemePreference
 import app.trackevolution.ui.theme.TrackTheme
@@ -187,45 +190,52 @@ class MainActivity : ComponentActivity() {
                 // window. On anything that does not fold this resolves to flat and
                 // costs one flow that never emits.
                 ProvideFoldGeometry {
-                    TrackTheme(choice) {
-                        when (state) {
-                            is AuthState.SignedIn -> SignedInScaffold(
-                                api = api,
-                                auth = auth,
-                                authState = state,
-                                billing = services.billing,
-                                router = router,
-                                flow = recordingFlow,
-                                serverUrl = server,
-                                themeChoice = choice,
-                                onThemeChange = { next ->
-                                    lifecycleScope.launch { preference.set(next) }
-                                },
-                                startOnRecord = openRecorder,
-                                onConsumedStartOnRecord = { openRecorder = false },
-                                onStartRecording = ::requestPermissionsThenRecord,
-                                onSignOut = {
-                                    // A deep link parked for a session that no longer
-                                    // exists must not fire under the next one.
-                                    router.clear()
-                                    incomingImport = null
-                                    auth.signOut()
-                                },
-                                incomingImport = incomingImport,
-                                onConsumedIncomingImport = { incomingImport = null },
-                            )
-                            AuthState.Loading -> LoadingScreen()
-                            else -> SignInScreen(
-                                state = state,
-                                onSignIn = { auth.signIn(it, this@MainActivity) },
-                                // Debug only: pointing the app at `wrangler dev` is a
-                                // development affordance, not a user-facing setting.
-                                serverOverride = if (BuildConfig.DEBUG) {
-                                    ServerOverride(current = server, onChange = auth::setServer)
-                                } else {
-                                    null
-                                },
-                            )
+                    // The account's unit system, read by every chart and form
+                    // below (`LocalUnitSystem`). Off the auth state rather than
+                    // re-read from `/me` by each screen, so a change in Settings
+                    // redraws the whole logbook at once, and imperial — what the
+                    // app always showed — while signed out.
+                    CompositionLocalProvider(LocalUnitSystem provides state.units) {
+                        TrackTheme(choice) {
+                            when (state) {
+                                is AuthState.SignedIn -> SignedInScaffold(
+                                    api = api,
+                                    auth = auth,
+                                    authState = state,
+                                    billing = services.billing,
+                                    router = router,
+                                    flow = recordingFlow,
+                                    serverUrl = server,
+                                    themeChoice = choice,
+                                    onThemeChange = { next ->
+                                        lifecycleScope.launch { preference.set(next) }
+                                    },
+                                    startOnRecord = openRecorder,
+                                    onConsumedStartOnRecord = { openRecorder = false },
+                                    onStartRecording = ::requestPermissionsThenRecord,
+                                    onSignOut = {
+                                        // A deep link parked for a session that no longer
+                                        // exists must not fire under the next one.
+                                        router.clear()
+                                        incomingImport = null
+                                        auth.signOut()
+                                    },
+                                    incomingImport = incomingImport,
+                                    onConsumedIncomingImport = { incomingImport = null },
+                                )
+                                AuthState.Loading -> LoadingScreen()
+                                else -> SignInScreen(
+                                    state = state,
+                                    onSignIn = { auth.signIn(it, this@MainActivity) },
+                                    // Debug only: pointing the app at `wrangler dev` is a
+                                    // development affordance, not a user-facing setting.
+                                    serverOverride = if (BuildConfig.DEBUG) {
+                                        ServerOverride(current = server, onChange = auth::setServer)
+                                    } else {
+                                        null
+                                    },
+                                )
+                            }
                         }
                     }
                 }

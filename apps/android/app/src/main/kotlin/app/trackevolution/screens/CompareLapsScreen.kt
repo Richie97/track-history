@@ -34,7 +34,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.CompareLaps
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Units
 import app.trackevolution.ui.LoadState
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.charts.LapChannelChart
@@ -193,12 +195,11 @@ private fun LapPicker(
     }
 }
 
-private const val KPH_TO_MPH = 0.621371
-
 @Composable
 private fun HeadToHead(pair: CompareLapsModel.LapPair) {
-    val mph = { kph: Double -> "${(kph * KPH_TO_MPH).roundToInt()} mph" }
-    val mphDelta = { kph: Double -> signed(kph, "${(abs(kph) * KPH_TO_MPH).roundToInt()} mph") }
+    val units = LocalUnitSystem.current
+    val mph = { kph: Double -> Units.fmtSpeedKph(kph, units) }
+    val mphDelta = { kph: Double -> signed(kph, Units.fmtSpeedKph(abs(kph), units)) }
     val ppDelta = { d: Double -> signed(d, "${(abs(d) * 10).roundToInt() / 10.0}pp") }
 
     TrackCard(Modifier.fillMaxWidth()) {

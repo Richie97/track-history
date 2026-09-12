@@ -17,6 +17,7 @@ import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackPatch
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.core.model.VehicleDraft
 import app.trackevolution.core.model.VehiclePatch
@@ -199,6 +200,20 @@ public class ApiClient(
             )
         }
         send("PUT", "/me/checklist-template", body = body, deserializer = OkResponse.serializer())
+    }
+
+    /**
+     * Chooses the unit system the logbook is shown in (`PUT /api/me/units`).
+     * Display-only — nothing stored changes — and, like the checklist template,
+     * a live write that is never queued offline: a preference the server refused
+     * has to be answered with the server's reason, not silently replayed later.
+     * `OfflineStoreTest` pins its absence from the whitelist.
+     */
+    public suspend fun setUnits(units: UnitSystem) {
+        val body = buildJsonObject {
+            put("units", JsonPrimitive(if (units == UnitSystem.METRIC) "metric" else "imperial"))
+        }
+        send("PUT", "/me/units", body = body, deserializer = OkResponse.serializer())
     }
 
     /**

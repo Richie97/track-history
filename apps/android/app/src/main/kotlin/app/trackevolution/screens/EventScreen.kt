@@ -43,11 +43,13 @@ import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
 import app.trackevolution.core.SessionConditions
+import app.trackevolution.core.Units
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
@@ -481,7 +483,7 @@ private fun SessionCard(
             // the event's typed figure is on the event header and is not
             // repeated down the page.
             SessionConditions.sessionAmbientC(session)?.let { ambientC ->
-                val text = SessionConditions.tempText(ambientC, SessionConditions.Units.US)
+                val text = SessionConditions.tempText(ambientC, Units.usUnits(LocalUnitSystem.current))
                 Text(
                     text,
                     style = TrackTheme.typography.xxs,
@@ -499,7 +501,7 @@ private fun SessionCard(
             }
         }
 
-        session.statsSummary?.let {
+        session.statsSummary(LocalUnitSystem.current)?.let {
             Text(
                 it,
                 style = TrackTheme.typography.xs,

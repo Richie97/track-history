@@ -7,12 +7,14 @@ import androidx.lifecycle.SavedStateHandle
 import app.trackevolution.core.EventDates
 import app.trackevolution.navigation.SavedState
 import app.trackevolution.core.LapTime
+import app.trackevolution.core.Units
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Conditions
 import app.trackevolution.core.model.EventDraft
 import app.trackevolution.core.model.EventPatch
 import app.trackevolution.core.model.Patch
+import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -36,6 +38,13 @@ class EventFormModel(
     val editId: Int? = null,
     presetTrack: String? = null,
     /**
+     * The system the temperature is typed in. The draft holds the typed number;
+     * `events.temp_f` stays whole °F, so [temp] is converted on the way in
+     * ([Units.tempToDisplay]) and back out ([Units.tempToStored]) — exactly as the
+     * web form does — and the server never sees a °C.
+     */
+    private val units: UnitSystem = Units.DEFAULT_UNITS,
+    /**
      * Where the draft is kept so it survives the system killing the app in the
      * background. Null in tests, which is the only place it isn't wanted: every
      * field below then behaves as a plain Compose state.
@@ -52,7 +61,8 @@ class EventFormModel(
     var club by SavedState(saved, "club", "")
     var runGroup by SavedState(saved, "runGroup", "")
     var car by SavedState(saved, "car", "")
-    var tempF by SavedState(saved, "tempF", "")
+    /** The temperature as typed, in [units] — not the stored °F. */
+    var temp by SavedState(saved, "temp", "")
     var bestTime by SavedState(saved, "bestTime", "")
     var notes by SavedState(saved, "notes", "")
 
@@ -125,7 +135,7 @@ class EventFormModel(
                     runGroup = existing.runGroup.orEmpty()
                     car = existing.car.orEmpty()
                     conditions = existing.conditions
-                    tempF = existing.tempF?.toString().orEmpty()
+                    temp = Units.tempToDisplay(existing.tempF, units)?.toString().orEmpty()
                     bestTime = existing.bestTimeMs?.let { LapTime.fmtMs(it) }.orEmpty()
                     notes = existing.notes.orEmpty()
                 } else if (car.isBlank()) {
@@ -168,7 +178,7 @@ class EventFormModel(
                             car = car.blankToNull(),
                             notes = notes.blankToNull(),
                             conditions = conditions,
-                            tempF = tempF.toIntOrNull(),
+                            tempF = Units.tempToStored(temp.trim().toDoubleOrNull(), units),
                             bestTimeMs = bestMs,
                             trackHours = trackHours.toDoubleOrNull(),
                         ),
@@ -187,7 +197,7 @@ class EventFormModel(
                             car = Patch.Set(car.blankToNull()),
                             notes = Patch.Set(notes.blankToNull()),
                             conditions = Patch.Set(conditions),
-                            tempF = Patch.Set(tempF.toIntOrNull()),
+                            tempF = Patch.Set(Units.tempToStored(temp.trim().toDoubleOrNull(), units)),
                             bestTimeMs = Patch.Set(bestMs),
                             trackHours = Patch.Set(trackHours.toDoubleOrNull()),
                         ),
