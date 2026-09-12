@@ -25,9 +25,11 @@ import Foundation
 /// needed" are indistinguishable.
 public enum Limits {
     /// Display semantics, not physics: slip above this is wheelspin, below the
-    /// negative one is lockup. Tune against real footage.
-    public static let WHEELSPIN_PCT: Double = 2
-    public static let LOCKUP_PCT: Double = -2
+    /// negative one is lockup. Neither is tight, and wheelspin sits higher
+    /// than lockup on purpose: a tyre makes force through slip, and drive slip
+    /// has the wider working range. Tune against real footage.
+    public static let WHEELSPIN_PCT: Double = 5
+    public static let LOCKUP_PCT: Double = -3
 
     public static let FLAG_ABS = 1
     public static let FLAG_TC = 2

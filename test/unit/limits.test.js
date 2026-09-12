@@ -4,7 +4,9 @@ import {
   FLAG_TC,
   FLAG_VSC,
   LIMIT_KINDS,
+  LOCKUP_PCT,
   MERGE_GAP_POINTS,
+  WHEELSPIN_PCT,
   activeLimitLabels,
   booleanRuns,
   hasLimitData,
@@ -19,7 +21,7 @@ import {
 // gap), TC once on an exit (k 9–10), VSC never; wheelspin on that same exit
 // and a lockup at k 3.
 const flags = [0, 0, FLAG_ABS, 0, FLAG_ABS, FLAG_ABS, 0, 0, 0, FLAG_TC, FLAG_TC, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-const slip = [0, 0, 0, -3, -1, 0, 0, 0, 0.5, 3, 4.5, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+const slip = [0, 0, 0, -4, -1, 0, 0, 0, 0.5, 6, 7.5, 4.5, 0, 0, 0, 0, 0, 0, 0, 0];
 const lap = { n: 1, timeMs: 90_000, speed: Array(20).fill(100), flags, wheelSlip: slip };
 
 describe("limitAt / hasLimitData", () => {
@@ -30,6 +32,9 @@ describe("limitAt / hasLimitData", () => {
     expect(limitAt(lap, "vsc", 9)).toBe(false);
     expect(limitAt(lap, "wheelspin", 10)).toBe(true);
     expect(limitAt(lap, "wheelspin", 8)).toBe(false); // 0.5 % is noise
+    expect(limitAt(lap, "wheelspin", 11)).toBe(false); // 4.5 % is a tyre working, not spinning
+    expect(limitAt({ wheelSlip: [WHEELSPIN_PCT] }, "wheelspin", 0)).toBe(false); // strictly above
+    expect(limitAt({ wheelSlip: [LOCKUP_PCT] }, "lockup", 0)).toBe(false); // strictly below
     expect(limitAt(lap, "lockup", 3)).toBe(true);
     expect(limitAt({ flags }, "wheelspin", 3)).toBeNull();
     expect(limitAt({ wheelSlip: slip }, "abs", 3)).toBeNull();
