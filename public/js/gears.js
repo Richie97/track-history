@@ -24,6 +24,7 @@
 // this file — a port asserts against this output, never against another port.
 
 import { esc } from "./format.js";
+import { currentUnits, distAxisTicks, fmtDist as fmtDistIn } from "./units.js";
 import { niceNumTicks } from "./chart.js";
 
 // A run of differing gears shorter than this (3 points = 60 m at the 20 m
@@ -203,7 +204,8 @@ export function gearDisagreements(gears, minRun = MIN_DISAGREE_POINTS) {
 
 // --- web rendering (not ported) --------------------------------------------
 
-const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
+// Distances read in the account's unit system (js/units.js).
+const fmtDist = (m) => fmtDistIn(m, currentUnits());
 
 // The gear ribbon: one band per highlighted lap (lit: Map(chIdx -> slot
 // color), slot order), one block per gear run filled in the lap's color with
@@ -233,8 +235,8 @@ export function gearRibbonSvg(channels, lit, labelFor, { width = 900 } = {}) {
   const rowY = (r) => pad.t + r * (rowH + gap);
 
   let labels = "", grid = "";
-  for (const tv of niceNumTicks(0, x1, 6)) {
-    labels += `<text x="${X(tv).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(fmtDist(tv))}</text>`;
+  for (const { m, label } of distAxisTicks(x1, currentUnits())) {
+    labels += `<text x="${X(m).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
   }
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
   labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Gear${rows.length >= 2 ? " — dashed boxes: laps disagree" : ""}</text>`;

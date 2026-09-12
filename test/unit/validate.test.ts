@@ -4,6 +4,7 @@ import {
   isValidGoal,
   isValidSlug,
   isValidTemp,
+  isValidUnits,
   isValidDate,
   isValidPartKind,
   sanitizeChecklist,
@@ -97,6 +98,18 @@ describe("isValidConditions", () => {
     expect(isValidConditions("snow")).toBe(false);
     expect(isValidConditions("DRY")).toBe(false);
     expect(isValidConditions(1 as any)).toBe(false);
+  });
+});
+
+describe("isValidUnits", () => {
+  it("accepts exactly the two systems, case-sensitively", () => {
+    expect(isValidUnits("metric")).toBe(true);
+    expect(isValidUnits("imperial")).toBe(true);
+    expect(isValidUnits("Metric")).toBe(false);
+    expect(isValidUnits("")).toBe(false);
+    expect(isValidUnits(null)).toBe(false);
+    expect(isValidUnits(undefined)).toBe(false);
+    expect(isValidUnits(1)).toBe(false);
   });
 });
 

@@ -33,6 +33,7 @@
 // to port, but nothing is pinned in contracts/logic/ until a port exists.
 
 import { esc } from "./format.js";
+import { currentUnits, fmtDist as fmtDistIn } from "./units.js";
 
 // Combined G below this is the car coasting, not the tyre working. It is the
 // denominator of the read-out: "of the time you were actually using the
@@ -170,7 +171,8 @@ export function sessionGrip(channels, pct = PEAK_PERCENTILE) {
 
 // --- web rendering (not ported) --------------------------------------------
 
-const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
+// Distances read in the account's unit system (js/units.js).
+const fmtDist = (m) => fmtDistIn(m, currentUnits());
 const fmtG = (g) => g.toFixed(2);
 const pct = (v) => `${Math.round(v)}%`;
 

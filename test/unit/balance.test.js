@@ -245,7 +245,7 @@ describe("balanceTableHtml / balanceHtml", () => {
     expect(html).toContain("understeer 25%");
     expect(html).toContain("slight understeer 13%"); // pooled T2
     expect(html).toContain("<th class=\"num\">Session</th>");
-    expect(html).toContain("40 m"); // T1 starts at k 2
+    expect(html).toContain("131 ft"); // T1 starts at k 2 (40 m), imperial being the uncached default
     expect(html).toContain("0.90"); // T1's peak G
   });
   it("skips the session column with one readable lap, and renders nothing without a highlighted readable lap", () => {

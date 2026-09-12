@@ -18,17 +18,21 @@
 
 import { esc, fmtMs } from "./format.js";
 import { niceNumTicks } from "./chart.js";
+import { DEFAULT_UNITS, convSpeedKph, currentUnits, distAxisTicks, fmtDist, speedUnit } from "./units.js";
+// Re-exported for the unit tests that pin the axis alongside the charts.
+export { distAxisTicks };
 import { ordinal } from "./gears.js";
 import { LIMIT_KINDS, activeLimitLabels, limitRuns, sideColorVar } from "./limits.js";
 
 const SLOTS = ["var(--chart-line)", "var(--chart-line-b)", "var(--chart-line-c)"];
-const KPH_TO_MPH = 0.621371;
 
-// Exported for the cross-event compare view (app.js viewLapCompare), which
-// renders these charts outside bindChannelGraphs and needs the defs for its
-// own tooltip readouts.
-export const CHANNEL_DEFS = [
-  { key: "speed", label: "Speed", unit: "mph", conv: (v) => v * KPH_TO_MPH, dp: 0, floor0: false },
+// The channel specs in the user's unit system: stored speed is km/h, shown as
+// mph or km/h; every other channel reads the same in both. Exported for the
+// cross-event compare view (app.js viewLapCompare), which renders these charts
+// outside bindChannelGraphs and needs the defs for its own tooltip readouts,
+// and for unit tests. CHANNEL_DEFS is the imperial (default) table.
+export const channelDefs = (units) => [
+  { key: "speed", label: "Speed", unit: speedUnit(units), conv: (v) => convSpeedKph(v, units), dp: 0, floor0: false },
   { key: "throttle", label: "Throttle", unit: "%", conv: (v) => v, dp: 0, floor0: true },
   { key: "brake", label: "Brake", unit: "%", conv: (v) => v, dp: 0, floor0: true },
   { key: "steering", label: "Steering", unit: "°", conv: (v) => v, dp: 0, floor0: false },
@@ -38,13 +42,13 @@ export const CHANNEL_DEFS = [
   // #189): signed, so it swings both ways around zero like steering does.
   { key: "yaw", label: "Yaw rate", unit: "°/s", conv: (v) => v, dp: 0, floor0: false },
 ];
+export const CHANNEL_DEFS = channelDefs(DEFAULT_UNITS);
 
-const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${m} m`);
 
 // One channel's overlay chart. laps: the stored entries; lit: Map(lapIdx ->
 // slot color). Returns "" when no lap carries this channel.
 // Exported for unit tests.
-export function channelChartSvg(def, channels, lit, { width = 900, height = 190 } = {}) {
+export function channelChartSvg(def, channels, lit, { width = 900, height = 190, units = currentUnits() } = {}) {
   const dStep = channels.dStepM;
   const laps = channels.laps;
   const withCh = laps.map((l, i) => ({ l, i })).filter(({ l }) => Array.isArray(l[def.key]));
@@ -75,8 +79,8 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190 
     grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
     labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${tv.toFixed(def.dp)}</text>`;
   }
-  for (const tv of niceNumTicks(0, x1, 6)) {
-    labels += `<text x="${X(tv).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(fmtDist(tv))}</text>`;
+  for (const { m, label } of distAxisTicks(x1, units)) {
+    labels += `<text x="${X(m).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
   }
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
   labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">${esc(def.label)} (${esc(def.unit)})</text>`;
@@ -170,7 +174,7 @@ export function deltaSeries(lap, ref, dStepM) {
 // Positive is slower than the reference, so a climbing trace is time slipping
 // away. refLabel is the reference's display lap number. Returns "" when
 // fewer than one comparable lap is highlighted. Exported for unit tests.
-export function deltaChartSvg(channels, lit, refIdx, refLabel, { width = 900, height = 190 } = {}) {
+export function deltaChartSvg(channels, lit, refIdx, refLabel, { width = 900, height = 190, units = currentUnits() } = {}) {
   const dStep = channels.dStepM;
   const laps = channels.laps;
   const ref = laps[refIdx];
@@ -205,8 +209,8 @@ export function deltaChartSvg(channels, lit, refIdx, refLabel, { width = 900, he
     grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
     labels += `<text x="${pad.l - 8}" y="${y}" dy="0.35em" text-anchor="end" fill="var(--text-faint)" font-size="11" style="font-variant-numeric:tabular-nums">${tv > 0 ? "+" : ""}${tv.toFixed(1)}</text>`;
   }
-  for (const tv of niceNumTicks(0, x1, 6)) {
-    labels += `<text x="${X(tv).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(fmtDist(tv))}</text>`;
+  for (const { m, label } of distAxisTicks(x1, units)) {
+    labels += `<text x="${X(m).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
   }
   // The zero line is the reference lap — everything is measured against it.
   const zy = Y(0).toFixed(1);
@@ -303,7 +307,10 @@ const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "input
 // same laps lit rather than on a collapsed panel.
 // Returns { rerender }, which redraws the charts with the current selection
 // — for a caller whose extras depend on state the panel doesn't own.
-export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory } = {}) {
+// `units` — the unit system to label speed and distance in (defaults to the
+// account's cached choice).
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits() } = {}) {
+  const CHANNEL_DEFS = channelDefs(units);
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
   const bestMs = Math.min(...sessionLaps.map((l) => l.time_ms));
@@ -388,7 +395,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
         if (d) deltaByIdx.set(i, d);
       }
     }
-    const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx]) : "";
+    const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx], { units }) : "";
     const chart = (c) => `<div class="ch-chart">${c}</div>`;
     const byTab = new Map(TABS.map((t) => [t.key, []]));
     const extras = renderExtras ? renderExtras(lit, dispN) : "";
@@ -397,7 +404,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     if (deltaSvg) byTab.get("time").push(chart(deltaSvg));
     for (const def of CHANNEL_DEFS) {
       const list = byTab.get(TAB_OF[def.key]);
-      const svg = channelChartSvg(def, channels, lit);
+      const svg = channelChartSvg(def, channels, lit, { units });
       if (svg) list.push(chart(svg));
       const after = renderAfter?.[def.key]?.(lit, dispN);
       if (after) list.push(chart(after));
@@ -458,7 +465,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
           })
           .join("");
         if (!tipRows) { $tooltip.hidden = true; return; }
-        $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d))}</div>${tipRows}`;
+        $tooltip.innerHTML = `<div class="t-val">${esc(fmtDist(d, units))}</div>${tipRows}`;
         $tooltip.hidden = false;
         const tw = $tooltip.offsetWidth;
         let left = evt.clientX + 14;

@@ -933,6 +933,21 @@ doesn't retain the previous user's logbook.
   `contracts/logic/checklist.json`). Editing the template never rewrites a
   checklist already on an event — those are snapshots taken when the list was
   started, and rewriting one would untick what you had already dealt with.
+- **Units** are a per-user choice (account menu → Settings → Units, stored in
+  `users.units` and served by `GET /api/me`; `PUT /api/me/units` sets it):
+  **imperial** (mph, °F, psi, gallons, miles) or **metric** (km/h, °C, bar,
+  litres, kilometres). It is display-only — nothing stored changes: lap times
+  stay milliseconds, an event's temperature stays whole °F (`events.temp_f`),
+  channel speeds km/h, setup-sheet pressures psi and fuel gallons, and the
+  form converts on the way in (`public/js/units.js` owns the conversions;
+  `setupToDisplay`/`setupToStored` in `public/js/garage.js` cover the setup
+  sheet). An account that never chose sees imperial, which is what the app
+  always showed. Wear measurements are the one exception: each is logged with
+  its own unit string, so the preference only changes the default offered for
+  a new one (tread depth in 32nds for imperial, mm otherwise). A top speed
+  written into an imported session's notes is in the system chosen at import
+  time and stays that way. The iOS and Android models carry the field; their
+  screens still render imperial (see `AGENTS.md`).
 - **Vehicles** are a per-user garage (account menu → Settings) with a name,
   free-text modification notes and an optional **target hot tyre pressure**
   (`target_hot_psi`, one number for all four corners — what the session health

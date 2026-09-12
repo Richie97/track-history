@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  SETUP_FIELDS,
+  defaultMeasurementUnit,
   diffSetups,
   flatLabel,
+  flatUnit,
   flattenSetup,
   fmtCost,
   fmtRemaining,
+  fmtSetupValue,
   partKindLabel,
   partStatus,
+  setupStep,
+  setupToDisplay,
+  setupToStored,
+  setupUnit,
+  wearLimitHint,
 } from "../../public/js/garage.js";
 
 describe("flattenSetup / flatLabel", () => {
@@ -37,6 +46,69 @@ describe("flattenSetup / flatLabel", () => {
 
   it("handles null sheets", () => {
     expect(flattenSetup(null)).toEqual([]);
+  });
+});
+
+describe("setup-sheet units", () => {
+  const tp = SETUP_FIELDS.find((f) => f.key === "tp_cold");
+  const fuel = SETUP_FIELDS.find((f) => f.key === "fuel");
+  const camber = SETUP_FIELDS.find((f) => f.key === "camber");
+
+  it("labels pressures and fuel in the user's system, everything else the same", () => {
+    expect(setupUnit(tp, "imperial")).toBe("psi");
+    expect(setupUnit(tp, "metric")).toBe("bar");
+    expect(setupUnit(fuel, "metric")).toBe("L");
+    expect(setupUnit(camber, "metric")).toBe("°");
+    expect(setupStep(tp, "metric")).toBe(0.05);
+    expect(setupStep(camber, "metric")).toBe(camber.step);
+    expect(flatUnit("tp_hot.rr", "metric")).toBe("bar");
+    expect(flatUnit("tp_hot.rr", "imperial")).toBe("psi");
+    expect(flatUnit("tires_id", "metric")).toBe("");
+  });
+
+  it("converts stored psi/gal for display and back, and leaves imperial untouched", () => {
+    expect(setupToDisplay(tp, 31, "imperial")).toBe(31);
+    expect(setupToDisplay(tp, 31, "metric")).toBe(2.14);
+    expect(setupToDisplay(fuel, 10, "metric")).toBe(37.9);
+    expect(setupToDisplay(camber, -3.2, "metric")).toBe(-3.2);
+    expect(setupToDisplay(tp, null, "metric")).toBeNull();
+    expect(setupToStored(tp, 2.2, "metric")).toBe(31.91);
+    expect(setupToStored(fuel, 40, "metric")).toBe(10.57);
+    expect(setupToStored(tp, 31, "imperial")).toBe(31);
+  });
+
+  it("round-trips a metric entry stably after its first save", () => {
+    // A sheet saved from a metric form and re-opened must pre-fill the same
+    // number the driver typed, or every edit would nudge the values.
+    for (const bar of [1.8, 2.0, 2.15, 2.45]) {
+      const stored = setupToStored(tp, bar, "metric");
+      expect(setupToDisplay(tp, stored, "metric")).toBe(bar);
+      expect(setupToStored(tp, setupToDisplay(tp, stored, "metric"), "metric")).toBe(stored);
+    }
+    for (const litres of [20, 35, 41]) {
+      const stored = setupToStored(fuel, litres, "metric");
+      expect(setupToDisplay(fuel, stored, "metric")).toBe(litres);
+    }
+  });
+
+  it("formats diff-chip values with their unit", () => {
+    expect(fmtSetupValue("tp_cold.fl", 31, "imperial")).toBe("31 psi");
+    expect(fmtSetupValue("tp_cold.fl", 31, "metric")).toBe("2.14 bar");
+    expect(fmtSetupValue("toe.f", 0.05, "metric")).toBe("0.05");
+    expect(fmtSetupValue("camber.f", -3.2, "imperial")).toBe("-3.2°");
+    expect(fmtSetupValue("fuel", null, "metric")).toBe("—");
+  });
+});
+
+describe("wear units", () => {
+  it("suggests tread depth in 32nds only for imperial users", () => {
+    expect(wearLimitHint("tires", "imperial")).toBe("3 (32nds)");
+    expect(wearLimitHint("tires", "metric")).toBe("3 (mm)");
+    expect(wearLimitHint("pads_front", "metric")).toBe("3 (mm)");
+    expect(wearLimitHint("oil", "metric")).toBe("");
+    expect(defaultMeasurementUnit("tires", "imperial")).toBe("32nds");
+    expect(defaultMeasurementUnit("tires", "metric")).toBe("mm");
+    expect(defaultMeasurementUnit("pads_rear", "imperial")).toBe("mm");
   });
 });
 
