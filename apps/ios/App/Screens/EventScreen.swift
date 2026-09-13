@@ -131,8 +131,12 @@ struct EventScreen: View {
         }
         .sheet(item: $channelSession) { session in
             NavigationStack {
-                LapChannelChart(channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []), laps: session.laps)
-                    .navigationTitle(session.label ?? "Channel graphs")
+                LapChannelChart(
+                    channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []),
+                    laps: session.laps,
+                    pro: Entitlement.canViewChannels(auth.entitlement)
+                )
+                .navigationTitle(session.label ?? "Channel graphs")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {

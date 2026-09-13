@@ -86,6 +86,13 @@ fun EventScreen(
     onDeleted: () -> Unit,
     recorderAvailable: Boolean,
     modifier: Modifier = Modifier,
+    /**
+     * Whether the account gets the Pro half of the channel panel (#264). The
+     * server has already stripped what a free account may not see; this only
+     * decides whether the panel draws its derived views and its upsell.
+     */
+    canViewChannels: Boolean = true,
+    onSubscribe: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -243,6 +250,8 @@ fun EventScreen(
                             channelsInColumn = twoColumn,
                             selected = twoColumn && selectedSessionId == session.id,
                             onSelect = { selectedSessionId = session.id },
+                            pro = canViewChannels,
+                            onSubscribe = onSubscribe,
                         )
                     }
                 }
@@ -267,6 +276,8 @@ fun EventScreen(
                     AnalysisColumn(
                         sessions = detail.sessions,
                         selectedSessionId = selectedSessionId,
+                        pro = canViewChannels,
+                        onSubscribe = onSubscribe,
                     )
                 }
             }
@@ -444,6 +455,8 @@ private fun SessionCard(
     channelsInColumn: Boolean = false,
     selected: Boolean = false,
     onSelect: () -> Unit = {},
+    pro: Boolean = true,
+    onSubscribe: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
@@ -538,6 +551,8 @@ private fun SessionCard(
                 channels = channels,
                 laps = session.laps,
                 modifier = Modifier.padding(top = 8.dp),
+                pro = pro,
+                onSubscribe = onSubscribe,
             )
         } else {
             session.laps.forEach { lap ->

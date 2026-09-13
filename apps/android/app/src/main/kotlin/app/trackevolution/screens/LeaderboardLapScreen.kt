@@ -73,10 +73,11 @@ import kotlin.math.roundToInt
 fun LeaderboardLapScreen(
     model: LeaderboardLapModel,
     /**
-     * Whether the viewer may see channel traces. The server has already decided
-     * — it strips `channels` for a free account, exactly as it does on a session
-     * — so this only chooses between "here is what Pro shows you" and "this lap
-     * stored no telemetry", which are different sentences and must not be one.
+     * Whether the viewer gets the Pro half of the channel panel. The server has
+     * already decided what they may see — it keeps speed, throttle and brake for
+     * a free account and strips the rest (#264), exactly as it does on a session
+     * — so this only decides whether the panel draws its delta and sectors, and
+     * whether it carries the upsell.
      */
     canViewChannels: Boolean,
     modifier: Modifier = Modifier,
@@ -101,9 +102,10 @@ fun LeaderboardLapScreen(
                 }
             }
 
-            // The racing line is free: `channels` is the one Pro field (NS-32
-            // rule 4), so a free account still gets the shape of the lap and the
-            // upsell sits under it rather than over the screen.
+            // The racing line is free, and so are the speed, throttle and brake
+            // traces (#264): the server strips the rest of `channels` for a free
+            // account (NS-32 rule 4), and the panel's upsell sits under what is
+            // drawn rather than over the screen.
             val trace = lap.trace.orEmpty().map { TraceSample(x = it.x, y = it.y, v = it.v) }
             if (trace.size > 1) {
                 item("map") {
@@ -119,29 +121,10 @@ fun LeaderboardLapScreen(
             }
 
             if (panel == null) {
-                item("no-telemetry") {
-                    if (canViewChannels) {
-                        TEEmpty("This lap's telemetry isn't available.")
-                    } else {
-                        TrackCard(Modifier.fillMaxWidth()) {
-                            Text("Telemetry", style = TrackTheme.typography.h3, color = colors.textStrong)
-                            Text(
-                                "See this lap's speed, throttle, brake and steering traces — and put your own " +
-                                    "best lap at this track beside it, corner for corner.",
-                                style = TrackTheme.typography.sm,
-                                color = colors.textMuted,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                            TextButton(onClick = onSubscribe) {
-                                Text(
-                                    "See Track Evolution Pro",
-                                    style = TrackTheme.typography.bodyStrong,
-                                    color = colors.accentInk,
-                                )
-                            }
-                        }
-                    }
-                }
+                // Every stored lap carries a speed trace and a free account
+                // keeps it, so an absent entry is a lap with no telemetry rather
+                // than one with telemetry withheld.
+                item("no-telemetry") { TEEmpty("This lap's telemetry isn't available.") }
                 return@LazyColumn
             }
 
@@ -179,7 +162,7 @@ fun LeaderboardLapScreen(
 
             item("charts-hint") {
                 Text(
-                    if (panel.mine == null) {
+                    if (panel.mine == null || !canViewChannels) {
                         "Tap a chart to read values."
                     } else {
                         "The delta chart shows where you gain or lose against this lap; " +
@@ -195,6 +178,8 @@ fun LeaderboardLapScreen(
                     channels = panel.aligned,
                     laps = panel.laps,
                     initialSelection = if (panel.mine == null) listOf(0) else listOf(0, 1),
+                    pro = canViewChannels,
+                    onSubscribe = onSubscribe,
                 )
             }
         }

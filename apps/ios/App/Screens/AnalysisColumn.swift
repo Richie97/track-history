@@ -18,6 +18,8 @@ struct AnalysisColumn: View {
     let detail: EventDetail
     @Binding var selectedSessionId: Int?
 
+    @Environment(AuthController.self) private var auth
+
     /// Where the panel is pointing, if anywhere — the friction circle's tapped
     /// sample. Held here rather than in the panel because the *map* is what
     /// answers it, and the map is this column's, not the panel's.
@@ -82,7 +84,12 @@ struct AnalysisColumn: View {
                 Text(session.label ?? "Channel graphs")
                     .teStyle(.h3)
                     .foregroundStyle(Color(.textStrong))
-                LapChannelChart(channels: channels, laps: session.laps, onHit: { hit = $0 })
+                LapChannelChart(
+                    channels: channels,
+                    laps: session.laps,
+                    pro: Entitlement.canViewChannels(auth.entitlement),
+                    onHit: { hit = $0 }
+                )
                     // Keyed by session: `lit` holds *channel-lap indexes*, which
                     // mean different laps in a different session, so carrying them
                     // across would light the wrong ones. Remembering tab and lit

@@ -23,6 +23,9 @@ struct EntitlementTests {
             #expect(Entitlement.isPro(e) == c.expected.isPro, Comment(rawValue: c.name))
             #expect(Entitlement.canRecord(e) == c.expected.canRecord, Comment(rawValue: c.name))
             #expect(Entitlement.canViewChannels(e) == c.expected.canViewChannels, Comment(rawValue: c.name))
+            for (key, allowed) in c.expected.canViewChannel {
+                #expect(Entitlement.canViewChannel(e, key) == allowed, Comment(rawValue: "\(c.name): \(key)"))
+            }
             #expect(Entitlement.canUseGarage(e) == c.expected.canUseGarage, Comment(rawValue: c.name))
             #expect(Entitlement.canUseSetups(e) == c.expected.canUseSetups, Comment(rawValue: c.name))
             #expect(Entitlement.canViewYearInReview(e) == c.expected.canViewYearInReview, Comment(rawValue: c.name))
@@ -32,6 +35,7 @@ struct EntitlementTests {
         }
         // Against the fixture silently emptying and the loop passing vacuously.
         #expect(fixture.cases.count >= 9)
+        #expect(Entitlement.FREE_CHANNELS == fixture.freeChannels, "the free allow-list is the web's (#264)")
         #expect(fixture.cases.contains { $0.entitlement == nil }, "the nothing-cached case must be in the fixture")
     }
 
@@ -41,6 +45,19 @@ struct EntitlementTests {
         source: Entitlement.Source? = .apple, expiresAt: Int? = 1_800_000_000_000, autoRenew: Bool? = true
     ) -> Entitlement {
         Entitlement(tier: .pro, source: source, expiresAt: expiresAt, autoRenew: autoRenew)
+    }
+
+    @Test func speedThrottleAndBrakeAreFreeAndEveryOtherChannelFollowsTheTier() {
+        #expect(Entitlement.FREE_CHANNELS == ["speed", "throttle", "brake"])
+        for key in Entitlement.FREE_CHANNELS {
+            #expect(Entitlement.canViewChannel(Entitlement.FREE_ENTITLEMENT, key), Comment(rawValue: key))
+            #expect(Entitlement.canViewChannel(nil, key), Comment(rawValue: key))
+        }
+        for key in ["rpm", "latG", "steering", "yaw", "gear", "flags", "wheelSlip", "boost", "longG"] {
+            #expect(!Entitlement.canViewChannel(Entitlement.FREE_ENTITLEMENT, key), Comment(rawValue: key))
+            #expect(Entitlement.canViewChannel(pro(), key), Comment(rawValue: key))
+            #expect(Entitlement.canViewChannel(pro(expiresAt: 1), key), Comment(rawValue: key))
+        }
     }
 
     @Test func onlyATierOfProIsPro() {
@@ -217,6 +234,8 @@ struct EntitlementFixture: Decodable {
         let isPro: Bool
         let canRecord: Bool
         let canViewChannels: Bool
+        /// Per gridded channel name (#264): the free three are true for everyone.
+        let canViewChannel: [String: Bool]
         let canUseGarage: Bool
         let canUseSetups: Bool
         let canViewYearInReview: Bool
@@ -232,6 +251,7 @@ struct EntitlementFixture: Decodable {
         let expected: Expected
     }
 
+    let freeChannels: [String]
     let cases: [Case]
 
     static func load() throws -> EntitlementFixture {

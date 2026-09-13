@@ -176,6 +176,11 @@ fun AppNavHost(
                 // Always: the recorder is built into this app, unlike the web
                 // build where `platform.bgLocation` is null and it is hidden.
                 recorderAvailable = true,
+                // The Pro half of the channel panel (#264): the server already
+                // stripped what a free account may not see, and this decides
+                // whether the panel draws its derived views and its upsell.
+                canViewChannels = Entitlement.canViewChannels(entitlement),
+                onSubscribe = onRequirePro,
             )
         }
 

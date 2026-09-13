@@ -80,10 +80,25 @@ public data class Entitlement(
         // server — see [canViewChannels].
 
         /**
-         * Channel graphs, the lap delta chart, the two-lap compare and sector
-         * splits all read `channels`, which the server strips for a free account
-         * (rule 4); this only decides whether the resulting empty state carries
-         * the paywall copy.
+         * The three traces a free account keeps (#264): speed, throttle and
+         * brake — the ones any driver can read at a glance. The server enforces
+         * this (`FREE_CHANNELS` in `src/lib/entitlement.ts` strips every other
+         * gridded channel and every per-lap scalar for a free account); the
+         * client-side predicate only decides what to *say* about a channel that
+         * isn't there.
+         */
+        public val FREE_CHANNELS: List<String> = listOf("speed", "throttle", "brake")
+        public fun canViewChannel(entitlement: Entitlement?, key: String): Boolean =
+            key in FREE_CHANNELS || isPro(entitlement)
+
+        /**
+         * The Pro half of the channel panel: every channel beyond [FREE_CHANNELS]
+         * (steering, RPM, lateral G, yaw, gear, the limit marks, the Car tab), the
+         * lap delta chart, sector splits and the two-lap compare. The server
+         * strips the channels themselves (rule 4); the delta and the sectors
+         * derive from the free speed trace, so for those this predicate is the
+         * gate, and it is also what decides whether the panel carries the locked
+         * note.
          */
         public fun canViewChannels(entitlement: Entitlement?): Boolean = isPro(entitlement)
 

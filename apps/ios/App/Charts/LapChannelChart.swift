@@ -45,16 +45,21 @@ struct ChannelHit: Equatable {
 struct LapChannelChart: View {
     let channels: SessionChannels
     let laps: [Lap]
+    /// Whether the account gets the Pro half of the panel — see `LapChannelPanel.pro`.
+    var pro = true
     /// Where the panel is currently pointing, for whatever is drawn beside it.
     var onHit: (ChannelHit?) -> Void = { _ in }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values. With 2+ laps selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.")
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textFaint))
-                LapChannelPanel(channels: channels, laps: laps, onHit: onHit)
+                Text(
+                    "Laps on a shared distance axis — tap laps to compare (up to 3), tap a chart to read values."
+                        + (pro ? " With 2+ laps selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why." : "")
+                )
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textFaint))
+                LapChannelPanel(channels: channels, laps: laps, pro: pro, onHit: onHit)
             }
             .padding(TESpacing.pageGutter)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,6 +78,14 @@ struct LapChannelPanel: View {
     /// Channel-lap indexes to start highlighted, in slot order. nil means the
     /// fastest lap, which is what the event page's overlay wants.
     var preselect: [Int]? = nil
+    /// Whether the account gets the Pro half of the panel (#264). A free
+    /// account's `channels` already arrive with only speed, throttle and brake —
+    /// the server strips the rest — but the delta chart, the sector table, the
+    /// shift points, the friction circle, the balance read-out and the Car tab
+    /// all derive from what is left, so they are the panel's own gate: with
+    /// `pro == false` none of them draw, and an upsell card under the charts
+    /// says what the rest of the recording would show.
+    var pro = true
     /// Where the panel is currently pointing (NS-34 ticket 3). Defaulted to a
     /// no-op, because everywhere the panel is a *sheet* there is nothing beside
     /// it to answer.
@@ -161,6 +174,16 @@ struct LapChannelPanel: View {
                 if tabs.count == 1 || tabKey == selectedTab {
                     tabContent(tabKey)
                 }
+            }
+            if !pro {
+                // Under every tab rather than on one of them: what Pro adds is
+                // spread across all four.
+                ProUpsellCard(
+                    title: "The rest of the recording is Pro",
+                    blurb: "Pro unlocks the rest of the recording where it carries them: steering, RPM, lateral G and yaw traces, "
+                    + "the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits with a "
+                    + "theoretical best, the car-health strip, and lap-vs-lap delta charts."
+                )
             }
         }
         .background { keyboardCommands }
@@ -287,8 +310,10 @@ struct LapChannelPanel: View {
             return present.contains { Self.tab(of: $0) == tabKey }
         case .car:
             // The per-lap scalars (#190). A session of hand-entered laps carries
-            // none, and the tab is then absent rather than empty.
-            return Health.sessionHealth(channels) != nil
+            // none, and the tab is then absent rather than empty. Pro only: the
+            // server strips the scalars for a free account, so this is belt and
+            // braces rather than the gate.
+            return pro && Health.sessionHealth(channels) != nil
         }
     }
 
@@ -328,57 +353,69 @@ struct LapChannelPanel: View {
     @ViewBuilder
     private func tabContent(_ tabKey: Tab) -> some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Everything above the traces is the Pro half (#264): it derives
+            // from channels the server strips for a free account, or — the
+            // sectors and the delta — from the free speed trace, and is gated
+            // here for that reason.
             switch tabKey {
             case .time:
-                // Sector splits + theoretical best for the highlighted laps (#146).
-                SectorTable(
-                    channels: channels, lit: lit, slots: Self.slots,
-                    lapNumber: lapNumber(forLapIndex:),
-                    onHit: park,
-                    onHover: borrow
-                )
-                deltaChart
+                if pro {
+                    // Sector splits + theoretical best for the highlighted laps (#146).
+                    SectorTable(
+                        channels: channels, lit: lit, slots: Self.slots,
+                        lapNumber: lapNumber(forLapIndex:),
+                        onHit: park,
+                        onHover: borrow
+                    )
+                    deltaChart
+                }
             case .inputs:
-                // The session's shift points (#187) above the traces they explain.
-                ShiftTable(channels: channels)
+                if pro {
+                    // The session's shift points (#187) above the traces they explain.
+                    ShiftTable(channels: channels)
+                }
             case .grip:
-                // The friction circle (#186) above the lateral-G trace it
-                // summarises. It draws nothing unless the session stored longG
-                // too, so a source with only lateral G still gets its trace.
-                FrictionCircle(
-                    channels: channels, lit: lit, slots: Self.slots,
-                    lapNumber: lapNumber(forLapIndex:),
-                    // The point of the column (NS-34 ticket 3): the tapped
-                    // sample's distance is marked across every chart that shares
-                    // the axis — which is what `readout` already does — and
-                    // handed outward so the map can ring the place. A pointer
-                    // does the same without committing it (ticket 5).
-                    onHit: park,
-                    onHover: borrow,
-                    showEnvelope: showEnvelope
-                )
-                // Under it, the balance scatter and its per-corner table (#189),
-                // above the lateral-G and yaw traces they are read from. It draws
-                // nothing unless the session stored yaw, steering and speed.
-                BalanceScatter(
-                    channels: channels, lit: lit, slots: Self.slots,
-                    lapNumber: lapNumber(forLapIndex:),
-                    onHit: park,
-                    onHover: borrow
-                )
+                if pro {
+                    // The friction circle (#186) above the lateral-G trace it
+                    // summarises. It draws nothing unless the session stored longG
+                    // too, so a source with only lateral G still gets its trace.
+                    FrictionCircle(
+                        channels: channels, lit: lit, slots: Self.slots,
+                        lapNumber: lapNumber(forLapIndex:),
+                        // The point of the column (NS-34 ticket 3): the tapped
+                        // sample's distance is marked across every chart that shares
+                        // the axis — which is what `readout` already does — and
+                        // handed outward so the map can ring the place. A pointer
+                        // does the same without committing it (ticket 5).
+                        onHit: park,
+                        onHover: borrow,
+                        showEnvelope: showEnvelope
+                    )
+                    // Under it, the balance scatter and its per-corner table (#189),
+                    // above the lateral-G and yaw traces they are read from. It draws
+                    // nothing unless the session stored yaw, steering and speed.
+                    BalanceScatter(
+                        channels: channels, lit: lit, slots: Self.slots,
+                        lapNumber: lapNumber(forLapIndex:),
+                        onHit: park,
+                        onHover: borrow
+                    )
+                }
             case .car:
-                // The session health strip (#190): what the car was doing while
-                // you drove it, which is the other half of a track day.
-                HealthStrip(
-                    channels: channels, lit: lit, slots: Self.slots,
-                    lapNumber: lapNumber(forLapIndex:)
-                )
+                if pro {
+                    // The session health strip (#190): what the car was doing while
+                    // you drove it, which is the other half of a track day.
+                    HealthStrip(
+                        channels: channels, lit: lit, slots: Self.slots,
+                        lapNumber: lapNumber(forLapIndex:)
+                    )
+                }
             }
             ForEach(present.filter { Self.tab(of: $0) == tabKey }, id: \.self) { channel in
                 channelChart(channel)
                 // The gear ribbon rides under the RPM trace, where each shift is
                 // the drop in the sawtooth above it (#187).
-                if channel == .rpm {
+                if channel == .rpm && pro {
                     GearRibbon(
                         channels: channels, lit: lit, slots: Self.slots,
                         lapNumber: lapNumber(forLapIndex:)
