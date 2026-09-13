@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import app.trackevolution.core.EventDates
+import app.trackevolution.core.EventFormSessions
 import app.trackevolution.navigation.SavedState
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Units
@@ -14,6 +15,7 @@ import app.trackevolution.core.model.Conditions
 import app.trackevolution.core.model.EventDraft
 import app.trackevolution.core.model.EventPatch
 import app.trackevolution.core.model.Patch
+import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +32,19 @@ import kotlinx.coroutines.launch
  * track. Normalising here merges two layouts' personal bests into one, silently,
  * with no undo. This is the single most destructive thing this screen could do,
  * which is why it does nothing.
+ *
+ * **A new event can carry its laps.** The form's "Add laps" section stages
+ * sessions until the event exists: clips the import review handed back
+ * ([stage], through `RecordingFlow.staged`) and one session typed by hand
+ * ([sessionLabel], [sessionLaps], [sessionNotes]). [save] creates the event,
+ * then posts each session [EventFormSessions.sessionsToCreate] returns onto
+ * it, in that order. The created event's id is kept in [createdId] so a
+ * session post that fails leaves the form up with the error and the next
+ * save retries only the sessions still staged, never creating the event twice.
+ * The staged drafts are plain state rather than [SavedState]: a clip's channel
+ * arrays are far larger than a Bundle transaction allows, so they survive
+ * rotation (the model does) but not process death — the same lifetime the
+ * review overlay's own state has.
  */
 class EventFormModel(
     private val scope: CoroutineScope,
@@ -65,6 +80,35 @@ class EventFormModel(
     var temp by SavedState(saved, "temp", "")
     var bestTime by SavedState(saved, "bestTime", "")
     var notes by SavedState(saved, "notes", "")
+
+    /** The hand-typed session of the "Add laps" section, new events only. */
+    var sessionLabel by SavedState(saved, "sessionLabel", "")
+    var sessionLaps by SavedState(saved, "sessionLaps", "")
+    var sessionNotes by SavedState(saved, "sessionNotes", "")
+
+    /** Sessions the import review staged for this event, in posting order. */
+    var stagedSessions by mutableStateOf<List<SessionDraft>>(emptyList())
+        private set
+
+    /**
+     * The event [save] already created, when a session post after it failed.
+     * Null until then; the next save skips `POST /events` and posts the
+     * sessions still staged.
+     */
+    var createdId by SavedState<Int?>(saved, "createdId", null)
+        private set
+
+    fun stage(drafts: List<SessionDraft>) {
+        stagedSessions = stagedSessions + drafts
+    }
+
+    fun removeStaged(index: Int) {
+        stagedSessions = stagedSessions.filterIndexed { i, _ -> i != index }
+    }
+
+    /** Everything the "Add laps" section would post, in posting order. */
+    val pendingSessions: List<SessionDraft>
+        get() = EventFormSessions.sessionsToCreate(stagedSessions, sessionLabel, sessionLaps, sessionNotes)
 
     /**
      * Stored as the string it is spelled with on the wire, because [Conditions]
@@ -168,7 +212,7 @@ class EventFormModel(
         scope.launch {
             try {
                 savedId = if (editId == null) {
-                    api.createEvent(
+                    val id = createdId ?: api.createEvent(
                         EventDraft(
                             startDate = startDate,
                             trackName = name,
@@ -182,7 +226,16 @@ class EventFormModel(
                             bestTimeMs = bestMs,
                             trackHours = trackHours.toDoubleOrNull(),
                         ),
-                    )
+                    ).also { createdId = it }
+                    // Then the laps, onto the event that now exists: the staged
+                    // imports first, then the hand-typed session. Each is posted
+                    // once — a posted one leaves the staging (or empties the typed
+                    // laps) before the next, so a failure leaves exactly the rest.
+                    for (draft in pendingSessions) {
+                        api.createSession(id, draft)
+                        if (stagedSessions.firstOrNull() == draft) stagedSessions = stagedSessions.drop(1) else sessionLaps = ""
+                    }
+                    id
                 } else {
                     api.updateEvent(
                         editId,
@@ -205,7 +258,11 @@ class EventFormModel(
                     editId
                 }
             } catch (e: ApiException) {
-                error = e.message
+                error = if (createdId != null) {
+                    "The event was created, but a session couldn't be added: ${e.message}"
+                } else {
+                    e.message
+                }
             }
             saving = false
         }

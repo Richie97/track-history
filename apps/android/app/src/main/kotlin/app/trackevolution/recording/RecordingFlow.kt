@@ -73,6 +73,12 @@ data class ReviewUiState(
     val problem: LineReview.Problem? = null,
     /** Free-text notes, for a recording. An import's notes are written for it. */
     val notes: String = "",
+    /**
+     * The import was started from the New Event form (`Route.Import.forNewEvent`):
+     * there is no event to save onto, so the event picker stands down and
+     * "save" hands the drafts back to the form through [RecordingFlow.staged].
+     */
+    val forNewEvent: Boolean = false,
     val saving: Boolean = false,
     /** The server's own message when a save failed. */
     val error: String? = null,
@@ -82,7 +88,7 @@ data class ReviewUiState(
     /** Items that will actually be posted. */
     val selectedCount: Int get() = items.count { it.include && it.hasLaps }
 
-    val canSave: Boolean get() = selectedCount > 0 && selectedEventId != null && !saving
+    val canSave: Boolean get() = selectedCount > 0 && (forNewEvent || selectedEventId != null) && !saving
 
     /** The recording's laps, for the single-item case the screen lays out simply. */
     val trace: List<TracePoint> get() = pickTrace
@@ -134,6 +140,16 @@ class RecordingFlow(
         private set
 
     /**
+     * Session drafts an import staged for the New Event form, waiting for it
+     * to take them ([takeStaged]). Filled instead of posting when the review
+     * was begun with `forNewEvent`; the form posts them after `POST /events`.
+     */
+    private val _staged = MutableStateFlow<List<SessionDraft>>(emptyList())
+    val staged: StateFlow<List<SessionDraft>> = _staged.asStateFlow()
+
+    fun takeStaged(): List<SessionDraft> = _staged.value.also { _staged.value = emptyList() }
+
+    /**
      * Loads a stopped (or recovered) recording for review.
      *
      * A recording too short or too stationary to be a session yields no trace —
@@ -164,9 +180,11 @@ class RecordingFlow(
 
     /**
      * Loads parsed clips for review. [preferredEventId] is the event whose page
-     * the import was started from, pre-selected in the event picker.
+     * the import was started from, pre-selected in the event picker. With
+     * [forNewEvent] there is no event yet: the picker is not shown, no event
+     * list is fetched, and saving stages the drafts for the form instead.
      */
-    fun beginImport(clips: List<ImportedClip>, preferredEventId: Int?) {
+    fun beginImport(clips: List<ImportedClip>, preferredEventId: Int?, forNewEvent: Boolean = false) {
         recording = null
         val items = clips.map { clip ->
             ReviewItem(
@@ -179,9 +197,14 @@ class RecordingFlow(
         }
         _saved.value = false
         savedEventId = null
-        _state.value = ReviewUiState(items = items, isImport = true, selectedEventId = preferredEventId)
+        _state.value = ReviewUiState(
+            items = items,
+            isImport = true,
+            selectedEventId = preferredEventId,
+            forNewEvent = forNewEvent,
+        )
         rebuildPickTrace()
-        loadEvents()
+        if (!forNewEvent) loadEvents()
     }
 
     /**
@@ -303,6 +326,17 @@ class RecordingFlow(
     fun save(context: Context, units: UnitSystem = Units.DEFAULT_UNITS) {
         val current = _state.value
         if (!current.canSave) return
+        if (current.forNewEvent) {
+            // Nothing to post onto yet. The same drafts the loop below would
+            // send go to the form, which sends them once the event exists.
+            _staged.value = current.items
+                .filter { it.include && it.hasLaps }
+                .mapNotNull { item -> item.parsed?.let { draftFor(item, it, current.notes, units) } }
+            Haptics.confirm(context)
+            _state.value = current.copy(saving = false, error = null)
+            _saved.value = true
+            return
+        }
         val eventId = current.selectedEventId ?: run {
             _state.value = current.copy(error = "Pick an event to save this session onto.")
             return
@@ -320,20 +354,7 @@ class RecordingFlow(
                     val parsed = item.parsed ?: continue
                     val best = parsed.laps.minOf { it.timeMs }
                     if (previousBest == null || best < previousBest) personalBest = true
-                    api.createSession(
-                        eventId = eventId,
-                        draft = SessionDraft(
-                            label = item.label.trim().ifBlank { null },
-                            notes = notesFor(item, parsed, current.notes, units),
-                            laps = parsed.laps.map { it.timeMs },
-                            // The best lap's downsampled polyline, drawn as the
-                            // racing line on the event page, plus the per-lap
-                            // channel arrays the lap overlay (NS-24) draws. Both
-                            // come from the same pick that timed the laps.
-                            trace = parsed.bestLapTrace?.map { WireTracePoint(x = it.x, y = it.y, v = it.v) },
-                            channels = parsed.lapChannels,
-                        ),
-                    )
+                    api.createSession(eventId = eventId, draft = draftFor(item, parsed, current.notes, units))
                     // Posted: a retry after a later failure must not post it twice.
                     remaining = remaining.mapIndexed { i, r -> if (i == index) r.copy(include = false, includeTouched = true) else r }
                 }
@@ -350,6 +371,18 @@ class RecordingFlow(
             }
         }
     }
+
+    /** One reviewed item as the body of `POST /events/:id/sessions`. */
+    private fun draftFor(item: ReviewItem, parsed: ParsedTelemetry, typed: String, units: UnitSystem) = SessionDraft(
+        label = item.label.trim().ifBlank { null },
+        notes = notesFor(item, parsed, typed, units),
+        laps = parsed.laps.map { it.timeMs },
+        // The best lap's downsampled polyline, drawn as the racing line on the
+        // event page, plus the per-lap channel arrays the lap overlay (NS-24)
+        // draws. Both come from the same pick that timed the laps.
+        trace = parsed.bestLapTrace?.map { WireTracePoint(x = it.x, y = it.y, v = it.v) },
+        channels = parsed.lapChannels,
+    )
 
     /**
      * A recording's notes are whatever the driver typed; an import's are the
@@ -370,7 +403,10 @@ class RecordingFlow(
     fun discard(context: Context) {
         if (recording != null) Recorder.consumeFinished(context)
         recording = null
-        _state.value = ReviewUiState()
+        // The flag survives the reset: the scaffold reads it to decide where a
+        // closed review lands, and a cancelled new-event import must land back
+        // on the half-typed form rather than on the dashboard.
+        _state.value = ReviewUiState(forNewEvent = _state.value.forNewEvent)
         _saved.value = true
     }
 
