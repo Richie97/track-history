@@ -62,6 +62,27 @@ class RoutesTest {
         )
     }
 
+    /** A lap route carries three ids and any of them can be temp (#268). */
+    @Test
+    fun `follows each of a lap route's temp ids to its real one`() {
+        assertEquals(
+            Route.Lap(eventId = 41, sessionId = -2, lapId = 7),
+            Route.Lap(eventId = -1, sessionId = -2, lapId = 7).remapTempId(from = -1, to = 41),
+        )
+        assertEquals(
+            Route.Lap(eventId = 41, sessionId = 42, lapId = 7),
+            Route.Lap(eventId = 41, sessionId = -2, lapId = 7).remapTempId(from = -2, to = 42),
+        )
+        assertEquals(
+            Route.SessionCompare(eventId = 41, sessionId = 42, lapId = 9),
+            Route.SessionCompare(eventId = 41, sessionId = 42, lapId = -4).remapTempId(from = -4, to = 9),
+        )
+        assertEquals(
+            Route.SessionCompare(eventId = 41, sessionId = 42, lapId = null),
+            Route.SessionCompare(eventId = -1, sessionId = 42).remapTempId(from = -1, to = 41),
+        )
+    }
+
     @Test
     fun `leaves rows it was not about alone`() {
         assertEquals(Route.Event(9), Route.Event(9).remapTempId(from = -1, to = 42))

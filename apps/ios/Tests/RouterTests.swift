@@ -85,6 +85,24 @@ final class RouterTests: XCTestCase {
         XCTAssertFalse(Route.shared(slug: "x").ownsTheWindow)
         XCTAssertFalse(Route.eventForm(.new(presetTrack: nil)).ownsTheWindow)
         XCTAssertFalse(Route.eventForm(.edit(2)).ownsTheWindow)
+        XCTAssertFalse(Route.lap(eventId: 1, sessionId: 2, lapId: 3).ownsTheWindow)
+    }
+
+    /// A lap route carries three ids and any of them can be an offline temp id
+    /// (#267); each follows its own row when the queue flushes, and a real id
+    /// is left alone.
+    func testALapRouteFollowsEachOfItsTempIds() {
+        let router = AppRouter()
+        router.show(.event(-1))
+        router.push(.lap(eventId: -1, sessionId: -2, lapId: 7))
+
+        router.remapTempIds { [-1: 41, -2: 42][$0] }
+        XCTAssertEqual(router.path, [.event(41), .lap(eventId: 41, sessionId: 42, lapId: 7)])
+
+        // A temp id the store cannot resolve yet stays as it is.
+        router.push(.lap(eventId: 41, sessionId: -3, lapId: -4))
+        router.remapTempIds { [-4: 9][$0] }
+        XCTAssertEqual(router.path.last, .lap(eventId: 41, sessionId: -3, lapId: 9))
     }
 
     /// A window-owning route is presented rather than pushed, and — the part that

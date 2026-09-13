@@ -242,7 +242,12 @@ track page's "Compare two laps" opens the same delta-and-channels comparison the
 web renders, on the same `CompareLaps` maths pinned by
 `contracts/logic/compare-laps.json`, and so are the **sector splits and
 theoretical best** in the channel-graphs panel (`Sectors`, pinned by
-`contracts/logic/sectors.json`). The setup notebook, the setup-vs-lap-times
+`contracts/logic/sectors.json`). **Every lap opens** on the phones: a lap row
+on the event page is a door to its own screen — the time and the gap to the
+session's best, the racing line when it is the lap the trace was drawn from,
+its own channel traces, and a *Compare laps* control that opens the session's
+overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
+layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
 diff, year in review, the two-event overlay and `.vbo` import stay web-only by
 design.
 

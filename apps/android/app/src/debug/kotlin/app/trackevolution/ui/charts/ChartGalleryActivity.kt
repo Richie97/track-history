@@ -147,6 +147,28 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
         Text("Lap overlay", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
         LapChannelChart(channels = gallerySession, laps = galleryLaps)
 
+        // The lap detail's panel (#268): one lap alone, the way the screen carves
+        // it out of the session's blob.
+        Text("Lap detail — one lap", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+        LapChannelChart(
+            channels = SessionChannels(v = 1, dStepM = gallerySession.dStepM, laps = gallerySession.laps.take(1)),
+            laps = galleryLaps.take(1),
+            initialSelection = listOf(0),
+        )
+
+        // A free account's panel (#264): the same session with only the free
+        // traces, no derived views, and the Pro card under the charts.
+        Text("Lap overlay — free account", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+        LapChannelChart(
+            channels = SessionChannels(
+                v = 1,
+                dStepM = gallerySession.dStepM,
+                laps = gallerySession.laps.map { LapChannels(it.n, it.timeMs, speed = it.speed, throttle = it.throttle, brake = it.brake) },
+            ),
+            laps = galleryLaps,
+            pro = false,
+        )
+
         Text(
             "Line picker — 20,000 fixes (drag/pinch to profile)",
             style = TrackTheme.typography.bodyStrong,

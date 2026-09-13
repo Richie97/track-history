@@ -1,8 +1,13 @@
 package app.trackevolution.screens
 
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.Session
@@ -21,6 +26,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -91,6 +100,23 @@ class EventLayoutTest {
         assertEquals(0, compose.onAllNodesWithTag("analysisColumn").fetchSemanticsNodes().size)
     }
 
+    /** Every lap is a row and a door (#268), on every session. */
+    @Test
+    @Config(qualifiers = "w400dp-h900dp")
+    fun `a lap row opens its detail`() {
+        var opened: Pair<Int, Int>? = null
+        showEvent(onOpenLap = { sessionId, lapId -> opened = sessionId to lapId })
+
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(trackName).fetchSemanticsNodes().isNotEmpty()
+        }
+        // Lap 1 of session 1 (the ids `detailJson` assigns). The page is lazy,
+        // so the row is scrolled into composition first.
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasTestTag("lap-1"))
+        compose.onAllNodesWithTag("lap-1").onFirst().performClick()
+        assertEquals(1 to 1, opened)
+    }
+
     /**
      * Which session the column opens on.
      *
@@ -126,7 +152,7 @@ class EventLayoutTest {
         laps = listOf(Lap(id = id, sessionId = id, lapNum = 1, timeMs = timeMs)),
     )
 
-    private fun showEvent() {
+    private fun showEvent(onOpenLap: (Int, Int) -> Unit = { _, _ -> }) {
         val model = loadedModel()
         compose.setContent {
             ProvideLayoutMetrics {
@@ -140,6 +166,7 @@ class EventLayoutTest {
                         onImport = {},
                         onDeleted = {},
                         recorderAvailable = true,
+                        onOpenLap = onOpenLap,
                     )
                 }
             }
@@ -179,7 +206,25 @@ class EventLayoutTest {
             File(repoRoot, "contracts/golden/event-detail.json").readText(),
         ).jsonObject
 
-        val detailJson: String = golden["body"].toString()
+        /**
+         * The golden body with its session and lap ids made unique. The capture
+         * normalises every id to 1, which no real response does — and a
+         * `LazyColumn` keyed by session id refuses a duplicate the moment a
+         * second session card is composed, which scrolling to a lap row does.
+         * Session n gets id n; laps are numbered through in order.
+         */
+        val detailJson: String = run {
+            val body = golden["body"]!!.jsonObject
+            var lapId = 0
+            val sessions = body["sessions"]!!.jsonArray.mapIndexed { index, element ->
+                val session = element.jsonObject
+                val laps = session["laps"]!!.jsonArray.map { lap ->
+                    JsonObject(lap.jsonObject + mapOf("id" to JsonPrimitive(++lapId), "session_id" to JsonPrimitive(index + 1)))
+                }
+                JsonObject(session + mapOf("id" to JsonPrimitive(index + 1), "laps" to JsonArray(laps)))
+            }
+            JsonObject(body + mapOf("sessions" to JsonArray(sessions))).toString()
+        }
         val trackName: String = golden["body"]!!.jsonObject["track_name"].toString().trim('"')
     }
 }

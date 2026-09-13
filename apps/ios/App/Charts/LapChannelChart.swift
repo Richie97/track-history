@@ -45,6 +45,9 @@ struct ChannelHit: Equatable {
 struct LapChannelChart: View {
     let channels: SessionChannels
     let laps: [Lap]
+    /// Channel-lap indexes to light first — see `LapChannelPanel.preselect`. The
+    /// lap detail opens the sheet on its own lap beside the session's best (#267).
+    var preselect: [Int]? = nil
     /// Whether the account gets the Pro half of the panel — see `LapChannelPanel.pro`.
     var pro = true
     /// Where the panel is currently pointing, for whatever is drawn beside it.
@@ -59,7 +62,7 @@ struct LapChannelChart: View {
                 )
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
-                LapChannelPanel(channels: channels, laps: laps, pro: pro, onHit: onHit)
+                LapChannelPanel(channels: channels, laps: laps, preselect: preselect, pro: pro, onHit: onHit)
             }
             .padding(TESpacing.pageGutter)
             .frame(maxWidth: .infinity, alignment: .leading)
