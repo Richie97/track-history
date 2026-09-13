@@ -60,7 +60,7 @@ struct ChannelGraphsTests {
         // Speed on both laps, RPM on one, lateral G on neither — the JS asserts the
         // same through the path count and the empty string.
         #expect(ChannelGraphs.presentChannels(mkChannels()) == [.speed, .rpm])
-        #expect(ChannelGraphs.valueDomain(.latG, in: mkChannels()) == nil)
+        #expect(ChannelGraphs.valueDomain(.latG, in: mkChannels(), units: .imperial) == nil)
         let empty = SessionChannels(v: 1, dStepM: 20, laps: [])
         #expect(ChannelGraphs.presentChannels(empty).isEmpty)
     }
@@ -68,14 +68,14 @@ struct ChannelGraphsTests {
     @Test func speedReadsInMilesPerHour() throws {
         let channels = mkChannels()
         // 120 km/h stored is what the axis has to show as ~74.6 mph.
-        let value = try #require(ChannelGraphs.value(.speed, lapIndex: 0, gridIndex: 0, in: channels))
+        let value = try #require(ChannelGraphs.value(.speed, lapIndex: 0, gridIndex: 0, in: channels, units: .imperial))
         #expect(abs(value - 120 * 0.621371) < 1e-9)
-        #expect(ChannelGraphs.value(.rpm, lapIndex: 1, gridIndex: 0, in: channels) == nil)
-        #expect(ChannelGraphs.value(.speed, lapIndex: 0, gridIndex: 999, in: channels) == nil)
+        #expect(ChannelGraphs.value(.rpm, lapIndex: 1, gridIndex: 0, in: channels, units: .imperial) == nil)
+        #expect(ChannelGraphs.value(.speed, lapIndex: 0, gridIndex: 999, in: channels, units: .imperial) == nil)
     }
 
     @Test func theDomainBracketsEveryLapOfTheChannel() throws {
-        let domain = try #require(ChannelGraphs.valueDomain(.speed, in: mkChannels()))
+        let domain = try #require(ChannelGraphs.valueDomain(.speed, in: mkChannels(), units: .imperial))
         let all = mkChannels().laps.flatMap { $0.speed ?? [] }.map { $0 * 0.621371 }
         #expect(domain.low < all.min()!)
         #expect(domain.high > all.max()!)
@@ -87,7 +87,7 @@ struct ChannelGraphsTests {
             dStepM: 20,
             laps: [LapChannels(n: 1, timeMs: 47_000, speed: nil, rpm: nil, latG: [0.4, 1.1, 0.9])]
         )
-        let domain = try #require(ChannelGraphs.valueDomain(.latG, in: channels))
+        let domain = try #require(ChannelGraphs.valueDomain(.latG, in: channels, units: .imperial))
         // An axis starting at 0.4 G would read as if the car never went straight.
         #expect(domain.low == 0)
         #expect(domain.high > 1.1)
@@ -99,7 +99,7 @@ struct ChannelGraphsTests {
             dStepM: 20,
             laps: [LapChannels(n: 1, timeMs: 47_000, speed: nil, rpm: [5000, 5000], latG: nil)]
         )
-        let domain = try #require(ChannelGraphs.valueDomain(.rpm, in: channels))
+        let domain = try #require(ChannelGraphs.valueDomain(.rpm, in: channels, units: .imperial))
         #expect(domain.high > domain.low, "a flat lap draws a line, it doesn't divide by zero")
     }
 
@@ -134,9 +134,28 @@ struct ChannelGraphsTests {
         // Clamped to the axis rather than reading off the end of a lap.
         #expect(ChannelGraphs.gridIndex(atDistance: 99_999, .speed, in: channels) == 89)
         #expect(ChannelGraphs.gridIndex(atDistance: -50, .speed, in: channels) == 0)
-        #expect(ChannelGraphs.fmtDist(940) == "940 m")
-        #expect(ChannelGraphs.fmtDist(2000) == "2 km")
-        #expect(ChannelGraphs.fmtDist(2400) == "2.4 km")
+    }
+
+    /// `channelDefs` / `distAxisTicks` in the JS tests: speed in the user's system,
+    /// everything else the same, and an axis ticked in nice metres or nice miles.
+    @Test func labelsSpeedInTheUsersSystemAndLeavesRpmAndGAlone() {
+        #expect(ChannelGraphs.Channel.speed.unit(.imperial) == "mph")
+        #expect(ChannelGraphs.Channel.speed.unit(.metric) == "km/h")
+        for channel in ChannelGraphs.Channel.allCases where channel != .speed {
+            #expect(channel.unit(.imperial) == channel.unit(.metric), "\(channel)")
+        }
+        #expect(ChannelGraphs.Channel.rpm.unit(.metric) == "rpm")
+        #expect(ChannelGraphs.Channel.latG.unit(.metric) == "G")
+        #expect(Units.jsInt(ChannelGraphs.Channel.speed.convert(100, .imperial)) == 62)
+        #expect(ChannelGraphs.Channel.speed.convert(100, .metric) == 100)
+    }
+
+    @Test func ticksAMetricAxisInNiceMetresAndAnImperialOneInNiceMiles() {
+        #expect(ChannelGraphs.niceNumTicks(0, 1780, count: 6) == [0, 500, 1000, 1500])
+        #expect(ChannelGraphs.distAxisTicks(1780, .metric).map(\.label) == ["0 m", "500 m", "1 km", "1.5 km"])
+        let mi = ChannelGraphs.distAxisTicks(4000, .imperial)
+        #expect(mi.map(\.label) == ["0 mi", "0.5 mi", "1 mi", "1.5 mi", "2 mi"])
+        #expect(abs(mi[2].m - 1609.344) < 1e-6)
     }
 
     /// Cross-language agreement, the same way NS-13 does it: the JS implementation's
@@ -168,7 +187,7 @@ struct ChannelGraphsTests {
         #expect(matches.filter(\.hasChannels).count == matches.count)
         #expect(ChannelGraphs.initialSelection(matches) == [0])
         for channel in ChannelGraphs.presentChannels(channels) {
-            #expect(ChannelGraphs.valueDomain(channel, in: channels) != nil)
+            #expect(ChannelGraphs.valueDomain(channel, in: channels, units: .imperial) != nil)
         }
     }
 }

@@ -112,8 +112,8 @@ struct RecordingScreen: View {
 
                 HStack(spacing: 24) {
                     stat("Fixes", value: "\(recorder.fixCount)")
-                    stat("Speed", value: Self.speed(recorder.lastSpeedMps))
-                    stat("Accuracy", value: Self.accuracy(recorder.lastAccuracyM))
+                    stat("Speed", value: Self.speed(recorder.lastSpeedMps, auth.units))
+                    stat("Accuracy", value: Self.accuracy(recorder.lastAccuracyM, auth.units))
                 }
 
                 if recorder.isRecording {
@@ -300,14 +300,16 @@ struct RecordingScreen: View {
         String(format: "%@%.2f", seconds < 0 ? "−" : "+", abs(seconds))
     }
 
-    private static func speed(_ mps: Double?) -> String {
+    /// "62 mph" / "100 km/h" — the recorder's fixes are m/s.
+    private static func speed(_ mps: Double?, _ units: UnitSystem) -> String {
         guard let mps else { return "—" }
-        return String(format: "%.0f mph", mps * 2.236936)
+        return String(format: "%.0f %@", Units.convSpeedMps(mps, units), Units.speedUnit(units))
     }
 
-    private static func accuracy(_ metres: Double?) -> String {
+    /// "±4 m" / "±13 ft".
+    private static func accuracy(_ metres: Double?, _ units: UnitSystem) -> String {
         guard let metres else { return "—" }
-        return String(format: "±%.0fm", metres)
+        return Units.fmtAccuracy(metres, units)
     }
 
     private static func explain(_ reason: RecordingController.StopReason) -> String {

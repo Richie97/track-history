@@ -35,10 +35,12 @@ public object Limits {
 
     /**
      * Display semantics, not physics: slip above this is wheelspin, below the
-     * negative one is lockup. Tune against real footage.
+     * negative one is lockup. Neither is tight, and wheelspin sits higher
+     * than lockup on purpose: a tyre makes force through slip, and drive slip
+     * has the wider working range. Tune against real footage.
      */
-    public const val WHEELSPIN_PCT: Double = 2.0
-    public const val LOCKUP_PCT: Double = -2.0
+    public const val WHEELSPIN_PCT: Double = 5.0
+    public const val LOCKUP_PCT: Double = -3.0
 
     public const val FLAG_ABS: Int = 1
     public const val FLAG_TC: Int = 2

@@ -15,8 +15,6 @@ struct CompareLapsScreen: View {
     @Environment(AuthController.self) private var auth
     @State private var model: CompareLapsModel?
 
-    private static let kphToMph = 0.621371
-
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model {
@@ -190,11 +188,11 @@ struct CompareLapsScreen: View {
     }
 
     private func mph(_ kph: Double) -> String {
-        "\(Int((kph * Self.kphToMph).rounded())) mph"
+        Units.fmtSpeedKph(kph, auth.units)
     }
 
     private func mphDelta(_ kph: Double) -> String {
-        signed(kph, "\(Int((abs(kph) * Self.kphToMph).rounded())) mph")
+        signed(kph, Units.fmtSpeedKph(abs(kph), auth.units))
     }
 
     private func ppDelta(_ d: Double) -> String {

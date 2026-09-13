@@ -95,6 +95,24 @@ final class AuthController {
         state = .signedIn(current)
     }
 
+    /// The unit system the logbook is shown in — the account's choice, imperial
+    /// until the account loads (what the app always showed, and the server's own
+    /// answer for an account that never chose). Installed as the `\.unitSystem`
+    /// environment value by `TrackEvolutionApp`, which is how the charts read it.
+    var units: UnitSystem {
+        me?.user.effectiveUnits ?? Units.DEFAULT_UNITS
+    }
+
+    /// Save a new unit system, and keep the cached account in step so every screen
+    /// re-renders in it without a round trip. Display-only on the server too:
+    /// nothing stored changes, so switching is safe to do on a whim.
+    func setUnits(_ units: UnitSystem) async throws {
+        try await api.setUnits(units)
+        guard var current = me else { return }
+        current.user.units = units
+        state = .signedIn(current)
+    }
+
     let api: APIClient
     let server: ServerSettings
     private let tokens: KeychainTokenStore

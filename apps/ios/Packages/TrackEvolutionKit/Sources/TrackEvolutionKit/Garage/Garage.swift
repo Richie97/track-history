@@ -138,7 +138,9 @@ public extension PartKind {
     }
 
     /// `WEAR_LIMIT_HINTS` — the suggested replace-at level, shown as a form
-    /// placeholder. A hint, never enforced.
+    /// placeholder. A hint, never enforced. The imperial table, which is the one
+    /// `contracts/logic/garage-status.json` pins; `Units.wearLimitHint` applies
+    /// the account's system on top (tread depth in mm rather than 32nds).
     var wearLimitHint: String? {
         switch self {
         case .padsFront, .padsRear: "3 (mm)"
@@ -147,11 +149,5 @@ public extension PartKind {
         case .rotorsRear: "26 (mm)"
         default: nil
         }
-    }
-
-    /// The unit a first measurement of this kind is most likely in — the web
-    /// measurement form's default (`viewVehicle` in `public/app.js`).
-    var defaultUnit: String {
-        self == .tires ? "32nds" : "mm"
     }
 }

@@ -24,7 +24,7 @@ import TrackEvolutionKit
 /// "min", "at lap end"), because "oil 134 °C" means nothing without knowing it
 /// is the lap's peak rather than its average.
 ///
-/// **The figures show in °F and psi** (`Health.Units.us`), matching the rest of
+/// **The figures show in the account's unit system** — °F and psi, or °C and kPa — like the rest of
 /// the logbook, while the maths stays in the stored units — the conversion is
 /// the last step, exactly as on the web.
 ///
@@ -44,7 +44,10 @@ struct HealthStrip: View {
 
     @Environment(\.layout) private var layout
 
-    private static let units = Health.Units.us
+    @Environment(\.unitSystem) private var unitSystem
+    /// `Health` names its two systems the stored one and the US one; the account's
+    /// choice maps onto that pair.
+    private var units: Health.Units { Health.Units(unitSystem) }
 
     var body: some View {
         if let sh = Health.sessionHealth(channels) {
@@ -139,7 +142,7 @@ struct HealthStrip: View {
                                         .teStyle(.eyebrow)
                                         .foregroundStyle(Color(.textFaint))
                                     if let def {
-                                        Text(Health.displayValue(def, 0, Self.units).unit)
+                                        Text(Health.displayValue(def, 0, units).unit)
                                             .teStyle(.xxs)
                                             .foregroundStyle(Color(.textFaint))
                                     }
@@ -178,7 +181,7 @@ struct HealthStrip: View {
     @ViewBuilder
     private func tableCell(_ row: Health.Row, _ column: Health.Column) -> some View {
         if let def = Health.defFor(column.key), let value = row.values[column.key] {
-            Text(Health.displayValue(def, value, Self.units).text)
+            Text(Health.displayValue(def, value, units).text)
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textStrong))
                 .monospacedDigit()
@@ -194,7 +197,7 @@ struct HealthStrip: View {
     @ViewBuilder
     private func card(_ column: Health.Column, order: [Int]) -> some View {
         if let def = Health.defFor(column.key) {
-            let display = Health.displayValue(def, column.extreme.v, Self.units)
+            let display = Health.displayValue(def, column.extreme.v, units)
             VStack(alignment: .leading, spacing: 2) {
                 Text(def.label)
                     .teStyle(.xs)
@@ -355,9 +358,9 @@ struct HealthStrip: View {
     }
 
     private func spreadText(_ def: Health.Def, _ spread: Health.LapSpread, _ label: String) -> String {
-        let front = Health.displayDelta(def, spread.front, Self.units).text
-        let rear = Health.displayDelta(def, spread.rear, Self.units).text
-        let axle = Health.displayDelta(def, spread.axle, Self.units).text
+        let front = Health.displayDelta(def, spread.front, units).text
+        let rear = Health.displayDelta(def, spread.rear, units).text
+        let axle = Health.displayDelta(def, spread.axle, units).text
         return "\(label) — front L−R \(front), rear L−R \(rear), front−rear \(axle)"
     }
 
@@ -377,10 +380,10 @@ struct HealthStrip: View {
     /// else every figure by name — a grid of sparklines is exactly what a
     /// screen-reader user cannot see.
     private func summary(_ sh: Health.SessionHealth) -> String {
-        if let line = Health.healthSummary(channels, Self.units) { return line }
+        if let line = Health.healthSummary(channels, units) { return line }
         return sh.columns.compactMap { column -> String? in
             guard let def = Health.defFor(column.key) else { return nil }
-            return "\(def.label) \(Health.displayValue(def, column.extreme.v, Self.units).text)"
+            return "\(def.label) \(Health.displayValue(def, column.extreme.v, units).text)"
         }
         .joined(separator: ", ")
     }

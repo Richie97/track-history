@@ -108,12 +108,14 @@ public enum Telemetry {
     }
 
     /// "top speed 121 mph · max 6,703 rpm · 1.43 G lateral" from a PDR file's car
-    /// channels; "" when the source has none.
-    public static func metricsSummary(_ p: ParsedTelemetry) -> String {
+    /// channels; "" when the source has none. The speed is written in the user's
+    /// unit system at import time — it lands in the session's free-text notes, so
+    /// it is a record of what was said, not a value a later toggle can re-render.
+    public static func metricsSummary(_ p: ParsedTelemetry, _ units: UnitSystem) -> String {
         guard let m = p.metrics else { return "" }
         var parts: [String] = []
-        if let top = m.topSpeedKph, let mph = JSMath.roundToInt(top / 1.609344) {
-            parts.append("top speed \(mph) mph")
+        if let top = m.topSpeedKph {
+            parts.append("top speed \(Units.fmtSpeedKph(top, units))")
         }
         if let rpm = m.maxRpm, let rounded = JSMath.roundToInt(rpm) {
             parts.append("max \(grouped(rounded)) rpm")
@@ -150,11 +152,11 @@ public enum Telemetry {
 
     /// The notes line the web importer writes, so a session imported on the phone
     /// reads identically to the same file imported at a desk.
-    public static func importNotes(_ p: ParsedTelemetry, file: String) -> String {
+    public static func importNotes(_ p: ParsedTelemetry, file: String, units: UnitSystem) -> String {
         let source = p.kind == .live
             ? "Recorded with the in-app lap timer"
             : "Imported from \(file)"
-        let metrics = metricsSummary(p)
+        let metrics = metricsSummary(p, units)
         let note = estimatedNote(p, estCount: p.laps.filter(\.estimated).count)
         return source
             + (metrics.isEmpty ? "" : " — \(metrics)")

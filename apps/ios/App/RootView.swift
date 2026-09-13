@@ -273,8 +273,8 @@ struct RootView: View {
             // Discarding leaves the recorder for the dashboard rather than popping one
             // step onto a Start button.
             RecordingScreen(eventId: eventId, onFinish: { router.popToRoot() })
-        case .importVideo(let eventId, let incoming):
-            ImportScreen(eventId: eventId, incoming: incoming)
+        case .importVideo(let eventId, let incoming, let forNewEvent):
+            ImportScreen(eventId: eventId, incoming: incoming, forNewEvent: forNewEvent)
         case .shared(let slug):
             SharedLogbookScreen(slug: slug)
         case .lap(let eventId, let sessionId, let lapId):
@@ -308,7 +308,7 @@ struct RootView: View {
         case .event(let id): id
         case .eventForm(.edit(let id)): id
         case .record(let id): id
-        case .importVideo(let id, _): id
+        case .importVideo(let id, _, _): id
         // The first temp id of the three; the 3-second loop below resolves the
         // next one on its next pass, which is soon enough.
         case .lap(let eventId, let sessionId, let lapId):

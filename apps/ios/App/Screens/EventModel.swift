@@ -169,8 +169,9 @@ extension Session {
 
     /// The analysis line under a session header: representative pace, how long it
     /// took to get up to speed, and whether pace faded. Same wording and thresholds
-    /// as `viewEvent` in `public/app.js`.
-    var statsSummary: String? {
+    /// as `viewEvent` in `public/app.js`. `units` is the account's system, for
+    /// the health figures the line quotes.
+    func statsSummary(units: UnitSystem) -> String? {
         let laps = lapTimesMs
         var parts: [String] = []
         if let best3 = LapStats.bestNAvg(laps, 3) {
@@ -208,7 +209,7 @@ extension Session {
         }
         // What the car was doing (`Health`, #190): any figure past its line and
         // the fuel outlook; the cards themselves are on the panel's Car tab.
-        if let channels, let health = Health.healthSummary(channels, .us) {
+        if let channels, let health = Health.healthSummary(channels, Health.Units(units)) {
             parts.append(health)
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

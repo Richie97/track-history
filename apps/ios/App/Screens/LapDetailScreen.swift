@@ -29,8 +29,6 @@ struct LapDetailScreen: View {
     @Environment(AuthController.self) private var auth
     @State private var model: EventModel?
 
-    private static let kphToMph = 0.621371
-
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model, let detail = model.detail {
@@ -225,8 +223,9 @@ struct LapDetailScreen: View {
         }
     }
 
+    /// Speed in the account's unit system, as the rest of the app shows it.
     private func mph(_ kph: Double) -> String {
-        "\(Int((kph * Self.kphToMph).rounded())) mph"
+        Units.fmtSpeedKph(kph, auth.units)
     }
 }
 

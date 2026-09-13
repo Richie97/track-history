@@ -25,6 +25,8 @@ struct TrackMapView: View {
     /// Read so the ramp is rebuilt when the theme flips — the two endpoint tokens
     /// differ by hue between light and dark, not just lightness.
     @Environment(\.colorScheme) private var scheme
+    /// For the spoken summary's speeds.
+    @Environment(\.unitSystem) private var units
 
     var body: some View {
         GeometryReader { geometry in
@@ -108,7 +110,7 @@ struct TrackMapView: View {
         }
         .accessibilityElement()
         .accessibilityLabel(Self.label(markers))
-        .accessibilityValue(Self.summary(trace, markers))
+        .accessibilityValue(Self.summary(trace, markers, units: units))
     }
 
     /// A marker: the kind's shape, filled or hollow in its side's colour with a
@@ -169,11 +171,13 @@ struct TrackMapView: View {
             + kinds.map(\.label).joined(separator: ", ") + " were active"
     }
 
-    static func summary(_ trace: [TracePoint], _ markers: [Limits.Marker] = []) -> String {
+    static func summary(_ trace: [TracePoint], _ markers: [Limits.Marker] = [], units: UnitSystem) -> String {
         guard let speeds = ChartScale.speedRange(trace) else { return "No trace" }
+        // The trace's speeds are m/s; said in the account's system.
         let line = String(
-            format: "%d points, %.0f to %.0f mph",
-            trace.count, speeds.slowest * 2.236936, speeds.fastest * 2.236936
+            format: "%d points, %.0f to %.0f %@",
+            trace.count, Units.convSpeedMps(speeds.slowest, units), Units.convSpeedMps(speeds.fastest, units),
+            Units.speedUnit(units)
         )
         guard !markers.isEmpty else { return line }
         let counts = Limits.LIMIT_KINDS.compactMap { kind -> String? in

@@ -14,7 +14,7 @@ struct LimitsTests {
     /// gap), TC once on an exit (k 9–10), VSC never; wheelspin on that same exit
     /// and a lockup at k 3.
     private let flags: [Double] = [0, 0, ABS, 0, ABS, ABS, 0, 0, 0, TC, TC, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    private let slip: [Double] = [0, 0, 0, -3, -1, 0, 0, 0, 0.5, 3, 4.5, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+    private let slip: [Double] = [0, 0, 0, -4, -1, 0, 0, 0, 0.5, 6, 7.5, 4.5, 0, 0, 0, 0, 0, 0, 0, 0]
 
     private var lap: LapChannels {
         LapChannels(
@@ -32,6 +32,9 @@ struct LimitsTests {
         #expect(Limits.limitAt(lap, "vsc", 9) == false)
         #expect(Limits.limitAt(lap, "wheelspin", 10) == true)
         #expect(Limits.limitAt(lap, "wheelspin", 8) == false) // 0.5 % is noise
+        #expect(Limits.limitAt(lap, "wheelspin", 11) == false) // 4.5 % is a tyre working, not spinning
+        #expect(Limits.limitAt(LapChannels(n: 1, timeMs: 0, wheelSlip: [Limits.WHEELSPIN_PCT]), "wheelspin", 0) == false) // strictly above
+        #expect(Limits.limitAt(LapChannels(n: 1, timeMs: 0, wheelSlip: [Limits.LOCKUP_PCT]), "lockup", 0) == false) // strictly below
         #expect(Limits.limitAt(lap, "lockup", 3) == true)
         #expect(Limits.limitAt(LapChannels(n: 1, timeMs: 0, flags: flags), "wheelspin", 3) == nil)
         #expect(Limits.limitAt(LapChannels(n: 1, timeMs: 0, wheelSlip: slip), "abs", 3) == nil)

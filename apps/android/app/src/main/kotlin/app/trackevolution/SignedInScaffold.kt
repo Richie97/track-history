@@ -96,6 +96,7 @@ fun SignedInScaffold(
     val pending by Recorder.finished.collectAsState()
     val review by flow.state.collectAsState()
     val saved by flow.saved.collectAsState()
+    val stagedImports by flow.staged.collectAsState()
     val parkedLink by router.pending.collectAsState()
     val entry by nav.currentBackStackEntryAsState()
 
@@ -168,6 +169,13 @@ fun SignedInScaffold(
     LaunchedEffect(saved) {
         if (saved) {
             reviewing = false
+            if (review.forNewEvent) {
+                // The drafts went to `flow.staged`, and the New Event form is the
+                // destination underneath — the chooser came off the stack when the
+                // review opened — so closing the review is all there is to do.
+                flow.acknowledgeSaved()
+                return@LaunchedEffect
+            }
             val importedInto = if (review.isImport) flow.savedEventId else null
             nav.popBackStack(Route.Dashboard, inclusive = false)
             // An import came from an event's page and its sessions are now on
@@ -269,14 +277,17 @@ fun SignedInScaffold(
                     onSignOut = onSignOut,
                     entitlement = entitlement,
                     onRequirePro = { paywall = true },
-                    onImportParsed = { eventId, clips: List<ImportedClip> ->
+                    onImportParsed = { route, clips: List<ImportedClip> ->
                         // Same shape as a recording stopping: the review covers the
                         // graph, and the chooser comes off the stack underneath it
-                        // so backing out of the review lands on the event page.
-                        flow.beginImport(clips, eventId)
+                        // so backing out of the review lands on the event page — or
+                        // on the New Event form, for an import started from it.
+                        flow.beginImport(clips, route.eventId, forNewEvent = route.forNewEvent)
                         reviewing = true
                         nav.popBackStack()
                     },
+                    stagedImports = stagedImports,
+                    onConsumeStagedImports = { flow.takeStaged() },
                     incomingImport = incomingImport,
                     onConsumedIncomingImport = onConsumedIncomingImport,
                     // At expanded width the dashboard is the pane beside this, so the
