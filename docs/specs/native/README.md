@@ -443,6 +443,12 @@ Features added after the rewrite shipped, and where they landed:
   in `src/` first. The gates went live in phase D: `requireEntitlement` on the
   garage consumables and the setups routes, `stripProFields` on the one field
   (`sessions.channels`), and the client gates on the recorder and the importer.
+  Since 2026-09 ([#264](https://github.com/Richie97/track-history/issues/264))
+  the strip keeps the **speed, throttle and brake** traces for a free account
+  on all three clients — `FREE_CHANNELS`, the same allow-list in the server,
+  `entitlement.js` and both ports — and the delta chart, sector splits and the
+  two-lap compare stay Pro through `canViewChannels`; every free channel panel
+  ends on a note saying what the rest of the recording would show.
   The web-only Pro features — the two-event overlay, year in review, the setup
   notebook — gate on the client through `public/js/entitlement.js`, whose
   predicates both ports carry under the same names even where no native screen

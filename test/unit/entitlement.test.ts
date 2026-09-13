@@ -4,11 +4,14 @@ import {
   LEGACY_ENTITLED_UNTIL_MS,
   entitledUntilContribution,
   entitlementResponse,
+  FREE_CHANNELS,
+  freeChannels,
   isEntitled,
   legacyClaimOpen,
   parseClientHeader,
   stripProFields,
 } from "../../src/lib/entitlement";
+import { GRIDDED_CHANNEL_NAMES } from "../../src/lib/validate";
 import { appleBundleId, appleSubscriptionState } from "../../src/lib/billing/apple";
 import { googleSubscriptionState } from "../../src/lib/billing/google";
 import { compareVersions } from "../../src/routes/billing";
@@ -85,10 +88,32 @@ describe("entitlementResponse", () => {
   });
 });
 
-describe("stripProFields", () => {
-  const session = { id: 1, trace: [[0, 0, 30]], channels: { dStepM: 20, laps: [] }, laps: [] };
-  it("nulls channels and keeps trace for a free account", () => {
-    expect(stripProFields(session, false)).toEqual({ ...session, channels: null });
+describe("stripProFields / freeChannels", () => {
+  const arr = (v: number) => Array.from({ length: 12 }, () => v);
+  const lap = { n: 1, timeMs: 95_000, speed: arr(100), throttle: arr(80), brake: arr(0), rpm: arr(5000), latG: arr(1), gear: arr(3), flags: arr(0), oilC: 110, tyreKpaLF: 230 };
+  const channels = { v: 1 as const, dStepM: 20, meta: { ambientC: 21, odometerKm: 50_000 }, laps: [lap] };
+  const session = { id: 1, trace: [[0, 0, 30]], channels, laps: [] };
+
+  it("keeps speed, throttle and brake — and nothing else on the lap — for a free account", () => {
+    const stripped = stripProFields(session, false);
+    expect(stripped.trace).toBe(session.trace);
+    expect(stripped.channels).toEqual({
+      v: 1,
+      dStepM: 20,
+      meta: { ambientC: 21, odometerKm: 50_000 },
+      laps: [{ n: 1, timeMs: 95_000, speed: arr(100), throttle: arr(80), brake: arr(0) }],
+    });
+    // FREE_CHANNELS is the allow-list: every gridded channel not named there is Pro.
+    expect(FREE_CHANNELS).toEqual(["speed", "throttle", "brake"]);
+    for (const name of GRIDDED_CHANNEL_NAMES) {
+      expect(name in stripped.channels!.laps[0], name).toBe(FREE_CHANNELS.includes(name));
+    }
+  });
+  it("drops a lap entry with no free channel, and the blob when none survive", () => {
+    const proOnly = { n: 2, timeMs: 96_000, rpm: arr(5000), oilC: 100 };
+    expect(freeChannels({ v: 1, dStepM: 20, laps: [lap, proOnly] })!.laps.map((l) => l.n)).toEqual([1]);
+    expect(freeChannels({ v: 1, dStepM: 20, laps: [proOnly] })).toBeNull();
+    expect(stripProFields({ channels: { v: 1, dStepM: 20, laps: [proOnly] } }, false).channels).toBeNull();
   });
   it("is a pass-through for Pro and for a session with no channels", () => {
     expect(stripProFields(session, true)).toBe(session);

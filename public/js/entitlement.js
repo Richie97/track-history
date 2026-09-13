@@ -33,10 +33,20 @@ export const canRecord = (entitlement) => isPro(entitlement);
 // arrays it also writes are the Pro half, and the server is what withholds them
 // (`stripProFields`) — see canViewChannels.
 
-// Channel graphs, the lap delta chart, the two-lap compare and sector splits
-// all read `channels`, which the server strips for a free account (rule 4); the
-// client-side check only decides whether to show the paywall copy on the
-// resulting empty state.
+// The three traces a free account keeps (#264): speed, throttle and brake —
+// the ones any driver can read at a glance. The server enforces this
+// (`FREE_CHANNELS` in src/lib/entitlement.ts strips every other gridded
+// channel and every per-lap scalar for a free account); the client-side
+// predicate only decides what to *say* about a channel that isn't there.
+export const FREE_CHANNELS = Object.freeze(["speed", "throttle", "brake"]);
+export const canViewChannel = (entitlement, key) => FREE_CHANNELS.includes(key) || isPro(entitlement);
+
+// The Pro half of the channel panel: every channel beyond FREE_CHANNELS
+// (steering, RPM, lateral G, yaw, gear, the limit marks, the Car tab), the
+// lap delta chart, sector splits and the two-lap compare. The server strips
+// the channels themselves (rule 4); the delta and the sectors derive from the
+// free speed trace, so for those this predicate is the gate, and it is also
+// what decides whether the panel carries the locked note.
 export const canViewChannels = (entitlement) => isPro(entitlement);
 
 // Garage consumables, the setup notebook and year in review.

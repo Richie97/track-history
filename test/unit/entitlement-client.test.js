@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   APPLE_MANAGE_URL,
+  FREE_CHANNELS,
   FREE_ENTITLEMENT,
   GOOGLE_MANAGE_URL,
   canCompareEvents,
+  canViewChannel,
   canRecord,
   canUseGarage,
   canUseSetups,
@@ -33,6 +35,21 @@ describe("isPro and the feature predicates", () => {
       expect(can(stale)).toBe(true);
       expect(can(FREE_ENTITLEMENT)).toBe(false);
       expect(can(null)).toBe(false);
+    }
+  });
+});
+
+describe("canViewChannel (#264)", () => {
+  it("speed, throttle and brake are free; every other channel follows the tier", () => {
+    expect(FREE_CHANNELS).toEqual(["speed", "throttle", "brake"]);
+    for (const key of FREE_CHANNELS) {
+      expect(canViewChannel(FREE_ENTITLEMENT, key), key).toBe(true);
+      expect(canViewChannel(null, key), key).toBe(true);
+    }
+    for (const key of ["rpm", "latG", "steering", "yaw", "gear", "flags", "wheelSlip", "boost", "longG"]) {
+      expect(canViewChannel(FREE_ENTITLEMENT, key), key).toBe(false);
+      expect(canViewChannel(pro(), key), key).toBe(true);
+      expect(canViewChannel(pro({ expires_at: 1 }), key), key).toBe(true);
     }
   });
 });

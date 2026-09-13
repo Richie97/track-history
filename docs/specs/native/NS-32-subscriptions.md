@@ -54,7 +54,8 @@ turns lap times into analysis.
 | The garage's **vehicle list** (pre-fills the car field) | Free | — |
 | GPS lap recorder, live timing, predictive delta | **Pro** | Client, at *start* (rule 5) |
 | Telemetry import — video on the phones, video + `.vbo` on web | Free | — (revised after phase D; see the note below) |
-| Channel graphs, lap delta chart, sector splits, gear ribbon + shift points, limit marks (ABS / slip on the track map), two-lap compare | **Pro** | Server: `channels` stripped from session payloads (rule 4) |
+| Channel graphs — the **speed, throttle and brake** traces, on the event page, the lap detail and the leaderboard lap | Free | — (revised 2026-09, [#264](https://github.com/Richie97/track-history/issues/264); see rule 4) |
+| The rest of the channel panel: steering, RPM, lateral G, yaw, the gear ribbon + shift points, limit marks (ABS / slip on the track map), the friction circle and balance, the Car tab; the lap delta chart, sector splits, the two-lap compare | **Pro** | Server: every channel beyond `FREE_CHANNELS` and every per-lap scalar stripped from `channels` (rule 4); client: `canViewChannels` for the delta, the sectors and the compare, which derive from the free speed trace |
 | Two-event lap overlay (web) | **Pro** | Client |
 | Garage **consumables**: parts, wear, measurements, refresh, ledger | **Pro** | Server: `requireEntitlement` on the parts/measurements routes and `GET /garage` |
 | Setup notebook + setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes |
@@ -194,19 +195,32 @@ section applies to the web/native split.
   token's state from the API rather than trusting the notification's type —
   RTDN tells you *something changed*, the API tells you *what*.
 
-### 4. `channels` is the Pro field
+### 4. `channels` is the Pro field — most of it
 
 Every response that carries `sessions.channels` — the event detail in
-`routes/events.ts`, and whatever the two-lap compare reads — passes through
-one helper, `stripProFields(row, entitled)`, that nulls `channels` for a free
-account. `trace` is **not** stripped: the track map is part of the free
-logbook, and a session with a trace and no channels is exactly what a recorder
-save looks like today.
+`routes/events.ts` and the leaderboard lap in `routes/tracks.ts` — passes
+through one helper, `stripProFields(row, entitled)`. `trace` is **not**
+stripped: the track map is part of the free logbook, and a session with a
+trace and no channels is exactly what a recorder save looks like today.
 
-The clients already render "no channel data" for `channels: null`; the paywall
-copy is layered on that state, not a new one. A Pro user who lapses keeps
-seeing channels from the offline cache until the next successful fetch — that
-is acceptable and not worth a cache purge.
+> **Revised 2026-09 ([#264](https://github.com/Richie97/track-history/issues/264)):
+> a free account keeps three traces.** `stripProFields` used to null the whole
+> blob. It now reduces each lap entry to `n`, `timeMs` and the channels named
+> in `FREE_CHANNELS` — **speed, throttle and brake**, the three any driver can
+> read at a glance — and drops every other gridded channel and every per-lap
+> scalar; `meta` (session conditions) is kept. Built by allow-list, the way
+> `lib/leaderboard.ts` publishes a lap, so a channel added later is Pro until
+> it is named. The same constant lives in `public/js/entitlement.js` and both
+> native ports, with `canViewChannel(entitlement, key)` pinned by the
+> entitlement fixture. What the free traces make derivable — the lap delta
+> chart and sector splits, both integrated from speed — stays Pro, gated on the
+> client by `canViewChannels`, and every free channel panel ends on a note
+> saying what the rest of the recording would show.
+
+The clients already render whatever channels are present and nothing for the
+rest; the locked note is layered on that state, not a new one. A Pro user who
+lapses keeps seeing channels from the offline cache until the next successful
+fetch — that is acceptable and not worth a cache purge.
 
 ### 5. A lapse never destroys laps
 

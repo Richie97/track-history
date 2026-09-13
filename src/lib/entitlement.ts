@@ -1,3 +1,5 @@
+import type { ChannelName, LapChannelEntry, LapChannels } from "./validate";
+
 // The entitlement rule (NS-32 requirement 1), pure and unit-tested. The
 // database truth is users.entitled_until; everything here either derives from
 // it or is the SQL that recomputes it.
@@ -104,13 +106,46 @@ export function entitlementResponse(
   };
 }
 
-// The Pro field (NS-32 rule 4): `channels` is nulled for a free account,
-// `trace` is kept — the track map is part of the free logbook, and a session
-// with a trace and no channels is exactly what a recorder save looks like.
-// Written in phase A, wired to the event detail and the compare read in phase D.
-export function stripProFields<T extends { channels?: unknown }>(row: T, entitled: boolean): T {
+// The Pro field (NS-32 rule 4, revised 2026-09 — #264): a free account keeps
+// the three traces any driver can read at a glance — speed, throttle and brake
+// — and loses everything else in `sessions.channels`: the other gridded
+// channels (steering, RPM, lateral/longitudinal G, yaw, gear, wheel slip,
+// boost, the ABS/TC flags) and every per-lap scalar (the Car tab). `trace` is
+// kept — the track map is part of the free logbook — and so is `meta`, which
+// is session conditions rather than analysis. Mirrored by FREE_CHANNELS in
+// public/js/entitlement.js and both native ports; keep the four in step.
+export const FREE_CHANNELS: readonly ChannelName[] = ["speed", "throttle", "brake"];
+
+// A stored channels blob reduced to what a free account may read. Built by
+// allow-list, the way lib/leaderboard.ts publishes a lap: a channel added to
+// CHANNEL_SPECS is Pro until it is named here. A lap entry left with no
+// channel is dropped, and a blob left with no laps becomes null — the shape
+// every client already renders as "no channel data".
+export function freeChannels(channels: LapChannels): LapChannels | null {
+  const laps: LapChannelEntry[] = [];
+  for (const src of channels.laps) {
+    const entry: LapChannelEntry = { n: src.n, timeMs: src.timeMs };
+    let any = false;
+    for (const name of FREE_CHANNELS) {
+      const arr = src[name];
+      if (!Array.isArray(arr)) continue;
+      entry[name] = arr;
+      any = true;
+    }
+    if (any) laps.push(entry);
+  }
+  if (!laps.length) return null;
+  const out: LapChannels = { v: 1, dStepM: channels.dStepM, laps };
+  if (channels.meta) out.meta = channels.meta;
+  return out;
+}
+
+// Pass-through for Pro and for a row with nothing to strip; for a free account
+// `channels` is reduced to its free half. Wired to the event detail and the
+// leaderboard lap — the two responses that carry `channels`.
+export function stripProFields<T extends { channels?: LapChannels | null }>(row: T, entitled: boolean): T {
   if (entitled || row.channels == null) return row;
-  return { ...row, channels: null };
+  return { ...row, channels: freeChannels(row.channels) };
 }
 
 // Android's transitional legacy claim (NS-32 requirement 6) is honoured only

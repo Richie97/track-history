@@ -47,7 +47,9 @@ describe("session conditions (#191)", () => {
     });
     await env.DB.prepare("DELETE FROM subscriptions WHERE user_id = ?").bind(pro.id).run();
     const s = (await apiClient(pro.token)("GET", `/events/${eventId}`)).body.sessions[0];
-    expect(s.channels).toBeNull();
+    // A free account keeps the speed trace and the meta (#264); the columns
+    // below are derived from the meta at insert and stay whatever the tier.
+    expect(s.channels).toEqual(channels({ ambientC: 31.5, elevationM: 12 }));
     expect(s.ambient_c).toBe(31.5);
     expect(s.elevation_m).toBe(12);
   });
