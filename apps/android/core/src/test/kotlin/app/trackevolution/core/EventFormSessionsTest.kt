@@ -6,8 +6,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
 
 /**
  * The New Event form's posting rule, pinned to `public/js/event-form.js`
@@ -41,7 +41,7 @@ class EventFormSessionsTest {
                 laps = hand?.get("laps")?.jsonPrimitive?.content,
                 notes = hand?.get("notes")?.jsonPrimitive?.content,
             )
-            assertEquals(c["name"]!!.jsonPrimitive.content, draftsOf(c["expected"]!!.jsonArray), actual)
+            assertEquals(draftsOf(c["expected"]!!.jsonArray), actual, c["name"]!!.jsonPrimitive.content)
         }
     }
 
