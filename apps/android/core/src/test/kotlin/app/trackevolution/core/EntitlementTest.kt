@@ -49,6 +49,16 @@ class EntitlementTest {
             assertEquals(flag("isPro"), Entitlement.isPro(entitlement), "$name: isPro")
             assertEquals(flag("canRecord"), Entitlement.canRecord(entitlement), "$name: canRecord")
             assertEquals(flag("canViewChannels"), Entitlement.canViewChannels(entitlement), "$name: canViewChannels")
+            // Per gridded channel (#264): the free three are true for everyone.
+            val perChannel = expected["canViewChannel"]!!.jsonObject
+            assertTrue(perChannel.size >= 12, "$name: the fixture names every gridded channel")
+            for ((key, allowed) in perChannel) {
+                assertEquals(
+                    allowed.jsonPrimitive.content.toBooleanStrict(),
+                    Entitlement.canViewChannel(entitlement, key),
+                    "$name: canViewChannel($key)",
+                )
+            }
             assertEquals(flag("canUseGarage"), Entitlement.canUseGarage(entitlement), "$name: canUseGarage")
             assertEquals(flag("canUseSetups"), Entitlement.canUseSetups(entitlement), "$name: canUseSetups")
             assertEquals(
@@ -76,6 +86,24 @@ class EntitlementTest {
                 Entitlement.entitlementSummary(entitlement) { ms -> "<$ms>" },
                 "$name: summary",
             )
+        }
+    }
+
+    @Test
+    fun `the free allow-list is the web's`() {
+        assertEquals(
+            fixture["freeChannels"]!!.jsonArray.map { it.jsonPrimitive.content },
+            Entitlement.FREE_CHANNELS,
+        )
+        assertEquals(listOf("speed", "throttle", "brake"), Entitlement.FREE_CHANNELS)
+        for (key in Entitlement.FREE_CHANNELS) {
+            assertTrue(Entitlement.canViewChannel(Entitlement.FREE, key), key)
+            assertTrue(Entitlement.canViewChannel(null, key), key)
+        }
+        val pro = Entitlement(tier = Entitlement.Tier.PRO, source = Entitlement.Source.APPLE, expiresAt = 1L, autoRenew = true)
+        for (key in listOf("rpm", "latG", "steering", "yaw", "gear", "flags", "wheelSlip", "boost", "longG")) {
+            assertFalse(Entitlement.canViewChannel(Entitlement.FREE, key), key)
+            assertTrue(Entitlement.canViewChannel(pro, key), key)
         }
     }
 

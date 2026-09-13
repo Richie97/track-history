@@ -427,6 +427,25 @@ Features added after the rewrite shipped, and where they landed:
   from the phone apps was considered and refused: bearer-authenticated apps
   cannot hand a signed-in session to the phone's browser, so the link would
   land on the web login.
+- **Lap detail** (2026-09, [#267](https://github.com/Richie97/track-history/issues/267)
+  iOS, [#268](https://github.com/Richie97/track-history/issues/268) Android) —
+  **native only, by design.** On the phones every lap row on the event page
+  opens a screen of its own: the time and the gap to the session's best, the
+  racing line when this is the lap the session's trace was drawn from (the
+  best — the trace is one polyline per session), the lap's own channel traces
+  through the existing panel with a one-entry blob (the leaderboard lap's
+  trick), a facts card off `CompareLaps.lapMetrics`, and a *Compare laps*
+  control that opens the session's multi-lap overlay with this lap lit beside
+  the best — a sheet on iOS, a destination (`Route.SessionCompare`) on
+  Android, where the session card no longer inlines the panel. Everything
+  below the time is optional and a hand-entered lap is a time and a sentence.
+  The web keeps its chips-are-the-lap-list layout with the best lap
+  pre-selected: at a desk the overlay is already one click away, and a page
+  per lap would be a detour there. The rule lives on each platform rather
+  than in `contracts/logic/` because there is no web implementation to pin it
+  to — the first deliberate exception to the frontier rule, taken because the
+  screen is a phone's answer to a phone's problem (a lap list too narrow to
+  hold the chips and the charts at once).
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
@@ -443,6 +462,12 @@ Features added after the rewrite shipped, and where they landed:
   in `src/` first. The gates went live in phase D: `requireEntitlement` on the
   garage consumables and the setups routes, `stripProFields` on the one field
   (`sessions.channels`), and the client gates on the recorder and the importer.
+  Since 2026-09 ([#264](https://github.com/Richie97/track-history/issues/264))
+  the strip keeps the **speed, throttle and brake** traces for a free account
+  on all three clients — `FREE_CHANNELS`, the same allow-list in the server,
+  `entitlement.js` and both ports — and the delta chart, sector splits and the
+  two-lap compare stay Pro through `canViewChannels`; every free channel panel
+  ends on a note saying what the rest of the recording would show.
   The web-only Pro features — the two-event overlay, year in review, the setup
   notebook — gate on the client through `public/js/entitlement.js`, whose
   predicates both ports carry under the same names even where no native screen

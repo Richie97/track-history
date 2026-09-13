@@ -277,6 +277,8 @@ struct RootView: View {
             ImportScreen(eventId: eventId, incoming: incoming, forNewEvent: forNewEvent)
         case .shared(let slug):
             SharedLogbookScreen(slug: slug)
+        case .lap(let eventId, let sessionId, let lapId):
+            LapDetailScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
         }
     }
 
@@ -307,6 +309,10 @@ struct RootView: View {
         case .eventForm(.edit(let id)): id
         case .record(let id): id
         case .importVideo(let id, _, _): id
+        // The first temp id of the three; the 3-second loop below resolves the
+        // next one on its next pass, which is soon enough.
+        case .lap(let eventId, let sessionId, let lapId):
+            [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
         case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new): nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }

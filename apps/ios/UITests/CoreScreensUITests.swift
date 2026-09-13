@@ -139,13 +139,15 @@ final class CoreScreensUITests: XCTestCase {
 
         app.buttons["Add session"].tap()
 
-        // The laps, as rows — exact match, because "LAP TIMES" is a field label on
-        // this same screen and a prefix match would pass without any laps at all.
+        // The laps, as rows — each a button since #267, labelled "Lap N · m:ss.fff"
+        // as on the web. The separator keeps "LAP TIMES", a field label on this same
+        // screen, from matching.
+        let lap1 = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Lap 1 ·'")).firstMatch
+        XCTAssertTrue(lap1.waitForExistence(timeout: 20), "the saved session's laps should be listed")
         XCTAssertTrue(
-            app.staticTexts["Lap 1"].waitForExistence(timeout: 20),
-            "the saved session's laps should be listed"
+            app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Lap 5 ·'")).firstMatch.exists,
+            "all five of them"
         )
-        XCTAssertTrue(app.staticTexts["Lap 5"].exists, "all five of them")
         // The ported `lap-stats.js` analysis, and the event's recomputed aggregates.
         XCTAssertTrue(
             app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'best 3 avg'")).firstMatch.exists,
@@ -160,6 +162,18 @@ final class CoreScreensUITests: XCTestCase {
         // NS-17's recorder. The event page is the door that attaches a recording to
         // *this* event; the dashboard's is the one for a session about to be driven.
         XCTAssertTrue(app.buttons["recordEntry"].exists)
+
+        // A lap opens (#267). For a hand-entered lap the detail is its time and a
+        // sentence: no map, no traces and no compare, none of them drawn empty.
+        XCTAssertTrue(scrollTo(lap1, in: app))
+        lap1.tap()
+        let lapDetail = app.descendants(matching: .any).matching(identifier: "lapDetail").firstMatch
+        XCTAssertTrue(lapDetail.waitForExistence(timeout: 15), "tapping a lap should open its detail")
+        XCTAssertTrue(lapDetail.label.contains("Lap 1 of 5"), "the detail names the lap: \(lapDetail.label)")
+        XCTAssertFalse(app.buttons["compareLaps"].exists, "a session without telemetry has nothing to compare")
+        attach(app, named: "lap-detail")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["recordEntry"].waitForExistence(timeout: 15), "back on the event page")
 
         deleteCurrentEvent(app)
     }

@@ -116,6 +116,15 @@ function proNoteHtml(text) {
   return `<div class="pro-note"><span class="pro-badge">Pro</span> ${text}</div>`;
 }
 
+// What the Pro half of a channel blob is (#264): a free account keeps the
+// speed, throttle and brake traces and the server strips the rest, so this is
+// the one sentence every free channel panel ends on. "Where the recording
+// carries them" because a GoPro clip has none of these for anyone.
+const PRO_CHANNELS_NOTE =
+  "Pro unlocks the rest of the recording where it carries them: steering, RPM, lateral G and yaw traces, " +
+  "the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits with a theoretical best, " +
+  "the car-health strip, and lap-vs-lap delta charts.";
+
 // ---------- garage & setup-sheet renderers -----------------------------------
 
 // Every part in the garage payload, across vehicles — resolves the part ids
@@ -1474,17 +1483,13 @@ async function viewLeaderboardLap(trackId, lapId, params) {
        </div>`
     : "";
 
-  if (!canViewChannels(state.entitlement) || !lap.channels?.laps?.length) {
+  // A free account gets the lap's speed, throttle and brake traces — the
+  // server keeps those three (#264) — with the delta chart and the sector
+  // table, which derive from them, behind the Pro panel under the charts.
+  const proOk = canViewChannels(state.entitlement);
+  if (!lap.channels?.laps?.length) {
     const view = shell(`${headHtml}${mapHtml}
-      ${
-        !canViewChannels(state.entitlement)
-          ? proPanelHtml(
-              "Telemetry",
-              "See this lap's speed, throttle, brake and steering traces — and put your own best lap at this track " +
-                "beside it, corner for corner."
-            )
-          : `<div class="empty">This lap's telemetry isn't available.</div>`
-      }`);
+      <div class="empty">This lap's telemetry isn't available.</div>`);
     if (lap.trace) renderTrackMap(view.querySelector("#lb-trackmap"), lap.trace);
     return;
   }
@@ -1526,7 +1531,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   const lit = new Map(sideLabels.map((_, i) => [i, sideColors[i]]));
 
   let delta = null, refIdx = -1;
-  if (pick) {
+  if (pick && proOk) {
     refIdx = aligned.laps[0].timeMs <= aligned.laps[1].timeMs ? 0 : 1;
     delta = deltaSeries(aligned.laps[1 - refIdx], aligned.laps[refIdx], aligned.dStepM);
   }
@@ -1564,10 +1569,10 @@ async function viewLeaderboardLap(trackId, lapId, params) {
     </tbody></table></div>`;
 
   const chartsHtml = [
-    pick ? deltaChartSvg(aligned, lit, refIdx, sideLabels[refIdx]) : "",
+    pick && proOk ? deltaChartSvg(aligned, lit, refIdx, sideLabels[refIdx]) : "",
     ...channelDefs(currentUnits()).flatMap((def) => [
       channelChartSvg(def, aligned, lit),
-      def.key === "rpm" ? gearRibbonSvg(aligned, lit, (i) => sideLabels[i]) : "",
+      def.key === "rpm" && proOk ? gearRibbonSvg(aligned, lit, (i) => sideLabels[i]) : "",
     ]),
   ]
     .filter(Boolean)
@@ -1599,16 +1604,25 @@ async function viewLeaderboardLap(trackId, lapId, params) {
     ${mapHtml}
     <h2>${pick ? "Head to head" : "This lap"}</h2>
     ${tableHtml}
-    ${sectorTableHtml(aligned, lit, (i) => sideLabels[i])}
+    ${proOk ? sectorTableHtml(aligned, lit, (i) => sideLabels[i]) : ""}
     <div class="chart-card">
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
       ${
-        pick
+        pick && proOk
           ? `<div class="hint" style="margin:2px 0 6px">The delta chart shows where you gain or lose against this lap; the channels below show why.</div>`
           : ""
       }
       <div class="ch-graphs" id="lb-charts">${chartsHtml}</div>
     </div>
+    ${
+      proOk
+        ? ""
+        : proPanelHtml(
+            "The rest of this lap",
+            (pick ? "The delta chart that shows where you gain or lose against this lap, sector splits, and " : "Sector splits, lap-vs-lap deltas against your own laps, and ") +
+              "the steering, RPM, lateral G and yaw traces where the recording carries them."
+          )
+    }
   `);
 
   if (lap.trace) renderTrackMap(view.querySelector("#lb-trackmap"), lap.trace);
@@ -1679,7 +1693,7 @@ async function viewEvent(eventId) {
       // Sector analysis (js/sectors.js): what stringing the session's best
       // sectors together would have been worth. The splits themselves are in
       // the channel panel below.
-      const sec = s.channels?.laps?.length ? sessionSectors(s.channels) : null;
+      const sec = pro() && s.channels?.laps?.length ? sessionSectors(s.channels) : null;
       if (sec && sec.laps.length >= 2 && sec.gapMs > 0)
         stats.push(`theoretical best <span class="t">${fmtMs(sec.theoreticalBestMs)}</span>`);
       // Shift points (js/gears.js): the typical upshift rpm across the
@@ -1907,9 +1921,8 @@ async function viewEvent(eventId) {
       canViewChannels(state.entitlement)
         ? ""
         : proNoteHtml(
-            "Importing is free — you get the lap times, the racing line and top speed, RPM and lateral G. " +
-              "The per-lap speed, throttle, brake and steering traces in the same file, with sector splits and " +
-              "lap-vs-lap deltas, need a subscription."
+            "Importing is free — you get the lap times, the racing line, top speed, RPM and lateral G, and the " +
+              "per-lap speed, throttle and brake traces. " + PRO_CHANNELS_NOTE
           )
     }
     <div id="pdr-review"></div>
@@ -2102,6 +2115,11 @@ async function viewEvent(eventId) {
       // is the drop in the sawtooth above it.
       renderAfter: { rpm: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
       memory: channelPanelMemory.get(s.id),
+      // A free account's channels arrive as speed, throttle and brake only
+      // (#264); the panel skips the delta chart and the extras above, and
+      // says what the rest of the file would show.
+      pro: pro(),
+      lockedHtml: pro() ? "" : proNoteHtml(PRO_CHANNELS_NOTE),
     });
     // The loop's actions, delegated from the panel container because the
     // Car tab re-renders with every chip toggle. Saves go through route() —

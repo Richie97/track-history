@@ -164,21 +164,32 @@ describe("a Pro account meeting the same routes", () => {
 
 describe("stripProFields on the event detail (rule 4)", () => {
   const N = 12;
+  const arr = (v: number) => Array.from({ length: N }, (_, i) => v + i);
+  const flat = (v: number) => Array.from({ length: N }, () => v);
   const sessionBody = {
     label: "Imported",
     laps: [95_000, 94_200],
     trace: Array.from({ length: N }, (_, i) => [i * 10, i * 5, 30 + i]),
-    channels: { dStepM: 20, laps: [{ n: 1, timeMs: 95_000, speed: Array.from({ length: N }, (_, i) => 30 + i) }] },
+    channels: {
+      dStepM: 20,
+      meta: { ambientC: 21 },
+      laps: [{ n: 1, timeMs: 95_000, speed: arr(30), throttle: arr(50), brake: arr(0), rpm: arr(4000), latG: flat(0.8), gear: flat(3), oilC: 105 }],
+    },
   };
 
-  it("nulls channels and keeps trace and laps for a free account", async () => {
+  it("keeps speed, throttle and brake — and trace, laps and meta — for a free account, and strips the rest", async () => {
     const { api } = await freeUser();
     const eventId = await createEvent(api);
     expect((await api("POST", `/events/${eventId}/sessions`, sessionBody)).status).toBe(201);
 
     const detail = await api("GET", `/events/${eventId}`);
     const session = detail.body.sessions[0];
-    expect(session.channels).toBeNull();
+    expect(session.channels).toEqual({
+      v: 1,
+      dStepM: 20,
+      meta: { ambientC: 21 },
+      laps: [{ n: 1, timeMs: 95_000, speed: arr(30), throttle: arr(50), brake: arr(0) }],
+    });
     // The track map is part of the free logbook, and the laps are the logbook.
     expect(session.trace).toHaveLength(N);
     expect(session.laps).toHaveLength(2);
@@ -190,16 +201,21 @@ describe("stripProFields on the event detail (rule 4)", () => {
     const created = await api("POST", `/events/${eventId}/sessions`, sessionBody);
 
     const detail = await api("GET", `/events/${eventId}`);
-    expect(detail.body.sessions[0].channels.laps).toHaveLength(1);
+    const entry = detail.body.sessions[0].channels.laps[0];
+    expect(entry.rpm).toEqual(arr(4000));
+    expect(entry.oilC).toBe(105);
 
-    // Lapsing hides the field; it never deletes it. Resubscribing brings the
+    // Lapsing hides the Pro half; it never deletes it. Resubscribing brings the
     // imported session back exactly as it was.
     await env.DB.prepare("DELETE FROM subscriptions WHERE user_id = ?").bind(id).run();
     const lapsed = await api("GET", `/events/${eventId}`);
-    expect(lapsed.body.sessions[0].channels).toBeNull();
+    const lapsedEntry = lapsed.body.sessions[0].channels.laps[0];
+    expect(lapsedEntry.speed).toEqual(arr(30));
+    expect(lapsedEntry.rpm).toBeUndefined();
+    expect(lapsedEntry.oilC).toBeUndefined();
     const stored = await env.DB.prepare("SELECT channels FROM sessions WHERE id = ?")
       .bind(created.body.id)
       .first<{ channels: string | null }>();
-    expect(JSON.parse(stored!.channels!).laps).toHaveLength(1);
+    expect(JSON.parse(stored!.channels!).laps[0].rpm).toEqual(arr(4000));
   });
 });

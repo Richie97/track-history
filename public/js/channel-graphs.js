@@ -309,7 +309,13 @@ const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "input
 // — for a caller whose extras depend on state the panel doesn't own.
 // `units` — the unit system to label speed and distance in (defaults to the
 // account's cached choice).
-export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits() } = {}) {
+// `pro` — whether the account gets the Pro half of the panel (#264). A free
+// account's `channels` already arrive with only the free traces (the server
+// strips the rest), but the delta chart and the caller's extras — sectors,
+// shift points, the friction circle, the Car tab — derive from what is left,
+// so they are the panel's own gate; with `pro: false` none of them render and
+// `lockedHtml` (the caller's Pro note) is appended under the charts instead.
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits(), pro = true, lockedHtml = "" } = {}) {
   const CHANNEL_DEFS = channelDefs(units);
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
@@ -337,7 +343,9 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     <div class="laps ch-chips"></div>
     <details class="ch-details"${memory?.open ? " open" : ""}>
       <summary>Channel graphs <span class="hint">${chanNames} vs distance</span></summary>
-      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3). With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why.</div>
+      <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3).${
+        pro ? " With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs the fastest; the other tabs show why." : ""
+      }</div>
       <div class="ch-graphs"></div>
     </details>`;
   const chipsEl = container.querySelector(".ch-chips");
@@ -387,7 +395,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     // fastest of the selection, deltas cached for the tooltip.
     let refIdx = null;
     const deltaByIdx = new Map();
-    if (state.lit.length >= 2) {
+    if (pro && state.lit.length >= 2) {
       refIdx = state.lit.reduce((a, b) => (chLaps[b].timeMs < chLaps[a].timeMs ? b : a));
       for (const i of state.lit) {
         if (i === refIdx) continue;
@@ -398,7 +406,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     const deltaSvg = refIdx != null ? deltaChartSvg(channels, lit, refIdx, dispN[refIdx], { units }) : "";
     const chart = (c) => `<div class="ch-chart">${c}</div>`;
     const byTab = new Map(TABS.map((t) => [t.key, []]));
-    const extras = renderExtras ? renderExtras(lit, dispN) : "";
+    const extras = pro && renderExtras ? renderExtras(lit, dispN) : "";
     const extraByTab = typeof extras === "string" ? { time: extras } : (extras ?? {});
     for (const t of TABS) if (extraByTab[t.key]) byTab.get(t.key).push(extraByTab[t.key]);
     if (deltaSvg) byTab.get("time").push(chart(deltaSvg));
@@ -406,7 +414,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
       const list = byTab.get(TAB_OF[def.key]);
       const svg = channelChartSvg(def, channels, lit, { units });
       if (svg) list.push(chart(svg));
-      const after = renderAfter?.[def.key]?.(lit, dispN);
+      const after = pro ? renderAfter?.[def.key]?.(lit, dispN) : "";
       if (after) list.push(chart(after));
     }
     const tabs = TABS.filter((t) => byTab.get(t.key).length);
@@ -432,6 +440,9 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
         };
       });
     }
+    // The locked note sits under every tab rather than on one of them: what
+    // Pro adds is spread across all four.
+    if (!pro && lockedHtml) chartsEl.insertAdjacentHTML("beforeend", lockedHtml);
 
     // Tooltip: nearest grid point by x; one row per highlighted lap.
     const $tooltip = document.getElementById("tooltip");

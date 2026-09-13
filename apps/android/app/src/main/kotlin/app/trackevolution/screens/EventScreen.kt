@@ -45,6 +45,7 @@ import app.trackevolution.core.Limits
 import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.Units
 import app.trackevolution.core.model.ChecklistItem
+import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.TraceSample
 import app.trackevolution.ui.LoadState
@@ -58,7 +59,6 @@ import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.TEMeta
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
-import app.trackevolution.ui.charts.LapChannelChart
 import app.trackevolution.ui.charts.LimitLegend
 import app.trackevolution.ui.charts.TrackMap
 import app.trackevolution.ui.theme.TrackCard
@@ -86,6 +86,17 @@ fun EventScreen(
     onDeleted: () -> Unit,
     recorderAvailable: Boolean,
     modifier: Modifier = Modifier,
+    /**
+     * Whether the account gets the Pro half of the channel panel (#264). The
+     * server has already stripped what a free account may not see; this only
+     * decides whether the panel draws its derived views and its upsell.
+     */
+    canViewChannels: Boolean = true,
+    onSubscribe: () -> Unit = {},
+    /** A lap row was tapped (#268): `(sessionId, lapId)`. */
+    onOpenLap: (Int, Int) -> Unit = { _, _ -> },
+    /** A session's *Compare laps* below expanded width — the overlay as a destination. */
+    onCompareLaps: (Int) -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -243,6 +254,10 @@ fun EventScreen(
                             channelsInColumn = twoColumn,
                             selected = twoColumn && selectedSessionId == session.id,
                             onSelect = { selectedSessionId = session.id },
+                            pro = canViewChannels,
+                            onSubscribe = onSubscribe,
+                            onOpenLap = { lapId -> onOpenLap(session.id, lapId) },
+                            onCompare = { onCompareLaps(session.id) },
                         )
                     }
                 }
@@ -267,6 +282,8 @@ fun EventScreen(
                     AnalysisColumn(
                         sessions = detail.sessions,
                         selectedSessionId = selectedSessionId,
+                        pro = canViewChannels,
+                        onSubscribe = onSubscribe,
                     )
                 }
             }
@@ -444,6 +461,10 @@ private fun SessionCard(
     channelsInColumn: Boolean = false,
     selected: Boolean = false,
     onSelect: () -> Unit = {},
+    pro: Boolean = true,
+    onSubscribe: () -> Unit = {},
+    onOpenLap: (Int) -> Unit = {},
+    onCompare: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
@@ -519,43 +540,33 @@ private fun SessionCard(
             )
         }
 
-        // An imported session's channels replace the plain lap chips: the chips
-        // are the overlay's legend, so showing both would be two lap lists.
-        val channels = session.channels
-        if (channels != null && channelsInColumn) {
-            // The way into the column, in place of a second copy of the panel.
-            // Selecting rather than expanding is what keeps the map and the
-            // charts together on the right (NS-34 ticket 3).
-            TextButton(onClick = onSelect, modifier = Modifier.padding(top = 4.dp)) {
-                Text(
-                    if (selected) "Showing channel graphs →" else "Channel graphs →",
-                    style = TrackTheme.typography.sm,
-                    color = if (selected) colors.accentInk else colors.textMuted,
-                )
-            }
-        } else if (channels != null) {
-            LapChannelChart(
-                channels = channels,
-                laps = session.laps,
-                modifier = Modifier.padding(top = 8.dp),
+        // Every lap is a row and a door (#268): its detail is where the racing
+        // line and the traces live. Under the rows, an imported session offers
+        // the multi-lap overlay — the analysis column at expanded width, a
+        // destination of its own otherwise — rather than inlining it here,
+        // which used to put the panel's chips in place of the lap list.
+        session.laps.forEach { lap ->
+            LapRow(
+                lap = lap,
+                isBest = best != null && lap.timeMs == best,
+                onOpen = { onOpenLap(lap.id) },
+                onDelete = { onDeleteLap(lap.id) },
             )
-        } else {
-            session.laps.forEach { lap ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}" +
-                            if (best != null && lap.timeMs == best) " ★" else "",
-                        style = TrackTheme.typography.sm,
-                        color = colors.textStrong,
-                    )
-                    TextButton(onClick = { onDeleteLap(lap.id) }) {
-                        Text("✕", style = TrackTheme.typography.xs, color = colors.textFaint)
-                    }
-                }
+        }
+        val channels = session.channels
+        if (channels != null && channels.laps.isNotEmpty()) {
+            // At expanded width this *selects* the session the analysis column
+            // shows — selecting rather than expanding is what keeps the map and
+            // the charts together on the right (NS-34 ticket 3).
+            TextButton(
+                onClick = if (channelsInColumn) onSelect else onCompare,
+                modifier = Modifier.padding(top = 4.dp).testTag("compareLaps"),
+            ) {
+                Text(
+                    if (channelsInColumn && selected) "Comparing laps →" else "Compare laps →",
+                    style = TrackTheme.typography.sm,
+                    color = if (channelsInColumn && selected) colors.accentInk else colors.textMuted,
+                )
             }
         }
 
@@ -576,6 +587,34 @@ private fun SessionCard(
             ) {
                 Text("Add", style = TrackTheme.typography.sm, color = colors.accentInk)
             }
+        }
+    }
+}
+
+/** A lap as a row: number, time, ★ for the session's best, and a way in (#268). */
+@Composable
+private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
+    val colors = TrackTheme.colors
+    val label = "Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}" + if (isBest) " ★" else ""
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(TrackTheme.radii.sm))
+            .clickable(onClick = onOpen)
+            .padding(top = 2.dp)
+            .testTag("lap-${lap.id}"),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = TrackTheme.typography.sm,
+            color = colors.textStrong,
+            modifier = Modifier.weight(1f),
+        )
+        Text("›", style = TrackTheme.typography.sm, color = colors.textFaint)
+        TextButton(onClick = onDelete) {
+            Text("✕", style = TrackTheme.typography.xs, color = colors.textFaint)
         }
     }
 }

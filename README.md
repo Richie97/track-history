@@ -242,7 +242,12 @@ track page's "Compare two laps" opens the same delta-and-channels comparison the
 web renders, on the same `CompareLaps` maths pinned by
 `contracts/logic/compare-laps.json`, and so are the **sector splits and
 theoretical best** in the channel-graphs panel (`Sectors`, pinned by
-`contracts/logic/sectors.json`). The setup notebook, the setup-vs-lap-times
+`contracts/logic/sectors.json`). **Every lap opens** on the phones: a lap row
+on the event page is a door to its own screen — the time and the gap to the
+session's best, the racing line when it is the lap the trace was drawn from,
+its own channel traces, and a *Compare laps* control that opens the session's
+overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
+layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
 diff, year in review, the two-event overlay and `.vbo` import stay web-only by
 design.
 
@@ -1036,8 +1041,10 @@ spreadsheet and the paper setup notebook into the logbook:
 Track Evolution is freemium: the **logbook is free** (tracks, events, sessions,
 lap times, best laps, progress charts, sharing, leaderboards, the vehicle list —
 and telemetry import, which yields lap times, the racing line and the car
-metrics), and **Pro** is the analysis — the GPS lap recorder, the per-lap
-`channels` an import also writes, garage consumables, the setup notebook and
+metrics, plus the per-lap speed, throttle and brake traces), and **Pro** is the
+analysis — the GPS lap recorder, the rest of the per-lap `channels` an import
+writes (steering, RPM, lateral G, gear, the limit marks, the Car tab) with the
+delta chart and sector splits, garage consumables, the setup notebook and
 year in review. Pro is
 **$1.99/month or $19.99/year**, sold through the App Store and Google Play; the
 web app shows the tier and points at the phone apps to subscribe. Anyone who
@@ -1073,8 +1080,8 @@ the store's own grace period, so webhook lag never reads as a lapse.
 laps or tracks checks entitlement, ever — the offline layer drops rejected
 writes, and a recording made under Pro and replayed after a lapse would be
 deleted. The recorder and importer gate *at start*, on the phone, against the
-cached entitlement; the server gates the Pro *reads* and strips one field
-(`sessions.channels`) from the event detail.
+cached entitlement; the server gates the Pro *reads* and strips the Pro half of
+one field (`sessions.channels`) from the event detail.
 
 **What the gates actually are** (phase D wired them; before that everything
 shipped dark):
@@ -1082,7 +1089,7 @@ shipped dark):
 | Gate | Where |
 |---|---|
 | `requireEntitlement` | `GET /garage`, the parts/measurements routes, and the setups routes (`PUT`/`DELETE /events/:id/setups/:day`, `GET /events/:id/setups/prefill`, `GET /tracks/:id/setups`) — and nothing else. `test/api/entitlement-gates.test.ts` enumerates the set by handler identity, so a gate added anywhere else fails a test. |
-| `stripProFields` | `GET /events/:id`, the only response carrying `sessions.channels`. `trace` is kept — the track map is free, and a session with a trace and no channels is what a recorder save looks like. |
+| `stripProFields` | `GET /events/:id` and the leaderboard lap, the two responses carrying `sessions.channels`. A free account keeps `FREE_CHANNELS` — speed, throttle and brake — per lap and loses every other channel and every per-lap scalar; `trace` and `meta` are kept, since the track map is free and a session with a trace and no channels is what a recorder save looks like. |
 | Client | The recorder's Start on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`), and on the web the setup notebook, setup-vs-lap-times table, garage page, year in review and both compare routes. **Import is not gated on any client** — it is free, and `channels` above is what the tier actually costs. |
 
 A 402 renders the paywall on every client, never the sync banner — that is why

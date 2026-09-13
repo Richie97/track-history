@@ -222,6 +222,65 @@ class ChartRenderingTest {
         compose.onNodeWithTag("channelChart:steering").assertDoesNotExist()
     }
 
+    /**
+     * The free layout (#264): the server has already reduced the blob to speed,
+     * throttle and brake, and the panel keeps the derived views — the delta
+     * plot and the sector table, which come from the free speed trace — behind
+     * the same gate, ending on the card that says what Pro would add.
+     */
+    @Test
+    fun `a free account gets the free traces without the delta or sectors, and the Pro card`() {
+        compose.setContent {
+            TrackTheme {
+                LapChannelChart(
+                    channels = SessionChannels(
+                        v = 1,
+                        dStepM = 20.0,
+                        laps = listOf(
+                            LapChannels(1, 121_900, speed = ramp(40), throttle = ramp(40), brake = ramp(40)),
+                            LapChannels(2, 120_400, speed = ramp(40), throttle = ramp(40), brake = ramp(40)),
+                        ),
+                    ),
+                    laps = listOf(lap(1, 121_900), lap(2, 120_400)),
+                    initialSelection = listOf(0, 1),
+                    pro = false,
+                )
+            }
+        }
+        compose.onNodeWithTag("channelChart:speed").assertIsDisplayed()
+        // Two laps lit would draw the delta for a Pro account; not here.
+        compose.onNodeWithTag("channelChart:delta").assertDoesNotExist()
+        compose.onNodeWithTag("sectorTable").assertDoesNotExist()
+        compose.onNodeWithTag("channelProCard").assertExists()
+        compose.onNodeWithText("See Track Evolution Pro").assertExists()
+        compose.onNodeWithContentDescription("Inputs").performClick()
+        compose.onNodeWithTag("channelChart:throttle").assertIsDisplayed()
+        compose.onNodeWithTag("channelChart:brake").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a Pro account with two laps lit gets the delta plot and the sector table`() {
+        compose.setContent {
+            TrackTheme {
+                LapChannelChart(
+                    channels = SessionChannels(
+                        v = 1,
+                        dStepM = 20.0,
+                        laps = listOf(
+                            LapChannels(1, 121_900, speed = ramp(40)),
+                            LapChannels(2, 120_400, speed = ramp(40)),
+                        ),
+                    ),
+                    laps = listOf(lap(1, 121_900), lap(2, 120_400)),
+                    initialSelection = listOf(0, 1),
+                )
+            }
+        }
+        compose.onNodeWithTag("channelChart:delta").assertExists()
+        compose.onNodeWithTag("sectorTable").assertExists()
+        compose.onNodeWithTag("channelProCard").assertDoesNotExist()
+    }
+
     @Test
     fun `shows a clean empty state when the session has no channels`() {
         compose.setContent {

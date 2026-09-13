@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,7 @@ import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import app.trackevolution.ui.LocalUnitSystem
 import kotlin.math.abs
@@ -109,6 +111,17 @@ fun LapChannelChart(
      * screen passes both laps of its pair.
      */
     initialSelection: List<Int>? = null,
+    /**
+     * Whether the account gets the Pro half of the panel (#264). A free
+     * account's [channels] already arrive with only speed, throttle and brake —
+     * the server strips the rest — but the delta plot, the sector table, the
+     * shift points, the friction circle, the balance read-out and the Car tab
+     * all derive from what is left, so they are the panel's own gate: with
+     * `pro = false` none of them draw, and a card under the charts says what
+     * the rest of the recording would show, its button going to [onSubscribe].
+     */
+    pro: Boolean = true,
+    onSubscribe: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val matches = remember(channels, laps) { ChannelGraphs.matchLapsToChannels(laps, channels.laps) }
@@ -149,7 +162,9 @@ fun LapChannelChart(
     // One question per tab (epic #193). Only populated tabs are offered, and a
     // single one renders flat — a tab bar with one tab in it is a control that
     // does nothing. Survives rotation for the same reason the selection does.
-    val tabs = PanelTab.entries.filter { it.hasContent(present, channels) }
+    // The Car tab is the per-lap scalars, which the server strips for a free
+    // account; belt and braces rather than the gate.
+    val tabs = PanelTab.entries.filter { it.hasContent(present, channels) && (pro || it != PanelTab.CAR) }
     var tab by rememberSaveable(channels) { mutableStateOf(tabs.firstOrNull() ?: PanelTab.TIME) }
     // A selection that empties the current tab must not leave the panel blank.
     val shown = if (tab in tabs) tab else tabs.firstOrNull() ?: PanelTab.TIME
@@ -169,9 +184,13 @@ fun LapChannelChart(
         }
 
         Text(
-            "Laps on a shared distance axis — tap laps to compare (up to ${ChannelGraphs.SLOT_COUNT}). " +
-                "With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs " +
-                "the fastest; the other tabs show why.",
+            "Laps on a shared distance axis — tap laps to compare (up to ${ChannelGraphs.SLOT_COUNT})." +
+                if (pro) {
+                    " With 2+ selected, the Time tab's delta chart shows where time is gained or lost vs " +
+                        "the fastest; the other tabs show why."
+                } else {
+                    ""
+                },
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
         )
@@ -180,7 +199,11 @@ fun LapChannelChart(
             PanelTabs(tabs = tabs, current = shown, onSelect = { tab = it })
         }
 
-        when (shown) {
+        // Everything above the traces is the Pro half (#264): it derives from
+        // channels the server strips for a free account, or — the sectors and
+        // the delta — from the free speed trace, and is gated here for that
+        // reason.
+        if (pro) when (shown) {
             PanelTab.TIME -> {
                 // Sector splits + theoretical best for the highlighted laps (#146),
                 // above the charts as on the web.
@@ -243,9 +266,35 @@ fun LapChannelChart(
             )
             // The gear ribbon rides under the RPM trace, where each shift is the
             // drop in the sawtooth above it (#187).
-            if (channel == ChannelGraphs.Channel.RPM) {
+            if (channel == ChannelGraphs.Channel.RPM && pro) {
                 GearRibbon(channels = channels, lit = lit, slots = slots, lapNumber = lapNumber)
             }
+        }
+
+        if (!pro) {
+            // Under every tab rather than on one of them: what Pro adds is
+            // spread across all four.
+            ChannelProCard(onSubscribe)
+        }
+    }
+}
+
+/** What the rest of a recording would show, and the way to it (#264). */
+@Composable
+private fun ChannelProCard(onSubscribe: () -> Unit) {
+    val colors = TrackTheme.colors
+    TrackCard(Modifier.fillMaxWidth().semantics { testTag = "channelProCard" }) {
+        Text("The rest of the recording is Pro", style = TrackTheme.typography.h3, color = colors.textStrong)
+        Text(
+            "Pro unlocks the rest of the recording where it carries them: steering, RPM, lateral G and yaw " +
+                "traces, the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits " +
+                "with a theoretical best, the car-health strip, and lap-vs-lap delta charts.",
+            style = TrackTheme.typography.sm,
+            color = colors.textMuted,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        TextButton(onClick = onSubscribe) {
+            Text("See Track Evolution Pro", style = TrackTheme.typography.bodyStrong, color = colors.accentInk)
         }
     }
 }

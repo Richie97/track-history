@@ -84,6 +84,23 @@ public sealed interface Route {
 
     @Serializable
     public data class Shared(val slug: String) : Route
+
+    /**
+     * One lap of one session, from its row on the event page (#268). Carries
+     * the event id because the screen reads the event detail — the same cached
+     * read the page made — and finds the session and lap in it. Not a
+     * `DeepLink` case: a lap id means nothing away from the page it came from.
+     */
+    @Serializable
+    public data class Lap(val eventId: Int, val sessionId: Int, val lapId: Int) : Route
+
+    /**
+     * A session's multi-lap channel overlay as a destination of its own (#268)
+     * — the panel the session card used to inline. [lapId] is the lap to light
+     * first, beside the session's best; null lights the best alone.
+     */
+    @Serializable
+    public data class SessionCompare(val eventId: Int, val sessionId: Int, val lapId: Int? = null) : Route
 }
 
 /**

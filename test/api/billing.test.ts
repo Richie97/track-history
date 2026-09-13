@@ -606,10 +606,13 @@ describe("no write route checks entitlement (NS-32 rule 5)", () => {
     expect((await api("PUT", `/sessions/${session.body.id}`, { label: "renamed" })).status).toBe(200);
     expect((await api("PUT", `/events/${eventId}`, { club: "NASA" })).status).toBe(200);
     expect((await api("POST", "/tracks", { name: "Lapsed Ring" })).status).toBe(201);
-    // The read is where the tier shows: `channels` comes back null (rule 4)
-    // while the row keeps them, so resubscribing brings the session back whole.
+    // The read is where the tier shows: `channels` comes back reduced to its
+    // free half (rule 4, #264) while the row keeps everything, so resubscribing
+    // brings the session back whole.
     const detail = await api("GET", `/events/${eventId}`);
-    expect(detail.body.sessions[0].channels).toBeNull();
+    expect(detail.body.sessions[0].channels.laps).toEqual([
+      { n: 1, timeMs: 95_000, speed: Array.from({ length: N }, (_, i) => 30 + i) },
+    ]);
     expect(detail.body.sessions[0].trace).toHaveLength(N);
     const stored = await env.DB.prepare("SELECT channels FROM sessions WHERE id = ?")
       .bind(session.body.id)

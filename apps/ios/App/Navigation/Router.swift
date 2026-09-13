@@ -29,6 +29,11 @@ enum Route: Hashable {
     case importVideo(eventId: Int?, incoming: URL?, forNewEvent: Bool = false)
     /// Someone's public logbook, read-only.
     case shared(slug: String)
+    /// One lap of one session, from its row on the event page (#267). Carries the
+    /// event id because the screen reads the event detail — the same cached read
+    /// the page made — and finds the session and lap in it. Not a `DeepLink`:
+    /// a lap id means nothing away from the page it came from.
+    case lap(eventId: Int, sessionId: Int, lapId: Int)
 }
 
 extension Route {
@@ -47,7 +52,7 @@ extension Route {
     var ownsTheWindow: Bool {
         switch self {
         case .record, .importVideo: true
-        case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared: false
+        case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .lap: false
         }
     }
 }
@@ -198,11 +203,25 @@ final class AppRouter {
             case .importVideo(let id, let incoming, let forNewEvent):
                 guard let id, OfflineStore.isTemp(id), let real = resolve(id) else { return route }
                 return .importVideo(eventId: real, incoming: incoming, forNewEvent: forNewEvent)
+            case .lap(let eventId, let sessionId, let lapId):
+                // Three ids, any of which can be temp: an event, a session and a
+                // lap can each be created offline. Each follows its own row.
+                return .lap(
+                    eventId: Self.followed(eventId, resolve),
+                    sessionId: Self.followed(sessionId, resolve),
+                    lapId: Self.followed(lapId, resolve)
+                )
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.
             case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new):
                 return route
             }
         }
+    }
+
+    /// A temp id's real one when the store has it; any other id as it is.
+    private static func followed(_ id: Int, _ resolve: (Int) -> Int?) -> Int {
+        guard OfflineStore.isTemp(id), let real = resolve(id) else { return id }
+        return real
     }
 }

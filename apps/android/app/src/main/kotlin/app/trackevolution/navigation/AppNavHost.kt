@@ -41,10 +41,12 @@ import app.trackevolution.screens.EventFormModel
 import app.trackevolution.screens.EventFormScreen
 import app.trackevolution.screens.EventModel
 import app.trackevolution.screens.EventScreen
+import app.trackevolution.screens.LapDetailScreen
 import app.trackevolution.screens.LeaderboardLapModel
 import app.trackevolution.screens.LeaderboardLapScreen
 import app.trackevolution.screens.LeaderboardModel
 import app.trackevolution.screens.LeaderboardScreen
+import app.trackevolution.screens.SessionCompareScreen
 import app.trackevolution.screens.SettingsModel
 import app.trackevolution.screens.SettingsScreen
 import app.trackevolution.screens.SharedLogbookModel
@@ -184,6 +186,42 @@ fun AppNavHost(
                 // Always: the recorder is built into this app, unlike the web
                 // build where `platform.bgLocation` is null and it is hidden.
                 recorderAvailable = true,
+                // The Pro half of the channel panel (#264): the server already
+                // stripped what a free account may not see, and this decides
+                // whether the panel draws its derived views and its upsell.
+                canViewChannels = Entitlement.canViewChannels(entitlement),
+                onSubscribe = onRequirePro,
+                // Every lap is a door (#268), and the session's overlay is a
+                // destination of its own below expanded width.
+                onOpenLap = { sessionId, lapId -> nav.navigate(Route.Lap(route.id, sessionId, lapId)) },
+                onCompareLaps = { sessionId -> nav.navigate(Route.SessionCompare(route.id, sessionId)) },
+            )
+        }
+
+        pageComposable<Route.Lap> { entry ->
+            val route = entry.toRoute<Route.Lap>()
+            // Its own model over the same event: the read comes through the
+            // offline cache the page already warmed, so this costs no request.
+            val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+            LapDetailScreen(
+                model = model,
+                sessionId = route.sessionId,
+                lapId = route.lapId,
+                canViewChannels = Entitlement.canViewChannels(entitlement),
+                onCompare = { nav.navigate(Route.SessionCompare(route.eventId, route.sessionId, route.lapId)) },
+                onSubscribe = onRequirePro,
+            )
+        }
+
+        pageComposable<Route.SessionCompare> { entry ->
+            val route = entry.toRoute<Route.SessionCompare>()
+            val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+            SessionCompareScreen(
+                model = model,
+                sessionId = route.sessionId,
+                lapId = route.lapId,
+                canViewChannels = Entitlement.canViewChannels(entitlement),
+                onSubscribe = onRequirePro,
             )
         }
 
@@ -465,17 +503,24 @@ private fun NavBackStackEntry.routeOrNull(): Route? = when {
     destination.hasRoute(Route.EventForm::class) -> toRoute<Route.EventForm>()
     destination.hasRoute(Route.Record::class) -> toRoute<Route.Record>()
     destination.hasRoute(Route.Import::class) -> toRoute<Route.Import>()
+    destination.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
+    destination.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
     else -> null
 }
 
-/** The temp id this route is parked on, if any. */
+/**
+ * The temp id this route is parked on, if any — the first of them for a route
+ * carrying several; the effect above re-runs on the next flush for the rest.
+ */
 private fun Route.tempId(): Int? {
-    val id = when (this) {
-        is Route.Event -> id
-        is Route.EventForm -> editId
-        is Route.Record -> eventId
-        is Route.Import -> eventId
-        else -> null
-    } ?: return null
-    return id.takeIf { OfflineStore.isTemp(it) }
+    val ids = when (this) {
+        is Route.Event -> listOf(id)
+        is Route.EventForm -> listOfNotNull(editId)
+        is Route.Record -> listOfNotNull(eventId)
+        is Route.Import -> listOfNotNull(eventId)
+        is Route.Lap -> listOf(eventId, sessionId, lapId)
+        is Route.SessionCompare -> listOfNotNull(eventId, sessionId, lapId)
+        else -> emptyList()
+    }
+    return ids.firstOrNull { OfflineStore.isTemp(it) }
 }

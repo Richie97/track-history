@@ -54,6 +54,9 @@ fun AnalysisColumn(
     sessions: List<Session>,
     selectedSessionId: Int?,
     modifier: Modifier = Modifier,
+    /** The panel's Pro half (#264) — see `LapChannelChart`. */
+    pro: Boolean = true,
+    onSubscribe: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val selected = sessions.firstOrNull { it.id == selectedSessionId }
@@ -111,6 +114,8 @@ fun AnalysisColumn(
                     laps = selected.laps,
                     modifier = Modifier.fillMaxWidth(),
                     onHit = { hit = it },
+                    pro = pro,
+                    onSubscribe = onSubscribe,
                 )
             }
         }

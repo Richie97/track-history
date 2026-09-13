@@ -27,7 +27,7 @@ import {
 import { parseTelemetryFile } from "../public/js/import/parse.js";
 import { applyGate } from "../public/js/import/ui.js";
 import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
-import { attachLapChannels } from "../public/js/import/channels.js";
+import { CHANNEL_NAMES, attachLapChannels } from "../public/js/import/channels.js";
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import { traceIndexAtFraction } from "../public/js/trackmap.js";
@@ -170,6 +170,8 @@ import {
   canViewYearInReview,
   canCompareEvents,
   entitlementSummary,
+  FREE_CHANNELS,
+  canViewChannel,
   isPro,
   manageUrl,
 } from "../public/js/entitlement.js";
@@ -1581,6 +1583,9 @@ const entitlementCases = [
     isPro: isPro(c.entitlement),
     canRecord: canRecord(c.entitlement),
     canViewChannels: canViewChannels(c.entitlement),
+    // Per channel (#264): the free three are true for everyone, the rest
+    // follow the tier. Keyed by every gridded channel name the importer writes.
+    canViewChannel: Object.fromEntries(CHANNEL_NAMES.map(([k]) => [k, canViewChannel(c.entitlement, k)])),
     canUseGarage: canUseGarage(c.entitlement),
     canUseSetups: canUseSetups(c.entitlement),
     canViewYearInReview: canViewYearInReview(c.entitlement),
@@ -1598,6 +1603,7 @@ const entitlementFixture = {
     "value; the summary's date is rendered as <ms> so the ports pin the wording without a locale. " +
     "Regenerate with `npm run contracts:logic`; never hand-edit.",
   source: "public/js/entitlement.js",
+  freeChannels: [...FREE_CHANNELS],
   cases: entitlementCases,
 };
 

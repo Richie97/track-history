@@ -218,8 +218,9 @@ describe("GET /tracks/:id/leaderboard/laps/:lapId", () => {
   });
 
   // Leaderboards are Free (NS-32), and so is the racing line — `channels` is
-  // the one Pro field, stripped exactly as it is on the event detail.
-  it("strips channels for a free account and keeps the trace and the times", async () => {
+  // the one Pro field, stripped exactly as it is on the event detail: a free
+  // account keeps speed, throttle and brake (#264) and nothing else.
+  it("strips the Pro channels for a free account and keeps the free three, the trace and the times", async () => {
     const owner = await signedInUser();
     const free = await signedInUser();
     await publish(owner, "Virginia International Raceway (Full)", 121900);
@@ -228,7 +229,7 @@ describe("GET /tracks/:id/leaderboard/laps/:lapId", () => {
     const theirs = (await entries(free, trackId)).find((e) => !e.you)!;
     const res = await free.api("GET", `/tracks/${trackId}/leaderboard/laps/${theirs.lap_id}`);
     expect(res.status).toBe(200);
-    expect(res.body.channels).toBeNull();
+    expect(Object.keys(res.body.channels.laps[0]).sort()).toEqual(["brake", "n", "speed", "throttle", "timeMs"]);
     expect(res.body.time_ms).toBe(121900);
     expect(res.body.trace).toHaveLength(12);
   });

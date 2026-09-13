@@ -131,8 +131,12 @@ struct EventScreen: View {
         }
         .sheet(item: $channelSession) { session in
             NavigationStack {
-                LapChannelChart(channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []), laps: session.laps)
-                    .navigationTitle(session.label ?? "Channel graphs")
+                LapChannelChart(
+                    channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []),
+                    laps: session.laps,
+                    pro: Entitlement.canViewChannels(auth.entitlement)
+                )
+                .navigationTitle(session.label ?? "Channel graphs")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
@@ -489,21 +493,39 @@ struct EventScreen: View {
 
             ForEach(session.laps) { lap in
                 row {
-                    HStack {
-                        // `String(...)` for the same reason as the copyright year in
-                        // Settings: a lap number is an identifier, not a quantity, and
-                        // `Text`'s number formatting would render lap 1024 as "1,024".
-                        Text("Lap \(String(lap.lapNum))")
-                            .teStyle(.sm)
-                            .foregroundStyle(Color(.textMuted))
-                        Spacer()
-                        if lap.timeMs == session.bestLapMs {
-                            Text("★")
+                    // Every lap is a door (#267): its detail holds the racing line
+                    // (for the lap the trace was drawn from), its own traces and
+                    // the way into the compare. A push, not a sheet — it is a
+                    // place you go and come back from.
+                    Button {
+                        router.push(.lap(eventId: model.eventId, sessionId: session.id, lapId: lap.id))
+                    } label: {
+                        HStack {
+                            // `String(...)` for the same reason as the copyright year in
+                            // Settings: a lap number is an identifier, not a quantity, and
+                            // `Text`'s number formatting would render lap 1024 as "1,024".
+                            Text("Lap \(String(lap.lapNum))")
+                                .teStyle(.sm)
+                                .foregroundStyle(Color(.textMuted))
+                            Spacer()
+                            if lap.timeMs == session.bestLapMs {
+                                Text("★")
+                                    .teStyle(.xs)
+                                    .foregroundStyle(Color(.accentInk))
+                            }
+                            TETime(ms: lap.timeMs, emphasized: lap.timeMs == session.bestLapMs)
+                            Image(systemName: "chevron.right")
                                 .teStyle(.xs)
-                                .foregroundStyle(Color(.accentInk))
+                                .foregroundStyle(Color(.textFaint))
                         }
-                        TETime(ms: lap.timeMs, emphasized: lap.timeMs == session.bestLapMs)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    // "Lap 3 · 2:01.240", the web's row text — and deliberately not
+                    // the chips' "Lap 3, 2:01.240", so a test that queries the compare
+                    // sheet's chips by label cannot land on the row underneath it.
+                    .accessibilityLabel("Lap \(String(lap.lapNum)) · \(LapTime.fmtMs(lap.timeMs))")
+                    .accessibilityIdentifier("lap-\(lap.id)")
                 }
                 .swipeActions {
                     // There is no lap-edit endpoint, so a mistyped lap is deleted and
@@ -619,7 +641,10 @@ struct EventScreen: View {
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Channel graphs")
+                            // "Compare" rather than "Channel graphs" since #267: a
+                            // single lap's traces are on its own page now, and what
+                            // this opens is the laps against each other.
+                            Text("Compare laps")
                                 .teStyle(.bodyStrong)
                                 .foregroundStyle(Color(.textStrong))
                             Text("\(present.map(\.label).joined(separator: " · ")) vs distance")

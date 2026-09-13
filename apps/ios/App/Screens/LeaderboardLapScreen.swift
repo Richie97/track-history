@@ -51,9 +51,10 @@ struct LeaderboardLapScreen: View {
             VStack(alignment: .leading, spacing: 14) {
                 header(lap)
 
-                // The racing line is free: `channels` is the one Pro field
-                // (NS-32 rule 4), so a free account still gets the shape of the
-                // lap and the paywall sits under it rather than over the screen.
+                // The racing line is free, and so are the speed, throttle and
+                // brake traces (#264): the server strips the rest of `channels`
+                // for a free account (NS-32 rule 4), and the panel's upsell sits
+                // under what is drawn rather than over the screen.
                 if let trace = lap.trace, trace.count > 1 {
                     TECard {
                         VStack(alignment: .leading, spacing: 8) {
@@ -67,15 +68,10 @@ struct LeaderboardLapScreen: View {
                 }
 
                 if lap.entry == nil {
-                    if !Entitlement.canViewChannels(auth.entitlement) {
-                        ProUpsellCard(
-                            title: "Telemetry",
-                            blurb: "See this lap's speed, throttle, brake and steering traces — and put your own "
-                                + "best lap at this track beside it, corner for corner."
-                        )
-                    } else {
-                        TEEmpty("This lap's telemetry isn't available.")
-                    }
+                    // Every stored lap carries a speed trace and a free account
+                    // keeps it, so an absent entry is a lap with no telemetry
+                    // rather than one with telemetry withheld.
+                    TEEmpty("This lap's telemetry isn't available.")
                 } else if let view = model.panel {
                     if view.mine == nil {
                         Text("You have no lap with telemetry at this track yet, so there's nothing to overlay. "
@@ -91,7 +87,8 @@ struct LeaderboardLapScreen: View {
                         }
                     }
                     headToHead(view)
-                    Text(view.mine == nil
+                    let pro = Entitlement.canViewChannels(auth.entitlement)
+                    Text(view.mine == nil || !pro
                         ? "Tap a chart to read values."
                         : "The delta chart shows where you gain or lose against this lap; the channels below show why. Tap a chart to read values.")
                         .teStyle(.xs)
@@ -99,7 +96,8 @@ struct LeaderboardLapScreen: View {
                     LapChannelPanel(
                         channels: view.aligned,
                         laps: view.laps,
-                        preselect: view.mine == nil ? [0] : [0, 1]
+                        preselect: view.mine == nil ? [0] : [0, 1],
+                        pro: pro
                     )
                     // Recreate the panel when the pick changes: its highlight
                     // selection is @State seeded on appear, and a stale selection
