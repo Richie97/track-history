@@ -1232,3 +1232,14 @@ details.garage-alerts .ga-chips { margin-top: 14px; }
 .diff-chip b { color: var(--accent-ink); font-weight: var(--weight-semibold); }
 .diff-chip .dc-label { color: var(--text-muted); }
 .diff-chip.baseline { color: var(--text-muted); }
+
+/* The New Event form's "Add laps" section: the sessions staged for the event
+   being created — one row per imported clip, removable until Create. */
+.staged-sessions { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 4px; }
+.staged-session {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: var(--radius-md);
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+}
+.staged-session .staged-label { font-weight: var(--weight-medium); color: var(--text-strong); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staged-session .staged-meta { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }

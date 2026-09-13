@@ -72,9 +72,15 @@ public sealed interface Route {
      * Video telemetry import: the chooser half. [eventId] is the event whose
      * page it was opened from, pre-selected in the review that follows; null
      * for a clip handed in by the share sheet.
+     *
+     * [forNewEvent] is the New Event form's door: there is no event to save
+     * onto yet, so the review hands its session drafts back to the form
+     * ([RecordingFlow.staged]) instead of posting them, and the form posts
+     * them itself once the event exists. Same chooser, same review — only
+     * where the sessions go differs.
      */
     @Serializable
-    public data class Import(val eventId: Int? = null) : Route
+    public data class Import(val eventId: Int? = null, val forNewEvent: Boolean = false) : Route
 
     @Serializable
     public data class Shared(val slug: String) : Route

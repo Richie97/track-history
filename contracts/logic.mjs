@@ -161,6 +161,7 @@ import {
   liveTimingDisplay,
 } from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
+import { sessionsToCreate, stagedSummary } from "../public/js/event-form.js";
 import {
   canRecord,
   canUseGarage,
@@ -1529,6 +1530,34 @@ const checklistFixture = {
   DEFAULT_CHECKLIST,
 };
 
+// The New Event form's "Add laps" section (public/js/event-form.js): which
+// sessions a new event is created with, in which order, and how a staged one
+// is summarised. Small, but it is the rule all three forms post by — staged
+// imports first, then the hand-typed session, dropped when no lap parses —
+// and a port that posts the typed one first reorders the logbook.
+const eventFormCases = [
+  {
+    name: "ordered",
+    staged: [
+      { label: "PDR 09:15:00", notes: "Imported from a.mp4", laps: [121240, 120100] },
+      { label: "GoPro 10:30:00", notes: "Imported from b.mp4", laps: [119900] },
+    ],
+    hand: { label: " Day 1 — Session 3 ", laps: "2:03.55\n2:01.24", notes: "traffic" },
+  },
+  { name: "emptyHand", staged: [], hand: { label: "Only a label", laps: "nonsense", notes: "" } },
+  { name: "blankToNull", staged: [], hand: { label: "  ", laps: "121.24", notes: "  " } },
+  { name: "noHand", staged: [{ label: "PDR 09:15:00", notes: null, laps: [121240] }], hand: null },
+];
+const eventFormFixture = {
+  description:
+    "sessionsToCreate / stagedSummary from public/js/event-form.js. Both ports " +
+    "(EventFormSessions in the Kit and :core) must agree case for case. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/event-form.js",
+  cases: eventFormCases.map((c) => ({ ...c, expected: sessionsToCreate(c.staged, c.hand) })),
+  summaries: [[121240, 120100, 125000], [121240], []].map((laps) => ({ laps, expected: stagedSummary({ laps }) })),
+};
+
 // ---------------------------------------------------------------------------
 // entitlement predicates (NS-32): the `entitlement` object on GET /api/me → every
 // client-side tier decision. Both ports must agree with public/js/entitlement.js
@@ -1722,6 +1751,7 @@ mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
@@ -1829,6 +1859,7 @@ console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.len
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
+console.log(`wrote contracts/logic/event-form.json (${eventFormCases.length} cases)`);
 console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);
 console.log(
   `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`

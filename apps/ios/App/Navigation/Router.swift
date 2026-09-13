@@ -20,7 +20,13 @@ enum Route: Hashable {
     case record(eventId: Int?)
     /// NS-30's video import. `incoming` is set when Files or the share sheet handed
     /// the app a clip directly, so the picker is skipped.
-    case importVideo(eventId: Int?, incoming: URL?)
+    ///
+    /// `forNewEvent` is the New Event form's door: there is no event to save onto
+    /// yet, so the review hands its session drafts back to the form through
+    /// ``AppRouter/stagedSessions`` instead of posting them, and the form posts
+    /// them itself once the event exists. Same chooser, same review — only where
+    /// the sessions go differs.
+    case importVideo(eventId: Int?, incoming: URL?, forNewEvent: Bool = false)
     /// Someone's public logbook, read-only.
     case shared(slug: String)
 }
@@ -75,6 +81,12 @@ final class AppRouter {
     /// compact and medium width this stays nil and both are ordinary pushes — the
     /// stack already fills the window there.
     var fullWindow: Route?
+
+    /// Session drafts an import staged for the New Event form — the outcome of a
+    /// review begun with `importVideo(forNewEvent: true)`, handed back along the
+    /// path the way Android's `RecordingFlow.staged` does it. The form takes them
+    /// the moment it is back on screen and empties this; nothing else reads it.
+    var stagedSessions: [SessionDraft] = []
 
     /// What the list pane has selected: the detail's root, or nil for its empty
     /// state.
@@ -183,9 +195,9 @@ final class AppRouter {
             case .record(let id):
                 guard let id, OfflineStore.isTemp(id), let real = resolve(id) else { return route }
                 return .record(eventId: real)
-            case .importVideo(let id, let incoming):
+            case .importVideo(let id, let incoming, let forNewEvent):
                 guard let id, OfflineStore.isTemp(id), let real = resolve(id) else { return route }
-                return .importVideo(eventId: real, incoming: incoming)
+                return .importVideo(eventId: real, incoming: incoming, forNewEvent: forNewEvent)
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.
             case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new):

@@ -28,6 +28,7 @@ import { DEFAULT_CHECKLIST } from "./js/checklist.js";
 import { renderTrackMap, traceIndexAtFraction } from "./js/trackmap.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
+import { sessionsToCreate, stagedSummary } from "./js/event-form.js";
 import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
   defaultMeasurementUnit, diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
@@ -2326,13 +2327,101 @@ async function viewEventForm(eventId, presetTrack) {
       <div class="field"><label>Notes</label>
         <textarea name="notes" placeholder="Weather, setup changes, incidents…">${esc(existing?.notes ?? "")}</textarea>
       </div>
-      <div id="form-error"></div>
-      <div class="btn-row">
-        <button class="btn primary">${existing ? "Save changes" : "Create event"}</button>
-        <a class="btn" href="${existing ? `#/event/${existing.id}` : "#/"}">Cancel</a>
-      </div>
     </form>
+    ${
+      existing
+        ? ""
+        : `<h2>Add laps</h2>
+    <div class="hint" style="margin:-4px 0 10px">Optional — pull the laps out of a video or logger file, or type them in, and they're saved with the event. You can always add more from the event page.</div>
+    <div class="pdr-dropzone" id="pdr-dropzone">
+      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
+      <div class="pdr-dropzone-inner">
+        <span class="pdr-dropzone-icon">📼</span>
+        <div>
+          <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
+          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> files here</span>
+        </div>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your computer</span>
+      </div>
+    </div>
+    ${
+      canViewChannels(state.entitlement)
+        ? ""
+        : proNoteHtml(
+            "Importing is free — you get the lap times, the racing line and top speed, RPM and lateral G. " +
+              "The per-lap speed, throttle, brake and steering traces in the same file, with sector splits and " +
+              "lap-vs-lap deltas, need a subscription."
+          )
+    }
+    <div id="pdr-review"></div>
+    <div class="staged-sessions" id="staged-sessions" hidden></div>
+    <div class="panel" id="hand-session">
+      <div class="add-session-head">Or enter lap times by hand</div>
+      <div class="form-grid">
+        <div class="field"><label>Session label</label><input id="session-label" placeholder="Day 1 — Session 2"></div>
+      </div>
+      <div class="field"><label>Lap times (comma / space / newline separated)</label>
+        <textarea id="session-laps" placeholder="2:03.55&#10;2:01.24&#10;2:02.61"></textarea>
+        <div class="hint">Formats: 2:01.24 · 2:01 · 121.24 (seconds)</div>
+      </div>
+      <div class="field"><label>Session notes</label><input id="session-notes" placeholder="Traffic, tire pressures, line changes…"></div>
+    </div>`
+    }
+    <div id="form-error"></div>
+    <div class="btn-row">
+      <button class="btn primary" form="event-form" id="event-submit">${existing ? "Save changes" : "Create event"}</button>
+      <a class="btn" href="${existing ? `#/event/${existing.id}` : "#/"}">Cancel</a>
+    </div>
   `);
+
+  // The "Add laps" section (new events only): the import review hands back
+  // session bodies, which are held here until the event exists, and the
+  // hand-entry fields are read at submit. The section sits *outside* the
+  // <form> — the review panel has its own buttons — and the submit button
+  // reaches the form through its `form` attribute.
+  const staged = [];
+  // The event the sessions were created for, once it exists: a session post
+  // that fails must be retried against this id, never by creating the event
+  // a second time.
+  let createdId = null;
+  const renderStaged = () => {
+    const list = view.querySelector("#staged-sessions");
+    list.hidden = !staged.length;
+    list.innerHTML = staged
+      .map(
+        (s, i) => `<div class="staged-session">
+          <span class="staged-label">${esc(s.label)}</span>
+          <span class="staged-meta">${esc(stagedSummary(s))}</span>
+          <button class="btn small" type="button" data-unstage="${i}" aria-label="Remove ${esc(s.label)}">Remove</button>
+        </div>`
+      )
+      .join("");
+    list.querySelectorAll("[data-unstage]").forEach((btn) => {
+      btn.onclick = () => {
+        staged.splice(Number(btn.dataset.unstage), 1);
+        renderStaged();
+      };
+    });
+  };
+  if (!existing) {
+    // The review's date warning reads the event's dates; on the form they
+    // are whatever is typed right now.
+    const pendingEvent = {
+      get start_date() {
+        return view.querySelector('[name="start_date"]').value;
+      },
+      get days() {
+        return Number(view.querySelector('[name="days"]').value) || 1;
+      },
+    };
+    bindTelemetryImport(view, pendingEvent, () => {}, {
+      confirmLabel: "Add to this event",
+      onSessions: (bodies) => {
+        staged.push(...bodies);
+        renderStaged();
+      },
+    });
+  }
 
   bindCombo(view.querySelector('[name="track"]'), view.querySelector("#track-combo-list"), trackOpts);
   bindCombo(view.querySelector('[name="car"]'), view.querySelector("#car-combo-list"), vehicles.map((v) => v.name));
@@ -2366,12 +2455,33 @@ async function viewEventForm(eventId, presetTrack) {
       if (existing) {
         await api(`/events/${existing.id}`, { method: "PUT", body });
         location.hash = `#/event/${existing.id}`;
-      } else {
-        const created = await api("/events", { method: "POST", body });
-        location.hash = `#/event/${created.id}`;
+        return;
       }
+      if (createdId == null) createdId = (await api("/events", { method: "POST", body })).id;
+      // Then the laps, onto the event that now exists: staged imports first,
+      // then the hand-typed session. Each is posted once — a failure leaves
+      // the rest staged, the error on the form, and the next submit retries
+      // only what is left.
+      const hand = {
+        label: view.querySelector("#session-label").value,
+        laps: view.querySelector("#session-laps").value,
+        notes: view.querySelector("#session-notes").value,
+      };
+      const handSession = sessionsToCreate([], hand);
+      while (staged.length) {
+        await api(`/events/${createdId}/sessions`, { method: "POST", body: staged[0] });
+        staged.shift();
+        renderStaged();
+      }
+      if (handSession.length) {
+        await api(`/events/${createdId}/sessions`, { method: "POST", body: handSession[0] });
+        view.querySelector("#session-laps").value = "";
+      }
+      location.hash = `#/event/${createdId}`;
     } catch (err) {
-      view.querySelector("#form-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+      const prefix = createdId != null ? "The event was created, but a session couldn't be added: " : "";
+      view.querySelector("#form-error").innerHTML = `<div class="error-banner">${esc(prefix + err.message)}</div>`;
+      if (createdId != null) view.querySelector("#event-submit").textContent = "Add the laps";
     }
   };
 }

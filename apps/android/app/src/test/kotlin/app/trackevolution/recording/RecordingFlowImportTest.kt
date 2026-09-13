@@ -144,6 +144,37 @@ class RecordingFlowImportTest {
         assertEquals(7, flow.savedEventId)
     }
 
+    /**
+     * Started from the New Event form (`Route.Import.forNewEvent`): there is no
+     * event to post onto, so "save" stages the same drafts the loop would have
+     * posted and fetches no event list — the form posts them after `POST /events`.
+     */
+    @Test
+    fun `an import for a new event stages its drafts instead of posting them`() {
+        val flow = RecordingFlow(CoroutineScope(Dispatchers.Default), api())
+        flow.beginImport(TelemetryImporter.finish(listOf(clip("pdr-delta.mp4"))), preferredEventId = null, forNewEvent = true)
+        val state = flow.state.value
+        assertTrue(state.forNewEvent)
+        assertTrue("no event needed to save", state.canSave)
+        assertNull(state.selectedEventId)
+
+        flow.save(context)
+        awaitSaved(flow)
+
+        assertEquals("nothing reaches the server from the review", 0, posted.size)
+        val staged = flow.staged.value
+        assertEquals(1, staged.size)
+        assertEquals("PDR 09:15:00", staged[0].label)
+        assertEquals(listOf(47124, 47124), staged[0].laps)
+        assertTrue(staged[0].notes!!.startsWith("Imported from pdr-delta.mp4 — top speed "))
+        assertEquals(2, staged[0].channels!!.laps.size)
+        assertTrue("the racing line rides along", staged[0].trace!!.size > 10)
+        assertNull(flow.savedEventId)
+
+        assertEquals(staged, flow.takeStaged())
+        assertEquals("taken once", emptyList<Any>(), flow.staged.value)
+    }
+
     @Test
     fun `a PDR clip with beacons needs no line and posts its car channels`() {
         val flow = RecordingFlow(CoroutineScope(Dispatchers.Default), api())

@@ -7,6 +7,14 @@
 // have no trace to click — their laps come from lat+odometer recovery
 // (pdr-laps.js), phase-anchored across the batch.
 // Expects the event-detail markup: #pdr-files, #pdr-dropzone, #pdr-import, #pdr-review.
+//
+// Two callers, one difference. The event page posts the accepted files as
+// sessions on `event` and calls `onDone`. The New Event form (`viewEventForm`)
+// has no event yet, so it passes `options.onSessions`: the review then hands
+// the session bodies back — the same bodies `POST /events/:id/sessions` would
+// get — and the form posts them itself once the event exists. Everything
+// between the file and the body (parsing, the line picker, labels, include
+// boxes, the notes line) is shared, which is the point.
 
 import { api } from "../api.js";
 import { esc, fmtMs } from "../format.js";
@@ -16,7 +24,7 @@ import { anchorPdrBatch } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 import { currentUnits, fmtSpeedKph } from "../units.js";
 
-export function bindTelemetryImport(view, event, onDone) {
+export function bindTelemetryImport(view, event, onDone, options = {}) {
   const fileInput = view.querySelector("#pdr-files");
   const dropzone = view.querySelector("#pdr-dropzone");
   view.querySelector("#pdr-import").onclick = () => fileInput.click();
@@ -44,7 +52,7 @@ export function bindTelemetryImport(view, event, onDone) {
       if (r.parsed?.kind === "pdr" && r.parsed.lapRecovery) attachLapChannels(r.parsed);
     }
 
-    reviewResults(box, event, results, onDone);
+    reviewResults(box, event, results, onDone, options);
   }
 
   fileInput.onchange = () => importFiles(fileInput.files);
@@ -80,7 +88,7 @@ export function bindTelemetryImport(view, event, onDone) {
 // kind:"live" branches below cover the same shape the native apps' lap
 // recorder produces (public/js/record/core.js toParsed); on the web nothing
 // feeds a live parse in, but the copy stays with the shape it describes.
-export function reviewResults(box, event, results, onDone) {
+export function reviewResults(box, event, results, onDone, options = {}) {
   // Shared coordinate frame for all line-picking traces (same track), so one
   // picked line applies to every trace in the batch.
   const first = results.find((r) => r.parsed?.needsLine && r.parsed.gps?.length);
@@ -89,7 +97,7 @@ export function reviewResults(box, event, results, onDone) {
     origin: first ? first.parsed.gps[0] : null,
     gate: null,
   };
-  renderReview(box, event, state, onDone);
+  renderReview(box, event, state, onDone, options);
 }
 
 // --- line picker ---------------------------------------------------------------
@@ -211,7 +219,26 @@ function estimatedNote(p, estCount) {
   return `lap times derived from GPS start/finish crossings (~±0.1–0.3s)`;
 }
 
-function renderReview(box, event, state, onDone) {
+// One accepted file as the body of `POST /events/:id/sessions` — the
+// event page posts it, the New Event form stages it until the event exists.
+// `label` is what the review's field holds; blank falls back to the file
+// name. Exported for unit tests.
+export function importSessionBody(r, label, units = currentUnits()) {
+  const p = r.parsed;
+  const estCount = p.laps.filter((l) => l.estimated).length;
+  const note = estimatedNote(p, estCount);
+  const metrics = metricsSummary(p, units);
+  const source = p.kind === "live" ? "Recorded with the in-app lap timer" : `Imported from ${r.file}`;
+  return {
+    label: (label ?? "").trim() || r.file,
+    notes: source + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
+    laps: p.laps.map((l) => l.timeMs),
+    trace: p.bestLapTrace ?? null,
+    channels: p.lapChannels ?? null,
+  };
+}
+
+function renderReview(box, event, state, onDone, options) {
   const { results } = state;
 
   // Preserve label edits and checkbox choices across re-renders (line picks).
@@ -293,8 +320,8 @@ function renderReview(box, event, state, onDone) {
     <strong>${results.every((r) => r.parsed?.kind === "live") ? "Recording preview" : "Import preview"}</strong>
     <div style="margin-top:10px">${pickerHtml}${blocks}</div>
     <div class="btn-row">
-      <button class="btn primary" id="import-confirm">Add as sessions</button>
-      <button class="btn" id="import-cancel">Cancel</button>
+      <button class="btn primary" id="import-confirm" type="button">${esc(options.confirmLabel ?? "Add as sessions")}</button>
+      <button class="btn" id="import-cancel" type="button">Cancel</button>
     </div>
   </div>`;
 
@@ -318,34 +345,27 @@ function renderReview(box, event, state, onDone) {
       if (!gate) return;
       state.gate = gate;
       applyGate(state);
-      renderReview(box, event, state, onDone);
+      renderReview(box, event, state, onDone, options);
     });
   }
 
   box.querySelector("#import-cancel").onclick = () => (box.innerHTML = "");
   box.querySelector("#import-confirm").onclick = async () => {
-    let added = 0;
+    const bodies = [];
     for (let i = 0; i < results.length; i++) {
       const inc = box.querySelector(`[data-import-include="${i}"]`);
       if (!inc || !inc.checked) continue;
-      const r = results[i];
-      const estCount = r.parsed.laps.filter((l) => l.estimated).length;
-      const note = estimatedNote(r.parsed, estCount);
-      const metrics = metricsSummary(r.parsed);
-      const source = r.parsed.kind === "live" ? "Recorded with the in-app lap timer" : `Imported from ${r.file}`;
-      await api(`/events/${event.id}/sessions`, {
-        method: "POST",
-        body: {
-          label: box.querySelector(`[data-import-label="${i}"]`).value.trim() || r.file,
-          notes: source + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
-          laps: r.parsed.laps.map((l) => l.timeMs),
-          trace: r.parsed.bestLapTrace ?? null,
-          channels: r.parsed.lapChannels ?? null,
-        },
-      });
-      added++;
+      bodies.push(importSessionBody(results[i], box.querySelector(`[data-import-label="${i}"]`).value));
     }
-    if (added) onDone();
+    if (options.onSessions) {
+      // No event to post onto yet: hand the bodies to the form, which is
+      // holding them until "Create event".
+      box.innerHTML = "";
+      if (bodies.length) options.onSessions(bodies);
+      return;
+    }
+    for (const body of bodies) await api(`/events/${event.id}/sessions`, { method: "POST", body });
+    if (bodies.length) onDone();
     else box.innerHTML = "";
   };
 }

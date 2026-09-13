@@ -15,6 +15,14 @@ import TrackEvolutionKit
 /// - **`car` is free text.** The server auto-matches it to a garage vehicle by name.
 ///   The garage suggestions are a convenience, not a picker — typing a car that
 ///   isn't in the garage has to keep working.
+///
+/// A **new** event ends with an "Add laps" card — the event page's "Add a session"
+/// card, minus the recorder: *Import video* opens the same importer, whose review
+/// hands its sessions back through `AppRouter.stagedSessions`
+/// (`Route.importVideo(forNewEvent:)`), and lap times can be typed straight in.
+/// Both are saved with the event, so logging a day is one screen rather than a
+/// form and then a page. Editing an existing event has no such card: its page
+/// already has the real one.
 struct EventFormScreen: View {
     let target: EventFormTarget
 
@@ -38,7 +46,18 @@ struct EventFormScreen: View {
                 self.model = model
                 await model.load()
             }
+            takeStagedSessions()
         }
+        // The importer pushed from this form pops back onto it with the sessions
+        // it staged; the form stays alive underneath a push, so this fires.
+        .onChange(of: router.stagedSessions) { _, _ in takeStagedSessions() }
+    }
+
+    /// Adopt whatever an import staged for this form, and empty the hand-off.
+    private func takeStagedSessions() {
+        guard let model, !model.isEditing, !router.stagedSessions.isEmpty else { return }
+        model.stage(router.stagedSessions)
+        router.stagedSessions = []
     }
 
     private func form(_ model: EventFormModel) -> some View {
@@ -144,11 +163,15 @@ struct EventFormScreen: View {
                 }
             }
 
+            if !model.isEditing {
+                addLapsCard(model)
+            }
+
             if let error = model.error {
                 TEErrorBanner(message: error)
             }
 
-            Button(model.isSaving ? "Saving…" : (model.isEditing ? "Save changes" : "Create event")) {
+            Button(model.isSaving ? "Saving…" : model.submitTitle) {
                 Task {
                     guard let id = await model.save() else { return }
                     Haptics.confirm()
@@ -168,6 +191,88 @@ struct EventFormScreen: View {
         // The keyboard must not cover the field being typed into; a form this long
         // needs the scroll view to dismiss it interactively too.
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    // MARK: - Add laps
+
+    /// The sessions the new event is created with: clips staged by the importer,
+    /// each removable until Create, and one typed by hand. The copy is the event
+    /// page card's, so the two read as the same thing.
+    private func addLapsCard(_ model: EventFormModel) -> some View {
+        @Bindable var model = model
+        return TECard {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Add laps")
+                        .teStyle(.h2)
+                        .foregroundStyle(Color(.textStrong))
+                    Text("Optional — the sessions here are saved with the event. You can always add more from its page.")
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textMuted))
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Import a video")
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textStrong))
+                    Text("PDR and GoPro clips carry telemetry. Pick one from Files or Photos and the laps come out of it — the video stays on this phone.")
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textMuted))
+                    Button("Import video") {
+                        router.push(.importVideo(eventId: nil, incoming: nil, forNewEvent: true))
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("formImportEntry")
+
+                    ForEach(Array(model.stagedSessions.enumerated()), id: \.offset) { index, draft in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(draft.label ?? "Imported session")
+                                    .teStyle(.sm)
+                                    .foregroundStyle(Color(.textStrong))
+                                    .lineLimit(1)
+                                Text(EventFormSessions.stagedSummary(laps: draft.laps ?? []))
+                                    .teStyle(.xs)
+                                    .foregroundStyle(Color(.textMuted))
+                            }
+                            Spacer()
+                            Button("Remove") { model.removeStaged(at: index) }
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textMuted))
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("stagedSession\(index)")
+                    }
+                }
+
+                Divider().overlay(Color(.borderHairline))
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Enter lap times by hand")
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textStrong))
+                    TEField(label: "Session label") {
+                        TextField("Day 1 — Session 2", text: $model.sessionLabel)
+                            .teInput()
+                    }
+                    TEField(
+                        label: "Lap times",
+                        hint: "Comma, space or newline separated. Formats: 2:01.24 · 2:01 · 121.24 (seconds)"
+                    ) {
+                        TextField("2:03.55, 2:01.24, 2:02.61", text: $model.sessionLaps, axis: .vertical)
+                            .teInput()
+                            .keyboardType(.numbersAndPunctuation)
+                            .autocorrectionDisabled()
+                            .lineLimit(2...5)
+                            .accessibilityIdentifier("formSessionLaps")
+                    }
+                    TEField(label: "Session notes") {
+                        TextField("Traffic, tire pressures, line changes…", text: $model.sessionNotes)
+                            .teInput()
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -252,6 +357,17 @@ final class EventFormModel {
     var bestTime = ""
     var notes = ""
 
+    /// The hand-typed session of the "Add laps" card, new events only.
+    var sessionLabel = ""
+    var sessionLaps = ""
+    var sessionNotes = ""
+    /// Sessions the import review staged for this event, in posting order.
+    private(set) var stagedSessions: [SessionDraft] = []
+    /// The event `save()` already created, when a session post after it failed.
+    /// nil until then; the next save skips `POST /events` and posts the sessions
+    /// still pending — never creating the event twice.
+    private(set) var createdId: Int?
+
     private(set) var trackOptions: [String] = []
     private(set) var carOptions: [String] = []
     /// The track id the event already has, so an unedited name doesn't re-resolve.
@@ -269,6 +385,30 @@ final class EventFormModel {
     var isEditing: Bool {
         if case .edit = target { return true }
         return false
+    }
+
+    /// The submit button: the event exists and a session didn't make it, so the
+    /// same button now only retries the laps.
+    var submitTitle: String {
+        if isEditing { return "Save changes" }
+        return createdId == nil ? "Create event" : "Add the laps"
+    }
+
+    func stage(_ drafts: [SessionDraft]) {
+        stagedSessions += drafts
+    }
+
+    func removeStaged(at index: Int) {
+        guard stagedSessions.indices.contains(index) else { return }
+        stagedSessions.remove(at: index)
+    }
+
+    /// Everything the "Add laps" card would post, in posting order — the rule
+    /// pinned by `contracts/logic/event-form.json`.
+    var pendingSessions: [SessionDraft] {
+        EventFormSessions.sessionsToCreate(
+            staged: stagedSessions, label: sessionLabel, laps: sessionLaps, notes: sessionNotes
+        )
     }
 
     func load() async {
@@ -351,17 +491,36 @@ final class EventFormModel {
         do {
             switch target {
             case .new:
-                var draft = EventDraft(startDate: iso, trackName: name)
-                draft.days = days
-                draft.trackHours = Double(hoursRaw)
-                draft.club = nilIfEmpty(club)
-                draft.runGroup = nilIfEmpty(runGroup)
-                draft.car = nilIfEmpty(car)
-                draft.conditions = conditions
-                draft.tempF = storedTemp
-                draft.bestTimeMs = best
-                draft.notes = nilIfEmpty(notes)
-                return try await api.createEvent(draft)
+                let id: Int
+                if let createdId {
+                    id = createdId
+                } else {
+                    var draft = EventDraft(startDate: iso, trackName: name)
+                    draft.days = days
+                    draft.trackHours = Double(hoursRaw)
+                    draft.club = nilIfEmpty(club)
+                    draft.runGroup = nilIfEmpty(runGroup)
+                    draft.car = nilIfEmpty(car)
+                    draft.conditions = conditions
+                    draft.tempF = storedTemp
+                    draft.bestTimeMs = best
+                    draft.notes = nilIfEmpty(notes)
+                    id = try await api.createEvent(draft)
+                    createdId = id
+                }
+                // Then the laps, onto the event that now exists: the staged
+                // imports first, then the hand-typed session. Each is posted once
+                // — a posted one leaves the staging (or empties the typed laps)
+                // before the next, so a failure leaves exactly the rest.
+                for session in pendingSessions {
+                    _ = try await api.createSession(eventId: id, session)
+                    if stagedSessions.first == session {
+                        stagedSessions.removeFirst()
+                    } else {
+                        sessionLaps = ""
+                    }
+                }
+                return id
             case .edit(let id):
                 var patch = EventPatch()
                 // The name is always sent: the server find-or-creates the track from
@@ -381,12 +540,17 @@ final class EventFormModel {
                 return id
             }
         } catch let error as APIError {
-            self.error = error.message
+            self.error = sessionFailurePrefix + error.message
             return nil
         } catch {
-            self.error = error.localizedDescription
+            self.error = sessionFailurePrefix + error.localizedDescription
             return nil
         }
+    }
+
+    /// Once the event exists, a failure is a session's, and the message says so.
+    private var sessionFailurePrefix: String {
+        createdId == nil ? "" : "The event was created, but a session couldn't be added: "
     }
 
     private func nilIfEmpty(_ text: String) -> String? {

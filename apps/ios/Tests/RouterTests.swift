@@ -1,4 +1,5 @@
 import XCTest
+import TrackEvolutionKit
 
 @testable import TrackEvolution
 
@@ -77,6 +78,7 @@ final class RouterTests: XCTestCase {
         XCTAssertTrue(Route.record(eventId: nil).ownsTheWindow)
         XCTAssertTrue(Route.record(eventId: 3).ownsTheWindow)
         XCTAssertTrue(Route.importVideo(eventId: nil, incoming: nil).ownsTheWindow)
+        XCTAssertTrue(Route.importVideo(eventId: nil, incoming: nil, forNewEvent: true).ownsTheWindow)
 
         XCTAssertFalse(Route.event(1).ownsTheWindow)
         XCTAssertFalse(Route.track(1).ownsTheWindow)
@@ -124,5 +126,34 @@ final class RouterTests: XCTestCase {
             XCTAssertTrue(router.open(URL(string: url)!, signedIn: true), "\(url) should be ours")
             XCTAssertEqual(router.path, expected.map { [$0] } ?? [], "\(url)")
         }
+    }
+
+    // MARK: - The New Event form's import
+
+    /// An import pushed from the New Event form hands its sessions back through
+    /// the router, and the form empties the hand-off when it takes them — so a
+    /// second form later never inherits a stale batch.
+    func testStagedSessionsAreHandedBackAlongThePath() {
+        let router = AppRouter()
+        router.push(.eventForm(.new(presetTrack: nil)))
+        router.push(.importVideo(eventId: nil, incoming: nil, forNewEvent: true))
+
+        let draft = SessionDraft(label: "PDR 09:15:00", laps: [121_240])
+        router.stagedSessions += [draft]
+        router.path.removeLast()
+
+        XCTAssertEqual(router.path, [.eventForm(.new(presetTrack: nil))], "back on the form")
+        XCTAssertEqual(router.stagedSessions, [draft])
+        router.stagedSessions = []
+        XCTAssertTrue(router.stagedSessions.isEmpty)
+    }
+
+    /// The remap keeps the new-event flag: a form-started import never carries an
+    /// event id, but the case is rewritten by the same code path as the others.
+    func testRemapKeepsTheNewEventFlag() {
+        let router = AppRouter()
+        router.path = [.eventForm(.new(presetTrack: nil)), .importVideo(eventId: nil, incoming: nil, forNewEvent: true)]
+        router.remapTempIds { _ in 9 }
+        XCTAssertEqual(router.path, [.eventForm(.new(presetTrack: nil)), .importVideo(eventId: nil, incoming: nil, forNewEvent: true)])
     }
 }

@@ -155,7 +155,19 @@ fun ReviewScreen(
                     )
                 }
 
-                if (anyLaps) {
+                if (anyLaps && state.forNewEvent) {
+                    // Started from the New Event form: the event is the one being
+                    // typed, so there is nothing to pick.
+                    TrackCard {
+                        Text("SAVE ONTO", style = type.eyebrow, color = colors.textFaint)
+                        Text(
+                            "The event you're creating. These sessions are added to it when you tap Create event.",
+                            style = type.sm,
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                } else if (anyLaps) {
                     // Which event this belongs to. A recording can outlive not having
                     // one — Android Auto starts them before the event exists — so the
                     // choice lives here, at save time, rather than at start.
@@ -232,7 +244,11 @@ fun ReviewScreen(
                         )
                     } else {
                         Text(
-                            if (state.selectedCount > 1) "Save ${state.selectedCount} sessions" else "Save session",
+                            when {
+                                state.forNewEvent -> "Add to new event"
+                                state.selectedCount > 1 -> "Save ${state.selectedCount} sessions"
+                                else -> "Save session"
+                            },
                             style = type.bodyStrong,
                         )
                     }
