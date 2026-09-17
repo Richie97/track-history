@@ -57,6 +57,24 @@ extension Route {
     }
 }
 
+extension Route {
+    /// This route on a machine that may have no recorder (epic #230), or nil for
+    /// the dashboard.
+    ///
+    /// On a Mac the record route goes to the event it was for, or to the dashboard
+    /// when it had none — never to `RecordingScreen`, whose Start would be dead
+    /// over Wi-Fi location. Every other route is itself; the importer included,
+    /// since Finder is a better import door than a phone. `AppRouter` applies this
+    /// to every push, show and presentation, so a stale path, a banner or a door
+    /// `Platform`'s two surface rules missed cannot reach the recorder either.
+    /// Off the Mac it is the identity, which is what keeps the phone byte-for-byte
+    /// unchanged.
+    func resolved(runsOnMac: Bool) -> Route? {
+        guard runsOnMac, case .record(let eventId) = self else { return self }
+        return eventId.map { .event($0) }
+    }
+}
+
 /// A route identifies itself, so it can drive a `fullScreenCover(item:)` without
 /// a wrapper type. Safe because `Route` is already `Hashable` and carries no
 /// mutable state — two equal routes *are* the same destination.
@@ -77,6 +95,14 @@ enum EventFormTarget: Hashable {
 @Observable
 final class AppRouter {
     var path: [Route] = []
+
+    /// Whether the iPad build is running on a Mac (epic #230). Injected so the
+    /// tests can drive both answers; the app passes `Platform.runsOnMac`.
+    let runsOnMac: Bool
+
+    init(runsOnMac: Bool = Platform.runsOnMac) {
+        self.runsOnMac = runsOnMac
+    }
 
     /// A route that must own the **whole window** rather than a pane (NS-34).
     ///
@@ -108,6 +134,7 @@ final class AppRouter {
     private var pending: Route?
 
     func push(_ route: Route) {
+        guard let route = route.resolved(runsOnMac: runsOnMac) else { popToRoot(); return }
         path.append(route)
     }
 
@@ -118,7 +145,7 @@ final class AppRouter {
     /// Replace the stack with a single destination — what a deep link should do,
     /// rather than burying the dashboard under an arbitrary history.
     func show(_ route: Route) {
-        path = [route]
+        path = route.resolved(runsOnMac: runsOnMac).map { [$0] } ?? []
     }
 
     /// Open a route **from the list pane** (NS-34).
@@ -137,8 +164,16 @@ final class AppRouter {
     }
 
     /// Present a route over the whole window, at any width. See ``fullWindow``.
+    ///
+    /// On a Mac the recorder resolves to its event, and an event is a detail, not
+    /// a cover — so it is opened where the list pane would have opened it.
     func presentFullWindow(_ route: Route) {
-        fullWindow = route
+        guard let route = route.resolved(runsOnMac: runsOnMac) else { popToRoot(); return }
+        if route.ownsTheWindow {
+            fullWindow = route
+        } else {
+            open(route)
+        }
     }
 
     func dismissFullWindow() {

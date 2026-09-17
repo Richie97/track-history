@@ -6,6 +6,12 @@ import TrackEvolutionKit
 /// The recorder is owned above the view tree, so navigating away doesn't stop it —
 /// which makes it essential that you can always *see* that it's running, and get
 /// back to it in one tap. Sits above the content like a now-playing bar.
+///
+/// Not guarded by `Platform.runsOnMac` (epic #230), and on purpose: a recording
+/// only ever exists from a Start on *this* device, and on a Mac every Start is
+/// gone — the dashboard button, the event card, and the `.record` route itself,
+/// which `AppRouter` resolves to the event. A banner for a recording that cannot
+/// begin needs no rule of its own.
 struct RecordingBanner: View {
     @Environment(RecordingController.self) private var recorder
     @State private var showingRecorder = false

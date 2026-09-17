@@ -724,7 +724,11 @@ struct EventScreen: View {
             row {
                 TECard {
                     VStack(alignment: .leading, spacing: 16) {
-                        recorderOption(event)
+                        if Platform.eventPageOffersRecorder(runsOnMac: Platform.runsOnMac) {
+                            recorderOption(event)
+                        } else {
+                            recordOnPhoneNote
+                        }
                         Divider().overlay(Color(.borderHairline))
                         importOption(event)
                         Divider().overlay(Color(.borderHairline))
@@ -758,6 +762,25 @@ struct EventScreen: View {
             // it by identifier instead.
             .accessibilityIdentifier("recordEntry")
         }
+    }
+
+    /// The recorder's slot on a Mac (epic #230): the same heading, a sentence
+    /// where the button was.
+    ///
+    /// A Mac has Wi-Fi location and no GPS, so it does not record; but a card that
+    /// silently lost one of its three doors would leave the reader wondering where
+    /// recording went, so the slot says where it is. The laps land on this event
+    /// because a recording saved on the phone syncs to the same account.
+    private var recordOnPhoneNote: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Record laps with your iPhone")
+                .teStyle(.h3)
+                .foregroundStyle(Color(.textStrong))
+            Text("A Mac has no GPS, so recording lives in the iPhone app. Start it there before heading out — the laps land on this event once the phone syncs.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+        }
+        .accessibilityIdentifier("recordOnPhoneNote")
     }
 
     private var recorderIsBusy: Bool {

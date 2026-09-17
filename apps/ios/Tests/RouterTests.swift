@@ -111,7 +111,9 @@ final class RouterTests: XCTestCase {
     /// matters — it does **not** disturb the path underneath it. Dismissing the
     /// recorder puts you back exactly where you were.
     func testFullWindowPresentationLeavesThePathAlone() {
-        let router = AppRouter()
+        // Explicit rather than the default, which is the machine the tests run
+        // on: as *My Mac (Designed for iPad)* the recorder resolves away.
+        let router = AppRouter(runsOnMac: false)
         router.open(.event(2))
 
         router.presentFullWindow(.record(eventId: 2))
@@ -121,6 +123,42 @@ final class RouterTests: XCTestCase {
         router.dismissFullWindow()
         XCTAssertNil(router.fullWindow)
         XCTAssertEqual(router.path, [.event(2)])
+    }
+
+    // MARK: - the Mac has no recorder
+
+    /// On a Mac (epic #230) no way of asking for the recorder reaches it: a
+    /// presentation opens the event instead of covering the window, a push lands
+    /// on the event, and one with no event goes to the dashboard. Applied on the
+    /// router rather than at each door, so a door the surface rules missed — a
+    /// stale path, the banner's sheet — is caught here too.
+    func testOnAMacTheRecordRouteLandsOnItsEventOrTheDashboard() {
+        let router = AppRouter(runsOnMac: true)
+        router.open(.event(2))
+
+        router.presentFullWindow(.record(eventId: 2))
+        XCTAssertNil(router.fullWindow, "nothing covers the window")
+        XCTAssertEqual(router.path, [.event(2)])
+
+        router.push(.record(eventId: 5))
+        XCTAssertEqual(router.path, [.event(2), .event(5)], "a push lands on the event")
+
+        router.show(.record(eventId: 7))
+        XCTAssertEqual(router.path, [.event(7)])
+
+        router.push(.record(eventId: nil))
+        XCTAssertEqual(router.path, [], "no event means the dashboard")
+
+        // The importer is untouched: Finder is a better import door than a phone.
+        router.presentFullWindow(.importVideo(eventId: 1, incoming: nil))
+        XCTAssertEqual(router.fullWindow, .importVideo(eventId: 1, incoming: nil))
+    }
+
+    /// Off the Mac the router is what it was — the resolution is the identity.
+    func testOffTheMacTheRecordRouteIsPushedAsItself() {
+        let router = AppRouter(runsOnMac: false)
+        router.push(.record(eventId: nil))
+        XCTAssertEqual(router.path, [.record(eventId: nil)])
     }
 
     // MARK: - deep links land the same place at every width

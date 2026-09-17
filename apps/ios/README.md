@@ -65,7 +65,27 @@ breakpoints, which the spec keeps out of the Kit because the class is derived
 from UIKit's size class and the window's width, and which Android duplicates for
 the same reason. A test on each platform is what stops that duplication becoming
 drift, so `LayoutClassTests` and Android's `LayoutClassTest` fail together or not
-at all. Adding a second case here should feel like a decision.
+at all. The second case is `PlatformTests` (epic #230): `Platform.runsOnMac` is a
+fact about the *process*, read from `ProcessInfo`, and the recorder doors it
+closes on a Mac are decided by pure functions pinned there for both values,
+because no CI job runs the app as a Mac. Adding a third should still feel like a
+decision.
+
+## Running on a Mac
+
+The iPad build ships on Apple silicon Macs as a *Designed for iPad* app — an App
+Store Connect availability toggle, not a target. To run it that way from Xcode
+pick the **My Mac (Designed for iPad)** destination, or:
+
+```sh
+xcodebuild build -project TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=macOS,variant=Designed for iPad' CODE_SIGNING_ALLOWED=NO
+```
+
+What to expect there: no *Record laps* button on the dashboard, the event page's
+*Add a session* card offering import and hand entry with a record-on-your-iPhone
+note where the recorder was, and the two-pane shell, since a Mac window is
+expanded width. Everything else is the iPad app.
 
 ## Design system
 
