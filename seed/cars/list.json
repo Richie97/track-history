@@ -1,5 +1,6 @@
 [
-  { "make": "Chevrolet", "model": "Corvette", "generation": "C5", "years": [1997, 2004], "wikidata": "Q1135711" },
+  { "make": "Chevrolet", "model": "Corvette", "generation": "C5", "years": [1997, 2004], "wikidata": "Q1135711",
+    "wheelbase": { "mm": 2656, "source": "GM Heritage Archive, 2004 Chevrolet Corvette vehicle information kit (104.5 in / 2656 mm; overrides Wikidata's 2669), https://www.gm.com/content/dam/company/no_search/heritage-archive-docs/vehicle-information-kits/chevrolet/2004-Chevrolet-Corvette.pdf" } },
   { "make": "Chevrolet", "model": "Corvette", "generation": "C6", "years": [2005, 2013], "wikidata": "Q1119538" },
   { "make": "Chevrolet", "model": "Corvette", "generation": "C7", "years": [2014, 2019], "wikidata": "Q1135713" },
   { "make": "Chevrolet", "model": "Corvette", "generation": "C8", "years": [2020, null],
@@ -29,7 +30,7 @@
   { "make": "BMW", "model": "M2", "generation": "F87", "years": [2016, 2021],
     "wheelbase": { "in": 106.0, "source": "BMW Group PressClub USA, 2018 BMW M2 Coupé technical data, https://www.press.bmwgroup.com/usa/article/attachment/T0238507EN_US/391960" } },
   { "make": "BMW", "model": "M2", "generation": "G87", "years": [2023, null],
-    "wheelbase": { "mm": 2747, "source": "BMW Group PressClub Canada, The all-new BMW M2, https://www.press.bmwgroup.com/canada/article/detail/T0404633EN/the-all-new-bmw-m2:-purebred-driving-pleasure-intensely-concentrated?language=en" } },
+    "wheelbase": { "mm": 2747, "source": "BMW Group PressClub UK, BMW M2 technical specifications 10/2022, https://www.press.bmwgroup.com/united-kingdom/article/attachment/T0404614EN_GB/588171" } },
   { "make": "BMW", "model": "M3", "generation": "E46", "years": [2001, 2006], "wikidata": "Q21036537" },
   { "make": "BMW", "model": "M3", "generation": "E90 / E92", "years": [2008, 2013],
     "wheelbase": { "mm": 2761, "source": "FIA homologation form 3-18-016A BMW M3 (E92), via Motorsport Australia, https://motorsport.org.au/wpblob0fe832abcb/wp-content/uploads/2025/03/3-18-016A-BMW-M3-e92.pdf" } },
