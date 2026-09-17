@@ -46,7 +46,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # `packages` spelled out because the action's default list also names
+      # `tools`, the long-deprecated legacy package that the runner image's
+      # command-line tools 16 stopped serving on 2026-09-17: sdkmanager answers
+      # "Failed to find package 'tools'" and exits 1 before Gradle ever runs.
+      # Nothing here needs it — platform-tools is adb, and the platform is
+      # installed by name below.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       # Explicit rather than left to AGP's auto-download. `compileSdk` moved to
       # 37 for `material3.adaptive` (NS-34 ticket 2), and a runner image that
       # happens not to ship that platform would otherwise fail deep inside a

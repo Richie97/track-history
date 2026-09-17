@@ -93,6 +93,10 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+        with:
+          # Same reason as android.yml: the default list asks for the retired
+          # `tools` package, which fails the whole step on current runner images.
+          packages: platform-tools
       # See the same step in android.yml, including why the package is spelled
       # `android-37.0` while build.gradle.kts says `compileSdk = 37`. This is
       # the workflow where a missing platform costs a release rather than a red
