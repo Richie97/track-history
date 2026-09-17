@@ -228,6 +228,33 @@ struct APIClientTests {
         #expect(String(decoding: cleared, as: UTF8.self) == #"{"target_hot_psi":null}"#)
     }
 
+    @Test func vehicleGeometryAndCatalogPickUseTheServersKeys() throws {
+        // A pick sends only catalog_id — the server pre-fills both numbers — and
+        // an unlink is an explicit null, which the server distinguishes from an
+        // absent key.
+        var pick = VehiclePatch()
+        pick.catalogId = .set(7)
+        let picked = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(pick)) as? [String: Any])
+        #expect(picked.keys.sorted() == ["catalog_id"])
+        #expect(picked["catalog_id"] as? Int == 7)
+
+        var correcting = VehiclePatch()
+        correcting.wheelbaseMm = .set(2710)
+        correcting.steeringRatio = .set(nil)
+        correcting.catalogId = .set(nil)
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(correcting)) as? [String: Any])
+        #expect(json.keys.sorted() == ["catalog_id", "steering_ratio", "wheelbase_mm"])
+        #expect(json["wheelbase_mm"] as? Int == 2710)
+        #expect(json["steering_ratio"] is NSNull)
+        #expect(json["catalog_id"] is NSNull)
+
+        // A draft omits what it does not set: on a create an absent geometry key
+        // means "fill from the catalog", a null one means "clear".
+        let draft = VehicleDraft(name: "Betty", catalogId: 7)
+        let drafted = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(draft)) as? [String: Any])
+        #expect(drafted.keys.sorted() == ["catalog_id", "name"])
+    }
+
     @Test func aSessionPatchAlwaysSendsBothColumns() throws {
         let encoded = try JSONEncoder().encode(SessionPatch(label: "Session 4"))
         let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])

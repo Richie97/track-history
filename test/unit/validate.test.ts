@@ -7,6 +7,8 @@ import {
   isValidUnits,
   isValidDate,
   isValidPartKind,
+  isValidSteeringRatio,
+  isValidWheelbaseMm,
   sanitizeChecklist,
   sanitizeLaps,
   sanitizeSetup,
@@ -110,6 +112,35 @@ describe("isValidUnits", () => {
     expect(isValidUnits(null)).toBe(false);
     expect(isValidUnits(undefined)).toBe(false);
     expect(isValidUnits(1)).toBe(false);
+  });
+});
+
+describe("vehicle geometry", () => {
+  it("accepts a cleared or road-car wheelbase in whole millimetres", () => {
+    expect(isValidWheelbaseMm(null)).toBe(true);
+    expect(isValidWheelbaseMm(undefined)).toBe(true);
+    expect(isValidWheelbaseMm(2710)).toBe(true);
+    expect(isValidWheelbaseMm(1500)).toBe(true);
+    expect(isValidWheelbaseMm(4500)).toBe(true);
+    // Metres, inches, a fraction, a string, out of range.
+    expect(isValidWheelbaseMm(2.71)).toBe(false);
+    expect(isValidWheelbaseMm(106.7)).toBe(false);
+    expect(isValidWheelbaseMm(2710.5)).toBe(false);
+    expect(isValidWheelbaseMm("2710")).toBe(false);
+    expect(isValidWheelbaseMm(1499)).toBe(false);
+    expect(isValidWheelbaseMm(4501)).toBe(false);
+  });
+
+  it("accepts a cleared or plausible steering ratio", () => {
+    expect(isValidSteeringRatio(null)).toBe(true);
+    expect(isValidSteeringRatio(16.25)).toBe(true);
+    expect(isValidSteeringRatio(5)).toBe(true);
+    expect(isValidSteeringRatio(30)).toBe(true);
+    expect(isValidSteeringRatio(0)).toBe(false);
+    expect(isValidSteeringRatio(4.9)).toBe(false);
+    expect(isValidSteeringRatio(30.1)).toBe(false);
+    expect(isValidSteeringRatio("16.25:1")).toBe(false);
+    expect(isValidSteeringRatio(NaN)).toBe(false);
   });
 });
 

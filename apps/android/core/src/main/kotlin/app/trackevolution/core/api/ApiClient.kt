@@ -1,6 +1,7 @@
 package app.trackevolution.core.api
 
 import app.trackevolution.core.model.BillingResponse
+import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.Event
@@ -289,6 +290,14 @@ public class ApiClient(
     /** The seeded canonical catalog behind the event form's name suggestions. */
     public suspend fun catalog(): List<CatalogTrack> =
         get("/catalog", ListSerializer(CatalogTrack.serializer()))
+
+    /**
+     * The seeded car catalog (#221): every generation with its wheelbase,
+     * steering ratio and provenance, ordered for a picker. Small enough to ship
+     * whole, so it reads offline from the response cache.
+     */
+    public suspend fun carCatalog(): List<CatalogCar> =
+        get("/car-catalog", ListSerializer(CatalogCar.serializer()))
 
     /**
      * The per-track community leaderboard: opted-in users' best laps at the

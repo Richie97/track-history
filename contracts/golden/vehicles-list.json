@@ -4,18 +4,24 @@
   "status": 200,
   "body": [
     {
+      "catalog_id": 1,
       "id": 1,
       "is_default": 1,
       "name": "Corvette C7",
       "notes": "Track car.",
-      "target_hot_psi": 32
+      "steering_ratio": 16.25,
+      "target_hot_psi": 32,
+      "wheelbase_mm": 2710
     },
     {
+      "catalog_id": null,
       "id": 1,
       "is_default": 0,
       "name": "Miata",
       "notes": null,
-      "target_hot_psi": null
+      "steering_ratio": null,
+      "target_hot_psi": null,
+      "wheelbase_mm": null
     }
   ]
 }

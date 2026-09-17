@@ -951,7 +951,23 @@ doesn't retain the previous user's logbook.
 - **Vehicles** are a per-user garage (account menu → Settings) with a name,
   free-text modification notes and an optional **target hot tyre pressure**
   (`target_hot_psi`, one number for all four corners — what the session health
-  strip's pressure loop aims the next cold pressures at). An event's `car`
+  strip's pressure loop aims the next cold pressures at). A car can also carry
+  its two spec-sheet constants, **wheelbase** (`wheelbase_mm`, whole
+  millimetres, 1500–4500) and **steering ratio** (`steering_ratio`, 16.25 for
+  "16.25:1", 5–30) — the inputs the balance read-out needs to say *how much*
+  understeer rather than only which corner differs from the rest. Both are
+  optional and editable from the garage page's *Edit car* form; a car with
+  neither behaves exactly as before. Nobody knows their steering ratio by
+  heart, so the numbers come from a seeded **car catalog**
+  (`GET /api/car-catalog`, table `car_catalog`): one row per *generation* —
+  a Z06 and a Stingray share a wheelbase — with the wheelbase, the ratio where
+  a reliable single figure exists (a variable-ratio rack is `null`, never a
+  guess) and a `source` line saying where both came from. Sending a
+  `catalog_id` on `POST`/`PUT /api/vehicles` records the pick and pre-fills
+  the two numbers *at pick time*; after that they are the user's — a
+  corrected value stays, and a later catalog fix never rewrites a car.
+  The catalog is generated from cited inputs by `seed/cars/generate.mjs`
+  (see `seed/cars/README.md`); a car it lacks is typed by hand. An event's `car`
   stays a plain text column —
   the garage feeds the event form's suggestions, and the vehicle marked as
   default pre-fills new events. When the car text matches a garage vehicle by

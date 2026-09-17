@@ -220,6 +220,13 @@ public actor APIClient {
         try await get("/catalog", as: [CatalogTrack].self)
     }
 
+    /// The seeded car catalog (#221): every generation with its wheelbase,
+    /// steering ratio and provenance, ordered for a picker. Small enough to
+    /// ship whole, so it reads offline from the response cache.
+    public func carCatalog() async throws -> [CatalogCar] {
+        try await get("/car-catalog", as: [CatalogCar].self)
+    }
+
     public func updateTrack(id: Int, _ patch: TrackPatch) async throws {
         _ = try await send("PUT", "/tracks/\(id)", body: patch, as: OKResponse.self)
     }

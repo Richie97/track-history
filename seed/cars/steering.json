@@ -1,0 +1,92 @@
+{
+  "Chevrolet|Corvette|C7": {
+    "ratio": 16.25,
+    "source": "Chevrolet Pressroom, 2020 Corvette Stingray (\"Steering ratio improved from 16.25:1 to 15.7:1\"), https://pressroom.chevrolet.com/gmbx/us/en/chevrolet/pressroom/vehicles/2020.detail.html/content/Pages/vehicle/us/en/chevrolet/corvette-stingray/2020.html"
+  },
+  "Chevrolet|Corvette|C8": {
+    "ratio": 15.7,
+    "source": "Chevrolet Pressroom, 2020 Corvette Stingray specifications, https://pressroom.chevrolet.com/gmbx/us/en/chevrolet/pressroom/vehicles/2020.detail.html/content/Pages/vehicle/us/en/chevrolet/corvette-stingray/2020.html"
+  },
+  "Mazda|MX-5 Miata|ND": {
+    "ratio": 15.5,
+    "source": "Mazda USA, 2019 MX-5 Miata features & specs (overall steering ratio), https://www.mazdausa.com/siteassets/pdf/owners-optimized/2019/mx-5-miata-st/2019_mazda_mx5_features_specs.pdf"
+  },
+  "Subaru|BRZ|ZC6": {
+    "ratio": 13.12,
+    "source": "Subaru of America, 2013 BRZ specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/specs/2013_SubaruBRZspecs.pdf"
+  },
+  "Subaru|BRZ|ZD8": {
+    "ratio": 13.5,
+    "source": "Subaru of America, 2022 BRZ specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/attachments/22MY_BRZ_-_Specs_-FINAL.pdf"
+  },
+  "Porsche|Boxster / Cayman|981": {
+    "ratio": null,
+    "note": "variable-ratio rack, 16.5:1 on-centre to 12.37:1 — no single figure",
+    "source": "Porsche Newsroom, 2014 Cayman technical specifications, https://newsroom.porsche.com/dam/jcr:0036dadf-873b-46b8-86b2-841009f188af/2014_Cayman_Technical_Specifications.pdf"
+  },
+  "Porsche|718 Boxster / Cayman|982": {
+    "ratio": null,
+    "note": "variable-ratio rack, 15.0:1 on-centre to 12.5:1 — no single figure",
+    "source": "Porsche Newsroom, 718 Cayman S technical data, https://newsroom.porsche.com/dam/jcr:2e05fcd8-e8ce-4b60-8611-9ce844a8242e/PCNA18_1003_us.pdf"
+  },
+  "Porsche|911|991": {
+    "ratio": null,
+    "note": "variable-ratio rack, 16.6:1 on-centre to 12.5:1 (15.0:1 with rear-axle steering) — no single figure",
+    "source": "Porsche Newsroom, 2017 911 Carrera GTS technical data, https://newsroom.porsche.com/dam/jcr:48c46ea8-77ba-42f0-9891-ddff55e82cb4/PCNA18_1000_us.pdf"
+  },
+  "Porsche|911|992": {
+    "ratio": null,
+    "note": "variable-ratio rack, 15.0:1 on-centre to 12.25:1 — no single figure",
+    "source": "Porsche Newsroom, 992.2 911 Carrera technical specifications, https://newsroom.porsche.com/dam/jcr:86fc9a9b-ece1-4cca-9930-39a78e89baf3/992.2%20911%20Carrera%20and%20Carrera%20Cabriolet%20Technical%20Specifications.pdf"
+  },
+  "BMW|M2|F87": {
+    "ratio": 15.0,
+    "source": "BMW Group PressClub USA, 2018 BMW M2 Coupé technical data (steering ratio, overall), https://www.press.bmwgroup.com/usa/article/attachment/T0238507EN_US/391960"
+  },
+  "BMW|M3|F80": {
+    "ratio": 15.0,
+    "source": "BMW Group PressClub USA, 2017 BMW M3 Sedan technical data (steering ratio, overall), https://www.press.bmwgroup.com/usa/article/attachment/T0160684EN_US/391906"
+  },
+  "BMW|M3|G80": {
+    "ratio": 15.0,
+    "source": "BMW Group PressClub, BMW M3 Sedan specifications 03/2021 (steering ratio, overall), https://www.press.bmwgroup.com/global/article/attachment/T0316649EN/476823"
+  },
+  "BMW|M4|G82": {
+    "ratio": 15.0,
+    "source": "BMW Group PressClub, BMW M4 Coupé specifications 03/2021 (steering ratio, overall), https://www.press.bmwgroup.com/global/article/attachment/T0316649EN/476824"
+  },
+  "Honda|Civic Type R|FL5": {
+    "ratio": 11.6,
+    "source": "Honda News, 2023 Honda Civic Type R specifications & features, https://hondanews.com/en-US/honda-automobiles/releases/release-1503019bd8a757ea08267d79440f3aae-2023-honda-civic-type-r-specifications-features"
+  },
+  "Volkswagen|Golf GTI|Mk7": {
+    "ratio": null,
+    "note": "progressive rack, variable between 9.5:1 and 14.1:1 — no single figure",
+    "source": "Volkswagen of America, 2021 Golf GTI technical specifications, https://media.vw.com/assets/documents/original/12876-2021GolfGTITechSpecsFINAL.pdf"
+  },
+  "Volkswagen|Golf GTI|Mk8": {
+    "ratio": null,
+    "note": "progressive rack, variable between 9.5:1 and 14.1:1 — no single figure",
+    "source": "Volkswagen of America, 2022 Golf GTI technical specifications, https://media.vw.com/assets/documents/original/14657-2022GolfGTITechnicalSpecsFinalv2.pdf"
+  },
+  "Toyota|GR Supra|A90": {
+    "ratio": 15.1,
+    "source": "Toyota UK, GR Supra technical specifications, https://media.toyota.co.uk/wp-content/uploads/sites/5/pdf/220605M-GR-Supra-Tech-Spec.pdf"
+  },
+  "Subaru|WRX|VA": {
+    "ratio": 14.5,
+    "source": "Subaru of America, 2015 WRX specifications, http://subarumedia.iconicweb.com/mediasite/specs/2015_WRX_specs.pdf"
+  },
+  "Subaru|WRX STI|VA": {
+    "ratio": 13.0,
+    "source": "Subaru of America, 2015 WRX STI specifications, http://subarumedia.iconicweb.com/mediasite/specs/2015_WRX_STI_Specs2.pdf"
+  },
+  "Subaru|WRX|VB": {
+    "ratio": 13.5,
+    "source": "Subaru of America, 2022 WRX specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/specs/2022_WRX_Specs-FINAL.pdf"
+  },
+  "Nissan|Z|RZ34": {
+    "ratio": 15.0,
+    "source": "Nissan, 2023 Nissan Z specifications (fixed steering ratio), press kit https://usa.nissannews.com/en-US/releases/2023-nissan-z-press-kit"
+  }
+}

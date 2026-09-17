@@ -1,0 +1,70 @@
+{
+  "Q10423941": {
+    "label": "BMW F80",
+    "wheelbase_mm": 2812
+  },
+  "Q106388685": {
+    "label": "Toyota GR86",
+    "wheelbase_mm": 2575
+  },
+  "Q107336578": {
+    "label": "Honda Civic Type R FL5",
+    "wheelbase_mm": 2735
+  },
+  "Q1119538": {
+    "label": "Chevrolet Corvette C6",
+    "wheelbase_mm": 2686
+  },
+  "Q1135711": {
+    "label": "Chevrolet Corvette C5",
+    "wheelbase_mm": 2669
+  },
+  "Q1135713": {
+    "label": "Chevrolet Corvette C7",
+    "wheelbase_mm": 2710
+  },
+  "Q1138779": {
+    "label": "Toyota 86",
+    "wheelbase_mm": 2570
+  },
+  "Q1338466": {
+    "label": "Porsche 997",
+    "wheelbase_mm": 2350
+  },
+  "Q14927963": {
+    "label": "BMW M4",
+    "wheelbase_mm": 2812
+  },
+  "Q21036537": {
+    "label": "BMW M3",
+    "wheelbase_mm": 2731
+  },
+  "Q2104564": {
+    "label": "Porsche Cayman I",
+    "wheelbase_mm": 2415
+  },
+  "Q55394585": {
+    "label": "Porsche 982",
+    "wheelbase_mm": 2475
+  },
+  "Q62032729": {
+    "label": "Toyota Supra (J29/DB)",
+    "wheelbase_mm": 2470
+  },
+  "Q90998561": {
+    "label": "Lotus Elise (Series 2)",
+    "wheelbase_mm": 2300
+  },
+  "Q913796": {
+    "label": "Honda S2000",
+    "wheelbase_mm": 2400
+  },
+  "Q936668": {
+    "label": "Nissan 370Z",
+    "wheelbase_mm": 2550
+  },
+  "Q936953": {
+    "label": "Porsche 996",
+    "wheelbase_mm": 2350
+  }
+}

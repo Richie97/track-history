@@ -2789,7 +2789,12 @@ async function viewVehicle(vehicleId) {
         <div class="field"><label>Target hot tire pressure (psi, optional)</label>
           <input name="target_hot_psi" type="number" min="5" max="100" step="0.5" value="${v.target_hot_psi ?? ""}" placeholder="e.g. 34"></div>
         <div class="field"><label><input type="checkbox" name="is_default" ${v.is_default ? "checked" : ""}> Default car for new events</label></div>
+        <div class="field"><label>Wheelbase (mm, optional)</label>
+          <input name="wheelbase_mm" type="number" min="1500" max="4500" step="1" value="${v.wheelbase_mm ?? ""}" placeholder="e.g. 2710"></div>
+        <div class="field"><label>Steering ratio (optional)</label>
+          <input name="steering_ratio" type="number" min="5" max="30" step="0.01" value="${v.steering_ratio ?? ""}" placeholder="e.g. 16.25 for 16.25:1"></div>
       </div>
+      <div class="hint">Both are on the spec sheet or in the owner's manual. They let the balance read-out say how much understeer, rather than only which corner differs from the rest — leave them blank and it keeps the relative reading.</div>
       <div id="veh-error"></div>
       <div class="btn-row">
         <button class="btn small primary">Save</button>
@@ -2838,11 +2843,13 @@ async function viewVehicle(vehicleId) {
   };
   vehForm.onsubmit = async (evt) => {
     evt.preventDefault();
-    const psiRaw = vehForm.target_hot_psi.value.trim();
+    const numOrNull = (raw) => (raw.trim() === "" ? null : Number(raw));
     const body = {
       name: vehForm.name.value.trim(),
       notes: vehForm.notes.value.trim() || null,
-      target_hot_psi: psiRaw === "" ? null : Number(psiRaw),
+      target_hot_psi: numOrNull(vehForm.target_hot_psi.value),
+      wheelbase_mm: numOrNull(vehForm.wheelbase_mm.value),
+      steering_ratio: numOrNull(vehForm.steering_ratio.value),
     };
     // Only when it changed: a PUT with is_default false would silently unset
     // the default when the box was merely left alone.

@@ -99,6 +99,59 @@ class GarageApiTest {
     }
 
     @Test
+    fun `a catalog pick sends only the id, and a draft omits the geometry it does not set`() = runTest {
+        val api = client { ok("""{"ok":true}""") }
+        // A pick: the server pre-fills both numbers, so nothing else is sent.
+        api.updateVehicle(3, VehiclePatch(catalogId = Patch.Set(7)))
+        assertEquals(setOf("catalog_id"), bodyOf(recorded.single()).keys)
+        assertEquals(7, bodyOf(recorded.single())["catalog_id"]!!.jsonPrimitive.content.toInt())
+        recorded.clear()
+
+        // A correction plus an unlink: explicit values and explicit nulls, under
+        // the server's keys.
+        api.updateVehicle(
+            3,
+            VehiclePatch(
+                catalogId = Patch.Set(null),
+                wheelbaseMm = Patch.Set(2710),
+                steeringRatio = Patch.Set(null),
+            ),
+        )
+        val body = bodyOf(recorded.single())
+        assertEquals(setOf("catalog_id", "wheelbase_mm", "steering_ratio"), body.keys)
+        assertEquals(2710, body["wheelbase_mm"]!!.jsonPrimitive.content.toInt())
+        assertTrue(body["steering_ratio"] is kotlinx.serialization.json.JsonNull)
+        assertTrue(body["catalog_id"] is kotlinx.serialization.json.JsonNull)
+        recorded.clear()
+
+        // On a create an absent geometry key means "fill from the catalog" and a
+        // null one means "clear", so the draft must not send nulls it didn't set.
+        val created = client { ok("""{"id":4,"name":"Betty","notes":null,"is_default":0,"catalog_id":7,"wheelbase_mm":2710,"steering_ratio":16.25}""") }
+        val vehicle = created.createVehicle(VehicleDraft(name = "Betty", catalogId = 7))
+        assertEquals(setOf("name", "catalog_id"), bodyOf(recorded.single()).keys)
+        assertEquals(7, vehicle.catalogId)
+        assertEquals(2710, vehicle.wheelbaseMm)
+        assertEquals(16.25, vehicle.steeringRatio!!, 0.0)
+    }
+
+    @Test
+    fun `reads the car catalog`() = runTest {
+        val api = client { ok(Goldens.bodyText("car-catalog")) }
+        val cars = api.carCatalog()
+        assertEquals("https://example.test/api/car-catalog", recorded.single().url.toString())
+        assertTrue(cars.size > 20)
+        val c7 = cars.first { it.make == "Chevrolet" && it.generation == "C7" }
+        assertEquals("Chevrolet Corvette C7", c7.displayName)
+        assertEquals("2014–2019", c7.yearRange)
+        assertEquals(2710, c7.wheelbaseMm)
+        assertEquals(16.25, c7.steeringRatio!!, 0.0)
+        // A rack the maker only quotes as a range has no ratio, never a guess.
+        val p992 = cars.first { it.make == "Porsche" && it.generation == "992" }
+        assertEquals(null, p992.steeringRatio)
+        assertEquals("2020–", p992.yearRange)
+    }
+
+    @Test
     fun `deletes a vehicle`() = runTest {
         val api = client { ok("""{"ok":true}""") }
         api.deleteVehicle(3)

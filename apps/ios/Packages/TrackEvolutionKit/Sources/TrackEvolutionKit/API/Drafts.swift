@@ -184,16 +184,48 @@ public struct VehicleDraft: Encodable, Hashable, Sendable {
     public var name: String
     public var notes: String?
     public var isDefault: Bool?
+    /// A car-catalog generation to pick (#221): the server pre-fills
+    /// `wheelbaseMm` / `steeringRatio` from it unless the draft carries its
+    /// own value for one. Nil means a car typed by hand.
+    public var catalogId: Int?
+    public var wheelbaseMm: Int?
+    public var steeringRatio: Double?
 
     public enum CodingKeys: String, CodingKey {
         case name, notes
         case isDefault = "is_default"
+        case catalogId = "catalog_id"
+        case wheelbaseMm = "wheelbase_mm"
+        case steeringRatio = "steering_ratio"
     }
 
-    public init(name: String, notes: String? = nil, isDefault: Bool? = nil) {
+    public init(
+        name: String,
+        notes: String? = nil,
+        isDefault: Bool? = nil,
+        catalogId: Int? = nil,
+        wheelbaseMm: Int? = nil,
+        steeringRatio: Double? = nil
+    ) {
         self.name = name
         self.notes = notes
         self.isDefault = isDefault
+        self.catalogId = catalogId
+        self.wheelbaseMm = wheelbaseMm
+        self.steeringRatio = steeringRatio
+    }
+
+    /// Optional fields are omitted rather than sent as null: on a create the
+    /// server treats an absent geometry key as "fill from the catalog" and a
+    /// null one as "clear", and a draft must not clear what it did not mean to.
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(notes, forKey: .notes)
+        try c.encodeIfPresent(isDefault, forKey: .isDefault)
+        try c.encodeIfPresent(catalogId, forKey: .catalogId)
+        try c.encodeIfPresent(wheelbaseMm, forKey: .wheelbaseMm)
+        try c.encodeIfPresent(steeringRatio, forKey: .steeringRatio)
     }
 }
 
@@ -210,11 +242,24 @@ public struct VehiclePatch: Encodable, Hashable, Sendable {
     /// The hot tyre pressure the health strip's pressure loop aims at, in psi
     /// (5–100, rounded to a tenth server-side). `.set(nil)` clears it.
     public var targetHotPsi: Patch<Double> = .unchanged
+    /// The car-catalog pick (#221). Setting a row re-pre-fills *both* geometry
+    /// numbers from it unless the same patch carries its own value for one —
+    /// including a null ratio, so a car swapped from one entry to another never
+    /// keeps the previous car's ratio. `.set(nil)` unlinks and leaves the
+    /// numbers as they are.
+    public var catalogId: Patch<Int> = .unchanged
+    /// Wheelbase in whole millimetres (1500–4500) and the steering ratio
+    /// (5–30, two decimals server-side). `.set(nil)` clears either.
+    public var wheelbaseMm: Patch<Int> = .unchanged
+    public var steeringRatio: Patch<Double> = .unchanged
 
     public enum CodingKeys: String, CodingKey {
         case name, notes
         case isDefault = "is_default"
         case targetHotPsi = "target_hot_psi"
+        case catalogId = "catalog_id"
+        case wheelbaseMm = "wheelbase_mm"
+        case steeringRatio = "steering_ratio"
     }
 
     public init() {}
@@ -225,6 +270,9 @@ public struct VehiclePatch: Encodable, Hashable, Sendable {
         try c.encode(notes, forKey: .notes)
         try c.encode(isDefault, forKey: .isDefault)
         try c.encode(targetHotPsi, forKey: .targetHotPsi)
+        try c.encode(catalogId, forKey: .catalogId)
+        try c.encode(wheelbaseMm, forKey: .wheelbaseMm)
+        try c.encode(steeringRatio, forKey: .steeringRatio)
     }
 }
 

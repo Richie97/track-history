@@ -4,6 +4,7 @@
   "status": 200,
   "body": [
     {
+      "catalog_id": 1,
       "event_count": 0,
       "event_days": 0,
       "hours": 0,
@@ -78,10 +79,13 @@
           "wear_limit": 3
         }
       ],
+      "steering_ratio": 16.25,
       "target_hot_psi": 32,
-      "updated_at": 0
+      "updated_at": 0,
+      "wheelbase_mm": 2710
     },
     {
+      "catalog_id": null,
       "event_count": 0,
       "event_days": 0,
       "hours": 0,
@@ -90,8 +94,10 @@
       "name": "Miata",
       "notes": null,
       "parts": [],
+      "steering_ratio": null,
       "target_hot_psi": null,
-      "updated_at": 0
+      "updated_at": 0,
+      "wheelbase_mm": null
     }
   ]
 }

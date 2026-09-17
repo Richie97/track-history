@@ -3,10 +3,13 @@
   "path": "/vehicles",
   "status": 201,
   "body": {
+    "catalog_id": null,
     "id": 1,
     "is_default": 0,
     "name": "BRZ",
     "notes": null,
-    "target_hot_psi": null
+    "steering_ratio": null,
+    "target_hot_psi": null,
+    "wheelbase_mm": null
   }
 }
