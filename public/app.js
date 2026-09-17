@@ -522,9 +522,13 @@ const APPLE_LOGO = `<svg viewBox="0 0 24 24" width="16" height="16" fill="curren
 // "Also in the app stores" under the sign-in buttons. Deliberately not
 // carrying APPLE_LOGO: it would sit directly under the Apple sign-in button,
 // where a second Apple mark reads as another way to sign in.
+//
+// The Mac is named in words, not as a third link: the iPad build installs on
+// Apple silicon Macs from the same App Store listing (epic #230), so the pair
+// the docs site offers everywhere stays a pair here too.
 function appStoreLinkHtml() {
   return `<p class="login-store">
-    <a href="${APP_STORE_URL}" target="_blank" rel="noopener">Download for iPhone ↗</a>
+    <a href="${APP_STORE_URL}" target="_blank" rel="noopener">Download for iPhone, iPad and Mac ↗</a>
     <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Download for Android ↗</a>
   </p>`;
 }

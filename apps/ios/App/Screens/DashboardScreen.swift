@@ -126,7 +126,10 @@ struct DashboardScreen: View {
                 // Only when the recorder is idle. A live recording already has the
                 // always-visible `RecordingBanner`, and an unsaved one has the card
                 // above; a third control would be a third answer to the same question.
-                if recorder.phase == .idle {
+                // And never on a Mac (epic #230), where there is no GPS to record
+                // with — nothing takes the button's place there, since `+ Add event`
+                // alone is the web dashboard's shape.
+                if Platform.dashboardOffersRecorder(runsOnMac: Platform.runsOnMac, recorderIdle: recorder.phase == .idle) {
                     Button("Record laps") {
                         // Full-window at every width. The record screen is a
                         // phone-in-a-mount layout designed to be read at a glance

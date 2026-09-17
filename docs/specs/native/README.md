@@ -37,6 +37,18 @@ The three clients are deliberately **not** at parity:
   screen, file drag-and-drop, ships instantly.
 - **The web app stays the feature frontier.** New ideas land there first and
   graduate to native once proven.
+- **The Mac is a fourth *surface*, not a fourth client** (2026-09, epic
+  [#230](https://github.com/Richie97/track-history/issues/230)). It runs the
+  iPad build as a *Designed for iPad* app — no target, no Catalyst — so it
+  inherits the native feature set **minus the recorder**: a Mac has no GPS, and
+  `Platform.runsOnMac` closes every door to it. The web-only list above is
+  **unchanged** by the Mac: `.vbo` import, year in review, the two-event
+  overlay and the setup notebook do not come to native because the app is on a
+  desk, which is the same rule NS-34 applies to a big screen. A desk-sized
+  native client is the standing *argument* for revisiting that list — recorded
+  here so the next person does not reopen the debate from scratch — and a
+  native macOS target sharing `App/` is the follow-on if the Mac earns one. It
+  is not this change.
 
 Consequence: **the telemetry parsers are, with one exception, never ported.** That
 is the design, not a gap. `js/import/geo.js` *is* ported (NS-13/NS-14) because the

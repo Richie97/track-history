@@ -251,6 +251,18 @@ layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-tim
 diff, year in review, the two-event overlay and `.vbo` import stay web-only by
 design.
 
+The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
+app from the same App Store listing — one bundle, one subscription, no separate
+build; a Mac window is a large screen, so it gets the two-pane layout an iPad
+does. The **lap recorder is hidden there**: a Mac has Wi-Fi location and no GPS,
+so the dashboard's *Record laps* button is absent, the event page's *Add a
+session* card says to record on the iPhone (the laps land on the event once the
+phone syncs), and the record route resolves to the event instead of the
+recorder. Everything else — the logbook, the garage, video import from Finder,
+the charts and the two-lap compare — works as it does on an iPad. The
+`Platform.runsOnMac` value behind it lives in the app target beside the layout
+class, and the web-only list above is unchanged by the Mac.
+
 The Android client now has the logbook too — dashboard, event detail, event form,
 track page, settings and the garage (vehicles, consumables, wear and
 measurements), plus the read-only page a `trackevolution.app/share/<slug>` link
