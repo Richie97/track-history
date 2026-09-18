@@ -102,7 +102,7 @@ struct VehicleScreen: View {
                         }
                     )
                 } else if let vehicle = model.vehicle {
-                    VehicleFormSheet(vehicle: vehicle) { patch in
+                    VehicleFormSheet(api: auth.api, vehicle: vehicle) { patch in
                         await model.updateVehicle(patch)
                     }
                 }
@@ -792,12 +792,22 @@ final class VehicleModel {
 // MARK: - The car itself
 
 /// Edit the car: its name, its modifications and notes, the hot tyre pressure the
-/// health strip's pressure loop aims at, and whether new events start on it.
-/// `viewVehicle`'s `#veh-form` in `public/app.js` is the reference.
+/// health strip's pressure loop aims at, whether new events start on it, and —
+/// #208 / #222 — its two spec-sheet numbers, picked from the car catalog or
+/// typed. `viewVehicle`'s `#veh-form` in `public/app.js` is the reference.
 ///
 /// Presented from the garage page rather than Settings because that is where
 /// the car is being looked at — and, until now, iOS could not edit one at all.
+///
+/// The catalog pick follows the web's rules exactly, through the Kit's
+/// `Garage.catalogPrefill`: **pre-fill, never overwrite** — a number the driver
+/// typed is asked about, inline under its field, per field; a number the
+/// previous pick filled in is replaced silently on a re-pick; clearing the pick
+/// keeps the numbers, because they are the driver's now. `pick` is the row the
+/// form's numbers came from — the stored one to begin with — which is what
+/// tells those two cases apart.
 struct VehicleFormSheet: View {
+    let api: APIClient
     let vehicle: GarageVehicle
     /// Returns true when the write landed.
     let submit: (VehiclePatch) async -> Bool
@@ -808,6 +818,14 @@ struct VehicleFormSheet: View {
     @State private var notes = ""
     @State private var targetHotPsi = ""
     @State private var isDefault = false
+    @State private var wheelbase = ""
+    @State private var steering = ""
+    /// The catalog row the numbers came from; nil for a car typed by hand.
+    @State private var pick: CatalogCar?
+    /// A catalog value waiting on the driver's answer for that field.
+    @State private var wheelbaseAsk: Int?
+    @State private var steeringAsk: Double?
+    @State private var showingPicker = false
     @State private var saving = false
     @State private var loaded = false
     @State private var error: String?
@@ -844,6 +862,46 @@ struct VehicleFormSheet: View {
                             .teStyle(.sm)
                             .foregroundStyle(Color(.textBody))
                             .tint(Color(.accent))
+
+                        catalogField
+
+                        TEField(label: "Wheelbase (mm, optional)") {
+                            TextField("e.g. 2710", text: $wheelbase)
+                                .teInput()
+                                .keyboardType(.numberPad)
+                                .accessibilityIdentifier("wheelbaseField")
+                        }
+                        if let ask = wheelbaseAsk {
+                            askRow(
+                                "The catalog says \(ask) mm for the wheelbase; you have \(wheelbase) mm.",
+                                use: { wheelbase = String(ask) }
+                            ) { wheelbaseAsk = nil }
+                        }
+
+                        TEField(label: "Steering ratio (optional)") {
+                            TextField("e.g. 16.25 for 16.25:1", text: $steering)
+                                .teInput()
+                                .keyboardType(.decimalPad)
+                                .accessibilityIdentifier("steeringRatioField")
+                        }
+                        if let ask = steeringAsk {
+                            askRow(
+                                "The catalog says \(CatalogCarPicker.fmtRatio(ask)):1 for the steering ratio; you have \(steering):1.",
+                                use: { steering = CatalogCarPicker.fmtRatio(ask) }
+                            ) { steeringAsk = nil }
+                        }
+
+                        if let pick {
+                            // Where the numbers came from, so the driver knows
+                            // what they are trusting.
+                            Text(pick.source)
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textFaint))
+                                .accessibilityIdentifier("catalogSource")
+                        }
+                        Text("Both are on the spec sheet or in the owner's manual. They let the balance read-out say how much understeer, rather than only which corner differs from the rest — leave them blank and it keeps the relative reading.")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
                     }
                 }
 
@@ -875,7 +933,114 @@ struct VehicleFormSheet: View {
             notes = vehicle.notes ?? ""
             targetHotPsi = vehicle.targetHotPsi.map(Self.formatPsi) ?? ""
             isDefault = vehicle.isDefault
+            wheelbase = vehicle.wheelbaseMm.map(String.init) ?? ""
+            steering = vehicle.steeringRatio.map(CatalogCarPicker.fmtRatio) ?? ""
         }
+        .task {
+            // Resolve the stored pick so a re-pick knows which numbers are the
+            // catalog's. The catalog is a cached GET, so this works offline; if it
+            // fails, the numbers count as the driver's and a re-pick asks — the
+            // safe way to be wrong.
+            guard let id = vehicle.catalogId, pick == nil else { return }
+            if let rows = try? await api.carCatalog() {
+                pick = rows.first { $0.id == id }
+            }
+        }
+    }
+
+    /// The catalog field: what is picked, the door to the picker, and Clear.
+    /// The label says what a pick *does*, because that is the only reason to
+    /// pick rather than type.
+    private var catalogField: some View {
+        TEField(
+            label: "Find your car in the catalog (optional)",
+            hint: "Picking a car fills in the wheelbase and steering ratio the balance read-out uses — nothing else changes, and a car the catalog doesn't know is just typed in below."
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    showingPicker = true
+                } label: {
+                    Text(pick.map(Garage.catalogCarLabel) ?? "Search the catalog…")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .foregroundStyle(pick == nil ? Color(.textMuted) : Color(.textStrong))
+                        .teInput()
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pickCatalogCar")
+                .sheet(isPresented: $showingPicker) {
+                    CatalogCarPicker(api: api) { picked($0) }
+                }
+                if pick != nil {
+                    Button("Clear the pick — keep the numbers") { clearPick() }
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.accentInk))
+                        .accessibilityIdentifier("clearCatalogCar")
+                }
+            }
+        }
+    }
+
+    /// A per-field question, inline rather than in an alert: a second modal on
+    /// this view would be the presentation hazard `VehicleScreen` documents, and
+    /// the answer belongs next to the number it is about.
+    private func askRow(_ text: String, use: @escaping () -> Void, done: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text)
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+            HStack(spacing: 12) {
+                Button("Use the catalog's") {
+                    use()
+                    done()
+                }
+                .teStyle(.xs)
+                .foregroundStyle(Color(.accentInk))
+                Button("Keep mine") { done() }
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+            }
+        }
+    }
+
+    private var currentGeometry: Garage.VehicleGeometry {
+        Garage.VehicleGeometry(
+            wheelbaseMm: Int(wheelbase.trimmingCharacters(in: .whitespaces)),
+            steeringRatio: Double(steering.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "."))
+        )
+    }
+
+    private func picked(_ row: CatalogCar) {
+        let plan = Garage.catalogPrefill(row, current: currentGeometry, previous: pick)
+        switch plan.wheelbaseMm.action {
+        case .fill:
+            wheelbase = plan.wheelbaseMm.value.map(String.init) ?? ""
+            wheelbaseAsk = nil
+        case .ask:
+            wheelbaseAsk = plan.wheelbaseMm.value
+        case .keep:
+            wheelbaseAsk = nil
+        }
+        switch plan.steeringRatio.action {
+        case .fill:
+            steering = plan.steeringRatio.value.map(CatalogCarPicker.fmtRatio) ?? ""
+            steeringAsk = nil
+        case .ask:
+            steeringAsk = plan.steeringRatio.value
+        case .keep:
+            steeringAsk = nil
+        }
+        pick = row
+        // A car already called "Betty" keeps its name.
+        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+            name = Garage.catalogCarName(row)
+        }
+    }
+
+    /// The link goes; the numbers stay, because they are the driver's now.
+    private func clearPick() {
+        pick = nil
+        wheelbaseAsk = nil
+        steeringAsk = nil
     }
 
     /// 34.0 reads as "34"; 34.5 stays "34.5" — what a driver would have typed.
@@ -895,11 +1060,39 @@ struct VehicleFormSheet: View {
             }
             psi = value
         }
+        // The same ranges `src/lib/validate.ts` enforces, so a slip is caught
+        // here with a sentence rather than there with a 400.
+        let trimmedWheelbase = wheelbase.trimmingCharacters(in: .whitespaces)
+        var wheelbaseMm: Int?
+        if !trimmedWheelbase.isEmpty {
+            guard let value = Int(trimmedWheelbase), value >= 1500, value <= 4500 else {
+                error = "Wheelbase should be between 1500 and 4500 mm."
+                Haptics.warn()
+                return
+            }
+            wheelbaseMm = value
+        }
+        let trimmedSteering = steering.trimmingCharacters(in: .whitespaces)
+        var steeringRatio: Double?
+        if !trimmedSteering.isEmpty {
+            guard let value = Double(trimmedSteering.replacingOccurrences(of: ",", with: ".")), value >= 5, value <= 30 else {
+                error = "Steering ratio should be between 5 and 30 — 16.25 for 16.25:1."
+                Haptics.warn()
+                return
+            }
+            steeringRatio = value
+        }
         var patch = VehiclePatch()
         patch.name = .set(name.trimmingCharacters(in: .whitespaces))
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         patch.notes = .set(trimmedNotes.isEmpty ? nil : trimmedNotes)
         patch.targetHotPsi = .set(psi)
+        // The pick and both numbers together: the server pre-fills only the
+        // numbers a body leaves out, and this form never leaves one out, so what
+        // is on screen is what gets saved — the pick is recorded as identity.
+        patch.catalogId = .set(pick?.id)
+        patch.wheelbaseMm = .set(wheelbaseMm)
+        patch.steeringRatio = .set(steeringRatio)
         // Only when it changed: a false sent for a default left alone would
         // silently unset it.
         if isDefault != vehicle.isDefault { patch.isDefault = .set(isDefault) }

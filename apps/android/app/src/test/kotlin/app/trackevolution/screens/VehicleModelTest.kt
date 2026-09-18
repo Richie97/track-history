@@ -119,11 +119,18 @@ class VehicleModelTest {
             found
         }
         val body = bodyOf(put)
-        assertEquals(setOf("name", "notes", "target_hot_psi"), body.keys)
+        assertEquals(
+            setOf("name", "notes", "target_hot_psi", "catalog_id", "wheelbase_mm", "steering_ratio"),
+            body.keys,
+        )
         assertEquals("Corvette Z06", body["name"]!!.jsonPrimitive.content)
         // A blank notes field means cleared — an explicit null, not an omission.
         assertTrue(body["notes"] is kotlinx.serialization.json.JsonNull)
         assertEquals("34.5", body["target_hot_psi"]!!.jsonPrimitive.content)
+        // The geometry goes the same way (#222): a form that shows every field
+        // sends every field, so a cleared pick or number is an explicit null.
+        assertTrue(body["catalog_id"] is kotlinx.serialization.json.JsonNull)
+        assertTrue(body["wheelbase_mm"] is kotlinx.serialization.json.JsonNull)
     }
 
     @Test

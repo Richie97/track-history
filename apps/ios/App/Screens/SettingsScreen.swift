@@ -24,6 +24,7 @@ struct SettingsScreen: View {
 
     @State private var model: SettingsModel?
     @State private var showingPaywall = false
+    @State private var showingCatalog = false
     @State private var confirmingSignOut = false
     @State private var confirmingDisableShare = false
     @State private var deletingVehicle: Vehicle?
@@ -451,6 +452,31 @@ struct SettingsScreen: View {
                 TextField("Corvette Z06", text: $model.newVehicleName)
                     .teInput()
                     .accessibilityIdentifier("newVehicleName")
+                // The catalog pick (#222): the server pre-fills the car's
+                // wheelbase and steering ratio from the row, and the pick names
+                // the car only when the driver hasn't — a car already called
+                // "Betty" keeps its name. The sheet hangs off this button and the
+                // paywall off its own: one presentation per view.
+                Button(model.newVehicleCatalog.map(Garage.catalogCarLabel) ?? "Find it in the catalog…") {
+                    showingCatalog = true
+                }
+                .buttonStyle(TEButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("pickCatalogCar")
+                .sheet(isPresented: $showingCatalog) {
+                    CatalogCarPicker(api: auth.api) { model.pickCatalog($0) }
+                }
+                if model.newVehicleCatalog != nil {
+                    HStack {
+                        Text("Its wheelbase and steering ratio fill in from the catalog.")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                        Spacer()
+                        Button("Clear") { model.newVehicleCatalog = nil }
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.accentInk))
+                            .accessibilityIdentifier("clearCatalogCar")
+                    }
+                }
                 Button("Add vehicle") { Task { await model.addVehicle() } }
                     .buttonStyle(TEButtonStyle(kind: .accent))
                     .disabled(model.newVehicleName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -631,6 +657,8 @@ final class SettingsModel {
     var writeError: String?
     private(set) var vehicles: [Vehicle] = []
     var newVehicleName = ""
+    /// The catalog row the next car is being added from, if any (#222).
+    var newVehicleCatalog: CatalogCar?
     /// Kept apart from `writeError` so a rejected slug and a duplicate vehicle
     /// name don't overwrite each other's message halfway down the screen.
     var vehicleError: String?
@@ -742,8 +770,19 @@ final class SettingsModel {
         let name = newVehicleName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         await vehicleWrite {
-            _ = try await $0.createVehicle(VehicleDraft(name: name))
+            // The pick alone: the server fills both numbers from the row.
+            _ = try await $0.createVehicle(VehicleDraft(name: name, catalogId: newVehicleCatalog?.id))
             self.newVehicleName = ""
+            self.newVehicleCatalog = nil
+        }
+    }
+
+    /// A catalog row for the car being added. Names it only when the driver
+    /// hasn't — the "pre-fill, never overwrite" rule applied to the name.
+    func pickCatalog(_ car: CatalogCar) {
+        newVehicleCatalog = car
+        if newVehicleName.trimmingCharacters(in: .whitespaces).isEmpty {
+            newVehicleName = Garage.catalogCarName(car)
         }
     }
 

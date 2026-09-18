@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   SETUP_FIELDS,
+  catalogCarLabel,
+  catalogCarName,
+  catalogPrefill,
   defaultMeasurementUnit,
   diffSetups,
   flatLabel,
@@ -9,6 +12,7 @@ import {
   fmtCost,
   fmtRemaining,
   fmtSetupValue,
+  matchCatalogCars,
   partKindLabel,
   partStatus,
   setupStep,
@@ -162,5 +166,96 @@ describe("labels & money", () => {
     expect(fmtCost(38900)).toBe("$389");
     expect(fmtCost(38950)).toBe("$389.50");
     expect(fmtCost(null)).toBeNull();
+  });
+});
+
+// ---- car catalog picker (#222) ----------------------------------------------
+
+const CATALOG = [
+  { id: 1, make: "BMW", model: "M3", generation: "E46", year_from: 2000, year_to: 2006, wheelbase_mm: 2731, steering_ratio: 15.4 },
+  { id: 2, make: "Chevrolet", model: "Corvette", generation: "C7", year_from: 2014, year_to: 2019, wheelbase_mm: 2710, steering_ratio: 16.25 },
+  { id: 3, make: "Chevrolet", model: "Corvette", generation: "C8", year_from: 2020, year_to: null, wheelbase_mm: 2722, steering_ratio: 15.7 },
+  { id: 4, make: "Mazda", model: "MX-5", generation: "ND", year_from: 2015, year_to: null, wheelbase_mm: 2310, steering_ratio: 15.5 },
+  { id: 5, make: "Porsche", model: "718 Cayman", generation: "982", year_from: 2016, year_to: null, wheelbase_mm: 2475, steering_ratio: null },
+  { id: 6, make: "Toyota", model: "GR86", generation: null, year_from: 2022, year_to: null, wheelbase_mm: 2575, steering_ratio: 13.5 },
+];
+const ids = (rows) => rows.map((r) => r.id);
+
+describe("catalog labels", () => {
+  it("names a car by make, model and generation", () => {
+    expect(catalogCarName(CATALOG[1])).toBe("Chevrolet Corvette C7");
+    expect(catalogCarName(CATALOG[5])).toBe("Toyota GR86");
+  });
+  it("labels a picker row with its generation and years", () => {
+    expect(catalogCarLabel(CATALOG[1])).toBe("Chevrolet Corvette · C7 · 2014–2019");
+    expect(catalogCarLabel(CATALOG[2])).toBe("Chevrolet Corvette · C8 · 2020–");
+    expect(catalogCarLabel(CATALOG[5])).toBe("Toyota GR86 · 2022–");
+  });
+});
+
+describe("matchCatalogCars", () => {
+  it("returns the whole catalog for an empty query", () => {
+    expect(ids(matchCatalogCars("", CATALOG))).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(ids(matchCatalogCars("   ", CATALOG))).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+  it("finds a generation, a model and a make, case-insensitively", () => {
+    expect(ids(matchCatalogCars("c7", CATALOG))).toEqual([2]);
+    expect(ids(matchCatalogCars("CORVETTE", CATALOG))).toEqual([2, 3]);
+    expect(ids(matchCatalogCars("chevrolet corvette", CATALOG))).toEqual([2, 3]);
+  });
+  it("every token has to fit, so extra words narrow", () => {
+    expect(ids(matchCatalogCars("corvette c8", CATALOG))).toEqual([3]);
+    expect(ids(matchCatalogCars("corvette miata", CATALOG))).toEqual([]);
+  });
+  it("ranks whole words over prefixes over substrings, ties in catalog order", () => {
+    // "e46" is a whole word on the M3; "e" is only inside the others' names.
+    expect(ids(matchCatalogCars("e", CATALOG))).toEqual([1, 2, 3, 5]);
+    // "718" is a whole word on the Cayman; nothing else carries it.
+    expect(ids(matchCatalogCars("718", CATALOG))).toEqual([5]);
+  });
+  it("ignores punctuation in a model name", () => {
+    expect(ids(matchCatalogCars("mx5", CATALOG))).toEqual([4]);
+    expect(ids(matchCatalogCars("mx-5", CATALOG))).toEqual([4]);
+  });
+  it("reads a four-digit token as a model year", () => {
+    expect(ids(matchCatalogCars("2017", CATALOG))).toEqual([2, 4, 5]);
+    expect(ids(matchCatalogCars("corvette 2017", CATALOG))).toEqual([2]);
+    expect(ids(matchCatalogCars("corvette 2010", CATALOG))).toEqual([]);
+  });
+});
+
+describe("catalogPrefill", () => {
+  const C7 = CATALOG[1];
+  const C8 = CATALOG[2];
+  const CAYMAN = CATALOG[4];
+  const plan = (row, current, previous) => {
+    const p = catalogPrefill(row, current, previous);
+    return [p.wheelbase_mm.action, p.steering_ratio.action];
+  };
+
+  it("fills a car with no numbers silently", () => {
+    expect(catalogPrefill(C7, { wheelbase_mm: null, steering_ratio: null }, null)).toEqual({
+      wheelbase_mm: { value: 2710, action: "fill" },
+      steering_ratio: { value: 16.25, action: "fill" },
+    });
+  });
+  it("asks before replacing a hand-typed number", () => {
+    expect(plan(C7, { wheelbase_mm: 2700, steering_ratio: 15 }, null)).toEqual(["ask", "ask"]);
+  });
+  it("re-fills the previous pick's numbers without asking", () => {
+    expect(plan(C8, { wheelbase_mm: 2710, steering_ratio: 16.25 }, C7)).toEqual(["fill", "fill"]);
+  });
+  it("keeps a number the driver corrected after the previous pick, behind a question", () => {
+    expect(plan(C8, { wheelbase_mm: 2710, steering_ratio: 15 }, C7)).toEqual(["fill", "ask"]);
+  });
+  it("never offers to replace the driver's number with nothing", () => {
+    expect(plan(CAYMAN, { wheelbase_mm: 2700, steering_ratio: 15 }, null)).toEqual(["ask", "keep"]);
+  });
+  it("clears the previous pick's ratio when the new car has none", () => {
+    const p = catalogPrefill(CAYMAN, { wheelbase_mm: 2710, steering_ratio: 16.25 }, C7);
+    expect(p.steering_ratio).toEqual({ value: null, action: "fill" });
+  });
+  it("has nothing to do when the numbers already match", () => {
+    expect(plan(C7, { wheelbase_mm: 2710, steering_ratio: 16.25 }, null)).toEqual(["keep", "keep"]);
   });
 });

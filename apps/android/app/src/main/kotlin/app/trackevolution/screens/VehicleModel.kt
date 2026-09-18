@@ -7,6 +7,7 @@ import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
@@ -47,6 +48,17 @@ class VehicleModel(
     var writeError by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * The car catalog (#222), fetched once the *Edit car* form asks for it: the
+     * picker's rows, and how the form resolves [GarageVehicle.catalogId] to the
+     * row the car's numbers came from. A cached GET, so it works offline.
+     */
+    var catalog by mutableStateOf<List<CatalogCar>?>(null)
+        private set
+
+    var catalogError by mutableStateOf<String?>(null)
+        private set
+
     fun load() {
         scope.launch {
             try {
@@ -79,6 +91,18 @@ class VehicleModel(
         writeError = null
     }
 
+    fun loadCatalog() {
+        if (catalog != null) return
+        scope.launch {
+            catalogError = null
+            try {
+                catalog = api.carCatalog()
+            } catch (e: ApiException) {
+                catalogError = e.message ?: "Couldn't load the car catalog."
+            }
+        }
+    }
+
     // ---- Derived ------------------------------------------------------------
 
     val activeParts: List<Part>
@@ -105,7 +129,15 @@ class VehicleModel(
      * a vehicle **by name** server-side, so a car renamed away from what past
      * events say stops accruing their hours. The form says so.
      */
-    fun updateVehicle(name: String, notes: String, targetHotPsi: Double?, isDefault: Boolean) = write {
+    fun updateVehicle(
+        name: String,
+        notes: String,
+        targetHotPsi: Double?,
+        isDefault: Boolean,
+        catalogId: Int? = null,
+        wheelbaseMm: Int? = null,
+        steeringRatio: Double? = null,
+    ) = write {
         val current = vehicle
         api.updateVehicle(
             vehicleId,
@@ -114,6 +146,13 @@ class VehicleModel(
                 notes = Patch.Set(notes.trim().ifEmpty { null }),
                 targetHotPsi = Patch.Set(targetHotPsi),
                 isDefault = if (current != null && isDefault != current.isDefault) Patch.Set(isDefault) else Patch.Unchanged,
+                // The pick and both numbers together (#222): the server pre-fills
+                // only the numbers a body leaves out, and the form never leaves
+                // one out, so what is on screen is what gets saved — the pick is
+                // recorded as identity.
+                catalogId = Patch.Set(catalogId),
+                wheelbaseMm = Patch.Set(wheelbaseMm),
+                steeringRatio = Patch.Set(steeringRatio),
             ),
         )
     }

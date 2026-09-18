@@ -6,7 +6,9 @@ import androidx.compose.runtime.setValue
 import app.trackevolution.auth.ChecklistTemplateStore
 import app.trackevolution.auth.UnitsStore
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.Garage
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.User
@@ -62,6 +64,16 @@ class SettingsModel(
         private set
 
     var newVehicleName by mutableStateOf("")
+
+    /** The catalog row the next car is being added from, if any (#222). */
+    var newVehicleCatalog by mutableStateOf<CatalogCar?>(null)
+
+    /** The car catalog, fetched when the picker first opens; a cached GET. */
+    var catalog by mutableStateOf<List<CatalogCar>?>(null)
+        private set
+
+    var catalogError by mutableStateOf<String?>(null)
+        private set
 
     /**
      * Kept apart from [shareError] on purpose: a rejected slug and a duplicate
@@ -233,9 +245,32 @@ class SettingsModel(
         val name = newVehicleName.trim()
         if (name.isEmpty()) return
         vehicleWrite {
-            api.createVehicle(VehicleDraft(name = name))
+            // The pick alone: the server fills both numbers from the row.
+            api.createVehicle(VehicleDraft(name = name, catalogId = newVehicleCatalog?.id))
             newVehicleName = ""
+            newVehicleCatalog = null
         }
+    }
+
+    fun loadCatalog() {
+        if (catalog != null) return
+        scope.launch {
+            catalogError = null
+            try {
+                catalog = api.carCatalog()
+            } catch (e: ApiException) {
+                catalogError = e.message ?: "Couldn't load the car catalog."
+            }
+        }
+    }
+
+    /**
+     * A catalog row for the car being added. Names it only when the driver
+     * hasn't — the "pre-fill, never overwrite" rule applied to the name.
+     */
+    fun pickCatalog(car: CatalogCar) {
+        newVehicleCatalog = car
+        if (newVehicleName.isBlank()) newVehicleName = Garage.catalogCarName(car)
     }
 
     fun makeDefault(id: Int) = vehicleWrite {

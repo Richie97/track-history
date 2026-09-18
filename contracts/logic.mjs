@@ -126,10 +126,14 @@ import {
 import {
   PART_KINDS,
   WEAR_LIMIT_HINTS,
+  catalogCarLabel,
+  catalogCarName,
+  catalogPrefill,
   defaultMeasurementUnit,
   fmtCost,
   fmtHours,
   fmtRemaining,
+  matchCatalogCars,
   partKindLabel,
   partStatus,
   wearLimitHint,
@@ -1775,6 +1779,64 @@ writeFileSync(path.join(OUT_DIR, "conditions.json"), JSON.stringify(conditionsFi
 writeFileSync(path.join(OUT_DIR, "live-timing.json"), JSON.stringify(liveTimingFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "garage-status.json"), JSON.stringify(garageFixture, null, 2) + "\n");
 
+// ---- car catalog picker (#222): matching, labels and the pre-fill rule -----------
+//
+// The vehicle form's one searchable field over GET /api/car-catalog. All three
+// clients rank the same query the same way, name a pick the same way, and make
+// the same per-field decision about the two numbers already on the form — so the
+// rows here are synthetic and chosen for the ways a port goes wrong: a
+// punctuated model name ("MX-5"), a make with no generation, a null ratio, a
+// year that falls inside several spans, and a token that is a whole word on one
+// row and a substring on the others.
+const catalogRows = [
+  { id: 1, make: "BMW", model: "M3", generation: "E46", year_from: 2000, year_to: 2006, wheelbase_mm: 2731, steering_ratio: 15.4, source: "fixture" },
+  { id: 2, make: "Chevrolet", model: "Corvette", generation: "C5", year_from: 1997, year_to: 2004, wheelbase_mm: 2656, steering_ratio: 16.1, source: "fixture" },
+  { id: 3, make: "Chevrolet", model: "Corvette", generation: "C6", year_from: 2005, year_to: 2013, wheelbase_mm: 2686, steering_ratio: 16.1, source: "fixture" },
+  { id: 4, make: "Chevrolet", model: "Corvette", generation: "C7", year_from: 2014, year_to: 2019, wheelbase_mm: 2710, steering_ratio: 16.25, source: "fixture" },
+  { id: 5, make: "Chevrolet", model: "Corvette", generation: "C8", year_from: 2020, year_to: null, wheelbase_mm: 2722, steering_ratio: 15.7, source: "fixture" },
+  { id: 6, make: "Mazda", model: "MX-5", generation: "NA", year_from: 1989, year_to: 1997, wheelbase_mm: 2265, steering_ratio: 15, source: "fixture" },
+  { id: 7, make: "Mazda", model: "MX-5", generation: "ND", year_from: 2015, year_to: null, wheelbase_mm: 2310, steering_ratio: 15.5, source: "fixture" },
+  { id: 8, make: "Porsche", model: "718 Cayman", generation: "982", year_from: 2016, year_to: null, wheelbase_mm: 2475, steering_ratio: null, source: "fixture" },
+  { id: 9, make: "Toyota", model: "GR86", generation: null, year_from: 2022, year_to: null, wheelbase_mm: 2575, steering_ratio: 13.5, source: "fixture" },
+];
+const catalogQueries = [
+  "", "   ", "c7", "C7", "corvette", "chevrolet corvette", "Corvette C", "corvette c8",
+  "corvette miata", "mx5", "mx-5", "718", "cayman 982", "2017", "corvette 2017", "corvette 2010",
+  "gr86", "toyota", "m3 e46", "e", "c", "  chev   ",
+];
+const catalogById = (id) => catalogRows.find((r) => r.id === id);
+// [name, row id, current numbers, previous pick id | null]
+const prefillCases = [
+  ["empty car picks the C7", 4, { wheelbase_mm: null, steering_ratio: null }, null],
+  ["hand-typed numbers, first pick", 4, { wheelbase_mm: 2700, steering_ratio: 15 }, null],
+  ["re-pick over the previous pick's numbers", 5, { wheelbase_mm: 2710, steering_ratio: 16.25 }, 4],
+  ["re-pick over a corrected ratio", 5, { wheelbase_mm: 2710, steering_ratio: 15 }, 4],
+  ["hand-typed numbers pick a car with no ratio", 8, { wheelbase_mm: 2700, steering_ratio: 15 }, null],
+  ["previous pick's numbers pick a car with no ratio", 8, { wheelbase_mm: 2710, steering_ratio: 16.25 }, 4],
+  ["numbers already match the pick", 4, { wheelbase_mm: 2710, steering_ratio: 16.25 }, null],
+  ["only the wheelbase typed", 4, { wheelbase_mm: 2710, steering_ratio: null }, null],
+  ["ratio typed, previous pick had none", 5, { wheelbase_mm: 2475, steering_ratio: 14 }, 8],
+];
+const catalogFixture = {
+  description:
+    "The car-catalog picker (#222) captured from public/js/garage.js: matchCatalogCars ranks a " +
+    "query over the catalog, catalogCarName / catalogCarLabel name a row, and catalogPrefill " +
+    "decides per field whether a pick fills, asks or keeps the numbers already on the form. " +
+    "Regenerate with `npm run contracts:logic`.",
+  source: "public/js/garage.js",
+  rows: catalogRows,
+  labels: catalogRows.map((row) => ({ id: row.id, name: catalogCarName(row), label: catalogCarLabel(row) })),
+  queries: catalogQueries.map((query) => ({ query, ids: matchCatalogCars(query, catalogRows).map((r) => r.id) })),
+  prefill: prefillCases.map(([name, rowId, current, previousId]) => ({
+    name,
+    row: rowId,
+    current,
+    previous: previousId,
+    plan: catalogPrefill(catalogById(rowId), current, previousId == null ? null : catalogById(previousId)),
+  })),
+};
+writeFileSync(path.join(OUT_DIR, "car-catalog-match.json"), JSON.stringify(catalogFixture, null, 2) + "\n");
+
 // ---- units: the unit-system conversions (public/js/units.js) -----------------
 //
 // Every display site on every client goes through these, and the inputs are
@@ -1862,6 +1924,7 @@ console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
+console.log(`wrote contracts/logic/car-catalog-match.json (${catalogQueries.length} queries, ${prefillCases.length} pre-fill cases)`);
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);

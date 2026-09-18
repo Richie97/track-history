@@ -1014,7 +1014,21 @@ doesn't retain the previous user's logbook.
   the two numbers *at pick time*; after that they are the user's — a
   corrected value stays, and a later catalog fix never rewrites a car.
   The catalog is generated from cited inputs by `seed/cars/generate.mjs`
-  (see `seed/cars/README.md`); a car it lacks is typed by hand. An event's `car`
+  (see `seed/cars/README.md`); a car it lacks is typed by hand. On every client
+  the pick is **one searchable field** on the vehicle forms (#222) — type "c7",
+  "corvette" or "chevrolet corvette 2017" and the matching generations list as
+  "Chevrolet Corvette · C7 · 2014–2019" — rather than year → make → model
+  dropdowns; the ranking is `matchCatalogCars` in `public/js/garage.js`, ported
+  to both phones and pinned by `contracts/logic/car-catalog-match.json`. A pick
+  **pre-fills and never overwrites**: a car with no numbers fills silently, a
+  number the driver typed is asked about per field before it is replaced, a
+  re-pick swaps the previous pick's numbers without asking, and clearing the
+  pick keeps the numbers — they are the driver's now (`catalogPrefill`, the
+  same fixture). Picking into an empty name fills the name too; a car already
+  called "Betty" keeps it. The catalog's `source` line sits under the two
+  fields once a row is picked, so the driver knows what they are trusting.
+  Since the catalog is a cached GET the search works offline; the save, like
+  every garage write, needs a connection. An event's `car`
   stays a plain text column —
   the garage feeds the event form's suggestions, and the vehicle marked as
   default pre-fills new events. When the car text matches a garage vehicle by

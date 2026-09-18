@@ -31,7 +31,9 @@ import { bindTelemetryImport } from "./js/import/ui.js";
 import { sessionsToCreate, stagedSummary } from "./js/event-form.js";
 import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
+  catalogCarLabel, catalogCarName, catalogPrefill,
   defaultMeasurementUnit, diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
+  matchCatalogCars,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit, wearLimitHint,
 } from "./js/garage.js";
 import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtDist, fmtSpeedKph, speedUnit, tempInputSpec, tempToDisplay, tempToStored, tempUnit, usUnits } from "./js/units.js";
@@ -2227,7 +2229,12 @@ async function viewEvent(eventId) {
 // Custom combobox for the track and car fields. A native <datalist> would be
 // simpler, but iOS Safari never shows datalist suggestions and Android only
 // surfaces a few after typing — so we render our own tappable option list.
-function bindCombo(input, list, options) {
+//
+// `opts.search(query)` replaces the default substring filter with a ranked
+// list of labels (the catalog picker's matchCatalogCars), and `opts.onPick`
+// hears which label was chosen — by tap or Enter — for fields where a pick
+// means more than the text it leaves in the input.
+function bindCombo(input, list, options, opts = {}) {
   let matches = [];
   let active = -1;
 
@@ -2243,9 +2250,15 @@ function bindCombo(input, list, options) {
     if (i >= 0) list.children[i].scrollIntoView({ block: "nearest" });
   };
 
+  const pick = (i) => {
+    input.value = matches[i];
+    close();
+    opts.onPick?.(matches[i]);
+  };
+
   const open = () => {
     const q = input.value.trim().toLowerCase();
-    matches = q ? options.filter((n) => n.toLowerCase().includes(q)) : options;
+    matches = opts.search ? opts.search(q) : q ? options.filter((n) => n.toLowerCase().includes(q)) : options;
     if (!matches.length || (matches.length === 1 && matches[0].toLowerCase() === q)) return close();
     list.innerHTML = matches.map((n, i) => `<div class="combo-item" role="option" data-i="${i}">${esc(n)}</div>`).join("");
     list.hidden = false;
@@ -2263,7 +2276,7 @@ function bindCombo(input, list, options) {
     }
     if (e.key === "ArrowDown") { setActive(Math.min(active + 1, matches.length - 1)); e.preventDefault(); }
     else if (e.key === "ArrowUp") { setActive(Math.max(active - 1, 0)); e.preventDefault(); }
-    else if (e.key === "Enter" && active >= 0) { input.value = matches[active]; close(); e.preventDefault(); }
+    else if (e.key === "Enter" && active >= 0) { pick(active); e.preventDefault(); }
     else if (e.key === "Escape") close();
   });
   // pointerdown (not click) so selection wins the race against the input's blur,
@@ -2272,11 +2285,56 @@ function bindCombo(input, list, options) {
     const item = e.target.closest(".combo-item");
     if (!item) return;
     e.preventDefault();
-    input.value = matches[Number(item.dataset.i)];
-    close();
+    pick(Number(item.dataset.i));
   });
   input.addEventListener("blur", close);
 }
+
+// --- car catalog picker (#222) ---
+
+// The markup for a catalog field: one searchable combobox over
+// GET /api/car-catalog, in place of year → make → model dropdowns. The label
+// says what a pick *does*, because that is the only reason to pick rather than
+// type, and a driver who never opens the Grip tab can skip it with a clear
+// conscience.
+function catalogFieldHtml(id, pick, { hint = true } = {}) {
+  return `<div class="field"><label>Find your car in the catalog (optional)</label>
+    <div class="combo">
+      <input name="catalog" autocomplete="off" role="combobox" aria-expanded="false"
+        aria-autocomplete="list" aria-controls="${id}" value="${esc(pick ? catalogCarLabel(pick) : "")}"
+        placeholder="Corvette C7, MX-5 ND, 718 Cayman…">
+      <div class="combo-list" id="${id}" role="listbox" hidden></div>
+    </div>
+    ${hint ? `<div class="hint">Picking a car fills in the wheelbase and steering ratio the balance read-out uses — nothing else changes, and a car the catalog doesn't know is just typed in.</div>` : ""}
+  </div>`;
+}
+
+// Wire a catalog field. `onPick(row)` fires for a chosen row and `onClear()`
+// when the field is emptied; typing over a pick without choosing another puts
+// the pick's label back on blur, so the field always shows what is picked.
+function bindCatalogPicker(input, list, rows, { onPick, onClear, initial = null }) {
+  let pick = initial;
+  const byLabel = new Map(rows.map((r) => [catalogCarLabel(r), r]));
+  bindCombo(input, list, [], {
+    search: (q) => matchCatalogCars(q, rows).slice(0, 12).map(catalogCarLabel),
+    onPick: (label) => {
+      pick = byLabel.get(label) ?? null;
+      if (pick) onPick(pick);
+    },
+  });
+  input.addEventListener("input", () => {
+    if (input.value.trim() === "" && pick) {
+      pick = null;
+      onClear();
+    }
+  });
+  input.addEventListener("blur", () => {
+    if (pick && input.value !== catalogCarLabel(pick)) input.value = catalogCarLabel(pick);
+  });
+}
+
+const GEOMETRY_LABELS = { wheelbase_mm: "wheelbase", steering_ratio: "steering ratio" };
+const fmtGeometry = (field, v) => (field === "wheelbase_mm" ? `${v} mm` : `${v}:1`);
 
 async function viewEventForm(eventId, presetTrack) {
   const [tracks, catalog, vehicles] = await Promise.all([
@@ -2556,7 +2614,7 @@ function subscriptionPanelHtml() {
 }
 
 async function viewSettings() {
-  const vehicles = await api("/vehicles");
+  const [vehicles, carCatalog] = await Promise.all([api("/vehicles"), api("/car-catalog")]);
   // The user's own list, or the built-in one shown as the starting point.
   const template = checklistTemplate();
   const isCustom = !!state.me?.checklist_template;
@@ -2606,6 +2664,7 @@ async function viewSettings() {
     ${vehicles.map(vehicleHtml).join("") || `<div class="empty">No cars yet — add your first below.</div>`}
     <form class="panel" id="veh-add">
       <div class="field"><label>Car</label><input name="name" required placeholder="2023 Corvette Z06"></div>
+      ${catalogFieldHtml("veh-add-catalog-list", null)}
       <div class="field"><label>Modifications &amp; notes</label>
         <textarea name="notes" placeholder="Coilovers, pads, tires, alignment…"></textarea>
       </div>
@@ -2755,14 +2814,27 @@ async function viewSettings() {
     if (!(await saveLeaderboard(true, lbShare.checked))) lbShare.checked = !lbShare.checked;
   };
 
-  view.querySelector("#veh-add").onsubmit = async (evt) => {
+  // A new car picked from the catalog: the server pre-fills its wheelbase and
+  // steering ratio from the row, and the pick names the car only when the
+  // driver hasn't — a car already called "Betty" keeps its name.
+  const vehAdd = view.querySelector("#veh-add");
+  let addPick = null;
+  bindCatalogPicker(vehAdd.catalog, view.querySelector("#veh-add-catalog-list"), carCatalog, {
+    onPick: (row) => {
+      addPick = row;
+      if (vehAdd.name.value.trim() === "") vehAdd.name.value = catalogCarName(row);
+    },
+    onClear: () => {
+      addPick = null;
+    },
+  });
+  vehAdd.onsubmit = async (evt) => {
     evt.preventDefault();
     const f = evt.target;
     try {
-      await api("/vehicles", {
-        method: "POST",
-        body: { name: f.name.value.trim(), notes: f.notes.value.trim() || null },
-      });
+      const body = { name: f.name.value.trim(), notes: f.notes.value.trim() || null };
+      if (addPick) body.catalog_id = addPick.id;
+      await api("/vehicles", { method: "POST", body });
       route();
     } catch (err) {
       showError(err);
@@ -2829,9 +2901,11 @@ async function viewVehicle(vehicleId) {
     `);
     return;
   }
-  const garage = await api("/garage");
+  const [garage, carCatalog] = await Promise.all([api("/garage"), api("/car-catalog")]);
   const v = garage.find((x) => String(x.id) === String(vehicleId));
   if (!v) return viewNotFound();
+  // The catalog row the car's numbers came from, if it was picked from one.
+  const initialPick = v.catalog_id == null ? null : carCatalog.find((r) => r.id === v.catalog_id) ?? null;
   const active = v.parts.filter((p) => !p.retired_on);
   const retired = v.parts.filter((p) => p.retired_on);
   const spendCents = v.parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0);
@@ -2921,11 +2995,16 @@ async function viewVehicle(vehicleId) {
         <div class="field"><label>Target hot tire pressure (psi, optional)</label>
           <input name="target_hot_psi" type="number" min="5" max="100" step="0.5" value="${v.target_hot_psi ?? ""}" placeholder="e.g. 34"></div>
         <div class="field"><label><input type="checkbox" name="is_default" ${v.is_default ? "checked" : ""}> Default car for new events</label></div>
+      </div>
+      ${catalogFieldHtml("veh-catalog-list", initialPick)}
+      <div class="form-grid">
         <div class="field"><label>Wheelbase (mm, optional)</label>
           <input name="wheelbase_mm" type="number" min="1500" max="4500" step="1" value="${v.wheelbase_mm ?? ""}" placeholder="e.g. 2710"></div>
         <div class="field"><label>Steering ratio (optional)</label>
           <input name="steering_ratio" type="number" min="5" max="30" step="0.01" value="${v.steering_ratio ?? ""}" placeholder="e.g. 16.25 for 16.25:1"></div>
       </div>
+      <div id="veh-asks"></div>
+      <div class="hint" id="veh-source" ${initialPick ? "" : "hidden"}>${initialPick ? esc(initialPick.source) : ""}</div>
       <div class="hint">Both are on the spec sheet or in the owner's manual. They let the balance read-out say how much understeer, rather than only which corner differs from the rest — leave them blank and it keeps the relative reading.</div>
       <div id="veh-error"></div>
       <div class="btn-row">
@@ -2973,13 +3052,73 @@ async function viewVehicle(vehicleId) {
   view.querySelector("#veh-cancel").onclick = () => {
     vehForm.hidden = true;
   };
+
+  // The catalog pick. `pick` is the row the form's numbers came from — the
+  // stored one to begin with — which is what lets a re-pick tell the previous
+  // pick's numbers (replaced silently) from the driver's own (asked about, per
+  // field, inline under the fields). Clearing the pick keeps the numbers: they
+  // are the driver's now.
+  const numOrNull = (raw) => (raw.trim() === "" ? null : Number(raw));
+  let pick = initialPick;
+  const sourceHint = view.querySelector("#veh-source");
+  const asksEl = view.querySelector("#veh-asks");
+  const showSource = () => {
+    sourceHint.hidden = !pick;
+    sourceHint.textContent = pick ? pick.source : "";
+  };
+  const renderAsks = (asks) => {
+    asksEl.innerHTML = asks
+      .map(
+        ({ field, value }) => `<div class="hint" data-ask="${field}">The catalog says ${esc(fmtGeometry(field, value))} for the ${GEOMETRY_LABELS[field]}; you have ${esc(fmtGeometry(field, vehForm[field].value))}.
+          <button type="button" class="btn small" data-ask-use="${field}">Use ${esc(fmtGeometry(field, value))}</button>
+          <button type="button" class="btn small" data-ask-keep="${field}">Keep mine</button></div>`
+      )
+      .join("");
+  };
+  asksEl.addEventListener("click", (e) => {
+    const use = e.target.closest("[data-ask-use]");
+    const keep = e.target.closest("[data-ask-keep]");
+    const btn = use ?? keep;
+    if (!btn) return;
+    const field = btn.dataset.askUse ?? btn.dataset.askKeep;
+    if (use && pick) vehForm[field].value = pick[field] ?? "";
+    asksEl.querySelector(`[data-ask="${field}"]`)?.remove();
+  });
+  bindCatalogPicker(vehForm.catalog, view.querySelector("#veh-catalog-list"), carCatalog, {
+    initial: initialPick,
+    onPick: (row) => {
+      const plan = catalogPrefill(
+        row,
+        { wheelbase_mm: numOrNull(vehForm.wheelbase_mm.value), steering_ratio: numOrNull(vehForm.steering_ratio.value) },
+        pick
+      );
+      const asks = [];
+      for (const [field, { value, action }] of Object.entries(plan)) {
+        if (action === "fill") vehForm[field].value = value ?? "";
+        else if (action === "ask") asks.push({ field, value });
+      }
+      pick = row;
+      renderAsks(asks);
+      if (vehForm.name.value.trim() === "") vehForm.name.value = catalogCarName(row);
+      showSource();
+    },
+    onClear: () => {
+      pick = null;
+      renderAsks([]);
+      showSource();
+    },
+  });
+
   vehForm.onsubmit = async (evt) => {
     evt.preventDefault();
-    const numOrNull = (raw) => (raw.trim() === "" ? null : Number(raw));
     const body = {
       name: vehForm.name.value.trim(),
       notes: vehForm.notes.value.trim() || null,
       target_hot_psi: numOrNull(vehForm.target_hot_psi.value),
+      // The pick and both numbers together: the server pre-fills only the
+      // numbers a body leaves out, and this form never leaves one out, so what
+      // is on screen is what gets saved — the pick is recorded as identity.
+      catalog_id: pick?.id ?? null,
       wheelbase_mm: numOrNull(vehForm.wheelbase_mm.value),
       steering_ratio: numOrNull(vehForm.steering_ratio.value),
     };
@@ -2997,7 +3136,6 @@ async function viewVehicle(vehicleId) {
   const partError = (err) => {
     view.querySelector("#part-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
   };
-  const numOrNull = (raw) => (raw.trim() === "" ? null : Number(raw));
 
   // The replace-at hint follows the chosen kind (tread depth is not a pad
   // thickness), in the user's tread-depth idiom.

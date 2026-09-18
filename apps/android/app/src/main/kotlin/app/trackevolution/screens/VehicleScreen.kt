@@ -31,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
+import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartDraft
@@ -50,6 +52,7 @@ import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.PaneWidth
+import app.trackevolution.ui.CatalogCarPicker
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -60,6 +63,7 @@ import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
 import app.trackevolution.ui.TEWearBar
 import app.trackevolution.ui.fmtCount
+import app.trackevolution.ui.fmtRatio
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 
@@ -146,8 +150,20 @@ fun VehicleScreen(
 
             if (editingCar) {
                 item("edit-car") {
-                    VehicleForm(vehicle, onCancel = { editingCar = false }) { name, notes, psi, isDefault ->
-                        model.updateVehicle(name, notes, psi, isDefault)
+                    // The catalog is fetched when the form opens, not with the
+                    // page: it is only needed here, and the picker reads it from
+                    // the response cache offline.
+                    LaunchedEffect(Unit) { model.loadCatalog() }
+                    VehicleForm(
+                        vehicle,
+                        catalog = model.catalog,
+                        catalogError = model.catalogError,
+                        onCancel = { editingCar = false },
+                    ) { edit ->
+                        model.updateVehicle(
+                            edit.name, edit.notes, edit.targetHotPsi, edit.isDefault,
+                            edit.catalogId, edit.wheelbaseMm, edit.steeringRatio,
+                        )
                         editingCar = false
                     }
                 }
@@ -810,24 +826,83 @@ private fun PartPatch.toDraft(): PartDraft = PartDraft(
     notes = (notes as? Patch.Set)?.value,
 )
 
+/** What the *Edit car* form hands back — every field it shows. */
+internal data class VehicleEdit(
+    val name: String,
+    val notes: String,
+    val targetHotPsi: Double?,
+    val isDefault: Boolean,
+    val catalogId: Int?,
+    val wheelbaseMm: Int?,
+    val steeringRatio: Double?,
+)
+
 /**
  * Edit the car: its name, its modifications and notes, the hot tyre pressure the
- * health strip's pressure loop aims at, and whether new events start on it —
+ * health strip's pressure loop aims at, whether new events start on it, and —
+ * #208 / #222 — its two spec-sheet numbers, picked from the car catalog or typed.
  * `viewVehicle`'s `#veh-form` in `public/app.js`. Inline under the heading, as
  * the part cards' edit forms are.
+ *
+ * The catalog pick follows the web's rules exactly, through `:core`'s
+ * [Garage.catalogPrefill]: **pre-fill, never overwrite** — a number the driver
+ * typed is asked about, inline under its field, per field; a number the previous
+ * pick filled in is replaced silently on a re-pick; clearing the pick keeps the
+ * numbers, because they are the driver's now. `pickId` is the row the form's
+ * numbers came from — the stored one to begin with — which is what tells those
+ * two cases apart. Held as an id, saveably, for the same reason the page's
+ * dialogs are: a fold must not lose the pick.
  */
 @Composable
-private fun VehicleForm(
+internal fun VehicleForm(
     vehicle: GarageVehicle,
+    catalog: List<CatalogCar>?,
+    catalogError: String?,
     onCancel: () -> Unit,
-    onSave: (name: String, notes: String, targetHotPsi: Double?, isDefault: Boolean) -> Unit,
+    onSave: (VehicleEdit) -> Unit,
 ) {
     val colors = TrackTheme.colors
     var name by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.name) }
     var notes by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.notes.orEmpty()) }
     var psi by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.targetHotPsi?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }.orEmpty()) }
     var isDefault by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.isDefault) }
+    var wheelbase by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.wheelbaseMm?.toString().orEmpty()) }
+    var steering by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.steeringRatio?.let(::fmtRatio).orEmpty()) }
+    var pickId by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.catalogId) }
+    var wheelbaseAsk by rememberSaveable(vehicle.id) { mutableStateOf<Int?>(null) }
+    var steeringAsk by rememberSaveable(vehicle.id) { mutableStateOf<Double?>(null) }
+    var picking by rememberSaveable(vehicle.id) { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val pick = pickId?.let { id -> catalog?.firstOrNull { it.id == id } }
+
+    fun picked(row: CatalogCar) {
+        val plan = Garage.catalogPrefill(
+            row,
+            Garage.VehicleGeometry(
+                wheelbaseMm = wheelbase.trim().toIntOrNull(),
+                steeringRatio = steering.trim().replace(',', '.').toDoubleOrNull(),
+            ),
+            pick,
+        )
+        when (plan.wheelbaseMm.action) {
+            Garage.CatalogPrefillAction.FILL -> { wheelbase = plan.wheelbaseMm.value?.toString().orEmpty(); wheelbaseAsk = null }
+            Garage.CatalogPrefillAction.ASK -> wheelbaseAsk = plan.wheelbaseMm.value
+            Garage.CatalogPrefillAction.KEEP -> wheelbaseAsk = null
+        }
+        when (plan.steeringRatio.action) {
+            Garage.CatalogPrefillAction.FILL -> { steering = plan.steeringRatio.value?.let(::fmtRatio).orEmpty(); steeringAsk = null }
+            Garage.CatalogPrefillAction.ASK -> steeringAsk = plan.steeringRatio.value
+            Garage.CatalogPrefillAction.KEEP -> steeringAsk = null
+        }
+        pickId = row.id
+        // A car already called "Betty" keeps its name.
+        if (name.isBlank()) name = Garage.catalogCarName(row)
+        picking = false
+    }
+
+    if (picking) {
+        CatalogCarPicker(rows = catalog, error = catalogError, onPick = ::picked, onDismiss = { picking = false })
+    }
 
     TrackCard(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -878,17 +953,110 @@ private fun VehicleForm(
                 )
                 Text("Default car for new events", style = TrackTheme.typography.sm, color = colors.textBody)
             }
+
+            // The catalog field: what is picked, the door to the picker, and
+            // Clear. The label says what a pick *does*, because that is the
+            // only reason to pick rather than type.
+            TEField(
+                "Find your car in the catalog (optional)",
+                hint = "Picking a car fills in the wheelbase and steering ratio the balance read-out " +
+                    "uses — nothing else changes, and a car the catalog doesn't know is just typed in below.",
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        pick?.let(Garage::catalogCarLabel) ?: "Search the catalog…",
+                        style = TrackTheme.typography.body,
+                        color = if (pick == null) colors.textMuted else colors.textStrong,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(colors.surfaceInput)
+                            .clickable { picking = true }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .testTag("pickCatalogCar"),
+                    )
+                    if (pickId != null) {
+                        TextButton(
+                            onClick = { pickId = null; wheelbaseAsk = null; steeringAsk = null },
+                            modifier = Modifier.testTag("clearCatalogCar"),
+                        ) {
+                            Text("Clear the pick — keep the numbers", style = TrackTheme.typography.xs, color = colors.accentInk)
+                        }
+                    }
+                }
+            }
+            TEField("Wheelbase (mm, optional)") {
+                OutlinedTextField(
+                    value = wheelbase,
+                    onValueChange = { wheelbase = it },
+                    placeholder = { Text("e.g. 2710", style = TrackTheme.typography.sm) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth().testTag("wheelbaseField"),
+                )
+            }
+            wheelbaseAsk?.let { ask ->
+                GeometryAsk(
+                    "The catalog says $ask mm for the wheelbase; you have $wheelbase mm.",
+                    onUse = { wheelbase = ask.toString(); wheelbaseAsk = null },
+                    onKeep = { wheelbaseAsk = null },
+                )
+            }
+            TEField("Steering ratio (optional)") {
+                OutlinedTextField(
+                    value = steering,
+                    onValueChange = { steering = it },
+                    placeholder = { Text("e.g. 16.25 for 16.25:1", style = TrackTheme.typography.sm) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth().testTag("steeringRatioField"),
+                )
+            }
+            steeringAsk?.let { ask ->
+                GeometryAsk(
+                    "The catalog says ${fmtRatio(ask)}:1 for the steering ratio; you have $steering:1.",
+                    onUse = { steering = fmtRatio(ask); steeringAsk = null },
+                    onKeep = { steeringAsk = null },
+                )
+            }
+            // Where the numbers came from, so the driver knows what they are trusting.
+            pick?.let {
+                Text(
+                    it.source,
+                    style = TrackTheme.typography.xxs,
+                    color = colors.textFaint,
+                    modifier = Modifier.testTag("catalogSource"),
+                )
+            }
+            Text(
+                "Both are on the spec sheet or in the owner's manual. They let the balance read-out say " +
+                    "how much understeer, rather than only which corner differs from the rest — leave " +
+                    "them blank and it keeps the relative reading.",
+                style = TrackTheme.typography.xxs,
+                color = colors.textFaint,
+            )
+
             error?.let { TEErrorBanner(it) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     onClick = {
                         val raw = psi.trim().replace(',', '.')
                         val value = if (raw.isEmpty()) null else raw.toDoubleOrNull()
+                        // The same ranges `src/lib/validate.ts` enforces, so a
+                        // slip is caught here with a sentence rather than there
+                        // with a 400.
+                        val rawWheelbase = wheelbase.trim()
+                        val wheelbaseMm = rawWheelbase.toIntOrNull()
+                        val rawSteering = steering.trim().replace(',', '.')
+                        val steeringRatio = rawSteering.toDoubleOrNull()
                         if (raw.isNotEmpty() && (value == null || value < 5 || value > 100)) {
                             error = "Target pressure should be between 5 and 100 psi."
+                        } else if (rawWheelbase.isNotEmpty() && (wheelbaseMm == null || wheelbaseMm < 1500 || wheelbaseMm > 4500)) {
+                            error = "Wheelbase should be between 1500 and 4500 mm."
+                        } else if (rawSteering.isNotEmpty() && (steeringRatio == null || steeringRatio < 5 || steeringRatio > 30)) {
+                            error = "Steering ratio should be between 5 and 30 — 16.25 for 16.25:1."
                         } else {
                             error = null
-                            onSave(name, notes, value, isDefault)
+                            onSave(VehicleEdit(name, notes, value, isDefault, pickId, wheelbaseMm, steeringRatio))
                         }
                     },
                     enabled = name.isNotBlank(),
@@ -898,6 +1066,26 @@ private fun VehicleForm(
                 TextButton(onClick = onCancel) {
                     Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * A per-field question under the number it is about — inline rather than in a
+ * dialog, because the answer belongs next to the field, and it is one of two.
+ */
+@Composable
+private fun GeometryAsk(text: String, onUse: () -> Unit, onKeep: () -> Unit) {
+    val colors = TrackTheme.colors
+    Column {
+        Text(text, style = TrackTheme.typography.xs, color = colors.textMuted)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onUse) {
+                Text("Use the catalog's", style = TrackTheme.typography.xs, color = colors.accentInk)
+            }
+            TextButton(onClick = onKeep) {
+                Text("Keep mine", style = TrackTheme.typography.xs, color = colors.textMuted)
             }
         }
     }

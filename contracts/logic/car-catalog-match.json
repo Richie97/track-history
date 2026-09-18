@@ -1,0 +1,498 @@
+{
+  "description": "The car-catalog picker (#222) captured from public/js/garage.js: matchCatalogCars ranks a query over the catalog, catalogCarName / catalogCarLabel name a row, and catalogPrefill decides per field whether a pick fills, asks or keeps the numbers already on the form. Regenerate with `npm run contracts:logic`.",
+  "source": "public/js/garage.js",
+  "rows": [
+    {
+      "id": 1,
+      "make": "BMW",
+      "model": "M3",
+      "generation": "E46",
+      "year_from": 2000,
+      "year_to": 2006,
+      "wheelbase_mm": 2731,
+      "steering_ratio": 15.4,
+      "source": "fixture"
+    },
+    {
+      "id": 2,
+      "make": "Chevrolet",
+      "model": "Corvette",
+      "generation": "C5",
+      "year_from": 1997,
+      "year_to": 2004,
+      "wheelbase_mm": 2656,
+      "steering_ratio": 16.1,
+      "source": "fixture"
+    },
+    {
+      "id": 3,
+      "make": "Chevrolet",
+      "model": "Corvette",
+      "generation": "C6",
+      "year_from": 2005,
+      "year_to": 2013,
+      "wheelbase_mm": 2686,
+      "steering_ratio": 16.1,
+      "source": "fixture"
+    },
+    {
+      "id": 4,
+      "make": "Chevrolet",
+      "model": "Corvette",
+      "generation": "C7",
+      "year_from": 2014,
+      "year_to": 2019,
+      "wheelbase_mm": 2710,
+      "steering_ratio": 16.25,
+      "source": "fixture"
+    },
+    {
+      "id": 5,
+      "make": "Chevrolet",
+      "model": "Corvette",
+      "generation": "C8",
+      "year_from": 2020,
+      "year_to": null,
+      "wheelbase_mm": 2722,
+      "steering_ratio": 15.7,
+      "source": "fixture"
+    },
+    {
+      "id": 6,
+      "make": "Mazda",
+      "model": "MX-5",
+      "generation": "NA",
+      "year_from": 1989,
+      "year_to": 1997,
+      "wheelbase_mm": 2265,
+      "steering_ratio": 15,
+      "source": "fixture"
+    },
+    {
+      "id": 7,
+      "make": "Mazda",
+      "model": "MX-5",
+      "generation": "ND",
+      "year_from": 2015,
+      "year_to": null,
+      "wheelbase_mm": 2310,
+      "steering_ratio": 15.5,
+      "source": "fixture"
+    },
+    {
+      "id": 8,
+      "make": "Porsche",
+      "model": "718 Cayman",
+      "generation": "982",
+      "year_from": 2016,
+      "year_to": null,
+      "wheelbase_mm": 2475,
+      "steering_ratio": null,
+      "source": "fixture"
+    },
+    {
+      "id": 9,
+      "make": "Toyota",
+      "model": "GR86",
+      "generation": null,
+      "year_from": 2022,
+      "year_to": null,
+      "wheelbase_mm": 2575,
+      "steering_ratio": 13.5,
+      "source": "fixture"
+    }
+  ],
+  "labels": [
+    {
+      "id": 1,
+      "name": "BMW M3 E46",
+      "label": "BMW M3 · E46 · 2000–2006"
+    },
+    {
+      "id": 2,
+      "name": "Chevrolet Corvette C5",
+      "label": "Chevrolet Corvette · C5 · 1997–2004"
+    },
+    {
+      "id": 3,
+      "name": "Chevrolet Corvette C6",
+      "label": "Chevrolet Corvette · C6 · 2005–2013"
+    },
+    {
+      "id": 4,
+      "name": "Chevrolet Corvette C7",
+      "label": "Chevrolet Corvette · C7 · 2014–2019"
+    },
+    {
+      "id": 5,
+      "name": "Chevrolet Corvette C8",
+      "label": "Chevrolet Corvette · C8 · 2020–"
+    },
+    {
+      "id": 6,
+      "name": "Mazda MX-5 NA",
+      "label": "Mazda MX-5 · NA · 1989–1997"
+    },
+    {
+      "id": 7,
+      "name": "Mazda MX-5 ND",
+      "label": "Mazda MX-5 · ND · 2015–"
+    },
+    {
+      "id": 8,
+      "name": "Porsche 718 Cayman 982",
+      "label": "Porsche 718 Cayman · 982 · 2016–"
+    },
+    {
+      "id": 9,
+      "name": "Toyota GR86",
+      "label": "Toyota GR86 · 2022–"
+    }
+  ],
+  "queries": [
+    {
+      "query": "",
+      "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "query": "   ",
+      "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "query": "c7",
+      "ids": [
+        4
+      ]
+    },
+    {
+      "query": "C7",
+      "ids": [
+        4
+      ]
+    },
+    {
+      "query": "corvette",
+      "ids": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "query": "chevrolet corvette",
+      "ids": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "query": "Corvette C",
+      "ids": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "query": "corvette c8",
+      "ids": [
+        5
+      ]
+    },
+    {
+      "query": "corvette miata",
+      "ids": []
+    },
+    {
+      "query": "mx5",
+      "ids": [
+        6,
+        7
+      ]
+    },
+    {
+      "query": "mx-5",
+      "ids": [
+        6,
+        7
+      ]
+    },
+    {
+      "query": "718",
+      "ids": [
+        8
+      ]
+    },
+    {
+      "query": "cayman 982",
+      "ids": [
+        8
+      ]
+    },
+    {
+      "query": "2017",
+      "ids": [
+        4,
+        7,
+        8
+      ]
+    },
+    {
+      "query": "corvette 2017",
+      "ids": [
+        4
+      ]
+    },
+    {
+      "query": "corvette 2010",
+      "ids": [
+        3
+      ]
+    },
+    {
+      "query": "gr86",
+      "ids": [
+        9
+      ]
+    },
+    {
+      "query": "toyota",
+      "ids": [
+        9
+      ]
+    },
+    {
+      "query": "m3 e46",
+      "ids": [
+        1
+      ]
+    },
+    {
+      "query": "e",
+      "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        8
+      ]
+    },
+    {
+      "query": "c",
+      "ids": [
+        2,
+        3,
+        4,
+        5,
+        8
+      ]
+    },
+    {
+      "query": "  chev   ",
+      "ids": [
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "prefill": [
+    {
+      "name": "empty car picks the C7",
+      "row": 4,
+      "current": {
+        "wheelbase_mm": null,
+        "steering_ratio": null
+      },
+      "previous": null,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2710,
+          "action": "fill"
+        },
+        "steering_ratio": {
+          "value": 16.25,
+          "action": "fill"
+        }
+      }
+    },
+    {
+      "name": "hand-typed numbers, first pick",
+      "row": 4,
+      "current": {
+        "wheelbase_mm": 2700,
+        "steering_ratio": 15
+      },
+      "previous": null,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2710,
+          "action": "ask"
+        },
+        "steering_ratio": {
+          "value": 16.25,
+          "action": "ask"
+        }
+      }
+    },
+    {
+      "name": "re-pick over the previous pick's numbers",
+      "row": 5,
+      "current": {
+        "wheelbase_mm": 2710,
+        "steering_ratio": 16.25
+      },
+      "previous": 4,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2722,
+          "action": "fill"
+        },
+        "steering_ratio": {
+          "value": 15.7,
+          "action": "fill"
+        }
+      }
+    },
+    {
+      "name": "re-pick over a corrected ratio",
+      "row": 5,
+      "current": {
+        "wheelbase_mm": 2710,
+        "steering_ratio": 15
+      },
+      "previous": 4,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2722,
+          "action": "fill"
+        },
+        "steering_ratio": {
+          "value": 15.7,
+          "action": "ask"
+        }
+      }
+    },
+    {
+      "name": "hand-typed numbers pick a car with no ratio",
+      "row": 8,
+      "current": {
+        "wheelbase_mm": 2700,
+        "steering_ratio": 15
+      },
+      "previous": null,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2475,
+          "action": "ask"
+        },
+        "steering_ratio": {
+          "value": null,
+          "action": "keep"
+        }
+      }
+    },
+    {
+      "name": "previous pick's numbers pick a car with no ratio",
+      "row": 8,
+      "current": {
+        "wheelbase_mm": 2710,
+        "steering_ratio": 16.25
+      },
+      "previous": 4,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2475,
+          "action": "fill"
+        },
+        "steering_ratio": {
+          "value": null,
+          "action": "fill"
+        }
+      }
+    },
+    {
+      "name": "numbers already match the pick",
+      "row": 4,
+      "current": {
+        "wheelbase_mm": 2710,
+        "steering_ratio": 16.25
+      },
+      "previous": null,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2710,
+          "action": "keep"
+        },
+        "steering_ratio": {
+          "value": 16.25,
+          "action": "keep"
+        }
+      }
+    },
+    {
+      "name": "only the wheelbase typed",
+      "row": 4,
+      "current": {
+        "wheelbase_mm": 2710,
+        "steering_ratio": null
+      },
+      "previous": null,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2710,
+          "action": "keep"
+        },
+        "steering_ratio": {
+          "value": 16.25,
+          "action": "fill"
+        }
+      }
+    },
+    {
+      "name": "ratio typed, previous pick had none",
+      "row": 5,
+      "current": {
+        "wheelbase_mm": 2475,
+        "steering_ratio": 14
+      },
+      "previous": 8,
+      "plan": {
+        "wheelbase_mm": {
+          "value": 2722,
+          "action": "fill"
+        },
+        "steering_ratio": {
+          "value": 15.7,
+          "action": "ask"
+        }
+      }
+    }
+  ]
+}
