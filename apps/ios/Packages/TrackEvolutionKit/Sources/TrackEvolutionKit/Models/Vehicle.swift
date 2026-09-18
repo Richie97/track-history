@@ -13,11 +13,23 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
     /// pressure loop aims the next cold pressures at (#190). Set on the web,
     /// decoded here so the response stays pinned; nothing native reads it yet.
     public var targetHotPsi: Double?
+    /// The seeded car-catalog generation this car was picked from (#221), or
+    /// nil for a car typed by hand. Identity, not ownership: the pick pre-filled
+    /// the two numbers below and the catalog is never consulted again.
+    public var catalogId: Int?
+    /// Wheelbase in millimetres and the steering ratio ("16.25:1" → 16.25),
+    /// the two spec-sheet constants the balance read-out needs (#208). Both
+    /// optional; a car with neither keeps the relative reading.
+    public var wheelbaseMm: Int?
+    public var steeringRatio: Double?
 
     public enum CodingKeys: String, CodingKey {
         case id, name, notes
         case isDefault = "is_default"
         case targetHotPsi = "target_hot_psi"
+        case catalogId = "catalog_id"
+        case wheelbaseMm = "wheelbase_mm"
+        case steeringRatio = "steering_ratio"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -27,6 +39,9 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         isDefault = try c.decode(Int.self, forKey: .isDefault) != 0
         targetHotPsi = try c.decodeIfPresent(Double.self, forKey: .targetHotPsi)
+        catalogId = try c.decodeIfPresent(Int.self, forKey: .catalogId)
+        wheelbaseMm = try c.decodeIfPresent(Int.self, forKey: .wheelbaseMm)
+        steeringRatio = try c.decodeIfPresent(Double.self, forKey: .steeringRatio)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -36,6 +51,9 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
         try c.encode(notes, forKey: .notes)
         try c.encode(isDefault ? 1 : 0, forKey: .isDefault)
         try c.encode(targetHotPsi, forKey: .targetHotPsi)
+        try c.encode(catalogId, forKey: .catalogId)
+        try c.encode(wheelbaseMm, forKey: .wheelbaseMm)
+        try c.encode(steeringRatio, forKey: .steeringRatio)
     }
 }
 
@@ -58,6 +76,10 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
     public var eventCount: Int
     public var eventDays: Int
     public var parts: [Part]
+    /// See `Vehicle.catalogId` / `wheelbaseMm` / `steeringRatio`.
+    public var catalogId: Int?
+    public var wheelbaseMm: Int?
+    public var steeringRatio: Double?
 
     public enum CodingKeys: String, CodingKey {
         case id, name, notes, hours, parts
@@ -66,6 +88,9 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         case updatedAt = "updated_at"
         case eventCount = "event_count"
         case eventDays = "event_days"
+        case catalogId = "catalog_id"
+        case wheelbaseMm = "wheelbase_mm"
+        case steeringRatio = "steering_ratio"
     }
 
     /// Spelled out because the custom `init(from:)` below suppresses the
@@ -80,7 +105,10 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         hours: Double = 0,
         eventCount: Int = 0,
         eventDays: Int = 0,
-        parts: [Part] = []
+        parts: [Part] = [],
+        catalogId: Int? = nil,
+        wheelbaseMm: Int? = nil,
+        steeringRatio: Double? = nil
     ) {
         self.id = id
         self.name = name
@@ -92,6 +120,9 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         self.eventCount = eventCount
         self.eventDays = eventDays
         self.parts = parts
+        self.catalogId = catalogId
+        self.wheelbaseMm = wheelbaseMm
+        self.steeringRatio = steeringRatio
     }
 
     public init(from decoder: any Decoder) throws {
@@ -106,6 +137,9 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         eventCount = try c.decode(Int.self, forKey: .eventCount)
         eventDays = try c.decode(Int.self, forKey: .eventDays)
         parts = try c.decode([Part].self, forKey: .parts)
+        catalogId = try c.decodeIfPresent(Int.self, forKey: .catalogId)
+        wheelbaseMm = try c.decodeIfPresent(Int.self, forKey: .wheelbaseMm)
+        steeringRatio = try c.decodeIfPresent(Double.self, forKey: .steeringRatio)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -120,6 +154,9 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         try c.encode(eventCount, forKey: .eventCount)
         try c.encode(eventDays, forKey: .eventDays)
         try c.encode(parts, forKey: .parts)
+        try c.encode(catalogId, forKey: .catalogId)
+        try c.encode(wheelbaseMm, forKey: .wheelbaseMm)
+        try c.encode(steeringRatio, forKey: .steeringRatio)
     }
 }
 

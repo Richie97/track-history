@@ -47,8 +47,22 @@ let partId = 0;
 VEHICLES.forEach((v, i) => {
   const vid = i + 1;
   vehicleId.set(v.name, vid);
+  // `catalog` names a car_catalog generation ("Chevrolet|Corvette|C8") and,
+  // like a pick in the app, pre-fills the two geometry numbers from it unless
+  // the data file gives its own; seeding runs after migrations, so the lookup
+  // is inline. Numbers stay optional either way.
+  const cat = v.catalog ? v.catalog.split("|") : null;
+  if (cat && cat.length !== 3) throw new Error(`Bad catalog key (want make|model|generation): ${v.catalog}`);
+  const catalogWhere = cat
+    ? `WHERE c.make = ${q(cat[0])} AND c.model = ${q(cat[1])} AND c.generation IS ${q(cat[2] || null)}`
+    : null;
+  const geometry = (col, own) =>
+    own != null ? String(own) : cat ? `(SELECT c.${col} FROM car_catalog c ${catalogWhere})` : "NULL";
   lines.push(
-    `INSERT INTO vehicles (id, user_id, name, notes, is_default, target_hot_psi) VALUES (${vid}, 1, ${q(v.name)}, ${q(v.notes ?? null)}, ${v.default ? 1 : 0}, ${v.target_hot_psi ?? "NULL"});`
+    `INSERT INTO vehicles (id, user_id, name, notes, is_default, target_hot_psi, catalog_id, wheelbase_mm, steering_ratio) VALUES (` +
+      `${vid}, 1, ${q(v.name)}, ${q(v.notes ?? null)}, ${v.default ? 1 : 0}, ${v.target_hot_psi ?? "NULL"}, ` +
+      `${cat ? `(SELECT c.id FROM car_catalog c ${catalogWhere})` : "NULL"}, ` +
+      `${geometry("wheelbase_mm", v.wheelbase_mm)}, ${geometry("steering_ratio", v.steering_ratio)});`
   );
   for (const p of v.parts ?? []) {
     partId++;

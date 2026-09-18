@@ -20,11 +20,22 @@ import kotlinx.serialization.json.JsonPrimitive
 
 // ---- Vehicles -------------------------------------------------------------
 
+/**
+ * `POST /api/vehicles`. Optional fields default to null and are **omitted**
+ * from the body (`encodeDefaults = false`), which matters for the geometry: on
+ * a create the server treats an absent `wheelbase_mm` / `steering_ratio` as
+ * "fill from the catalog" and an explicit null as "clear", so a draft that only
+ * names a [catalogId] gets both numbers pre-filled.
+ */
 @Serializable
 public data class VehicleDraft(
     val name: String,
     val notes: String? = null,
     @SerialName("is_default") val isDefault: Boolean? = null,
+    /** A car-catalog generation to pick (#221); null means a car typed by hand. */
+    @SerialName("catalog_id") val catalogId: Int? = null,
+    @SerialName("wheelbase_mm") val wheelbaseMm: Int? = null,
+    @SerialName("steering_ratio") val steeringRatio: Double? = null,
 )
 
 @Serializable(with = VehiclePatchSerializer::class)
@@ -37,6 +48,20 @@ public data class VehiclePatch(
      * (5–100, rounded to a tenth server-side). `Set(null)` clears it.
      */
     val targetHotPsi: Patch<Double> = Patch.Unchanged,
+    /**
+     * The car-catalog pick (#221). Setting a row re-pre-fills *both* geometry
+     * numbers from it unless the same patch carries its own value for one —
+     * including a null ratio, so a car swapped from one entry to another never
+     * keeps the previous car's ratio. `Set(null)` unlinks and leaves the numbers
+     * as they are.
+     */
+    val catalogId: Patch<Int> = Patch.Unchanged,
+    /**
+     * Wheelbase in whole millimetres (1500–4500) and the steering ratio (5–30,
+     * two decimals server-side). `Set(null)` clears either.
+     */
+    val wheelbaseMm: Patch<Int> = Patch.Unchanged,
+    val steeringRatio: Patch<Double> = Patch.Unchanged,
 )
 
 public object VehiclePatchSerializer : KSerializer<VehiclePatch> {
@@ -51,6 +76,9 @@ public object VehiclePatchSerializer : KSerializer<VehiclePatch> {
         body.put("notes", value.notes) { JsonPrimitive(it) }
         body.put("is_default", value.isDefault) { JsonPrimitive(it) }
         body.put("target_hot_psi", value.targetHotPsi) { JsonPrimitive(it) }
+        body.put("catalog_id", value.catalogId) { JsonPrimitive(it) }
+        body.put("wheelbase_mm", value.wheelbaseMm) { JsonPrimitive(it) }
+        body.put("steering_ratio", value.steeringRatio) { JsonPrimitive(it) }
         out.encodeJsonElement(body.build())
     }
 }

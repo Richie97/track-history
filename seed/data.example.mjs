@@ -19,6 +19,10 @@ export const VEHICLES = [
     notes: "Z07 package, stock aero. Track alignment.",
     default: true,
     target_hot_psi: 34, // optional: what the health strip's pressure loop aims for
+    // optional: a car_catalog generation ("make|model|generation", see
+    // seed/cars/list.json) — pre-fills wheelbase_mm / steering_ratio, which can
+    // also be given directly (a direct value wins over the catalog's).
+    catalog: "Chevrolet|Corvette|C8",
     parts: [
       // Current consumables
       {

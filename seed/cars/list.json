@@ -1,0 +1,68 @@
+[
+  { "make": "Chevrolet", "model": "Corvette", "generation": "C5", "years": [1997, 2004], "wikidata": "Q1135711",
+    "wheelbase": { "mm": 2656, "source": "GM Heritage Archive, 2004 Chevrolet Corvette vehicle information kit (104.5 in / 2656 mm; overrides Wikidata's 2669), https://www.gm.com/content/dam/company/no_search/heritage-archive-docs/vehicle-information-kits/chevrolet/2004-Chevrolet-Corvette.pdf" } },
+  { "make": "Chevrolet", "model": "Corvette", "generation": "C6", "years": [2005, 2013], "wikidata": "Q1119538" },
+  { "make": "Chevrolet", "model": "Corvette", "generation": "C7", "years": [2014, 2019], "wikidata": "Q1135713" },
+  { "make": "Chevrolet", "model": "Corvette", "generation": "C8", "years": [2020, null],
+    "wheelbase": { "mm": 2722, "source": "Chevrolet Pressroom, 2020 Corvette Stingray specifications, https://pressroom.chevrolet.com/gmbx/us/en/chevrolet/pressroom/vehicles/2020.detail.html/content/Pages/vehicle/us/en/chevrolet/corvette-stingray/2020.html" } },
+
+  { "make": "Mazda", "model": "MX-5 Miata", "generation": "ND", "years": [2016, null],
+    "wheelbase": { "in": 90.9, "source": "Mazda USA, 2019 MX-5 Miata features & specs, https://www.mazdausa.com/siteassets/pdf/owners-optimized/2019/mx-5-miata-st/2019_mazda_mx5_features_specs.pdf" } },
+
+  { "make": "Subaru", "model": "BRZ", "generation": "ZC6", "years": [2013, 2020],
+    "wheelbase": { "in": 101.2, "source": "Subaru of America, 2013 BRZ specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/specs/2013_SubaruBRZspecs.pdf" } },
+  { "make": "Subaru", "model": "BRZ", "generation": "ZD8", "years": [2022, null],
+    "wheelbase": { "in": 101.4, "source": "Subaru of America, 2022 BRZ specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/attachments/22MY_BRZ_-_Specs_-FINAL.pdf" } },
+  { "make": "Toyota", "model": "86 / Scion FR-S", "generation": "ZN6", "years": [2013, 2020], "wikidata": "Q1138779" },
+  { "make": "Toyota", "model": "GR86", "generation": "ZN8", "years": [2022, null], "wikidata": "Q106388685" },
+
+  { "make": "Porsche", "model": "Boxster / Cayman", "generation": "987", "years": [2005, 2012], "wikidata": "Q2104564" },
+  { "make": "Porsche", "model": "Boxster / Cayman", "generation": "981", "years": [2013, 2016],
+    "wheelbase": { "in": 97.4, "source": "Porsche Newsroom, 2014 Cayman technical specifications, https://newsroom.porsche.com/dam/jcr:0036dadf-873b-46b8-86b2-841009f188af/2014_Cayman_Technical_Specifications.pdf" } },
+  { "make": "Porsche", "model": "718 Boxster / Cayman", "generation": "982", "years": [2017, null], "wikidata": "Q55394585" },
+  { "make": "Porsche", "model": "911", "generation": "996", "years": [1999, 2004], "wikidata": "Q936953" },
+  { "make": "Porsche", "model": "911", "generation": "997", "years": [2005, 2012], "wikidata": "Q1338466" },
+  { "make": "Porsche", "model": "911", "generation": "991", "years": [2012, 2019],
+    "wheelbase": { "mm": 2450, "source": "Porsche Newsroom, 2017 911 Carrera GTS technical data, https://newsroom.porsche.com/dam/jcr:48c46ea8-77ba-42f0-9891-ddff55e82cb4/PCNA18_1000_us.pdf" } },
+  { "make": "Porsche", "model": "911", "generation": "992", "years": [2020, null],
+    "wheelbase": { "mm": 2450, "source": "Porsche Newsroom, 992.2 911 Carrera technical specifications, https://newsroom.porsche.com/dam/jcr:86fc9a9b-ece1-4cca-9930-39a78e89baf3/992.2%20911%20Carrera%20and%20Carrera%20Cabriolet%20Technical%20Specifications.pdf" } },
+
+  { "make": "BMW", "model": "M2", "generation": "F87", "years": [2016, 2021],
+    "wheelbase": { "in": 106.0, "source": "BMW Group PressClub USA, 2018 BMW M2 Coupé technical data, https://www.press.bmwgroup.com/usa/article/attachment/T0238507EN_US/391960" } },
+  { "make": "BMW", "model": "M2", "generation": "G87", "years": [2023, null],
+    "wheelbase": { "mm": 2747, "source": "BMW Group PressClub UK, BMW M2 technical specifications 10/2022, https://www.press.bmwgroup.com/united-kingdom/article/attachment/T0404614EN_GB/588171" } },
+  { "make": "BMW", "model": "M3", "generation": "E46", "years": [2001, 2006], "wikidata": "Q21036537" },
+  { "make": "BMW", "model": "M3", "generation": "E90 / E92", "years": [2008, 2013],
+    "wheelbase": { "mm": 2761, "source": "FIA homologation form 3-18-016A BMW M3 (E92), via Motorsport Australia, https://motorsport.org.au/wpblob0fe832abcb/wp-content/uploads/2025/03/3-18-016A-BMW-M3-e92.pdf" } },
+  { "make": "BMW", "model": "M3", "generation": "F80", "years": [2015, 2018], "wikidata": "Q10423941" },
+  { "make": "BMW", "model": "M4", "generation": "F82", "years": [2015, 2020], "wikidata": "Q14927963" },
+  { "make": "BMW", "model": "M3", "generation": "G80", "years": [2021, null],
+    "wheelbase": { "mm": 2857, "source": "BMW Group PressClub, BMW M3 Sedan specifications 03/2021, https://www.press.bmwgroup.com/global/article/attachment/T0316649EN/476823" } },
+  { "make": "BMW", "model": "M4", "generation": "G82", "years": [2021, null],
+    "wheelbase": { "mm": 2857, "source": "BMW Group PressClub, BMW M4 Coupé specifications 03/2021, https://www.press.bmwgroup.com/global/article/attachment/T0316649EN/476824" } },
+
+  { "make": "Honda", "model": "Civic Type R", "generation": "FK8", "years": [2017, 2021],
+    "wheelbase": { "mm": 2700, "source": "Honda Canada, 2018 Civic Type R specifications, https://hondanews.ca/en-CA/hci-automobiles/releases/release-519a23469582d80780152ae42300427b-2018-civic-type-r-specifications" } },
+  { "make": "Honda", "model": "Civic Type R", "generation": "FL5", "years": [2023, null], "wikidata": "Q107336578" },
+  { "make": "Honda", "model": "S2000", "generation": "AP1 / AP2", "years": [2000, 2009], "wikidata": "Q913796" },
+
+  { "make": "Volkswagen", "model": "Golf GTI", "generation": "Mk7", "years": [2015, 2021],
+    "wheelbase": { "mm": 2631, "source": "Volkswagen of America, 2021 Golf GTI technical specifications, https://media.vw.com/assets/documents/original/12876-2021GolfGTITechSpecsFINAL.pdf" } },
+  { "make": "Volkswagen", "model": "Golf GTI", "generation": "Mk8", "years": [2022, null],
+    "wheelbase": { "mm": 2631, "source": "Volkswagen of America, 2022 Golf GTI technical specifications, https://media.vw.com/assets/documents/original/14657-2022GolfGTITechnicalSpecsFinalv2.pdf" } },
+
+  { "make": "Toyota", "model": "GR Supra", "generation": "A90", "years": [2020, null], "wikidata": "Q62032729" },
+
+  { "make": "Subaru", "model": "WRX", "generation": "VA", "years": [2015, 2021],
+    "wheelbase": { "in": 104.3, "source": "Subaru of America, 2015 WRX specifications, http://subarumedia.iconicweb.com/mediasite/specs/2015_WRX_specs.pdf" } },
+  { "make": "Subaru", "model": "WRX STI", "generation": "VA", "years": [2015, 2021],
+    "wheelbase": { "in": 104.3, "source": "Subaru of America, 2015 WRX STI specifications, http://subarumedia.iconicweb.com/mediasite/specs/2015_WRX_STI_Specs2.pdf" } },
+  { "make": "Subaru", "model": "WRX", "generation": "VB", "years": [2022, null],
+    "wheelbase": { "in": 105.2, "source": "Subaru of America, 2022 WRX specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/specs/2022_WRX_Specs-FINAL.pdf" } },
+
+  { "make": "Nissan", "model": "370Z", "generation": "Z34", "years": [2009, 2020], "wikidata": "Q936668" },
+  { "make": "Nissan", "model": "Z", "generation": "RZ34", "years": [2023, null],
+    "wheelbase": { "in": 100.4, "source": "Nissan, 2023 Nissan Z specifications (press kit https://usa.nissannews.com/en-US/releases/2023-nissan-z-press-kit; sheet mirrored at https://zcca.org/wp-content/uploads/2025/10/Specifications-2023-Nissan-Z.pdf)" } },
+
+  { "make": "Lotus", "model": "Elise", "generation": "Series 2", "years": [2001, 2011], "wikidata": "Q90998561" }
+]

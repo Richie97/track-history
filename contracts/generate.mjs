@@ -295,10 +295,17 @@ async function build(api) {
 
   // --- garage -------------------------------------------------------------
   // Vehicle name matches the rich event's `car` so vehicleIdForCar links them.
+  // Picked from the car catalog, so the fixture carries a non-null catalog_id
+  // and the pre-filled geometry (#221); the bare Miata below shows the nulls.
+  const c7 = (await api("GET", "/car-catalog")).body.find(
+    (c) => c.make === "Chevrolet" && c.model === "Corvette" && c.generation === "C7"
+  );
+  if (!c7) throw new Error("car catalog fixture row not found — did seed/cars/list.json change?");
   const vehicle = await api("POST", "/vehicles", {
     name: "Corvette C7",
     notes: "Track car.",
     target_hot_psi: 32,
+    catalog_id: c7.id,
   });
   // A bare vehicle with no parts — the empty branch of the garage response.
   await api("POST", "/vehicles", { name: "Miata", is_default: false });
@@ -425,6 +432,10 @@ async function captureAll(api, anon, f) {
   record("catalog", "GET", "/catalog",
     "Seeded canonical track catalog backing event-form suggestions.",
     "src/routes/tracks.ts", await api("GET", "/catalog"));
+
+  record("car-catalog", "GET", "/car-catalog",
+    "Seeded car catalog: one row per generation with wheelbase, steering ratio (nullable — never a guess) and provenance; backs the vehicle form's picker and pre-fills a vehicle's geometry at pick time.",
+    "src/routes/carCatalog.ts", await api("GET", "/car-catalog"));
 
   record("vehicles-list", "GET", "/vehicles",
     "The user's garage vehicles.",
@@ -558,7 +569,7 @@ const EXPECTED_ROUTES = [
   "POST /sessions/:id/laps", "DELETE /laps/:id",
   "GET /tracks", "POST /tracks", "PUT /tracks/:id", "DELETE /tracks/:id",
   "GET /tracks/:id/setups", "GET /tracks/:id/leaderboard",
-  "GET /tracks/:id/leaderboard/laps/:lapId", "GET /catalog",
+  "GET /tracks/:id/leaderboard/laps/:lapId", "GET /catalog", "GET /car-catalog",
   "GET /vehicles", "POST /vehicles", "PUT /vehicles/:id", "DELETE /vehicles/:id",
   "GET /garage",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",

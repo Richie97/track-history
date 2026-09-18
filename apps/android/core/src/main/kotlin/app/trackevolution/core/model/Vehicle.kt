@@ -43,6 +43,19 @@ public data class Vehicle(
      * decoded here so the response stays pinned; nothing native reads it yet.
      */
     @SerialName("target_hot_psi") val targetHotPsi: Double? = null,
+    /**
+     * The seeded car-catalog generation this car was picked from (#221), or
+     * null for a car typed by hand. Identity, not ownership: the pick pre-filled
+     * the two numbers below and the catalog is never consulted again.
+     */
+    @SerialName("catalog_id") val catalogId: Int? = null,
+    /**
+     * Wheelbase in millimetres and the steering ratio ("16.25:1" → 16.25), the
+     * two spec-sheet constants the balance read-out needs (#208). Both optional;
+     * a car with neither keeps the relative reading.
+     */
+    @SerialName("wheelbase_mm") val wheelbaseMm: Int? = null,
+    @SerialName("steering_ratio") val steeringRatio: Double? = null,
 )
 
 /**
@@ -69,6 +82,10 @@ public data class GarageVehicle(
     @SerialName("event_count") val eventCount: Int,
     @SerialName("event_days") val eventDays: Int,
     val parts: List<Part>,
+    /** See [Vehicle.catalogId] / [Vehicle.wheelbaseMm] / [Vehicle.steeringRatio]. */
+    @SerialName("catalog_id") val catalogId: Int? = null,
+    @SerialName("wheelbase_mm") val wheelbaseMm: Int? = null,
+    @SerialName("steering_ratio") val steeringRatio: Double? = null,
 )
 
 /**

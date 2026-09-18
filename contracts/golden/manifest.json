@@ -155,6 +155,15 @@
       "source": "src/routes/tracks.ts"
     },
     {
+      "name": "car-catalog",
+      "file": "car-catalog.json",
+      "method": "GET",
+      "path": "/car-catalog",
+      "status": 200,
+      "description": "Seeded car catalog: one row per generation with wheelbase, steering ratio (nullable — never a guess) and provenance; backs the vehicle form's picker and pre-fills a vehicle's geometry at pick time.",
+      "source": "src/routes/carCatalog.ts"
+    },
+    {
       "name": "vehicles-list",
       "file": "vehicles-list.json",
       "method": "GET",

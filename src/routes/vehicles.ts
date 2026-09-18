@@ -2,14 +2,25 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { requireEntitlement } from "../middleware";
 import { type VehicleHoursEvent, vehicleHoursEventsStmt } from "../db";
-import { isValidDate, isValidPartKind } from "../lib/validate";
+import { isValidDate, isValidPartKind, isValidSteeringRatio, isValidWheelbaseMm } from "../lib/validate";
 import { wearEstimate } from "../lib/wear";
 
 // The user's garage (Settings → Vehicles). Vehicles feed the event form's
 // car field; the one marked is_default pre-fills new events. Each vehicle
 // also carries its consumable parts (garage page) — see GET /garage below.
+//
+// A vehicle also carries two spec-sheet constants, `wheelbase_mm` and
+// `steering_ratio` (#208), and an optional `catalog_id` into the seeded
+// car_catalog (#221). The catalog is identity, not ownership: picking a row
+// pre-fills the two numbers *at pick time* and is never consulted again for
+// that vehicle, so a corrected number is the user's and a later catalog fix
+// doesn't silently rewrite a car that reads correctly.
 
 export const vehicles = new Hono<AppContext>();
+
+// Every column a vehicle response carries; the list, the create and the garage
+// all select the same set so the three shapes cannot drift apart.
+const VEHICLE_COLUMNS = "id, name, notes, is_default, target_hot_psi, catalog_id, wheelbase_mm, steering_ratio";
 
 const clearDefault = (db: D1Database, userId: number) =>
   db.prepare("UPDATE vehicles SET is_default = 0 WHERE user_id = ? AND is_default = 1")
@@ -28,11 +39,68 @@ const normTargetPsi = (v: unknown): number | null | undefined => {
   return Math.round(v * 10) / 10;
 };
 
-type VehicleBody = { name?: string; notes?: string | null; is_default?: boolean; target_hot_psi?: number | null };
+type VehicleBody = {
+  name?: string;
+  notes?: string | null;
+  is_default?: boolean;
+  target_hot_psi?: number | null;
+  catalog_id?: number | null;
+  wheelbase_mm?: number | null;
+  steering_ratio?: number | null;
+};
+
+// The geometry columns a vehicle write can carry, validated off the body.
+// Returns the normalized values for the keys *present* (absent keys stay
+// absent, so a PUT leaves them alone), or the error to answer with.
+function geometryFrom(body: VehicleBody): { error: string } | { values: Partial<Record<"wheelbase_mm" | "steering_ratio", number | null>> } {
+  const values: Partial<Record<"wheelbase_mm" | "steering_ratio", number | null>> = {};
+  if ("wheelbase_mm" in body) {
+    if (!isValidWheelbaseMm(body.wheelbase_mm)) return { error: "invalid wheelbase_mm" };
+    values.wheelbase_mm = body.wheelbase_mm ?? null;
+  }
+  if ("steering_ratio" in body) {
+    if (!isValidSteeringRatio(body.steering_ratio)) return { error: "invalid steering_ratio" };
+    values.steering_ratio = body.steering_ratio == null ? null : Math.round(body.steering_ratio * 100) / 100;
+  }
+  return { values };
+}
+
+type CatalogGeometry = { id: number; wheelbase_mm: number; steering_ratio: number | null };
+
+// Resolve a body's `catalog_id`: absent → undefined (leave alone), null →
+// null (unlink), a known id → the row, anything else → an error. The row's
+// geometry is what a pick pre-fills.
+async function resolveCatalog(
+  db: D1Database,
+  body: VehicleBody
+): Promise<{ error: string } | { catalog: CatalogGeometry | null | undefined }> {
+  if (!("catalog_id" in body)) return { catalog: undefined };
+  if (body.catalog_id == null) return { catalog: null };
+  if (!Number.isInteger(body.catalog_id)) return { error: "invalid catalog_id" };
+  const row = await db
+    .prepare("SELECT id, wheelbase_mm, steering_ratio FROM car_catalog WHERE id = ?")
+    .bind(body.catalog_id)
+    .first<CatalogGeometry>();
+  if (!row) return { error: "unknown catalog_id" };
+  return { catalog: row };
+}
+
+// The pick rule: a catalog row pre-fills *both* numbers unless the body
+// carries its own value for one — an explicit value (or null) always wins.
+// Both are filled, including a null ratio, so a car swapped from one catalog
+// entry to another never keeps the previous car's ratio.
+function prefillFromCatalog(
+  catalog: CatalogGeometry | null | undefined,
+  values: Partial<Record<"wheelbase_mm" | "steering_ratio", number | null>>
+) {
+  if (!catalog) return;
+  if (!("wheelbase_mm" in values)) values.wheelbase_mm = catalog.wheelbase_mm;
+  if (!("steering_ratio" in values)) values.steering_ratio = catalog.steering_ratio;
+}
 
 vehicles.get("/vehicles", async (c) => {
   const rows = await c.env.DB.prepare(
-    "SELECT id, name, notes, is_default, target_hot_psi FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE"
+    `SELECT ${VEHICLE_COLUMNS} FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE`
   )
     .bind(c.get("userId"))
     .all();
@@ -48,6 +116,11 @@ vehicles.post("/vehicles", async (c) => {
     return c.json({ error: "invalid is_default" }, 400);
   const targetPsi = normTargetPsi(body.target_hot_psi);
   if (targetPsi === undefined) return c.json({ error: "invalid target_hot_psi" }, 400);
+  const geometry = geometryFrom(body);
+  if ("error" in geometry) return c.json({ error: geometry.error }, 400);
+  const picked = await resolveCatalog(c.env.DB, body);
+  if ("error" in picked) return c.json({ error: picked.error }, 400);
+  prefillFromCatalog(picked.catalog, geometry.values);
   // The first vehicle in the garage becomes the default automatically.
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM vehicles WHERE user_id = ?")
     .bind(userId)
@@ -56,9 +129,19 @@ vehicles.post("/vehicles", async (c) => {
   if (makeDefault) await clearDefault(c.env.DB, userId);
   try {
     const row = await c.env.DB.prepare(
-      "INSERT INTO vehicles (user_id, name, notes, is_default, target_hot_psi) VALUES (?, ?, ?, ?, ?) RETURNING id, name, notes, is_default, target_hot_psi"
+      `INSERT INTO vehicles (user_id, name, notes, is_default, target_hot_psi, catalog_id, wheelbase_mm, steering_ratio)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${VEHICLE_COLUMNS}`
     )
-      .bind(userId, name, normNotes(body.notes), makeDefault ? 1 : 0, targetPsi)
+      .bind(
+        userId,
+        name,
+        normNotes(body.notes),
+        makeDefault ? 1 : 0,
+        targetPsi,
+        picked.catalog?.id ?? null,
+        geometry.values.wheelbase_mm ?? null,
+        geometry.values.steering_ratio ?? null
+      )
       .first();
     return c.json(row, 201);
   } catch {
@@ -94,6 +177,21 @@ vehicles.put("/vehicles/:id", async (c) => {
     if (targetPsi === undefined) return c.json({ error: "invalid target_hot_psi" }, 400);
     sets.push("target_hot_psi = ?");
     binds.push(targetPsi);
+  }
+  const geometry = geometryFrom(body);
+  if ("error" in geometry) return c.json({ error: geometry.error }, 400);
+  const picked = await resolveCatalog(c.env.DB, body);
+  if ("error" in picked) return c.json({ error: picked.error }, 400);
+  if (picked.catalog !== undefined) {
+    sets.push("catalog_id = ?");
+    binds.push(picked.catalog?.id ?? null);
+    // Re-picking is a pick: the new row's numbers replace the old ones unless
+    // the body says otherwise. Unlinking (null) leaves the numbers as they are.
+    prefillFromCatalog(picked.catalog, geometry.values);
+  }
+  for (const [col, value] of Object.entries(geometry.values)) {
+    sets.push(`${col} = ?`);
+    binds.push(value);
   }
   if ("is_default" in body) {
     if (typeof body.is_default !== "boolean") return c.json({ error: "invalid is_default" }, 400);
@@ -138,7 +236,7 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
   const [vehicleRes, partRes, measurementRes, hoursRes] = await db.batch([
     db
       .prepare(
-        "SELECT id, name, notes, is_default, target_hot_psi, updated_at FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE"
+        `SELECT ${VEHICLE_COLUMNS}, updated_at FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE`
       )
       .bind(userId),
     db
@@ -166,6 +264,9 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
       notes: string | null;
       is_default: number;
       target_hot_psi: number | null;
+      catalog_id: number | null;
+      wheelbase_mm: number | null;
+      steering_ratio: number | null;
       updated_at: number;
     }[],
   };

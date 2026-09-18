@@ -2,6 +2,7 @@ package app.trackevolution.core
 
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.BillingResponse
+import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.CreatedTrack
@@ -84,6 +85,7 @@ class GoldenContractTest {
             "track-leaderboard" -> roundTrip(entry.name, TrackLeaderboard.serializer())
             "leaderboard-lap" -> roundTrip(entry.name, LeaderboardLap.serializer())
             "catalog" -> roundTrip(entry.name, ListSerializer(CatalogTrack.serializer()))
+            "car-catalog" -> roundTrip(entry.name, ListSerializer(CatalogCar.serializer()))
             "vehicles-list" -> roundTrip(entry.name, ListSerializer(Vehicle.serializer()))
             "garage" -> roundTrip(entry.name, ListSerializer(GarageVehicle.serializer()))
             "share-public" -> roundTrip(entry.name, ShareData.serializer())

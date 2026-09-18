@@ -104,6 +104,37 @@ describe("PUT /api/vehicles/:id", () => {
     expect((await api("POST", "/vehicles", { name: "GT3", target_hot_psi: -1 })).status).toBe(400);
   });
 
+  it("stores, updates and clears the wheelbase and steering ratio", async () => {
+    const { api } = await signedInUser();
+    const { body: v } = await api("POST", "/vehicles", { name: "Corvette", wheelbase_mm: 2710, steering_ratio: 16.25 });
+    expect(v.wheelbase_mm).toBe(2710);
+    expect(v.steering_ratio).toBe(16.25);
+    // The ratio is kept to two decimals; absent keys leave both alone.
+    expect((await api("PUT", `/vehicles/${v.id}`, { steering_ratio: 15.123 })).status).toBe(200);
+    let [row] = (await api("GET", "/vehicles")).body;
+    expect(row.steering_ratio).toBe(15.12);
+    await api("PUT", `/vehicles/${v.id}`, { notes: "PS4S" });
+    [row] = (await api("GET", "/vehicles")).body;
+    expect(row).toMatchObject({ wheelbase_mm: 2710, steering_ratio: 15.12 });
+    await api("PUT", `/vehicles/${v.id}`, { wheelbase_mm: null, steering_ratio: null });
+    [row] = (await api("GET", "/vehicles")).body;
+    expect(row.wheelbase_mm).toBeNull();
+    expect(row.steering_ratio).toBeNull();
+  });
+
+  it("rejects a wheelbase or ratio outside the road-car range", async () => {
+    const { api } = await signedInUser();
+    const { body: v } = await api("POST", "/vehicles", { name: "Miata" });
+    // Metres or inches typed into the millimetre field.
+    expect((await api("PUT", `/vehicles/${v.id}`, { wheelbase_mm: 2.71 })).status).toBe(400);
+    expect((await api("PUT", `/vehicles/${v.id}`, { wheelbase_mm: 106.7 })).status).toBe(400);
+    expect((await api("PUT", `/vehicles/${v.id}`, { wheelbase_mm: "2710" })).status).toBe(400);
+    expect((await api("PUT", `/vehicles/${v.id}`, { steering_ratio: 0 })).status).toBe(400);
+    expect((await api("PUT", `/vehicles/${v.id}`, { steering_ratio: 45 })).status).toBe(400);
+    expect((await api("POST", "/vehicles", { name: "GT3", wheelbase_mm: 5000 })).status).toBe(400);
+    expect((await api("POST", "/vehicles", { name: "GT3", steering_ratio: "16.25:1" })).status).toBe(400);
+  });
+
   it("clears notes with empty/null", async () => {
     const { api } = await signedInUser();
     const { body: v } = await api("POST", "/vehicles", { name: "Miata", notes: "stock" });

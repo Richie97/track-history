@@ -110,6 +110,39 @@ struct ModelTests {
         #expect(vehicles.last?.isDefault == false)
     }
 
+    @Test func vehicleCarriesItsCatalogPickAndGeometry() throws {
+        // The fixture's Corvette was picked from the catalog, so it carries the
+        // link and the pre-filled numbers; the bare Miata carries nulls — both
+        // shapes have to decode, and neither field may read as 0.
+        let vehicles = try Goldens.decode([Vehicle].self, "vehicles-list")
+        let corvette = try #require(vehicles.first { $0.name == "Corvette C7" })
+        #expect(corvette.catalogId != nil)
+        #expect(corvette.wheelbaseMm == 2710)
+        #expect(corvette.steeringRatio == 16.25)
+        let miata = try #require(vehicles.first { $0.name == "Miata" })
+        #expect(miata.catalogId == nil)
+        #expect(miata.wheelbaseMm == nil)
+        #expect(miata.steeringRatio == nil)
+
+        let garage = try Goldens.decode([GarageVehicle].self, "garage")
+        #expect(garage.first { $0.name == "Corvette C7" }?.wheelbaseMm == 2710)
+    }
+
+    @Test func carCatalogRowsReadAsAPickerNeeds() throws {
+        let cars = try Goldens.decode([CatalogCar].self, "car-catalog")
+        #expect(cars.count > 20)
+        let c7 = try #require(cars.first { $0.make == "Chevrolet" && $0.generation == "C7" })
+        #expect(c7.displayName == "Chevrolet Corvette C7")
+        #expect(c7.yearRange == "2014–2019")
+        #expect(c7.wheelbaseMm == 2710)
+        #expect(c7.steeringRatio == 16.25)
+        #expect(c7.source.contains("Wikidata"))
+        // A rack the maker only quotes as a range has no ratio, never a guess.
+        let p992 = try #require(cars.first { $0.make == "Porsche" && $0.generation == "992" })
+        #expect(p992.steeringRatio == nil)
+        #expect(p992.yearRange == "2020–")
+    }
+
     @Test func shareDataOmitsPrivateFields() throws {
         // The reduced public shape is modelled separately on purpose: if the
         // server ever leaked notes or per-lap data into it, this decode would

@@ -28,6 +28,20 @@ export const isValidConditions = (v: unknown): v is Conditions | null | undefine
 export const isValidTemp = (v: unknown): v is number | null | undefined =>
   v == null || (typeof v === "number" && Number.isInteger(v) && v >= -40 && v <= 150);
 
+// A car's two spec-sheet constants (#208): the wheelbase in millimetres and
+// the steering ratio ("16.25:1" → 16.25). Both are cleared with null. The
+// bounds are road-car sanity, not precision — a wheelbase typed in metres or
+// inches (2.71, 106.7) is a 400 rather than a nonsense balance diagnosis. The
+// seeded car catalog (seed/cars/) is checked against the same ranges.
+export const WHEELBASE_MM_RANGE: readonly [number, number] = [1500, 4500];
+export const STEERING_RATIO_RANGE: readonly [number, number] = [5, 30];
+export const isValidWheelbaseMm = (v: unknown): v is number | null | undefined =>
+  v == null ||
+  (typeof v === "number" && Number.isInteger(v) && v >= WHEELBASE_MM_RANGE[0] && v <= WHEELBASE_MM_RANGE[1]);
+export const isValidSteeringRatio = (v: unknown): v is number | null | undefined =>
+  v == null ||
+  (typeof v === "number" && Number.isFinite(v) && v >= STEERING_RATIO_RANGE[0] && v <= STEERING_RATIO_RANGE[1]);
+
 // A best-lap GPS trace: array of [x, y, v] points (local meters + speed).
 // null clears it; a valid array is rounded to keep the stored JSON small.
 // Returns undefined when the input isn't a plausible trace.

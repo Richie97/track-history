@@ -1,0 +1,156 @@
+{
+  "Chevrolet|Corvette|C5": {
+    "ratio": 16.1,
+    "source": "GM Heritage Archive, 2004 Chevrolet Corvette vehicle information kit, https://www.gm.com/content/dam/company/no_search/heritage-archive-docs/vehicle-information-kits/chevrolet/2004-Chevrolet-Corvette.pdf"
+  },
+  "Chevrolet|Corvette|C6": {
+    "ratio": 16.1,
+    "source": "GM Heritage Archive, 2005 Chevrolet Corvette vehicle information kit, https://www.gm.com/content/dam/company/no_search/heritage-archive-docs/vehicle-information-kits/chevrolet/2005-Chevrolet-Corvette.pdf"
+  },
+  "Chevrolet|Corvette|C7": {
+    "ratio": 16.25,
+    "source": "Chevrolet Pressroom, 2020 Corvette Stingray (\"Steering ratio improved from 16.25:1 to 15.7:1\"), https://pressroom.chevrolet.com/gmbx/us/en/chevrolet/pressroom/vehicles/2020.detail.html/content/Pages/vehicle/us/en/chevrolet/corvette-stingray/2020.html"
+  },
+  "Chevrolet|Corvette|C8": {
+    "ratio": 15.7,
+    "source": "Chevrolet Pressroom, 2020 Corvette Stingray specifications, https://pressroom.chevrolet.com/gmbx/us/en/chevrolet/pressroom/vehicles/2020.detail.html/content/Pages/vehicle/us/en/chevrolet/corvette-stingray/2020.html"
+  },
+  "Mazda|MX-5 Miata|ND": {
+    "ratio": 15.5,
+    "source": "Mazda USA, 2019 MX-5 Miata features & specs (overall steering ratio), https://www.mazdausa.com/siteassets/pdf/owners-optimized/2019/mx-5-miata-st/2019_mazda_mx5_features_specs.pdf"
+  },
+  "Subaru|BRZ|ZC6": {
+    "ratio": 13.12,
+    "source": "Subaru of America, 2013 BRZ specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/specs/2013_SubaruBRZspecs.pdf"
+  },
+  "Subaru|BRZ|ZD8": {
+    "ratio": 13.5,
+    "source": "Subaru of America, 2022 BRZ specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/attachments/22MY_BRZ_-_Specs_-FINAL.pdf"
+  },
+  "Toyota|86 / Scion FR-S|ZN6": {
+    "ratio": 13.12,
+    "source": "Subaru of America, 2013 BRZ specifications (mechanically shared ZN6/ZC6 platform), https://subarumedia.iconicweb.com/mediasite/specs/2013_SubaruBRZspecs.pdf"
+  },
+  "Toyota|GR86|ZN8": {
+    "ratio": 13.5,
+    "source": "Toyota USA Newsroom, All-New 2022 Toyota GR 86 (steering ratio, overall), https://pressroom.toyota.com/all-new-2022-toyota-gr-86-thrills-around-every-corner/"
+  },
+  "Porsche|Boxster / Cayman|987": {
+    "ratio": null,
+    "note": "variable-ratio rack, 17.1:1 to 13.8:1 — no single figure",
+    "source": "Porsche Newsroom, 2012 Boxster technical specifications, https://newsroom.porsche.com/dam/jcr%3Af533d37f-82ef-4c9c-90cc-56b43185a8de/2012_Boxster_Specs.pdf"
+  },
+  "Porsche|Boxster / Cayman|981": {
+    "ratio": null,
+    "note": "variable-ratio rack, 16.5:1 on-centre to 12.37:1 — no single figure",
+    "source": "Porsche Newsroom, 2014 Cayman technical specifications, https://newsroom.porsche.com/dam/jcr:0036dadf-873b-46b8-86b2-841009f188af/2014_Cayman_Technical_Specifications.pdf"
+  },
+  "Porsche|718 Boxster / Cayman|982": {
+    "ratio": null,
+    "note": "variable-ratio rack, 15.0:1 on-centre to 12.5:1 — no single figure",
+    "source": "Porsche Newsroom, 718 Cayman S technical data, https://newsroom.porsche.com/dam/jcr:2e05fcd8-e8ce-4b60-8611-9ce844a8242e/PCNA18_1003_us.pdf"
+  },
+  "Porsche|911|996": {
+    "ratio": 17,
+    "source": "Cars.com, 2004 Porsche 911 Carrera specifications, https://www.cars.com/research/porsche-911-2004/specs/ — a fixed-ratio rack: Porsche confirms the variable-ratio rack arrived with the succeeding 997, https://newsroom.porsche.com/en/press-kits/911-s-t/60-years-of-the-Porsche-911.html"
+  },
+  "Porsche|911|997": {
+    "ratio": null,
+    "note": "variable-ratio rack, 17.1:1 to 13.8:1 — no single figure",
+    "source": "Porsche Newsroom, 2011 911 Carrera technical specifications index, https://newsroom.porsche.com/en_US/media-resources/technical-specifications.html"
+  },
+  "Porsche|911|991": {
+    "ratio": null,
+    "note": "variable-ratio rack, 16.6:1 on-centre to 12.5:1 (15.0:1 with rear-axle steering) — no single figure",
+    "source": "Porsche Newsroom, 2017 911 Carrera GTS technical data, https://newsroom.porsche.com/dam/jcr:48c46ea8-77ba-42f0-9891-ddff55e82cb4/PCNA18_1000_us.pdf"
+  },
+  "Porsche|911|992": {
+    "ratio": null,
+    "note": "variable-ratio rack, 15.0:1 on-centre to 12.25:1 — no single figure",
+    "source": "Porsche Newsroom, 992.2 911 Carrera technical specifications, https://newsroom.porsche.com/dam/jcr:86fc9a9b-ece1-4cca-9930-39a78e89baf3/992.2%20911%20Carrera%20and%20Carrera%20Cabriolet%20Technical%20Specifications.pdf"
+  },
+  "BMW|M2|F87": {
+    "ratio": 15,
+    "source": "BMW Group PressClub USA, 2018 BMW M2 Coupé technical data (steering ratio, overall), https://www.press.bmwgroup.com/usa/article/attachment/T0238507EN_US/391960"
+  },
+  "BMW|M2|G87": {
+    "ratio": 15,
+    "source": "BMW Group PressClub UK, BMW M2 technical specifications 10/2022 (steering ratio, overall), https://www.press.bmwgroup.com/united-kingdom/article/attachment/T0404614EN_GB/588171"
+  },
+  "BMW|M3|E46": {
+    "ratio": 15.4,
+    "source": "BMW of North America, M3 Coupe specifications (steering ratio, overall), https://www.press.bmwgroup.com/usa/article/attachment/T0022127EN_US/41385"
+  },
+  "BMW|M3|E90 / E92": {
+    "ratio": 12.5,
+    "source": "BMW of North America, 2009 M3 Coupe technical data, https://www.press.bmwgroup.com/usa/article/attachment/T0018130EN_US/56936"
+  },
+  "BMW|M3|F80": {
+    "ratio": 15,
+    "source": "BMW Group PressClub USA, 2017 BMW M3 Sedan technical data (steering ratio, overall), https://www.press.bmwgroup.com/usa/article/attachment/T0160684EN_US/391906"
+  },
+  "BMW|M4|F82": {
+    "ratio": 15,
+    "source": "BMW Group PressClub Canada, BMW F82 M4 Coupe technical data (steering transmission, overall), https://www.press.bmwgroup.com/canada/article/attachment/T0295053EN/441809"
+  },
+  "BMW|M3|G80": {
+    "ratio": 15,
+    "source": "BMW Group PressClub, BMW M3 Sedan specifications 03/2021 (steering ratio, overall), https://www.press.bmwgroup.com/global/article/attachment/T0316649EN/476823"
+  },
+  "BMW|M4|G82": {
+    "ratio": 15,
+    "source": "BMW Group PressClub, BMW M4 Coupé specifications 03/2021 (steering ratio, overall), https://www.press.bmwgroup.com/global/article/attachment/T0316649EN/476824"
+  },
+  "Honda|Civic Type R|FK8": {
+    "ratio": 11.7,
+    "source": "Honda Information Center, 2021 Civic Type R specifications, https://www.hondainfocenter.com/2021/Civic-Type-R/Feature-Guide/Civic-Type-R-Specifications/"
+  },
+  "Honda|Civic Type R|FL5": {
+    "ratio": 11.6,
+    "source": "Honda News, 2023 Honda Civic Type R specifications & features, https://hondanews.com/en-US/honda-automobiles/releases/release-1503019bd8a757ea08267d79440f3aae-2023-honda-civic-type-r-specifications-features"
+  },
+  "Honda|S2000|AP1 / AP2": {
+    "ratio": null,
+    "note": "no single figure across the generation — AP1 is 13.8:1, the AP2 base car 14.9:1 and the 2008–2009 CR 13.9:1",
+    "source": "Honda, 2009 S2000 fact sheet, https://automobiles.honda.com/images/2009/s2000/downloads/2009-s2000-factsheet.pdf; 2001 Honda S2000 MVMA specifications, https://www.s2000.club/OM/MVMS_2001_Honda-S2000.pdf"
+  },
+  "Volkswagen|Golf GTI|Mk7": {
+    "ratio": null,
+    "note": "progressive rack, variable between 9.5:1 and 14.1:1 — no single figure",
+    "source": "Volkswagen of America, 2021 Golf GTI technical specifications, https://media.vw.com/assets/documents/original/12876-2021GolfGTITechSpecsFINAL.pdf"
+  },
+  "Volkswagen|Golf GTI|Mk8": {
+    "ratio": null,
+    "note": "progressive rack, variable between 9.5:1 and 14.1:1 — no single figure",
+    "source": "Volkswagen of America, 2022 Golf GTI technical specifications, https://media.vw.com/assets/documents/original/14657-2022GolfGTITechnicalSpecsFinalv2.pdf"
+  },
+  "Toyota|GR Supra|A90": {
+    "ratio": 15.1,
+    "source": "Toyota UK, GR Supra technical specifications, https://media.toyota.co.uk/wp-content/uploads/sites/5/pdf/220605M-GR-Supra-Tech-Spec.pdf"
+  },
+  "Subaru|WRX|VA": {
+    "ratio": 14.5,
+    "source": "Subaru of America, 2015 WRX specifications, http://subarumedia.iconicweb.com/mediasite/specs/2015_WRX_specs.pdf"
+  },
+  "Subaru|WRX STI|VA": {
+    "ratio": 13,
+    "source": "Subaru of America, 2015 WRX STI specifications, http://subarumedia.iconicweb.com/mediasite/specs/2015_WRX_STI_Specs2.pdf"
+  },
+  "Subaru|WRX|VB": {
+    "ratio": 13.5,
+    "source": "Subaru of America, 2022 WRX specifications, https://s3.amazonaws.com/subarumedia.iconicweb.com/mediasite/specs/2022_WRX_Specs-FINAL.pdf"
+  },
+  "Nissan|370Z|Z34": {
+    "ratio": null,
+    "note": "no single figure across trims — 13.5:1 for the 370Z and Touring, 13.7:1 for the Sport and Sport Tech",
+    "source": "Nissan, 2018 370Z Coupe press kit specifications, https://usa.nissannews.com/en-US/releases/us-2018-nissan-370z-coupe-press-kit"
+  },
+  "Nissan|Z|RZ34": {
+    "ratio": 15,
+    "source": "Nissan, 2023 Nissan Z specifications (fixed steering ratio), press kit https://usa.nissannews.com/en-US/releases/2023-nissan-z-press-kit"
+  },
+  "Lotus|Elise|Series 2": {
+    "ratio": 15.8,
+    "source": "Lotus Elise/Exige/2-Eleven Service Notes, section HG (steering), https://blog.designed79.co.uk/wp-content/uploads/2015/07/Elise-Exige-211-Service-Manual.pdf"
+  }
+}
