@@ -45,6 +45,78 @@ struct GarageTests {
         #expect(fixture.kinds.count == PartKind.all.count)
     }
 
+    // MARK: - Car catalog picker (#222)
+
+    @Test func matchesTheJavaScriptCatalogMatcherOnASharedFixture() throws {
+        let fixture = try CatalogMatchFixture.load()
+        let rows = fixture.rows
+        for labels in fixture.labels {
+            let row = try #require(rows.first(where: { $0.id == labels.id }))
+            #expect(Garage.catalogCarName(row) == labels.name, "name of \(labels.id)")
+            #expect(Garage.catalogCarLabel(row) == labels.label, "label of \(labels.id)")
+        }
+        for query in fixture.queries {
+            #expect(
+                Garage.matchCatalogCars(query.query, rows).map(\.id) == query.ids,
+                "query \"\(query.query)\""
+            )
+        }
+        for prefill in fixture.prefill {
+            let row = try #require(rows.first(where: { $0.id == prefill.row }))
+            let previous = prefill.previous.flatMap { id in rows.first(where: { $0.id == id }) }
+            let plan = Garage.catalogPrefill(
+                row,
+                current: Garage.VehicleGeometry(
+                    wheelbaseMm: prefill.current.wheelbaseMm, steeringRatio: prefill.current.steeringRatio
+                ),
+                previous: previous
+            )
+            #expect(plan.wheelbaseMm.action.rawValue == prefill.plan.wheelbaseMm.action, "\(prefill.name): wheelbase")
+            #expect(plan.wheelbaseMm.value == prefill.plan.wheelbaseMm.value, "\(prefill.name): wheelbase value")
+            #expect(plan.steeringRatio.action.rawValue == prefill.plan.steeringRatio.action, "\(prefill.name): ratio")
+            #expect(plan.steeringRatio.value == prefill.plan.steeringRatio.value, "\(prefill.name): ratio value")
+        }
+        #expect(fixture.queries.count >= 10)
+        #expect(fixture.prefill.count >= 5)
+    }
+
+    @Test func everyQueryTokenHasToFitSoExtraWordsNarrow() {
+        let rows = catalogRows
+        #expect(Garage.matchCatalogCars("corvette c8", rows).map(\.id) == [3])
+        #expect(Garage.matchCatalogCars("corvette miata", rows).isEmpty)
+        #expect(Garage.matchCatalogCars("", rows).map(\.id) == [1, 2, 3, 4, 5, 6])
+    }
+
+    @Test func ranksWholeWordsOverPrefixesOverSubstrings() {
+        let rows = catalogRows
+        // "e46" is a whole word on the M3; "e" is only inside the others' names.
+        #expect(Garage.matchCatalogCars("e", rows).map(\.id) == [1, 2, 3, 5])
+        #expect(Garage.matchCatalogCars("mx5", rows).map(\.id) == [4])
+        #expect(Garage.matchCatalogCars("corvette 2017", rows).map(\.id) == [2])
+    }
+
+    @Test func prefillsSilentlyOnlyWhatIsNotTheDrivers() {
+        let c7 = catalogRows[1], c8 = catalogRows[2], cayman = catalogRows[4]
+        let empty = Garage.catalogPrefill(c7, current: .init(), previous: nil)
+        #expect(empty.wheelbaseMm == .init(value: 2710, action: .fill))
+        #expect(empty.steeringRatio == .init(value: 16.25, action: .fill))
+
+        let typed = Garage.catalogPrefill(c7, current: .init(wheelbaseMm: 2700, steeringRatio: 15), previous: nil)
+        #expect(typed.wheelbaseMm.action == .ask)
+        #expect(typed.steeringRatio.action == .ask)
+
+        let repick = Garage.catalogPrefill(c8, current: .init(wheelbaseMm: 2710, steeringRatio: 15), previous: c7)
+        #expect(repick.wheelbaseMm.action == .fill)
+        #expect(repick.steeringRatio.action == .ask)
+
+        // The catalog never offers to replace the driver's number with nothing,
+        // but does clear the previous car's ratio when the new car has none.
+        let noRatio = Garage.catalogPrefill(cayman, current: .init(wheelbaseMm: 2700, steeringRatio: 15), previous: nil)
+        #expect(noRatio.steeringRatio.action == .keep)
+        let cleared = Garage.catalogPrefill(cayman, current: .init(wheelbaseMm: 2710, steeringRatio: 16.25), previous: c7)
+        #expect(cleared.steeringRatio == .init(value: nil, action: .fill))
+    }
+
     // MARK: - Status thresholds
 
     @Test func hasNoStatusWithoutAProjection() {
@@ -138,6 +210,27 @@ struct GarageTests {
 
     // MARK: - Fixtures
 
+    /// The six rows `test/unit/garage.test.js` uses for the catalog cases.
+    private var catalogRows: [CatalogCar] {
+        [
+            makeCar(id: 1, make: "BMW", model: "M3", generation: "E46", from: 2000, to: 2006, wheelbase: 2731, ratio: 15.4),
+            makeCar(id: 2, make: "Chevrolet", model: "Corvette", generation: "C7", from: 2014, to: 2019, wheelbase: 2710, ratio: 16.25),
+            makeCar(id: 3, make: "Chevrolet", model: "Corvette", generation: "C8", from: 2020, to: nil, wheelbase: 2722, ratio: 15.7),
+            makeCar(id: 4, make: "Mazda", model: "MX-5", generation: "ND", from: 2015, to: nil, wheelbase: 2310, ratio: 15.5),
+            makeCar(id: 5, make: "Porsche", model: "718 Cayman", generation: "982", from: 2016, to: nil, wheelbase: 2475, ratio: nil),
+            makeCar(id: 6, make: "Toyota", model: "GR86", generation: nil, from: 2022, to: nil, wheelbase: 2575, ratio: 13.5),
+        ]
+    }
+
+    private func makeCar(
+        id: Int, make: String, model: String, generation: String?, from: Int, to: Int?, wheelbase: Int, ratio: Double?
+    ) -> CatalogCar {
+        CatalogCar(
+            id: id, make: make, model: model, generation: generation, yearFrom: from, yearTo: to,
+            wheelbaseMm: wheelbase, steeringRatio: ratio, source: "test"
+        )
+    }
+
     private func makeWear(remaining: Double?, pctUsed: Double? = nil) -> WearEstimate {
         WearEstimate(
             hours: 0, events: 0, cycles: 0, expectedHours: nil, remainingHours: remaining,
@@ -198,5 +291,63 @@ struct GarageFixture: Decodable {
     static func load() throws -> GarageFixture {
         let data = try Data(contentsOf: RepoRoot.path("contracts/logic/garage-status.json"))
         return try JSONDecoder().decode(GarageFixture.self, from: data)
+    }
+}
+
+/// `contracts/logic/car-catalog-match.json` — the catalog picker's matching,
+/// labels and pre-fill rule, captured from `public/js/garage.js`.
+struct CatalogMatchFixture: Decodable {
+    struct Labels: Decodable {
+        let id: Int
+        let name: String
+        let label: String
+    }
+
+    struct Query: Decodable {
+        let query: String
+        let ids: [Int]
+    }
+
+    struct Geometry: Decodable {
+        let wheelbaseMm: Int?
+        let steeringRatio: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case wheelbaseMm = "wheelbase_mm"
+            case steeringRatio = "steering_ratio"
+        }
+    }
+
+    struct Step<Value: Decodable>: Decodable {
+        let value: Value?
+        let action: String
+    }
+
+    struct Plan: Decodable {
+        let wheelbaseMm: Step<Int>
+        let steeringRatio: Step<Double>
+
+        enum CodingKeys: String, CodingKey {
+            case wheelbaseMm = "wheelbase_mm"
+            case steeringRatio = "steering_ratio"
+        }
+    }
+
+    struct Prefill: Decodable {
+        let name: String
+        let row: Int
+        let current: Geometry
+        let previous: Int?
+        let plan: Plan
+    }
+
+    let rows: [CatalogCar]
+    let labels: [Labels]
+    let queries: [Query]
+    let prefill: [Prefill]
+
+    static func load() throws -> CatalogMatchFixture {
+        let data = try Data(contentsOf: RepoRoot.path("contracts/logic/car-catalog-match.json"))
+        return try JSONDecoder().decode(CatalogMatchFixture.self, from: data)
     }
 }

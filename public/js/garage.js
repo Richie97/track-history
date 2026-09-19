@@ -205,3 +205,99 @@ export function fmtRemaining(wear) {
 
 export const fmtCost = (cents) =>
   cents == null ? null : `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+
+// ---------- car catalog (#222) ---------------------------------------------
+//
+// The vehicle form's catalog picker: one searchable field over
+// GET /api/car-catalog rather than year → make → model dropdowns. Ported to the
+// iOS Kit and Android :core under the same names and pinned by
+// contracts/logic/car-catalog-match.json, so "c7" ranks the Corvette row the
+// same on every client.
+
+// "Chevrolet Corvette C7" — the name a pick writes into an *empty* name field.
+export const catalogCarName = (row) => [row.make, row.model, row.generation].filter(Boolean).join(" ");
+
+// "2014–2019", or "2020–" while still in production.
+export const catalogCarYears = (row) =>
+  row.year_to == null ? `${row.year_from}–` : `${row.year_from}–${row.year_to}`;
+
+// "Chevrolet Corvette · C7 · 2014–2019" — how a picker row reads. The
+// generation and the year span are what disambiguate seven Corvettes, so they
+// are rendered rather than the bare model name repeated.
+export const catalogCarLabel = (row) =>
+  [`${row.make} ${row.model}`, row.generation, catalogCarYears(row)].filter(Boolean).join(" · ");
+
+// How well one query token fits a row: 3 for a whole word ("c7"), 2 for a word
+// prefix ("corv"), 1 for a substring anywhere, 0 for no fit. Words are compared
+// both as written and with punctuation stripped, so "mx5" finds "MX-5". A
+// four-digit token that matches nothing by name is tried as a model year
+// inside the row's span, so "corvette 2017" finds the C7.
+function tokenScore(token, words, row) {
+  let best = 0;
+  for (const w of words) {
+    const plain = w.replace(/[^a-z0-9]/g, "");
+    if (w === token || plain === token) best = Math.max(best, 3);
+    else if (w.startsWith(token) || plain.startsWith(token)) best = Math.max(best, 2);
+    else if (w.includes(token) || plain.includes(token)) best = Math.max(best, 1);
+  }
+  if (best === 0 && /^\d{4}$/.test(token)) {
+    const year = Number(token);
+    if (year >= row.year_from && (row.year_to == null || year <= row.year_to)) best = 2;
+  }
+  return best;
+}
+
+// The catalog rows matching a query, best first. Every whitespace-separated
+// token has to fit the row somewhere (make, model, generation or year span),
+// so "chevrolet corvette" narrows rather than widens; ties keep the catalog's
+// own order (make / model / first year), and an empty query is the whole list.
+export function matchCatalogCars(query, rows) {
+  const tokens = String(query ?? "")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!tokens.length) return rows.slice();
+  const scored = [];
+  rows.forEach((row, i) => {
+    const words = catalogCarName(row).toLowerCase().split(" ");
+    let score = 0;
+    for (const t of tokens) {
+      const s = tokenScore(t, words, row);
+      if (s === 0) return;
+      score += s;
+    }
+    scored.push({ row, score, i });
+  });
+  return scored.sort((a, b) => b.score - a.score || a.i - b.i).map((s) => s.row);
+}
+
+export const CATALOG_GEOMETRY_FIELDS = ["wheelbase_mm", "steering_ratio"];
+
+// What picking `row` may do to each of the two numbers already on the form —
+// the "pre-fill, never overwrite" rule, decided per field:
+//
+//   fill — write the catalog's value (null included: a car re-picked from a C7
+//          to a car with no single ratio must not keep the C7's)
+//   ask  — the number is the driver's and differs; ask before replacing it
+//   keep — nothing to do (already equal, or the driver's own number and the
+//          catalog has nothing better than "unknown")
+//
+// A number is the driver's when it is set and is not what the previous pick
+// (`previous`, the row the form's numbers came from, or null for a car typed
+// by hand) filled in — so a corrected ratio survives a re-pick behind a
+// question, and an untouched one is replaced silently.
+export function catalogPrefill(row, current, previous) {
+  const plan = {};
+  for (const field of CATALOG_GEOMETRY_FIELDS) {
+    const value = row[field] ?? null;
+    const cur = current?.[field] ?? null;
+    const driverOwned = cur != null && (previous == null || cur !== (previous[field] ?? null));
+    let action;
+    if (cur === value) action = "keep";
+    else if (!driverOwned) action = "fill";
+    else if (value == null) action = "keep";
+    else action = "ask";
+    plan[field] = { value, action };
+  }
+  return plan;
+}

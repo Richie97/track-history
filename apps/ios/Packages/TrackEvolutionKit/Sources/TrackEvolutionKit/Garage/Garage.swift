@@ -111,6 +111,148 @@ public enum Garage {
             .map(\.element)
     }
 
+    // MARK: - Car catalog (#222)
+
+    /// "Chevrolet Corvette C7" — `catalogCarName`: the name a pick writes into an
+    /// *empty* name field.
+    public static func catalogCarName(_ car: CatalogCar) -> String {
+        [car.make, car.model, car.generation].compactMap { $0 }.joined(separator: " ")
+    }
+
+    /// "2014–2019", or "2020–" while still in production — `catalogCarYears`.
+    public static func catalogCarYears(_ car: CatalogCar) -> String {
+        car.yearTo.map { "\(car.yearFrom)–\($0)" } ?? "\(car.yearFrom)–"
+    }
+
+    /// "Chevrolet Corvette · C7 · 2014–2019" — `catalogCarLabel`: how a picker row
+    /// reads. The generation and the year span are what disambiguate seven
+    /// Corvettes, so they are rendered rather than the bare model repeated.
+    public static func catalogCarLabel(_ car: CatalogCar) -> String {
+        ["\(car.make) \(car.model)", car.generation, catalogCarYears(car)]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+
+    /// How well one query token fits a row — `tokenScore`: 3 for a whole word
+    /// ("c7"), 2 for a word prefix ("corv"), 1 for a substring anywhere, 0 for no
+    /// fit. Words are compared as written and with punctuation stripped, so "mx5"
+    /// finds "MX-5"; a four-digit token that fits nothing by name is tried as a
+    /// model year inside the row's span, so "corvette 2017" finds the C7.
+    private static func tokenScore(_ token: String, words: [String], row: CatalogCar) -> Int {
+        var best = 0
+        for w in words {
+            let plain = w.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
+            if w == token || plain == token {
+                best = max(best, 3)
+            } else if w.hasPrefix(token) || plain.hasPrefix(token) {
+                best = max(best, 2)
+            } else if w.contains(token) || plain.contains(token) {
+                best = max(best, 1)
+            }
+        }
+        if best == 0, token.count == 4, token.allSatisfy({ $0.isASCII && $0.isNumber }), let year = Int(token) {
+            if year >= row.yearFrom, row.yearTo.map({ year <= $0 }) ?? true { best = 2 }
+        }
+        return best
+    }
+
+    /// The catalog rows matching a query, best first — `matchCatalogCars`. Every
+    /// whitespace-separated token has to fit the row somewhere (make, model,
+    /// generation or year span), so "chevrolet corvette" narrows rather than
+    /// widens; ties keep the catalog's own order, and an empty query is the whole
+    /// list. Pinned against the JS by `contracts/logic/car-catalog-match.json`.
+    public static func matchCatalogCars(_ query: String, _ rows: [CatalogCar]) -> [CatalogCar] {
+        let tokens = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        if tokens.isEmpty { return rows }
+        var scored: [(row: CatalogCar, score: Int, index: Int)] = []
+        for (i, row) in rows.enumerated() {
+            let words = catalogCarName(row).lowercased().split(separator: " ").map(String.init)
+            var score = 0
+            var fits = true
+            for t in tokens {
+                let s = tokenScore(t, words: words, row: row)
+                if s == 0 { fits = false; break }
+                score += s
+            }
+            if fits { scored.append((row, score, i)) }
+        }
+        return scored
+            .sorted { a, b in a.score == b.score ? a.index < b.index : a.score > b.score }
+            .map(\.row)
+    }
+
+    /// The numbers on a vehicle form that a catalog pick may fill.
+    public struct VehicleGeometry: Hashable, Sendable {
+        public var wheelbaseMm: Int?
+        public var steeringRatio: Double?
+
+        public init(wheelbaseMm: Int? = nil, steeringRatio: Double? = nil) {
+            self.wheelbaseMm = wheelbaseMm
+            self.steeringRatio = steeringRatio
+        }
+    }
+
+    /// What a pick may do to one field — the three outcomes of `catalogPrefill`.
+    public enum CatalogPrefillAction: String, Hashable, Sendable {
+        /// Write the catalog's value, nil included: a car re-picked from a C7 to
+        /// a car with no single ratio must not keep the C7's.
+        case fill
+        /// The number is the driver's and differs; ask before replacing it.
+        case ask
+        /// Nothing to do: already equal, or the driver's own number and the
+        /// catalog has nothing better than "unknown".
+        case keep
+    }
+
+    public struct CatalogPrefillStep<Value: Hashable & Sendable>: Hashable, Sendable {
+        public let value: Value?
+        public let action: CatalogPrefillAction
+
+        public init(value: Value?, action: CatalogPrefillAction) {
+            self.value = value
+            self.action = action
+        }
+    }
+
+    public struct CatalogPrefillPlan: Hashable, Sendable {
+        public let wheelbaseMm: CatalogPrefillStep<Int>
+        public let steeringRatio: CatalogPrefillStep<Double>
+
+        public init(wheelbaseMm: CatalogPrefillStep<Int>, steeringRatio: CatalogPrefillStep<Double>) {
+            self.wheelbaseMm = wheelbaseMm
+            self.steeringRatio = steeringRatio
+        }
+    }
+
+    /// The "pre-fill, never overwrite" rule, decided per field — `catalogPrefill`.
+    ///
+    /// A number is the driver's when it is set and is not what the previous pick
+    /// (`previous`: the row the form's numbers came from, or nil for a car typed
+    /// by hand) filled in — so a corrected ratio survives a re-pick behind a
+    /// question, and an untouched one is replaced silently.
+    public static func catalogPrefill(
+        _ row: CatalogCar, current: VehicleGeometry, previous: CatalogCar?
+    ) -> CatalogPrefillPlan {
+        func step<V: Hashable & Sendable>(_ value: V?, _ cur: V?, _ prev: V?) -> CatalogPrefillStep<V> {
+            let driverOwned = cur != nil && (previous == nil || cur != prev)
+            let action: CatalogPrefillAction
+            if cur == value {
+                action = .keep
+            } else if !driverOwned {
+                action = .fill
+            } else if value == nil {
+                action = .keep
+            } else {
+                action = .ask
+            }
+            return CatalogPrefillStep(value: value, action: action)
+        }
+        return CatalogPrefillPlan(
+            wheelbaseMm: step(row.wheelbaseMm, current.wheelbaseMm, previous?.wheelbaseMm),
+            steeringRatio: step(row.steeringRatio, current.steeringRatio, previous?.steeringRatio)
+        )
+    }
+
     /// A number the way JavaScript stringifies it: `4.5` → "4.5", `4.0` → "4".
     private static func trimmed(_ value: Double) -> String {
         value == value.rounded() && abs(value) < 1e15

@@ -1,5 +1,6 @@
 package app.trackevolution.core
 
+import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartKind
@@ -85,6 +86,111 @@ class GarageTest {
         assertEquals(PartKind.all.size, fixture["kinds"]!!.jsonArray.size)
     }
 
+    // ---- Car catalog picker (#222) ----------------------------------------------
+
+    private val catalogFixture = Json.parseToJsonElement(
+        RepoRoot.path("contracts/logic/car-catalog-match.json").readText(),
+    ).jsonObject
+
+    @Test
+    fun `matches the JavaScript catalog matcher on the shared fixture`() {
+        val rows = json.decodeFromJsonElement(
+            kotlinx.serialization.builtins.ListSerializer(CatalogCar.serializer()),
+            catalogFixture["rows"]!!,
+        )
+        val byId = rows.associateBy { it.id }
+
+        for (element in catalogFixture["labels"]!!.jsonArray) {
+            val case = element.jsonObject
+            val row = byId.getValue(case["id"]!!.jsonPrimitive.content.toInt())
+            assertEquals(case["name"]!!.jsonPrimitive.content, Garage.catalogCarName(row), "name of ${row.id}")
+            assertEquals(case["label"]!!.jsonPrimitive.content, Garage.catalogCarLabel(row), "label of ${row.id}")
+        }
+
+        val queries = catalogFixture["queries"]!!.jsonArray
+        for (element in queries) {
+            val case = element.jsonObject
+            val query = case["query"]!!.jsonPrimitive.content
+            assertEquals(
+                case["ids"]!!.jsonArray.map { it.jsonPrimitive.content.toInt() },
+                Garage.matchCatalogCars(query, rows).map { it.id },
+                "query \"$query\"",
+            )
+        }
+
+        val prefills = catalogFixture["prefill"]!!.jsonArray
+        for (element in prefills) {
+            val case = element.jsonObject
+            val name = case["name"]!!.jsonPrimitive.content
+            val row = byId.getValue(case["row"]!!.jsonPrimitive.content.toInt())
+            val previous = case["previous"]!!.jsonPrimitive.contentOrNullSafe()?.let { byId.getValue(it.toInt()) }
+            val current = case["current"]!!.jsonObject
+            val plan = Garage.catalogPrefill(
+                row,
+                Garage.VehicleGeometry(
+                    wheelbaseMm = current["wheelbase_mm"]!!.jsonPrimitive.contentOrNullSafe()?.toInt(),
+                    steeringRatio = current["steering_ratio"]!!.jsonPrimitive.contentOrNullSafe()?.toDouble(),
+                ),
+                previous,
+            )
+            val expected = case["plan"]!!.jsonObject
+            val wheelbase = expected["wheelbase_mm"]!!.jsonObject
+            val steering = expected["steering_ratio"]!!.jsonObject
+            assertEquals(wheelbase["action"]!!.jsonPrimitive.content, plan.wheelbaseMm.action.rawValue, "$name: wheelbase")
+            assertEquals(wheelbase["value"]!!.jsonPrimitive.contentOrNullSafe()?.toInt(), plan.wheelbaseMm.value, "$name: wheelbase value")
+            assertEquals(steering["action"]!!.jsonPrimitive.content, plan.steeringRatio.action.rawValue, "$name: ratio")
+            assertEquals(steering["value"]!!.jsonPrimitive.contentOrNullSafe()?.toDouble(), plan.steeringRatio.value, "$name: ratio value")
+        }
+
+        assertTrue(queries.size >= 10, "fixture shrank to ${queries.size} queries")
+        assertTrue(prefills.size >= 5, "fixture shrank to ${prefills.size} pre-fill cases")
+    }
+
+    @Test
+    fun `every query token has to fit, so extra words narrow`() {
+        assertEquals(listOf(3), Garage.matchCatalogCars("corvette c8", catalogRows).map { it.id })
+        assertEquals(emptyList<Int>(), Garage.matchCatalogCars("corvette miata", catalogRows).map { it.id })
+        assertEquals(listOf(1, 2, 3, 4, 5, 6), Garage.matchCatalogCars("", catalogRows).map { it.id })
+    }
+
+    @Test
+    fun `ranks whole words over prefixes over substrings`() {
+        // "e46" is a whole word on the M3; "e" is only inside the others' names.
+        assertEquals(listOf(1, 2, 3, 5), Garage.matchCatalogCars("e", catalogRows).map { it.id })
+        assertEquals(listOf(4), Garage.matchCatalogCars("mx5", catalogRows).map { it.id })
+        assertEquals(listOf(2), Garage.matchCatalogCars("corvette 2017", catalogRows).map { it.id })
+    }
+
+    @Test
+    fun `prefills silently only what is not the driver's`() {
+        val c7 = catalogRows[1]
+        val c8 = catalogRows[2]
+        val cayman = catalogRows[4]
+        val fill = Garage.CatalogPrefillAction.FILL
+        val ask = Garage.CatalogPrefillAction.ASK
+        val keep = Garage.CatalogPrefillAction.KEEP
+
+        val empty = Garage.catalogPrefill(c7, Garage.VehicleGeometry(), null)
+        assertEquals(Garage.CatalogPrefillStep(2710, fill), empty.wheelbaseMm)
+        assertEquals(Garage.CatalogPrefillStep(16.25, fill), empty.steeringRatio)
+
+        val typed = Garage.catalogPrefill(c7, Garage.VehicleGeometry(2700, 15.0), null)
+        assertEquals(ask, typed.wheelbaseMm.action)
+        assertEquals(ask, typed.steeringRatio.action)
+
+        val repick = Garage.catalogPrefill(c8, Garage.VehicleGeometry(2710, 15.0), c7)
+        assertEquals(fill, repick.wheelbaseMm.action)
+        assertEquals(ask, repick.steeringRatio.action)
+
+        // Never offers to replace the driver's number with nothing, but does
+        // clear the previous car's ratio when the new car has none.
+        assertEquals(keep, Garage.catalogPrefill(cayman, Garage.VehicleGeometry(2700, 15.0), null).steeringRatio.action)
+        assertEquals(
+            Garage.CatalogPrefillStep<Double>(null, fill),
+            Garage.catalogPrefill(cayman, Garage.VehicleGeometry(2710, 16.25), c7).steeringRatio,
+        )
+    }
+
     // ---- Status thresholds --------------------------------------------------
 
     @Test
@@ -142,6 +248,23 @@ class GarageTest {
     }
 
     // ---- Fixtures -----------------------------------------------------------
+
+    /** The six rows `test/unit/garage.test.js` uses for the catalog cases. */
+    private val catalogRows = listOf(
+        car(1, "BMW", "M3", "E46", 2000, 2006, 2731, 15.4),
+        car(2, "Chevrolet", "Corvette", "C7", 2014, 2019, 2710, 16.25),
+        car(3, "Chevrolet", "Corvette", "C8", 2020, null, 2722, 15.7),
+        car(4, "Mazda", "MX-5", "ND", 2015, null, 2310, 15.5),
+        car(5, "Porsche", "718 Cayman", "982", 2016, null, 2475, null),
+        car(6, "Toyota", "GR86", null, 2022, null, 2575, 13.5),
+    )
+
+    private fun car(
+        id: Int, make: String, model: String, generation: String?, from: Int, to: Int?, wheelbase: Int, ratio: Double?,
+    ) = CatalogCar(
+        id = id, make = make, model = model, generation = generation, yearFrom = from, yearTo = to,
+        wheelbaseMm = wheelbase, steeringRatio = ratio, source = "test",
+    )
 
     private fun wear(remaining: Double?, pctUsed: Double? = null) = WearEstimate(
         hours = 3.0,

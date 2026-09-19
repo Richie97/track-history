@@ -1,5 +1,6 @@
 package app.trackevolution.core
 
+import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartKind
@@ -145,6 +146,132 @@ public object Garage {
      */
     public fun defaultMeasurementUnit(kind: PartKind, units: UnitSystem): String =
         if (kind == PartKind.TIRES && !Units.isMetric(units)) "32nds" else "mm"
+
+    // ---- car catalog (#222) ---------------------------------------------------
+    //
+    // The vehicle form's catalog picker: one searchable field over
+    // GET /api/car-catalog. Pinned against the JS by
+    // contracts/logic/car-catalog-match.json — the same fixture the iOS Kit
+    // asserts against — so "c7" ranks the Corvette row the same on every client.
+
+    /** "Chevrolet Corvette C7" — `catalogCarName`: the name a pick writes into an *empty* name field. */
+    public fun catalogCarName(car: CatalogCar): String =
+        listOfNotNull(car.make, car.model, car.generation).joinToString(" ")
+
+    /** "2014–2019", or "2020–" while still in production — `catalogCarYears`. */
+    public fun catalogCarYears(car: CatalogCar): String =
+        if (car.yearTo != null) "${car.yearFrom}–${car.yearTo}" else "${car.yearFrom}–"
+
+    /**
+     * "Chevrolet Corvette · C7 · 2014–2019" — `catalogCarLabel`: how a picker row
+     * reads. The generation and the year span are what disambiguate seven
+     * Corvettes, so they are rendered rather than the bare model repeated.
+     */
+    public fun catalogCarLabel(car: CatalogCar): String =
+        listOfNotNull("${car.make} ${car.model}", car.generation, catalogCarYears(car)).joinToString(" · ")
+
+    /**
+     * How well one query token fits a row — `tokenScore`: 3 for a whole word
+     * ("c7"), 2 for a word prefix ("corv"), 1 for a substring anywhere, 0 for no
+     * fit. Words are compared as written and with punctuation stripped, so "mx5"
+     * finds "MX-5"; a four-digit token that fits nothing by name is tried as a
+     * model year inside the row's span, so "corvette 2017" finds the C7.
+     */
+    private fun tokenScore(token: String, words: List<String>, row: CatalogCar): Int {
+        var best = 0
+        for (w in words) {
+            val plain = w.filter { it in 'a'..'z' || it in '0'..'9' }
+            best = when {
+                w == token || plain == token -> maxOf(best, 3)
+                w.startsWith(token) || plain.startsWith(token) -> maxOf(best, 2)
+                w.contains(token) || plain.contains(token) -> maxOf(best, 1)
+                else -> best
+            }
+        }
+        if (best == 0 && token.length == 4 && token.all { it in '0'..'9' }) {
+            val year = token.toInt()
+            if (year >= row.yearFrom && (row.yearTo == null || year <= row.yearTo)) best = 2
+        }
+        return best
+    }
+
+    /**
+     * The catalog rows matching a query, best first — `matchCatalogCars`. Every
+     * whitespace-separated token has to fit the row somewhere (make, model,
+     * generation or year span), so "chevrolet corvette" narrows rather than
+     * widens; ties keep the catalog's own order, and an empty query is the
+     * whole list.
+     */
+    public fun matchCatalogCars(query: String, rows: List<CatalogCar>): List<CatalogCar> {
+        val tokens = query.lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return rows.toList()
+        data class Scored(val row: CatalogCar, val score: Int, val index: Int)
+        val scored = ArrayList<Scored>()
+        rows.forEachIndexed { i, row ->
+            val words = catalogCarName(row).lowercase().split(" ")
+            var score = 0
+            for (t in tokens) {
+                val s = tokenScore(t, words, row)
+                if (s == 0) return@forEachIndexed
+                score += s
+            }
+            scored += Scored(row, score, i)
+        }
+        return scored.sortedWith(compareByDescending<Scored> { it.score }.thenBy { it.index }).map { it.row }
+    }
+
+    /** The numbers on a vehicle form that a catalog pick may fill. */
+    public data class VehicleGeometry(val wheelbaseMm: Int? = null, val steeringRatio: Double? = null)
+
+    /** What a pick may do to one field — the three outcomes of [catalogPrefill]. */
+    public enum class CatalogPrefillAction(public val rawValue: String) {
+        /**
+         * Write the catalog's value, null included: a car re-picked from a C7 to
+         * a car with no single ratio must not keep the C7's.
+         */
+        FILL("fill"),
+
+        /** The number is the driver's and differs; ask before replacing it. */
+        ASK("ask"),
+
+        /**
+         * Nothing to do: already equal, or the driver's own number and the
+         * catalog has nothing better than "unknown".
+         */
+        KEEP("keep"),
+    }
+
+    public data class CatalogPrefillStep<V>(val value: V?, val action: CatalogPrefillAction)
+
+    public data class CatalogPrefillPlan(
+        val wheelbaseMm: CatalogPrefillStep<Int>,
+        val steeringRatio: CatalogPrefillStep<Double>,
+    )
+
+    /**
+     * The "pre-fill, never overwrite" rule, decided per field — `catalogPrefill`.
+     *
+     * A number is the driver's when it is set and is not what the previous pick
+     * ([previous]: the row the form's numbers came from, or null for a car typed
+     * by hand) filled in — so a corrected ratio survives a re-pick behind a
+     * question, and an untouched one is replaced silently.
+     */
+    public fun catalogPrefill(row: CatalogCar, current: VehicleGeometry, previous: CatalogCar?): CatalogPrefillPlan {
+        fun <V> step(value: V?, cur: V?, prev: V?): CatalogPrefillStep<V> {
+            val driverOwned = cur != null && (previous == null || cur != prev)
+            val action = when {
+                cur == value -> CatalogPrefillAction.KEEP
+                !driverOwned -> CatalogPrefillAction.FILL
+                value == null -> CatalogPrefillAction.KEEP
+                else -> CatalogPrefillAction.ASK
+            }
+            return CatalogPrefillStep(value, action)
+        }
+        return CatalogPrefillPlan(
+            wheelbaseMm = step(row.wheelbaseMm, current.wheelbaseMm, previous?.wheelbaseMm),
+            steeringRatio = step(row.steeringRatio, current.steeringRatio, previous?.steeringRatio),
+        )
+    }
 
     /** A number the way JavaScript stringifies it: `4.5` → "4.5", `4.0` → "4". */
     private fun trimmed(value: Double): String =

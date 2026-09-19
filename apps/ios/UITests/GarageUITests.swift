@@ -172,6 +172,73 @@ final class GarageUITests: XCTestCase {
         )
     }
 
+    /// Picking a car from the catalog (#222): the pick fills the two spec-sheet
+    /// numbers, keeps a name the driver already typed, and the garage page's
+    /// *Edit car* form shows both numbers with where they came from.
+    ///
+    /// The row is found by the label the Kit's `Garage.catalogCarLabel` builds —
+    /// pinned to the web's by `contracts/logic/car-catalog-match.json` — and the
+    /// numbers asserted are the seeded C7's (`migrations/0024_car_catalog.sql`),
+    /// so a catalog correction that moves them fails here on purpose.
+    func testPickingACatalogCarFillsItsGeometry() throws {
+        let app = try launchSignedIn(tier: .pro)
+
+        app.buttons["Account"].tap()
+        let nameField = app.textFields["Corvette Z06"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 20), "Settings should offer the add-vehicle field")
+        nameField.tap()
+        nameField.typeText(Self.vehicleName)
+
+        // --- pick the car
+        let pickButton = app.buttons["pickCatalogCar"]
+        scrollUntilHittable(app, pickButton)
+        pickButton.tap()
+        let search = app.textFields["catalogSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 15), "the catalog picker should open")
+        search.tap()
+        search.typeText("c7")
+        let row = app.buttons["Chevrolet Corvette · C7 · 2014–2019"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "\"c7\" should find the C7, generation and years shown")
+        row.tap()
+
+        // A car the driver already named keeps its name.
+        XCTAssertTrue(nameField.waitForExistence(timeout: 10))
+        XCTAssertEqual(nameField.value as? String, Self.vehicleName, "the pick must not rename a car")
+        XCTAssertTrue(app.buttons["clearCatalogCar"].exists, "the pick should be shown, and clearable")
+
+        app.buttons["addVehicle"].tap()
+        XCTAssertTrue(
+            app.staticTexts[Self.vehicleName].waitForExistence(timeout: 20),
+            "the new vehicle should appear in the list"
+        )
+
+        // --- the numbers landed on the car
+        app.staticTexts[Self.vehicleName].firstMatch.tap()
+        XCTAssertTrue(
+            app.staticTexts["Consumables in service"].waitForExistence(timeout: 20),
+            "the vehicle row should open the garage page"
+        )
+        app.buttons["editVehicle"].tap()
+        let wheelbase = app.textFields["wheelbaseField"]
+        XCTAssertTrue(wheelbase.waitForExistence(timeout: 15), "the Edit car sheet should open")
+        XCTAssertEqual(wheelbase.value as? String, "2710", "the C7's wheelbase should have been filled in")
+        XCTAssertEqual(app.textFields["steeringRatioField"].value as? String, "16.25", "and its steering ratio")
+        XCTAssertTrue(
+            app.staticTexts["catalogSource"].waitForExistence(timeout: 15),
+            "with the catalog's source line under the numbers"
+        )
+        attachScreenshot(app, named: "garage-catalog-pick")
+        app.buttons["Cancel"].tap()
+
+        // --- clear up
+        app.navigationBars.buttons.element(boundBy: 0).tap()  // back to Settings
+        XCTAssertTrue(
+            app.staticTexts[Self.vehicleName].waitForExistence(timeout: 20),
+            "back in Settings to delete the car"
+        )
+        deleteVehicle(app)
+    }
+
     /// Delete the test car, by finding the Delete that belongs to *its* row.
     ///
     /// Two things this has to get right, and the version before it got neither —

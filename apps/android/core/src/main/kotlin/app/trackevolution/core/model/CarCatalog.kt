@@ -1,5 +1,6 @@
 package app.trackevolution.core.model
 
+import app.trackevolution.core.Garage
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -29,11 +30,14 @@ public data class CatalogCar(
     @SerialName("steering_ratio") val steeringRatio: Double? = null,
     val source: String,
 ) {
-    /** "Chevrolet Corvette C7" — how a picker row reads. */
+    /**
+     * "Chevrolet Corvette C7" — the name a pick gives an unnamed car
+     * ([Garage.catalogCarName]; the picker row itself reads [Garage.catalogCarLabel]).
+     */
     val displayName: String
-        get() = listOfNotNull(make, model, generation).joinToString(" ")
+        get() = Garage.catalogCarName(this)
 
-    /** "2014–2019" or "2020–" — the years beside a row. */
+    /** "2014–2019" or "2020–" — the years beside a row ([Garage.catalogCarYears]). */
     val yearRange: String
-        get() = if (yearTo != null) "$yearFrom–$yearTo" else "$yearFrom–"
+        get() = Garage.catalogCarYears(this)
 }

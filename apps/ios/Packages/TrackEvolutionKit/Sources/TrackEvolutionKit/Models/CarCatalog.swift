@@ -32,13 +32,10 @@ public struct CatalogCar: Codable, Hashable, Sendable, Identifiable {
         case steeringRatio = "steering_ratio"
     }
 
-    /// "Chevrolet Corvette C7" — how a picker row reads.
-    public var displayName: String {
-        [make, model, generation].compactMap { $0 }.joined(separator: " ")
-    }
+    /// "Chevrolet Corvette C7" — the name a pick gives an unnamed car
+    /// (`Garage.catalogCarName`; the picker row itself reads `Garage.catalogCarLabel`).
+    public var displayName: String { Garage.catalogCarName(self) }
 
-    /// "2014–2019" or "2020–" — the years beside a row.
-    public var yearRange: String {
-        yearTo.map { "\(yearFrom)–\($0)" } ?? "\(yearFrom)–"
-    }
+    /// "2014–2019" or "2020–" — the years beside a row (`Garage.catalogCarYears`).
+    public var yearRange: String { Garage.catalogCarYears(self) }
 }

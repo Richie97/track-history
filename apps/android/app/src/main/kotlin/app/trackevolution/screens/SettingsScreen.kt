@@ -31,11 +31,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import app.trackevolution.BuildConfig
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.Garage
 import app.trackevolution.core.Units
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
+import app.trackevolution.ui.CatalogCarPicker
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -638,6 +640,33 @@ private fun VehiclesCard(
             )
             TextButton(onClick = model::addVehicle, enabled = model.newVehicleName.isNotBlank()) {
                 Text("Add", style = TrackTheme.typography.sm, color = colors.accentInk)
+            }
+        }
+        // The catalog pick (#222): the server pre-fills the car's wheelbase and
+        // steering ratio from the row, and the pick names the car only when the
+        // driver hasn't — a car already called "Betty" keeps its name.
+        var picking by rememberSaveable { mutableStateOf(false) }
+        if (picking) {
+            LaunchedEffect(Unit) { model.loadCatalog() }
+            CatalogCarPicker(
+                rows = model.catalog,
+                error = model.catalogError,
+                onPick = { model.pickCatalog(it); picking = false },
+                onDismiss = { picking = false },
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { picking = true }, modifier = Modifier.testTag("pickCatalogCar")) {
+                Text(
+                    model.newVehicleCatalog?.let(Garage::catalogCarLabel) ?: "Find it in the catalog…",
+                    style = TrackTheme.typography.xs,
+                    color = colors.accentInk,
+                )
+            }
+            if (model.newVehicleCatalog != null) {
+                TextButton(onClick = { model.newVehicleCatalog = null }, modifier = Modifier.testTag("clearCatalogCar")) {
+                    Text("Clear", style = TrackTheme.typography.xs, color = colors.textMuted)
+                }
             }
         }
         TEErrorBanner(model.vehicleError, modifier = Modifier.padding(top = 8.dp))
