@@ -16,6 +16,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * The *Edit car* form's catalog picker (#222), driven through the screen.
@@ -26,8 +27,15 @@ import org.robolectric.RobolectricTestRunner
  * than replaced, and that clearing the pick keeps the numbers. Each of those is
  * a rule the ticket states, and each is the kind of thing a refactor of the form
  * breaks without a compile error.
+ *
+ * The window is tall on purpose: the form is not scrollable on its own (the
+ * page's `LazyColumn` scrolls it), so on Robolectric's default screen the
+ * catalog field and the Save button sit below the fold, a `performClick` lands
+ * on nothing, and every assertion after it fails for a reason that has nothing
+ * to do with the picker.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "w480dp-h2400dp")
 class VehicleFormCatalogTest {
 
     @get:Rule
