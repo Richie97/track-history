@@ -7,7 +7,7 @@
       "best_ms": 121500,
       "car": "Corvette C7",
       "conditions": "dry",
-      "consistency": 0.01738467127508466,
+      "consistency": 0.016342580089843895,
       "data": {
         "camber": {
           "f": -3.2,
@@ -33,7 +33,7 @@
       "best_ms": 121500,
       "car": "Corvette C7",
       "conditions": "dry",
-      "consistency": 0.01738467127508466,
+      "consistency": 0.016342580089843895,
       "data": {
         "camber": {
           "f": -3.5,

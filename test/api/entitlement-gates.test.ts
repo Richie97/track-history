@@ -33,6 +33,9 @@ const EXPECTED_GATES = [
   // The garage's consumables (the vehicle *list* stays free — it pre-fills the
   // event form's car field).
   "GET /garage",
+  // …and the measured steering ratio behind the vehicle form (#223), which
+  // reads the car's session blobs.
+  "GET /vehicles/:id/steering-fit",
   "POST /vehicles/:id/parts",
   "PUT /parts/:id",
   "POST /parts/:id/refresh",
@@ -99,6 +102,7 @@ describe("a free account meeting the gates", () => {
 
     const calls: [string, string, unknown?][] = [
       ["GET", "/garage"],
+      ["GET", `/vehicles/${vehicle.body.id}/steering-fit`],
       ["POST", `/vehicles/${vehicle.body.id}/parts`, { kind: "pads_front", name: "Fronts", installed_on: "2026-01-01" }],
       ["PUT", "/parts/1", { name: "x" }],
       ["POST", "/parts/1/refresh", { installed_on: "2026-01-01" }],
@@ -152,6 +156,7 @@ describe("a Pro account meeting the same routes", () => {
     expect((await api("DELETE", `/events/${eventId}/setups/1`)).status).toBe(200);
 
     const vehicle = await api("POST", "/vehicles", { name: "Pro Car" });
+    expect((await api("GET", `/vehicles/${vehicle.body.id}/steering-fit`)).status).toBe(200);
     const part = await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
       kind: "pads_front",
       name: "Fronts",

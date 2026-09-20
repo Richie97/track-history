@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_FIT_SESSIONS } from "../../src/lib/steering";
 import { createEvent, signedInProUser } from "./helpers";
 
 // The garage logbook: consumable parts + wear, per-event-day setup sheets,
@@ -327,5 +328,91 @@ describe("share privacy", () => {
     expect(json).not.toContain("track_hours");
     expect(json).not.toContain("secret damper settings");
     expect(json).not.toContain("setup");
+  });
+});
+
+describe("GET /vehicles/:id/steering-fit (#223)", () => {
+  // A lap generated from the bicycle model — yaw = v·(δ/R) / (L·(1 + K·v²)) —
+  // with a known ratio, wheelbase and understeer gradient.
+  const R = 16.25, L = 2.71, KUS = 0.0014, N = 24;
+  const bicycleLap = (ratio = R) => {
+    const speed: number[] = [], steering: number[] = [], yaw: number[] = [];
+    for (let k = 0; k < N; k++) {
+      const kph = 60 + ((175 - 60) * k) / (N - 1);
+      const v = kph / 3.6;
+      const deg = (15 + (k % 5) * 10) * (k % 2 ? -1 : 1);
+      speed.push(kph);
+      steering.push(deg);
+      yaw.push((v * (deg / ratio)) / (L * (1 + KUS * v * v)));
+    }
+    return { n: 1, timeMs: 100_000, speed, steering, yaw };
+  };
+  const channelSession = (label: string, lap = bicycleLap()) => ({
+    label,
+    laps: [lap.timeMs],
+    channels: { dStepM: 20, laps: [lap] },
+  });
+
+  it("fits the car's channel-carrying sessions, newest first, and skips what doesn't fit", async () => {
+    const { api, vehicleId } = await garageUser();
+    const older = await createEvent(api, { car: "Corvette Z06", start_date: "2026-04-01" });
+    const newer = await createEvent(api, { car: "Corvette Z06", start_date: "2026-06-01" });
+    const s1 = await api("POST", `/events/${older}/sessions`, channelSession("Older"));
+    const s2 = await api("POST", `/events/${newer}/sessions`, channelSession("Newer", bicycleLap(12)));
+    // No yaw: nothing to fit — present in the read, absent from the answer.
+    const lapNoYaw = bicycleLap();
+    await api("POST", `/events/${newer}/sessions`, {
+      label: "Recorded",
+      laps: [99_000],
+      channels: { dStepM: 20, laps: [{ n: 1, timeMs: 99_000, speed: lapNoYaw.speed, steering: lapNoYaw.steering }] },
+    });
+    // A plain hand-entered session has no channels at all.
+    await api("POST", `/events/${newer}/sessions`, { label: "Typed", laps: [101_000] });
+
+    const res = await api("GET", `/vehicles/${vehicleId}/steering-fit`);
+    expect(res.status).toBe(200);
+    expect(res.body.fits.map((f: any) => f.session_id)).toEqual([s2.body.id, s1.body.id]);
+    const [newest, oldest] = res.body.fits;
+    expect(newest.event_id).toBe(newer);
+    expect(newest.start_date).toBe("2026-06-01");
+    expect(newest.samples).toBe(N);
+    // The arithmetic is pinned by the unit tests; here the numbers pass through
+    // `sanitizeChannels`, which rounds the stored yaw and steering to a tenth.
+    expect(newest.gain0).toBeCloseTo(1 / (12 * L), 4);
+    expect(newest.K).toBeCloseTo(KUS, 4);
+    expect(newest.r2).toBeCloseTo(1, 3);
+    expect(oldest.gain0).toBeCloseTo(1 / (R * L), 4);
+    // The shape the clients decode: ids, the date, and the four fit numbers.
+    expect(Object.keys(newest).sort()).toEqual(["K", "event_id", "gain0", "r2", "samples", "session_id", "start_date"]);
+  });
+
+  it("answers an empty list for a car with nothing to measure", async () => {
+    const { api, vehicleId } = await garageUser();
+    await createEvent(api, { car: "Corvette Z06" });
+    expect((await api("GET", `/vehicles/${vehicleId}/steering-fit`)).body).toEqual({ fits: [] });
+  });
+
+  it("reads only the most recent MAX_FIT_SESSIONS sessions", async () => {
+    const { api, vehicleId } = await garageUser();
+    const eventId = await createEvent(api, { car: "Corvette Z06" });
+    const ids: number[] = [];
+    for (let i = 0; i < MAX_FIT_SESSIONS + 2; i++) {
+      ids.push((await api("POST", `/events/${eventId}/sessions`, channelSession(`S${i}`))).body.id);
+    }
+    const res = await api("GET", `/vehicles/${vehicleId}/steering-fit`);
+    expect(res.body.fits).toHaveLength(MAX_FIT_SESSIONS);
+    // Newest first, so the two oldest are the ones left out.
+    expect(res.body.fits.map((f: any) => f.session_id)).toEqual(ids.slice(2).reverse());
+  });
+
+  it("never reads another user's car or another user's sessions", async () => {
+    const a = await garageUser();
+    const b = await garageUser();
+    // b's event names a car of the same name — its own — so a's link never fires.
+    const bEvent = await createEvent(b.api, { car: "Corvette Z06" });
+    await b.api("POST", `/events/${bEvent}/sessions`, channelSession("B"));
+    expect((await a.api("GET", `/vehicles/${b.vehicleId}/steering-fit`)).status).toBe(404);
+    expect((await a.api("GET", `/vehicles/${a.vehicleId}/steering-fit`)).body).toEqual({ fits: [] });
+    expect((await b.api("GET", `/vehicles/${b.vehicleId}/steering-fit`)).body.fits).toHaveLength(1);
   });
 });

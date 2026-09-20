@@ -1,0 +1,18 @@
+{
+  "method": "GET",
+  "path": "/vehicles/:id/steering-fit",
+  "status": 200,
+  "body": {
+    "fits": [
+      {
+        "K": 0.0013958191134845642,
+        "event_id": 1,
+        "gain0": 0.02266574222751807,
+        "r2": 0.9999948100742689,
+        "samples": 24,
+        "session_id": 1,
+        "start_date": "2026-04-10"
+      }
+    ]
+  }
+}

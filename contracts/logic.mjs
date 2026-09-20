@@ -65,10 +65,15 @@ import {
   balancePoints,
   balanceSummary,
   cornerBalance,
+  estimateSteeringRatio,
   fmtBalance,
+  fmtSteeringRatio,
+  measuredRatioLine,
+  measuredRatioValue,
   median,
   referenceGain,
   sessionBalance,
+  steeringFit,
   usableAt,
   yawGain,
   yawSign,
@@ -800,6 +805,66 @@ const balFewLap = {
   latG: balManyLatG.slice(0, 36),
   yaw: balManyYaw.slice(0, 36),
 };
+// The measured steering ratio (#223): `steeringFit` over a lap generated *from*
+// the bicycle model — yaw = v·(δ/R) / (L·(1 + K·v²)) — with a known ratio,
+// wheelbase and understeer gradient the fit must give back; the same lap on a
+// recorder whose yaw opposes its steering; a lap at one speed, which has no
+// slope to fit and must be null; one under the sample floor; and a noisy one
+// whose r² sits below 1, since a port that gets the residual arithmetic wrong
+// still recovers the exact case. Then `estimateSteeringRatio` pooling three
+// sessions and a null, and every wording of the measured line.
+const fitLap = ({ ratio, wheelbaseM, K, n = 24, kphFrom = 60, kphTo = 175, noise = () => 0 }) => {
+  const speed = [], steering = [], yaw = [];
+  for (let k = 0; k < n; k++) {
+    const kph = kphFrom + ((kphTo - kphFrom) * k) / (n - 1);
+    const v = kph / 3.6;
+    const deg = (15 + (k % 5) * 10) * (k % 2 ? -1 : 1);
+    speed.push(kph);
+    steering.push(deg);
+    yaw.push((v * (deg / ratio)) / (wheelbaseM * (1 + K * v * v)) + noise(k));
+  }
+  return { n: 1, timeMs: 100000, speed, steering, yaw };
+};
+const fitModel = fitLap({ ratio: 16.25, wheelbaseM: 2.71, K: 0.0014 });
+const fitFlipped = { ...fitModel, yaw: fitModel.yaw.map((y) => -y) };
+const fitFlat = fitLap({ ratio: 16.25, wheelbaseM: 2.71, K: 0.0014, kphFrom: 100, kphTo: 100 });
+const fitShort = fitLap({ ratio: 16.25, wheelbaseM: 2.71, K: 0.0014, n: 19 });
+const fitNoisy = fitLap({ ratio: 16.25, wheelbaseM: 2.71, K: 0.0014, noise: (k) => (((k * 7) % 5) - 2) * 4 });
+const fitLoose = fitLap({ ratio: 12, wheelbaseM: 2.71, K: 0.0005, n: 30, kphFrom: 50, kphTo: 140 });
+const fitSessions = {
+  model: { v: 1, dStepM: 20, laps: [fitModel] },
+  flipped: { v: 1, dStepM: 20, laps: [fitFlipped] },
+  flat: { v: 1, dStepM: 20, laps: [fitFlat] },
+  short: { v: 1, dStepM: 20, laps: [fitShort] },
+  noisy: { v: 1, dStepM: 20, laps: [fitNoisy] },
+  loose: { v: 1, dStepM: 20, laps: [fitLoose] },
+  twoLaps: { v: 1, dStepM: 20, laps: [fitModel, { ...fitModel, n: 2 }] },
+};
+const fitOf = Object.fromEntries(Object.entries(fitSessions).map(([k, ch]) => [k, steeringFit(ch)]));
+const poolFits = [fitOf.model, fitOf.noisy, null, fitOf.loose];
+const poolEstimate = estimateSteeringRatio(poolFits, 2710);
+const lineEstimate = { ratio: 15.8321, sessions: 6, r2: 0.96 };
+const steeringFixture = {
+  sessions: fitSessions,
+  poolFits,
+  wheelbaseMm: 2710,
+  lineEstimate,
+  typed: [null, 15.7, 12, 16.25],
+};
+const steeringExpected = {
+  fits: fitOf,
+  pooled: poolEstimate,
+  pooledOneSession: estimateSteeringRatio([fitOf.model], 2710),
+  noWheelbase: estimateSteeringRatio(poolFits, null),
+  noFits: estimateSteeringRatio([null], 2710),
+  lines: steeringFixture.typed.map((t) => measuredRatioLine(lineEstimate, t)),
+  looseLine: measuredRatioLine({ ...lineEstimate, r2: 0.5 }, null),
+  looseOffLine: measuredRatioLine({ ...lineEstimate, r2: 0.5 }, 12),
+  oneSessionLine: measuredRatioLine({ ...lineEstimate, sessions: 1 }, null),
+  noEstimateLine: measuredRatioLine(null, 12),
+  value: measuredRatioValue(lineEstimate),
+  formatted: [16.25, 15.7, 12, 15.8321].map(fmtSteeringRatio),
+};
 const balCorners = sessionCorners(balanceChannels);
 // Either side of both wording thresholds, and the two figures the JS rounds.
 const balPcts = [0, 7.9, -8, 19.9, -20, 40, -25.4, 12, 3];
@@ -807,7 +872,9 @@ const balanceFixture = {
   description:
     "Balance reference output from public/js/balance.js (yawSign / usableAt / " +
     "yawGain / referenceGain / balancePoints / cornerBalance / sessionBalance / " +
-    "balanceLabel / fmtBalance / balanceSummary). Ports must reproduce the " +
+    "balanceLabel / fmtBalance / balanceSummary, plus #223's steeringFit / " +
+    "estimateSteeringRatio / measuredRatioLine / measuredRatioValue / " +
+    "fmtSteeringRatio under `steering`). Ports must reproduce the " +
     "wording exactly and the doubles to 1e-9. Regenerate with " +
     "`npm run contracts:logic`.",
   source: "public/js/balance.js",
@@ -821,6 +888,7 @@ const balanceFixture = {
     fewLap: balFewLap,
     refGain: balK,
     pcts: balPcts,
+    steering: steeringFixture,
   },
   expected: {
     // Measured, not assumed: the flipped recorder reads -1 and, once aligned,
@@ -856,6 +924,7 @@ const balanceFixture = {
     noData: balanceSummary({ v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 1000, speed: [100] }] }),
     // Cornering force, no yaw: nowhere to read a balance from.
     noYaw: sessionBalance({ v: 1, dStepM: 20, laps: [balNoYaw] }),
+    steering: steeringExpected,
   },
 };
 

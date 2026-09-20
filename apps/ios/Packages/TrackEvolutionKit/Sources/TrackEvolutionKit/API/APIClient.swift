@@ -264,6 +264,14 @@ public actor APIClient {
         try await get("/garage", as: [GarageVehicle].self)
     }
 
+    /// The per-session steering fits behind the vehicle form's measured-ratio
+    /// line (#223). Its own read rather than a field on the garage, because the
+    /// server fits the car's recent session blobs to answer it — worth doing
+    /// when the form is open, not on every dashboard load. Pro, like the garage.
+    public func steeringFits(vehicleId: Int) async throws -> SteeringFits {
+        try await get("/vehicles/\(vehicleId)/steering-fit", as: SteeringFits.self)
+    }
+
     public func createVehicle(_ draft: VehicleDraft) async throws -> Vehicle {
         try await send("POST", "/vehicles", body: draft, as: Vehicle.self)
     }

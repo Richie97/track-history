@@ -20,16 +20,16 @@
     ],
     "club": "Chin Track Days",
     "conditions": "dry",
-    "consistency": 0.01738467127508466,
+    "consistency": 0.016342580089843895,
     "days": 2,
     "elevation_m": 38,
     "hours": 4,
     "id": 1,
     "lap_best_ms": 121500,
-    "lap_count": 7,
+    "lap_count": 8,
     "notes": "Cool morning, damp session 1.",
     "run_group": "Advanced",
-    "session_count": 3,
+    "session_count": 4,
     "sessions": [
       {
         "ambient_c": null,
@@ -268,6 +268,111 @@
             52
           ]
         ]
+      },
+      {
+        "ambient_c": null,
+        "channels": {
+          "dStepM": 20,
+          "laps": [
+            {
+              "n": 1,
+              "speed": [
+                60,
+                65,
+                70,
+                75,
+                80,
+                85,
+                90,
+                95,
+                100,
+                105,
+                110,
+                115,
+                120,
+                125,
+                130,
+                135,
+                140,
+                145,
+                150,
+                155,
+                160,
+                165,
+                170,
+                175
+              ],
+              "steering": [
+                15,
+                -25,
+                35,
+                -45,
+                55,
+                -15,
+                25,
+                -35,
+                45,
+                -55,
+                15,
+                -25,
+                35,
+                -45,
+                55,
+                -15,
+                25,
+                -35,
+                45,
+                -55,
+                15,
+                -25,
+                35,
+                -45
+              ],
+              "timeMs": 123400,
+              "yaw": [
+                4.1,
+                -7,
+                10.1,
+                -13.2,
+                16.4,
+                -4.5,
+                7.6,
+                -10.6,
+                13.6,
+                -16.6,
+                4.5,
+                -7.5,
+                10.4,
+                -13.2,
+                16,
+                -4.3,
+                7.1,
+                -9.8,
+                12.4,
+                -15,
+                4,
+                -6.6,
+                9.1,
+                -11.5
+              ]
+            }
+          ],
+          "v": 1
+        },
+        "elevation_m": null,
+        "id": 1,
+        "label": "Session 4",
+        "laps": [
+          {
+            "id": 1,
+            "lap_num": 1,
+            "session_id": 1,
+            "time_ms": 123400
+          }
+        ],
+        "notes": null,
+        "sort": 4,
+        "trace": null
       }
     ],
     "setups": [
@@ -316,6 +421,6 @@
     "track_id": 1,
     "track_name": "Virginia International Raceway (Full)",
     "updated_at": 0,
-    "vehicle_id": null
+    "vehicle_id": 1
   }
 }

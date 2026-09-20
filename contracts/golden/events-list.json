@@ -75,23 +75,23 @@
       ],
       "club": "Chin Track Days",
       "conditions": "dry",
-      "consistency": 0.01738467127508466,
+      "consistency": 0.016342580089843895,
       "days": 2,
       "elevation_m": 38,
       "hours": 4,
       "id": 1,
       "lap_best_ms": 121500,
-      "lap_count": 7,
+      "lap_count": 8,
       "notes": "Cool morning, damp session 1.",
       "run_group": "Advanced",
-      "session_count": 3,
+      "session_count": 4,
       "start_date": "2026-04-10",
       "temp_f": 62,
       "track_hours": null,
       "track_id": 1,
       "track_name": "Virginia International Raceway (Full)",
       "updated_at": 0,
-      "vehicle_id": null
+      "vehicle_id": 1
     }
   ]
 }

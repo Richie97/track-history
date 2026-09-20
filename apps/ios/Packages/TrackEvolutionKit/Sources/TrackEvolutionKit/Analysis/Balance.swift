@@ -317,4 +317,154 @@ public enum Balance {
         if !os.isEmpty { parts.append("oversteer in \(namedOrCounted(os))") }
         return parts.isEmpty ? "balance neutral" : parts.joined(separator: " and ")
     }
+
+    // MARK: - Steering ratio and understeer gradient, measured (#223)
+    //
+    // The port of `steeringFit` and its companions in `public/js/balance.js` —
+    // read that file's header for the physics. The bicycle model's steady-state
+    // yaw rate is r = v·δ/(L·(1 + K·v²)) with δ = steering_deg / ratio, so the
+    // per-sample gain is 1/(ratio·L·(1 + K·v²)): at low speed the ratio falls
+    // out given the wheelbase, and the way the gain falls with speed is the
+    // understeer gradient K. The textbook fit is 1/gain against v²; solved here
+    // as v·δ = A·(yaw·sign) + B·(v²·yaw·sign), which is the same two unknowns
+    // with nothing divided by yaw — on the 20 m grid yaw passes through zero
+    // while the wheel is already turned, and one such sample would set a line
+    // fitted in 1/gain. The operation order is the JS's, which is what lets the
+    // fixture pin the doubles.
+
+    /// Fewer usable samples than this and the fit is a guess.
+    public static let MIN_FIT_SAMPLES = 20
+
+    /// A session driven at one speed has no slope to fit.
+    public static let MIN_SPEED_SPREAD_KPH: Double = 40
+
+    /// Below this share of the steering input explained, the car doesn't fit
+    /// one ratio and the measured line says so.
+    public static let MIN_FIT_R2: Double = 0.8
+
+    /// A typed ratio within this much of the measured one "matches".
+    public static let RATIO_AGREE_PCT: Double = 10
+
+    /// One session's fit: the low-speed yaw gain (1/m), the understeer gradient
+    /// in the (1 + K·v²) form with v in m/s (s²/m²), the usable sample count and
+    /// the uncentred r² of the steering input the model explains, in [0, 1].
+    public struct Fit: Equatable, Sendable, Codable {
+        public var gain0: Double
+        public var K: Double
+        public var samples: Int
+        public var r2: Double
+
+        public init(gain0: Double, K: Double, samples: Int, r2: Double) {
+            self.gain0 = gain0
+            self.K = K
+            self.samples = samples
+            self.r2 = r2
+        }
+    }
+
+    /// nil under ``MIN_FIT_SAMPLES``, under ``MIN_SPEED_SPREAD_KPH`` of speed
+    /// spread, or when the normal equations are singular or give a non-positive
+    /// intercept.
+    public static func steeringFit(_ channels: SessionChannels?) -> Fit? {
+        let sign = yawSign(channels)
+        var s11 = 0.0, s12 = 0.0, s22 = 0.0, t1 = 0.0, t2 = 0.0, szz = 0.0
+        var n = 0
+        var vMin = Double.infinity, vMax = -Double.infinity
+        for lap in balanceLaps(channels) {
+            let entry = lap.entry
+            for k in 0..<usableLength(entry) where usableAt(entry, k) {
+                let kph = entry.speed![k]
+                let v = kph * KPH_TO_MPS
+                let u1 = entry.yaw![k] * sign
+                let u2 = v * v * u1
+                let z = v * entry.steering![k]
+                s11 += u1 * u1
+                s12 += u1 * u2
+                s22 += u2 * u2
+                t1 += u1 * z
+                t2 += u2 * z
+                szz += z * z
+                n += 1
+                if kph < vMin { vMin = kph }
+                if kph > vMax { vMax = kph }
+            }
+        }
+        if n < MIN_FIT_SAMPLES || vMax - vMin < MIN_SPEED_SPREAD_KPH { return nil }
+        let det = s11 * s22 - s12 * s12
+        guard det > 0 else { return nil }
+        let A = (t1 * s22 - t2 * s12) / det
+        let B = (t2 * s11 - t1 * s12) / det
+        guard A > 0 else { return nil }
+        let ssRes = szz - 2 * (A * t1 + B * t2) + (A * A * s11 + 2 * A * B * s12 + B * B * s22)
+        let r2 = szz > 0 ? min(1, max(0, 1 - ssRes / szz)) : 0
+        return Fit(gain0: 1 / A, K: B / A, samples: n, r2: r2)
+    }
+
+    /// Several sessions pooled into one ratio: the median of 1/(gain₀·L) across
+    /// the sessions that fit, their count, and the median r².
+    public struct RatioEstimate: Equatable, Sendable, Codable {
+        public var ratio: Double
+        public var sessions: Int
+        public var r2: Double
+
+        public init(ratio: Double, sessions: Int, r2: Double) {
+            self.ratio = ratio
+            self.sessions = sessions
+            self.r2 = r2
+        }
+    }
+
+    /// nil without a wheelbase — there is nothing to compute — or without a fit;
+    /// nils in `fits` are skipped, so one damp session doesn't set the number.
+    public static func estimateSteeringRatio(_ fits: [Fit?], wheelbaseMm: Int?) -> RatioEstimate? {
+        guard let wheelbaseMm, wheelbaseMm > 0 else { return nil }
+        let L = Double(wheelbaseMm) / 1000
+        let usable = fits.compactMap { $0 }.filter { $0.gain0 > 0 }
+        guard !usable.isEmpty,
+              let ratio = median(usable.map { 1 / ($0.gain0 * L) }),
+              let r2 = median(usable.map(\.r2))
+        else { return nil }
+        return RatioEstimate(ratio: ratio, sessions: usable.count, r2: r2)
+    }
+
+    /// A ratio as the form shows it: two decimals, trailing zeros dropped —
+    /// "16.25", "15.7", "12". `String(Number(ratio.toFixed(2)))` in the JS.
+    public static func fmtSteeringRatio(_ ratio: Double) -> String {
+        let fixed = Units.toFixed(ratio, 2)
+        guard fixed.contains(".") else { return fixed }
+        var trimmed = fixed
+        while trimmed.hasSuffix("0") { trimmed.removeLast() }
+        if trimmed.hasSuffix(".") { trimmed.removeLast() }
+        return trimmed
+    }
+
+    /// The value "Use this" writes into the field: the measured ratio to the
+    /// field's own two decimals.
+    public static func measuredRatioValue(_ estimate: RatioEstimate) -> Double {
+        (estimate.ratio * 100).rounded(.toNearestOrAwayFromZero) / 100
+    }
+
+    /// Whether a typed ratio agrees with the measured one, within ``RATIO_AGREE_PCT``.
+    public static func ratioAgrees(_ estimate: RatioEstimate, _ typed: Double?) -> Bool {
+        guard let typed else { return false }
+        return (abs(typed - estimate.ratio) / estimate.ratio) * 100 <= RATIO_AGREE_PCT
+    }
+
+    /// The one line under the steering-ratio field: "Measured from 6 sessions:
+    /// 15.8:1", with "— matches" or "— your 12:1 is well off this; check the
+    /// units" when the field holds a number, and a caveat when the sessions
+    /// don't fit one ratio. nil when nothing can be measured yet — the line is
+    /// then absent, not "not enough data".
+    public static func measuredRatioLine(_ estimate: RatioEstimate?, typed: Double?) -> String? {
+        guard let estimate else { return nil }
+        let n = estimate.sessions
+        var line = "Measured from \(n) session\(n == 1 ? "" : "s"): \(Units.toFixed(estimate.ratio, 1)):1"
+        if estimate.r2 < MIN_FIT_R2 { line += " (varies with speed — a single ratio is approximate)" }
+        if let typed {
+            line += ratioAgrees(estimate, typed)
+                ? " — matches"
+                : " — your \(fmtSteeringRatio(typed)):1 is well off this; check the units"
+        }
+        return line
+    }
 }

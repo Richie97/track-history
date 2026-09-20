@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  MIN_FIT_R2,
+  MIN_FIT_SAMPLES,
   MIN_SPEED_KPH,
+  MIN_SPEED_SPREAD_KPH,
   MIN_STEER_DEG,
   NEUTRAL_PCT,
+  RATIO_AGREE_PCT,
   SLIGHT_PCT,
   balanceHtml,
   balanceLabel,
@@ -12,11 +16,17 @@ import {
   balanceSummary,
   balanceTableHtml,
   cornerBalance,
+  estimateSteeringRatio,
   fmtBalance,
+  fmtSteeringRatio,
   hasBalanceData,
+  measuredRatioLine,
+  measuredRatioValue,
   median,
+  ratioAgrees,
   referenceGain,
   sessionBalance,
+  steeringFit,
   usableAt,
   yawGain,
   yawSign,
@@ -201,6 +211,134 @@ describe("balanceSummary", () => {
     // Three or fewer are named.
     const few = { laps: [{ speed: many.laps[0].speed.slice(0, 36), steering: st.slice(0, 36), latG: lg.slice(0, 36), yaw: yw.slice(0, 36) }] };
     expect(balanceSummary(few)).toBe("understeer in T2, T4, T6 and oversteer in T1, T3, T5");
+  });
+});
+
+// A lap generated *from* the bicycle model — yaw = v·(δ/R) / (L·(1 + K·v²)),
+// v in m/s — with a known ratio R, wheelbase L and understeer gradient K,
+// which the fit must recover. Speeds sweep the corners so the slope in v² is
+// there to fit; steering alternates sides so both hands of the sign are in it.
+const bicycleLap = ({ ratio, wheelbaseM, K, n = 24, kphFrom = 60, kphTo = 175, noise = () => 0 }) => {
+  const speed = [], steering = [], yaw = [];
+  for (let k = 0; k < n; k++) {
+    const kph = kphFrom + ((kphTo - kphFrom) * k) / (n - 1);
+    const v = kph / 3.6;
+    const deg = (15 + (k % 5) * 10) * (k % 2 ? -1 : 1);
+    speed.push(kph);
+    steering.push(deg);
+    yaw.push((v * (deg / ratio)) / (wheelbaseM * (1 + K * v * v)) + noise(k));
+  }
+  return { n: 1, timeMs: 100_000, speed, steering, yaw };
+};
+const R = 16.25, L = 2.71, KUS = 0.0014;
+const modelLap = bicycleLap({ ratio: R, wheelbaseM: L, K: KUS });
+const modelChannels = { v: 1, dStepM: 20, laps: [modelLap] };
+
+describe("steeringFit", () => {
+  it("recovers the low-speed gain and the understeer gradient from a bicycle-model lap", () => {
+    const fit = steeringFit(modelChannels);
+    expect(fit.samples).toBe(24);
+    expect(fit.gain0).toBeCloseTo(1 / (R * L), 9);
+    expect(fit.K).toBeCloseTo(KUS, 9);
+    expect(fit.r2).toBeCloseTo(1, 9);
+  });
+  it("reads the same car off a recorder whose yaw opposes its steering", () => {
+    const flipped = { laps: [{ ...modelLap, yaw: modelLap.yaw.map((y) => -y) }] };
+    expect(steeringFit(flipped).gain0).toBeCloseTo(1 / (R * L), 9);
+    expect(steeringFit(flipped).K).toBeCloseTo(KUS, 9);
+  });
+  it("separates the ratio from the average understeer, which the median cannot", () => {
+    // The session median gain is pulled below 1/(R·L) by the understeer term;
+    // the fit's intercept is not.
+    expect(referenceGain(modelChannels)).toBeLessThan(1 / (R * L) * 0.9);
+    expect(steeringFit(modelChannels).gain0).toBeCloseTo(1 / (R * L), 9);
+  });
+  it("pools every readable lap of the session", () => {
+    const two = { laps: [modelLap, { ...modelLap, n: 2 }] };
+    expect(steeringFit(two).samples).toBe(48);
+    expect(steeringFit(two).gain0).toBeCloseTo(1 / (R * L), 9);
+  });
+  it("is null at one speed — nothing to fit a slope to", () => {
+    const flat = bicycleLap({ ratio: R, wheelbaseM: L, K: KUS, kphFrom: 100, kphTo: 100 });
+    expect(steeringFit({ laps: [flat] })).toBeNull();
+    const narrow = bicycleLap({ ratio: R, wheelbaseM: L, K: KUS, kphFrom: 100, kphTo: 100 + MIN_SPEED_SPREAD_KPH - 0.1 });
+    expect(steeringFit({ laps: [narrow] })).toBeNull();
+    const justEnough = bicycleLap({ ratio: R, wheelbaseM: L, K: KUS, kphFrom: 100, kphTo: 100 + MIN_SPEED_SPREAD_KPH });
+    expect(steeringFit({ laps: [justEnough] })).not.toBeNull();
+  });
+  it("is null under the sample floor, and only usable samples count toward it", () => {
+    expect(steeringFit({ laps: [bicycleLap({ ratio: R, wheelbaseM: L, K: KUS, n: MIN_FIT_SAMPLES - 1 })] })).toBeNull();
+    expect(steeringFit({ laps: [bicycleLap({ ratio: R, wheelbaseM: L, K: KUS, n: MIN_FIT_SAMPLES })] })).not.toBeNull();
+    // Straight-line samples are in the arrays but not in the fit.
+    const padded = { ...modelLap, speed: [...modelLap.speed, 120, 120], steering: [...modelLap.steering, 0, 0], yaw: [...modelLap.yaw, 0, 0] };
+    expect(steeringFit({ laps: [padded] }).samples).toBe(24);
+  });
+  it("is null without the channels, and with rotation the wrong way", () => {
+    expect(steeringFit({ laps: [{ speed: [1] }] })).toBeNull();
+    expect(steeringFit(null)).toBeNull();
+    // A car that rotates against the steering on average has a negative gain.
+    expect(steeringFit({ laps: [{ ...modelLap, yaw: modelLap.yaw.map(() => 0) }] })).toBeNull();
+  });
+  it("reports how much of the yaw the model explains", () => {
+    const noisy = bicycleLap({ ratio: R, wheelbaseM: L, K: KUS, noise: (k) => ((k * 7) % 5 - 2) * 4 });
+    const fit = steeringFit({ laps: [noisy] });
+    expect(fit.r2).toBeGreaterThan(0);
+    expect(fit.r2).toBeLessThan(1);
+    // A rack whose ratio changes with lock doesn't fit one line.
+    const variable = bicycleLap({ ratio: R, wheelbaseM: L, K: KUS });
+    variable.yaw = variable.yaw.map((y, k) => (Math.abs(variable.steering[k]) > 35 ? y * 1.6 : y));
+    expect(steeringFit({ laps: [variable] }).r2).toBeLessThan(steeringFit(modelChannels).r2);
+  });
+});
+
+describe("estimateSteeringRatio", () => {
+  const fitA = steeringFit(modelChannels);
+  const fitB = { gain0: fitA.gain0 * 1.1, K: KUS, samples: 30, r2: 0.95 };
+  const fitC = { gain0: fitA.gain0 * 0.8, K: KUS, samples: 30, r2: 0.7 };
+  it("is the median ratio across the sessions that fit, given the wheelbase", () => {
+    expect(estimateSteeringRatio([fitA], 2710).ratio).toBeCloseTo(R, 6);
+    const est = estimateSteeringRatio([fitA, fitB, null, fitC], 2710);
+    expect(est.sessions).toBe(3);
+    expect(est.ratio).toBeCloseTo(R, 6); // A is the middle of A, B (lower ratio), C (higher)
+    expect(est.r2).toBeCloseTo(0.95, 9);
+  });
+  it("needs a wheelbase and at least one fit", () => {
+    expect(estimateSteeringRatio([fitA], null)).toBeNull();
+    expect(estimateSteeringRatio([fitA], 0)).toBeNull();
+    expect(estimateSteeringRatio([], 2710)).toBeNull();
+    expect(estimateSteeringRatio([null], 2710)).toBeNull();
+    expect(estimateSteeringRatio(null, 2710)).toBeNull();
+  });
+});
+
+describe("measuredRatioLine", () => {
+  const est = { ratio: 15.8321, sessions: 6, r2: 0.96 };
+  it("says the number, and the count it came from", () => {
+    expect(measuredRatioLine(est, null)).toBe("Measured from 6 sessions: 15.8:1");
+    expect(measuredRatioLine({ ...est, sessions: 1 }, null)).toBe("Measured from 1 session: 15.8:1");
+    expect(measuredRatioLine(null, 12)).toBeNull();
+  });
+  it("becomes the sanity check when the field has a number", () => {
+    expect(measuredRatioLine(est, 15.7)).toBe("Measured from 6 sessions: 15.8:1 — matches");
+    expect(measuredRatioLine(est, 12)).toBe("Measured from 6 sessions: 15.8:1 — your 12:1 is well off this; check the units");
+    expect(measuredRatioLine(est, 16.25)).toBe("Measured from 6 sessions: 15.8:1 — matches");
+    expect(ratioAgrees(est, est.ratio * (1 + (RATIO_AGREE_PCT - 0.01) / 100))).toBe(true);
+    expect(ratioAgrees(est, est.ratio * (1 + (RATIO_AGREE_PCT + 0.01) / 100))).toBe(false);
+    expect(ratioAgrees(est, null)).toBe(false);
+  });
+  it("says so when the sessions don't fit one ratio", () => {
+    expect(measuredRatioLine({ ...est, r2: MIN_FIT_R2 - 0.01 }, null)).toBe(
+      "Measured from 6 sessions: 15.8:1 (varies with speed — a single ratio is approximate)"
+    );
+    expect(measuredRatioLine({ ...est, r2: MIN_FIT_R2 }, 12)).toBe(
+      "Measured from 6 sessions: 15.8:1 — your 12:1 is well off this; check the units"
+    );
+  });
+  it("writes the field to its own two decimals", () => {
+    expect(measuredRatioValue(est)).toBe(15.83);
+    expect(fmtSteeringRatio(16.25)).toBe("16.25");
+    expect(fmtSteeringRatio(15.7)).toBe("15.7");
+    expect(fmtSteeringRatio(12)).toBe("12");
   });
 });
 

@@ -173,6 +173,15 @@
       "source": "src/routes/vehicles.ts"
     },
     {
+      "name": "vehicle-steering-fit",
+      "file": "vehicle-steering-fit.json",
+      "method": "GET",
+      "path": "/vehicles/:id/steering-fit",
+      "status": 200,
+      "description": "The per-session steering fits behind the vehicle form's measured-ratio line (#223): steeringFit over the car's most recent channel-carrying sessions, newest first, only those that fit. The client pools them against the wheelbase in the form.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
       "name": "garage",
       "file": "garage.json",
       "method": "GET",

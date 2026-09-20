@@ -9,6 +9,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -257,6 +258,163 @@ class BalanceTest {
     }
 
     // ---- cross-language pin ------------------------------------------------
+
+    // ---- steering ratio and understeer gradient, measured (#223) -----------------
+
+    /**
+     * A lap generated *from* the bicycle model — yaw = v·(δ/R) / (L·(1 + K·v²)) —
+     * with a known ratio, wheelbase and understeer gradient the fit must recover.
+     */
+    private fun bicycleLap(
+        ratio: Double = 16.25,
+        wheelbaseM: Double = 2.71,
+        k: Double = 0.0014,
+        n: Int = 24,
+        kphFrom: Double = 60.0,
+        kphTo: Double = 175.0,
+        noise: (Int) -> Double = { 0.0 },
+    ): LapChannels {
+        val speed = ArrayList<Double>()
+        val steering = ArrayList<Double>()
+        val yaw = ArrayList<Double>()
+        for (i in 0 until n) {
+            val kph = kphFrom + ((kphTo - kphFrom) * i) / (n - 1)
+            val vv = kph / 3.6
+            val deg = (15 + (i % 5) * 10) * (if (i % 2 == 1) -1.0 else 1.0)
+            speed.add(kph)
+            steering.add(deg)
+            yaw.add((vv * (deg / ratio)) / (wheelbaseM * (1 + k * vv * vv)) + noise(i))
+        }
+        return LapChannels(n = 1, timeMs = 100_000, speed = speed, steering = steering, yaw = yaw)
+    }
+
+    @Test
+    fun `recovers the gain and gradient from a bicycle-model lap`() {
+        val fit = Balance.steeringFit(sessionOf(bicycleLap()))!!
+        assertEquals(24, fit.samples)
+        assertEquals(1 / (16.25 * 2.71), fit.gain0, 1e-9)
+        assertEquals(0.0014, fit.k, 1e-9)
+        assertEquals(1.0, fit.r2, 1e-9)
+        // Off a recorder whose yaw opposes its steering, the same car.
+        val flipped = bicycleLap().let { it.copy(yaw = it.yaw!!.map { y -> -y }) }
+        assertEquals(fit.gain0, Balance.steeringFit(sessionOf(flipped))!!.gain0, 1e-9)
+        // The session median is pulled below 1/(R·L) by the understeer; the
+        // fit's intercept is not.
+        assertTrue(Balance.referenceGain(sessionOf(bicycleLap()))!! < fit.gain0 * 0.9)
+        // Two laps pool.
+        assertEquals(48, Balance.steeringFit(sessionOf(bicycleLap(), bicycleLap()))!!.samples)
+    }
+
+    @Test
+    fun `is null at one speed, under the sample floor, or without the channels`() {
+        assertNull(Balance.steeringFit(sessionOf(bicycleLap(kphFrom = 100.0, kphTo = 100.0))))
+        assertNull(Balance.steeringFit(sessionOf(bicycleLap(kphFrom = 100.0, kphTo = 100.0 + Balance.MIN_SPEED_SPREAD_KPH - 0.1))))
+        assertNotNull(Balance.steeringFit(sessionOf(bicycleLap(kphFrom = 100.0, kphTo = 100.0 + Balance.MIN_SPEED_SPREAD_KPH))))
+        assertNull(Balance.steeringFit(sessionOf(bicycleLap(n = Balance.MIN_FIT_SAMPLES - 1))))
+        assertNotNull(Balance.steeringFit(sessionOf(bicycleLap(n = Balance.MIN_FIT_SAMPLES))))
+        assertNull(Balance.steeringFit(sessionOf(LapChannels(n = 1, timeMs = 0, speed = listOf(1.0)))))
+        assertNull(Balance.steeringFit(null))
+        assertNull(Balance.steeringFit(sessionOf(bicycleLap().let { it.copy(yaw = it.yaw!!.map { 0.0 }) })))
+    }
+
+    @Test
+    fun `pools sessions into one ratio given the wheelbase`() {
+        val fitA = Balance.steeringFit(sessionOf(bicycleLap()))!!
+        val fitB = Balance.Fit(gain0 = fitA.gain0 * 1.1, k = 0.0014, samples = 30, r2 = 0.95)
+        val fitC = Balance.Fit(gain0 = fitA.gain0 * 0.8, k = 0.0014, samples = 30, r2 = 0.7)
+        val est = Balance.estimateSteeringRatio(listOf(fitA, fitB, null, fitC), 2710)!!
+        assertEquals(3, est.sessions)
+        assertEquals(16.25, est.ratio, 1e-6)
+        assertEquals(0.95, est.r2, 1e-9)
+        assertNull(Balance.estimateSteeringRatio(listOf(fitA), null))
+        assertNull(Balance.estimateSteeringRatio(listOf(fitA), 0))
+        assertNull(Balance.estimateSteeringRatio(emptyList(), 2710))
+        assertNull(Balance.estimateSteeringRatio(listOf(null), 2710))
+        assertNull(Balance.estimateSteeringRatio(null, 2710))
+    }
+
+    @Test
+    fun `words the measured line`() {
+        val est = Balance.RatioEstimate(ratio = 15.8321, sessions = 6, r2 = 0.96)
+        assertEquals("Measured from 6 sessions: 15.8:1", Balance.measuredRatioLine(est, null))
+        assertEquals("Measured from 1 session: 15.8:1", Balance.measuredRatioLine(est.copy(sessions = 1), null))
+        assertNull(Balance.measuredRatioLine(null, 12.0))
+        assertEquals("Measured from 6 sessions: 15.8:1 — matches", Balance.measuredRatioLine(est, 15.7))
+        assertEquals(
+            "Measured from 6 sessions: 15.8:1 — your 12:1 is well off this; check the units",
+            Balance.measuredRatioLine(est, 12.0),
+        )
+        assertEquals(
+            "Measured from 6 sessions: 15.8:1 (varies with speed — a single ratio is approximate)",
+            Balance.measuredRatioLine(est.copy(r2 = 0.5), null),
+        )
+        assertEquals(15.83, Balance.measuredRatioValue(est), 0.0)
+        assertEquals("16.25", Balance.fmtSteeringRatio(16.25))
+        assertEquals("15.7", Balance.fmtSteeringRatio(15.7))
+        assertEquals("12", Balance.fmtSteeringRatio(12.0))
+        assertFalse(Balance.ratioAgrees(est, null))
+    }
+
+    /**
+     * The `steering` half of the fixture: the JS fit's doubles to 1e-9 and its
+     * wording exactly, including every null.
+     */
+    @Test
+    fun `matches the JavaScript steering fit on a shared fixture`() {
+        val json = Json { ignoreUnknownKeys = false }
+        val fixture = Json.parseToJsonElement(
+            RepoRoot.path("contracts/logic/balance.json").readText(),
+        ).jsonObject
+        val input = fixture["input"]!!.jsonObject["steering"]!!.jsonObject
+        val expected = fixture["expected"]!!.jsonObject["steering"]!!.jsonObject
+
+        val sessions = json.decodeFromJsonElement<Map<String, SessionChannels>>(input["sessions"]!!)
+        val wantFits = json.decodeFromJsonElement<Map<String, Balance.Fit?>>(expected["fits"]!!)
+        assertEquals(sessions.keys, wantFits.keys)
+        for ((name, channels) in sessions) {
+            val got = Balance.steeringFit(channels)
+            val want = wantFits[name]
+            if (want == null) {
+                assertNull(got, "$name should not fit")
+                continue
+            }
+            assertNotNull(got, "$name should fit")
+            assertEquals(want.samples, got!!.samples, "$name samples")
+            assertEquals(want.gain0, got.gain0, 1e-9, "$name gain0")
+            assertEquals(want.k, got.k, 1e-9, "$name K")
+            assertEquals(want.r2, got.r2, 1e-9, "$name r2")
+        }
+
+        val poolFits = json.decodeFromJsonElement<List<Balance.Fit?>>(input["poolFits"]!!)
+        val wheelbaseMm = input["wheelbaseMm"]!!.jsonPrimitive.content.toInt()
+        val wantPooled = json.decodeFromJsonElement<Balance.RatioEstimate>(expected["pooled"]!!)
+        val pooled = Balance.estimateSteeringRatio(poolFits, wheelbaseMm)!!
+        assertEquals(wantPooled.sessions, pooled.sessions)
+        assertEquals(wantPooled.ratio, pooled.ratio, 1e-9)
+        assertEquals(wantPooled.r2, pooled.r2, 1e-9)
+        val wantOne = json.decodeFromJsonElement<Balance.RatioEstimate>(expected["pooledOneSession"]!!)
+        assertEquals(wantOne.ratio, Balance.estimateSteeringRatio(listOf(poolFits[0]), wheelbaseMm)!!.ratio, 1e-9)
+        assertTrue(expected["noWheelbase"] is kotlinx.serialization.json.JsonNull)
+        assertNull(Balance.estimateSteeringRatio(poolFits, null))
+        assertTrue(expected["noFits"] is kotlinx.serialization.json.JsonNull)
+        assertNull(Balance.estimateSteeringRatio(listOf(null), wheelbaseMm))
+
+        val est = json.decodeFromJsonElement<Balance.RatioEstimate>(input["lineEstimate"]!!)
+        val typed = json.decodeFromJsonElement<List<Double?>>(input["typed"]!!)
+        assertEquals(
+            json.decodeFromJsonElement<List<String?>>(expected["lines"]!!),
+            typed.map { Balance.measuredRatioLine(est, it) },
+        )
+        assertEquals(expected["looseLine"]!!.jsonPrimitive.content, Balance.measuredRatioLine(est.copy(r2 = 0.5), null))
+        assertEquals(expected["looseOffLine"]!!.jsonPrimitive.content, Balance.measuredRatioLine(est.copy(r2 = 0.5), 12.0))
+        assertEquals(expected["oneSessionLine"]!!.jsonPrimitive.content, Balance.measuredRatioLine(est.copy(sessions = 1), null))
+        assertTrue(expected["noEstimateLine"] is kotlinx.serialization.json.JsonNull)
+        assertEquals(expected["value"]!!.jsonPrimitive.content.toDouble(), Balance.measuredRatioValue(est), 0.0)
+        assertEquals(
+            json.decodeFromJsonElement<List<String>>(expected["formatted"]!!),
+            listOf(16.25, 15.7, 12.0, 15.8321).map(Balance::fmtSteeringRatio),
+        )
+    }
 
     /** One corner of the fixture's `sessionBalance` — the corner keys, then the
      * per-lap readings and the pooled one. `laps` is the readings array here:

@@ -9,6 +9,7 @@ import app.trackevolution.core.model.CreatedTrack
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.SteeringFits
 import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
@@ -88,6 +89,7 @@ class GoldenContractTest {
             "car-catalog" -> roundTrip(entry.name, ListSerializer(CatalogCar.serializer()))
             "vehicles-list" -> roundTrip(entry.name, ListSerializer(Vehicle.serializer()))
             "garage" -> roundTrip(entry.name, ListSerializer(GarageVehicle.serializer()))
+            "vehicle-steering-fit" -> roundTrip(entry.name, SteeringFits.serializer())
             "share-public" -> roundTrip(entry.name, ShareData.serializer())
             "track-create" -> roundTrip(entry.name, CreatedTrack.serializer())
             "vehicle-create" -> roundTrip(entry.name, Vehicle.serializer())
