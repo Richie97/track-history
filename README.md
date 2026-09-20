@@ -738,7 +738,22 @@ model — expected yaw = v·δ/L — which needs the wheelbase and the steering
 ratio, neither of which is stored (and the ratio is non-linear with lock on
 some cars), so v1 takes the session's own median yaw-per-degree-per-speed
 over every cornering sample as this car's typical response and reads each
-corner against it. A car that pushes in every corner therefore reads neutral
+corner against it. The same channels can *measure* the missing number, though
+(#223): with the understeer term in, the steady-state gain is
+1/(ratio·L·(1 + K·v²)), so `steeringFit` in `balance.js` fits that model over
+a session's usable samples — solved as v·δ against yaw and v²·yaw rather than
+as 1/gain against v², because on the 20 m grid yaw passes through zero while
+the wheel is already turned and one such sample would set a line fitted in
+1/gain — and gives back the low-speed gain (the ratio, once the wheelbase is
+known) and the understeer gradient `K`, which is exactly what the session
+median cannot separate: it is biased low by the understeer the view exists to
+show. `null` under `MIN_FIT_SAMPLES` or `MIN_SPEED_SPREAD_KPH` of speed
+spread, since a session at one speed has no slope. `estimateSteeringRatio`
+pools several sessions' fits as a median, and `measuredRatioLine` words the
+result for the vehicle form (see *Vehicles* below). Ported as the same names
+to the Kit and `:core`, pinned by `balance.json`'s `steering` half, whose
+`model` lap is generated from the bicycle model with a known ratio and `K`
+that the fit must give back exactly. A car that pushes in every corner therefore reads neutral
 in every corner; what the view finds is the corner that behaves differently
 from the rest. Two other data facts are built in: the recorder's yaw and
 steering sign conventions aren't ours and may oppose, so their alignment is
@@ -1014,7 +1029,22 @@ doesn't retain the previous user's logbook.
   the two numbers *at pick time*; after that they are the user's — a
   corrected value stays, and a later catalog fix never rewrites a car.
   The catalog is generated from cited inputs by `seed/cars/generate.mjs`
-  (see `seed/cars/README.md`); a car it lacks is typed by hand. On every client
+  (see `seed/cars/README.md`); a car it lacks is typed by hand — or
+  **measured** (#223): `GET /api/vehicles/:id/steering-fit` fits the bicycle
+  model to the car's most recent channel-carrying sessions (`steeringFit` in
+  `src/lib/steering.ts`, the server mirror of `public/js/balance.js`; up to
+  `MAX_FIT_SESSIONS` = 8, newest first, Pro like the rest of the garage) and
+  answers one `{ gain0, K, samples, r2 }` per session that fits. Every
+  vehicle form pools them with `estimateSteeringRatio` against the wheelbase
+  *in the form* and shows one line under the steering-ratio field —
+  *"Measured from 6 sessions: 15.8:1"* with a **Use this** button that writes
+  the field (never the row) — which turns into the typo check *"— matches"* /
+  *"— your 12:1 is well off this; check the units"* once the field holds a
+  number, and carries *"varies with speed — a single ratio is approximate"*
+  when the sessions' r² sits under `MIN_FIT_R2`. Nothing to measure from means
+  no line, not "not enough data". The understeer gradient `K` the same fit
+  yields is computed and pinned but not yet shown (that read-out is #189's
+  follow-up). On every client
   the pick is **one searchable field** on the vehicle forms (#222) — type "c7",
   "corvette" or "chevrolet corvette 2017" and the matching generations list as
   "Chevrolet Corvette · C7 · 2014–2019" — rather than year → make → model

@@ -8,6 +8,7 @@ import app.trackevolution.core.Garage
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.CatalogCar
+import app.trackevolution.core.model.SteeringFit
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
@@ -59,6 +60,14 @@ class VehicleModel(
     var catalogError by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * The car's per-session steering fits (#223), fetched with the catalog when
+     * the *Edit car* form opens. Null until they arrive and null when the read
+     * fails — the measured line is then absent, never an error.
+     */
+    var steeringFits by mutableStateOf<List<SteeringFit>?>(null)
+        private set
+
     fun load() {
         scope.launch {
             try {
@@ -99,6 +108,17 @@ class VehicleModel(
                 catalog = api.carCatalog()
             } catch (e: ApiException) {
                 catalogError = e.message ?: "Couldn't load the car catalog."
+            }
+        }
+    }
+
+    fun loadSteeringFits() {
+        if (steeringFits != null) return
+        scope.launch {
+            try {
+                steeringFits = api.steeringFits(vehicleId).fits
+            } catch (_: ApiException) {
+                // Nothing to measure from is the same as nothing measured.
             }
         }
     }

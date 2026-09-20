@@ -3,6 +3,7 @@ import type { AppContext } from "../types";
 import { requireEntitlement } from "../middleware";
 import { type VehicleHoursEvent, vehicleHoursEventsStmt } from "../db";
 import { isValidDate, isValidPartKind, isValidSteeringRatio, isValidWheelbaseMm } from "../lib/validate";
+import { MAX_FIT_SESSIONS, steeringFit } from "../lib/steering";
 import { wearEstimate } from "../lib/wear";
 
 // The user's garage (Settings → Vehicles). Vehicles feed the event form's
@@ -218,6 +219,45 @@ vehicles.delete("/vehicles/:id", async (c) => {
     .run();
   if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
+});
+
+// ---------- the measured steering ratio (#223) --------------------------------
+
+// The per-session steering fits behind the vehicle form's "Measured from 6
+// sessions: 15.8:1" line: `steeringFit` (lib/steering.ts, the mirror of
+// public/js/balance.js) over the car's most recent MAX_FIT_SESSIONS sessions
+// that stored channels, newest first, keeping only the ones that fit. The
+// client pools them with `estimateSteeringRatio` against the wheelbase *in the
+// form* — which may not be the stored one yet — so the ratio is not computed
+// here. Its own route rather than a field on GET /garage: the dashboard reads
+// the garage on every load, and eight channel blobs per car is a read worth
+// making only when the form that shows the line is open. Pro, like the rest
+// of the garage. A foreign vehicle is a 404, the same as everywhere else.
+vehicles.get("/vehicles/:id/steering-fit", requireEntitlement, async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const db = c.env.DB;
+  const [owned, sessionRes] = await db.batch([
+    db.prepare("SELECT id FROM vehicles WHERE id = ? AND user_id = ?").bind(id, userId),
+    db
+      .prepare(
+        `SELECT s.id AS session_id, s.event_id, e.start_date, s.channels
+         FROM sessions s JOIN events e ON e.id = s.event_id
+         WHERE e.user_id = ?1 AND e.vehicle_id = ?2 AND s.channels IS NOT NULL
+         ORDER BY e.start_date DESC, s.id DESC
+         LIMIT ?3`
+      )
+      .bind(userId, id, MAX_FIT_SESSIONS),
+  ]);
+  if (!owned.results.length) return c.json({ error: "not found" }, 404);
+  const rows = sessionRes.results as { session_id: number; event_id: number; start_date: string; channels: string }[];
+  const fits = [];
+  for (const row of rows) {
+    const fit = steeringFit(JSON.parse(row.channels));
+    if (!fit) continue;
+    fits.push({ session_id: row.session_id, event_id: row.event_id, start_date: row.start_date, ...fit });
+  }
+  return c.json({ fits });
 });
 
 // ---------- garage: consumable parts + wear -----------------------------------

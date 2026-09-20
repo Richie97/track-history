@@ -829,6 +829,10 @@ struct VehicleFormSheet: View {
     @State private var saving = false
     @State private var loaded = false
     @State private var error: String?
+    /// The car's per-session steering fits (#223), fetched when the sheet
+    /// opens; empty until then, and empty when the read fails — the measured
+    /// line is then absent, never an error.
+    @State private var steeringFits: [SteeringFit] = []
 
     var body: some View {
         NavigationStack {
@@ -890,6 +894,9 @@ struct VehicleFormSheet: View {
                                 use: { steering = CatalogCarPicker.fmtRatio(ask) }
                             ) { steeringAsk = nil }
                         }
+                        if let measured, let line = Balance.measuredRatioLine(measured, typed: typedRatio) {
+                            measuredRow(line, measured)
+                        }
 
                         if let pick {
                             // Where the numbers came from, so the driver knows
@@ -944,6 +951,48 @@ struct VehicleFormSheet: View {
             guard let id = vehicle.catalogId, pick == nil else { return }
             if let rows = try? await api.carCatalog() {
                 pick = rows.first { $0.id == id }
+            }
+        }
+        .task {
+            // The measured steering ratio's inputs (#223). Its own read — the
+            // server fits the car's recent session blobs to answer it — made
+            // when the form opens rather than with the page.
+            steeringFits = (try? await api.steeringFits(vehicleId: vehicle.id))?.fits ?? []
+        }
+    }
+
+    // MARK: - The measured steering ratio (#223)
+
+    /// The car's recent sessions' fits pooled against the wheelbase *in the
+    /// form*, so the line follows both fields as they are typed.
+    private var measured: Balance.RatioEstimate? {
+        Balance.estimateSteeringRatio(
+            steeringFits.map(\.fit),
+            wheelbaseMm: Int(wheelbase.trimmingCharacters(in: .whitespaces))
+        )
+    }
+
+    private var typedRatio: Double? {
+        Double(steering.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "."))
+    }
+
+    /// One line under the steering-ratio field. With the field empty it offers
+    /// the number; with a number in it, it is the typo check ("— matches" /
+    /// "well off this; check the units"). "Use this" writes the field, never
+    /// the row — the driver still saves.
+    private func measuredRow(_ line: String, _ estimate: Balance.RatioEstimate) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(line)
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+                .accessibilityIdentifier("measuredRatio")
+            if !Balance.ratioAgrees(estimate, typedRatio) {
+                Button("Use this") {
+                    steering = Balance.fmtSteeringRatio(Balance.measuredRatioValue(estimate))
+                }
+                .teStyle(.xs)
+                .foregroundStyle(Color(.accentInk))
+                .accessibilityIdentifier("useMeasuredRatio")
             }
         }
     }

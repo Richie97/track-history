@@ -246,6 +246,154 @@ export function balanceSummary(channels) {
   return parts.length ? parts.join(" and ") : "balance neutral";
 }
 
+// --- steering ratio and understeer gradient, measured (#223) ----------------
+//
+// No API carries a steering ratio, so for a car the catalog doesn't cover
+// #208 asks the driver for a number they have to go and look up — and a car
+// whose number is *wrong* is worse than one with none. But the recording
+// already holds the measurement that number falls out of. The bicycle model's
+// steady-state yaw rate is
+//
+//     r = v · δ / (L · (1 + K·v²))        δ = steering_deg / ratio
+//
+// so the per-sample yaw gain `yawGain` = r / (steering_deg · v) is
+// 1 / (ratio · L · (1 + K·v²)). At low speed the understeer term vanishes and
+// the gain is 1/(ratio·L): given the wheelbase — the easy number — the ratio
+// is 1/(gain₀·L). And the way the gain falls with speed is the understeer
+// gradient K, which is what separates the ratio from the car's average
+// understeer — the session median `referenceGain` is biased low by exactly the
+// understeer the balance view exists to show.
+//
+// The textbook fit is 1/gain against v²: intercept ratio·L, slope ratio·L·K.
+// That model is exactly linear in its two unknowns — but per-sample 1/gain is
+// v·δ ÷ yaw, and on the 20 m grid yaw lags steering at corner entry and
+// passes through zero while the wheel is already turned, so 1/gain is
+// unbounded there and one such sample would set the whole line. The same
+// equation multiplied through by yaw,
+//
+//     v·δ = A · (yaw·sign) + B · (v² · yaw·sign)       A = ratio·L,  B = ratio·L·K
+//
+// keeps the two unknowns linear with nothing divided by yaw: a least squares
+// of the steering input the model predicts, over the usable samples
+// (`usableAt`'s bounds), recovers the same intercept and slope, and a sample
+// whose yaw is still zero contributes a bounded residual rather than an
+// infinite one. The yaw/steering sign stays *measured* (`yawSign`), as
+// everywhere in this file. `K` is in the (1 + K·v²) form with v in m/s
+// (s²/m²); the understeer gradient in °/g is a display conversion for the
+// ticket that shows it, not this one — here K is computed and pinned, not
+// shown.
+
+// Fewer usable samples than this and the fit is a guess; a single lap at a
+// full-size circuit carries several times as many.
+export const MIN_FIT_SAMPLES = 20;
+
+// A session driven at one speed has no slope to fit — the two regressors are
+// then collinear — so the usable samples must span at least this much speed.
+export const MIN_SPEED_SPREAD_KPH = 40;
+
+// Below this share of the yaw explained, the car doesn't fit one ratio — a
+// variable-ratio or speed-sensitive rack — and the measured line says so.
+export const MIN_FIT_R2 = 0.8;
+
+// A typed ratio within this much of the measured one "matches"; further off,
+// the line says to check it.
+export const RATIO_AGREE_PCT = 10;
+
+// The fit over one session's usable samples: { gain0, K, samples, r2 } —
+// gain₀ = 1/A the low-speed yaw gain (1/m), K = B/A the understeer gradient
+// (s²/m²), the sample count, and the uncentred r² of the steering input the
+// model explains, clamped to [0, 1]. null under MIN_FIT_SAMPLES, under
+// MIN_SPEED_SPREAD_KPH of speed spread, or when the normal equations are
+// singular or give a non-positive A. Ported as `steeringFit`; the operation
+// order below is the one the ports reproduce.
+export function steeringFit(channels) {
+  const sign = yawSign(channels);
+  let s11 = 0, s12 = 0, s22 = 0, t1 = 0, t2 = 0, szz = 0, n = 0;
+  let vMin = Infinity, vMax = -Infinity;
+  for (const { entry } of balanceLaps(channels)) {
+    const len = usableLength(entry);
+    for (let k = 0; k < len; k++) {
+      if (!usableAt(entry, k)) continue;
+      const kph = entry.speed[k];
+      const v = kph * KPH_TO_MPS;
+      const u1 = entry.yaw[k] * sign;
+      const u2 = v * v * u1;
+      const z = v * entry.steering[k];
+      s11 += u1 * u1;
+      s12 += u1 * u2;
+      s22 += u2 * u2;
+      t1 += u1 * z;
+      t2 += u2 * z;
+      szz += z * z;
+      n++;
+      if (kph < vMin) vMin = kph;
+      if (kph > vMax) vMax = kph;
+    }
+  }
+  if (n < MIN_FIT_SAMPLES || vMax - vMin < MIN_SPEED_SPREAD_KPH) return null;
+  const det = s11 * s22 - s12 * s12;
+  if (!(det > 0)) return null;
+  const A = (t1 * s22 - t2 * s12) / det;
+  const B = (t2 * s11 - t1 * s12) / det;
+  if (!(A > 0)) return null;
+  const ssRes = szz - 2 * (A * t1 + B * t2) + (A * A * s11 + 2 * A * B * s12 + B * B * s22);
+  const r2 = szz > 0 ? Math.min(1, Math.max(0, 1 - ssRes / szz)) : 0;
+  return { gain0: 1 / A, K: B / A, samples: n, r2 };
+}
+
+// Several sessions' fits pooled into one steering ratio for a car of
+// wheelbase `wheelbaseMm`: { ratio, sessions, r2 } — the median of
+// 1/(gain₀·L) across the sessions that fit, so one damp session doesn't set
+// the number, the count, and the median r². null without a wheelbase (there
+// is nothing to compute) or without a fit; nulls in `fits` are skipped.
+export function estimateSteeringRatio(fits, wheelbaseMm) {
+  if (!(wheelbaseMm > 0)) return null;
+  const L = wheelbaseMm / 1000;
+  const usable = (fits ?? []).filter((f) => f && f.gain0 > 0);
+  if (!usable.length) return null;
+  return {
+    ratio: median(usable.map((f) => 1 / (f.gain0 * L))),
+    sessions: usable.length,
+    r2: median(usable.map((f) => f.r2)),
+  };
+}
+
+// A ratio as the form shows it: two decimals, trailing zeros dropped —
+// "16.25", "15.7", "12".
+export function fmtSteeringRatio(ratio) {
+  return String(Number(ratio.toFixed(2)));
+}
+
+// The value "Use this" writes into the field: the measured ratio to the
+// field's own two decimals.
+export function measuredRatioValue(estimate) {
+  return Math.round(estimate.ratio * 100) / 100;
+}
+
+// Whether a typed ratio agrees with the measured one, within RATIO_AGREE_PCT.
+export function ratioAgrees(estimate, typedRatio) {
+  if (typedRatio == null) return false;
+  return (Math.abs(typedRatio - estimate.ratio) / estimate.ratio) * 100 <= RATIO_AGREE_PCT;
+}
+
+// The one line under the steering-ratio field: "Measured from 6 sessions:
+// 15.8:1", with "— matches" or "— your 12:1 is well off this; check the units"
+// when the field holds a number, and a caveat when the sessions don't fit one
+// ratio. null when nothing can be measured yet — the line is then absent, not
+// "not enough data".
+export function measuredRatioLine(estimate, typedRatio) {
+  if (!estimate) return null;
+  const n = estimate.sessions;
+  let line = `Measured from ${n} session${n === 1 ? "" : "s"}: ${estimate.ratio.toFixed(1)}:1`;
+  if (estimate.r2 < MIN_FIT_R2) line += " (varies with speed — a single ratio is approximate)";
+  if (typedRatio != null) {
+    line += ratioAgrees(estimate, typedRatio)
+      ? " — matches"
+      : ` — your ${fmtSteeringRatio(typedRatio)}:1 is well off this; check the units`;
+  }
+  return line;
+}
+
 // --- web rendering (not ported) --------------------------------------------
 
 // Distances read in the account's unit system (js/units.js).

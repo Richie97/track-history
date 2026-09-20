@@ -78,12 +78,16 @@ struct ModelTests {
             #expect(session.laps.map(\.lapNum) == Array(1...session.laps.count))
         }
 
-        // The imported session carries a trace and channels; the others don't.
+        // Two sessions carry channels — the imported one with its trace, and the
+        // steering-fit fixture's bicycle-model lap (#223) without one; the rest
+        // carry neither.
         let imported = detail.sessions.filter { $0.channels != nil }
-        #expect(imported.count == 1)
-        #expect(imported.first?.channels?.dStepM == 20)
-        #expect(imported.first?.channels?.laps.first?.speed?.count == 12)
-        #expect(imported.first?.trace?.first == TracePoint(x: 400, y: 0, v: 30))
+        #expect(imported.count == 2)
+        let traced = try #require(imported.first { $0.trace != nil })
+        #expect(traced.channels?.dStepM == 20)
+        #expect(traced.channels?.laps.first?.speed?.count == 12)
+        #expect(traced.trace?.first == TracePoint(x: 400, y: 0, v: 30))
+        #expect(imported.first { $0.trace == nil }?.channels?.laps.first?.yaw?.count == 24)
     }
 
     @Test func checklistIsDecodedAndOrderPreserved() throws {

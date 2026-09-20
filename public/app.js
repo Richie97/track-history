@@ -13,7 +13,9 @@ import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
 import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
 import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
 import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
-import { balanceHtml, balanceSummary, bindBalance } from "./js/balance.js";
+import {
+  balanceHtml, balanceSummary, bindBalance, estimateSteeringRatio, measuredRatioLine, measuredRatioValue, ratioAgrees,
+} from "./js/balance.js";
 import { healthHtml, healthSummary, nextTimeNote, pressureLoop, pressureLoopHtml } from "./js/health.js";
 import {
   ambientText, bandLabel, conditionsBand, conditionsChipHtml, conditionsLegendHtml,
@@ -2901,7 +2903,15 @@ async function viewVehicle(vehicleId) {
     `);
     return;
   }
-  const [garage, carCatalog] = await Promise.all([api("/garage"), api("/car-catalog")]);
+  // The car's per-session steering fits (#223) ride along with the page: the
+  // form's measured-ratio line needs them, and a failed read means the line is
+  // absent, never an error on a page that is about the parts.
+  const [garage, carCatalog, fitsRes] = await Promise.all([
+    api("/garage"),
+    api("/car-catalog"),
+    api(`/vehicles/${vehicleId}/steering-fit`).catch(() => null),
+  ]);
+  const steeringFits = fitsRes?.fits ?? [];
   const v = garage.find((x) => String(x.id) === String(vehicleId));
   if (!v) return viewNotFound();
   // The catalog row the car's numbers came from, if it was picked from one.
@@ -3003,6 +3013,7 @@ async function viewVehicle(vehicleId) {
         <div class="field"><label>Steering ratio (optional)</label>
           <input name="steering_ratio" type="number" min="5" max="30" step="0.01" value="${v.steering_ratio ?? ""}" placeholder="e.g. 16.25 for 16.25:1"></div>
       </div>
+      <div class="hint" id="veh-measured" hidden></div>
       <div id="veh-asks"></div>
       <div class="hint" id="veh-source" ${initialPick ? "" : "hidden"}>${initialPick ? esc(initialPick.source) : ""}</div>
       <div class="hint">Both are on the spec sheet or in the owner's manual. They let the balance read-out say how much understeer, rather than only which corner differs from the rest — leave them blank and it keeps the relative reading.</div>
@@ -3066,6 +3077,36 @@ async function viewVehicle(vehicleId) {
     sourceHint.hidden = !pick;
     sourceHint.textContent = pick ? pick.source : "";
   };
+  // The measured steering ratio (#223): the car's recent sessions' fits pooled
+  // against the wheelbase *in the form* — the line follows both fields as they
+  // are typed. With the ratio field empty it offers the number; with a number
+  // in it, it is the typo check ("— matches" / "well off this; check the
+  // units"). Absent, not "not enough data", when nothing can be measured yet.
+  // "Use this" writes the field, never the row — the driver still saves.
+  const measuredEl = view.querySelector("#veh-measured");
+  const currentEstimate = () => estimateSteeringRatio(steeringFits, numOrNull(vehForm.wheelbase_mm.value));
+  const renderMeasured = () => {
+    const est = currentEstimate();
+    const typed = numOrNull(vehForm.steering_ratio.value);
+    const line = measuredRatioLine(est, typed);
+    measuredEl.hidden = !line;
+    if (!line) {
+      measuredEl.innerHTML = "";
+      return;
+    }
+    measuredEl.innerHTML = `<span id="veh-measured-line">${esc(line)}</span>${
+      ratioAgrees(est, typed) ? "" : ` <button type="button" class="btn small" id="veh-measured-use">Use this</button>`
+    }`;
+  };
+  measuredEl.addEventListener("click", (e) => {
+    if (!e.target.closest("#veh-measured-use")) return;
+    const est = currentEstimate();
+    if (est) vehForm.steering_ratio.value = measuredRatioValue(est);
+    renderMeasured();
+  });
+  vehForm.wheelbase_mm.addEventListener("input", renderMeasured);
+  vehForm.steering_ratio.addEventListener("input", renderMeasured);
+  renderMeasured();
   const renderAsks = (asks) => {
     asksEl.innerHTML = asks
       .map(
@@ -3083,6 +3124,7 @@ async function viewVehicle(vehicleId) {
     const field = btn.dataset.askUse ?? btn.dataset.askKeep;
     if (use && pick) vehForm[field].value = pick[field] ?? "";
     asksEl.querySelector(`[data-ask="${field}"]`)?.remove();
+    renderMeasured();
   });
   bindCatalogPicker(vehForm.catalog, view.querySelector("#veh-catalog-list"), carCatalog, {
     initial: initialPick,
@@ -3101,6 +3143,7 @@ async function viewVehicle(vehicleId) {
       renderAsks(asks);
       if (vehForm.name.value.trim() === "") vehForm.name.value = catalogCarName(row);
       showSource();
+      renderMeasured();
     },
     onClear: () => {
       pick = null;

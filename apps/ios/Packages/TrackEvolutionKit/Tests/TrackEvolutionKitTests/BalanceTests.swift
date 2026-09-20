@@ -255,6 +255,167 @@ struct BalanceTests {
         )
     }
 
+    // MARK: - steering ratio and understeer gradient, measured (#223)
+
+    /// A lap generated *from* the bicycle model — yaw = v·(δ/R) / (L·(1 + K·v²)) —
+    /// with a known ratio, wheelbase and understeer gradient the fit must recover.
+    private func bicycleLap(
+        ratio: Double = 16.25, wheelbaseM: Double = 2.71, K: Double = 0.0014,
+        n: Int = 24, kphFrom: Double = 60, kphTo: Double = 175, noise: (Int) -> Double = { _ in 0 }
+    ) -> LapChannels {
+        var speed: [Double] = [], steering: [Double] = [], yaw: [Double] = []
+        for k in 0..<n {
+            let kph = kphFrom + ((kphTo - kphFrom) * Double(k)) / Double(n - 1)
+            let v = kph / 3.6
+            let deg = (15 + Double(k % 5) * 10) * (k % 2 == 1 ? -1 : 1)
+            speed.append(kph)
+            steering.append(deg)
+            yaw.append((v * (deg / ratio)) / (wheelbaseM * (1 + K * v * v)) + noise(k))
+        }
+        return LapChannels(n: 1, timeMs: 100_000, speed: speed, steering: steering, yaw: yaw)
+    }
+
+    private func session(_ laps: LapChannels...) -> SessionChannels {
+        SessionChannels(v: 1, dStepM: 20, laps: laps)
+    }
+
+    @Test func recoversTheGainAndGradientFromABicycleModelLap() throws {
+        let fit = try #require(Balance.steeringFit(session(bicycleLap())))
+        #expect(fit.samples == 24)
+        #expect(abs(fit.gain0 - 1 / (16.25 * 2.71)) < 1e-9)
+        #expect(abs(fit.K - 0.0014) < 1e-9)
+        #expect(abs(fit.r2 - 1) < 1e-9)
+        // Off a recorder whose yaw opposes its steering, the same car.
+        var flipped = bicycleLap()
+        flipped.yaw = flipped.yaw?.map { -$0 }
+        let flippedFit = try #require(Balance.steeringFit(session(flipped)))
+        #expect(abs(flippedFit.gain0 - fit.gain0) < 1e-9)
+        // The session median is pulled below 1/(R·L) by the understeer; the
+        // fit's intercept is not.
+        #expect(try #require(Balance.referenceGain(session(bicycleLap()))) < fit.gain0 * 0.9)
+        // Two laps pool.
+        #expect(Balance.steeringFit(session(bicycleLap(), bicycleLap()))?.samples == 48)
+    }
+
+    @Test func isNilAtOneSpeedUnderTheSampleFloorOrWithoutTheChannels() {
+        #expect(Balance.steeringFit(session(bicycleLap(kphFrom: 100, kphTo: 100))) == nil)
+        #expect(Balance.steeringFit(session(bicycleLap(kphFrom: 100, kphTo: 100 + Balance.MIN_SPEED_SPREAD_KPH - 0.1))) == nil)
+        #expect(Balance.steeringFit(session(bicycleLap(kphFrom: 100, kphTo: 100 + Balance.MIN_SPEED_SPREAD_KPH))) != nil)
+        #expect(Balance.steeringFit(session(bicycleLap(n: Balance.MIN_FIT_SAMPLES - 1))) == nil)
+        #expect(Balance.steeringFit(session(bicycleLap(n: Balance.MIN_FIT_SAMPLES))) != nil)
+        #expect(Balance.steeringFit(session(LapChannels(n: 1, timeMs: 0, speed: [1]))) == nil)
+        #expect(Balance.steeringFit(nil) == nil)
+        var still = bicycleLap()
+        still.yaw = still.yaw?.map { _ in 0 }
+        #expect(Balance.steeringFit(session(still)) == nil)
+    }
+
+    @Test func poolsSessionsIntoOneRatioGivenTheWheelbase() throws {
+        let fitA = try #require(Balance.steeringFit(session(bicycleLap())))
+        let fitB = Balance.Fit(gain0: fitA.gain0 * 1.1, K: 0.0014, samples: 30, r2: 0.95)
+        let fitC = Balance.Fit(gain0: fitA.gain0 * 0.8, K: 0.0014, samples: 30, r2: 0.7)
+        let est = try #require(Balance.estimateSteeringRatio([fitA, fitB, nil, fitC], wheelbaseMm: 2710))
+        #expect(est.sessions == 3)
+        #expect(abs(est.ratio - 16.25) < 1e-6)
+        #expect(abs(est.r2 - 0.95) < 1e-9)
+        #expect(Balance.estimateSteeringRatio([fitA], wheelbaseMm: nil) == nil)
+        #expect(Balance.estimateSteeringRatio([fitA], wheelbaseMm: 0) == nil)
+        #expect(Balance.estimateSteeringRatio([], wheelbaseMm: 2710) == nil)
+        #expect(Balance.estimateSteeringRatio([nil], wheelbaseMm: 2710) == nil)
+    }
+
+    @Test func wordsTheMeasuredLine() {
+        let est = Balance.RatioEstimate(ratio: 15.8321, sessions: 6, r2: 0.96)
+        #expect(Balance.measuredRatioLine(est, typed: nil) == "Measured from 6 sessions: 15.8:1")
+        #expect(Balance.measuredRatioLine(Balance.RatioEstimate(ratio: 15.8321, sessions: 1, r2: 0.96), typed: nil) == "Measured from 1 session: 15.8:1")
+        #expect(Balance.measuredRatioLine(nil, typed: 12) == nil)
+        #expect(Balance.measuredRatioLine(est, typed: 15.7) == "Measured from 6 sessions: 15.8:1 — matches")
+        #expect(Balance.measuredRatioLine(est, typed: 12) == "Measured from 6 sessions: 15.8:1 — your 12:1 is well off this; check the units")
+        #expect(Balance.measuredRatioLine(Balance.RatioEstimate(ratio: 15.8321, sessions: 6, r2: 0.5), typed: nil)
+            == "Measured from 6 sessions: 15.8:1 (varies with speed — a single ratio is approximate)")
+        #expect(Balance.measuredRatioValue(est) == 15.83)
+        #expect(Balance.fmtSteeringRatio(16.25) == "16.25")
+        #expect(Balance.fmtSteeringRatio(15.7) == "15.7")
+        #expect(Balance.fmtSteeringRatio(12) == "12")
+        #expect(!Balance.ratioAgrees(est, nil))
+    }
+
+    private struct SteeringFixture: Decodable {
+        struct Input: Decodable {
+            let sessions: [String: SessionChannels]
+            let poolFits: [Balance.Fit?]
+            let wheelbaseMm: Int
+            let lineEstimate: Balance.RatioEstimate
+            let typed: [Double?]
+        }
+        struct Expected: Decodable {
+            let fits: [String: Balance.Fit?]
+            let pooled: Balance.RatioEstimate
+            let pooledOneSession: Balance.RatioEstimate
+            let noWheelbase: Balance.RatioEstimate?
+            let noFits: Balance.RatioEstimate?
+            let lines: [String?]
+            let looseLine: String
+            let looseOffLine: String
+            let oneSessionLine: String
+            let noEstimateLine: String?
+            let value: Double
+            let formatted: [String]
+        }
+        struct Wrapper: Decodable {
+            let steering: Input
+        }
+        struct ExpectedWrapper: Decodable {
+            let steering: Expected
+        }
+        let input: Wrapper
+        let expected: ExpectedWrapper
+    }
+
+    /// The `steering` half of the fixture: the JS fit's doubles to 1e-9 and its
+    /// wording exactly, including every null.
+    @Test func matchesTheJavaScriptSteeringFitOnASharedFixture() throws {
+        let url = RepoRoot.path("contracts/logic/balance.json")
+        let fixture = try JSONDecoder().decode(SteeringFixture.self, from: try Data(contentsOf: url))
+        let input = fixture.input.steering
+        let want = fixture.expected.steering
+
+        for (name, channels) in input.sessions {
+            let got = Balance.steeringFit(channels)
+            guard let expected = want.fits[name] ?? nil else {
+                #expect(got == nil, "\(name) should not fit")
+                continue
+            }
+            let fit = try #require(got, "\(name) should fit")
+            #expect(fit.samples == expected.samples, "\(name) samples")
+            #expect(abs(fit.gain0 - expected.gain0) < 1e-9, "\(name) gain0")
+            #expect(abs(fit.K - expected.K) < 1e-9, "\(name) K")
+            #expect(abs(fit.r2 - expected.r2) < 1e-9, "\(name) r2")
+        }
+
+        let pooled = try #require(Balance.estimateSteeringRatio(input.poolFits, wheelbaseMm: input.wheelbaseMm))
+        #expect(pooled.sessions == want.pooled.sessions)
+        #expect(abs(pooled.ratio - want.pooled.ratio) < 1e-9)
+        #expect(abs(pooled.r2 - want.pooled.r2) < 1e-9)
+        let one = try #require(Balance.estimateSteeringRatio([input.poolFits[0]], wheelbaseMm: input.wheelbaseMm))
+        #expect(abs(one.ratio - want.pooledOneSession.ratio) < 1e-9)
+        #expect(want.noWheelbase == nil && Balance.estimateSteeringRatio(input.poolFits, wheelbaseMm: nil) == nil)
+        #expect(want.noFits == nil && Balance.estimateSteeringRatio([nil], wheelbaseMm: input.wheelbaseMm) == nil)
+
+        let est = input.lineEstimate
+        #expect(input.typed.map { Balance.measuredRatioLine(est, typed: $0) } == want.lines)
+        var loose = est
+        loose.r2 = 0.5
+        #expect(Balance.measuredRatioLine(loose, typed: nil) == want.looseLine)
+        #expect(Balance.measuredRatioLine(loose, typed: 12) == want.looseOffLine)
+        var one2 = est
+        one2.sessions = 1
+        #expect(Balance.measuredRatioLine(one2, typed: nil) == want.oneSessionLine)
+        #expect(want.noEstimateLine == nil && Balance.measuredRatioLine(nil, typed: 12) == nil)
+        #expect(Balance.measuredRatioValue(est) == want.value)
+        #expect([16.25, 15.7, 12, 15.8321].map(Balance.fmtSteeringRatio) == want.formatted)
+    }
+
     // MARK: - the cross-language fixture
 
     private struct BalanceFixture: Decodable {

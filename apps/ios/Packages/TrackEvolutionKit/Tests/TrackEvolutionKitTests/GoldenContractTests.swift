@@ -36,6 +36,7 @@ struct GoldenContractTests {
         case "car-catalog": try roundTrip([CatalogCar].self, entry.name)
         case "vehicles-list": try roundTrip([Vehicle].self, entry.name)
         case "garage": try roundTrip([GarageVehicle].self, entry.name)
+        case "vehicle-steering-fit": try roundTrip(SteeringFits.self, entry.name)
         case "share-public": try roundTrip(ShareData.self, entry.name)
         case "track-create": try roundTrip(CreatedTrack.self, entry.name)
         case "vehicle-create": try roundTrip(Vehicle.self, entry.name)

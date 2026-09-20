@@ -40,7 +40,9 @@ import androidx.compose.ui.unit.dp
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
+import app.trackevolution.core.Balance
 import app.trackevolution.core.model.CatalogCar
+import app.trackevolution.core.model.SteeringFit
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartDraft
@@ -153,11 +155,15 @@ fun VehicleScreen(
                     // The catalog is fetched when the form opens, not with the
                     // page: it is only needed here, and the picker reads it from
                     // the response cache offline.
-                    LaunchedEffect(Unit) { model.loadCatalog() }
+                    LaunchedEffect(Unit) {
+                        model.loadCatalog()
+                        model.loadSteeringFits()
+                    }
                     VehicleForm(
                         vehicle,
                         catalog = model.catalog,
                         catalogError = model.catalogError,
+                        steeringFits = model.steeringFits,
                         onCancel = { editingCar = false },
                     ) { edit ->
                         model.updateVehicle(
@@ -858,6 +864,7 @@ internal fun VehicleForm(
     vehicle: GarageVehicle,
     catalog: List<CatalogCar>?,
     catalogError: String?,
+    steeringFits: List<SteeringFit>? = null,
     onCancel: () -> Unit,
     onSave: (VehicleEdit) -> Unit,
 ) {
@@ -1017,6 +1024,33 @@ internal fun VehicleForm(
                     onUse = { steering = fmtRatio(ask); steeringAsk = null },
                     onKeep = { steeringAsk = null },
                 )
+            }
+            // The measured steering ratio (#223): the car's recent sessions' fits
+            // pooled against the wheelbase *in the form*, so the line follows both
+            // fields as they are typed. With the field empty it offers the number;
+            // with a number in it, it is the typo check. "Use this" writes the
+            // field, never the row — the driver still saves.
+            val measured = Balance.estimateSteeringRatio(steeringFits?.map { it.fit }, wheelbase.trim().toIntOrNull())
+            val typedRatio = steering.trim().replace(',', '.').toDoubleOrNull()
+            if (measured != null) {
+                Balance.measuredRatioLine(measured, typedRatio)?.let { line ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            line,
+                            style = TrackTheme.typography.xs,
+                            color = colors.textMuted,
+                            modifier = Modifier.testTag("measuredRatio"),
+                        )
+                        if (!Balance.ratioAgrees(measured, typedRatio)) {
+                            TextButton(
+                                onClick = { steering = Balance.fmtSteeringRatio(Balance.measuredRatioValue(measured)) },
+                                modifier = Modifier.testTag("useMeasuredRatio"),
+                            ) {
+                                Text("Use this", style = TrackTheme.typography.xs, color = colors.accentInk)
+                            }
+                        }
+                    }
+                }
             }
             // Where the numbers came from, so the driver knows what they are trusting.
             pick?.let {

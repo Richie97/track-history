@@ -277,6 +277,28 @@ async function build(api) {
     },
   });
 
+  // A session whose channels carry yaw, steering and speed across a sweep of
+  // speeds — a lap generated from the bicycle model (ratio 16.25, wheelbase
+  // 2.71 m, understeer gradient 0.0014 s²/m²) — so `GET /vehicles/:id/steering-fit`
+  // (#223) has a fit to pin and the `steering-fit` golden is not an empty list.
+  // Slower than Session 3's lap, so the event's best and the leaderboard's
+  // ranked lap stay where they were.
+  const FIT_N = 24;
+  const fitLap = { speed: [], steering: [], yaw: [] };
+  for (let k = 0; k < FIT_N; k++) {
+    const kph = 60 + ((175 - 60) * k) / (FIT_N - 1);
+    const v = kph / 3.6;
+    const deg = (15 + (k % 5) * 10) * (k % 2 ? -1 : 1);
+    fitLap.speed.push(Math.round(kph * 100) / 100);
+    fitLap.steering.push(deg);
+    fitLap.yaw.push(Math.round(((v * (deg / 16.25)) / (2.71 * (1 + 0.0014 * v * v))) * 1000) / 1000);
+  }
+  await api("POST", `/events/${rich.body.id}/sessions`, {
+    label: "Session 4",
+    laps: [123_400],
+    channels: { dStepM: 20, laps: [{ n: 1, timeMs: 123_400, ...fitLap }] },
+  });
+
   // Session on the second layout, so per-track aggregation has something to
   // separate. If these two ever merge into one track, the fixture will show it.
   await api("POST", `/events/${patriot.body.id}/sessions`, { label: "Session 1", laps: [78_200, 77_900, 77_400] });
@@ -307,6 +329,11 @@ async function build(api) {
     target_hot_psi: 32,
     catalog_id: c7.id,
   });
+  // The events were created before the vehicle existed, so their `car` text
+  // never matched a garage row; re-saving the rich event's car links it now
+  // (events.vehicle_id), which is what gives the garage golden its hours and
+  // `GET /vehicles/:id/steering-fit` a session to fit.
+  await api("PUT", `/events/${rich.body.id}`, { car: "Corvette C7" });
   // A bare vehicle with no parts — the empty branch of the garage response.
   await api("POST", "/vehicles", { name: "Miata", is_default: false });
 
@@ -441,6 +468,12 @@ async function captureAll(api, anon, f) {
     "The user's garage vehicles.",
     "src/routes/vehicles.ts", await api("GET", "/vehicles"));
 
+  record("vehicle-steering-fit", "GET", "/vehicles/:id/steering-fit",
+    "The per-session steering fits behind the vehicle form's measured-ratio line (#223): " +
+    "steeringFit over the car's most recent channel-carrying sessions, newest first, " +
+    "only those that fit. The client pools them against the wheelbase in the form.",
+    "src/routes/vehicles.ts", await api("GET", `/vehicles/${veh}/steering-fit`));
+
   record("garage", "GET", "/garage",
     "Every vehicle with accrued hours, parts, measurements and computed wear.",
     "src/routes/vehicles.ts", await api("GET", "/garage"));
@@ -572,6 +605,7 @@ const EXPECTED_ROUTES = [
   "GET /tracks/:id/leaderboard/laps/:lapId", "GET /catalog", "GET /car-catalog",
   "GET /vehicles", "POST /vehicles", "PUT /vehicles/:id", "DELETE /vehicles/:id",
   "GET /garage",
+  "GET /vehicles/:id/steering-fit",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug",

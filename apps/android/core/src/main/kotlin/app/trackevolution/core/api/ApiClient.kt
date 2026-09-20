@@ -23,6 +23,7 @@ import app.trackevolution.core.model.Vehicle
 import app.trackevolution.core.model.VehicleDraft
 import app.trackevolution.core.model.VehiclePatch
 import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.SteeringFits
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartPatch
@@ -377,6 +378,15 @@ public class ApiClient(
     /** Every vehicle with its accrued hours, parts, measurements and wear. */
     public suspend fun garage(): List<GarageVehicle> =
         get("/garage", ListSerializer(GarageVehicle.serializer()))
+
+    /**
+     * The per-session steering fits behind the vehicle form's measured-ratio
+     * line (#223). Its own read rather than a field on the garage, because the
+     * server fits the car's recent session blobs to answer it — worth doing when
+     * the form is open, not on every dashboard load. Pro, like the garage.
+     */
+    public suspend fun steeringFits(vehicleId: Int): SteeringFits =
+        get("/vehicles/$vehicleId/steering-fit", SteeringFits.serializer())
 
     public suspend fun createPart(vehicleId: Int, draft: PartDraft): Int =
         send(

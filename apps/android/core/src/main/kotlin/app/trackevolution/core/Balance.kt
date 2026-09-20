@@ -4,6 +4,7 @@ import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -353,5 +354,165 @@ public object Balance {
         if (us.isNotEmpty()) parts.add("understeer in ${namedOrCounted(us)}")
         if (os.isNotEmpty()) parts.add("oversteer in ${namedOrCounted(os)}")
         return if (parts.isEmpty()) "balance neutral" else parts.joinToString(" and ")
+    }
+
+    // ---- Steering ratio and understeer gradient, measured (#223) -----------------
+    //
+    // The port of `steeringFit` and its companions in `public/js/balance.js` —
+    // read that file's header for the physics. The bicycle model's steady-state
+    // yaw rate is r = v·δ/(L·(1 + K·v²)) with δ = steering_deg / ratio, so the
+    // per-sample gain is 1/(ratio·L·(1 + K·v²)): at low speed the ratio falls
+    // out given the wheelbase, and the way the gain falls with speed is the
+    // understeer gradient K. The textbook fit is 1/gain against v²; solved here
+    // as v·δ = A·(yaw·sign) + B·(v²·yaw·sign), which is the same two unknowns
+    // with nothing divided by yaw — on the 20 m grid yaw passes through zero
+    // while the wheel is already turned, and one such sample would set a line
+    // fitted in 1/gain. The operation order is the JS's, which is what lets the
+    // fixture pin the doubles.
+
+    /** Fewer usable samples than this and the fit is a guess. */
+    public const val MIN_FIT_SAMPLES: Int = 20
+
+    /** A session driven at one speed has no slope to fit. */
+    public const val MIN_SPEED_SPREAD_KPH: Double = 40.0
+
+    /**
+     * Below this share of the steering input explained, the car doesn't fit one
+     * ratio and the measured line says so.
+     */
+    public const val MIN_FIT_R2: Double = 0.8
+
+    /** A typed ratio within this much of the measured one "matches". */
+    public const val RATIO_AGREE_PCT: Double = 10.0
+
+    /**
+     * One session's fit: the low-speed yaw gain (1/m), the understeer gradient
+     * [k] in the (1 + K·v²) form with v in m/s (s²/m²) — `K` on the wire and in
+     * the JS — the usable sample count and the uncentred r² of the steering
+     * input the model explains, in [0, 1].
+     */
+    @Serializable
+    public data class Fit(
+        val gain0: Double,
+        @SerialName("K") val k: Double,
+        val samples: Int,
+        val r2: Double,
+    )
+
+    /**
+     * Null under [MIN_FIT_SAMPLES], under [MIN_SPEED_SPREAD_KPH] of speed spread,
+     * or when the normal equations are singular or give a non-positive intercept.
+     */
+    public fun steeringFit(channels: SessionChannels?): Fit? {
+        val sign = yawSign(channels)
+        var s11 = 0.0
+        var s12 = 0.0
+        var s22 = 0.0
+        var t1 = 0.0
+        var t2 = 0.0
+        var szz = 0.0
+        var n = 0
+        var vMin = Double.POSITIVE_INFINITY
+        var vMax = Double.NEGATIVE_INFINITY
+        for (lap in balanceLaps(channels)) {
+            val entry = lap.entry
+            for (k in 0 until usableLength(entry)) {
+                if (!usableAt(entry, k)) continue
+                val kph = entry.speed!![k]
+                val v = kph * KPH_TO_MPS
+                val u1 = entry.yaw!![k] * sign
+                val u2 = v * v * u1
+                val z = v * entry.steering!![k]
+                s11 += u1 * u1
+                s12 += u1 * u2
+                s22 += u2 * u2
+                t1 += u1 * z
+                t2 += u2 * z
+                szz += z * z
+                n++
+                if (kph < vMin) vMin = kph
+                if (kph > vMax) vMax = kph
+            }
+        }
+        if (n < MIN_FIT_SAMPLES || vMax - vMin < MIN_SPEED_SPREAD_KPH) return null
+        val det = s11 * s22 - s12 * s12
+        if (!(det > 0)) return null
+        val a = (t1 * s22 - t2 * s12) / det
+        val b = (t2 * s11 - t1 * s12) / det
+        if (!(a > 0)) return null
+        val ssRes = szz - 2 * (a * t1 + b * t2) + (a * a * s11 + 2 * a * b * s12 + b * b * s22)
+        val r2 = if (szz > 0) minOf(1.0, maxOf(0.0, 1 - ssRes / szz)) else 0.0
+        return Fit(gain0 = 1 / a, k = b / a, samples = n, r2 = r2)
+    }
+
+    /**
+     * Several sessions pooled into one ratio: the median of 1/(gain₀·L) across
+     * the sessions that fit, their count, and the median r².
+     */
+    @Serializable
+    public data class RatioEstimate(
+        val ratio: Double,
+        val sessions: Int,
+        val r2: Double,
+    )
+
+    /**
+     * Null without a wheelbase — there is nothing to compute — or without a fit;
+     * nulls in [fits] are skipped, so one damp session doesn't set the number.
+     */
+    public fun estimateSteeringRatio(fits: List<Fit?>?, wheelbaseMm: Int?): RatioEstimate? {
+        if (wheelbaseMm == null || wheelbaseMm <= 0) return null
+        val l = wheelbaseMm / 1000.0
+        val usable = (fits ?: emptyList()).filterNotNull().filter { it.gain0 > 0 }
+        if (usable.isEmpty()) return null
+        return RatioEstimate(
+            ratio = median(usable.map { 1 / (it.gain0 * l) })!!,
+            sessions = usable.size,
+            r2 = median(usable.map { it.r2 })!!,
+        )
+    }
+
+    /**
+     * A ratio as the form shows it: two decimals, trailing zeros dropped —
+     * "16.25", "15.7", "12". `String(Number(ratio.toFixed(2)))` in the JS.
+     */
+    public fun fmtSteeringRatio(ratio: Double): String {
+        val fixed = Units.toFixed(ratio, 2)
+        return if (fixed.contains('.')) fixed.trimEnd('0').trimEnd('.') else fixed
+    }
+
+    /**
+     * The value "Use this" writes into the field: the measured ratio to the
+     * field's own two decimals.
+     */
+    public fun measuredRatioValue(estimate: RatioEstimate): Double =
+        Math.round(estimate.ratio * 100) / 100.0
+
+    /** Whether a typed ratio agrees with the measured one, within [RATIO_AGREE_PCT]. */
+    public fun ratioAgrees(estimate: RatioEstimate, typed: Double?): Boolean {
+        if (typed == null) return false
+        return (abs(typed - estimate.ratio) / estimate.ratio) * 100 <= RATIO_AGREE_PCT
+    }
+
+    /**
+     * The one line under the steering-ratio field: "Measured from 6 sessions:
+     * 15.8:1", with "— matches" or "— your 12:1 is well off this; check the
+     * units" when the field holds a number, and a caveat when the sessions
+     * don't fit one ratio. Null when nothing can be measured yet — the line is
+     * then absent, not "not enough data".
+     */
+    public fun measuredRatioLine(estimate: RatioEstimate?, typed: Double?): String? {
+        if (estimate == null) return null
+        val n = estimate.sessions
+        var line = "Measured from $n session${if (n == 1) "" else "s"}: ${Units.toFixed(estimate.ratio, 1)}:1"
+        if (estimate.r2 < MIN_FIT_R2) line += " (varies with speed — a single ratio is approximate)"
+        if (typed != null) {
+            line += if (ratioAgrees(estimate, typed)) {
+                " — matches"
+            } else {
+                " — your ${fmtSteeringRatio(typed)}:1 is well off this; check the units"
+            }
+        }
+        return line
     }
 }
