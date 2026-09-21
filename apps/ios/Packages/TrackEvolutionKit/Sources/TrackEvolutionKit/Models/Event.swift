@@ -62,6 +62,15 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
     public var bestTimeMs: Int?
     /// Manual override of the on-track hours estimate.
     public var trackHours: Double?
+    /// What the day cost (#147): four optional line items in integer cents
+    /// (migration 0025). Nil means "not entered", never free. Decoded and
+    /// carried through the offline patches so a phone edit never drops them;
+    /// entering and rolling them up is web-only for now (see
+    /// `docs/specs/native/README.md`).
+    public var costEntryCents: Int?
+    public var costFuelCents: Int?
+    public var costTravelCents: Int?
+    public var costMiscCents: Int?
     public var updatedAt: Int
     /// Session conditions (#191), derived from the sessions' channel meta by
     /// migration 0020's triggers: the coolest and hottest ambient any session
@@ -81,6 +90,9 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
     public var consistency: Double?
     /// On-track hours: the override, else `max(days × 2h, logged lap time)`.
     public var hours: Double
+    /// The sum of the entered cost line items; nil — not zero — when none was
+    /// entered (`eventCostCents` in `src/lib/costs.ts`).
+    public var costCents: Int?
 
     public enum CodingKeys: String, CodingKey {
         case id
@@ -98,6 +110,10 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
         case checklist
         case bestTimeMs = "best_time_ms"
         case trackHours = "track_hours"
+        case costEntryCents = "cost_entry_cents"
+        case costFuelCents = "cost_fuel_cents"
+        case costTravelCents = "cost_travel_cents"
+        case costMiscCents = "cost_misc_cents"
         case updatedAt = "updated_at"
         case ambientLoC = "ambient_lo_c"
         case ambientHiC = "ambient_hi_c"
@@ -108,6 +124,7 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
         case bestMs = "best_ms"
         case consistency
         case hours
+        case costCents = "cost_cents"
     }
 }
 

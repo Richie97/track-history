@@ -9,6 +9,8 @@
 // Node-import-safe: no top-level IndexedDB/window access — in Node (unit
 // tests) an in-memory backend is used automatically.
 
+import { eventCostCents } from "./costs.js";
+
 // ---------- storage backends -------------------------------------------------
 
 // Shared shape: responses (path → body), queue (qid → mutation), kv (idMap,
@@ -392,8 +394,8 @@ const cleanLaps = (laps) =>
     .filter((v) => Number.isFinite(v) && v > 0);
 
 // Mirror of withComputed in src/lib/stats.ts (best-time rule, coefficient
-// of variation, on-track hours via eventHours in src/lib/wear.ts) — keep in
-// sync.
+// of variation, on-track hours via eventHours in src/lib/wear.ts, and the
+// cost total via eventCostCents in src/lib/costs.ts) — keep in sync.
 export function recomputeDetail(d) {
   const laps = d.sessions.flatMap((s) => s.laps.map((l) => l.time_ms));
   d.lap_count = laps.length;
@@ -413,6 +415,7 @@ export function recomputeDetail(d) {
       ? d.track_hours
       : Math.max((d.days || 0) * 2, laps.reduce((a, b) => a + b, 0) / 3_600_000);
   d.hours = Math.round(hours * 10) / 10;
+  d.cost_cents = eventCostCents(d);
   return d;
 }
 
@@ -424,6 +427,7 @@ const listRowFrom = (detail) => {
 const EVENT_FIELDS = [
   "track_name", "start_date", "days", "club", "run_group", "car", "notes",
   "conditions", "temp_f", "checklist", "best_time_ms", "track_hours",
+  "cost_entry_cents", "cost_fuel_cents", "cost_travel_cents", "cost_misc_cents",
 ];
 
 async function patchEventLists(fn) {
@@ -474,6 +478,10 @@ async function applyLocal(m) {
       checklist: m.body?.checklist ?? null,
       best_time_ms: m.body?.best_time_ms ?? null,
       track_hours: m.body?.track_hours ?? null,
+      cost_entry_cents: m.body?.cost_entry_cents ?? null,
+      cost_fuel_cents: m.body?.cost_fuel_cents ?? null,
+      cost_travel_cents: m.body?.cost_travel_cents ?? null,
+      cost_misc_cents: m.body?.cost_misc_cents ?? null,
       vehicle_id: null, // matched server-side from the car name on flush
       // Session conditions (#191) are derived from imported telemetry by the
       // server (migration 0020) and are never part of a write, so an event

@@ -5,6 +5,7 @@
   "body": [
     {
       "catalog_id": 1,
+      "event_cost_cents": 87050,
       "event_count": 1,
       "event_days": 2,
       "hours": 4,
@@ -79,6 +80,7 @@
           "wear_limit": 3
         }
       ],
+      "parts_cost_cents": 32000,
       "steering_ratio": 16.25,
       "target_hot_psi": 32,
       "updated_at": 0,
@@ -86,6 +88,7 @@
     },
     {
       "catalog_id": null,
+      "event_cost_cents": 0,
       "event_count": 0,
       "event_days": 0,
       "hours": 0,
@@ -94,6 +97,7 @@
       "name": "Miata",
       "notes": null,
       "parts": [],
+      "parts_cost_cents": 0,
       "steering_ratio": null,
       "target_hot_psi": null,
       "updated_at": 0,

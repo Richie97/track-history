@@ -83,6 +83,17 @@ public data class Event(
     /** Manual override of the on-track hours estimate. */
     @SerialName("track_hours") val trackHours: Double? = null,
     /**
+     * What the day cost (#147), four optional line items in integer cents
+     * (migration 0025). Null means "not entered", never free. Decoded and
+     * carried through the offline patches so a phone edit never drops them;
+     * entering and rolling them up is web-only for now (see
+     * `docs/specs/native/README.md`).
+     */
+    @SerialName("cost_entry_cents") val costEntryCents: Int? = null,
+    @SerialName("cost_fuel_cents") val costFuelCents: Int? = null,
+    @SerialName("cost_travel_cents") val costTravelCents: Int? = null,
+    @SerialName("cost_misc_cents") val costMiscCents: Int? = null,
+    /**
      * Epoch milliseconds, trigger-maintained (migration 0011) and the input to
      * the offline cache's staleness check. `Long`, not `Int`: Kotlin's `Int` is
      * 32 bits and an epoch-ms timestamp passed that in 1970. (Swift's `Int` is
@@ -110,6 +121,11 @@ public data class Event(
     val consistency: Double? = null,
     /** On-track hours: the override, else `max(days × 2h, logged lap time)`. */
     val hours: Double,
+    /**
+     * The sum of the entered cost line items; null — not zero — when none was
+     * entered (`eventCostCents` in `src/lib/costs.ts`).
+     */
+    @SerialName("cost_cents") val costCents: Int? = null,
 ) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent
 
 /**

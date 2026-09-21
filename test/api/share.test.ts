@@ -62,6 +62,18 @@ describe("GET /api/share/:slug (public)", () => {
     expect(raw).not.toContain(email);
   });
 
+  it("strips what the day cost: the line items and the total (#147)", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { cost_entry_cents: 45_000, cost_fuel_cents: 12_050 });
+    await api("PUT", "/share", { slug: "cost-check" });
+
+    const { body } = await publicShare("cost-check");
+    const [ev] = body.events;
+    for (const key of ["cost_entry_cents", "cost_fuel_cents", "cost_travel_cents", "cost_misc_cents", "cost_cents"])
+      expect(ev, key).not.toHaveProperty(key);
+    expect(JSON.stringify(body)).not.toContain("45000");
+  });
+
   it("matches slugs case-insensitively via lowercasing", async () => {
     const { api } = await signedInUser();
     await api("PUT", "/share", { slug: "case-slug" });

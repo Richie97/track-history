@@ -17,6 +17,10 @@ const base: EventRow = {
   checklist: null,
   best_time_ms: null,
   track_hours: null,
+  cost_entry_cents: null,
+  cost_fuel_cents: null,
+  cost_travel_cents: null,
+  cost_misc_cents: null,
   updated_at: 1,
   ambient_lo_c: null,
   ambient_hi_c: null,
@@ -96,5 +100,12 @@ describe("withComputed checklist", () => {
     expect(withComputed({ ...base, checklist: "{not json" }).checklist).toBeNull();
     expect(withComputed({ ...base, checklist: '{"a":1}' }).checklist).toBeNull();
     expect(withComputed(base).checklist).toBeNull();
+  });
+});
+
+describe("withComputed cost_cents", () => {
+  it("totals the entered cost line items and is null when none was entered", () => {
+    expect(withComputed(base).cost_cents).toBeNull();
+    expect(withComputed({ ...base, cost_entry_cents: 45_000, cost_fuel_cents: 8_000 }).cost_cents).toBe(53_000);
   });
 });

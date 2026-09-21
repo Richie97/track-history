@@ -39,6 +39,11 @@ public struct EventDraft: Encodable, Hashable, Sendable {
     public var checklist: [ChecklistItem]?
     public var bestTimeMs: Int?
     public var trackHours: Double?
+    /// The cost line items (#147), whole cents. See `Event.costEntryCents`.
+    public var costEntryCents: Int?
+    public var costFuelCents: Int?
+    public var costTravelCents: Int?
+    public var costMiscCents: Int?
 
     public enum CodingKeys: String, CodingKey {
         case days, club, car, notes, conditions, checklist
@@ -49,6 +54,10 @@ public struct EventDraft: Encodable, Hashable, Sendable {
         case tempF = "temp_f"
         case bestTimeMs = "best_time_ms"
         case trackHours = "track_hours"
+        case costEntryCents = "cost_entry_cents"
+        case costFuelCents = "cost_fuel_cents"
+        case costTravelCents = "cost_travel_cents"
+        case costMiscCents = "cost_misc_cents"
     }
 
     public init(startDate: String, trackName: String? = nil, trackId: Int? = nil) {
@@ -74,6 +83,10 @@ public struct EventPatch: Encodable, Hashable, Sendable {
     public var checklist: Patch<[ChecklistItem]> = .unchanged
     public var bestTimeMs: Patch<Int> = .unchanged
     public var trackHours: Patch<Double> = .unchanged
+    public var costEntryCents: Patch<Int> = .unchanged
+    public var costFuelCents: Patch<Int> = .unchanged
+    public var costTravelCents: Patch<Int> = .unchanged
+    public var costMiscCents: Patch<Int> = .unchanged
 
     public enum CodingKeys: String, CodingKey {
         case days, club, car, notes, conditions, checklist
@@ -84,6 +97,10 @@ public struct EventPatch: Encodable, Hashable, Sendable {
         case tempF = "temp_f"
         case bestTimeMs = "best_time_ms"
         case trackHours = "track_hours"
+        case costEntryCents = "cost_entry_cents"
+        case costFuelCents = "cost_fuel_cents"
+        case costTravelCents = "cost_travel_cents"
+        case costMiscCents = "cost_misc_cents"
     }
 
     public init() {}
@@ -103,6 +120,10 @@ public struct EventPatch: Encodable, Hashable, Sendable {
         try c.encode(checklist, forKey: .checklist)
         try c.encode(bestTimeMs, forKey: .bestTimeMs)
         try c.encode(trackHours, forKey: .trackHours)
+        try c.encode(costEntryCents, forKey: .costEntryCents)
+        try c.encode(costFuelCents, forKey: .costFuelCents)
+        try c.encode(costTravelCents, forKey: .costTravelCents)
+        try c.encode(costMiscCents, forKey: .costMiscCents)
     }
 }
 

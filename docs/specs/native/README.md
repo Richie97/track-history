@@ -460,6 +460,26 @@ Features added after the rewrite shipped, and where they landed:
   to — the first deliberate exception to the frontier rule, taken because the
   screen is a phone's answer to a phone's problem (a lap list too narrow to
   hold the chips and the charts at once).
+- **Track-day costs**
+  ([#147](https://github.com/Richie97/track-history/issues/147), 2026-09) —
+  **web first**, by the frontier rule. An event carries four optional cost
+  line items (entry, fuel, travel & lodging, misc; integer cents, migration
+  0025), and the web rolls them up per track, per car (beside the garage's
+  parts spend, on `GET /api/garage`) and in year in review — which is
+  web-only anyway and is where the headline lives: what a track-year cost per
+  second its best lap dropped. The question the feature answers ("what did
+  this season cost, and what did it buy?") is an off-season desk question,
+  so the entry form and the roll-ups land on the web and graduate once
+  proven. **The models are all-three now**, because the change is coordinated
+  by construction: both `Event` / `EventDraft` / `EventPatch` decode and
+  carry the line items and the computed `cost_cents`, the offline patches
+  copy them through, both `OfflineMirrors.recomputeDetail`s compute
+  `costCents` (null when nothing was entered — not zero, so an uncosted day
+  never reads as free), and both `GarageVehicle`s decode
+  `event_cost_cents` / `parts_cost_cents`. A phone edit therefore never
+  drops a cost the web entered, and neither phone shows one yet. Costs are
+  private: `GET /api/share/:slug` strips the line items and the total like
+  notes.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,

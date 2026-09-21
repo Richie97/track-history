@@ -89,6 +89,11 @@ public data class EventDraft(
     val checklist: List<ChecklistItem>? = null,
     @SerialName("best_time_ms") val bestTimeMs: Int? = null,
     @SerialName("track_hours") val trackHours: Double? = null,
+    /** The cost line items (#147), whole cents. See [Event.costEntryCents]. */
+    @SerialName("cost_entry_cents") val costEntryCents: Int? = null,
+    @SerialName("cost_fuel_cents") val costFuelCents: Int? = null,
+    @SerialName("cost_travel_cents") val costTravelCents: Int? = null,
+    @SerialName("cost_misc_cents") val costMiscCents: Int? = null,
 )
 
 /**
@@ -110,6 +115,10 @@ public data class EventPatch(
     val checklist: Patch<List<ChecklistItem>> = Patch.Unchanged,
     val bestTimeMs: Patch<Int> = Patch.Unchanged,
     val trackHours: Patch<Double> = Patch.Unchanged,
+    val costEntryCents: Patch<Int> = Patch.Unchanged,
+    val costFuelCents: Patch<Int> = Patch.Unchanged,
+    val costTravelCents: Patch<Int> = Patch.Unchanged,
+    val costMiscCents: Patch<Int> = Patch.Unchanged,
 )
 
 public object EventPatchSerializer : KSerializer<EventPatch> {
@@ -133,6 +142,10 @@ public object EventPatchSerializer : KSerializer<EventPatch> {
         body.put("checklist", value.checklist, ListSerializer(ChecklistItem.serializer()))
         body.put("best_time_ms", value.bestTimeMs) { JsonPrimitive(it) }
         body.put("track_hours", value.trackHours) { JsonPrimitive(it) }
+        body.put("cost_entry_cents", value.costEntryCents) { JsonPrimitive(it) }
+        body.put("cost_fuel_cents", value.costFuelCents) { JsonPrimitive(it) }
+        body.put("cost_travel_cents", value.costTravelCents) { JsonPrimitive(it) }
+        body.put("cost_misc_cents", value.costMiscCents) { JsonPrimitive(it) }
         out.encodeJsonElement(body.build())
     }
 }

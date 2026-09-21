@@ -106,6 +106,10 @@ private suspend fun createEvent(item: QueuedWrite, txn: OfflineTransaction) {
                 checklist = body.decode("checklist", checklistSerializer),
                 bestTimeMs = body.int("best_time_ms"),
                 trackHours = body.double("track_hours"),
+                costEntryCents = body.int("cost_entry_cents"),
+                costFuelCents = body.int("cost_fuel_cents"),
+                costTravelCents = body.int("cost_travel_cents"),
+                costMiscCents = body.int("cost_misc_cents"),
                 updatedAt = 0,
                 lapBestMs = null,
                 lapCount = 0,
@@ -171,6 +175,10 @@ private fun Event.patched(body: JsonObject): Event {
     }
     if (body.has("best_time_ms")) next = next.copy(bestTimeMs = body.int("best_time_ms"))
     if (body.has("track_hours")) next = next.copy(trackHours = body.double("track_hours"))
+    if (body.has("cost_entry_cents")) next = next.copy(costEntryCents = body.int("cost_entry_cents"))
+    if (body.has("cost_fuel_cents")) next = next.copy(costFuelCents = body.int("cost_fuel_cents"))
+    if (body.has("cost_travel_cents")) next = next.copy(costTravelCents = body.int("cost_travel_cents"))
+    if (body.has("cost_misc_cents")) next = next.copy(costMiscCents = body.int("cost_misc_cents"))
     return next
 }
 

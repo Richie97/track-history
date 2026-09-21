@@ -61,6 +61,31 @@ describe("event track_hours and computed hours", () => {
   });
 });
 
+describe("vehicle spend (#147)", () => {
+  it("sums the car's past events' costs and every part ever fitted, zero when nothing was entered", async () => {
+    const { api, vehicleId } = await garageUser();
+    let [v] = (await api("GET", "/garage")).body;
+    expect(v.event_cost_cents).toBe(0);
+    expect(v.parts_cost_cents).toBe(0);
+
+    await createEvent(api, { car: "Corvette Z06", start_date: PAST, cost_entry_cents: 45_000, cost_fuel_cents: 8_000 });
+    await createEvent(api, { car: "Corvette Z06", start_date: "2026-06-01", cost_entry_cents: 40_000 });
+    // Upcoming, so not spent yet — same rule as the hours; and a costed event
+    // on a car the garage doesn't know stays off every car.
+    await createEvent(api, { car: "Corvette Z06", start_date: "2099-01-01", cost_entry_cents: 99_999 });
+    await createEvent(api, { car: "Rental Miata", start_date: PAST, cost_entry_cents: 50_000 });
+    const pads = await api("POST", `/vehicles/${vehicleId}/parts`, {
+      kind: "pads_front", name: "DTC-60", installed_on: PAST, retired_on: "2026-06-02", cost_cents: 32_000,
+    });
+    await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "tires", name: "RE-71RS", installed_on: PAST, cost_cents: 120_000 });
+    expect(pads.status).toBe(201);
+
+    [v] = (await api("GET", "/garage")).body;
+    expect(v.event_cost_cents).toBe(93_000);
+    expect(v.parts_cost_cents).toBe(152_000);
+  });
+});
+
 describe("parts CRUD", () => {
   it("creates, lists via /garage, updates and deletes a part", async () => {
     const { api, vehicleId } = await garageUser();

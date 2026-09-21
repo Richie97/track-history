@@ -5,6 +5,7 @@ import { type VehicleHoursEvent, vehicleHoursEventsStmt } from "../db";
 import { isValidDate, isValidPartKind, isValidSteeringRatio, isValidWheelbaseMm } from "../lib/validate";
 import { MAX_FIT_SESSIONS, steeringFit } from "../lib/steering";
 import { wearEstimate } from "../lib/wear";
+import { eventCostCents } from "../lib/costs";
 
 // The user's garage (Settings → Vehicles). Vehicles feed the event form's
 // car field; the one marked is_default pre-fills new events. Each vehicle
@@ -344,6 +345,13 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
       hours: totals.hours,
       event_days: totals.cycles,
       event_count: totals.events,
+      // What the car has cost (#147), in cents: its past track days' entered
+      // costs (the same events the hours accrue from — an upcoming one isn't
+      // spent yet, on the same rule) and every part ever fitted, retired ones
+      // included, since a season's real cost includes the tyres it consumed.
+      // Zero rather than null when nothing was entered: these are sums.
+      event_cost_cents: events.reduce((sum, e) => sum + (eventCostCents(e) ?? 0), 0),
+      parts_cost_cents: parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0),
       parts,
     };
   });

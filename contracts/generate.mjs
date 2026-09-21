@@ -217,6 +217,12 @@ async function build(api) {
       { text: "Torque wheels", done: true },
       { text: "Check pad thickness", done: false },
     ],
+    // Three of the four cost line items (#147), so the goldens pin both a
+    // number and a null on the same event, and `cost_cents` non-null here
+    // against null on the bare event below.
+    cost_entry_cents: 45_000,
+    cost_fuel_cents: 12_050,
+    cost_travel_cents: 30_000,
   });
 
   // track_hours overrides the estimate; the bare event leaves it null so both

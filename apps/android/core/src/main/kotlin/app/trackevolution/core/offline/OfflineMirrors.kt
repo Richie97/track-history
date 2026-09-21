@@ -21,7 +21,7 @@ import kotlin.math.sqrt
  * | here | web mirror | iOS mirror | server truth |
  * |---|---|---|---|
  * | [cleanLaps] | `cleanLaps` in `offline.js` | `OfflineMirrors.cleanLaps` | `sanitizeLaps` in `src/lib/validate.ts` |
- * | [recomputeDetail] | `recomputeDetail` in `offline.js` | `OfflineMirrors.recomputeDetail` | `withComputed` in `src/lib/stats.ts` (+ `eventHours` in `src/lib/wear.ts`) |
+ * | [recomputeDetail] | `recomputeDetail` in `offline.js` | `OfflineMirrors.recomputeDetail` | `withComputed` in `src/lib/stats.ts` (+ `eventHours` in `src/lib/wear.ts`, `eventCostCents` in `src/lib/costs.ts`) |
  *
  * If you find a divergence from the server, fix the server-matching behavior and
  * say so — the web app probably has the same bug.
@@ -65,6 +65,9 @@ public object OfflineMirrors {
      *    laps** — not zero. Two laps say nothing about consistency.
      *  - [Event.hours] is the manual override when set, else
      *    `max(days × 2h, logged lap time)`, rounded to 1dp. It is never null.
+     *  - [Event.costCents] is the sum of the entered cost line items, and
+     *    **null when none was entered** — not zero, so an uncosted day never
+     *    reads as a free one (#147).
      */
     public fun recomputeDetail(detail: EventDetail): EventDetail {
         val laps = detail.sessions.flatMap { session -> session.laps.map { it.timeMs } }
@@ -92,6 +95,15 @@ public object OfflineMirrors {
             max(detail.event.days * HOURS_PER_DAY, lapHours)
         }
 
+        // `eventCostCents`: the entered line items summed, null when there are none.
+        val costItems = listOfNotNull(
+            detail.event.costEntryCents,
+            detail.event.costFuelCents,
+            detail.event.costTravelCents,
+            detail.event.costMiscCents,
+        )
+        val costCents = if (costItems.isEmpty()) null else costItems.sum()
+
         return detail.copy(
             event = detail.event.copy(
                 lapCount = laps.size,
@@ -100,6 +112,7 @@ public object OfflineMirrors {
                 bestMs = bestMs,
                 consistency = consistency,
                 hours = JsMath.round(hours, 10.0),
+                costCents = costCents,
             ),
         )
     }

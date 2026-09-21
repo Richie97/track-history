@@ -6,6 +6,7 @@
 // endpoint expose prepared *statements* (…Stmt) where useful — routes combine
 // them with db.batch() into one round trip instead of awaiting each in turn.
 
+import type { EventCosts } from "./lib/costs";
 import { type ComputedEvent, type EventRow, withComputed } from "./lib/stats";
 
 // The session-conditions aggregates (#191) are MIN/MAX rather than an average
@@ -25,6 +26,7 @@ export const eventSelect = (where: string, orderBy = "") => `
   SELECT e.id, e.track_id, t.name AS track_name,
          e.start_date, e.days, e.club, e.run_group, e.car, e.vehicle_id, e.notes,
          e.conditions, e.temp_f, e.checklist, e.best_time_ms, e.track_hours, e.updated_at,
+         e.cost_entry_cents, e.cost_fuel_cents, e.cost_travel_cents, e.cost_misc_cents,
          MIN(s.ambient_c) AS ambient_lo_c,
          MAX(s.ambient_c) AS ambient_hi_c,
          MAX(s.elevation_m) AS elevation_m,
@@ -215,7 +217,7 @@ export async function vehicleIdForCar(
   return row ? row.id : null;
 }
 
-export type VehicleHoursEvent = {
+export type VehicleHoursEvent = EventCosts & {
   id: number;
   vehicle_id: number;
   start_date: string;
@@ -225,11 +227,13 @@ export type VehicleHoursEvent = {
 };
 
 // Past vehicle-linked events with the raw inputs for eventHours — the ledger
-// the garage's wear math runs over (lib/wear.ts).
+// the garage's wear math runs over (lib/wear.ts) — plus their cost line items,
+// so the garage can say what a car's track days cost beside its parts (#147).
 export function vehicleHoursEventsStmt(db: D1Database, userId: number) {
   return db
     .prepare(
       `SELECT e.id, e.vehicle_id, e.start_date, e.days, e.track_hours,
+         e.cost_entry_cents, e.cost_fuel_cents, e.cost_travel_cents, e.cost_misc_cents,
          (SELECT SUM(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_ms_sum
        FROM events e
        WHERE e.user_id = ? AND e.vehicle_id IS NOT NULL AND e.start_date <= date('now')

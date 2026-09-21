@@ -81,6 +81,14 @@ public data class GarageVehicle(
     val hours: Double,
     @SerialName("event_count") val eventCount: Int,
     @SerialName("event_days") val eventDays: Int,
+    /**
+     * What the car has cost (#147), in cents: its past track days' entered
+     * costs and every part ever fitted. Sums, so zero rather than null when
+     * nothing was entered. Decoded so the contract stays pinned; nothing on
+     * this platform shows them yet.
+     */
+    @SerialName("event_cost_cents") val eventCostCents: Int = 0,
+    @SerialName("parts_cost_cents") val partsCostCents: Int = 0,
     val parts: List<Part>,
     /** See [Vehicle.catalogId] / [Vehicle.wheelbaseMm] / [Vehicle.steeringRatio]. */
     @SerialName("catalog_id") val catalogId: Int? = null,

@@ -75,6 +75,12 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
     public var hours: Double
     public var eventCount: Int
     public var eventDays: Int
+    /// What the car has cost (#147), in cents: its past track days' entered
+    /// costs and every part ever fitted. Sums, so zero rather than nil when
+    /// nothing was entered. Decoded so the contract stays pinned; nothing on
+    /// this platform shows them yet.
+    public var eventCostCents: Int
+    public var partsCostCents: Int
     public var parts: [Part]
     /// See `Vehicle.catalogId` / `wheelbaseMm` / `steeringRatio`.
     public var catalogId: Int?
@@ -88,6 +94,8 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         case updatedAt = "updated_at"
         case eventCount = "event_count"
         case eventDays = "event_days"
+        case eventCostCents = "event_cost_cents"
+        case partsCostCents = "parts_cost_cents"
         case catalogId = "catalog_id"
         case wheelbaseMm = "wheelbase_mm"
         case steeringRatio = "steering_ratio"
@@ -105,6 +113,8 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         hours: Double = 0,
         eventCount: Int = 0,
         eventDays: Int = 0,
+        eventCostCents: Int = 0,
+        partsCostCents: Int = 0,
         parts: [Part] = [],
         catalogId: Int? = nil,
         wheelbaseMm: Int? = nil,
@@ -119,6 +129,8 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         self.hours = hours
         self.eventCount = eventCount
         self.eventDays = eventDays
+        self.eventCostCents = eventCostCents
+        self.partsCostCents = partsCostCents
         self.parts = parts
         self.catalogId = catalogId
         self.wheelbaseMm = wheelbaseMm
@@ -136,6 +148,8 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         hours = try c.decode(Double.self, forKey: .hours)
         eventCount = try c.decode(Int.self, forKey: .eventCount)
         eventDays = try c.decode(Int.self, forKey: .eventDays)
+        eventCostCents = try c.decodeIfPresent(Int.self, forKey: .eventCostCents) ?? 0
+        partsCostCents = try c.decodeIfPresent(Int.self, forKey: .partsCostCents) ?? 0
         parts = try c.decode([Part].self, forKey: .parts)
         catalogId = try c.decodeIfPresent(Int.self, forKey: .catalogId)
         wheelbaseMm = try c.decodeIfPresent(Int.self, forKey: .wheelbaseMm)
@@ -153,6 +167,8 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         try c.encode(hours, forKey: .hours)
         try c.encode(eventCount, forKey: .eventCount)
         try c.encode(eventDays, forKey: .eventDays)
+        try c.encode(eventCostCents, forKey: .eventCostCents)
+        try c.encode(partsCostCents, forKey: .partsCostCents)
         try c.encode(parts, forKey: .parts)
         try c.encode(catalogId, forKey: .catalogId)
         try c.encode(wheelbaseMm, forKey: .wheelbaseMm)

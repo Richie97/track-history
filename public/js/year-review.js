@@ -1,6 +1,9 @@
 // Year-in-review computation over computed event rows — pure, unit-testable.
 // Events are the /api/events shape: { track_id, track_name,
-// start_date (yyyy-mm-dd), days, best_ms, lap_count, ... } in any order.
+// start_date (yyyy-mm-dd), days, best_ms, lap_count, cost_cents, ... } in any
+// order.
+
+import { centsPerSecond, spendSummary } from "./costs.js";
 
 export const eventYear = (e) => Number(e.start_date.slice(0, 4));
 
@@ -27,16 +30,27 @@ export function yearReview(events, year) {
     const priorBests = before.filter((e) => e.track_id === id && e.best_ms != null).map((e) => e.best_ms);
     const bestThisYear = Math.min(...yearBests);
     const bestBefore = priorBests.length ? Math.min(...priorBests) : null;
+    const gainMs = bestBefore != null ? bestBefore - bestThisYear : null;
+    // What this track-year cost (#147): every costed event here this year,
+    // timed or not — the fuel to a rained-out day still bought the seconds.
+    const spend = spendSummary(inYear.filter((e) => e.track_id === id));
     gains.push({
       track_id: id,
       track_name: sample.track_name,
       best_this_year: bestThisYear,
       best_before: bestBefore,
       // null when there's no prior baseline (first year at this track)
-      gain_ms: bestBefore != null ? bestBefore - bestThisYear : null,
+      gain_ms: gainMs,
+      spend_cents: spend?.total_cents ?? null,
+      // $/second found — the wry headline: null without a spend or a gain.
+      cents_per_second: centsPerSecond(spend?.total_cents ?? null, gainMs),
     });
   }
   gains.sort((a, b) => (b.gain_ms ?? -Infinity) - (a.gain_ms ?? -Infinity));
+
+  // The season's spend (#147): null when no event of the year was costed, so
+  // the page leaves the tile off rather than saying a season was free.
+  const spend = spendSummary(inYear);
 
   return {
     year,
@@ -49,5 +63,6 @@ export function yearReview(events, year) {
       .map((id) => inYear.find((e) => e.track_id === id))
       .map((e) => ({ track_id: e.track_id, track_name: e.track_name })),
     gains,
+    spend,
   };
 }

@@ -149,9 +149,23 @@ publicShare.get("/:slug", async (c) => {
     .sort((a, b) => (a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : a.id - b.id));
   const tracks = summarizeTracks(tracksRes.results as TrackRow[], pastAsc);
   // Strip private fields: event notes and prep checklists, per-track course
-  // notes, and the garage linkage (setup sheets and parts are exactly the
-  // data racers don't share — they live behind auth only).
-  const events = allEvents.map(({ notes, checklist, vehicle_id, track_hours, ...pub }) => pub);
+  // notes, the garage linkage (setup sheets and parts are exactly the data
+  // racers don't share — they live behind auth only) and what the day cost
+  // (#147): the line items and the total both.
+  const events = allEvents.map(
+    ({
+      notes,
+      checklist,
+      vehicle_id,
+      track_hours,
+      cost_entry_cents,
+      cost_fuel_cents,
+      cost_travel_cents,
+      cost_misc_cents,
+      cost_cents,
+      ...pub
+    }) => pub
+  );
   const publicTracks = tracks.map(({ notes, ...pub }) => pub);
   return c.json({ name: owner.name, totals: totalsRes.results[0], tracks: publicTracks, events });
 });
