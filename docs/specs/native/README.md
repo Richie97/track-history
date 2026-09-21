@@ -186,15 +186,17 @@ Features added after the rewrite shipped, and where they landed:
   untappable on the phones: a point is one 20 m sample of one lap, and the
   reading it belongs to is the corner's, which is the row.
   The decisions every client inherits: v1 is
-  **relative** — the reference is the session's own median yaw gain, because
-  the rigorous bicycle model needs the wheelbase and steering ratio the
-  garage doesn't store, so a car that pushes everywhere reads neutral
-  everywhere and the view finds the corner that differs; the yaw/steering
+  **relative** — the reference is the session's own median yaw gain rather
+  than the rigorous bicycle model's `v·δ/L`, so a car that pushes everywhere
+  reads neutral everywhere and the view finds the corner that differs; the yaw/steering
   sign alignment is *measured* per session (`yawSign`), never assumed; and
   readings are per corner, never per sample, because yaw lags steering on
-  entry and leads it on exit. If this graduates past the relative version,
-  wheelbase and steering ratio belong on the garage's vehicle record —
-  [#208](https://github.com/Richie97/track-history/issues/208) is that ticket.
+  entry and leads it on exit. The two constants the exact version needs are
+  on the garage's vehicle record since
+  [#208](https://github.com/Richie97/track-history/issues/208) (`wheelbase_mm`
+  and `steering_ratio`, pre-filled from the car catalog and measurable from
+  the driver's own laps, #221–#223); the absolute reading that would consume
+  them is #189's follow-up and is not built on any client yet.
 - **Session health strip**
   ([#190](https://github.com/Richie97/track-history/issues/190), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))

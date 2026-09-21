@@ -535,7 +535,7 @@ export function balanceHtml(channels, lit, labelFor) {
     <div class="sec-head">Balance <span class="hint">— how much the car rotated for the steering it was given. In a neutral car the two rise together; steering the car doesn't answer is understeer, rotation it wasn't asked for is oversteer.</span></div>
     <div class="balance-plot">${svg}</div>
     ${table}
-    <div class="hint">Corners are stretches of sustained cornering force (${fmtG(CORNER_MIN_G)} G or more) counted from the start/finish line, so the T-numbers are this app's, not the circuit's. Each reading is how far the corner's rotation sits from this car's typical response over the whole session — the dashed line — because the exact version needs the wheelbase and steering ratio, which aren't recorded. That makes it relative: a car that pushes in every corner reads neutral in every corner, and what shows up is the corner that behaves differently from the rest.</div>
+    <div class="hint">Corners are stretches of sustained cornering force (${fmtG(CORNER_MIN_G)} G or more) counted from the start/finish line, so the T-numbers are this app's, not the circuit's. Each reading is how far the corner's rotation sits from this car's typical response over the whole session — the dashed line — because the exact version needs the wheelbase and steering ratio — the garage stores them, but this reading doesn't use them yet. That makes it relative: a car that pushes in every corner reads neutral in every corner, and what shows up is the corner that behaves differently from the rest.</div>
   </div>`;
 }
 
