@@ -13,7 +13,7 @@ import Foundation
 /// | here | web mirror | server truth |
 /// |---|---|---|
 /// | `cleanLaps` | `cleanLaps` in `offline.js` | `sanitizeLaps` in `src/lib/validate.ts` |
-/// | `recomputeDetail` | `recomputeDetail` in `offline.js` | `withComputed` in `src/lib/stats.ts` (+ `eventHours` in `src/lib/wear.ts`) |
+/// | `recomputeDetail` | `recomputeDetail` in `offline.js` | `withComputed` in `src/lib/stats.ts` (+ `eventHours` in `src/lib/wear.ts`, `eventCostCents` in `src/lib/costs.ts`) |
 ///
 /// If you find a divergence from the server, fix the server-matching behavior and
 /// say so — the web app probably has the same bug.
@@ -45,6 +45,9 @@ public enum OfflineMirrors {
     ///   not zero. Two laps say nothing about consistency.
     /// - `hours` is the manual override when set, else `max(days × 2h, logged lap
     ///   time)`, rounded to 1dp. It is never nil.
+    /// - `costCents` is the sum of the entered cost line items, and **nil when
+    ///   none was entered** — not zero, so an uncosted day never reads as a free
+    ///   one (#147).
     public static func recomputeDetail(_ detail: inout EventDetail) {
         let laps = detail.sessions.flatMap { $0.laps.map(\.timeMs) }
 
@@ -73,6 +76,13 @@ public enum OfflineMirrors {
             hours = max(detail.event.days * 2, lapHours)
         }
         detail.event.hours = JSMath.round(hours, 10)
+
+        // `eventCostCents`: the entered line items summed, nil when there are none.
+        let costItems = [
+            detail.event.costEntryCents, detail.event.costFuelCents,
+            detail.event.costTravelCents, detail.event.costMiscCents,
+        ].compactMap { $0 }
+        detail.event.costCents = costItems.isEmpty ? nil : costItems.reduce(0, +)
     }
 
     /// The list-shaped row for an event, which is its detail minus the nested

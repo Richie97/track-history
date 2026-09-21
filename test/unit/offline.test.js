@@ -74,6 +74,16 @@ describe("recomputeDetail", () => {
     expect(d.best_ms).toBe(100000);
     expect(d.consistency).toBeCloseTo(8164.97 / 110000, 4);
   });
+
+  it("totals the cost line items into cost_cents, null when none was entered (#147)", () => {
+    const d = detail({ sessions: [] });
+    recomputeDetail(d);
+    expect(d.cost_cents).toBeNull();
+    d.cost_entry_cents = 45_000;
+    d.cost_fuel_cents = 8_000;
+    recomputeDetail(d);
+    expect(d.cost_cents).toBe(53_000);
+  });
 });
 
 describe("offline mutation queue", () => {
@@ -123,6 +133,9 @@ describe("offline mutation queue", () => {
     await enqueue("PUT", "/events/10", { notes: "wet all day", best_time_ms: 130000 });
     expect((await cachedGet("/events/10")).notes).toBe("wet all day");
     expect((await cachedGet("/events"))[0].best_ms).toBe(130000);
+    await enqueue("PUT", "/events/10", { cost_entry_cents: 45_000 });
+    expect((await cachedGet("/events/10")).cost_cents).toBe(45_000);
+    expect((await cachedGet("/events"))[0].cost_entry_cents).toBe(45_000);
 
     await enqueue("DELETE", "/events/10");
     expect(await cachedGet("/events/10")).toBeUndefined();

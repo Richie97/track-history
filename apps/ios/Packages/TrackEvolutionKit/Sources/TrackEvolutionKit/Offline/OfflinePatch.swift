@@ -31,6 +31,10 @@ extension OfflineStore {
         var checklist: [ChecklistItem]?
         var best_time_ms: Int?
         var track_hours: Double?
+        var cost_entry_cents: Int?
+        var cost_fuel_cents: Int?
+        var cost_travel_cents: Int?
+        var cost_misc_cents: Int?
     }
 
     private struct SessionBody: Decodable {
@@ -117,13 +121,18 @@ extension OfflineStore {
                 checklist: body.checklist,
                 bestTimeMs: body.best_time_ms,
                 trackHours: body.track_hours,
+                costEntryCents: body.cost_entry_cents,
+                costFuelCents: body.cost_fuel_cents,
+                costTravelCents: body.cost_travel_cents,
+                costMiscCents: body.cost_misc_cents,
                 updatedAt: 0,
                 lapBestMs: nil,
                 lapCount: 0,
                 sessionCount: 0,
                 bestMs: nil,
                 consistency: nil,
-                hours: 0
+                hours: 0,
+                costCents: nil
             ),
             sessions: [],
             setups: []
@@ -183,6 +192,10 @@ extension OfflineStore {
         if keys.keys.contains("checklist") { event.checklist = body.checklist }
         if keys.keys.contains("best_time_ms") { event.bestTimeMs = body.best_time_ms }
         if keys.keys.contains("track_hours") { event.trackHours = body.track_hours }
+        if keys.keys.contains("cost_entry_cents") { event.costEntryCents = body.cost_entry_cents }
+        if keys.keys.contains("cost_fuel_cents") { event.costFuelCents = body.cost_fuel_cents }
+        if keys.keys.contains("cost_travel_cents") { event.costTravelCents = body.cost_travel_cents }
+        if keys.keys.contains("cost_misc_cents") { event.costMiscCents = body.cost_misc_cents }
     }
 
     private static func deleteEvent(id: String, _ db: Database) throws {

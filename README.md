@@ -982,6 +982,22 @@ doesn't retain the previous user's logbook.
 - Imported per-session bests (from a spreadsheet era) appear as one-lap sessions;
   full lap-by-lap data can be attached to any event via `RAW_SESSIONS` in the seed
   data or pasted into the UI.
+- **What a day cost** ([#147](https://github.com/Richie97/track-history/issues/147))
+  — four optional line items on an event (entry fee, fuel, travel & lodging,
+  misc; `events.cost_*_cents`, migration `0025`, whole cents validated by
+  `isValidCostCents` in `src/lib/costs.ts`), entered in dollars on the web
+  event form and summed into `cost_cents` by `withComputed` — **null when
+  nothing was entered**, never zero, so an uncosted day drops out of every
+  roll-up instead of reading as free. The roll-ups are web-only for now and
+  count past events only, on the totals' rule: the track page says what a
+  track has cost, the vehicle page adds the car's track days to its parts
+  spend (`event_cost_cents` / `parts_cost_cents` on `GET /api/garage`), and
+  year in review rolls the season up and prices each track-year's seconds
+  found — spend ÷ the seconds its best dropped against every year before
+  (`cents_per_second` in `public/js/year-review.js`, null without a spend or a
+  gain). Costs are private: the share payload strips the line items and the
+  total. The native apps decode and carry the fields (a phone edit never drops
+  one) and show nothing yet — `docs/specs/native/README.md`.
 - **Prep checklists** hang off an upcoming event: tick items off as you pack,
   and the dashboard's countdown card shows how far through you are. The list a
   new checklist starts from is **yours to edit** — account menu → Settings → Prep
@@ -1105,8 +1121,12 @@ spreadsheet and the paper setup notebook into the logbook:
   the event's best/consistency. An imported session's hot tyre pressures can
   be written onto the day's sheet from the channel panel's Car tab, with the
   suggested cold pressures for next time (see *Session health* above).
-- **Privacy** — parts, wear, spend and setup sheets are never included in the
-  public share payload.
+- **Spend** — the vehicle page's *Spent* tile is the car's parts (every
+  part ever fitted, retired ones included) plus what its past track days cost
+  (the events' cost line items, #147), both summed server-side on
+  `GET /api/garage` as `parts_cost_cents` / `event_cost_cents`.
+- **Privacy** — parts, wear, spend, event costs and setup sheets are never
+  included in the public share payload.
 
 ## Subscriptions (Track Evolution Pro)
 

@@ -20,6 +20,7 @@ struct OfflineMirrorsTests {
         stripped.event.bestMs = 999_999
         stripped.event.consistency = 0
         stripped.event.hours = -1
+        stripped.event.costCents = 999_999
         return stripped
     }
 
@@ -34,6 +35,7 @@ struct OfflineMirrorsTests {
         #expect(mine.event.lapBestMs == server.event.lapBestMs)
         #expect(mine.event.bestMs == server.event.bestMs)
         #expect(mine.event.hours == server.event.hours)
+        #expect(mine.event.costCents == server.event.costCents)
 
         switch (mine.event.consistency, server.event.consistency) {
         case (nil, nil):
@@ -81,6 +83,28 @@ struct OfflineMirrorsTests {
         detail.sessions = []
         OfflineMirrors.recomputeDetail(&detail)
         #expect(detail.event.bestMs == nil, "neither a manual best nor any laps")
+    }
+
+    @Test func costCentsSumsTheEnteredLineItemsAndIsNilWhenNoneWasEntered() throws {
+        var detail = try Goldens.decode(EventDetail.self, "event-detail-no-laps")
+        detail.event.costEntryCents = nil
+        detail.event.costFuelCents = nil
+        detail.event.costTravelCents = nil
+        detail.event.costMiscCents = nil
+        OfflineMirrors.recomputeDetail(&detail)
+        #expect(detail.event.costCents == nil, "nothing entered is nil, not free")
+
+        detail.event.costEntryCents = 45_000
+        detail.event.costFuelCents = 8_000
+        OfflineMirrors.recomputeDetail(&detail)
+        #expect(detail.event.costCents == 53_000)
+
+        // A zero line item is entered — the total is zero, not nil.
+        detail.event.costEntryCents = nil
+        detail.event.costFuelCents = nil
+        detail.event.costMiscCents = 0
+        OfflineMirrors.recomputeDetail(&detail)
+        #expect(detail.event.costCents == 0)
     }
 
     @Test func hoursTakesTheOverrideElseTheGreaterOfTwoPerDayAndTimeOnTrack() throws {

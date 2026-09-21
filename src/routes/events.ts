@@ -3,14 +3,15 @@ import type { AppContext } from "../types";
 import { eventSelect, listEvents, ownedEvent, resolveTrack, vehicleIdForCar } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidConditions, isValidTemp, sanitizeChecklist, sanitizeSetup } from "../lib/validate";
+import { COST_FIELDS, isValidCostCents } from "../lib/costs";
 import { requireEntitlement } from "../middleware";
 import { isEntitled, stripProFields } from "../lib/entitlement";
 
 export const events = new Hono<AppContext>();
 
-// Validate conditions/temp_f/checklist/track_hours off `body`, returning
-// either the normalized values or an error message. checklist is stored as
-// JSON text.
+// Validate conditions/temp_f/checklist/track_hours and the four cost line
+// items off `body`, returning either the normalized values or an error
+// message. checklist is stored as JSON text.
 function validateExtras(body: any): { error: string } | { values: Record<string, unknown> } {
   const values: Record<string, unknown> = {};
   if ("conditions" in body) {
@@ -31,6 +32,13 @@ function validateExtras(body: any): { error: string } | { values: Record<string,
     if (v != null && (typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > 200))
       return { error: "invalid track_hours" };
     values.track_hours = v ?? null;
+  }
+  // Costs (#147): whole non-negative cents, each line item independent, null
+  // meaning "not entered" rather than free.
+  for (const field of COST_FIELDS) {
+    if (!(field in body)) continue;
+    if (!isValidCostCents(body[field])) return { error: `invalid ${field}` };
+    values[field] = body[field] ?? null;
   }
   return { values };
 }
@@ -54,8 +62,9 @@ events.post("/events", async (c) => {
   if (!trackId) return c.json({ error: "track required" }, 400);
   const row = await c.env.DB.prepare(
     `INSERT INTO events (user_id, track_id, start_date, days, club, run_group, car, vehicle_id, notes,
-                         conditions, temp_f, checklist, best_time_ms, track_hours)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+                         conditions, temp_f, checklist, best_time_ms, track_hours,
+                         cost_entry_cents, cost_fuel_cents, cost_travel_cents, cost_misc_cents)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
   )
     .bind(
       c.get("userId"),
@@ -71,7 +80,8 @@ events.post("/events", async (c) => {
       extras.values.temp_f ?? null,
       extras.values.checklist ?? null,
       body.best_time_ms ?? null,
-      extras.values.track_hours ?? null
+      extras.values.track_hours ?? null,
+      ...COST_FIELDS.map((field) => extras.values[field] ?? null)
     )
     .first<{ id: number }>();
   return c.json({ id: row!.id }, 201);

@@ -31,6 +31,7 @@ class OfflineMirrorsTest {
             bestMs = null,
             consistency = null,
             hours = 0.0,
+            costCents = null,
         ),
     )
 
@@ -45,6 +46,7 @@ class OfflineMirrorsTest {
         assertEquals(server.event.lapBestMs, ours.event.lapBestMs)
         assertEquals(server.event.bestMs, ours.event.bestMs)
         assertEquals(server.event.hours, ours.event.hours)
+        assertEquals(server.event.costCents, ours.event.costCents)
         if (server.event.consistency == null) {
             assertNull(ours.event.consistency)
         } else {
@@ -98,6 +100,15 @@ class OfflineMirrorsTest {
     }
 
     @Test
+    fun `costCents sums the entered line items and is null when none was entered`() {
+        assertNull(recompute().event.costCents)
+        val costed = recompute(costEntryCents = 45_000, costFuelCents = 8_000)
+        assertEquals(53_000, costed.event.costCents)
+        // A zero line item is entered — the total is zero, not null.
+        assertEquals(0, recompute(costMiscCents = 0).event.costCents)
+    }
+
+    @Test
     fun `cleanLaps matches sanitizeLaps`() {
         assertEquals(
             listOf(121_000, 119_000),
@@ -117,6 +128,9 @@ class OfflineMirrorsTest {
         days: Double = 1.0,
         trackHours: Double? = null,
         laps: List<Int> = emptyList(),
+        costEntryCents: Int? = null,
+        costFuelCents: Int? = null,
+        costMiscCents: Int? = null,
     ): EventDetail = OfflineMirrors.recomputeDetail(
         EventDetail(
             event = Event(
@@ -127,6 +141,9 @@ class OfflineMirrorsTest {
                 days = days,
                 bestTimeMs = bestTimeMs,
                 trackHours = trackHours,
+                costEntryCents = costEntryCents,
+                costFuelCents = costFuelCents,
+                costMiscCents = costMiscCents,
                 updatedAt = 0,
                 lapCount = 0,
                 sessionCount = 0,

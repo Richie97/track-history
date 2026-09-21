@@ -75,7 +75,10 @@ export const VEHICLES = [
 const inDays = (days) =>
   new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
-// [start_date, days, club, group, track, best|null, notes|null, sessionBests[], car?]
+// [start_date, days, club, group, track, best|null, notes|null, sessionBests[], car?, costs?]
+// costs is what the day cost in dollars — { entry, fuel, travel, misc }, each
+// optional — and is left off older events so the roll-ups show a partly
+// costed logbook, which is what most of them are.
 export const EVENTS = [
   ["2025-04-12", 2, "NASA Mid-Atlantic", "HPDE3", "Virginia International Raceway (Full)", "2:15.4",
     "First weekend of the season.", ["2:19.80", "2:17.31", "2:15.4"]],
@@ -83,15 +86,15 @@ export const EVENTS = [
     ["2:14.55", "2:12.9"]],
   ["2025-08-09", 1, "Chin", "Blue", "Road Atlanta", "1:48.2", "Hot. Traffic all day.", []],
   ["2025-09-13", 1, "SCCA", "Novice", "Road Atlanta", "1:59.5", "Miata day — momentum lessons.",
-    ["1:59.5"], "1999 Mazda Miata"],
+    ["1:59.5"], "1999 Mazda Miata", { entry: 275, fuel: 60 }],
   ["2025-11-01", 2, "NASA Mid-Atlantic", "HPDE4", "Virginia International Raceway (Full)", "2:11.4",
-    "Season closer — cold and grippy.", ["2:13.2", "2:11.4"]],
+    "Season closer — cold and grippy.", ["2:13.2", "2:11.4"], undefined, { entry: 495, fuel: 140, travel: 320 }],
   ["2026-02-14", 2, "Chin", "Blue", "Road Atlanta", "1:45.9", "New pads + RE-71RS. Bedding day 1.",
-    ["1:47.5", "1:45.9"]],
+    ["1:47.5", "1:45.9"], undefined, { entry: 550, fuel: 180, travel: 410, misc: 45 }],
   ["2026-04-18", 2, "NASA Mid-Atlantic", "HPDE4", "Virginia International Raceway (Full)", "2:09.8", null,
-    ["2:11.0", "2:09.8"]],
+    ["2:11.0", "2:09.8"], undefined, { entry: 495, fuel: 150, travel: 330 }],
   ["2026-06-13", 2, "NASA Mid-Atlantic", "HPDE4", "Virginia International Raceway (Full)", "2:08.6",
-    "Best weekend yet.", ["2:10.1", "2:09.0", "2:08.6"]],
+    "Best weekend yet.", ["2:10.1", "2:09.0", "2:08.6"], undefined, { entry: 495, fuel: 145, travel: 340 }],
   [inDays(21), 2, "NASA Mid-Atlantic", "HPDE4", "Virginia International Raceway (Full)", null, null, []],
 ];
 

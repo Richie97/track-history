@@ -1,9 +1,10 @@
 // Pure computation over event rows — no I/O, unit-testable.
 
 import type { ChecklistItem } from "./validate";
+import { type EventCosts, eventCostCents } from "./costs";
 import { eventHours } from "./wear";
 
-export type EventRow = {
+export type EventRow = EventCosts & {
   id: number;
   track_id: number;
   track_name: string;
@@ -39,6 +40,9 @@ export type ComputedEvent = Omit<EventRow, "lap_avg" | "lap_avg_sq" | "checklist
   consistency: number | null;
   hours: number; // on-track hours (override, or estimated — see lib/wear.ts)
   checklist: ChecklistItem[] | null;
+  // What the day cost, in cents: the sum of the entered line items (#147,
+  // lib/costs.ts), null when none was entered. Private — stripped from share.
+  cost_cents: number | null;
 };
 
 // Parse the stored checklist JSON; malformed data degrades to null rather than throwing.
@@ -74,5 +78,6 @@ export function withComputed(e: EventRow): ComputedEvent {
     consistency,
     hours: Math.round(hours * 10) / 10,
     checklist: parseChecklist(e.checklist),
+    cost_cents: eventCostCents(e),
   };
 }

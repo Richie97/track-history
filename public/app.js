@@ -22,6 +22,7 @@ import {
   elevationText, eventAmbient, tempText, trackElevationM,
 } from "./js/conditions.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
+import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
@@ -945,6 +946,15 @@ async function viewTrack(trackId, params) {
   // Elevation change is a property of the track, so it comes from every event
   // at it, dry-only filter or no filter.
   const elevM = trackElevationM(allEvents);
+  // What this track has cost (#147): every past event here that was costed,
+  // dry-only filter or no filter — a rain weekend still cost the entry fee.
+  // Upcoming events aren't spent yet, on the same rule as the totals.
+  const spend = spendSummary(allEvents.filter((e) => !isUpcoming(e)));
+  const spentText = spend
+    ? ` · ${fmtSpend(spend.total_cents)} spent${
+        spend.costed_events < spend.events ? ` (${spend.costed_events} of ${spend.events} events costed)` : ""
+      }`
+    : "";
 
   const rows = events
     .map(
@@ -1009,7 +1019,7 @@ async function viewTrack(trackId, params) {
 
   const view = shell(`
     <h1>${esc(track.name)}</h1>
-    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}</p>
+    <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}${spentText}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
     <div class="btn-row">
       <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a>
@@ -1659,6 +1669,16 @@ const channelPanelMemory = new Map();
 // session id — a session doesn't record its day, so the driver picks.
 const healthDayBySession = new Map();
 
+// "Entry $450 · Fuel $120 · Travel & lodging $300" under a cost figure — only
+// when there is more than one line item to break down; one item *is* the
+// total. `by` is an event (its own line items) or a spendSummary's by_field.
+function costBreakdownHtml(by) {
+  const parts = COST_FIELDS.filter(([field]) => by?.[field] != null && by[field] > 0).map(
+    ([field, label]) => `${label} ${fmtSpend(by[field])}`
+  );
+  return parts.length > 1 ? `<div class="hint cost-breakdown">${parts.join(" · ")}</div>` : "";
+}
+
 async function viewEvent(eventId) {
   const [e, tracks, garage] = await Promise.all([
     api(`/events/${eventId}`),
@@ -1901,7 +1921,9 @@ async function viewEvent(eventId) {
       <div class="tile"><div class="label">Days</div><div class="value">${e.days}</div></div>
       <div class="tile"><div class="label">Laps recorded</div><div class="value">${e.lap_count}</div></div>
       <div class="tile"><div class="label">Consistency</div><div class="value">${fmtConsistency(e.consistency)}</div></div>
+      ${e.cost_cents != null ? `<div class="tile"><div class="label">Cost</div><div class="value">${fmtSpend(e.cost_cents)}</div></div>` : ""}
     </div>
+    ${costBreakdownHtml(e)}
     ${e.notes ? `<div class="panel notes-block">${esc(e.notes)}</div>` : ""}
     <div class="btn-row">
       <a class="btn" href="#/event/${e.id}/edit">Edit event</a>
@@ -2409,6 +2431,14 @@ async function viewEventForm(eventId, presetTrack) {
       <div class="field"><label>Notes</label>
         <textarea name="notes" placeholder="Weather, setup changes, incidents…">${esc(existing?.notes ?? "")}</textarea>
       </div>
+      <div class="add-session-head">What it cost (optional)</div>
+      <div class="form-grid">
+        ${COST_FIELDS.map(
+          ([field, label, placeholder]) => `<div class="field"><label>${label} ($)</label>
+          <input name="${field}" type="number" min="0" max="100000" step="0.01" inputmode="decimal" value="${centsToDollars(existing?.[field])}" placeholder="${esc(placeholder)}"></div>`
+        ).join("")}
+      </div>
+      <div class="field"><div class="hint">Rolled up per track, per car and in Year in review — where it prices the seconds you found. Private: never on your share page.</div></div>
     </form>
     ${
       existing
@@ -2532,6 +2562,8 @@ async function viewEventForm(eventId, presetTrack) {
       temp_f: tempRaw === "" ? null : tempToStored(Number(tempRaw), units),
       notes: f.notes.value.trim() || null,
       best_time_ms: best,
+      // Typed in dollars, stored in cents; blank clears (#147).
+      ...Object.fromEntries(COST_FIELDS.map(([field]) => [field, dollarsToCents(f[field].value)])),
     };
     try {
       if (existing) {
@@ -2918,7 +2950,9 @@ async function viewVehicle(vehicleId) {
   const initialPick = v.catalog_id == null ? null : carCatalog.find((r) => r.id === v.catalog_id) ?? null;
   const active = v.parts.filter((p) => !p.retired_on);
   const retired = v.parts.filter((p) => p.retired_on);
-  const spendCents = v.parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0);
+  // What the car has cost (#147): its parts and its track days, both summed
+  // server-side on /garage (past events only — an upcoming one isn't spent).
+  const spendCents = v.parts_cost_cents + v.event_cost_cents;
   const today = todayISO();
   const units = currentUnits();
 
@@ -3028,8 +3062,13 @@ async function viewVehicle(vehicleId) {
       <div class="tile"><div class="label">Track hours</div><div class="value">${fmtHours(v.hours).replace(" h", "")}<span class="unit">h</span></div></div>
       <div class="tile"><div class="label">Track days</div><div class="value">${v.event_days}</div></div>
       <div class="tile"><div class="label">Events</div><div class="value">${v.event_count}</div></div>
-      <div class="tile"><div class="label">Parts spend</div><div class="value">${spendCents ? fmtCost(spendCents) : "—"}</div></div>
+      <div class="tile"><div class="label">Spent</div><div class="value">${spendCents ? fmtSpend(spendCents) : "—"}</div></div>
     </div>
+    ${
+      v.parts_cost_cents && v.event_cost_cents
+        ? `<div class="hint cost-breakdown">Parts ${fmtSpend(v.parts_cost_cents)} · track days ${fmtSpend(v.event_cost_cents)}</div>`
+        : ""
+    }
     <h2>Consumables in service</h2>
     <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (2h per track day unless an event says otherwise). Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
     ${active.map(partCard).join("") || `<div class="empty">Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.</div>`}
@@ -3316,6 +3355,9 @@ function yearReviewHtml(events, year, hashBase) {
     .map((v) => (v === y ? `<span class="btn small primary">${v}</span>` : `<a class="btn small" href="${hashBase}?y=${v}">${v}</a>`))
     .join("");
 
+  // The cost columns (#147) only appear once something in the year was
+  // costed, so an uncosted logbook's review reads exactly as it did.
+  const costed = r.spend != null;
   const gainRows = r.gains
     .map((g) => {
       const label =
@@ -3331,9 +3373,23 @@ function yearReviewHtml(events, year, hashBase) {
         <td class="num">${fmtMs(g.best_before)}</td>
         <td class="num">${fmtMs(g.best_this_year)}</td>
         <td>${label}</td>
+        ${costed ? `<td class="num">${fmtSpend(g.spend_cents) ?? "—"}</td><td class="num">${fmtPerSecond(g.cents_per_second) ?? "—"}</td>` : ""}
       </tr>`;
     })
     .join("");
+  // The wry headline: the cheapest seconds of the year. A track-year that spent
+  // money and got slower has no price per second, so it can't win this.
+  const priced = r.gains.filter((g) => g.cents_per_second != null).sort((a, b) => a.cents_per_second - b.cents_per_second);
+  const spendHtml = !costed
+    ? ""
+    : `<p class="sub">${fmtSpend(r.spend.total_cents)} across ${r.spend.costed_events} costed event${r.spend.costed_events === 1 ? "" : "s"}${
+        r.spend.costed_events < r.spend.events ? ` (${r.spend.events - r.spend.costed_events} not costed)` : ""
+      }${
+        priced.length
+          ? ` — every second found at <strong>${esc(priced[0].track_name)}</strong> cost <strong>${fmtPerSecond(priced[0].cents_per_second)}</strong>`
+          : ""
+      }.</p>
+    ${costBreakdownHtml(r.spend.by_field)}`;
 
   return `
     <h1>${y} in review</h1>
@@ -3343,10 +3399,12 @@ function yearReviewHtml(events, year, hashBase) {
       <div class="tile"><div class="label">Track days</div><div class="value">${r.days}</div></div>
       <div class="tile"><div class="label">Laps logged</div><div class="value">${r.laps}</div></div>
       <div class="tile"><div class="label">Tracks visited</div><div class="value">${r.tracks_visited}</div></div>
+      ${costed ? `<div class="tile"><div class="label">Spent</div><div class="value">${fmtSpend(r.spend.total_cents)}</div></div>` : ""}
     </div>
+    ${spendHtml}
     ${r.new_tracks.length ? `<p class="sub">First time at ${r.new_tracks.map((t) => `<strong>${esc(t.track_name)}</strong>`).join(", ")} 🎉</p>` : ""}
     ${gainRows ? `<h2>Lap time progress</h2>
-    <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best before ${y}</th><th class="num">Best in ${y}</th><th></th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best before ${y}</th><th class="num">Best in ${y}</th><th></th>${costed ? `<th class="num">Spent</th><th class="num">$/s found</th>` : ""}</tr></thead>
     <tbody>${gainRows}</tbody></table></div>` : `<div class="empty">No timed events in ${y}.</div>`}
   `;
 }

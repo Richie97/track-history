@@ -81,15 +81,20 @@ VEHICLES.forEach((v, i) => {
 });
 
 let sessionId = 0;
-EVENTS.forEach(([date, days, club, group, track, best, notes, sessionBests, car], i) => {
+// The optional tenth element of an event is what the day cost (#147), in
+// dollars: { entry, fuel, travel, misc }, each optional. Stored as cents.
+const costCents = (dollars) => (dollars == null ? "NULL" : Math.round(dollars * 100));
+EVENTS.forEach(([date, days, club, group, track, best, notes, sessionBests, car, costs], i) => {
   const eid = i + 1;
   const tid = trackId.get(track);
   if (!tid) throw new Error(`Unknown track: ${track}`);
   const carName = car ?? DEFAULT_CAR;
   const vid = carName != null && vehicleId.has(carName) ? vehicleId.get(carName) : null;
   lines.push(
-    `INSERT INTO events (id, user_id, track_id, start_date, days, club, run_group, car, vehicle_id, notes, best_time_ms) ` +
-      `VALUES (${eid}, 1, ${tid}, ${q(date)}, ${days}, ${q(club)}, ${q(group)}, ${q(carName)}, ${vid ?? "NULL"}, ${q(notes)}, ${best ? ms(best) : "NULL"});`
+    `INSERT INTO events (id, user_id, track_id, start_date, days, club, run_group, car, vehicle_id, notes, best_time_ms, ` +
+      `cost_entry_cents, cost_fuel_cents, cost_travel_cents, cost_misc_cents) ` +
+      `VALUES (${eid}, 1, ${tid}, ${q(date)}, ${days}, ${q(club)}, ${q(group)}, ${q(carName)}, ${vid ?? "NULL"}, ${q(notes)}, ${best ? ms(best) : "NULL"}, ` +
+      `${costCents(costs?.entry)}, ${costCents(costs?.fuel)}, ${costCents(costs?.travel)}, ${costCents(costs?.misc)});`
   );
   // The spreadsheet only recorded each session's best -> one-lap sessions.
   sessionBests.forEach((t, si) => {

@@ -401,6 +401,9 @@ h2 {
 
 /* ---------- Stat tiles ---------- */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--grid-gap); margin: 22px 0; }
+/* "Entry $450 · Fuel $120" under a Spent tile (#147): pulled up under the
+   grid, muted like every other hint. */
+.cost-breakdown { font-size: var(--fs-xs); color: var(--text-muted); margin: -12px 0 22px; }
 .tile {
   background: var(--surface-card); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg); padding: 18px 20px;

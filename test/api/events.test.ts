@@ -179,6 +179,52 @@ describe("event conditions & temperature", () => {
   });
 });
 
+describe("event costs (#147)", () => {
+  it("round-trips the line items and totals them into cost_cents", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api, { cost_entry_cents: 45_000, cost_fuel_cents: 12_050 });
+    const e = (await api("GET", `/events/${id}`)).body;
+    expect(e.cost_entry_cents).toBe(45_000);
+    expect(e.cost_fuel_cents).toBe(12_050);
+    expect(e.cost_travel_cents).toBeNull();
+    expect(e.cost_misc_cents).toBeNull();
+    expect(e.cost_cents).toBe(57_050);
+    const row = (await api("GET", "/events")).body[0];
+    expect(row.cost_cents).toBe(57_050);
+  });
+
+  it("cost_cents is null, not zero, for an event with nothing entered", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api);
+    expect((await api("GET", `/events/${id}`)).body.cost_cents).toBeNull();
+  });
+
+  it("updates one line item without touching the others, and clears via null", async () => {
+    const { api } = await signedInUser();
+    const id = await createEvent(api, { cost_entry_cents: 45_000, cost_travel_cents: 30_000 });
+    await api("PUT", `/events/${id}`, { cost_misc_cents: 2_500 });
+    let e = (await api("GET", `/events/${id}`)).body;
+    expect(e.cost_entry_cents).toBe(45_000);
+    expect(e.cost_travel_cents).toBe(30_000);
+    expect(e.cost_cents).toBe(77_500);
+    await api("PUT", `/events/${id}`, { cost_entry_cents: null, cost_travel_cents: null, cost_misc_cents: null });
+    e = (await api("GET", `/events/${id}`)).body;
+    expect(e.cost_entry_cents).toBeNull();
+    expect(e.cost_cents).toBeNull();
+  });
+
+  it("rejects negative, fractional and oversized amounts on create and update", async () => {
+    const { api } = await signedInUser();
+    const base = { track_name: "T", start_date: "2026-05-01" };
+    expect((await api("POST", "/events", { ...base, cost_entry_cents: -1 })).status).toBe(400);
+    expect((await api("POST", "/events", { ...base, cost_fuel_cents: 12.5 })).status).toBe(400);
+    expect((await api("POST", "/events", { ...base, cost_misc_cents: "45" })).status).toBe(400);
+    const id = await createEvent(api);
+    expect((await api("PUT", `/events/${id}`, { cost_travel_cents: 100_000_01 })).status).toBe(400);
+    expect((await api("PUT", `/events/${id}`, { cost_travel_cents: 100_000_00 })).status).toBe(200);
+  });
+});
+
 describe("event prep checklist", () => {
   it("round-trips a checklist, normalizing items", async () => {
     const { api } = await signedInUser();
