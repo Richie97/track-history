@@ -107,9 +107,10 @@ struct BalanceScatter: View {
                             + "start/finish line, so the T-numbers are this app's, not the circuit's. Each "
                             + "reading is how far the corner's rotation sits from this car's typical response "
                             + "over the whole session — the dashed line — because the exact version needs the "
-                            + "wheelbase and steering ratio, which aren't recorded. That makes it relative: a "
-                            + "car that pushes in every corner reads neutral in every corner, and what shows "
-                            + "up is the corner that behaves differently from the rest."
+                            + "wheelbase and steering ratio — the garage stores them, but this reading doesn't "
+                            + "use them yet. That makes it relative: a car that pushes in every corner reads "
+                            + "neutral in every corner, and what shows up is the corner that behaves "
+                            + "differently from the rest."
                     )
                     .teStyle(.xxs)
                     .foregroundStyle(Color(.textFaint))
