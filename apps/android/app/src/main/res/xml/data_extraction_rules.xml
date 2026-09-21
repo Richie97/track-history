@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup and device-transfer rules for API 31+. Keep in step with
+    backup_rules.xml, which says the same thing for older releases.
+
+    `auth.xml` is excluded from *both* sections: the master key that wraps it
+    lives in the AndroidKeyStore, which neither a cloud backup nor a direct
+    device-to-device transfer carries — so a restored copy is undecryptable
+    ciphertext that takes the app down at launch. See backup_rules.xml.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="auth.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="auth.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Auto Backup rules for API 23-30 (API 31+ uses data_extraction_rules.xml,
+    which must be kept in step with this file).
+
+    `auth.xml` is the EncryptedSharedPreferences file behind AuthStore. Its
+    contents are wrapped by an AndroidKeyStore master key, and **keystore keys
+    are never backed up** — so restoring this file onto a new device (or after a
+    reinstall) hands Tink a keyset it cannot decrypt, and every read throws
+    AEADBadTagException. That crashed the app at launch, on the very first
+    `isSignedIn` check, with no way out but clearing app data.
+
+    Excluding it costs the user one sign-in after a restore, which is what
+    happens anyway: a token that cannot be decrypted is not a session.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="auth.xml" />
+</full-backup-content>
