@@ -28,6 +28,17 @@ import app.trackevolution.core.api.TokenProvider
  * complete. It is encrypted for the same reason as the token — for the sixty
  * seconds it matters, it is the other half of the credential.
  *
+ * **An undecryptable store is treated as empty, not as a crash.** The ciphertext
+ * here and the AndroidKeyStore key that unwraps it can come apart — a restore
+ * carries the file and never the key, a keystore entry can be invalidated, some
+ * OEM keystores corrupt them — and when they do, Tink throws out of `create`.
+ * Because this is read on the first cold-start billing sync, that was a launch
+ * crash loop with no user-reachable way out. [EncryptedPrefs] wipes and reopens
+ * instead; the manifest's backup rules stop the common cause from arising at
+ * all. Anyone it catches signs in again, and nothing else is touched — the
+ * offline queue holds recorded laps that exist nowhere else and is a separate
+ * database.
+ *
  * Note `androidx.security:security-crypto` has had no stable release since 1.0.0
  * and Jetpack's guidance around it has softened. If it is ever pulled, the
  * replacement is a Keystore-wrapped AES/GCM key with the ciphertext in DataStore,
@@ -38,10 +49,17 @@ class AuthStore(context: Context) : TokenProvider {
     private val app = context.applicationContext
 
     private val prefs: SharedPreferences by lazy {
+        EncryptedPrefs.openOrReset(
+            open = ::openPrefs,
+            reset = { EncryptedPrefs.reset(app, FILE_NAME, MasterKey.DEFAULT_MASTER_KEY_ALIAS) },
+        )
+    }
+
+    private fun openPrefs(): SharedPreferences {
         val masterKey = MasterKey.Builder(app)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
-        EncryptedSharedPreferences.create(
+        return EncryptedSharedPreferences.create(
             app,
             FILE_NAME,
             masterKey,
