@@ -138,6 +138,32 @@ class ApiClientTest {
     }
 
     @Test
+    fun `a TLS failure is worded for the driver, with the platform's reason kept`() = runTest {
+        // What Android's Conscrypt says when the device clock puts the server's
+        // certificate outside its validity, or a proxy re-signed it: a message
+        // that names neither the host nor anything the driver can check.
+        val api = client { throw javax.net.ssl.SSLHandshakeException("Chain validation failed") }
+        val error = assertThrows<ApiException> { api.carCatalog() }
+        assertTrue(error is ApiException.Transport)
+        assertNull(error.status)
+        assertEquals(
+            "Couldn't make a secure connection to example.test (Chain validation failed). " +
+                "Check the device's date and time, and any VPN or proxy on this network.",
+            error.message,
+        )
+    }
+
+    @Test
+    fun `a TLS failure the engine wrapped in an IOException is still one`() = runTest {
+        val cause = java.security.cert.CertificateException("Chain validation failed")
+        val api = client { throw IOException("Handshake failed", cause) }
+        val error = assertThrows<ApiException> { api.me() }
+        assertTrue(error is ApiException.Transport)
+        assertTrue(error.message.startsWith("Couldn't make a secure connection to example.test"), error.message)
+        assertTrue(error.message.contains("Handshake failed"), error.message)
+    }
+
+    @Test
     fun `a body that does not match its model is a decoding failure`() = runTest {
         val api = client { respondJson("""{"user":{"id":"one"}}""") }
         val error = assertThrows<ApiException> { api.me() }

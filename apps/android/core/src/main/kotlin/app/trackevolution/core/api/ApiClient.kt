@@ -680,9 +680,44 @@ public class ApiClient(
             // subclasses; anything that isn't an ApiException already is one of
             // those, and none of them are the server's fault.
             if (e is ApiException) throw e
-            throw ApiException.Transport(e.message ?: "Network unavailable", e)
+            throw ApiException.Transport(transportMessage(e, serverUrl), e)
         }
         return response.status.value to response.bodyAsText()
+    }
+
+    /**
+     * What a failed connection says on screen. A transport failure is the one
+     * error whose message is the platform's rather than the server's, and
+     * Android's TLS stack words its own for a developer: a certificate the
+     * device's clock puts outside its validity, or one a VPN or proxy on the
+     * network re-signed, both surface as `SSLHandshakeException("Chain
+     * validation failed")` — which is what a driver saw in the car-catalog
+     * picker, the one GET a fresh install has no cached copy of. Every other
+     * screen was quietly rendering from the cache, so nothing else said the
+     * network was gone. A TLS failure is named as one and points at the two
+     * things the driver can check; the raw reason stays in parentheses for a
+     * bug report. Anything else keeps the platform's message, which for DNS
+     * and timeouts already says what happened.
+     */
+    private fun transportMessage(e: Exception, url: String): String {
+        val raw = e.message
+        if (!isTlsFailure(e)) return raw ?: "Network unavailable"
+        val host = runCatching { java.net.URI(url).host }.getOrNull() ?: url
+        val reason = if (raw.isNullOrBlank()) "" else " ($raw)"
+        return "Couldn't make a secure connection to $host$reason. " +
+            "Check the device's date and time, and any VPN or proxy on this network."
+    }
+
+    /** A TLS failure anywhere in the cause chain, however the engine wrapped it. */
+    private fun isTlsFailure(e: Throwable): Boolean {
+        var t: Throwable? = e
+        var depth = 0
+        while (t != null && depth < 8) {
+            if (t is javax.net.ssl.SSLException || t is java.security.cert.CertificateException) return true
+            t = t.cause
+            depth++
+        }
+        return false
     }
 
     public companion object {
