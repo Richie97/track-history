@@ -53,7 +53,7 @@ struct ImportScreen: View {
                             // staged sessions.
                             if !router.path.isEmpty { router.path.removeLast() }
                         } else {
-                            router.popToRoot()
+                            router.finishWindowOwningTask()
                         }
                     }
                 )
