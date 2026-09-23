@@ -709,12 +709,19 @@ public class ApiClient(
             java.net.URLEncoder.encode(this, "UTF-8")
 
         /**
-         * Strict on purpose (item 7 of NS-05): a field the server adds and this
-         * client doesn't model is drift, and drift should fail a test rather
-         * than disappear.
+         * Tolerant of fields this build doesn't model. The server deploys ahead
+         * of the Play rollout, so every build in users' hands will one day meet
+         * a field added after it shipped — and a strict decoder turned #192's
+         * `odometer` on `/garage` into a screen-wide error for every installed
+         * release that predated it. An old client can't show a field it has no
+         * model for, so dropping it is the only sensible reading.
+         *
+         * Drift is still an error, just in the right place: `GoldenContractTest`
+         * decodes every golden with `Goldens.strict` (NS-05 item 7), so a field
+         * the server adds and the models miss fails a test, not a user.
          */
         internal val responseJson: Json = Json {
-            ignoreUnknownKeys = false
+            ignoreUnknownKeys = true
             isLenient = false
         }
 
