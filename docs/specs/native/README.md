@@ -591,6 +591,7 @@ change* rule does not apply — see the spec for why.
 | NS-34 | [Large screens: iPad, foldables and tablets](NS-34-large-screens.md) | iOS + Android | NS-23, NS-24, NS-25, NS-26 |
 | NS-35 | [Open a leaderboard lap](NS-35-leaderboard-lap-detail.md) | Shared | Leaderboards, NS-33, #165 |
 | NS-36 | [Season Wrapped](NS-36-season-wrapped.md) | Web (server + web app), then iOS + Android | Year in review, share pages, NS-32, the garage |
+| NS-37 | [The Garage tab](NS-37-garage-tab.md) | Shared (web, iOS, Android; no server change) | NS-29, NS-31, NS-32, NS-34, #221/#222, #147 |
 
 ## Deferred — not in this programme
 
