@@ -9,6 +9,7 @@ import { sessions } from "./routes/sessions";
 import { vehicles } from "./routes/vehicles";
 import { carCatalog } from "./routes/carCatalog";
 import { share, publicShare, sharePage } from "./routes/share";
+import { wrapped } from "./routes/wrapped";
 import { wellKnown } from "./routes/wellKnown";
 import { billing } from "./routes/billing";
 import { billingWebhooks } from "./routes/billingWebhooks";
@@ -19,7 +20,7 @@ export type { Env, AppContext } from "./types";
 // Everything under /api requires a session cookie.
 const api = new Hono<AppContext>();
 api.use("*", requireSession);
-for (const routes of [me, tracks, events, sessions, vehicles, carCatalog, share, billing]) {
+for (const routes of [me, tracks, events, sessions, vehicles, carCatalog, share, wrapped, billing]) {
   api.route("/", routes);
 }
 

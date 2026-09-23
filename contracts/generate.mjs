@@ -63,6 +63,12 @@ function normalize(value, key) {
     return out;
   }
   if (key != null && Object.hasOwn(VOLATILE, key) && value !== null) return VOLATILE[key];
+  // Wrapped's `through` is today while the fixture's year is running and null
+  // once it has ended, so the raw value changes every day and then flips
+  // type on 1 January. It is the one volatile field pinned as always-set:
+  // every client models it as optional, and the null branch is the route
+  // tests' to pin.
+  if (key === "through") return "2026-01-01";
   return value;
 }
 
@@ -592,6 +598,21 @@ async function captureAll(api, anon, f) {
   record("me-pro-legacy", "GET", "/me",
     "The signed-in user once entitled: tier pro, source legacy, no expiry.",
     "src/routes/me.ts", await api("GET", "/me"));
+
+  // --- Season Wrapped (NS-36) ---------------------------------------------
+  // Last, so the extra event it needs disturbs no capture above. A second,
+  // quicker day on the Patriot layout — the catalog doesn't know it — gives
+  // `improvement` its first-year fallback, so the golden pins that object's
+  // shape rather than a null. By now the season has three tracks: VIR (Full),
+  // whose catalog row carries a length, and the Patriot layout and the
+  // "Watkins Glen" typed without its catalog suffix, neither of which the
+  // catalog matches and neither with telemetry — so `miles_tracks_counted` is
+  // below `tracks`, the "across N of M tracks" branch.
+  await api("POST", "/events", { ...FIXTURE.patriotEvent, start_date: "2026-05-20", best_time_ms: 76_900 });
+  record("wrapped", "GET", "/wrapped/:year",
+    "Season Wrapped (NS-36): the season's numbers for one calendar year, past events " +
+    "only. `pro` is the one tier-dependent field — null for a free account.",
+    "src/routes/wrapped.ts", await api("GET", "/wrapped/2026"));
 }
 
 // ---------------------------------------------------------------------------
@@ -615,6 +636,7 @@ const EXPECTED_ROUTES = [
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug",
+  "GET /wrapped/:year",
   // Billing (NS-32). The three store routes — POST /billing/apple,
   // /billing/apple/legacy and /billing/google — need payloads signed by the
   // stores (or a Play API answer) that this harness cannot mint against the

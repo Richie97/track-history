@@ -22,6 +22,7 @@ import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackSetupRow
 import app.trackevolution.core.model.Vehicle
+import app.trackevolution.core.model.Wrapped
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -91,6 +92,7 @@ class GoldenContractTest {
             "garage" -> roundTrip(entry.name, ListSerializer(GarageVehicle.serializer()))
             "vehicle-steering-fit" -> roundTrip(entry.name, SteeringFits.serializer())
             "share-public" -> roundTrip(entry.name, ShareData.serializer())
+            "wrapped" -> roundTrip(entry.name, Wrapped.serializer())
             "track-create" -> roundTrip(entry.name, CreatedTrack.serializer())
             "vehicle-create" -> roundTrip(entry.name, Vehicle.serializer())
             "part-refresh" -> roundTrip(entry.name, PartRefresh.serializer())
