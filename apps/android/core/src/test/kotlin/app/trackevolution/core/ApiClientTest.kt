@@ -5,6 +5,7 @@ import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.api.StaticToken
 import app.trackevolution.core.model.EventDraft
 import app.trackevolution.core.model.EventPatch
+import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.model.TrackPatch
@@ -20,6 +21,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -60,6 +62,21 @@ class ApiClientTest {
 
     private fun bodyOf(request: HttpRequestData): JsonObject =
         Json.parseToJsonElement((request.body as TextContent).text).jsonObject
+
+    /**
+     * A field the server added after this build shipped is ignored, not fatal:
+     * #192's `odometer` on `/garage` took down every screen that read it on the
+     * builds already installed. The strict check is [GoldenContractTest]'s.
+     */
+    @Test
+    fun `a field added after this build shipped does not break a decode`() = runTest {
+        val body = Goldens.bodyText("garage")
+            .replace("\"parts_cost_cents\":", "\"added_later\":{\"km\":1},\"parts_cost_cents\":")
+        assertTrue(body.contains("added_later"), "the fixture moved; re-anchor the injected key")
+        val api = client { respondJson(body) }
+        val garage = api.garage()
+        assertEquals(Goldens.decode("garage", ListSerializer(GarageVehicle.serializer())), garage)
+    }
 
     @Test
     fun `sends the bearer token on api requests`() = runTest {
