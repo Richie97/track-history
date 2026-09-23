@@ -13,7 +13,8 @@ enum Route: Hashable {
     /// A track's leaderboard, behind the track page's button. Keyed by the
     /// viewer's own track, because that is what the server keys the board on.
     case leaderboard(trackId: Int)
-    /// A car's garage page: consumables, wear and its track-hours ledger.
+    /// A car's garage page: its logbook for everyone, and for Pro its
+    /// consumables and wear (NS-37).
     case vehicle(Int)
     case settings
     /// NS-17's recorder. Deliberately not reachable from a link — see `DeepLink`.
@@ -81,6 +82,31 @@ extension Route {
     }
 }
 
+/// The two halves of the app (NS-37): the logbook and the garage, one tab each.
+/// Each keeps its own navigation path, so switching tabs never loses your place
+/// in the other.
+enum AppTab: Hashable {
+    case events
+    case garage
+}
+
+extension Route {
+    /// The tab a route belongs to when it is **opened** — a deep link, the list
+    /// pane, `show` — or nil for one that belongs to neither and opens wherever
+    /// you already are (Settings, reached from either tab's account button).
+    ///
+    /// A *push* ignores this on purpose: an event page linking to its car keeps
+    /// the car on the Events stack, so Back returns to the event you came from
+    /// rather than to a different tab.
+    var tab: AppTab? {
+        switch self {
+        case .vehicle: .garage
+        case .settings: nil
+        case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .lap, .wrapped: .events
+        }
+    }
+}
+
 /// A route identifies itself, so it can drive a `fullScreenCover(item:)` without
 /// a wrapper type. Safe because `Route` is already `Hashable` and carries no
 /// mutable state — two equal routes *are* the same destination.
@@ -100,7 +126,47 @@ enum EventFormTarget: Hashable {
 @MainActor
 @Observable
 final class AppRouter {
-    var path: [Route] = []
+    /// Which tab is showing (NS-37).
+    var tab: AppTab = .events
+    /// Each tab's own stack. Bound one to each tab's `NavigationStack`; everything
+    /// else goes through ``path``, the stack of the tab on screen.
+    var eventsPath: [Route] = []
+    var garagePath: [Route] = []
+
+    /// The stack of the tab on screen — what every screen means by "the path".
+    var path: [Route] {
+        get { self.path(for: tab) }
+        set { setPath(newValue, for: tab) }
+    }
+
+    func path(for tab: AppTab) -> [Route] {
+        switch tab {
+        case .events: eventsPath
+        case .garage: garagePath
+        }
+    }
+
+    private func setPath(_ routes: [Route], for tab: AppTab) {
+        switch tab {
+        case .events: eventsPath = routes
+        case .garage: garagePath = routes
+        }
+    }
+
+    /// Every route on either stack — what the temp-id follower watches.
+    var allRoutes: [Route] { eventsPath + garagePath }
+
+    /// The Garage tab's badge: maintenance reminders (due or low) across the
+    /// cars, for Pro. Written by whichever screen last read `GET /api/garage` —
+    /// the dashboard on launch, the Garage and a car's page after that — and read
+    /// by nothing but the tab item, so the count costs no request of its own.
+    var garageAlertCount = 0
+
+    /// Bumped by every garage write a car's page makes (NS-37). The Garage list
+    /// watches it: beside the detail at expanded width the list never leaves the
+    /// screen, so "reload when it reappears" would never fire and a deleted or
+    /// renamed car would stay listed.
+    var garageRevision = 0
 
     /// Whether the iPad build is running on a Mac (epic #230). Injected so the
     /// tests can drive both answers; the app passes `Platform.runsOnMac`.
@@ -149,9 +215,17 @@ final class AppRouter {
     }
 
     /// Replace the stack with a single destination — what a deep link should do,
-    /// rather than burying the dashboard under an arbitrary history.
+    /// rather than burying the dashboard under an arbitrary history. On the tab
+    /// the route belongs to (NS-37), so a link to a car lands in the Garage.
     func show(_ route: Route) {
-        path = route.resolved(runsOnMac: runsOnMac).map { [$0] } ?? []
+        guard let route = route.resolved(runsOnMac: runsOnMac) else {
+            // The dashboard: the Events tab's root.
+            tab = .events
+            eventsPath = []
+            return
+        }
+        if let home = route.tab { tab = home }
+        path = [route]
     }
 
     /// Open a route **from the list pane** (NS-34).
@@ -198,7 +272,7 @@ final class AppRouter {
             pending = route
             return true
         }
-        if let route { show(route) } else { popToRoot() }
+        if let route { show(route) } else { tab = .events; eventsPath = [] }
         return true
     }
 
@@ -230,7 +304,12 @@ final class AppRouter {
     /// it has to follow the row to its real id or it starts 404ing against the
     /// server the moment connectivity returns.
     func remapTempIds(_ resolve: (Int) -> Int?) {
-        path = path.map { route in
+        eventsPath = Self.remapped(eventsPath, resolve)
+        garagePath = Self.remapped(garagePath, resolve)
+    }
+
+    private static func remapped(_ routes: [Route], _ resolve: (Int) -> Int?) -> [Route] {
+        routes.map { route in
             switch route {
             case .event(let id):
                 guard OfflineStore.isTemp(id), let real = resolve(id) else { return route }

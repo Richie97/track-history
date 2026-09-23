@@ -7,10 +7,11 @@ import TrackEvolutionKit
 /// deliberate difference: pull-to-refresh is `.refreshable`, not
 /// `public/js/pull-refresh.js`'s hand-built approximation of it.
 ///
-/// The garage appears here as it does on the web — a collapsed maintenance strip
-/// and a card per vehicle — but it is the one section allowed to be **missing**.
-/// `GET /api/garage` is fetched independently of the rest and its failure is
-/// swallowed: a user with no garage, or an offline first launch, still gets the
+/// The garage has its own tab (NS-37). What is left of it here is one line under
+/// the next-event hero when that event's car has something due — and the Garage
+/// tab's badge, which this screen feeds because it is the one on screen at
+/// launch. `GET /api/garage` is fetched independently of the rest and its failure
+/// is swallowed: it is Pro, and a free or offline first launch still gets the
 /// whole logbook rather than an error page about a feature they may not use.
 struct DashboardScreen: View {
     @Environment(AuthController.self) private var auth
@@ -102,6 +103,7 @@ struct DashboardScreen: View {
                 let model = DashboardModel(api: auth.api)
                 self.model = model
                 await model.load()
+                router.garageAlertCount = Garage.garageAlerts(model.garage).count
                 // Only once the dashboard is on screen: this is a background warm-up
                 // for the paddock, and it must never delay first paint.
                 await model.warmCache()
@@ -112,8 +114,6 @@ struct DashboardScreen: View {
     private func content(_ model: DashboardModel) -> some View {
         TEPage {
             recordingBanner
-
-            MaintenanceStrip(garage: model.garage, collapsed: true)
 
             // The two ways into a track day, side by side — the web app's `.btn-row`.
             // Recording is offered here because the alternative is navigating into an
@@ -152,6 +152,7 @@ struct DashboardScreen: View {
 
             if let hero = model.heroEvent {
                 heroCard(hero)
+                heroGarageLine(model, hero)
             }
 
             TEStatRow(tiles: [
@@ -187,15 +188,11 @@ struct DashboardScreen: View {
                     TrackCard(track: track)
                 }
             }
-
-            if !model.garage.isEmpty {
-                TESectionHeader("Garage")
-                TECardGrid(items: model.garage) { vehicle in
-                    garageCard(vehicle)
-                }
-            }
         }
-        .refreshable { await model.load() }
+        .refreshable {
+            await model.load()
+            router.garageAlertCount = Garage.garageAlerts(model.garage).count
+        }
     }
 
     /// Open a route from the list pane.
@@ -361,44 +358,41 @@ struct DashboardScreen: View {
         return "checklist \(checklist.filter(\.done).count)/\(checklist.count)"
     }
 
-    // MARK: - Track cards
+    // MARK: - The garage, in one line
 
-    // MARK: - Garage cards
-
-    /// A car's accrued hours and the worst thing fitted to it — enough to know
-    /// whether the garage needs opening before the next event.
-    private func garageCard(_ vehicle: GarageVehicle) -> some View {
-        let active = vehicle.parts.filter { $0.retiredOn == nil }
-        let worst = Garage.garageAlerts([vehicle]).first?.status
-        return TENavCard(route: .vehicle(vehicle.id), identifier: "garageCard", listPane: true) {
-            Text(vehicle.name)
-                .teStyle(.h3)
-                .foregroundStyle(Color(.textStrong))
-            // Same rule as the track card's time: one line, scaled to fit. "12.5 h"
-            // is short enough to be safe today, and this card sits in the same
-            // grid, so it would break the same way the first time it isn't.
-            Text(Garage.fmtHours(vehicle.hours))
-                .teStyle(.lapTimeHero)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .foregroundStyle(Color(.textStrong))
-            TEMeta([
-                fmtCount(vehicle.eventDays, "track day"),
-                "\(fmtCount(active.count, "part")) in service"
-            ])
-            Text(Self.garageStatusLine(worst: worst, activeParts: active.count))
-                .teStyle(.xs)
-                .foregroundStyle((worst ?? .ok).ink)
-        }
-    }
-
-    private static func garageStatusLine(worst: Garage.PartStatus?, activeParts: Int) -> String {
-        switch worst {
-        case .due: "Replace something now"
-        case .low: "Something's due soon"
-        // No alert isn't the same as nothing fitted: an empty garage card says so
-        // rather than claiming everything's healthy.
-        case .ok, nil: activeParts == 0 ? "No consumables tracked yet" : "Nothing due"
+    /// The next event's car, when something on it needs attention first — the
+    /// web's `heroGarageHtml`. The one thing the dashboard still says about the
+    /// garage now that the garage has its own tab; tapping it opens the car there.
+    @ViewBuilder
+    private func heroGarageLine(_ model: DashboardModel, _ event: Event) -> some View {
+        if let vehicleId = event.vehicleId,
+           let vehicle = model.garage.first(where: { $0.id == vehicleId }) {
+            let alerts = Garage.garageAlerts([vehicle])
+            if let first = alerts.first {
+                let more = alerts.count - 1
+                let line = "\(first.part.kind.label) \(first.status == .due ? "due" : "due soon") on the \(vehicle.name)"
+                    + (more > 0 ? " · +\(more) more" : "")
+                Button {
+                    router.show(.vehicle(vehicle.id))
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wrench.and.screwdriver")
+                        Text(line)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .teStyle(.xs)
+                    }
+                    .teStyle(.sm)
+                    .foregroundStyle(first.status.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.surfaceCard), in: .rect(cornerRadius: TERadius.md))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("heroGarage")
+            }
         }
     }
 

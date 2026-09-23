@@ -32,6 +32,26 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
         case steeringRatio = "steering_ratio"
     }
 
+    public init(
+        id: Int,
+        name: String,
+        notes: String? = nil,
+        isDefault: Bool = false,
+        targetHotPsi: Double? = nil,
+        catalogId: Int? = nil,
+        wheelbaseMm: Int? = nil,
+        steeringRatio: Double? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.notes = notes
+        self.isDefault = isDefault
+        self.targetHotPsi = targetHotPsi
+        self.catalogId = catalogId
+        self.wheelbaseMm = wheelbaseMm
+        self.steeringRatio = steeringRatio
+    }
+
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(Int.self, forKey: .id)
@@ -279,4 +299,16 @@ public struct WearSource: RawRepresentable, Codable, Hashable, Sendable {
 
     public static let measured = WearSource(rawValue: "measured")
     public static let expected = WearSource(rawValue: "expected")
+}
+
+public extension GarageVehicle {
+    /// The car itself, without the garage's Pro half — what the vehicle list
+    /// (`GET /api/vehicles`) carries for the same row, since both responses select
+    /// the server's one `VEHICLE_COLUMNS`.
+    var vehicle: Vehicle {
+        Vehicle(
+            id: id, name: name, notes: notes, isDefault: isDefault, targetHotPsi: targetHotPsi,
+            catalogId: catalogId, wheelbaseMm: wheelbaseMm, steeringRatio: steeringRatio
+        )
+    }
 }

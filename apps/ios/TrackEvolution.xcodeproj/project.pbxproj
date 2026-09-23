@@ -63,6 +63,7 @@
 		B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E142A66C92DBCD4560C1753C /* LegacyClaimRecord.swift */; };
 		B4B78EDE7A4EB68DFF1E5B60 /* LeaderboardLapScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */; };
 		B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */; };
+		B84EE4B51B19A13263814B43 /* GarageScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03589AF363C111DDE858D9B7 /* GarageScreen.swift */; };
 		B95AD6759F4133599447F180 /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161A592C2B6F0C715B7E17B2 /* Platform.swift */; };
 		B962D4EA9A0300EEDC05153C /* AnalysisColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE2A9CD6AC286F49A143CA2 /* AnalysisColumn.swift */; };
 		B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82118910A4D7C285ABC04083 /* SignInUITests.swift */; };
@@ -112,6 +113,7 @@
 
 /* Begin PBXFileReference section */
 		00C463A61C87EA12BC0DD175 /* TrackEvolutionKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TrackEvolutionKit; path = Packages/TrackEvolutionKit; sourceTree = SOURCE_ROOT; };
+		03589AF363C111DDE858D9B7 /* GarageScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScreen.swift; sourceTree = "<group>"; };
 		03E3F0A72B7C7860B19B1ED6 /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
 		04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBanner.swift; sourceTree = "<group>"; };
 		042BCD94857B93C69F6E4953 /* TwoPaneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoPaneUITests.swift; sourceTree = "<group>"; };
@@ -271,6 +273,7 @@
 				CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */,
 				30D7E5BFFAD255C5A8CDC979 /* EventModel.swift */,
 				5D136E4DE2F395728D4F10F3 /* EventScreen.swift */,
+				03589AF363C111DDE858D9B7 /* GarageScreen.swift */,
 				DE19F08670203224D23A5F6F /* GarageViews.swift */,
 				87B0E4C546102DECE0F34F9C /* LapDetailScreen.swift */,
 				85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */,
@@ -590,6 +593,7 @@
 				68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */,
 				D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */,
 				32D05A0ACA64F77EADA631B6 /* FrictionCircle.swift in Sources */,
+				B84EE4B51B19A13263814B43 /* GarageScreen.swift in Sources */,
 				43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */,
 				76E50E777D717D9432F654F9 /* GearRibbon.swift in Sources */,
 				444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */,

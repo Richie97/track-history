@@ -66,21 +66,29 @@ struct RootView: View {
         }
     }
 
+    /// Events and Garage, one tab each (NS-37), every tab holding the shell NS-34
+    /// built — so at expanded width each is its own list-detail.
+    ///
+    /// The banners go on each tab's content rather than on the `TabView`. An inset
+    /// on the tab view itself would sit *below* the tab bar; on the content it sits
+    /// above it and still spans the whole window width at every size, which is the
+    /// NS-34 rule. Both tabs carry both, so switching tab can never hide a live
+    /// recording.
     private var signedIn: some View {
-        navigationShell
-        .environment(router)
-        // A recording must be visible from wherever you are in the app,
-        // since navigating away deliberately doesn't stop it.
-        //
-        // Outside the shell, so at expanded width both banners span the **window**
-        // rather than one pane (NS-34). A recording visible only above the detail
-        // would be invisible exactly when the driver is looking at the list.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if recorder.isRecording {
-                RecordingBanner()
-            }
+        TabView(selection: $router.tab) {
+            navigationShell(.events)
+                .withShellBanners(recording: recorder.isRecording)
+                .tabItem { Label("Events", systemImage: "flag.checkered") }
+                .tag(AppTab.events)
+            navigationShell(.garage)
+                .withShellBanners(recording: recorder.isRecording)
+                .tabItem { Label("Garage", systemImage: "car") }
+                .tag(AppTab.garage)
+                .badge(router.garageAlertCount)
         }
-        .safeAreaInset(edge: .top, spacing: 0) { SyncBanner() }
+        // The selected tab in the brand accent rather than the system blue.
+        .tint(Color(.accentInk))
+        .environment(router)
         // The two routes that own the window rather than a pane. Over the banners
         // as well as the panes: the recorder *is* the recording, so it does not
         // need one above it, and the review inside it must not be dismissable by
@@ -164,18 +172,45 @@ struct RootView: View {
     /// so the alternative is a scene-storage draft on the form — NS-34 ticket 4's
     /// fold audit is where that question belongs, on the platform that has it.
     @ViewBuilder
-    private var navigationShell: some View {
+    private func navigationShell(_ tab: AppTab) -> some View {
         if layout.layoutClass == .expanded {
-            splitShell
+            splitShell(tab)
         } else {
-            stackShell
+            stackShell(tab)
         }
     }
 
-    /// Today's shell, unchanged: the dashboard is the root and everything pushes.
-    private var stackShell: some View {
-        NavigationStack(path: $router.path) {
-            DashboardScreen()
+    /// Each tab's own stack, bound to that tab's path — never to `router.path`,
+    /// which follows whichever tab is on screen.
+    private func pathBinding(_ tab: AppTab) -> Binding<[Route]> {
+        switch tab {
+        case .events: $router.eventsPath
+        case .garage: $router.garagePath
+        }
+    }
+
+    /// The tab's list: the dashboard, or the garage.
+    @ViewBuilder
+    private func tabRoot(_ tab: AppTab) -> some View {
+        switch tab {
+        case .events: DashboardScreen()
+        case .garage: GarageScreen()
+        }
+    }
+
+    /// What the detail pane says with nothing picked.
+    @ViewBuilder
+    private func tabPlaceholder(_ tab: AppTab) -> some View {
+        switch tab {
+        case .events: DetailPlaceholder()
+        case .garage: GarageDetailPlaceholder()
+        }
+    }
+
+    /// Today's shell, unchanged: the tab's list is the root and everything pushes.
+    private func stackShell(_ tab: AppTab) -> some View {
+        NavigationStack(path: pathBinding(tab)) {
+            tabRoot(tab)
                 .navigationDestination(for: Route.self) { route in
                     destination(route)
                 }
@@ -190,9 +225,9 @@ struct RootView: View {
     /// showing it twice is the one thing the spec rules out by name. That is why a
     /// deep link needs no width check: `show(_:)` sets the path, and the path is
     /// the detail either way.
-    private var splitShell: some View {
+    private func splitShell(_ tab: AppTab) -> some View {
         NavigationSplitView {
-            DashboardScreen()
+            tabRoot(tab)
                 // Never narrower than a phone. The dashboard's own content sets
                 // this floor — a hero card with a countdown, three stat tiles and
                 // track cards carrying lap times were all drawn for ~390pt, and a
@@ -201,8 +236,8 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: 390, ideal: 420, max: 520)
                 .measuringPaneWidth()
         } detail: {
-            NavigationStack(path: $router.path) {
-                DetailPlaceholder()
+            NavigationStack(path: pathBinding(tab)) {
+                tabPlaceholder(tab)
                     .navigationDestination(for: Route.self) { route in
                         destination(route)
                     }
@@ -297,9 +332,9 @@ struct RootView: View {
     /// mechanism for something already being watched.
     private func followFlushedIds() async {
         while !Task.isCancelled {
-            if router.path.contains(where: Self.holdsTempId) {
+            if router.allRoutes.contains(where: Self.holdsTempId) {
                 var resolved: [Int: Int] = [:]
-                for id in router.path.compactMap(Self.tempId) {
+                for id in router.allRoutes.compactMap(Self.tempId) {
                     if let real = await auth.api.resolveTempId(id) { resolved[id] = real }
                 }
                 if !resolved.isEmpty {
@@ -338,4 +373,17 @@ struct RootView: View {
         .environment(RecordingController())
         .environment(auth)
         .environment(StoreController(auth: auth))
+}
+
+private extension View {
+    /// The two banners that have to be visible from anywhere: a recording keeps
+    /// running when you navigate away, and unsent writes keep waiting.
+    func withShellBanners(recording: Bool) -> some View {
+        safeAreaInset(edge: .bottom, spacing: 0) {
+            if recording {
+                RecordingBanner()
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) { SyncBanner() }
+    }
 }
