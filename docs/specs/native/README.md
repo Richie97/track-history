@@ -32,8 +32,8 @@ The three clients are deliberately **not** at parity:
   functionality a lap timer has none of. Apple granted the equivalent CarPlay
   entitlement, Google has no equivalent to grant, and that asymmetry is now a
   permanent feature of the split rather than a gap to close.
-- **The web app owns the desk-bound long tail** — `.vbo` and other logger-file
-  import, year in review, the setup notebook and its lap-time correlation. Big
+- **The web app owns the desk-bound long tail** — logger-file import other
+  than video and `.vbo`, year in review, the setup notebook and its lap-time correlation. Big
   screen, file drag-and-drop, ships instantly.
 - **The web app stays the feature frontier.** New ideas land there first and
   graduate to native once proven.
@@ -42,7 +42,7 @@ The three clients are deliberately **not** at parity:
   iPad build as a *Designed for iPad* app — no target, no Catalyst — so it
   inherits the native feature set **minus the recorder**: a Mac has no GPS, and
   `Platform.runsOnMac` closes every door to it. The web-only list above is
-  **unchanged** by the Mac: `.vbo` import, year in review, the two-event
+  **unchanged** by the Mac: year in review, the two-event
   overlay and the setup notebook do not come to native because the app is on a
   desk, which is the same rule NS-34 applies to a big screen. A desk-sized
   native client is the standing *argument* for revisiting that list — recorded
@@ -50,17 +50,23 @@ The three clients are deliberately **not** at parity:
   native macOS target sharing `App/` is the follow-on if the Mac earns one. It
   is not this change.
 
-Consequence: **the telemetry parsers are, with one exception, never ported.** That
+Consequence: **the telemetry parsers are, with two exceptions, never ported.** That
 is the design, not a gap. `js/import/geo.js` *is* ported (NS-13/NS-14) because the
 live recorder needs start/finish line crossing to time laps.
 
-The exception is **video** — `public/pdr.js`, `js/import/gpmf.js`, `channels.js`
+The first exception is **video** — `public/pdr.js`, `js/import/gpmf.js`, `channels.js`
 and `pdr-laps.js`, ported by NS-30 (iOS) and NS-32 (Android). The split was right about the shape of import
-and wrong about that one input: a `.vbo` reaches a laptop on an SD card, but a
-GoPro clip arrives in Photos over Wi-Fi and a PDR clip lands in Files off a USB
-stick, both on the phone and usually before the laptop is opened. `vbo.js` stays
-web-only, and so does everything else on the deferred list. See NS-30 for the
-argument in full.
+and wrong about that one input: a GoPro clip arrives in Photos over Wi-Fi and a
+PDR clip lands in Files off a USB stick, both on the phone and usually before the
+laptop is opened. See NS-30 for the argument in full.
+
+The second is **`.vbo`** (`js/import/vbo.js`, 2026-09), for the same reason one
+step removed: the assumption that a `.vbo` reaches a laptop on a VBOX's SD card
+was true of Racelogic hardware and false of the exporter that actually produces
+most of them — Porsche's **Track Precision** app, which records on the phone and
+exports its `.vbo` there. Ported as `VBO` to the Kit and `:core` under the same
+names, and pinned by `contracts/logic/vbo-parsers.json` over the committed files
+in `contracts/logic/vbo/`. Everything else on the deferred list stays web-only.
 
 ### Post-rewrite feature decisions
 
@@ -582,10 +588,10 @@ change* rule does not apply — see the spec for why.
 ## Deferred — not in this programme
 
 Available on web throughout, ported to native later or never: the setup notebook,
-the setup-vs-lap-times diff, year in review and Season Wrapped (NS-36), the
-**two-event** compare view (`viewCompare`), and **`.vbo` telemetry file import**.
+the setup-vs-lap-times diff, year in review and Season Wrapped (NS-36), and the
+**two-event** compare view (`viewCompare`).
 
-Three things were on this list and came off it, all for the reason the split
+Four things were on this list and came off it, all for the reason the split
 predicts — the work happens where the web app isn't:
 
 - **The garage** (vehicles, parts, wear, measurements) — NS-29 on iOS, NS-31 on
@@ -597,8 +603,11 @@ predicts — the work happens where the web app isn't:
   time at.
 - **Video import** (GoPro and Corvette PDR) — NS-30 on iOS, NS-32 on Android. The
   footage is already on the phone that shot or received it, and the argument was
-  never platform-specific. `.vbo` import, which really does arrive on an SD card at
-  a desk, stays deferred.
+  never platform-specific.
+- **`.vbo` import** — on both phones (2026-09). Porsche Track Precision records
+  and exports on the phone, so for the files people actually have the phone is
+  where the `.vbo` is; a VBOX's SD card still goes to a laptop, and the browser
+  still takes it.
 - **The two-lap telemetry compare**
   ([#165](https://github.com/Richie97/track-history/issues/165)) — pick any two
   laps with stored channels at a track and see the delta and channel overlays.

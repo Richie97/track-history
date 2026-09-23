@@ -96,9 +96,10 @@
 	     copy gigabytes instead. Files import needs no permission at all. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Track Evolution reads the telemetry track of a video you pick to work out your lap times. The video itself stays on your phone and is never uploaded or copied.</string>
-	<!-- "Open with Track Evolution" from Files, Photos and the GoPro app. Paired
-	     with LSSupportsOpeningDocumentsInPlace so a multi-GB clip is read where it
-	     sits rather than copied into the app's Inbox first. -->
+	<!-- "Open with Track Evolution" from Files, Photos and the GoPro app, for
+	     clips and .vbo logs. Paired with LSSupportsOpeningDocumentsInPlace so a
+	     multi-GB clip is read where it sits rather than copied into the app's
+	     Inbox first. -->
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>CFBundleDocumentTypes</key>
@@ -115,6 +116,42 @@
 				<string>public.mpeg-4</string>
 				<string>com.apple.quicktime-movie</string>
 			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Racelogic VBO log</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.racelogic.vbo</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Racelogic .vbo logs (VBOX, and phone lap timers' exports such as Porsche
+	     Track Precision). Nobody publishes a UTI for them, so the app declares
+	     one: without it a .vbo is greyed out in the file importer and "Open with"
+	     never offers the app. Plain text underneath. -->
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.racelogic.vbo</string>
+			<key>UTTypeDescription</key>
+			<string>Racelogic VBO log</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>vbo</string>
+				</array>
+			</dict>
 		</dict>
 	</array>
 	<key>NSAppTransportSecurity</key>

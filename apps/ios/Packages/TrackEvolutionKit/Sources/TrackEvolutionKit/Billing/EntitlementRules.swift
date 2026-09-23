@@ -26,7 +26,7 @@ public extension Entitlement {
     /// The GPS lap recorder, live timing and predictive delta (native only).
     static func canRecord(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
-    /// Telemetry import — video on the phones, video + `.vbo` on the web.
+    /// Telemetry import — video and `.vbo` on the phones, plus the other logger formats on the web.
     // Telemetry import is **free** and has no predicate, on purpose: there is no
     // decision to make, and a `canImport` that always answered true would read
     // as a gate someone had forgotten to wire. An import yields lap times, the

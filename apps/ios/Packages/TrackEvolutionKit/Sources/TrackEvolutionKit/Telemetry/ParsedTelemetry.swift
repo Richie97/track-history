@@ -5,7 +5,8 @@ import Foundation
 /// The shape every parser in `public/js/import/parse.js` resolves to, and the
 /// reason the review flow doesn't care where laps came from: a PDR file with
 /// beacons arrives with exact laps and skips the line picker, a GoPro clip
-/// arrives with a trace and `needsLine`, and a phone recording
+/// arrives with a trace and `needsLine`, a `.vbo` log arrives either way
+/// depending on whether it carries a `[laptiming]` line, and a phone recording
 /// (`ParsedRecording`) converts into the same value. NS-30 generalised
 /// `ReviewModel`'s input to this so all three share one screen.
 public struct ParsedTelemetry: Sendable {
@@ -13,6 +14,8 @@ public struct ParsedTelemetry: Sendable {
     public enum Kind: String, Sendable {
         case pdr
         case gopro
+        /// A Racelogic `.vbo` log (`VBO.parseVboText`).
+        case vbo
         /// Not a file parser: the in-app lap recorder.
         case live
 
@@ -21,6 +24,7 @@ public struct ParsedTelemetry: Sendable {
             switch self {
             case .pdr: "PDR"
             case .gopro: "GoPro"
+            case .vbo: "VBO"
             case .live: "Recorded"
             }
         }
@@ -52,7 +56,7 @@ public struct ParsedTelemetry: Sendable {
     public var beaconCount: Int
     /// Raw latitude and odometer series, kept for lap recovery (`PDRLaps`).
     public var channels: RawChannels?
-    /// Scaled car channels for the per-lap graphs.
+    /// Scaled car channels for the per-lap graphs (PDR, and a VBO logger's).
     public var carChannels: CarChannels
     /// The slow channels, keyed by `SCALAR_NAMES`, before they are reduced to
     /// one value per lap. A dictionary rather than a struct because nothing
@@ -222,7 +226,7 @@ public struct ParsedTelemetry: Sendable {
         }
     }
 
-    /// Session-level numbers from a PDR file, carried into the stored blob's
+    /// Session-level numbers from a PDR or VBO file, carried into the stored blob's
     /// `meta`. `SessionMeta` is the JS's `sessionMeta`.
     public struct SessionMeta: Hashable, Sendable {
         public var ambientC: Double?

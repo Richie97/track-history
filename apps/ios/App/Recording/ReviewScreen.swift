@@ -101,7 +101,7 @@ struct ReviewScreen: View {
                                 This recording is too short to derive laps from — it needs \
                                 at least 30 fixes over a minute of driving.
                                 """
-                                : "None of the videos you picked carried telemetry."
+                                : "None of the files you picked carried telemetry."
                         )
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))

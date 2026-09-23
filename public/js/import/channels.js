@@ -151,11 +151,12 @@ export function traceChannelData(gps, projected) {
 
 // Channel sources for any parsed import: PDR uses its odometer + car
 // channels (works with or without GPS, falling back to GPS distance when a
-// file lacks the odometer); everything else needs a GPS trace.
+// file lacks the odometer); everything else needs a GPS trace, plus whatever
+// car channels the file carried (a VBO logger's rpm, pedals, steering…).
 export function channelDataFor(parsed) {
   const fromTrace = () =>
     parsed.gps?.length >= 10 ? traceChannelData(parsed.gps, projectTrace(parsed.gps)) : null;
-  if (parsed.kind !== "pdr") return fromTrace();
+  if (parsed.kind !== "pdr" && !parsed.carChannels) return fromTrace();
   const car = {};
   for (const [k, v] of Object.entries(parsed.carChannels ?? {})) if (v) car[k] = v;
   const scalars = {};

@@ -2,7 +2,14 @@ import SwiftUI
 import TrackEvolutionKit
 import UniformTypeIdentifiers
 
-/// Pick a video on the phone and get lap times out of it (NS-30).
+extension UTType {
+    /// A Racelogic `.vbo` log — declared in `Info.plist`'s
+    /// `UTImportedTypeDeclarations`, since nobody publishes one.
+    static let vbo = UTType(importedAs: "com.racelogic.vbo", conformingTo: .plainText)
+}
+
+/// Pick a video — or a Racelogic `.vbo` log — on the phone and get lap times out
+/// of it (NS-30).
 ///
 /// The web app's **Import video / telemetry…** does this on a laptop; this does it
 /// on the device that already has the footage — a GoPro clip arrives over Wi-Fi
@@ -76,9 +83,11 @@ struct ImportScreen: View {
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
                     Text("""
-                        Corvette PDR and GoPro clips carry telemetry alongside the picture. \
-                        Pick one and the laps come out of it here — the video never leaves \
-                        this phone and is never copied; only its telemetry track is read.
+                        Corvette PDR and GoPro clips carry telemetry alongside the picture, \
+                        and a Racelogic .vbo log (VBOX, or an export from an app such as \
+                        Porsche Track Precision) is nothing but telemetry. Pick one and the \
+                        laps come out of it here — the file never leaves this phone, and a \
+                        video is never copied; only its telemetry track is read.
                         """)
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
@@ -117,8 +126,9 @@ struct ImportScreen: View {
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
                     Text("""
-                        `.vbo` and other logger files stay on the web app, where the screen is \
-                        bigger and the SD card is already in the laptop.
+                        A .vbo log with a start/finish line in it arrives timed, with whatever \
+                        car channels it recorded; one without asks for the line the same way. \
+                        Other logger formats stay on the web app.
                         """)
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
@@ -143,7 +153,7 @@ struct ImportScreen: View {
                 // Multiple selection from the start: a session is often several
                 // clips, and the batch is what lets a beacon-timed PDR recording
                 // re-anchor a beacon-less one beside it.
-                allowedContentTypes: [.mpeg4Movie, .quickTimeMovie, .movie],
+                allowedContentTypes: [.mpeg4Movie, .quickTimeMovie, .movie, .vbo],
                 allowsMultipleSelection: true
             ) { result in
                 switch result {

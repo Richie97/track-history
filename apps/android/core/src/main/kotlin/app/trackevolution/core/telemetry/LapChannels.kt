@@ -207,7 +207,15 @@ public object TelemetryChannels {
     /**
      * Channel sources for any parsed import: PDR uses its odometer + car
      * channels (works with or without GPS, falling back to GPS distance when a
-     * file lacks the odometer); everything else needs a GPS trace.
+     * file lacks the odometer); everything else needs a GPS trace, plus
+     * whatever car channels the file carried (a VBO logger's rpm, pedals,
+     * steering…).
+     *
+     * The JS tests `!parsed.carChannels`, and only two parsers set it: PDR, and
+     * VBO — which always sets an object, empty or not, so every VBO takes the
+     * merging path. [ParsedTelemetry.carChannels] is never null here, so the
+     * same decision is spelled as the two kinds that carry one; GoPro and the
+     * live recorder stay on the trace alone, exactly as before.
      */
     public fun channelDataFor(parsed: ParsedTelemetry): ChannelData? {
         fun fromTrace(): ChannelData? {
@@ -215,7 +223,7 @@ public object TelemetryChannels {
             if (gps.size < 10) return null
             return traceChannelData(gps, GeoTrace.projectTrace(gps))
         }
-        if (parsed.kind != ParsedTelemetry.Kind.PDR) return fromTrace()
+        if (parsed.kind != ParsedTelemetry.Kind.PDR && parsed.kind != ParsedTelemetry.Kind.VBO) return fromTrace()
         val car = parsed.carChannels
         val scalars = parsed.lapScalarChannels.filterValues { it.isNotEmpty() }
         val meta = parsed.sessionMeta

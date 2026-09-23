@@ -190,6 +190,7 @@ import {
   buildPdrDeltaMp4,
   buildPdrMp4,
   buildPdrRealMp4,
+  buildVboText,
   circleTrace,
 } from "../test/fixtures/build.mjs";
 
@@ -1589,6 +1590,102 @@ const videoFixture = {
 };
 
 // ---------------------------------------------------------------------------
+// Racelogic .vbo parser (public/js/import/vbo.js), on the same terms as the
+// video parsers above: the synthetic files are committed under
+// contracts/logic/vbo/ and the ports parse those exact bytes. The cases are
+// chosen for the ways a port goes wrong — the two [column names] layouts, the
+// two [laptiming] endpoint orders, a short line the car drives just past the
+// end of (widenGate), a recording started and stopped at the line
+// (edgeCrossings), and Track Precision's car channels with a zeroed column,
+// a "no reading" tyre sentinel and G columns scaled by 1/9.81.
+
+const VBO_DIR = path.join(OUT_DIR, "vbo");
+const edgeTrimmed = (() => {
+  const q = lapS / 4;
+  const kept = circleTrace({ revolutions: 4 }).filter((p) => p.t > q + 0.3 && p.t < q + 3 * lapS - 0.3);
+  const t0 = kept[0].t;
+  return kept.map((p) => ({ ...p, t: p.t - t0 }));
+})();
+const vboFixtures = [
+  {
+    file: "vbox-noline.vbo",
+    note: "VBOX layout, no [laptiming]: needs a picked line.",
+    text: buildVboText(points),
+    pick: true,
+  },
+  {
+    file: "vbox-laptiming.vbo",
+    note: "VBOX layout with Racelogic's longitude-first [laptiming] line.",
+    text: buildVboText(points, { withLapTiming: true }),
+  },
+  {
+    file: "vbox-laptiming-latfirst.vbo",
+    note: "The same line written latitude-first, as some exporters do.",
+    text: buildVboText(points, { withLapTiming: true, latFirst: true }),
+  },
+  {
+    file: "vbox-shortline.vbo",
+    note: "A 14 m line the circle (radius 310 m) passes 3 m beyond the end of: timed only once the gate is widened.",
+    text: buildVboText(circleTrace({ radius: 310 }), { withLapTiming: true, lineHalfM: 7 }),
+  },
+  {
+    file: "trackprecision-2026-06-06-09-53-45.vbo",
+    note: "Porsche Track Precision layout: one column name per line, car channels, started and stopped just either side of the line.",
+    text: buildVboText(edgeTrimmed, { withLapTiming: true, trackPrecision: true }),
+  },
+];
+
+const summarizeSeries = (pts) =>
+  pts
+    ? { count: pts.length, first: pts[0], last: pts[pts.length - 1], sample: pts.filter((_, i) => i % 100 === 0) }
+    : null;
+
+mkdirSync(VBO_DIR, { recursive: true });
+const vboCases = [];
+for (const f of vboFixtures) {
+  writeFileSync(path.join(VBO_DIR, f.file), f.text);
+  const parsed = await parseTelemetryFile(new File([f.text], f.file));
+  const entry = {
+    file: f.file,
+    note: f.note,
+    expected: {
+      ...parsedOut(parsed),
+      bestLapTrace: parsed.bestLapTrace ?? null,
+      carChannels: Object.fromEntries(Object.entries(parsed.carChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])),
+      lapScalarChannels: Object.fromEntries(
+        Object.entries(parsed.lapScalarChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])
+      ),
+    },
+    picked: null,
+  };
+  if (f.pick) {
+    const pickedIndex = Math.round(0.25 * lapS * 10);
+    const state = { results: [{ file: f.file, parsed }], origin: parsed.gps[0], gate: null };
+    state.gate = buildGate(projectTrace(parsed.gps, state.origin), pickedIndex);
+    applyGate(state);
+    entry.picked = {
+      pickedIndex,
+      gate: state.gate,
+      laps: parsed.laps.map(lapOut),
+      bestLapTrace: parsed.bestLapTrace,
+      lapChannels: parsed.lapChannels ?? null,
+    };
+  }
+  vboCases.push(entry);
+}
+const vboFixture = {
+  description:
+    "Reference output of the Racelogic .vbo parser (public/js/import/vbo.js, then " +
+    "channels.js) over the committed files in contracts/logic/vbo/. The iOS and Android " +
+    "ports must reproduce lap times to the millisecond, coordinates to 1e-9 and every " +
+    "per-lap channel array element for element. Car channel series are summarized " +
+    "(count, first, last, every 100th). Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/import/vbo.js, public/js/import/channels.js",
+  gpsStride: GPS_STRIDE,
+  files: vboCases,
+};
+
+// ---------------------------------------------------------------------------
 // The prep checklist a new event starts from.
 //
 // Not logic — a list of strings — but it is *product copy carried in two
@@ -1832,6 +1929,7 @@ writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlement
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "vbo-parsers.json"), JSON.stringify(vboFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
@@ -2002,3 +2100,4 @@ console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} 
 console.log(
   `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`
 );
+console.log(`wrote contracts/logic/vbo-parsers.json (${vboCases.length} files) and contracts/logic/vbo/*.vbo`);

@@ -42,7 +42,15 @@ export function circlePointAt(frac, { radius = 300, lat0 = 36.56, lon0 = -79.2, 
 const vboLat = (lat) => (lat * 60).toFixed(5);
 const vboLon = (lon) => (-lon * 60).toFixed(5);
 
-export function buildVboText(points, { withLapTiming = false, startTod = "091500.00" } = {}) {
+// `latFirst` writes the [laptiming] endpoints latitude-first, as some
+// exporters do (Racelogic's own order is longitude first). `trackPrecision`
+// writes the Porsche Track Precision App's layout: an export-time "created
+// at" line, one column name per line (names with spaces), car channels, and
+// a zeroed column the car didn't report.
+export function buildVboText(
+  points,
+  { withLapTiming = false, startTod = "091500.00", latFirst = false, trackPrecision = false, lineHalfM = 20 } = {}
+) {
   const todBase =
     Number(startTod.slice(0, 2)) * 3600 + Number(startTod.slice(2, 4)) * 60 + Number(startTod.slice(4));
   const rows = points.map((p) => {
@@ -50,13 +58,44 @@ export function buildVboText(points, { withLapTiming = false, startTod = "091500
     const h = String(Math.floor(tod / 3600)).padStart(2, "0");
     const m = String(Math.floor((tod % 3600) / 60)).padStart(2, "0");
     const s = (tod % 60).toFixed(2).padStart(5, "0");
-    return `008 ${h}${m}${s} ${vboLat(p.lat)} ${vboLon(p.lon)} ${(p.v * 3.6).toFixed(3)}`;
+    const base = `008 ${h}${m}${s} ${vboLat(p.lat)} ${vboLon(p.lon)} ${(p.v * 3.6).toFixed(3)}`;
+    if (!trackPrecision) return base;
+    // Synthetic car: a pedal fraction, brake pressure in bar, 3rd and 4th
+    // gear, steering, rpm, G (the scaled `latacc` next to the true
+    // LatAcc_PTPA), tyre pressures in bar and an all-zero `yaw`.
+    const ph = (2 * Math.PI * p.t) / 10;
+    const pedal = (0.5 + 0.5 * Math.sin(ph)).toFixed(2);
+    const braking = Math.max(0, -40 * Math.sin(ph)).toFixed(1);
+    const latG = 0.9 * Math.cos(ph);
+    return `${base} ${Math.sin(ph) > 0 ? 4 : 3} ${(4000 + 2000 * Math.sin(ph)).toFixed(0)} ${pedal} ${braking} ${(30 * Math.cos(ph)).toFixed(2)} ${(latG / 9.81).toFixed(4)} ${latG.toFixed(3)} 2.1 3276.8 0`;
   });
   let lapTiming = "";
   if (withLapTiming) {
-    const a = circlePointAt(0.25, { radialOffset: -20 });
-    const b = circlePointAt(0.25, { radialOffset: 20 });
-    lapTiming = `\n[laptiming]\nStart ${vboLat(a.lat)} ${vboLon(a.lon)} ${vboLat(b.lat)} ${vboLon(b.lon)}\n`;
+    const a = circlePointAt(0.25, { radialOffset: -lineHalfM });
+    const b = circlePointAt(0.25, { radialOffset: lineHalfM });
+    const ends = latFirst
+      ? `${vboLat(a.lat)} ${vboLon(a.lon)} ${vboLat(b.lat)} ${vboLon(b.lon)}`
+      : `${vboLon(a.lon)} ${vboLat(a.lat)} ${vboLon(b.lon)} ${vboLat(b.lat)}`;
+    lapTiming = `\n[laptiming]\nStart\t${ends}\n`;
+  }
+  if (trackPrecision) {
+    const names = ["sats", "time", "lat", "long", "velocity", "current gear", "engine", "pedal", "braking",
+      "steering wheel angle", "latacc", "LatAcc_PTPA", "tire pressure front left", "tire pressure front right", "yaw"];
+    return `File created at 2026-09-22 21:59:37 -0600
+
+[header]
+satellites
+time
+latitude
+longitude
+velocity kmh
+${lapTiming}
+[column names]
+${names.join("\n")}
+
+[data]
+${rows.join("\n")}
+`;
   }
   return `File created on 20/06/2026 at 09:15:00
 

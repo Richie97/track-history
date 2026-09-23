@@ -7,12 +7,14 @@ import { parseTelemetryFile } from "../../public/js/import/parse.js";
 import { LAP_S, buildPdrMp4, buildPdrRealMp4, buildVboText, circleTrace } from "../fixtures/build.mjs";
 
 describe("applyGate across longitude sign conventions", () => {
-  it("applies one picked line to west-positive (VBO) and east-positive (GPS) traces", () => {
+  it("applies one picked line to traces with opposite longitude signs", () => {
     const points = circleTrace();
-    // VBO parse preserves Racelogic's west-positive longitude (+79.2);
-    // a GoPro trace of the same laps uses standard sign (-79.2).
+    // The VBO parse turns Racelogic's west-positive longitude into the usual
+    // east-positive (-79.2); a batch-mate from a source that got the sign
+    // backwards (+79.2) must still take the same line.
     const vbo = parseVboText(buildVboText(points));
-    const gps = { kind: "gopro", needsLine: true, gps: points, laps: [] };
+    const flipped = points.map((p) => ({ ...p, lon: -p.lon }));
+    const gps = { kind: "gopro", needsLine: true, gps: flipped, laps: [] };
 
     const state = {
       results: [{ file: "a.vbo", parsed: vbo }, { file: "b.mp4", parsed: gps }],

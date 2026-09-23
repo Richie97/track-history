@@ -67,13 +67,12 @@ import app.trackevolution.ui.theme.TrackTheme
 /**
  * One event: its sessions, laps, prep checklist and best-lap trace (NS-26).
  *
- * Deliberately absent, and not by omission: the per-day **setup notebook** and
- * `.vbo` import. Both stay web-only per the product split — a `.vbo` reaches a
- * laptop on an SD card, and the setup notebook is desk work. **Video** import is
- * here, though: a PDR or GoPro clip is already on the phone that shot or
- * received it, which is the argument NS-30 made for iOS and it was never
- * platform-specific. The card below opens the chooser; the review that follows
- * is the recorder's.
+ * Deliberately absent, and not by omission: the per-day **setup notebook**,
+ * which stays web-only per the product split — it is desk work. **Video** and
+ * `.vbo` import are here, though: a PDR or GoPro clip is already on the phone
+ * that shot or received it, which is the argument NS-30 made for iOS, and
+ * Porsche's Track Precision app exports its `.vbo` on the phone too. The card
+ * below opens the chooser; the review that follows is the recorder's.
  */
 @Composable
 fun EventScreen(
@@ -674,20 +673,20 @@ private fun AddSessionCard(
         }
 
         Text(
-            "Import a video",
+            "Import a video or VBO",
             style = TrackTheme.typography.bodyStrong,
             color = colors.textStrong,
         )
         Text(
-            "Corvette PDR or GoPro clips already on this phone — laps, racing line and " +
-                "channel graphs come out of the telemetry track. The video is read in " +
-                "place, never copied or uploaded.",
+            "Corvette PDR or GoPro clips, or a .vbo log, already on this phone — laps, " +
+                "racing line and channel graphs come out of the telemetry. The file is read " +
+                "in place, never copied or uploaded.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
             modifier = Modifier.padding(vertical = 6.dp),
         )
         TextButton(onClick = onImport, modifier = Modifier.testTag("eventImportVideo")) {
-            Text("Import video…", style = TrackTheme.typography.sm, color = colors.accentInk)
+            Text("Import video or VBO…", style = TrackTheme.typography.sm, color = colors.accentInk)
         }
 
         HorizontalDivider(

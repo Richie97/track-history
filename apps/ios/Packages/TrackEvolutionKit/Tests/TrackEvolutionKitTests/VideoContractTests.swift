@@ -15,7 +15,7 @@ import Testing
 struct VideoContractTests {
     /// Below any difference either implementation could produce that meant
     /// something, and far above float noise.
-    private static let epsilon = 1e-9
+    static let epsilon = 1e-9
 
     @Test(arguments: [
         "gopro.mp4",
@@ -143,7 +143,7 @@ struct VideoContractTests {
         }
     }
 
-    private static func assertLaps(_ laps: [ParsedLap], _ expected: [VideoFixtures.Lap], file: String) {
+    static func assertLaps(_ laps: [ParsedLap], _ expected: [VideoFixtures.Lap], file: String) {
         #expect(laps.count == expected.count, "\(file): lap count")
         for (i, pair) in zip(laps, expected).enumerated() {
             let (actual, want) = pair
@@ -156,7 +156,7 @@ struct VideoContractTests {
         }
     }
 
-    private static func assertChannels(
+    static func assertChannels(
         _ channels: SessionChannels?, _ expected: SessionChannels?, file: String
     ) {
         guard let expected else {
@@ -193,7 +193,7 @@ struct VideoContractTests {
         }
     }
 
-    private static func assertSeries(_ actual: [Double]?, _ expected: [Double]?, _ label: String) {
+    static func assertSeries(_ actual: [Double]?, _ expected: [Double]?, _ label: String) {
         guard let expected else {
             #expect(actual == nil, "\(label): should be absent")
             return
@@ -208,7 +208,7 @@ struct VideoContractTests {
         }
     }
 
-    private static func assertGate(_ gate: Geo.Gate, _ expected: Geo.Gate, file: String) {
+    static func assertGate(_ gate: Geo.Gate, _ expected: Geo.Gate, file: String) {
         #expect(abs(gate.x - expected.x) < epsilon, "\(file): gate x")
         #expect(abs(gate.y - expected.y) < epsilon, "\(file): gate y")
         #expect(closeOrBothNil(gate.hx, expected.hx), "\(file): gate hx")
@@ -219,7 +219,7 @@ struct VideoContractTests {
         #expect(abs(gate.y2 - expected.y2) < epsilon, "\(file): gate y2")
     }
 
-    private static func closeOrBothNil(_ a: Double?, _ b: Double?) -> Bool {
+    static func closeOrBothNil(_ a: Double?, _ b: Double?) -> Bool {
         switch (a, b) {
         case (nil, nil): true
         case let (x?, y?): abs(x - y) < epsilon

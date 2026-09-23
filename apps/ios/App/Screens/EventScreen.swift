@@ -68,7 +68,7 @@ struct EventScreen: View {
         // with the other, so a target you have to reach is a target you drop
         // beside. The page already knows which event it is, which is the only
         // thing the drop has to say.
-        .onDrop(of: [.movie], isTargeted: $isDropTargeted) { providers in
+        .onDrop(of: [.movie, .vbo], isTargeted: $isDropTargeted) { providers in
             acceptDroppedClip(providers)
         }
         .overlay {
@@ -853,13 +853,16 @@ struct EventScreen: View {
         // the closure crosses one boundary and is called on the other side of it.
         then open: @escaping @Sendable @MainActor (URL) -> Void
     ) -> Bool {
-        let movie = UTType.movie.identifier
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(movie) })
+        // A clip or a .vbo log — the importer tells them apart by name.
+        let accepted = [UTType.movie.identifier, UTType.vbo.identifier]
+        guard let (provider, type) = providers.lazy.compactMap({ provider in
+            accepted.first(where: provider.hasItemConformingToTypeIdentifier).map { (provider, $0) }
+        }).first
         else { return false }
         // The clip's real name, for the review's "Imported from …" note: a copy
         // the system made carries a name of its own invention.
         let suggested = provider.suggestedName
-        provider.loadInPlaceFileRepresentation(forTypeIdentifier: movie) { url, isInPlace, _ in
+        provider.loadInPlaceFileRepresentation(forTypeIdentifier: type) { url, isInPlace, _ in
             guard let url else { return }
             if isInPlace, url.startAccessingSecurityScopedResource() {
                 Task { @MainActor in
@@ -899,15 +902,15 @@ struct EventScreen: View {
         return kept
     }
 
-    /// Lap times out of a video already on the phone (NS-30). Only *video* import
-    /// is native — `.vbo` and the rest of the desk-bound long tail stay on the web
-    /// app (`docs/specs/native/README.md`).
+    /// Lap times out of a video or a `.vbo` log already on the phone (NS-30). The
+    /// rest of the desk-bound logger long tail stays on the web app
+    /// (`docs/specs/native/README.md`).
     private func importOption(_ event: Event) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Import a video")
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
-            Text("PDR and GoPro clips carry telemetry. Pick one from Files or Photos and the laps come out of it — the video stays on this phone.")
+            Text("PDR and GoPro clips and .vbo logs carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Button("Import video") {

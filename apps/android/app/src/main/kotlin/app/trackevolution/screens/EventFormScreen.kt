@@ -271,17 +271,17 @@ private fun AddLapsCard(
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
         )
 
-        Text("Import a video", style = type.bodyStrong, color = colors.textStrong)
+        Text("Import a video or VBO", style = type.bodyStrong, color = colors.textStrong)
         Text(
-            "Corvette PDR or GoPro clips already on this phone — laps, racing line and " +
-                "channel graphs come out of the telemetry track. The video is read in " +
-                "place, never copied or uploaded.",
+            "Corvette PDR or GoPro clips, or a .vbo log, already on this phone — laps, " +
+                "racing line and channel graphs come out of the telemetry. The file is read " +
+                "in place, never copied or uploaded.",
             style = type.xs,
             color = colors.textMuted,
             modifier = Modifier.padding(vertical = 6.dp),
         )
         TextButton(onClick = onImport, modifier = Modifier.testTag("eventFormImportVideo")) {
-            Text("Import video…", style = type.sm, color = colors.accentInk)
+            Text("Import video or VBO…", style = type.sm, color = colors.accentInk)
         }
         staged.forEachIndexed { index, draft ->
             Row(

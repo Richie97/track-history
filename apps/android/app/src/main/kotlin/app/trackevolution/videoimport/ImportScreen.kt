@@ -41,7 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Pick a video on the phone and get lap times out of it.
+ * Pick a video (or a `.vbo` log) on the phone and get lap times out of it.
  *
  * The web app's **Import video / telemetry…** does this on a laptop; this does
  * it on the device that already has the footage — a GoPro clip lands in the
@@ -51,6 +51,13 @@ import kotlinx.coroutines.launch
  * fixture, and the review that follows is the *same* screen a stopped
  * recording goes through, because the laps, the line picker and the save are
  * the same job.
+ *
+ * `.vbo` files come through the same document picker: Porsche's Track
+ * Precision app exports one on the phone itself. There is no registered MIME
+ * type for them, so providers label them `application/octet-stream` or
+ * `text/plain`; the picker admits both and the importer dispatches by the
+ * file's display name, never by the type. The photo picker and the share-sheet
+ * target stay video-only.
  *
  * Only the choosing lives here. Once the clips are parsed [onParsed] hands them
  * to the review overlay and this destination is popped.
@@ -113,7 +120,7 @@ fun ImportScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Import video", style = type.h1, color = colors.textStrong)
+                Text("Import telemetry", style = type.h1, color = colors.textStrong)
 
                 TrackCard(Modifier.fillMaxWidth()) {
                     Text("Lap times from video", style = type.h3, color = colors.textStrong)
@@ -141,14 +148,14 @@ fun ImportScreen(
                         }
                     } else {
                         Button(
-                            onClick = { documents.launch(arrayOf("video/mp4", "video/quicktime", "video/*")) },
+                            onClick = { documents.launch(PICKER_TYPES) },
                             modifier = Modifier.fillMaxWidth().testTag("importChooseVideos"),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = colors.accent,
                                 contentColor = colors.accentContrast,
                             ),
                         ) {
-                            Text("Choose videos", style = type.bodyStrong)
+                            Text("Choose files", style = type.bodyStrong)
                         }
                         OutlinedButton(
                             onClick = {
@@ -174,8 +181,9 @@ fun ImportScreen(
                         modifier = Modifier.padding(top = 6.dp),
                     )
                     Text(
-                        ".vbo and other logger files stay on the web app, where the screen is bigger and the " +
-                            "SD card is already in the laptop.",
+                        "A .vbo file (Racelogic VBOX, or an export from Porsche's Track Precision app) carries " +
+                            "its own start/finish line and usually needs nothing either; one without a line " +
+                            "asks for a tap, like a GoPro clip. Other logger files stay on the web app.",
                         style = type.xs,
                         color = colors.textFaint,
                         modifier = Modifier.padding(top = 6.dp),
@@ -185,6 +193,13 @@ fun ImportScreen(
         }
     }
 }
+
+/**
+ * What the document picker admits: video, plus the two types a provider
+ * reports a `.vbo` as (it has no registered one). A non-`.vbo` file of either
+ * type is tried as a video and fails with that file's own error line.
+ */
+private val PICKER_TYPES = arrayOf("video/mp4", "video/quicktime", "video/*", "application/octet-stream", "text/plain")
 
 /**
  * Picking and parsing, and the states in between.
@@ -225,7 +240,7 @@ class ImportModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failure = e.message ?: "Couldn't read the selected videos."
+                failure = e.message ?: "Couldn't read the selected files."
             } finally {
                 isParsing = false
             }

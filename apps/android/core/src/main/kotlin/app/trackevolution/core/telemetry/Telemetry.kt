@@ -18,10 +18,9 @@ import java.util.Locale
  * [defaultLabel]), so the phone builds the same session — laps, trace,
  * channels, notes — the browser would from the same file.
  *
- * `.vbo` is deliberately absent. A VBOX writes to an SD card that gets read on
- * a laptop; video arrives on the phone before the laptop is opened, and that is
- * the whole reason NS-30 took video off the deferred list and left the rest of
- * the long tail on it (`docs/specs/native/README.md`).
+ * `.vbo` is here too ([VBO]): Porsche's Track Precision app exports one on
+ * the phone itself, so it is no longer a file that only ever reaches a laptop.
+ * The rest of the logger long tail stays on the web.
  */
 public object Telemetry {
 
@@ -29,13 +28,20 @@ public object Telemetry {
     public val SUPPORTED_EXT: Regex = Regex("\\.(mp4|vbo)$", RegexOption.IGNORE_CASE)
 
     /**
-     * Parse an MP4: Corvette PDR first, then GoPro GPMF.
+     * Parse one picked file. A name ending `.vbo` is read whole as text and goes
+     * to [VBO.parseVboText] — the dispatch is by name, as `parse.js`'s is,
+     * because a `.vbo` has no registered MIME type and arrives as whatever the
+     * provider guesses. Anything else is an MP4: Corvette PDR first, then GoPro
+     * GPMF.
      *
-     * Both parsers report "no track of mine here" distinctly from "this file is
-     * mine and it's broken", so a GoPro clip isn't reported as a broken PDR one
-     * and vice versa.
+     * Both video parsers report "no track of mine here" distinctly from "this
+     * file is mine and it's broken", so a GoPro clip isn't reported as a broken
+     * PDR one and vice versa.
      */
-    public fun parseTelemetryFile(source: TelemetryByteSource): ParsedTelemetry {
+    public fun parseTelemetryFile(source: TelemetryByteSource, fileName: String? = null): ParsedTelemetry {
+        if (fileName != null && fileName.lowercase().endsWith(".vbo")) {
+            return TelemetryChannels.attachLapChannels(VBO.parseVboText(readText(source), fileName))
+        }
         val pdrErr: TelemetryParseException = try {
             return parsePdr(source)
         } catch (e: TelemetryParseException) {
@@ -50,6 +56,29 @@ public object Telemetry {
             throw if (pdrErr.isNoTrack) gpErr else pdrErr
         }
     }
+
+    /**
+     * `Blob.text()`: the whole file, decoded as UTF-8. A `.vbo` is ASCII and a
+     * few MB for an hour at 10 Hz, so reading it whole is the JS's own shape —
+     * but it is refused past [MAX_TEXT_BYTES], since a mis-named multi-GB video
+     * must fail as a message rather than as an out-of-memory crash.
+     */
+    internal fun readText(source: TelemetryByteSource): String {
+        val size = source.size
+        if (size > MAX_TEXT_BYTES) throw TelemetryParseException("This .vbo file is too large to read")
+        val out = java.io.ByteArrayOutputStream(size.toInt().coerceAtLeast(0))
+        var offset = 0L
+        while (offset < size) {
+            val chunk = source.read(offset, READ_CHUNK)
+            if (chunk.isEmpty()) break
+            out.write(chunk)
+            offset += chunk.size
+        }
+        return out.toString(Charsets.UTF_8.name())
+    }
+
+    private const val READ_CHUNK = 1 shl 20
+    internal const val MAX_TEXT_BYTES: Long = 256L shl 20
 
     /** The PDR branch of [parseTelemetryFile]: parse, then the post-parse steps `parse.js` adds. */
     private fun parsePdr(source: TelemetryByteSource): ParsedTelemetry {

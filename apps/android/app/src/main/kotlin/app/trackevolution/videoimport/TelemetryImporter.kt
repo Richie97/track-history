@@ -27,7 +27,7 @@ data class ImportedClip(
 )
 
 /**
- * Parsing a selection of videos, off the main thread.
+ * Parsing a selection of videos (and `.vbo` logs), off the main thread.
  *
  * The `importFiles` half of `public/js/import/ui.js`: parse each file, sort by
  * the clock the recorder wrote, then run the batch pass that re-anchors a
@@ -79,7 +79,9 @@ object TelemetryImporter {
         var source: TelemetryByteSource? = null
         try {
             source = open()
-            return ImportedClip(file = name, parsed = Telemetry.parseTelemetryFile(source))
+            // The name decides the parser, as it does on the web: a `.vbo` has no
+            // registered MIME type, so the provider's guess at one means nothing.
+            return ImportedClip(file = name, parsed = Telemetry.parseTelemetryFile(source, name))
         } catch (e: TelemetryParseException) {
             return ImportedClip(file = name, parsed = null, error = e.message)
         } catch (e: CancellationException) {
@@ -89,10 +91,13 @@ object TelemetryImporter {
             return ImportedClip(
                 file = name,
                 parsed = null,
-                error = "Couldn't read this video: ${e.message ?: e.javaClass.simpleName}",
+                error = "Couldn't read this ${if (isVbo(name)) "file" else "video"}: " +
+                    (e.message ?: e.javaClass.simpleName),
             )
         } finally {
             (source as? java.io.Closeable)?.close()
         }
     }
+
+    private fun isVbo(name: String): Boolean = name.lowercase().endsWith(".vbo")
 }
