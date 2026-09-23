@@ -99,6 +99,20 @@ class ApiClientTest {
         assertEquals("https://example.test/api/events?track_id=7", recorded.single().url.toString())
     }
 
+    @Test
+    fun `fetches a season's Wrapped, and a year with no track days is a 404`() = runTest {
+        val api = client { request ->
+            if (request.url.encodedPath.endsWith("/2026")) respondJson(Goldens.bodyText("wrapped"))
+            else respondJson("""{"error":"no events in 1999"}""", HttpStatusCode.NotFound)
+        }
+        val season = api.wrapped(2026)
+        assertEquals("https://example.test/api/wrapped/2026", recorded.single().url.toString())
+        assertEquals(2026, season.year)
+        val empty = assertThrows<ApiException> { api.wrapped(1999) }
+        assertEquals(404, empty.status)
+        assertEquals("no events in 1999", empty.message)
+    }
+
     // ---- Error mapping ----------------------------------------------------
 
     @Test

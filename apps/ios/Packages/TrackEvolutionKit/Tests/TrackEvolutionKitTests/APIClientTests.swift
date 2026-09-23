@@ -48,6 +48,25 @@ struct APIClientTests {
         #expect(seen.last?.url?.absoluteString == "https://example.test/api/events?track_id=7")
     }
 
+    @Test func aSeasonsWrappedIsFetchedByYearAndAnEmptyYearIsA404() async throws {
+        let seen = Recorder()
+        let api = client { request in
+            seen.record(request)
+            if request.url?.path.hasSuffix("/2026") == true { return (200, try Goldens.body("wrapped")) }
+            return (404, Data(#"{"error":"no events in 1999"}"#.utf8))
+        }
+        let season = try await api.wrapped(year: 2026)
+        #expect(seen.last?.url?.absoluteString == "https://example.test/api/wrapped/2026")
+        #expect(season.year == 2026)
+        do {
+            _ = try await api.wrapped(year: 1999)
+            Issue.record("a year with no track days must throw")
+        } catch let error as APIError {
+            #expect(error.status == 404)
+            #expect(error.message == "no events in 1999")
+        }
+    }
+
     @Test func thePublicSharePageIsFetchedWithoutAToken() async throws {
         let seen = Recorder()
         let api = client { request in
