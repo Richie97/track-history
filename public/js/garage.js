@@ -301,3 +301,63 @@ export function catalogPrefill(row, current, previous) {
   }
   return plan;
 }
+
+// ---- a car's logbook (NS-37) ---------------------------------------------------
+//
+// The free half of a car's garage page and tile: what it has done, from the
+// event list every client already caches — so it costs no request and works
+// offline. Rows belong to the car by `vehicle_id`, which the server matched
+// from the car name on save; a row whose `car` text merely reads the same is
+// *not* counted here, because the server is the one place that match is made.
+// Past means `start_date <= today` (the totals' rule: a track day that starts
+// today counts). Hours are deliberately absent — they are the wear math's,
+// arrive computed on the Pro GET /api/garage, and a client copy would be a
+// fifth one.
+//
+// `bests` is one row per track the car has a time at, using each event's
+// computed `best_ms` (a manual best counts, per withComputed), ordered by the
+// car's most recent event at that track; within a track the fastest wins and a
+// tie keeps the earlier event, the day the time was first set.
+const eventOrder = (a, b) => a.start_date.localeCompare(b.start_date) || a.id - b.id;
+
+const eventRef = (e) =>
+  e ? { id: e.id, track_id: e.track_id, track_name: e.track_name, start_date: e.start_date } : null;
+
+export function vehicleLogbook(vehicleId, events, today) {
+  const mine = (events ?? []).filter((e) => e.vehicle_id != null && e.vehicle_id === vehicleId).sort(eventOrder);
+  const past = mine.filter((e) => e.start_date <= today);
+  const upcoming = mine.filter((e) => e.start_date > today);
+  const byTrack = new Map();
+  for (const e of past) {
+    const row = byTrack.get(e.track_id) ?? { latest: e, best: null };
+    row.latest = e; // `past` is ascending, so the last one seen is the latest
+    if (e.best_ms != null && (row.best == null || e.best_ms < row.best.best_ms)) row.best = e;
+    byTrack.set(e.track_id, row);
+  }
+  const bests = [...byTrack.values()]
+    .filter((r) => r.best)
+    .sort((a, b) => eventOrder(b.latest, a.latest))
+    .map(({ best }) => ({
+      track_id: best.track_id,
+      track_name: best.track_name,
+      best_ms: best.best_ms,
+      event_id: best.id,
+      start_date: best.start_date,
+    }));
+  return {
+    track_days: past.reduce((sum, e) => sum + (e.days ?? 0), 0),
+    events: past.length,
+    last_event: eventRef(past[past.length - 1]),
+    next_event: eventRef(upcoming[0]),
+    bests,
+  };
+}
+
+// The one line a car's tile carries. No date in it: a date is locale work, and
+// three clients writing the same words is the point of pinning it.
+export function vehicleTileLine(logbook) {
+  const { track_days: days, last_event: last, next_event: next } = logbook;
+  if (last) return `${days} track day${days === 1 ? "" : "s"} · last at ${last.track_name}`;
+  if (next) return `Next: ${next.track_name}`;
+  return "No track days yet";
+}

@@ -141,6 +141,8 @@ import {
   matchCatalogCars,
   partKindLabel,
   partStatus,
+  vehicleLogbook,
+  vehicleTileLine,
   wearLimitHint,
 } from "../public/js/garage.js";
 import {
@@ -178,6 +180,7 @@ import {
   canUseSetups,
   canViewChannels,
   canViewYearInReview,
+  canViewSpend,
   canCompareEvents,
   entitlementSummary,
   FREE_CHANNELS,
@@ -1840,6 +1843,7 @@ const entitlementCases = [
     canUseGarage: canUseGarage(c.entitlement),
     canUseSetups: canUseSetups(c.entitlement),
     canViewYearInReview: canViewYearInReview(c.entitlement),
+    canViewSpend: canViewSpend(c.entitlement),
     canCompareEvents: canCompareEvents(c.entitlement),
     manageUrl: manageUrl(c.entitlement),
     // The date text is locale work; the fixture pins the shape around it.
@@ -2086,6 +2090,52 @@ const catalogFixture = {
 };
 writeFileSync(path.join(OUT_DIR, "car-catalog-match.json"), JSON.stringify(catalogFixture, null, 2) + "\n");
 
+// ---- a car's logbook (NS-37): the Garage tab's free half ------------------------
+//
+// vehicleLogbook over one event list, for several cars. The rows are chosen for
+// the ways a port goes wrong: a multi-day event (track days are days, not
+// events), an event dated `today` (past, by the totals' rule), a manual best
+// faster than the logged laps (the event's computed best_ms is what counts), an
+// event on another car, one with a null vehicle_id whose free-text `car` reads
+// the same as the car's name (must not count — the server does that match),
+// two tracks whose latest events share a date (ordered by event id), a tie on
+// best time (the earlier event keeps it), an event with no time at all, and a
+// car whose only event is upcoming.
+const LOGBOOK_TODAY = "2026-09-20";
+const logbookEvents = [
+  { id: 1, vehicle_id: 10, car: "C8", track_id: 100, track_name: "VIR (Full)", start_date: "2026-04-11", days: 2, best_ms: 125500 },
+  { id: 2, vehicle_id: 10, car: "C8", track_id: 101, track_name: "Summit Point Main", start_date: "2026-05-02", days: 1, best_ms: 88200 },
+  { id: 3, vehicle_id: 10, car: "C8", track_id: 100, track_name: "VIR (Full)", start_date: "2026-06-20", days: 3, best_ms: 124030 },
+  { id: 4, vehicle_id: 10, car: "C8", track_id: 102, track_name: "NCM", start_date: "2026-06-20", days: 1, best_ms: 141900 },
+  { id: 5, vehicle_id: 10, car: "C8", track_id: 101, track_name: "Summit Point Main", start_date: "2026-08-15", days: 1, best_ms: 88200 },
+  { id: 6, vehicle_id: 10, car: "C8", track_id: 103, track_name: "Road Atlanta", start_date: LOGBOOK_TODAY, days: 1, best_ms: null },
+  { id: 7, vehicle_id: 10, car: "C8", track_id: 104, track_name: "Watkins Glen", start_date: "2026-10-10", days: 2, best_ms: null },
+  { id: 8, vehicle_id: 11, car: "Miata", track_id: 100, track_name: "VIR (Full)", start_date: "2026-07-04", days: 1, best_ms: 139000 },
+  { id: 9, vehicle_id: null, car: "C8", track_id: 102, track_name: "NCM", start_date: "2026-07-18", days: 1, best_ms: 100000 },
+  { id: 10, vehicle_id: 12, car: "GR86", track_id: 101, track_name: "Summit Point Main", start_date: "2026-11-01", days: 1, best_ms: null },
+];
+const logbookCases = [
+  ["the busy car", 10],
+  ["one past event", 11],
+  ["only an upcoming event", 12],
+  ["no events at all", 13],
+].map(([name, vehicleId]) => {
+  const logbook = vehicleLogbook(vehicleId, logbookEvents, LOGBOOK_TODAY);
+  return { name, vehicle_id: vehicleId, expected: { logbook, tileLine: vehicleTileLine(logbook) } };
+});
+const logbookFixture = {
+  description:
+    "A car's logbook (NS-37) captured from public/js/garage.js: vehicleLogbook reduces the event " +
+    "list to one car's track days, events, last and next event and best lap per track, and " +
+    "vehicleTileLine words it for the car's tile. Ports must match every field. Regenerate with " +
+    "`npm run contracts:logic`; never hand-edit.",
+  source: "public/js/garage.js",
+  today: LOGBOOK_TODAY,
+  events: logbookEvents,
+  cases: logbookCases,
+};
+writeFileSync(path.join(OUT_DIR, "garage-logbook.json"), JSON.stringify(logbookFixture, null, 2) + "\n");
+
 // ---- units: the unit-system conversions (public/js/units.js) -----------------
 //
 // Every display site on every client goes through these, and the inputs are
@@ -2173,6 +2223,7 @@ console.log(
   `wrote contracts/logic/live-timing.json (${ltFixes.length} fixes, ${liveTimingFixture.expected.lapCount} laps)`
 );
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
+console.log(`wrote contracts/logic/garage-logbook.json (${logbookCases.length} cars)`);
 console.log(`wrote contracts/logic/car-catalog-match.json (${catalogQueries.length} queries, ${prefillCases.length} pre-fill cases)`);
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);

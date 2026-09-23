@@ -11,6 +11,7 @@ import {
   canUseSetups,
   canViewChannels,
   canViewYearInReview,
+  canViewSpend,
   entitlementSummary,
   isPro,
   manageUrl,
@@ -30,7 +31,7 @@ describe("isPro and the feature predicates", () => {
     // Expired by the wall clock but still `pro` — the cached answer stands offline.
     const stale = pro({ expires_at: 1 });
     const every = [canRecord, canViewChannels, canUseGarage, canUseSetups,
-      canViewYearInReview, canCompareEvents];
+      canViewYearInReview, canViewSpend, canCompareEvents];
     for (const can of every) {
       expect(can(stale)).toBe(true);
       expect(can(FREE_ENTITLEMENT)).toBe(false);
