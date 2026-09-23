@@ -1,0 +1,64 @@
+{
+  "method": "GET",
+  "path": "/share/:slug/wrapped/:year",
+  "status": 200,
+  "body": {
+    "fastest": {
+      "best_ms": 76900,
+      "date": "2026-05-20",
+      "event_id": 1,
+      "track_id": 1,
+      "track_name": "Virginia International Raceway (Patriot)"
+    },
+    "hottest": {
+      "date": "2026-04-10",
+      "event_id": 1,
+      "temp_c": 21.4,
+      "track_name": "Virginia International Raceway (Full)"
+    },
+    "improvement": {
+      "baseline": "first_event",
+      "best_before": 77400,
+      "best_this_year": 76900,
+      "gain_ms": 500,
+      "track_id": 1,
+      "track_name": "Virginia International Raceway (Patriot)"
+    },
+    "most_driven": {
+      "best_ms": 121500,
+      "laps": 4,
+      "track_days": 2,
+      "track_id": 1,
+      "track_name": "Virginia International Raceway (Full)"
+    },
+    "name": "Dev User",
+    "new_tracks": [
+      {
+        "track_id": 1,
+        "track_name": "Virginia International Raceway (Full)"
+      },
+      {
+        "track_id": 1,
+        "track_name": "Virginia International Raceway (Patriot)"
+      },
+      {
+        "track_id": 1,
+        "track_name": "Watkins Glen"
+      }
+    ],
+    "through": "2026-01-01",
+    "totals": {
+      "events": 4,
+      "hours": 11.5,
+      "laps": 7,
+      "miles": 13.1,
+      "miles_tracks_counted": 1,
+      "track_days": 5,
+      "tracks": 3
+    },
+    "year": 2026,
+    "years": [
+      2026
+    ]
+  }
+}

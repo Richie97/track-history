@@ -240,3 +240,20 @@ export function seasonWrapped(inputs: WrappedInputs, year: number, today: string
     hottest,
   };
 }
+
+// The link preview's description for a shared wrapped — the poster's headline
+// in words, in the owner's unit system: "14 track days · 6 tracks · 1,923 laps
+// · 4,281 track miles · most driven VIR (Full)". Mirrors posterLines in
+// public/js/wrapped.js (the backend and frontend share no code); the distance
+// is left out when no track's length was known, as the poster leaves it out.
+export function wrappedSummary(w: Wrapped, units: "imperial" | "metric" = "imperial"): string {
+  const t = w.totals;
+  const n = (v: number) => Math.round(v).toLocaleString("en-US");
+  const days = Number.isInteger(t.track_days) ? n(t.track_days) : t.track_days.toFixed(1);
+  const s = (v: number, one: string) => `${one}${v === 1 ? "" : "s"}`;
+  const parts = [`${days} ${s(t.track_days, "track day")}`, `${n(t.tracks)} ${s(t.tracks, "track")}`, `${n(t.laps)} ${s(t.laps, "lap")}`];
+  if (t.miles_tracks_counted)
+    parts.push(units === "metric" ? `${n(t.miles * 1.609344)} track km` : `${n(t.miles)} track miles`);
+  if (w.most_driven) parts.push(`most driven ${w.most_driven.track_name}`);
+  return parts.join(" · ");
+}

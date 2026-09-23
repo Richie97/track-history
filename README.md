@@ -1302,6 +1302,20 @@ dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
   swiping, the arrow keys / Space, or the progress dots; under
   `prefers-reduced-motion` every transition is a cut. It is the one surface
   that uses the lime accent generously, noted as such in `style.css`.
+- **Sharing.** The poster card's *Share image* hands a 1080×1920 PNG to the
+  Web Share API (`navigator.share({ files })`, iOS Safari and Android Chrome)
+  and downloads it where the browser can't share files; *Save wide* is the
+  1200×630 version. Both are drawn on a canvas in the browser
+  (`public/js/wrapped-image.js`, in the viewer's theme, from the same
+  `posterLines` the card renders) — there is no Worker rasteriser (#155) — and
+  the story image is drawn *before* the tap, because Safari only lets
+  `navigator.share` run inside the tap's user activation. An owner with a
+  share slug also gets `/share/<slug>/wrapped/<year>`: the same story through
+  the same renderer, served by `GET /api/share/:slug/wrapped/:year` with **no
+  `pro` key** (so no tyre, no top speed, nothing from the garage or channels —
+  pinned by `test/api/share.test.ts` against a Pro owner), and a `sharePage`
+  route that swaps in the season's own OG title and description
+  (`wrappedSummary`, in the owner's units). The OG *image* stays the brand card.
 
 ## Sharing & leaderboards
 

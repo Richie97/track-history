@@ -1,6 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { createEvent, signedInUser } from "./helpers";
+import { createEvent, signedInProUser, signedInUser } from "./helpers";
 
 async function publicShare(slug: string) {
   const res = await SELF.fetch(`https://example.com/api/share/${slug}`);
@@ -175,5 +175,87 @@ describe("GET /api/share/:slug privacy for new fields", () => {
     const raw = JSON.stringify(body);
     expect(raw).not.toContain("secret prep item");
     expect(raw).not.toContain("secret course notes");
+  });
+});
+
+describe("a shared Season Wrapped (NS-36)", () => {
+  const year = new Date().getUTCFullYear();
+  const past = `${year}-01-01`;
+
+  it("serves the free card set, with no `pro` key, under the owner's slug", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "Road Atlanta", start_date: past, best_time_ms: 98_760, days: 2 });
+    await api("PUT", "/share", { slug: "wrapped-driver" });
+
+    const res = await SELF.fetch(`https://example.com/api/share/wrapped-driver/wrapped/${year}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.year).toBe(year);
+    expect(body.name).toBe("Test User");
+    expect(body.totals).toMatchObject({ events: 1, track_days: 2, tracks: 1 });
+    expect(body.fastest.best_ms).toBe(98_760);
+    expect(body).not.toHaveProperty("pro");
+  });
+
+  it("is a 404 for an unknown slug or an empty year, and a 400 for a bad year", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { start_date: past });
+    await api("PUT", "/share", { slug: "wrapped-empty" });
+    expect((await SELF.fetch(`https://example.com/api/share/no-such-slug/wrapped/${year}`)).status).toBe(404);
+    expect((await SELF.fetch("https://example.com/api/share/wrapped-empty/wrapped/1999")).status).toBe(404);
+    expect((await SELF.fetch("https://example.com/api/share/wrapped-empty/wrapped/99")).status).toBe(400);
+  });
+
+  it("never carries a Pro owner's garage or anything channel-derived", async () => {
+    const { api } = await signedInProUser();
+    const vehicle = (await api("POST", "/vehicles", { name: "Secret Garage Car" })).body;
+    await api("POST", `/vehicles/${vehicle.id}/parts`, {
+      kind: "tires",
+      name: "Secret Tyre Compound",
+      installed_on: `${year - 1}-01-01`,
+    });
+    const ev = await createEvent(api, { start_date: past, car: "Secret Garage Car" });
+    await api("POST", `/events/${ev}/sessions`, {
+      laps: [90_000],
+      channels: {
+        dStepM: 20,
+        laps: [{ n: 1, timeMs: 90_000, speed: Array.from({ length: 50 }, (_, i) => 150 + i), rpm: Array(50).fill(7777) }],
+      },
+    });
+    await api("PUT", "/share", { slug: "wrapped-pro" });
+
+    const res = await SELF.fetch(`https://example.com/api/share/wrapped-pro/wrapped/${year}`);
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    const body = JSON.parse(text);
+    expect(body).not.toHaveProperty("pro");
+    for (const secret of ["Secret Tyre Compound", "Secret Garage Car", "7777", "199", "top_speed", "tire"])
+      expect(text, secret).not.toContain(secret);
+  });
+
+  it("previews with the season's own title and description", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { track_name: "Road Atlanta", start_date: past, days: 2 });
+    const ev = await createEvent(api, { track_name: "Road Atlanta", start_date: past });
+    await api("POST", `/events/${ev}/sessions`, { laps: [99_000, 98_000] });
+    await api("PUT", "/share", { slug: "wrapped-og" });
+
+    const res = await SELF.fetch(`https://example.com/share/wrapped-og/wrapped/${year}`);
+    const html = await res.text();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=300");
+    expect(html).toContain(`<title>Test User&#39;s ${year} on Track Evolution</title>`);
+    // Road Atlanta is a catalog track with a seeded length: 2 laps × 4,088 m.
+    expect(html).toContain("3 track days · 1 track · 2 laps · 5 track miles · most driven Road Atlanta");
+    expect(html).toContain(`property="og:url" content="https://example.com/share/wrapped-og/wrapped/${year}"`);
+    expect(html).toContain('<script type="module" src="/app.js"></script>');
+  });
+
+  it("serves the stock shell for a year with nothing in it", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { start_date: past });
+    await api("PUT", "/share", { slug: "wrapped-og-empty" });
+    const html = await (await SELF.fetch("https://example.com/share/wrapped-og-empty/wrapped/1999")).text();
+    expect(html).toContain("<title>Track Evolution</title>");
   });
 });

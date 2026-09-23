@@ -23,6 +23,8 @@ public struct Wrapped: Codable, Hashable, Sendable {
     public var hottest: WrappedHottest?
     /// The one tier-dependent field: nil for a free account (the client draws
     /// the two Pro cards locked); for Pro, each card is nil when there is no data.
+    /// Absent altogether from the public share (`GET /api/share/:slug/wrapped/:year`),
+    /// which carries the free card set only and decodes into this same model.
     public var pro: WrappedPro?
 
     public enum CodingKeys: String, CodingKey {
