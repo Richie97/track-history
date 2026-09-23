@@ -52,6 +52,10 @@ xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolutio
 xcodebuild test -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
   -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' \
   -only-testing:TrackEvolutionUITests/CoreScreensUITests
+# the same iPad build as a Mac runs it (Designed for iPad, epic #230) — build only;
+# no CI job runs this destination
+xcodebuild build -project apps/ios/TrackEvolution.xcodeproj -scheme TrackEvolution \
+  -destination 'platform=macOS,variant=Designed for iPad' CODE_SIGNING_ALLOWED=NO
 apps/ios/generate.sh                                   # regenerate the Xcode project from project.yml
 node apps/ios/Tools/generate-tokens.mjs                # regenerate iOS colour + layout tokens from public/style.css
 cd apps/android && ./gradlew :core:test                # Android pure logic, no emulator
