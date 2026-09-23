@@ -66,9 +66,10 @@ object Goldens {
         strict.decodeFromString(deserializer, bodyText(name))
 
     /**
-     * The same configuration [app.trackevolution.core.api.ApiClient] decodes
-     * responses with: unknown keys are an error, so a field the server adds and
-     * we don't model fails here first.
+     * Stricter than [app.trackevolution.core.api.ApiClient], on purpose: unknown
+     * keys are an error here, so a field the server adds and we don't model fails
+     * this test first. The shipped client ignores them, because a build already
+     * in users' hands can't be updated to model a field added after it shipped.
      */
     val strict: Json = Json { ignoreUnknownKeys = false; isLenient = false }
 }
