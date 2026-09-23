@@ -13,6 +13,12 @@
       "is_default": 1,
       "name": "Corvette C7",
       "notes": "Track car.",
+      "odometer": {
+        "km": 71092,
+        "on": "2026-04-10",
+        "other_car": 0,
+        "readings": 2
+      },
       "parts": [
         {
           "cost_cents": null,
@@ -23,6 +29,12 @@
           "measurements": [],
           "name": "Falken RT660",
           "notes": null,
+          "odometer": {
+            "from": "2026-04-10",
+            "km": 5,
+            "readings": 2,
+            "to": "2026-04-10"
+          },
           "retired_on": null,
           "vehicle_id": 1,
           "wear": {
@@ -63,6 +75,12 @@
           ],
           "name": "Carbotech XP12",
           "notes": null,
+          "odometer": {
+            "from": "2026-04-10",
+            "km": 5,
+            "readings": 2,
+            "to": "2026-04-10"
+          },
           "retired_on": null,
           "vehicle_id": 1,
           "wear": {
@@ -96,6 +114,7 @@
       "is_default": 0,
       "name": "Miata",
       "notes": null,
+      "odometer": null,
       "parts": [],
       "parts_cost_cents": 0,
       "steering_ratio": null,

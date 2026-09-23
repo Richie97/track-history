@@ -101,6 +101,10 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
     /// this platform shows them yet.
     public var eventCostCents: Int
     public var partsCostCents: Int
+    /// What the car's own odometer last said (#192), from video imports only;
+    /// nil when no recorded session carries a reading. Worded by
+    /// `Garage.vehicleOdometerLine`.
+    public var odometer: VehicleOdometer?
     public var parts: [Part]
     /// See `Vehicle.catalogId` / `wheelbaseMm` / `steeringRatio`.
     public var catalogId: Int?
@@ -108,7 +112,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
     public var steeringRatio: Double?
 
     public enum CodingKeys: String, CodingKey {
-        case id, name, notes, hours, parts
+        case id, name, notes, hours, parts, odometer
         case isDefault = "is_default"
         case targetHotPsi = "target_hot_psi"
         case updatedAt = "updated_at"
@@ -135,6 +139,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         eventDays: Int = 0,
         eventCostCents: Int = 0,
         partsCostCents: Int = 0,
+        odometer: VehicleOdometer? = nil,
         parts: [Part] = [],
         catalogId: Int? = nil,
         wheelbaseMm: Int? = nil,
@@ -151,6 +156,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         self.eventDays = eventDays
         self.eventCostCents = eventCostCents
         self.partsCostCents = partsCostCents
+        self.odometer = odometer
         self.parts = parts
         self.catalogId = catalogId
         self.wheelbaseMm = wheelbaseMm
@@ -170,6 +176,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         eventDays = try c.decode(Int.self, forKey: .eventDays)
         eventCostCents = try c.decodeIfPresent(Int.self, forKey: .eventCostCents) ?? 0
         partsCostCents = try c.decodeIfPresent(Int.self, forKey: .partsCostCents) ?? 0
+        odometer = try c.decodeIfPresent(VehicleOdometer.self, forKey: .odometer)
         parts = try c.decode([Part].self, forKey: .parts)
         catalogId = try c.decodeIfPresent(Int.self, forKey: .catalogId)
         wheelbaseMm = try c.decodeIfPresent(Int.self, forKey: .wheelbaseMm)
@@ -189,6 +196,7 @@ public struct GarageVehicle: Codable, Hashable, Sendable, Identifiable {
         try c.encode(eventDays, forKey: .eventDays)
         try c.encode(eventCostCents, forKey: .eventCostCents)
         try c.encode(partsCostCents, forKey: .partsCostCents)
+        try c.encode(odometer, forKey: .odometer)
         try c.encode(parts, forKey: .parts)
         try c.encode(catalogId, forKey: .catalogId)
         try c.encode(wheelbaseMm, forKey: .wheelbaseMm)
@@ -235,15 +243,60 @@ public struct Part: Codable, Hashable, Sendable, Identifiable {
     public var notes: String?
     public var measurements: [Measurement]
     public var wear: WearEstimate
+    /// The distance the car's odometer covered across this part's recorded
+    /// sessions (#192) — reported beside `wear`, never an input to it. Nil with
+    /// fewer than two readings in its service window.
+    public var odometer: PartOdometer? = nil
 
     public enum CodingKeys: String, CodingKey {
-        case id, kind, name, notes, measurements, wear
+        case id, kind, name, notes, measurements, wear, odometer
         case vehicleId = "vehicle_id"
         case installedOn = "installed_on"
         case retiredOn = "retired_on"
         case expectedHours = "expected_hours"
         case wearLimit = "wear_limit"
         case costCents = "cost_cents"
+    }
+}
+
+/// The car's latest odometer reading (`vehicleOdometer` in
+/// `src/lib/odometer.ts`). A reading below the running maximum is taken as
+/// another car's — a borrowed or mislinked day — and counted in `otherCar`
+/// rather than treated as an error.
+public struct VehicleOdometer: Codable, Hashable, Sendable {
+    /// Kilometres, as the car's recorder stored them.
+    public var km: Double
+    /// The date of the event the reading was recorded at.
+    public var on: String
+    public var readings: Int
+    public var otherCar: Int
+
+    public init(km: Double, on: String, readings: Int, otherCar: Int) {
+        self.km = km
+        self.on = on
+        self.readings = readings
+        self.otherCar = otherCar
+    }
+
+    public enum CodingKeys: String, CodingKey {
+        case km, on, readings
+        case otherCar = "other_car"
+    }
+}
+
+/// A part's recorded odometer span (`partOdometer` in `src/lib/odometer.ts`).
+public struct PartOdometer: Codable, Hashable, Sendable {
+    /// Kilometres between the first and last reading in the service window.
+    public var km: Double
+    public var from: String
+    public var to: String
+    public var readings: Int
+
+    public init(km: Double, from: String, to: String, readings: Int) {
+        self.km = km
+        self.from = from
+        self.to = to
+        self.readings = readings
     }
 }
 

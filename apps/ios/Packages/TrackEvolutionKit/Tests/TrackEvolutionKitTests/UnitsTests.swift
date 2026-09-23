@@ -56,6 +56,14 @@ struct UnitsTests {
         #expect(Units.fmtDist(4000, .imperial) == "2.49 mi")
     }
 
+    @Test func formatsTheOdometerInWholeGroupedUnits() {
+        #expect(Units.fmtOdometer(71130, .metric) == "71,130 km")
+        #expect(Units.fmtOdometer(71130, .imperial) == "44,198 mi")
+        #expect(Units.fmtOdometer(999.5, .metric) == "1,000 km")
+        #expect(Units.fmtOdometer(0, .imperial) == "0 mi")
+        #expect(Units.fmtOdometer(1_234_567, .metric) == "1,234,567 km")
+    }
+
     @Test func formatsGPSAccuracy() {
         #expect(Units.fmtAccuracy(4.2, .metric) == "±4 m")
         #expect(Units.fmtAccuracy(4.2, .imperial) == "±14 ft")

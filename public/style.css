@@ -422,6 +422,8 @@ h2 {
 /* "Entry $450 · Fuel $120" under a Spent tile (#147): pulled up under the
    grid, muted like every other hint. */
 .cost-breakdown { font-size: var(--fs-xs); color: var(--text-muted); margin: -12px 0 22px; }
+.vehicle-odometer { font-size: var(--fs-xs); color: var(--text-muted); margin: -12px 0 22px; }
+.cost-breakdown + .vehicle-odometer { margin-top: -18px; }
 .tile {
   background: var(--surface-card); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg); padding: 18px 20px;
@@ -1185,6 +1187,7 @@ div.garage-alerts { display: flex; gap: 14px; align-items: flex-start; }
 .part-status { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 10px; }
 .part-status .t { color: var(--accent-ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
 .part-status .goal-status { font-size: var(--fs-sm); }
+.part-odometer { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
 .part-card .laps { margin-top: 12px; }
 .part-card .lap .x {
   border: 0; background: none; color: var(--text-faint); cursor: pointer;

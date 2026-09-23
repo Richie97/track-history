@@ -89,6 +89,22 @@ public enum Units {
         return "\(jsNumber(m)) m"
     }
 
+    /// `KM_PER_MI` in the JS.
+    public static let KM_PER_MI = M_PER_MI / 1000
+
+    /// The car's odometer (#192, stored km): whole units, thousands grouped —
+    /// "71,130 km" / "44,198 mi". Grouped by hand, as in the JS, rather than by
+    /// a `NumberFormatter`, whose separator would follow the device's locale.
+    public static func fmtOdometer(_ km: Double, _ units: UnitSystem) -> String {
+        let digits = String(jsInt(isMetric(units) ? km : km / KM_PER_MI))
+        var grouped = ""
+        for (i, ch) in digits.enumerated() {
+            if i > 0 && (digits.count - i) % 3 == 0 { grouped.append(",") }
+            grouped.append(ch)
+        }
+        return "\(grouped) \(isMetric(units) ? "km" : "mi")"
+    }
+
     /// GPS accuracy style: "±4 m" / "±13 ft".
     public static func fmtAccuracy(_ m: Double, _ units: UnitSystem) -> String {
         isMetric(units) ? "±\(jsInt(m)) m" : "±\(jsInt(m * FT_PER_M)) ft"

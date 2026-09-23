@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { requireEntitlement } from "../middleware";
-import { type VehicleHoursEvent, vehicleHoursEventsStmt } from "../db";
+import { type VehicleHoursEvent, type VehicleOdometerReading, vehicleHoursEventsStmt, vehicleOdometerStmt } from "../db";
 import { isValidDate, isValidPartKind, isValidSteeringRatio, isValidWheelbaseMm } from "../lib/validate";
 import { MAX_FIT_SESSIONS, steeringFit } from "../lib/steering";
 import { wearEstimate } from "../lib/wear";
+import { partOdometer, vehicleOdometer } from "../lib/odometer";
 import { eventCostCents } from "../lib/costs";
 
 // The user's garage (Settings → Vehicles). Vehicles feed the event form's
@@ -273,8 +274,8 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const db = c.env.DB;
   const today = todayISO();
-  // Four independent reads, one batched round trip.
-  const [vehicleRes, partRes, measurementRes, hoursRes] = await db.batch([
+  // Five independent reads, one batched round trip.
+  const [vehicleRes, partRes, measurementRes, hoursRes, odometerRes] = await db.batch([
     db
       .prepare(
         `SELECT ${VEHICLE_COLUMNS}, updated_at FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE`
@@ -297,6 +298,7 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
       )
       .bind(userId),
     vehicleHoursEventsStmt(db, userId),
+    vehicleOdometerStmt(db, userId),
   ]);
   const vehicleRows = {
     results: vehicleRes.results as {
@@ -329,14 +331,23 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
     results: measurementRes.results as { id: number; part_id: number; measured_on: string; value: number; unit: string }[],
   };
   const hoursEvents = hoursRes.results as VehicleHoursEvent[];
+  const odometerReadings = odometerRes.results as VehicleOdometerReading[];
 
   const garage = vehicleRows.results.map((v) => {
     const events = hoursEvents.filter((e) => e.vehicle_id === v.id);
+    const readings = odometerReadings.filter((r) => r.vehicle_id === v.id);
     const parts = partRows.results
       .filter((p) => p.vehicle_id === v.id)
       .map((p) => {
         const measurements = measurementRows.results.filter((m) => m.part_id === p.id);
-        return { ...p, measurements, wear: wearEstimate(p, events, measurements, today) };
+        return {
+          ...p,
+          measurements,
+          wear: wearEstimate(p, events, measurements, today),
+          // The car's own odometer across the part's recorded sessions (#192):
+          // reported beside the hours estimate, never an input to it.
+          odometer: partOdometer(p, readings, today),
+        };
       });
     const noPart = { installed_on: "0000-01-01", retired_on: null, expected_hours: null, wear_limit: null };
     const totals = wearEstimate(noPart, events, [], today); // whole-vehicle hours/days
@@ -352,6 +363,9 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
       // Zero rather than null when nothing was entered: these are sums.
       event_cost_cents: events.reduce((sum, e) => sum + (eventCostCents(e) ?? 0), 0),
       parts_cost_cents: parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0),
+      // What the car's own odometer last said (#192), from video imports only;
+      // null when no recorded session carries a reading.
+      odometer: vehicleOdometer(readings),
       parts,
     };
   });

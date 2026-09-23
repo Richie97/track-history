@@ -89,6 +89,12 @@ public data class GarageVehicle(
      */
     @SerialName("event_cost_cents") val eventCostCents: Int = 0,
     @SerialName("parts_cost_cents") val partsCostCents: Int = 0,
+    /**
+     * What the car's own odometer last said (#192), from video imports only;
+     * null when no recorded session carries a reading. Worded by
+     * [app.trackevolution.core.Garage.vehicleOdometerLine].
+     */
+    val odometer: VehicleOdometer? = null,
     val parts: List<Part>,
     /** See [Vehicle.catalogId] / [Vehicle.wheelbaseMm] / [Vehicle.steeringRatio]. */
     @SerialName("catalog_id") val catalogId: Int? = null,
@@ -141,6 +147,37 @@ public data class Part(
     val notes: String? = null,
     val measurements: List<Measurement>,
     val wear: WearEstimate,
+    /**
+     * The distance the car's odometer covered across this part's recorded
+     * sessions (#192) — reported beside [wear], never an input to it. Null
+     * with fewer than two readings in its service window.
+     */
+    val odometer: PartOdometer? = null,
+)
+
+/**
+ * The car's latest odometer reading (`vehicleOdometer` in `src/lib/odometer.ts`).
+ * A reading below the running maximum is taken as another car's — a borrowed
+ * or mislinked day — and counted in [otherCar] rather than treated as an error.
+ */
+@Serializable
+public data class VehicleOdometer(
+    /** Kilometres, as the car's recorder stored them. */
+    val km: Double,
+    /** The date of the event the reading was recorded at. */
+    val on: String,
+    val readings: Int,
+    @SerialName("other_car") val otherCar: Int,
+)
+
+/** A part's recorded odometer span (`partOdometer` in `src/lib/odometer.ts`). */
+@Serializable
+public data class PartOdometer(
+    /** Kilometres between the first and last reading in the service window. */
+    val km: Double,
+    val from: String,
+    val to: String,
+    val readings: Int,
 )
 
 /** A logged wear measurement (pad thickness, tread depth, …). */

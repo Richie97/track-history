@@ -39,6 +39,14 @@ struct GarageTests {
             #expect(ported.label == kind.label)
             #expect(ported.wearLimitHint == kind.wearLimitHint)
         }
+        // The car's own odometer (#192).
+        for row in fixture.odometer {
+            #expect(Garage.vehicleOdometerLine(row.vehicle, row.units) == row.line, "vehicleOdometerLine(\(String(describing: row.vehicle)), \(row.units))")
+        }
+        for row in fixture.partOdometer {
+            #expect(Garage.partOdometerLine(row.part, row.units) == row.line, "partOdometerLine(\(String(describing: row.part)), \(row.units))")
+        }
+        #expect(fixture.odometer.count >= 8 && fixture.partOdometer.count >= 8)
         // A guard against the fixture silently emptying out and the loops above
         // passing vacuously.
         #expect(fixture.cases.count >= 10)
@@ -283,10 +291,24 @@ struct GarageFixture: Decodable {
         let wearLimitHint: String?
     }
 
+    struct VehicleOdometerCase: Decodable {
+        let units: UnitSystem
+        let vehicle: VehicleOdometer?
+        let line: String?
+    }
+
+    struct PartOdometerCase: Decodable {
+        let units: UnitSystem
+        let part: PartOdometer?
+        let line: String?
+    }
+
     let cases: [WearCase]
     let hours: [HoursCase]
     let cost: [CostCase]
     let kinds: [KindCase]
+    let odometer: [VehicleOdometerCase]
+    let partOdometer: [PartOdometerCase]
 
     static func load() throws -> GarageFixture {
         let data = try Data(contentsOf: RepoRoot.path("contracts/logic/garage-status.json"))

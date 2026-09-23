@@ -14,12 +14,14 @@ import {
   fmtSetupValue,
   matchCatalogCars,
   partKindLabel,
+  partOdometerLine,
   partStatus,
   setupStep,
   setupToDisplay,
   setupToStored,
   setupUnit,
   vehicleLogbook,
+  vehicleOdometerLine,
   vehicleTileLine,
   wearLimitHint,
 } from "../../public/js/garage.js";
@@ -318,5 +320,23 @@ describe("vehicleLogbook / vehicleTileLine (NS-37)", () => {
     expect(vehicleTileLine(vehicleLogbook(1, [ev(1, { start_date: "2026-10-01", track_name: "Glen" })], today))).toBe(
       "Next: Glen"
     );
+  });
+});
+
+describe("odometer lines (#192)", () => {
+  it("names the recorded session a vehicle's reading came from", () => {
+    const odo = { km: 71130, on: "2026-05-02", readings: 3, other_car: 0 };
+    expect(vehicleOdometerLine(odo, "metric")).toBe("Odometer: 71,130 km at the last recorded session (2026-05-02)");
+    expect(vehicleOdometerLine({ ...odo, other_car: 1 }, "imperial")).toBe(
+      "Odometer: 44,198 mi at the last recorded session (2026-05-02) · 1 lower reading skipped as another car's"
+    );
+    expect(vehicleOdometerLine(null, "metric")).toBeNull();
+  });
+
+  it("bounds a part's distance by its recorded sessions", () => {
+    expect(partOdometerLine({ km: 1180, from: "2026-03-10", to: "2026-04-20", readings: 2 }, "metric")).toBe(
+      "Odometer: 1,180 km between its first and last recorded sessions"
+    );
+    expect(partOdometerLine(null, "imperial")).toBeNull();
   });
 });

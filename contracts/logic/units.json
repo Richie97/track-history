@@ -342,6 +342,68 @@
       "output": "±20 m"
     }
   ],
+  "odometer": [
+    {
+      "km": 0,
+      "units": "imperial",
+      "output": "0 mi"
+    },
+    {
+      "km": 0.4,
+      "units": "imperial",
+      "output": "0 mi"
+    },
+    {
+      "km": 999.5,
+      "units": "imperial",
+      "output": "621 mi"
+    },
+    {
+      "km": 804.672,
+      "units": "imperial",
+      "output": "500 mi"
+    },
+    {
+      "km": 71130,
+      "units": "imperial",
+      "output": "44,198 mi"
+    },
+    {
+      "km": 1234567,
+      "units": "imperial",
+      "output": "767,124 mi"
+    },
+    {
+      "km": 0,
+      "units": "metric",
+      "output": "0 km"
+    },
+    {
+      "km": 0.4,
+      "units": "metric",
+      "output": "0 km"
+    },
+    {
+      "km": 999.5,
+      "units": "metric",
+      "output": "1,000 km"
+    },
+    {
+      "km": 804.672,
+      "units": "metric",
+      "output": "805 km"
+    },
+    {
+      "km": 71130,
+      "units": "metric",
+      "output": "71,130 km"
+    },
+    {
+      "km": 1234567,
+      "units": "metric",
+      "output": "1,234,567 km"
+    }
+  ],
   "temp": [
     {
       "f": -40,

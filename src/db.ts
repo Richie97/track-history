@@ -242,6 +242,24 @@ export function vehicleHoursEventsStmt(db: D1Database, userId: number) {
     .bind(userId);
 }
 
+// Every odometer reading (#192, migration 0027) on the user's past
+// vehicle-linked sessions, ordered for `carReadings` in lib/odometer.ts: by the
+// event's date, then by the reading itself — sessions within a day are not
+// reliably in the order they ran, and the odometer is.
+export type VehicleOdometerReading = { vehicle_id: number; start_date: string; km: number };
+
+export function vehicleOdometerStmt(db: D1Database, userId: number) {
+  return db
+    .prepare(
+      `SELECT e.vehicle_id, e.start_date, s.odometer_km AS km
+       FROM sessions s JOIN events e ON e.id = s.event_id
+       WHERE e.user_id = ? AND e.vehicle_id IS NOT NULL AND s.odometer_km IS NOT NULL
+         AND e.start_date <= date('now')
+       ORDER BY e.start_date ASC, s.odometer_km ASC`
+    )
+    .bind(userId);
+}
+
 export async function vehicleHoursEvents(db: D1Database, userId: number) {
   return (await vehicleHoursEventsStmt(db, userId).all<VehicleHoursEvent>()).results;
 }
