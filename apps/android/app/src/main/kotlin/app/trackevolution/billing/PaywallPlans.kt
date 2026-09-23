@@ -1,10 +1,17 @@
 package app.trackevolution.billing
 
-/** The one subscription product and its two base plans, as configured in the Play Console. */
+/**
+ * The one subscription product and its two base plans, **exactly as the Play
+ * Console spells them**. A base plan id Play doesn't recognise is not an error
+ * anywhere — `queryProductDetailsAsync` succeeds, [PaywallPlans.plans] filters
+ * the offers down to nothing and the paywall says Pro isn't available, which
+ * is what shipped when these read `monthly` / `yearly`. Base plan ids can't be
+ * renamed in the Console, so the code follows them.
+ */
 object BillingProducts {
     const val PRO = "app.trackevolution.pro"
-    const val MONTHLY = "monthly"
-    const val YEARLY = "yearly"
+    const val MONTHLY = "app-trackevolution-pro-monthly"
+    const val YEARLY = "app-trackevolution-pro-yearly"
 }
 
 /** Where the paywall's two legal links go (App Store guideline 3.1.2's Play twin). */
