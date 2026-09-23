@@ -214,6 +214,14 @@ public actor APIClient {
         try await get("/tracks/\(id)/leaderboard", as: TrackLeaderboard.self)
     }
 
+    /// Season Wrapped (NS-36): one calendar year's numbers, computed by the
+    /// server. A year with no past events is a 404 (`APIError` with status 404),
+    /// which the story shows as "No track days in <year> — yet" rather than as
+    /// an error. `pro` is nil for a free account.
+    public func wrapped(year: Int) async throws -> Wrapped {
+        try await get("/wrapped/\(year)", as: Wrapped.self)
+    }
+
     /// One shared leaderboard lap, opened from a row whose `lapId` is non-nil
     /// (NS-35). `id` is the viewer's own track — a lap is only reachable from a
     /// track the viewer actually has — and the server re-checks every condition,

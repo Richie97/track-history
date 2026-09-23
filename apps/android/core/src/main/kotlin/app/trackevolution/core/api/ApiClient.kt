@@ -1,6 +1,7 @@
 package app.trackevolution.core.api
 
 import app.trackevolution.core.model.BillingResponse
+import app.trackevolution.core.model.Wrapped
 import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CreatedId
@@ -322,6 +323,15 @@ public class ApiClient(
      */
     public suspend fun trackLeaderboard(id: Int): TrackLeaderboard =
         get("/tracks/$id/leaderboard", TrackLeaderboard.serializer())
+
+    /**
+     * Season Wrapped (NS-36): one calendar year's numbers, computed by the
+     * server. A year with no past events is a 404 — [ApiException.Server] with
+     * `status == 404` — which the story shows as "No track days in <year> —
+     * yet", not as an error. `pro` is null for a free account.
+     */
+    public suspend fun wrapped(year: Int): Wrapped =
+        get("/wrapped/$year", Wrapped.serializer())
 
     /**
      * One shared leaderboard lap, opened from a row whose `lapId` is non-null

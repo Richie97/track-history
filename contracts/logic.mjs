@@ -170,6 +170,7 @@ import {
   liveTimingDisplay,
 } from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
+import { fmtDays, fmtGain, posterLines, trackDistance, wrappedCards, wrappedSeason } from "../public/js/wrapped.js";
 import { sessionsToCreate, stagedSummary } from "../public/js/event-form.js";
 import {
   canRecord,
@@ -1702,6 +1703,86 @@ const checklistFixture = {
   DEFAULT_CHECKLIST,
 };
 
+// Season Wrapped (NS-36, public/js/wrapped.js): the dashboard hero's window,
+// which cards a season gets, and the poster's words. The numbers themselves
+// are the server's (GET /api/wrapped/:year), so only this presentation layer
+// is ported — as `WrappedStory` in the Kit and `:core`, under the same names.
+// The seasons are chosen for the ways a port goes wrong: the reveal window's
+// four edges, half days, a free account (locked cards), a Pro account with one
+// card empty, the public share (no `pro` key at all — neither locked nor
+// shown), a season whose distance nobody could measure, and a first-year gain.
+const wrappedBase = {
+  year: 2026,
+  years: [2026, 2025],
+  through: null,
+  name: "Eric",
+  totals: { events: 9, track_days: 14, tracks: 6, laps: 1923, hours: 31.5, miles: 4281.4, miles_tracks_counted: 5 },
+  most_driven: { track_id: 3, track_name: "Virginia International Raceway (Full)", track_days: 5, laps: 612, best_ms: 120030 },
+  improvement: { track_id: 7, track_name: "Summit Point (Main Circuit)", best_before: 94120, best_this_year: 89290, gain_ms: 4830, baseline: "prior_years" },
+  fastest: { track_id: 3, track_name: "Virginia International Raceway (Full)", best_ms: 120030, event_id: 41, date: "2026-06-14" },
+  new_tracks: [{ track_id: 9, track_name: "Road Atlanta" }],
+  hottest: { event_id: 44, track_name: "Virginia International Raceway (Full)", date: "2026-07-19", temp_c: 34.5 },
+  pro: null,
+};
+const wrappedTire = { part_id: 1, vehicle_id: 1, vehicle_name: "Corvette C7", name: "Continental ExtremeContact Force", track_days: 6, hours: 12 };
+const { pro: _unusedPro, ...wrappedShared } = wrappedBase;
+const wrappedSeasons = [
+  { name: "free", data: wrappedBase },
+  { name: "pro-both", data: { ...wrappedBase, pro: { tire: wrappedTire, top_speed: { kph: 254.3, track_id: 3, track_name: "Virginia International Raceway (Full)", event_id: 41, date: "2026-06-14" } } } },
+  { name: "pro-tire-only", data: { ...wrappedBase, pro: { tire: wrappedTire, top_speed: null } } },
+  { name: "pro-empty", data: { ...wrappedBase, pro: { tire: null, top_speed: null } } },
+  { name: "shared", data: wrappedShared },
+  {
+    name: "sparse",
+    data: {
+      ...wrappedBase,
+      name: null,
+      totals: { events: 1, track_days: 0.5, tracks: 1, laps: 1, hours: 1, miles: 0, miles_tracks_counted: 0 },
+      most_driven: { track_id: 1, track_name: "Home Circuit", track_days: 0.5, laps: 1, best_ms: null },
+      improvement: null,
+      fastest: null,
+      new_tracks: [],
+      hottest: null,
+    },
+  },
+  {
+    name: "first-year",
+    data: {
+      ...wrappedBase,
+      improvement: { track_id: 2, track_name: "Home Circuit", best_before: 95000, best_this_year: 92000, gain_ms: 3000, baseline: "first_event" },
+    },
+  },
+];
+const wrappedFixture = {
+  description:
+    "Season Wrapped's presentation rules from public/js/wrapped.js: the dashboard hero's window " +
+    "(wrappedSeason), the card list with its skip and locked rules (wrappedCards — `locked` only on " +
+    "the two Pro cards when `pro` is null, and no Pro card at all when the key is absent), and the " +
+    "poster's words (posterLines) in both unit systems, owner and shared. Both native ports " +
+    "(WrappedStory) assert equality with it. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/wrapped.js",
+  season: [
+    "2026-01-01", "2026-01-31", "2026-02-01", "2026-06-15", "2026-10-31", "2026-11-01", "2026-12-31", "2027-01-15",
+  ].map((today) => ({ today, expected: wrappedSeason(today) })),
+  seasons: wrappedSeasons.map(({ name, data }) => ({
+    name,
+    data,
+    cards: wrappedCards(data),
+    poster: {
+      imperial: posterLines(data, "imperial"),
+      metric: posterLines(data, "metric"),
+      shared: posterLines(data, "imperial", { share: true }),
+    },
+  })),
+  format: {
+    fmtDays: [14, 2.5, 0.5, 1].map((d) => ({ d, expected: fmtDays(d) })),
+    fmtGain: [4830, 500, 12345, 10].map((ms) => ({ ms, expected: fmtGain(ms) })),
+    trackDistance: [0, 21.4, 4281.4, 999.5].flatMap((miles) =>
+      ["imperial", "metric"].map((units) => ({ miles, units, expected: trackDistance(miles, units) }))
+    ),
+  },
+};
+
 // The New Event form's "Add laps" section (public/js/event-form.js): which
 // sessions a new event is created with, in which order, and how a staged one
 // is summarised. Small, but it is the rule all three forms post by — staged
@@ -1927,6 +2008,7 @@ mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "wrapped.json"), JSON.stringify(wrappedFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "vbo-parsers.json"), JSON.stringify(vboFixture, null, 2) + "\n");
@@ -2095,6 +2177,7 @@ console.log(`wrote contracts/logic/car-catalog-match.json (${catalogQueries.leng
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
+console.log(`wrote contracts/logic/wrapped.json (${wrappedSeasons.length} seasons)`);
 console.log(`wrote contracts/logic/event-form.json (${eventFormCases.length} cases)`);
 console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);
 console.log(
