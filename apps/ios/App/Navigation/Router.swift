@@ -130,8 +130,8 @@ final class AppRouter {
     var tab: AppTab = .events
     /// Each tab's own stack. Bound one to each tab's `NavigationStack`; everything
     /// else goes through ``path``, the stack of the tab on screen.
-    var eventsPath: [Route] = []
-    var garagePath: [Route] = []
+    var eventsPath: [Route] = [] { didSet { dropOrphanedDraft() } }
+    var garagePath: [Route] = [] { didSet { dropOrphanedDraft() } }
 
     /// The stack of the tab on screen — what every screen means by "the path".
     var path: [Route] {
@@ -190,6 +190,63 @@ final class AppRouter {
     /// path the way Android's `RecordingFlow.staged` does it. The form takes them
     /// the moment it is back on screen and empties this; nothing else reads it.
     var stagedSessions: [SessionDraft] = []
+
+    /// The event form's typing, held above the shell swap (epic #277, ticket 1).
+    ///
+    /// Here rather than in `@SceneStorage`, which would also survive the system
+    /// killing a backgrounded app: scene storage takes only property-list values,
+    /// and a draft carries the import review's staged sessions — `Encodable`-only
+    /// `SessionDraft`s whose channel blobs run to megabytes, which is no size for
+    /// state restoration. The bug being fixed is a *resize*, and the router
+    /// already outlives every resize; it is also per window, so two windows on the
+    /// inner display of an iPhone Duo keep two drafts.
+    ///
+    /// Written by `EventFormScreen` on every change once its form is ready, read
+    /// back when the form is rebuilt, and cleared by the form on save — and here,
+    /// by ``dropOrphanedDraft()``, the moment its route leaves both stacks, which
+    /// is what "discard" means for a form with no Cancel button.
+    var eventFormDraft: EventFormDraft?
+
+    /// Short typed text on pages other than the event form — a hand-entered
+    /// session on the event page, a lap being appended, a checklist item, a wear
+    /// measurement — held above the shell swap for the same reason as
+    /// ``eventFormDraft``, keyed by the route of the page it was typed on and a
+    /// name the page chooses.
+    ///
+    /// Plain strings in a dictionary rather than a type per page: each of these
+    /// is a field or two that a page would otherwise keep in `@State`, and the
+    /// only rule they share is the draft's — kept while the route is on a stack,
+    /// dropped the moment it is not. Read and written through ``heldText(_:_:)``
+    /// and ``hold(_:_:_:)``.
+    private(set) var heldFields: [Route: [String: String]] = [:]
+
+    func heldText(_ route: Route, _ key: String) -> String {
+        heldFields[route]?[key] ?? ""
+    }
+
+    /// Hold `text` for `key` on `route`; an empty string lets it go. Ignored for
+    /// a route on neither stack, which would otherwise be held forever.
+    func hold(_ text: String, _ key: String, _ route: Route) {
+        if text.isEmpty {
+            heldFields[route]?[key] = nil
+            if heldFields[route]?.isEmpty == true { heldFields[route] = nil }
+        } else if allRoutes.contains(route) {
+            heldFields[route, default: [:]][key] = text
+        }
+    }
+
+    @ObservationIgnored private var remapping = false
+
+    private func dropOrphanedDraft() {
+        guard !remapping else { return }
+        if let held = eventFormDraft, EventFormDraft.isOrphaned(held, routes: allRoutes) {
+            eventFormDraft = nil
+        }
+        let live = Set(allRoutes)
+        if heldFields.keys.contains(where: { !live.contains($0) }) {
+            heldFields = heldFields.filter { live.contains($0.key) }
+        }
+    }
 
     /// What the list pane has selected: the detail's root, or nil for its empty
     /// state.
@@ -304,8 +361,19 @@ final class AppRouter {
     /// it has to follow the row to its real id or it starts 404ing against the
     /// server the moment connectivity returns.
     func remapTempIds(_ resolve: (Int) -> Int?) {
+        // All three move together, and the orphan check waits for the last: a
+        // form on either stack would otherwise be checked against the draft
+        // while one of the two still named the temp id.
+        remapping = true
+        eventFormDraft = eventFormDraft?.remapped(resolve)
+        heldFields = Dictionary(
+            heldFields.map { (Self.remapped([$0.key], resolve)[0], $0.value) },
+            uniquingKeysWith: { first, _ in first }
+        )
         eventsPath = Self.remapped(eventsPath, resolve)
         garagePath = Self.remapped(garagePath, resolve)
+        remapping = false
+        dropOrphanedDraft()
     }
 
     private static func remapped(_ routes: [Route], _ resolve: (Int) -> Int?) -> [Route] {

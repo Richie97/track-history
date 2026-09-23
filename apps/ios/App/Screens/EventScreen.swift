@@ -27,9 +27,6 @@ struct EventScreen: View {
     @State private var model: EventModel?
     @State private var editingSession: Session?
     @State private var confirmingDeleteEvent = false
-    @State private var newChecklistItem = ""
-    @State private var newSession = SessionFormFields()
-    @State private var appendLapText: [Int: String] = [:]
     /// The session whose lap overlay is open **as a sheet**, if any.
     ///
     /// Compact and medium width only. At expanded width the panel is a column
@@ -45,7 +42,32 @@ struct EventScreen: View {
     /// Collapsed by default: recording and importing are the two ways laps normally
     /// arrive, and an always-open three-field form under them made the card read as a
     /// form with two buttons above it rather than as three ways in.
-    @State private var showingManualEntry = false
+    @State private var manualEntryOpened = false
+
+    // Typed text is held on the router rather than in `@State`, so crossing
+    // 840pt — which swaps the shell and tears this view down — keeps it (epic
+    // #277, ticket 1; see `AppRouter.heldFields`). Keyed by this page's route.
+    private var route: Route { .event(eventId) }
+
+    private func held(_ key: String) -> Binding<String> {
+        Binding(
+            get: { router.heldText(route, key) },
+            set: { router.hold($0, key, route) }
+        )
+    }
+
+    private static let checklistKey = "checklistItem"
+    private static let sessionKeys = (label: "sessionLabel", laps: "sessionLaps", notes: "sessionNotes")
+    private static func appendKey(_ sessionId: Int) -> String { "appendLaps.\(sessionId)" }
+
+    /// Open when asked, and also whenever something is already typed in it — a
+    /// page rebuilt across the breakpoint reopens the form it was filling in.
+    private var showingManualEntry: Bool {
+        manualEntryOpened
+            || !router.heldText(route, Self.sessionKeys.label).isEmpty
+            || !router.heldText(route, Self.sessionKeys.laps).isEmpty
+            || !router.heldText(route, Self.sessionKeys.notes).isEmpty
+    }
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -342,14 +364,14 @@ struct EventScreen: View {
 
                 row {
                     HStack(spacing: 8) {
-                        TextField("Add item…", text: $newChecklistItem)
+                        TextField("Add item…", text: held(Self.checklistKey))
                             .teInput()
                             .submitLabel(.done)
                             .onSubmit { addChecklistItem(model, items ?? []) }
                         Button("Add") { addChecklistItem(model, items ?? []) }
                             .teStyle(.bodyStrong)
                             .foregroundStyle(Color(.accentInk))
-                            .disabled(newChecklistItem.trimmingCharacters(in: .whitespaces).isEmpty)
+                            .disabled(router.heldText(route, Self.checklistKey).trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 }
 
@@ -376,9 +398,9 @@ struct EventScreen: View {
     }
 
     private func addChecklistItem(_ model: EventModel, _ items: [ChecklistItem]) {
-        let text = newChecklistItem.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = router.heldText(route, Self.checklistKey).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        newChecklistItem = ""
+        router.hold("", Self.checklistKey, route)
         Task { await model.setChecklist(items + [ChecklistItem(text: text, done: false)]) }
     }
 
@@ -542,10 +564,7 @@ struct EventScreen: View {
                 HStack(spacing: 8) {
                     TextField(
                         "Add laps: 2:01.24, 2:03.1 …",
-                        text: Binding(
-                            get: { appendLapText[session.id] ?? "" },
-                            set: { appendLapText[session.id] = $0 }
-                        )
+                        text: held(Self.appendKey(session.id))
                     )
                     .teInput()
                     .keyboardType(.numbersAndPunctuation)
@@ -555,7 +574,7 @@ struct EventScreen: View {
                     Button("Add") { appendLaps(model, session) }
                         .teStyle(.bodyStrong)
                         .foregroundStyle(Color(.accentInk))
-                        .disabled((appendLapText[session.id] ?? "").isEmpty)
+                        .disabled(router.heldText(route, Self.appendKey(session.id)).isEmpty)
                 }
             }
         } header: {
@@ -700,11 +719,11 @@ struct EventScreen: View {
     }
 
     private func appendLaps(_ model: EventModel, _ session: Session) {
-        let text = appendLapText[session.id] ?? ""
+        let text = router.heldText(route, Self.appendKey(session.id))
         guard !text.isEmpty else { return }
         Task {
             if await model.appendLaps(sessionId: session.id, text: text) {
-                appendLapText[session.id] = ""
+                router.hold("", Self.appendKey(session.id), route)
                 Haptics.confirm()
             }
         }
@@ -931,30 +950,34 @@ struct EventScreen: View {
                 .foregroundStyle(Color(.textStrong))
             if showingManualEntry {
                 TEField(label: "Session label") {
-                    TextField("Day 1 — Session 2", text: $newSession.label)
+                    TextField("Day 1 — Session 2", text: held(Self.sessionKeys.label))
                         .teInput()
                 }
                 TEField(
                     label: "Lap times",
                     hint: "Comma, space or newline separated. Formats: 2:01.24 · 2:01 · 121.24 (seconds)"
                 ) {
-                    TextField("2:03.55, 2:01.24, 2:02.61", text: $newSession.laps, axis: .vertical)
+                    TextField("2:03.55, 2:01.24, 2:02.61", text: held(Self.sessionKeys.laps), axis: .vertical)
                         .teInput()
                         .keyboardType(.numbersAndPunctuation)
                         .autocorrectionDisabled()
                         .lineLimit(2...5)
                 }
                 TEField(label: "Session notes") {
-                    TextField("Traffic, tire pressures, line changes…", text: $newSession.notes)
+                    TextField("Traffic, tire pressures, line changes…", text: held(Self.sessionKeys.notes))
                         .teInput()
                 }
                 Button("Add session") {
                     Task {
                         if await model.addSession(
-                            label: newSession.label, notes: newSession.notes, laps: newSession.laps
+                            label: router.heldText(route, Self.sessionKeys.label),
+                            notes: router.heldText(route, Self.sessionKeys.notes),
+                            laps: router.heldText(route, Self.sessionKeys.laps)
                         ) {
-                            newSession = SessionFormFields()
-                            showingManualEntry = false
+                            for key in [Self.sessionKeys.label, Self.sessionKeys.laps, Self.sessionKeys.notes] {
+                                router.hold("", key, route)
+                            }
+                            manualEntryOpened = false
                             Haptics.confirm()
                         }
                     }
@@ -965,7 +988,7 @@ struct EventScreen: View {
                 Text("Timing sheet from the instructor, or laps off a stopwatch.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
-                Button("Enter lap times") { showingManualEntry = true }
+                Button("Enter lap times") { manualEntryOpened = true }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityIdentifier("manualEntry")
             }
@@ -987,13 +1010,6 @@ struct EventScreen: View {
             .background(Color(.bgPage))
             .listRowInsets(EdgeInsets())
     }
-}
-
-/// The add-session form's fields, grouped so clearing them is one assignment.
-struct SessionFormFields {
-    var label = ""
-    var laps = ""
-    var notes = ""
 }
 
 /// Rename a session, or edit its notes. `PUT /sessions/:id` writes both columns

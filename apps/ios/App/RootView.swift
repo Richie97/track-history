@@ -29,6 +29,7 @@ struct RootView: View {
             TokenGallery()
         } else if ProcessInfo.processInfo.arguments.contains("-recorder") {
             NavigationStack { RecordingScreen(eventId: nil) }
+                .publishingFoldGeometry()
         } else if ProcessInfo.processInfo.arguments.contains("-channelGraphs") {
             // The lap overlay on synthetic channel data. Channels only ever come from
             // the *web* telemetry importer, so this is the one way to see the panel
@@ -164,13 +165,17 @@ struct RootView: View {
     /// the class decides, as it does everywhere else in this spec.
     ///
     /// The cost is real and worth stating: crossing 840pt swaps one container for
-    /// the other, and a screen's `@State` model goes with it — a half-typed event
-    /// form would not survive being dragged across the breakpoint in Stage
-    /// Manager. It survives rotation, Split View within a tier, and every ordinary
-    /// resize; only crossing the boundary itself is destructive. Android has
-    /// `SavedStateHandle` for this and iOS has nothing equivalent at this level,
-    /// so the alternative is a scene-storage draft on the form — NS-34 ticket 4's
-    /// fold audit is where that question belongs, on the platform that has it.
+    /// the other, and every screen's `@State` goes with it. That used to include
+    /// a half-typed event form — harmless-sounding in Stage Manager, and a real
+    /// loss once an iPad mini's rotation (744 → 1133pt) and the iPhone Duo's
+    /// (open portrait is medium, open landscape expanded) were the gesture that
+    /// crossed it. So typed state lives **above** the swap, on `AppRouter`: the
+    /// event form's whole draft (`eventFormDraft`, with Android's `hydrated`
+    /// rule) and the short typed fields on other pages (`heldFields`), each kept
+    /// while its route is on a stack. What still resets is what re-fetches or
+    /// re-derives — models, the channel panel's lit laps and tab, the vehicle
+    /// page's selected part — plus any open sheet, which is dismissed with the
+    /// view that presented it (epic #277, ticket 1).
     @ViewBuilder
     private func navigationShell(_ tab: AppTab) -> some View {
         if layout.layoutClass == .expanded {
@@ -313,6 +318,8 @@ struct RootView: View {
             // Discarding leaves the recorder for the dashboard rather than popping one
             // step onto a Start button.
             RecordingScreen(eventId: eventId, onFinish: { router.popToRoot() })
+                // The one screen with a tabletop shape (epic #277, ticket 3).
+                .publishingFoldGeometry()
         case .importVideo(let eventId, let incoming, let forNewEvent):
             ImportScreen(eventId: eventId, incoming: incoming, forNewEvent: forNewEvent)
         case .shared(let slug):

@@ -42,7 +42,14 @@ struct EventFormScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = EventFormModel(api: auth.api, target: target, units: auth.units)
+                // A draft held above the shell swap, when this form is being
+                // rebuilt rather than opened — see `EventFormDraft`.
+                let model = EventFormModel(
+                    api: auth.api,
+                    target: target,
+                    units: auth.units,
+                    restoring: EventFormDraft.restorable(router.eventFormDraft, for: target)
+                )
                 self.model = model
                 await model.load()
             }
@@ -51,6 +58,12 @@ struct EventFormScreen: View {
         // The importer pushed from this form pops back onto it with the sessions
         // it staged; the form stays alive underneath a push, so this fires.
         .onChange(of: router.stagedSessions) { _, _ in takeStagedSessions() }
+        // Every keystroke goes up to the router, so crossing 840pt — which tears
+        // this view and its model down — loses nothing. Only once the form is
+        // ready: before that the fields are placeholders, not typing.
+        .onChange(of: model?.heldDraft) { _, draft in
+            if let draft { router.eventFormDraft = draft }
+        }
     }
 
     /// Adopt whatever an import staged for this form, and empty the hand-off.
@@ -114,11 +127,13 @@ struct EventFormScreen: View {
                     TEField(label: "Club / organizer") {
                         TextField("VIR Club", text: $model.club)
                             .teInput()
+                            .accessibilityIdentifier("formClub")
                     }
 
                     TEField(label: "Run group") {
                         TextField("High Speed", text: $model.runGroup)
                             .teInput()
+                            .accessibilityIdentifier("formRunGroup")
                     }
 
                     TEField(label: "Car", hint: "Pick from your garage or type anything") {
@@ -174,6 +189,10 @@ struct EventFormScreen: View {
             Button(model.isSaving ? "Saving…" : model.submitTitle) {
                 Task {
                     guard let id = await model.save() else { return }
+                    // Saved, so there is nothing left to hold. Leaving the form
+                    // below would drop it anyway; this says so rather than relying
+                    // on the side effect.
+                    router.eventFormDraft = nil
                     Haptics.confirm()
                     if model.isEditing {
                         dismiss()
@@ -376,10 +395,71 @@ final class EventFormModel {
     /// opened. Fixed for the form's life so a pre-fill and its save agree.
     let units: UnitSystem
 
-    init(api: APIClient, target: EventFormTarget, units: UnitSystem) {
+    /// Whether the fields came from a held draft rather than from the server.
+    ///
+    /// Android's rule under the same name: once hydrated, `load()` still fetches
+    /// the suggestion lists but never writes a field, so a load that completes
+    /// after a restore cannot overwrite the driver's typing with the server's
+    /// copy — or, on a new event, with the default car and a blank track.
+    private(set) var hydrated = false
+
+    init(api: APIClient, target: EventFormTarget, units: UnitSystem, restoring draft: EventFormDraft? = nil) {
         self.units = units
         self.api = api
         self.target = target
+        if let draft, draft.target == target {
+            apply(draft)
+            hydrated = true
+        }
+    }
+
+    /// The form as a draft, for ``AppRouter/eventFormDraft``.
+    var draft: EventFormDraft {
+        var draft = EventFormDraft(target: target)
+        draft.trackName = trackName
+        draft.startDate = startDate
+        draft.days = days
+        draft.trackHours = trackHours
+        draft.club = club
+        draft.runGroup = runGroup
+        draft.car = car
+        draft.conditions = conditions
+        draft.temp = temp
+        draft.bestTime = bestTime
+        draft.notes = notes
+        draft.sessionLabel = sessionLabel
+        draft.sessionLaps = sessionLaps
+        draft.sessionNotes = sessionNotes
+        draft.stagedSessions = stagedSessions
+        draft.createdId = createdId
+        draft.existingTrackId = existingTrackId
+        return draft
+    }
+
+    /// The draft worth holding: nil until the form is ready, since before that
+    /// its fields are defaults rather than anything typed.
+    var heldDraft: EventFormDraft? {
+        state == .ready ? draft : nil
+    }
+
+    private func apply(_ draft: EventFormDraft) {
+        trackName = draft.trackName
+        startDate = draft.startDate
+        days = draft.days
+        trackHours = draft.trackHours
+        club = draft.club
+        runGroup = draft.runGroup
+        car = draft.car
+        conditions = draft.conditions
+        temp = draft.temp
+        bestTime = draft.bestTime
+        notes = draft.notes
+        sessionLabel = draft.sessionLabel
+        sessionLaps = draft.sessionLaps
+        sessionNotes = draft.sessionNotes
+        stagedSessions = draft.stagedSessions
+        createdId = draft.createdId
+        existingTrackId = draft.existingTrackId
     }
 
     var isEditing: Bool {
@@ -426,13 +506,17 @@ final class EventFormModel {
             trackOptions = own + loaded.catalog.map(\.name).filter { !seen.contains($0.lowercased()) }
             carOptions = loaded.vehicles.map(\.name)
 
-            switch target {
-            case .new(let presetTrack):
-                trackName = presetTrack ?? ""
-                car = loaded.vehicles.first(where: \.isDefault)?.name ?? ""
-            case .edit(let id):
-                let detail = try await api.event(id: id)
-                fill(from: detail.event)
+            // A restored draft is the driver's; the server's copy is not asked
+            // for, let alone written over it. See `hydrated`.
+            if !hydrated {
+                switch target {
+                case .new(let presetTrack):
+                    trackName = presetTrack ?? ""
+                    car = loaded.vehicles.first(where: \.isDefault)?.name ?? ""
+                case .edit(let id):
+                    let detail = try await api.event(id: id)
+                    fill(from: detail.event)
+                }
             }
             state = .ready
         } catch let error as APIError {
