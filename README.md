@@ -1282,7 +1282,10 @@ new tracks, hours behind the wheel, hottest day, the two Pro cards (favourite
 tyre, top speed — drawn *locked* on a free account; see below) and a summary poster. A card
 with no data is skipped, never drawn empty. From 1 November to 31 January the
 dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
-`public/js/wrapped.js`), dismissable per season.
+`public/js/wrapped.js`), dismissable per season. Year in review links each
+year to its story all year round — *See your 2026 Wrapped so far* while the
+year is running — on the share page too, and its free-tier paywall points at
+Wrapped, which is free.
 
 - **Computed on the server**, not the client like year in review:
   `GET /api/wrapped/:year` runs `seasonWrapped` (`src/lib/wrapped.ts`) over the
