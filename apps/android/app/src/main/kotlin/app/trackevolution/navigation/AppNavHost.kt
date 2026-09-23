@@ -39,6 +39,8 @@ import app.trackevolution.screens.CompareLapsScreen
 import app.trackevolution.screens.DetailPlaceholder
 import app.trackevolution.screens.EventFormModel
 import app.trackevolution.screens.EventFormScreen
+import app.trackevolution.screens.WrappedModel
+import app.trackevolution.screens.WrappedScreen
 import app.trackevolution.screens.EventModel
 import app.trackevolution.screens.EventScreen
 import app.trackevolution.screens.LapDetailScreen
@@ -122,6 +124,8 @@ fun AppNavHost(
      * and because the gates are off until phase D anyway.
      */
     entitlement: Entitlement? = null,
+    /** The account's share slug, for Season Wrapped's public link; null without one. */
+    shareSlug: String? = null,
     /**
      * A Pro surface was asked for by a free account with the gates on, or
      * Settings' Subscribe was tapped: the scaffold shows the paywall sheet.
@@ -372,6 +376,21 @@ fun AppNavHost(
                 onShare = share,
                 onSignOut = onSignOut,
                 entitlement = entitlement ?: Entitlement.FREE,
+                onSubscribe = onRequirePro,
+            )
+        }
+
+        // Plain `composable`, not `pageComposable`: the story is full-window at
+        // every width, and the scaffold drops to one pane for it.
+        composable<Route.Wrapped> { entry ->
+            val route = entry.toRoute<Route.Wrapped>()
+            val model = rememberScreenModel { scope, _ -> WrappedModel(scope, api, route.year) }
+            WrappedScreen(
+                model = model,
+                shareUrlFor = { year ->
+                    shareSlug?.takeIf { it.isNotBlank() }?.let { "${serverUrl.trimEnd('/')}/share/$it/wrapped/$year" }
+                },
+                onClose = { nav.popBackStack() },
                 onSubscribe = onRequirePro,
             )
         }

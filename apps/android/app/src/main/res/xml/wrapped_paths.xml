@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Season Wrapped's share images (WrappedPoster): only the cache's wrapped/
+     directory is reachable through the FileProvider, and nothing else. -->
+<paths>
+    <cache-path name="wrapped" path="wrapped/" />
+</paths>

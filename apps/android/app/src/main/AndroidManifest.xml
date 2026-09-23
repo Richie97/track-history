@@ -40,6 +40,20 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TrackEvolution">
 
+        <!-- Season Wrapped's poster (NS-36): the PNG the share sheet hands to
+             another app lives in the cache directory, and this is how that app
+             is allowed to read it — a content:// URI with a read grant, never a
+             file:// path. Not exported; each share grants the one file. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.wrapped"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/wrapped_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

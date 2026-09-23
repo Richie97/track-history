@@ -125,8 +125,11 @@ fun SignedInScaffold(
     // it is what keeps navigation in one place: these are ordinary destinations on
     // the ordinary back stack, at every width.
     val onImportScreen = entry?.destination?.hasRoute(Route.Import::class) == true
+    // Season Wrapped (NS-36) owns the window too: a story told one full-screen
+    // card at a time, which half a tablet would make a postcard of.
+    val onWrappedScreen = entry?.destination?.hasRoute(Route.Wrapped::class) == true
     val twoPane = LocalLayoutMetrics.current.layoutClass == LayoutClass.Expanded &&
-        !onRecordScreen && !onImportScreen
+        !onRecordScreen && !onImportScreen && !onWrappedScreen
 
     // Which list row the detail is showing. Null below expanded width, where the
     // detail is the whole screen and there is no list beside it to mark.
@@ -276,6 +279,7 @@ fun SignedInScaffold(
                     onStopRecording = { Recorder.stop(context) },
                     onSignOut = onSignOut,
                     entitlement = entitlement,
+                    shareSlug = (authState as? AuthState.SignedIn)?.user?.shareSlug,
                     onRequirePro = { paywall = true },
                     onImportParsed = { route, clips: List<ImportedClip> ->
                         // Same shape as a recording stopping: the review covers the

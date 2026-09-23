@@ -1,5 +1,6 @@
 package app.trackevolution.navigation
 
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -43,6 +44,9 @@ fun DashboardPane(
             scope, _ ->
         DashboardModel(scope, api)
     }
+    // Season Wrapped's banner remembers a dismissal per season across launches.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    model.dismissStore = remember(context) { PrefsWrappedDismissStore(context) }
     DashboardScreen(
         model = model,
         onOpenEvent = { nav.open(Route.Event(it), inListPane) },
@@ -53,6 +57,8 @@ fun DashboardPane(
         // Never replaced or paned: the record screen owns the window at every
         // width, and `SignedInScaffold` drops to one pane for that destination.
         onRecord = { nav.navigate(Route.Record(eventId = it)) },
+        // Never replaced into the detail pane either: the story owns the window.
+        onOpenWrapped = { nav.navigate(Route.Wrapped(it)) },
         recorderIdle = recorderIdle,
         selection = if (inListPane) selection else null,
     )
@@ -87,4 +93,13 @@ fun NavBackStackEntry.selectionRoute(): Route? = when {
     destination.hasRoute(Route.Track::class) -> toRoute<Route.Track>()
     destination.hasRoute(Route.Vehicle::class) -> toRoute<Route.Vehicle>()
     else -> null
+}
+
+/** Dismissed Wrapped banners, one boolean per season, in their own small prefs file. */
+private class PrefsWrappedDismissStore(context: android.content.Context) : app.trackevolution.screens.WrappedDismissStore {
+    private val prefs = context.applicationContext.getSharedPreferences("wrapped", android.content.Context.MODE_PRIVATE)
+    override fun isDismissed(year: Int): Boolean = prefs.getBoolean("dismissed-$year", false)
+    override fun dismiss(year: Int) {
+        prefs.edit().putBoolean("dismissed-$year", true).apply()
+    }
 }

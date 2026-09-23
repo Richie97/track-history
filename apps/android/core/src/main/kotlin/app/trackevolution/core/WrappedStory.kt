@@ -98,7 +98,7 @@ public object WrappedStory {
     // ---- the words ---------------------------------------------------------
 
     /** `Math.round(n).toLocaleString("en-US")`: ties toward +∞, thousands separated by commas. */
-    internal fun int(n: Double): String = "%,d".format(java.util.Locale.US, JsMath.roundToInt(n))
+    public fun int(n: Double): String = "%,d".format(java.util.Locale.US, JsMath.roundToInt(n))
 
     public fun plural(n: Double, one: String, many: String = "${one}s"): String = if (n == 1.0) one else many
 

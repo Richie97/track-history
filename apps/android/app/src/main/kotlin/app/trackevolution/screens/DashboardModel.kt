@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.core.EventDates
+import app.trackevolution.core.WrappedStory
 import app.trackevolution.core.Garage
 import app.trackevolution.core.RemoteRecording
 import app.trackevolution.core.api.ApiClient
@@ -109,4 +110,39 @@ class DashboardModel(
      */
     val todaysEvent: Event?
         get() = RemoteRecording.pickRecordingEvent(events, RemoteRecording.localTodayIso())
+
+    /**
+     * The season the November banner promotes, when this driver drove in it —
+     * [WrappedStory.wrappedSeason] (`:core`'s port of the web's reveal window)
+     * over the local day, and null for a year with no past event.
+     */
+    val wrappedYear: Int?
+        get() {
+            val year = WrappedStory.wrappedSeason(java.time.LocalDate.now()) ?: return null
+            return year.takeIf { y -> events.any { !EventDates.isUpcoming(it.startDate) && it.startDate.startsWith("$y-") } }
+        }
+
+    /**
+     * Seasons whose banner was dismissed. A per-viewer convenience, like the
+     * web's localStorage flag — kept for the process, which is the lifetime of
+     * the question "did I already say no to this", and persisted through
+     * [dismissStore] when there is one.
+     */
+    private var dismissed by mutableStateOf(emptySet<Int>())
+
+    /** Where dismissals persist; the activity supplies SharedPreferences, tests leave it null. */
+    var dismissStore: WrappedDismissStore? = null
+
+    fun wrappedDismissed(year: Int): Boolean = year in dismissed || dismissStore?.isDismissed(year) == true
+
+    fun dismissWrapped(year: Int) {
+        dismissed = dismissed + year
+        dismissStore?.dismiss(year)
+    }
+}
+
+/** Remembers which seasons' Wrapped banner the driver dismissed. */
+interface WrappedDismissStore {
+    fun isDismissed(year: Int): Boolean
+    fun dismiss(year: Int)
 }
