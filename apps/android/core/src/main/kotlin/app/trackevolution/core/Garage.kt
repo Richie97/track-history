@@ -4,7 +4,9 @@ import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartKind
+import app.trackevolution.core.model.PartOdometer
 import app.trackevolution.core.model.UnitSystem
+import app.trackevolution.core.model.VehicleOdometer
 import app.trackevolution.core.model.WearEstimate
 
 /**
@@ -96,6 +98,30 @@ public object Garage {
         } else {
             "$" + String.format(java.util.Locale.ROOT, "%.2f", dollars)
         }
+    }
+
+    // ---- the car's own odometer (#192) ------------------------------------------
+
+    /**
+     * `vehicleOdometerLine` in `public/js/garage.js`: what the car's own
+     * odometer last said, naming the recorded session it came from — only
+     * video imports carry a reading, so the line never claims to be current.
+     */
+    public fun vehicleOdometerLine(odo: VehicleOdometer?, units: UnitSystem): String? {
+        if (odo == null) return null
+        val line = "Odometer: ${Units.fmtOdometer(odo.km, units)} at the last recorded session (${odo.on})"
+        if (odo.otherCar == 0) return line
+        val noun = if (odo.otherCar == 1) "reading" else "readings"
+        return "$line · ${odo.otherCar} lower $noun skipped as another car's"
+    }
+
+    /**
+     * `partOdometerLine`: the distance the odometer covered between a part's
+     * first and last recorded sessions — a lower bound, and worded as one.
+     */
+    public fun partOdometerLine(odo: PartOdometer?, units: UnitSystem): String? {
+        if (odo == null) return null
+        return "Odometer: ${Units.fmtOdometer(odo.km, units)} between its first and last recorded sessions"
     }
 
     /** A part at or near the end of its life, and the vehicle it is fitted to. */

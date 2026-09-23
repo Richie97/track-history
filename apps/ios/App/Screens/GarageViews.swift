@@ -75,11 +75,20 @@ struct WearBar: View {
 struct WearStatusLine: View {
     let part: Part
 
+    @Environment(\.unitSystem) private var units
+
     var body: some View {
-        Text(Self.text(part))
-            .teStyle(.xs)
-            .foregroundStyle(Color(.textMuted))
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(Self.text(part))
+            // The odometer's distance beside the hours (#192) — reported,
+            // never an input to the estimate.
+            if let odometer = Garage.partOdometerLine(part.odometer, units) {
+                Text(odometer)
+            }
+        }
+        .teStyle(.xs)
+        .foregroundStyle(Color(.textMuted))
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     static func text(_ part: Part) -> String {

@@ -308,7 +308,10 @@ async function build(api) {
   await api("POST", `/events/${rich.body.id}/sessions`, {
     label: "Session 4",
     laps: [123_400],
-    channels: { dStepM: 20, laps: [{ n: 1, timeMs: 123_400, ...fitLap }] },
+    // An odometer reading (#192) as well as Session 3's, so the car in the
+    // garage golden carries a reading and its parts a recorded span between
+    // the two — the same day, so no other capture gains an event.
+    channels: { dStepM: 20, meta: { odometerKm: 71_091.5 }, laps: [{ n: 1, timeMs: 123_400, ...fitLap }] },
   });
 
   // Session on the second layout, so per-track aggregation has something to

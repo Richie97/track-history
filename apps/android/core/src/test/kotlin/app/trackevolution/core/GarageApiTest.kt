@@ -26,6 +26,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -167,6 +169,21 @@ class GarageApiTest {
         val garage = api.garage()
         assertEquals("https://example.test/api/garage", recorded.single().url.toString())
         assertTrue(garage.isNotEmpty(), "the golden fixture should carry a vehicle")
+    }
+
+    @Test
+    fun `carries the car's own odometer beside the hours`() = runTest {
+        // #192: a reading and a span on the linked car, an explicit null on the
+        // bare one — so a field that stops arriving fails here, not on screen.
+        val garage = client { ok(Goldens.bodyText("garage")) }.garage()
+        val corvette = garage.single { it.name == "Corvette C7" }
+        assertNotNull(corvette.odometer)
+        val odometer = corvette.odometer!!
+        assertTrue(odometer.km > 70_000)
+        assertEquals(2, odometer.readings)
+        assertEquals(0, odometer.otherCar)
+        assertTrue(corvette.parts.all { it.odometer != null })
+        assertNull(garage.single { it.name == "Miata" }.odometer)
     }
 
     // ---- Parts -------------------------------------------------------------

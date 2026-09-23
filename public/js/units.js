@@ -80,6 +80,16 @@ export const fmtSpeedKph = (kph, units, dp = 0) =>
 export const M_PER_MI = 1609.344;
 export const FT_PER_M = 3.28084;
 
+// The car's odometer (#192, stored km): whole units, thousands grouped —
+// "71,130 km" / "44,199 mi". Grouped by hand rather than by toLocaleString,
+// whose separator follows the browser's locale where the native ports could
+// not follow it.
+export const KM_PER_MI = M_PER_MI / 1000;
+export function fmtOdometer(km, units) {
+  const v = Math.round(isMetric(units) ? km : km / KM_PER_MI);
+  return `${String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} ${isMetric(units) ? "km" : "mi"}`;
+}
+
 // Axis-tick / read-out style: "940 m" / "2.4 km", or "800 ft" / "0.75 mi".
 // Feet give way to miles at a quarter mile — below that a distance reads
 // better in feet, above it in the number a driver already knows a track by.

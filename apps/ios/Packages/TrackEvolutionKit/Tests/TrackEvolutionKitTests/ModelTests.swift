@@ -132,6 +132,19 @@ struct ModelTests {
         #expect(garage.first { $0.name == "Corvette C7" }?.wheelbaseMm == 2710)
     }
 
+    /// The car's own odometer (#192): a reading and a span on the linked car,
+    /// an explicit null on the bare one.
+    @Test func garageCarriesTheCarsOwnOdometer() throws {
+        let garage = try Goldens.decode([GarageVehicle].self, "garage")
+        let corvette = try #require(garage.first { $0.name == "Corvette C7" })
+        let odometer = try #require(corvette.odometer)
+        #expect(odometer.km > 70_000)
+        #expect(odometer.readings == 2)
+        #expect(odometer.otherCar == 0)
+        #expect(corvette.parts.allSatisfy { $0.odometer != nil })
+        #expect(garage.first { $0.name == "Miata" }?.odometer == nil)
+    }
+
     @Test func carCatalogRowsReadAsAPickerNeeds() throws {
         let cars = try Goldens.decode([CatalogCar].self, "car-catalog")
         #expect(cars.count > 20)

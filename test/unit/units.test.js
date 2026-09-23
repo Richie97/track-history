@@ -8,6 +8,7 @@ import {
   currentUnits,
   fmtAccuracy,
   fmtDist,
+  fmtOdometer,
   fmtSpeedKph,
   fmtTemp,
   isUnitSystem,
@@ -104,5 +105,15 @@ describe("temperature (stored whole °F)", () => {
     // The °C bounds convert to inside isValidTemp's -40…150 °F window.
     expect(tempToStored(c.min, "metric")).toBeGreaterThanOrEqual(-40);
     expect(tempToStored(c.max, "metric")).toBeLessThanOrEqual(150);
+  });
+});
+
+describe("fmtOdometer (#192)", () => {
+  it("shows whole kilometres or miles with thousands grouped", () => {
+    expect(fmtOdometer(71130, "metric")).toBe("71,130 km");
+    expect(fmtOdometer(71130, "imperial")).toBe("44,198 mi");
+    expect(fmtOdometer(999.5, "metric")).toBe("1,000 km");
+    expect(fmtOdometer(0, "imperial")).toBe("0 mi");
+    expect(fmtOdometer(1234567, "metric")).toBe("1,234,567 km");
   });
 });

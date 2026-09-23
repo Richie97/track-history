@@ -96,6 +96,21 @@ public object Units {
         return "${jsNumber(m)} m"
     }
 
+    /** `KM_PER_MI` in the JS. */
+    public const val KM_PER_MI: Double = M_PER_MI / 1000
+
+    /**
+     * The car's odometer (#192, stored km): whole units, thousands grouped —
+     * "71,130 km" / "44,198 mi". Grouped by hand, as in the JS, rather than by
+     * a locale-aware formatter whose separator would follow the device.
+     */
+    public fun fmtOdometer(km: Double, units: UnitSystem): String {
+        val v = JsMath.roundToInt(if (isMetric(units)) km else km / KM_PER_MI)
+        val digits = v.toString()
+        val grouped = digits.reversed().chunked(3).joinToString(",").reversed()
+        return "$grouped ${if (isMetric(units)) "km" else "mi"}"
+    }
+
     /** One distance-axis tick: where it sits in metres, and what it says. */
     public data class DistTick(val m: Double, val label: String)
 

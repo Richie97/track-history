@@ -7,7 +7,7 @@
 // conversions here are the only place the two meet: setupToDisplay on the way
 // to a form or summary, setupToStored on the way back.
 
-import { isMetric, L_PER_GAL, PSI_PER_BAR } from "./units.js";
+import { fmtOdometer, isMetric, L_PER_GAL, PSI_PER_BAR } from "./units.js";
 
 // ---------- consumable part kinds --------------------------------------------
 
@@ -201,6 +201,27 @@ export function fmtRemaining(wear) {
   const days = wear.remaining_hours / HOURS_PER_DAY;
   const roundedDays = days >= 2 ? Math.round(days) : Math.round(days * 2) / 2;
   return `~${fmtHours(wear.remaining_hours)} left (≈${roundedDays} track day${roundedDays === 1 ? "" : "s"})`;
+}
+
+// ---------- the car's own odometer (#192) -------------------------------------
+//
+// GET /garage carries the odometer reading from the car's own recorder beside
+// the hours estimate — `odometer` on a vehicle ({ km, on, readings, other_car })
+// and on a part ({ km, from, to, readings }), each null without enough
+// readings (src/lib/odometer.ts). Only video imports carry one, so the words
+// always say "recorded session" and never imply the picture is complete.
+// Ported under the same names and pinned by contracts/logic/garage-status.json.
+
+export function vehicleOdometerLine(odo, units) {
+  if (!odo) return null;
+  const line = `Odometer: ${fmtOdometer(odo.km, units)} at the last recorded session (${odo.on})`;
+  if (!odo.other_car) return line;
+  return `${line} · ${odo.other_car} lower reading${odo.other_car === 1 ? "" : "s"} skipped as another car's`;
+}
+
+export function partOdometerLine(odo, units) {
+  if (!odo) return null;
+  return `Odometer: ${fmtOdometer(odo.km, units)} between its first and last recorded sessions`;
 }
 
 export const fmtCost = (cents) =>

@@ -86,6 +86,13 @@ class UnitsTest {
             assertEquals(case["output"]!!.jsonPrimitive.content, Units.fmtAccuracy(m, u), "fmtAccuracy($m, $u)")
             rows++
         }
+        for (element in fixture["odometer"]!!.jsonArray) {
+            val case = element.jsonObject
+            val km = case["km"]!!.jsonPrimitive.double
+            val u = units(case["units"]!!.jsonPrimitive.content)
+            assertEquals(case["output"]!!.jsonPrimitive.content, Units.fmtOdometer(km, u), "fmtOdometer($km, $u)")
+            rows++
+        }
         for (element in fixture["temp"]!!.jsonArray) {
             val case = element.jsonObject
             val f = case["f"]!!.jsonPrimitive.int

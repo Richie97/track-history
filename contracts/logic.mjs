@@ -140,8 +140,10 @@ import {
   fmtRemaining,
   matchCatalogCars,
   partKindLabel,
+  partOdometerLine,
   partStatus,
   vehicleLogbook,
+  vehicleOdometerLine,
   vehicleTileLine,
   wearLimitHint,
 } from "../public/js/garage.js";
@@ -151,6 +153,7 @@ import {
   convSpeedMps,
   fmtAccuracy,
   fmtDist,
+  fmtOdometer,
   fmtSpeedKph,
   fmtTemp,
   tempInputSpec,
@@ -1321,6 +1324,25 @@ const garageFixture = {
     label: partKindLabel(kind),
     wearLimitHint: WEAR_LIMIT_HINTS[kind] ?? null,
   })),
+  // The car's own odometer beside the hours (#192). Rows chosen for the ways a
+  // port goes wrong: a half that rounds up, a reading that needs two group
+  // separators, the singular and plural skipped-reading suffix, and null.
+  odometer: ["imperial", "metric"].flatMap((units) =>
+    [
+      null,
+      { km: 71130, on: "2026-05-02", readings: 3, other_car: 0 },
+      { km: 999.5, on: "2026-05-02", readings: 1, other_car: 1 },
+      { km: 1234567, on: "2026-06-30", readings: 12, other_car: 2 },
+    ].map((vehicle) => ({ units, vehicle, line: vehicleOdometerLine(vehicle, units) }))
+  ),
+  partOdometer: ["imperial", "metric"].flatMap((units) =>
+    [
+      null,
+      { km: 0, from: "2026-03-10", to: "2026-03-10", readings: 2 },
+      { km: 4.5, from: "2026-03-10", to: "2026-03-10", readings: 2 },
+      { km: 1180, from: "2026-03-10", to: "2026-04-20", readings: 3 },
+    ].map((part) => ({ units, part, line: partOdometerLine(part, units) }))
+  ),
 };
 
 // Which event a CarPlay-started recording attaches to (NS-19). The rule is
@@ -2170,6 +2192,10 @@ const unitsFixture = {
     (m, units) => ({ m, units, output: fmtDist(m, units) })
   ),
   accuracy: both([0.4, 4.2, 4.5, 13.7, 20], (m, units) => ({ m, units, output: fmtAccuracy(m, units) })),
+  // The car's odometer (#192), whole units with hand-grouped thousands. 999.5
+  // km is the half that rounds up into a new group, 804.672 km is exactly
+  // 500 mi, and 0.4 rounds to zero.
+  odometer: both([0, 0.4, 999.5, 804.672, 71130, 1234567], (km, units) => ({ km, units, output: fmtOdometer(km, units) })),
   temp: both([-40, -1, 0, 31, 32, 33, 72, 100, 150], (f, units) => ({
     f,
     units,

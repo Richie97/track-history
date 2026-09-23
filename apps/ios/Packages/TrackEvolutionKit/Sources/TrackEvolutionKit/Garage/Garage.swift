@@ -68,6 +68,26 @@ public enum Garage {
             : "$\(String(format: "%.2f", dollars))"
     }
 
+    // MARK: - The car's own odometer (#192)
+
+    /// `vehicleOdometerLine` in `public/js/garage.js`: what the car's own
+    /// odometer last said, naming the recorded session it came from — only
+    /// video imports carry a reading, so the line never claims to be current.
+    public static func vehicleOdometerLine(_ odo: VehicleOdometer?, _ units: UnitSystem) -> String? {
+        guard let odo else { return nil }
+        let line = "Odometer: \(Units.fmtOdometer(odo.km, units)) at the last recorded session (\(odo.on))"
+        if odo.otherCar == 0 { return line }
+        let noun = odo.otherCar == 1 ? "reading" : "readings"
+        return "\(line) · \(odo.otherCar) lower \(noun) skipped as another car's"
+    }
+
+    /// `partOdometerLine`: the distance the odometer covered between a part's
+    /// first and last recorded sessions — a lower bound, and worded as one.
+    public static func partOdometerLine(_ odo: PartOdometer?, _ units: UnitSystem) -> String? {
+        guard let odo else { return nil }
+        return "Odometer: \(Units.fmtOdometer(odo.km, units)) between its first and last recorded sessions"
+    }
+
     /// A part at or near the end of its life, and the vehicle it's fitted to.
     public struct Alert: Hashable, Sendable, Identifiable {
         public let vehicle: GarageVehicle

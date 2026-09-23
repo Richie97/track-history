@@ -1157,8 +1157,27 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   part ever fitted, retired ones included) plus what its past track days cost
   (the events' cost line items, #147), both summed server-side on
   `GET /api/garage` as `parts_cost_cents` / `event_cost_cents`.
-- **Privacy** — parts, wear, spend, event costs and setup sheets are never
-  included in the public share payload.
+- **The car's own odometer** (#192) — a video import from the car's
+  recorder (PDR) carries the car's *lifetime* odometer in its channel `meta`
+  (`odometerKm`, the reading at the end of the session). Migration 0027 lifts
+  it into `sessions.odometer_km`, trigger-maintained like the conditions
+  columns, and `GET /api/garage` reports it beside the hours estimate: each
+  vehicle's `odometer` (`{ km, on, readings, other_car }`, its latest reading)
+  and each part's (`{ km, from, to, readings }`, the distance between the
+  first and last reading in its service window — null under two). The math
+  is `src/lib/odometer.ts`, and three rules there are deliberate: it is
+  **reported, never an input to wear** (`wear.ts` stays on hours); it is a
+  **lower bound worded as one** — only video imports carry a reading, so the
+  lines say "between its first and last recorded sessions", never "since
+  fitted"; and a reading **below the running maximum is another car's** (a
+  borrowed or mislinked day), skipped and counted rather than treated as an
+  error. The column is in no session response. The web, iOS and Android
+  vehicle pages all show it, worded by `vehicleOdometerLine` /
+  `partOdometerLine` in `public/js/garage.js` over `fmtOdometer` in
+  `public/js/units.js`, both ported and pinned by
+  `contracts/logic/garage-status.json` / `units.json`.
+- **Privacy** — parts, wear, spend, event costs, odometer readings and setup
+  sheets are never included in the public share payload.
 
 ## Subscriptions (Track Evolution Pro)
 
