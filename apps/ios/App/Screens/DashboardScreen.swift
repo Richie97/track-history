@@ -197,17 +197,13 @@ struct DashboardScreen: View {
 
     /// Open a route from the list pane.
     ///
-    /// The one width check on this screen, and it exists so there are none of them
-    /// anywhere else: a route that `ownsTheWindow` is presented over everything at
-    /// expanded width, and everything else replaces the detail. At compact and
-    /// medium both branches collapse to what this screen has always done, because
-    /// the dashboard is the stack's root there.
+    /// A route that `ownsTheWindow` is presented over everything at expanded width,
+    /// and everything else replaces the detail — the rule lives on the router
+    /// (`AppRouter.coversTheWindow`), shared with the event page's doors. At
+    /// compact and medium both branches collapse to what this screen has always
+    /// done, because the dashboard is the stack's root there.
     private func openFromList(_ route: Route) {
-        if layout.layoutClass == .expanded, route.ownsTheWindow {
-            router.presentFullWindow(route)
-        } else {
-            router.open(route)
-        }
+        router.open(route, at: layout.layoutClass)
     }
 
     /// Where the laps are going to land, said out loud. The button can't carry a

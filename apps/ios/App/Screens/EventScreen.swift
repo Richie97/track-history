@@ -755,7 +755,7 @@ struct EventScreen: View {
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Button(recorderCallToAction(event)) {
-                router.push(.record(eventId: recorderTargetEvent(event)))
+                router.push(.record(eventId: recorderTargetEvent(event)), at: layout.layoutClass)
             }
             .buttonStyle(TEButtonStyle(kind: recorderIsBusy ? .accent : .quiet))
             // The label changes with the recorder's state, so tests reach
@@ -817,7 +817,7 @@ struct EventScreen: View {
     /// event.
     private func acceptDroppedClip(_ providers: [NSItemProvider]) -> Bool {
         Self.droppedClip(from: providers) { url in
-            router.push(.importVideo(eventId: eventId, incoming: url))
+            router.push(.importVideo(eventId: eventId, incoming: url), at: layout.layoutClass)
         }
     }
 
@@ -914,7 +914,7 @@ struct EventScreen: View {
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Button("Import video") {
-                router.push(.importVideo(eventId: event.id, incoming: nil))
+                router.push(.importVideo(eventId: event.id, incoming: nil), at: layout.layoutClass)
             }
             .buttonStyle(TEButtonStyle(kind: .quiet))
             .accessibilityIdentifier("importEntry")
