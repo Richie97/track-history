@@ -132,7 +132,7 @@ sharePage.get("/:slug/wrapped/:year", async (c) => {
     : null;
   const today = new Date().toISOString().slice(0, 10);
   const season = owner
-    ? seasonWrapped(await wrappedInputs(c.env.DB, owner.id, Number(raw), today), Number(raw), today)
+    ? seasonWrapped((await wrappedInputs(c.env.DB, owner.id, Number(raw), today)).inputs, Number(raw), today)
     : null;
 
   if (owner && season) {
@@ -178,7 +178,7 @@ publicShare.get("/:slug/wrapped/:year", async (c) => {
   if (!owner) return c.json({ error: "not found" }, 404);
   const year = Number(raw);
   const today = new Date().toISOString().slice(0, 10);
-  const season = seasonWrapped(await wrappedInputs(c.env.DB, owner.id, year, today), year, today);
+  const season = seasonWrapped((await wrappedInputs(c.env.DB, owner.id, year, today)).inputs, year, today);
   if (!season) return c.json({ error: `no events in ${year}` }, 404);
   return c.json(season);
 });

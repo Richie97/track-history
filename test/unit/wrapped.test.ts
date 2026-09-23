@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  favouriteTire,
   lapLengthM,
   median,
   polylineLength,
   seasonWrapped,
+  wrappedPro,
   wrappedSummary,
   wrappedYears,
+  type TirePart,
+  type VehicleEvent,
   type WrappedEvent,
   type WrappedInputs,
 } from "../../src/lib/wrapped";
@@ -324,5 +328,87 @@ describe("wrappedSummary — the link preview", () => {
     const unmeasured = w();
     unmeasured.totals = { ...unmeasured.totals, miles: 0, miles_tracks_counted: 0 };
     expect(wrappedSummary(unmeasured)).toBe("14 track days · 1 track · 1,923 laps · most driven VIR (Full)");
+  });
+});
+
+describe("favourite tyre (Pro)", () => {
+  const part = (o: Partial<TirePart> & { id: number }): TirePart => ({
+    vehicle_id: 1,
+    vehicle_name: "Corvette",
+    name: `Tyre ${o.id}`,
+    installed_on: "2026-01-01",
+    retired_on: null,
+    ...o,
+  });
+  const vev = (o: Partial<VehicleEvent> & { start_date: string }): VehicleEvent => ({
+    vehicle_id: 1,
+    days: 1,
+    track_hours: null,
+    lap_ms_sum: null,
+    ...o,
+  });
+
+  it("is the tyre with the most track days inside its service window", () => {
+    const tire = favouriteTire(
+      [
+        part({ id: 1, name: "Falken RT660", installed_on: "2026-01-01", retired_on: "2026-05-31" }),
+        part({ id: 2, name: "Continental ExtremeContact Force", installed_on: "2026-06-01" }),
+      ],
+      [
+        vev({ start_date: "2026-03-01", days: 2 }),
+        vev({ start_date: "2026-06-10", days: 1 }),
+        vev({ start_date: "2026-07-10", days: 1 }),
+        vev({ start_date: "2026-08-10", days: 1 }),
+      ],
+      2026,
+      TODAY
+    );
+    expect(tire).toEqual({ part_id: 2, vehicle_id: 1, vehicle_name: "Corvette", name: "Continental ExtremeContact Force", track_days: 3, hours: 6 });
+  });
+
+  it("counts only the year's events, only on the tyre's own car, and none still to come", () => {
+    const tire = favouriteTire(
+      [part({ id: 1, installed_on: "2024-01-01" }), part({ id: 2, vehicle_id: 2, installed_on: "2026-01-01" })],
+      [
+        vev({ start_date: "2025-05-01", days: 9 }),
+        vev({ start_date: "2026-05-01", days: 1 }),
+        vev({ start_date: "2026-06-01", days: 2, vehicle_id: 2 }),
+        vev({ start_date: "2026-12-01", days: 5, vehicle_id: 1 }),
+      ],
+      2026,
+      TODAY
+    );
+    expect(tire).toMatchObject({ part_id: 2, track_days: 2 });
+  });
+
+  it("breaks a tie on days by hours, then by the fresher set", () => {
+    const events = [vev({ start_date: "2026-05-01", days: 1, track_hours: 3 }), vev({ start_date: "2026-06-01", days: 1, vehicle_id: 2 })];
+    const byHours = favouriteTire([part({ id: 1 }), part({ id: 2, vehicle_id: 2 })], events, 2026, TODAY);
+    expect(byHours).toMatchObject({ part_id: 1, hours: 3 });
+
+    const same = [vev({ start_date: "2026-05-01", days: 1 })];
+    const fresher = favouriteTire(
+      [part({ id: 1, installed_on: "2026-01-01" }), part({ id: 2, installed_on: "2026-04-01" })],
+      same,
+      2026,
+      TODAY
+    );
+    expect(fresher!.part_id).toBe(2);
+  });
+
+  it("is null when no tyre saw a track day", () => {
+    expect(favouriteTire([part({ id: 1, installed_on: "2026-09-01" })], [vev({ start_date: "2026-05-01" })], 2026, TODAY)).toBeNull();
+    expect(favouriteTire([], [vev({ start_date: "2026-05-01" })], 2026, TODAY)).toBeNull();
+  });
+
+  it("wrappedPro keeps locked and empty apart — an object with nulls, never null itself", () => {
+    expect(wrappedPro({ tireParts: [], vehicleEvents: [], topSpeed: null }, 2026, TODAY)).toEqual({ tire: null, top_speed: null });
+    expect(
+      wrappedPro(
+        { tireParts: [], vehicleEvents: [], topSpeed: { kph: 254.26, track_id: 1, track_name: "VIR", event_id: 4, date: "2026-04-10" } },
+        2026,
+        TODAY
+      ).top_speed
+    ).toEqual({ kph: 254.3, track_id: 1, track_name: "VIR", event_id: 4, date: "2026-04-10" });
   });
 });

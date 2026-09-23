@@ -1278,7 +1278,7 @@ A season handed back as a story (`docs/specs/native/NS-36-season-wrapped.md`),
 is a swipe-through of full-screen cards — cover, the numbers (track days,
 tracks, laps, **track miles**), most driven, biggest improvement, fastest lap,
 new tracks, hours behind the wheel, hottest day, the two Pro cards (favourite
-tyre, top speed — drawn *locked* on a free account) and a summary poster. A card
+tyre, top speed — drawn *locked* on a free account; see below) and a summary poster. A card
 with no data is skipped, never drawn empty. From 1 November to 31 January the
 dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
 `public/js/wrapped.js`), dismissable per season.
@@ -1302,6 +1302,18 @@ dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
   swiping, the arrow keys / Space, or the progress dots; under
   `prefers-reduced-motion` every transition is a cut. It is the one surface
   that uses the lime accent generously, noted as such in `style.css`.
+- **The two Pro cards** are the one tier-dependent field: `pro` on
+  `GET /api/wrapped/:year` is `null` for a free account (the client draws both
+  cards locked, with the store links) and for Pro an object whose two cards are
+  each null when there is no data, so *locked* and *empty* stay distinct — a
+  per-field strip decided from `entitledUntil`, like `channels`, never a 402.
+  **Favourite tyre** (`favouriteTire`): for every `tires` part, the year's
+  events on its vehicle inside its service window (`eventsInWindow`, the wear
+  rule), summed by days; ties by hours, then the fresher set. Events reach a
+  vehicle only through `events.vehicle_id`; the setup sheet's `tires_id` is not
+  consulted yet. **Top speed**: the year's highest stored `speed` sample, read
+  with a `json_each` walk over the sessions' channel blobs in SQL — once a year
+  per user, so no trigger-maintained column.
 - **Sharing.** The poster card's *Share image* hands a 1080×1920 PNG to the
   Web Share API (`navigator.share({ files })`, iOS Safari and Android Chrome)
   and downloads it where the browser can't share files; *Save wide* is the
