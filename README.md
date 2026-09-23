@@ -1007,7 +1007,9 @@ doesn't retain the previous user's logbook.
   `isValidCostCents` in `src/lib/costs.ts`), entered in dollars on the web
   event form and summed into `cost_cents` by `withComputed` — **null when
   nothing was entered**, never zero, so an uncosted day drops out of every
-  roll-up instead of reading as free. The roll-ups are web-only for now and
+  roll-up instead of reading as free. Entering them is free; the roll-ups
+  across events are **Pro** (`canViewSpend`, NS-37 — one event's own total
+  stays free), web-only for now, and
   count past events only, on the totals' rule: the track page says what a
   track has cost, the vehicle page adds the car's track days to its parts
   spend (`event_cost_cents` / `parts_cost_cents` on `GET /api/garage`), and
@@ -1045,7 +1047,9 @@ doesn't retain the previous user's logbook.
   a `Units` module ported from `public/js/units.js` under the same names —
   Android's pinned to it by `contracts/logic/units.json`, iOS's carrying the
   JS test cases.
-- **Vehicles** are a per-user garage (account menu → Settings) with a name,
+- **Vehicles** are a per-user garage (the web's **Garage** link, `#/garage`,
+  NS-37 — a card per car plus a *+ Add car* tile; every account can add a car
+  and open it) with a name,
   free-text modification notes and an optional **target hot tyre pressure**
   (`target_hot_psi`, one number for all four corners — what the session health
   strip's pressure loop aims the next cold pressures at). A car can also carry
@@ -1098,14 +1102,23 @@ doesn't retain the previous user's logbook.
   the garage feeds the event form's suggestions, and the vehicle marked as
   default pre-fills new events. When the car text matches a garage vehicle by
   name (case-insensitive), the event also carries a `vehicle_id` link — that
-  link is what the garage logbook below hangs off. The Settings page also
+  link is what the garage logbook below hangs off, and what a car's free
+  **logbook** reads — its track days, events, last and next event and best lap
+  per track, reduced on the client from the cached `/events` by
+  `vehicleLogbook` in `public/js/garage.js` (pinned by
+  `contracts/logic/garage-logbook.json`), so it costs no request and works
+  offline. The Settings page also
   carries the privacy policy and terms links (the only place the native apps,
   which render no footer, expose them).
 
 ## Garage logbook: consumables, wear & setup notebook
 
 Each garage vehicle has a page (`#/vehicle/:id`) that folds the parts
-spreadsheet and the paper setup notebook into the logbook:
+spreadsheet and the paper setup notebook into the logbook. The page itself is
+free — the car's logbook, its best laps and its *Edit car* form — and
+everything below is Pro, shown to a free account as a locked panel in place
+rather than hidden (NS-37); the Pro count of maintenance reminders also rides
+on the top bar's *Garage* link and the dashboard's next-event hero:
 
 - **Track hours** — every event computes on-track `hours`: an explicit
   per-event override (`events.track_hours`, "On-track hours" on the edit

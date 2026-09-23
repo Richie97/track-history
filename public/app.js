@@ -40,12 +40,13 @@ import {
   catalogCarLabel, catalogCarName, catalogPrefill,
   defaultMeasurementUnit, diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
   matchCatalogCars,
-  partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit, wearLimitHint,
+  partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit,
+  vehicleLogbook, vehicleTileLine, wearLimitHint,
 } from "./js/garage.js";
 import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtDist, fmtSpeedKph, speedUnit, tempInputSpec, tempToDisplay, tempToStored, tempUnit, usUnits } from "./js/units.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
 import {
-  canCompareEvents, canUseGarage, canUseSetups, canViewChannels,
+  canCompareEvents, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
 
@@ -181,10 +182,9 @@ const garageAlerts = (garage) =>
     )
     .sort((a, b) => (a.status === "due" ? 0 : 1) - (b.status === "due" ? 0 : 1));
 
-// collapsible renders a <details> closed by default (the dashboard — a
-// glanceable count that expands on tap); without it the chips show outright
-// (the vehicle page, where maintenance is the point of the view).
-const alertStripHtml = (garage, { collapsible = false } = {}) => {
+// The garage page and a car's page both lead with it — maintenance is the
+// point of both views, so the chips show outright.
+const alertStripHtml = (garage) => {
   const alerts = garageAlerts(garage);
   if (!alerts.length) return "";
   const chips = `<div class="ga-chips">${alerts
@@ -195,20 +195,10 @@ const alertStripHtml = (garage, { collapsible = false } = {}) => {
         }<span class="ga-veh">${esc(a.vehicle.name)}</span></a>`
     )
     .join("")}</div>`;
-  if (!collapsible)
-    return `<div class="panel garage-alerts">
-      <span class="ga-icon" aria-hidden="true">🔧</span>
-      <div class="ga-body"><strong>Maintenance due</strong>${chips}</div>
-    </div>`;
-  const due = alerts.filter((a) => a.status === "due").length;
-  return `<details class="panel garage-alerts">
-    <summary>
-      <span class="ga-icon" aria-hidden="true">🔧</span>
-      <span class="ga-count${due ? " has-due" : ""}">${alerts.length} maintenance reminder${alerts.length === 1 ? "" : "s"}</span>
-      <span class="ga-caret" aria-hidden="true">▸</span>
-    </summary>
-    ${chips}
-  </details>`;
+  return `<div class="panel garage-alerts">
+    <span class="ga-icon" aria-hidden="true">🔧</span>
+    <div class="ga-body"><strong>Maintenance due</strong>${chips}</div>
+  </div>`;
 };
 
 // Compact spec-sheet rendering of a setup: one box per field group, values
@@ -429,6 +419,21 @@ function heroEventHtml(e) {
   </a>`;
 }
 
+// The next event's car, when something on it needs attention first (NS-37) —
+// the one thing the dashboard still says about the garage now the garage has
+// its own page. Its own link under the hero, since the hero is a link already.
+function heroGarageHtml(e, garage) {
+  const v = e.vehicle_id == null ? null : garage.find((x) => x.id === e.vehicle_id);
+  const alerts = v ? garageAlerts([v]) : [];
+  if (!alerts.length) return "";
+  const [first] = alerts;
+  const more = alerts.length - 1;
+  return `<a class="hero-garage ${first.status}" href="#/vehicle/${v.id}">
+    <span aria-hidden="true">🔧</span> ${esc(partKindLabel(first.part.kind))} ${
+      first.status === "due" ? "due" : "due soon"
+    } on the ${esc(v.name)}${more ? ` · +${more} more` : ""} →</a>`;
+}
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const isUpcoming = (e) => e.start_date > todayISO();
 function daysUntil(iso) {
@@ -596,12 +601,63 @@ function renderUnreachable(err) {
   document.getElementById("retry-connect").onclick = () => route();
 }
 
+// The two halves of the app (NS-37): the logbook and the garage. The phones
+// draw these as tabs; here they are two links in the top bar, since a tab bar
+// on a web page is an imitation of a phone. Settings belongs to neither.
+function navSection() {
+  const first = (location.hash || "#/").slice(2).split(/[/?]/)[0];
+  if (first === "garage" || first === "vehicle") return "garage";
+  if (first === "settings") return null;
+  return "events";
+}
+
+function sectionNavHtml() {
+  const cur = navSection();
+  const link = (id, href, label, extra = "") =>
+    `<a href="${href}" class="${cur === id ? "active" : ""}"${cur === id ? ' aria-current="page"' : ""}>${label}${extra}</a>`;
+  return `<nav class="section-nav" aria-label="Sections">
+    ${link("events", "#/", "Events")}
+    ${link("garage", "#/garage", "Garage", `<span class="nav-badge" id="garage-badge" hidden></span>`)}
+  </nav>`;
+}
+
+// The Garage link's count: every maintenance reminder (due or low) across the
+// cars, the number the Pro GET /api/garage decides. Pages that already read
+// /garage report it through noteGarage; everywhere else the shell refreshes it
+// in the background at most once a minute, so the count is on every page
+// without every page waiting for the garage.
+const GARAGE_BADGE_TTL_MS = 60_000;
+
+function noteGarage(garage) {
+  state.garageAlertCount = garageAlerts(garage).length;
+  state.garageAlertsAt = Date.now();
+  paintGarageBadge();
+}
+
+function paintGarageBadge() {
+  const el = document.getElementById("garage-badge");
+  if (!el) return;
+  const n = canUseGarage(state.entitlement) ? (state.garageAlertCount ?? 0) : 0;
+  el.hidden = !n;
+  el.innerHTML = n
+    ? `<span aria-hidden="true">${n}</span><span class="visually-hidden">, ${n} maintenance reminder${n === 1 ? "" : "s"}</span>`
+    : "";
+}
+
+function refreshGarageBadge() {
+  if (!canUseGarage(state.entitlement)) return;
+  if (state.garageAlertsAt && Date.now() - state.garageAlertsAt < GARAGE_BADGE_TTL_MS) return;
+  state.garageAlertsAt = Date.now();
+  apiFetch("/garage").then(noteGarage, () => {});
+}
+
 function shell(content) {
   const me = state.me;
   $app.innerHTML = `
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="#/">${appLogoHtml()} Track Evolution</a>
+        <a class="brand" href="#/">${appLogoHtml()} <span class="brand-text">Track Evolution</span></a>
+        ${sectionNavHtml()}
         <span class="spacer"></span>
         <div class="user-menu">
           <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false"
@@ -633,6 +689,8 @@ function shell(content) {
     </div>`;
   wireThemeToggle();
   updateSyncBanner();
+  paintGarageBadge();
+  refreshGarageBadge();
   const trigger = document.getElementById("user-trigger");
   const dropdown = document.getElementById("user-dropdown");
   trigger.onclick = () => {
@@ -728,13 +786,16 @@ async function ensureMe() {
 // --- dashboard ---
 
 async function viewDashboard() {
+  const pro = canUseGarage(state.entitlement);
   const [tracks, events, garage] = await Promise.all([
     api("/tracks"),
     api("/events"),
-    // Pro since phase D, and offline on any tier — either way the dashboard
-    // renders without a garage rather than failing whole.
-    api("/garage").catch(() => []),
+    // Only for the hero's due-part line now that the garage has its own page
+    // (NS-37) — Pro, and allowed to fail: offline or lapsed, the dashboard
+    // renders without it rather than failing whole.
+    pro ? api("/garage").catch(() => null) : null,
   ]);
+  if (garage) noteGarage(garage);
   const withData = tracks.filter((t) => t.event_count > 0).sort((a, b) => (b.last_date || "").localeCompare(a.last_date || ""));
   const upcoming = events.filter(isUpcoming).sort((a, b) => a.start_date.localeCompare(b.start_date));
 
@@ -764,29 +825,6 @@ async function viewDashboard() {
     })
     .join("");
 
-  // Garage cards: hours accrued, what's in service, and the loudest wear
-  // status per vehicle.
-  const garageCards = garage
-    .map((v) => {
-      const active = v.parts.filter((p) => !p.retired_on);
-      const statuses = active.map((p) => partStatus(p.wear));
-      const worst = statuses.includes("due") ? "due" : statuses.includes("low") ? "low" : "ok";
-      const alertCount = statuses.filter((s) => s === "due" || s === "low").length;
-      return `<a class="card" href="#/vehicle/${v.id}">
-        <div class="name">${esc(v.name)}</div>
-        <div class="best garage-hours">${fmtHours(v.hours)}</div>
-        <div class="meta">${v.event_days} track day${v.event_days === 1 ? "" : "s"} · ${active.length} part${active.length === 1 ? "" : "s"} in service</div>
-        <div class="meta garage-status ${worst}">${
-          alertCount
-            ? `● ${alertCount} item${alertCount === 1 ? "" : "s"} due soon`
-            : active.length
-              ? "● consumables OK"
-              : "no consumables tracked yet"
-        }</div>
-      </a>`;
-    })
-    .join("");
-
   // Season Wrapped's reveal (NS-36): 1 Nov – 31 Jan, for a year this driver
   // actually drove, until they dismiss it for that season.
   const wrapYear = wrappedSeason();
@@ -801,9 +839,9 @@ async function viewDashboard() {
       <a class="btn primary" href="#/new">+ Add event</a>
       <a class="btn" href="#/year">Year in review</a>
     </div>
-    ${alertStripHtml(garage, { collapsible: true })}
     ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
+    ${heroEvent && garage ? heroGarageHtml(heroEvent, garage) : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${state.totals.events}</div></div>
       <div class="tile"><div class="label">Track days</div><div class="value">${state.totals.track_days}</div></div>
@@ -812,7 +850,6 @@ async function viewDashboard() {
     ${upcomingCards ? `<h2>Also upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events yet — add your first track day.</div>`}
-    ${garageCards ? `<h2>Garage</h2><div class="cards">${garageCards}</div>` : ""}
     <h2>Share your history</h2>
     <div class="panel share-panel">
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
@@ -966,7 +1003,8 @@ async function viewTrack(trackId, params) {
   // What this track has cost (#147): every past event here that was costed,
   // dry-only filter or no filter — a rain weekend still cost the entry fee.
   // Upcoming events aren't spent yet, on the same rule as the totals.
-  const spend = spendSummary(allEvents.filter((e) => !isUpcoming(e)));
+  // A roll-up across events, so Pro (NS-37); each event's own total stays free.
+  const spend = canViewSpend(state.entitlement) ? spendSummary(allEvents.filter((e) => !isUpcoming(e))) : null;
   const spentText = spend
     ? ` · ${fmtSpend(spend.total_cents)} spent${
         spend.costed_events < spend.events ? ` (${spend.costed_events} of ${spend.events} events costed)` : ""
@@ -2429,7 +2467,7 @@ async function viewEventForm(eventId, presetTrack) {
               value="${esc(existing ? (existing.car ?? "") : defaultCar)}" placeholder="Corvette Z06, Miata, GT3…">
             <div class="combo-list" id="car-combo-list" role="listbox" hidden></div>
           </div>
-          <div class="hint">Pick from your garage or type anything — manage cars in <a href="#/settings">Settings → Vehicles</a></div>
+          <div class="hint">Pick from your garage or type anything — manage cars in the <a href="#/garage">Garage</a></div>
         </div>
         <div class="field"><label>Conditions</label>
           <select name="conditions">
@@ -2665,34 +2703,9 @@ function subscriptionPanelHtml() {
 }
 
 async function viewSettings() {
-  const [vehicles, carCatalog] = await Promise.all([api("/vehicles"), api("/car-catalog")]);
   // The user's own list, or the built-in one shown as the starting point.
   const template = checklistTemplate();
   const isCustom = !!state.me?.checklist_template;
-
-  const vehicleHtml = (v) => `
-    <div class="panel vehicle">
-      <div class="vehicle-head">
-        <span class="vehicle-name">${esc(v.name)}</span>
-        ${v.is_default ? `<span class="default-badge">Default</span>` : ""}
-        <span class="grow"></span>
-        <a class="btn small primary" href="#/vehicle/${v.id}">Garage page</a>
-        ${v.is_default ? "" : `<button class="btn small" data-veh-default="${v.id}">Set default</button>`}
-        <button class="btn small" data-veh-edit="${v.id}">Edit</button>
-        <button class="btn small danger" data-veh-del="${v.id}">Delete</button>
-      </div>
-      ${v.notes ? `<div class="notes-block">${esc(v.notes)}</div>` : ""}
-      <form class="vehicle-edit" data-veh-form="${v.id}" hidden>
-        <div class="field"><label>Car</label><input name="name" required value="${esc(v.name)}"></div>
-        <div class="field"><label>Modifications &amp; notes</label>
-          <textarea name="notes" placeholder="Coilovers, pads, tires, alignment…">${esc(v.notes ?? "")}</textarea>
-        </div>
-        <div class="btn-row">
-          <button class="btn small primary">Save</button>
-          <button class="btn small" type="button" data-veh-cancel="${v.id}">Cancel</button>
-        </div>
-      </form>
-    </div>`;
 
   const units = currentUnits();
 
@@ -2710,18 +2723,11 @@ async function viewSettings() {
       </div>
       <div id="units-error"></div>
     </div>
-    <h2>Vehicles</h2>
-    <div class="hint" style="margin:0 0 4px">Your garage — the event form's Car field suggests these, and the default fills in automatically on new events. Open a car's garage page to track its consumables (pads, tires, fluid…) and see when they'll need replacing.</div>
-    ${vehicles.map(vehicleHtml).join("") || `<div class="empty">No cars yet — add your first below.</div>`}
-    <form class="panel" id="veh-add">
-      <div class="field"><label>Car</label><input name="name" required placeholder="2023 Corvette Z06"></div>
-      ${catalogFieldHtml("veh-add-catalog-list", null)}
-      <div class="field"><label>Modifications &amp; notes</label>
-        <textarea name="notes" placeholder="Coilovers, pads, tires, alignment…"></textarea>
-      </div>
-      <div id="veh-error"></div>
-      <button class="btn primary">Add vehicle</button>
-    </form>
+    <h2>Cars</h2>
+    <div class="panel">
+      <div class="hint" style="margin:0 0 10px">Your cars live in the Garage now — add one there, set the default for new events, and open it to see what it has done.</div>
+      <a class="btn small" href="#/garage">Open the Garage →</a>
+    </div>
     <h2>Prep checklist</h2>
     <div class="hint" style="margin:0 0 4px">The list an upcoming event starts from. Edit it here and every checklist you start from now on uses your version — checklists already on an event keep whatever is on them.</div>
     <div class="panel" id="tmpl-panel">
@@ -2771,10 +2777,6 @@ async function viewSettings() {
       <div class="hint" style="margin:10px 0 0">© ${new Date().getFullYear()} Speedshift LLC</div>
     </div>
   `);
-
-  const showError = (err) => {
-    view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
-  };
 
   // --- units ---
   view.querySelectorAll("[data-units]").forEach((btn) => {
@@ -2864,11 +2866,106 @@ async function viewSettings() {
   lbShare.onchange = async () => {
     if (!(await saveLeaderboard(true, lbShare.checked))) lbShare.checked = !lbShare.checked;
   };
+}
+
+// --- the garage (NS-37) ---
+
+// What a free account is shown in place of the garage's Pro half, here and on
+// a car's page: locked in place, never simply missing.
+const GARAGE_PRO_WHAT =
+  "Pads, tires, rotors and fluid, each with the hours it has actually done — accrued from " +
+  "your own track days — a wear projection from your measurements, reminders before the next " +
+  "event, and what the car has cost you: its parts and its track days. Your cars and what " +
+  "they've done stay free.";
+
+async function viewGarage() {
+  const pro = canUseGarage(state.entitlement);
+  const [vehicles, events, carCatalog, garage] = await Promise.all([
+    api("/vehicles"),
+    api("/events"),
+    api("/car-catalog").catch(() => []),
+    // The Pro half rides alongside and is allowed to fail (offline, lapsed):
+    // the tiles still render from the free list.
+    pro ? api("/garage").catch(() => null) : null,
+  ]);
+  if (garage) noteGarage(garage);
+  const today = todayISO();
+  const catalogById = new Map(carCatalog.map((r) => [r.id, r]));
+  // Vehicle writes need a live server (they are off the offline queue), so the
+  // tile says so rather than failing on submit.
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+
+  const tile = (v) => {
+    const g = garage?.find((x) => x.id === v.id);
+    const row = v.catalog_id == null ? null : catalogById.get(v.catalog_id);
+    let proLines = "";
+    if (g) {
+      const active = g.parts.filter((p) => !p.retired_on);
+      const alerts = garageAlerts([g]);
+      proLines = `<div class="meta">${fmtHours(g.hours)} on track</div>
+        <div class="meta garage-status ${alerts[0]?.status ?? "ok"}">${
+          alerts.length
+            ? `● ${alerts.length} item${alerts.length === 1 ? "" : "s"} due soon`
+            : active.length
+              ? "● consumables OK"
+              : "no consumables tracked yet"
+        }</div>`;
+    }
+    return `<a class="card car-card" href="#/vehicle/${v.id}">
+      <div class="name">${esc(v.name)}${v.is_default ? ' <span class="default-badge">Default</span>' : ""}</div>
+      ${row ? `<div class="meta">${esc(catalogCarLabel(row))}</div>` : ""}
+      <div class="meta">${esc(vehicleTileLine(vehicleLogbook(v.id, events, today)))}</div>
+      ${proLines}
+    </a>`;
+  };
+
+  const addTile = `<button type="button" class="card add-card" id="car-add-open" ${offline ? "disabled" : ""}>
+      <span class="add-plus" aria-hidden="true">+</span>
+      <span class="name">Add car</span>
+      <span class="meta">${
+        offline
+          ? "Adding a car needs a connection"
+          : vehicles.length
+            ? "Pick it from the catalog or type it in"
+            : "Add the car you drive — new events fill it in, and its page keeps what it has done"
+      }</span>
+    </button>`;
+
+  const view = shell(`
+    <h1>Garage</h1>
+    ${garage ? alertStripHtml(garage) : ""}
+    <div class="cards">${vehicles.map(tile).join("")}${addTile}</div>
+    <form class="panel" id="veh-add" hidden>
+      <div class="field"><label>Car</label><input name="name" required placeholder="2023 Corvette Z06"></div>
+      ${catalogFieldHtml("veh-add-catalog-list", null)}
+      <div class="field"><label>Modifications &amp; notes</label>
+        <textarea name="notes" placeholder="Coilovers, pads, tires, alignment…"></textarea>
+      </div>
+      <label class="dry-toggle" style="display:block;margin:0 0 14px">
+        <input type="checkbox" name="is_default" ${vehicles.length ? "" : "checked"}> Default car for new events
+      </label>
+      <div id="veh-error"></div>
+      <div class="btn-row">
+        <button class="btn primary">Add car</button>
+        <button class="btn" type="button" id="veh-add-cancel">Cancel</button>
+      </div>
+    </form>
+    ${pro ? "" : `<h2>Maintenance and costs</h2>${proPanelHtml("Maintenance and costs", GARAGE_PRO_WHAT, { underHeading: true })}`}
+  `);
 
   // A new car picked from the catalog: the server pre-fills its wheelbase and
   // steering ratio from the row, and the pick names the car only when the
   // driver hasn't — a car already called "Betty" keeps its name.
   const vehAdd = view.querySelector("#veh-add");
+  const openBtn = view.querySelector("#car-add-open");
+  openBtn.onclick = () => {
+    vehAdd.hidden = false;
+    vehAdd.name.focus();
+  };
+  view.querySelector("#veh-add-cancel").onclick = () => {
+    vehAdd.hidden = true;
+    openBtn.focus();
+  };
   let addPick = null;
   bindCatalogPicker(vehAdd.catalog, view.querySelector("#veh-add-catalog-list"), carCatalog, {
     onPick: (row) => {
@@ -2885,91 +2982,46 @@ async function viewSettings() {
     try {
       const body = { name: f.name.value.trim(), notes: f.notes.value.trim() || null };
       if (addPick) body.catalog_id = addPick.id;
-      await api("/vehicles", { method: "POST", body });
-      route();
+      if (f.is_default.checked) body.is_default = true;
+      const created = await api("/vehicles", { method: "POST", body });
+      if (created?.id != null) location.hash = `#/vehicle/${created.id}`;
+      else route();
     } catch (err) {
-      showError(err);
+      view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
     }
   };
-  view.querySelectorAll("[data-veh-default]").forEach((btn) => {
-    btn.onclick = async () => {
-      try {
-        await api(`/vehicles/${btn.dataset.vehDefault}`, { method: "PUT", body: { is_default: true } });
-        route();
-      } catch (err) {
-        showError(err);
-      }
-    };
-  });
-  view.querySelectorAll("[data-veh-del]").forEach((btn) => {
-    btn.onclick = async () => {
-      if (!confirm("Delete this vehicle? Past events keep the car name they were logged with.")) return;
-      await api(`/vehicles/${btn.dataset.vehDel}`, { method: "DELETE" });
-      route();
-    };
-  });
-  view.querySelectorAll("[data-veh-edit]").forEach((btn) => {
-    btn.onclick = () => {
-      const form = view.querySelector(`[data-veh-form="${btn.dataset.vehEdit}"]`);
-      form.hidden = !form.hidden;
-      if (!form.hidden) form.querySelector('[name="name"]').focus();
-    };
-  });
-  view.querySelectorAll("[data-veh-cancel]").forEach((btn) => {
-    btn.onclick = () => {
-      view.querySelector(`[data-veh-form="${btn.dataset.vehCancel}"]`).hidden = true;
-    };
-  });
-  view.querySelectorAll("[data-veh-form]").forEach((form) => {
-    form.onsubmit = async (evt) => {
-      evt.preventDefault();
-      try {
-        await api(`/vehicles/${form.dataset.vehForm}`, {
-          method: "PUT",
-          body: { name: form.name.value.trim(), notes: form.notes.value.trim() || null },
-        });
-        route();
-      } catch (err) {
-        showError(err);
-      }
-    };
-  });
 }
 
 // --- vehicle / garage page ---
 
 async function viewVehicle(vehicleId) {
-  if (!canUseGarage(state.entitlement)) {
-    shell(`
-      <p style="margin:22px 0 0"><a class="backlink" href="#/settings">← Settings</a></p>
-      <h1>Garage</h1>
-      ${proPanelHtml(
-        "Consumable tracking",
-        "Pads, tires, rotors and fluid, each with the hours it has actually done — accrued from " +
-          "your own track days — a wear projection from your measurements, and what it cost per hour " +
-          "once you replace it. Your cars themselves stay free."
-      )}
-    `);
-    return;
-  }
+  // Every account gets the car (NS-37): its logbook, its best laps and its
+  // form, from the free vehicle list and the cached events. The Pro half —
+  // hours, parts, wear, spend and the measured steering ratio — reads
+  // GET /api/garage; a free account sees it locked in place.
+  const pro = canUseGarage(state.entitlement);
   // The car's per-session steering fits (#223) ride along with the page: the
   // form's measured-ratio line needs them, and a failed read means the line is
   // absent, never an error on a page that is about the parts.
-  const [garage, carCatalog, fitsRes] = await Promise.all([
-    api("/garage"),
+  const [vehicles, events, carCatalog, garage, fitsRes] = await Promise.all([
+    api("/vehicles"),
+    api("/events"),
     api("/car-catalog"),
-    api(`/vehicles/${vehicleId}/steering-fit`).catch(() => null),
+    pro ? api("/garage") : null,
+    pro ? api(`/vehicles/${vehicleId}/steering-fit`).catch(() => null) : null,
   ]);
+  if (garage) noteGarage(garage);
   const steeringFits = fitsRes?.fits ?? [];
-  const v = garage.find((x) => String(x.id) === String(vehicleId));
+  const v = (garage ?? vehicles).find((x) => String(x.id) === String(vehicleId));
   if (!v) return viewNotFound();
+  const logbook = vehicleLogbook(v.id, events, todayISO());
   // The catalog row the car's numbers came from, if it was picked from one.
   const initialPick = v.catalog_id == null ? null : carCatalog.find((r) => r.id === v.catalog_id) ?? null;
-  const active = v.parts.filter((p) => !p.retired_on);
-  const retired = v.parts.filter((p) => p.retired_on);
+  const active = pro ? v.parts.filter((p) => !p.retired_on) : [];
+  const retired = pro ? v.parts.filter((p) => p.retired_on) : [];
   // What the car has cost (#147): its parts and its track days, both summed
   // server-side on /garage (past events only — an upcoming one isn't spent).
-  const spendCents = v.parts_cost_cents + v.event_cost_cents;
+  const spendCents = pro ? v.parts_cost_cents + v.event_cost_cents : 0;
   const today = todayISO();
   const units = currentUnits();
 
@@ -3043,7 +3095,7 @@ async function viewVehicle(vehicleId) {
     .join("");
 
   const view = shell(`
-    <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
+    <p style="margin:22px 0 0"><a class="backlink" href="#/garage">← Garage</a></p>
     <h1>${esc(v.name)}${v.is_default ? ' <span class="default-badge">Default</span>' : ""}</h1>
     ${v.notes ? `<p class="sub">${esc(v.notes)}</p>` : ""}
     <div class="btn-row"><button class="btn small" id="veh-edit">Edit car</button></div>
@@ -3072,9 +3124,54 @@ async function viewVehicle(vehicleId) {
       <div class="btn-row">
         <button class="btn small primary">Save</button>
         <button class="btn small" type="button" id="veh-cancel">Cancel</button>
+        <span class="grow"></span>
+        <button class="btn small danger" type="button" id="veh-delete">Delete car</button>
       </div>
     </form>
-    ${alertStripHtml([v])}
+    ${pro ? proVehicleHtml() : freeVehicleHtml()}
+  `);
+
+  function freeVehicleHtml() {
+    return `<div class="tiles">
+      <div class="tile"><div class="label">Track days</div><div class="value">${logbook.track_days}</div></div>
+      <div class="tile"><div class="label">Events</div><div class="value">${logbook.events}</div></div>
+    </div>
+    ${logbookLineHtml()}
+    ${bestsHtml()}
+    <h2>Consumables, hours and costs</h2>
+    ${proPanelHtml("Consumables, hours and costs", GARAGE_PRO_WHAT, { underHeading: true })}`;
+  }
+
+  // Last out and next up, each a link to the event — the same two facts the
+  // car's tile words, for both tiers.
+  function logbookLineHtml() {
+    const bits = [];
+    const { last_event: last, next_event: next } = logbook;
+    if (last) bits.push(`Last out at <a href="#/event/${last.id}">${esc(last.track_name)}</a> on ${fmtDate(last.start_date)}`);
+    if (next) bits.push(`next: <a href="#/event/${next.id}">${esc(next.track_name)}</a> on ${fmtDate(next.start_date)}`);
+    if (!bits.length) return `<p class="sub">No track days in this car yet — pick it on an event and they'll show up here.</p>`;
+    return `<p class="sub">${bits.join(" · ")}</p>`;
+  }
+
+  // Best in this car, per track — free, since it is the driver's own logbook.
+  function bestsHtml() {
+    if (!logbook.bests.length) return "";
+    const rows = logbook.bests
+      .map(
+        (b) => `<tr>
+          <td><a href="#/track/${b.track_id}">${esc(b.track_name)}</a></td>
+          <td class="num">${fmtMs(b.best_ms)}</td>
+          <td class="date"><a href="#/event/${b.event_id}">${fmtDate(b.start_date)}</a></td>
+        </tr>`
+      )
+      .join("");
+    return `<h2>Best in this car</h2>
+      <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best</th><th>Set on</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+  }
+
+  function proVehicleHtml() {
+    return `${alertStripHtml([v])}
     <div class="tiles">
       <div class="tile"><div class="label">Track hours</div><div class="value">${fmtHours(v.hours).replace(" h", "")}<span class="unit">h</span></div></div>
       <div class="tile"><div class="label">Track days</div><div class="value">${v.event_days}</div></div>
@@ -3086,6 +3183,8 @@ async function viewVehicle(vehicleId) {
         ? `<div class="hint cost-breakdown">Parts ${fmtSpend(v.parts_cost_cents)} · track days ${fmtSpend(v.event_cost_cents)}</div>`
         : ""
     }
+    ${logbookLineHtml()}
+    ${bestsHtml()}
     <h2>Consumables in service</h2>
     <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (2h per track day unless an event says otherwise). Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
     ${active.map(partCard).join("") || `<div class="empty">Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.</div>`}
@@ -3105,8 +3204,8 @@ async function viewVehicle(vehicleId) {
     </form>
     ${retired.length ? `<h2>Retired parts</h2>
     <div class="table-wrap"><table><thead><tr><th>Type</th><th>Part</th><th>In service</th><th class="num">Hours</th><th class="num">Cost</th><th class="num">Cost/hour</th></tr></thead>
-    <tbody>${retiredRows}</tbody></table></div>` : ""}
-  `);
+    <tbody>${retiredRows}</tbody></table></div>` : ""}`;
+  }
 
   // The car itself — name, mods, the pressure the health strip aims at, and
   // whether new events start on it. This used to live only in Settings, a page
@@ -3231,6 +3330,20 @@ async function viewVehicle(vehicleId) {
       view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
     }
   };
+
+  view.querySelector("#veh-delete").onclick = async () => {
+    if (!confirm(`Delete ${v.name}? Past events keep the car name they were logged with${pro ? "; its consumables, measurements and wear history go with it" : ""}.`))
+      return;
+    try {
+      await api(`/vehicles/${v.id}`, { method: "DELETE" });
+      location.hash = "#/garage";
+    } catch (err) {
+      view.querySelector("#veh-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+    }
+  };
+
+  // Everything below wires the Pro half, which a free account never renders.
+  if (!pro) return;
 
   const partError = (err) => {
     view.querySelector("#part-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
@@ -3839,6 +3952,7 @@ async function route() {
     if (parts[0] === "track" && parts[1]) return await viewTrack(parts[1], params);
     if (parts[0] === "event" && parts[1] && parts[2] === "edit") return await viewEventForm(parts[1]);
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
+    if (parts[0] === "garage") return await viewGarage();
     if (parts[0] === "vehicle" && parts[1]) return await viewVehicle(parts[1]);
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
     if (parts[0] === "year") return await viewYear(params);
