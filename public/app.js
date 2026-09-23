@@ -3361,7 +3361,9 @@ async function viewVehicle(vehicleId) {
 // --- year in review ---
 
 // Shared renderer: works for both the authed view and the public share page.
-function yearReviewHtml(events, year, hashBase) {
+// `wrapped` links the season to its Season Wrapped story (NS-36): the href for
+// a year, and whose season it is, for the button's words.
+function yearReviewHtml(events, year, hashBase, wrapped = null) {
   const past = events.filter((e) => !isUpcoming(e));
   const years = yearsAvailable(past);
   if (!years.length) return `<div class="empty">No events yet — nothing to review.</div>`;
@@ -3411,6 +3413,7 @@ function yearReviewHtml(events, year, hashBase) {
   return `
     <h1>${y} in review</h1>
     <div class="btn-row" style="margin-top:10px">${picker}</div>
+    ${wrapped ? wrappedLinkHtml(y, wrapped) : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${r.events}</div></div>
       <div class="tile"><div class="label">Track days</div><div class="value">${r.days}</div></div>
@@ -3426,6 +3429,13 @@ function yearReviewHtml(events, year, hashBase) {
   `;
 }
 
+// The way from the table to the story. "So far" while the year is still
+// running, the same moment the story itself says "through <date>".
+function wrappedLinkHtml(year, { href, whose = "your" }) {
+  const running = year === new Date().getFullYear();
+  return `<div class="btn-row" style="margin-top:12px"><a class="btn small" href="${href(year)}">✨ See ${esc(whose)} ${year} Wrapped${running ? " so far" : ""} →</a></div>`;
+}
+
 async function viewYear(params) {
   if (!canViewYearInReview(state.entitlement)) {
     shell(`
@@ -3437,13 +3447,14 @@ async function viewYear(params) {
           "much time you found at each of them against every year before.",
         { underHeading: true }
       )}
+      <p class="sub">Season Wrapped is free: <a href="#/wrapped${params.get("y") ? `/${esc(params.get("y"))}` : ""}">see your season as a story →</a></p>
     `);
     return;
   }
   const events = await api("/events");
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
-    ${yearReviewHtml(events, Number(params.get("y")), "#/year")}
+    ${yearReviewHtml(events, Number(params.get("y")), "#/year", { href: (y) => `#/wrapped/${y}` })}
   `);
   wireRowLinks(view);
 }
@@ -3679,7 +3690,10 @@ function shareDashboard() {
 function shareYear(params) {
   const view = shareShell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Overview</a></p>
-    ${yearReviewHtml(shareData.events, Number(params.get("y")), "#/year")}
+    ${yearReviewHtml(shareData.events, Number(params.get("y")), "#/year", {
+      href: (y) => `/share/${encodeURIComponent(SHARE_SLUG)}/wrapped/${y}`,
+      whose: shareData.name ? `${shareData.name}'s` : "the",
+    })}
   `);
   wireRowLinks(view);
 }
