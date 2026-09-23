@@ -4,8 +4,12 @@ import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartKind
+import app.trackevolution.core.model.PartOdometer
+import app.trackevolution.core.model.UnitSystem
+import app.trackevolution.core.model.VehicleOdometer
 import app.trackevolution.core.model.WearEstimate
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -80,9 +84,36 @@ class GarageTest {
             )
         }
 
+        // The car's own odometer (#192).
+        val odometer = fixture["odometer"]!!.jsonArray
+        for (element in odometer) {
+            val case = element.jsonObject
+            val units = json.decodeFromJsonElement(UnitSystem.serializer(), case["units"]!!)
+            val vehicle = case["vehicle"]!!.takeUnless { it is JsonNull }
+                ?.let { json.decodeFromJsonElement(VehicleOdometer.serializer(), it) }
+            assertEquals(
+                case["line"]!!.jsonPrimitive.contentOrNullSafe(),
+                Garage.vehicleOdometerLine(vehicle, units),
+                "vehicleOdometerLine($vehicle, $units)",
+            )
+        }
+        val partOdometer = fixture["partOdometer"]!!.jsonArray
+        for (element in partOdometer) {
+            val case = element.jsonObject
+            val units = json.decodeFromJsonElement(UnitSystem.serializer(), case["units"]!!)
+            val part = case["part"]!!.takeUnless { it is JsonNull }
+                ?.let { json.decodeFromJsonElement(PartOdometer.serializer(), it) }
+            assertEquals(
+                case["line"]!!.jsonPrimitive.contentOrNullSafe(),
+                Garage.partOdometerLine(part, units),
+                "partOdometerLine($part, $units)",
+            )
+        }
+
         // A guard against the fixture silently emptying out and every loop above
         // passing vacuously.
         assertTrue(cases.size >= 10, "fixture shrank to ${cases.size} cases")
+        assertTrue(odometer.size >= 8 && partOdometer.size >= 8, "odometer fixture shrank")
         assertEquals(PartKind.all.size, fixture["kinds"]!!.jsonArray.size)
     }
 

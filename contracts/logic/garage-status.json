@@ -312,5 +312,149 @@
       "label": "Other",
       "wearLimitHint": null
     }
+  ],
+  "odometer": [
+    {
+      "units": "imperial",
+      "vehicle": null,
+      "line": null
+    },
+    {
+      "units": "imperial",
+      "vehicle": {
+        "km": 71130,
+        "on": "2026-05-02",
+        "readings": 3,
+        "other_car": 0
+      },
+      "line": "Odometer: 44,198 mi at the last recorded session (2026-05-02)"
+    },
+    {
+      "units": "imperial",
+      "vehicle": {
+        "km": 999.5,
+        "on": "2026-05-02",
+        "readings": 1,
+        "other_car": 1
+      },
+      "line": "Odometer: 621 mi at the last recorded session (2026-05-02) · 1 lower reading skipped as another car's"
+    },
+    {
+      "units": "imperial",
+      "vehicle": {
+        "km": 1234567,
+        "on": "2026-06-30",
+        "readings": 12,
+        "other_car": 2
+      },
+      "line": "Odometer: 767,124 mi at the last recorded session (2026-06-30) · 2 lower readings skipped as another car's"
+    },
+    {
+      "units": "metric",
+      "vehicle": null,
+      "line": null
+    },
+    {
+      "units": "metric",
+      "vehicle": {
+        "km": 71130,
+        "on": "2026-05-02",
+        "readings": 3,
+        "other_car": 0
+      },
+      "line": "Odometer: 71,130 km at the last recorded session (2026-05-02)"
+    },
+    {
+      "units": "metric",
+      "vehicle": {
+        "km": 999.5,
+        "on": "2026-05-02",
+        "readings": 1,
+        "other_car": 1
+      },
+      "line": "Odometer: 1,000 km at the last recorded session (2026-05-02) · 1 lower reading skipped as another car's"
+    },
+    {
+      "units": "metric",
+      "vehicle": {
+        "km": 1234567,
+        "on": "2026-06-30",
+        "readings": 12,
+        "other_car": 2
+      },
+      "line": "Odometer: 1,234,567 km at the last recorded session (2026-06-30) · 2 lower readings skipped as another car's"
+    }
+  ],
+  "partOdometer": [
+    {
+      "units": "imperial",
+      "part": null,
+      "line": null
+    },
+    {
+      "units": "imperial",
+      "part": {
+        "km": 0,
+        "from": "2026-03-10",
+        "to": "2026-03-10",
+        "readings": 2
+      },
+      "line": "Odometer: 0 mi between its first and last recorded sessions"
+    },
+    {
+      "units": "imperial",
+      "part": {
+        "km": 4.5,
+        "from": "2026-03-10",
+        "to": "2026-03-10",
+        "readings": 2
+      },
+      "line": "Odometer: 3 mi between its first and last recorded sessions"
+    },
+    {
+      "units": "imperial",
+      "part": {
+        "km": 1180,
+        "from": "2026-03-10",
+        "to": "2026-04-20",
+        "readings": 3
+      },
+      "line": "Odometer: 733 mi between its first and last recorded sessions"
+    },
+    {
+      "units": "metric",
+      "part": null,
+      "line": null
+    },
+    {
+      "units": "metric",
+      "part": {
+        "km": 0,
+        "from": "2026-03-10",
+        "to": "2026-03-10",
+        "readings": 2
+      },
+      "line": "Odometer: 0 km between its first and last recorded sessions"
+    },
+    {
+      "units": "metric",
+      "part": {
+        "km": 4.5,
+        "from": "2026-03-10",
+        "to": "2026-03-10",
+        "readings": 2
+      },
+      "line": "Odometer: 5 km between its first and last recorded sessions"
+    },
+    {
+      "units": "metric",
+      "part": {
+        "km": 1180,
+        "from": "2026-03-10",
+        "to": "2026-04-20",
+        "readings": 3
+      },
+      "line": "Odometer: 1,180 km between its first and last recorded sessions"
+    }
   ]
 }

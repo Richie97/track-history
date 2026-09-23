@@ -124,7 +124,7 @@ final class TwoPaneUITests: XCTestCase {
         XCTAssertFalse(second.isEmpty, "the second row's page should have loaded, not gone blank")
     }
 
-    /// A route that owns the whole window can be left again (#TBD).
+    /// A route that owns the whole window can be left again (#243).
     ///
     /// At expanded width the recorder is a `fullScreenCover` rather than a push, so
     /// it is the *root* of its own stack: the system draws no back button and there
@@ -157,6 +157,44 @@ final class TwoPaneUITests: XCTestCase {
             addEvent.waitForExistence(timeout: 20),
             "leaving the recorder should put the logbook back in front of you"
         )
+    }
+
+    /// From an event page, the recorder covers **both** panes (#270).
+    ///
+    /// The dashboard's own button always presented it over the window; the event
+    /// page's Start pushed it into the detail pane instead, so the phone-in-a-mount
+    /// layout drew beside the sidebar. The probe is the dashboard: under a cover it
+    /// is gone, and leaving the cover brings back the event page with the list
+    /// pane still beside it.
+    func testTheEventPagesRecorderCoversBothPanes() throws {
+        let app = try launchSignedIn(tier: .pro)
+
+        let addEvent = app.buttons["+ Add event"]
+        XCTAssertTrue(addEvent.waitForExistence(timeout: 20), "the dashboard is the list pane")
+
+        let width = app.windows.firstMatch.frame.width
+        try XCTSkipUnless(width >= 840, "at \(Int(width))pt the recorder is a push, which already fills the window")
+
+        let card = app.buttons["trackCard"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "the seed should give the grid a track")
+        card.tap()
+        let event = app.buttons["trackEventCard"].firstMatch
+        XCTAssertTrue(event.waitForExistence(timeout: 15), "the track page should list an event")
+        event.tap()
+
+        let start = app.buttons["recordEntry"]
+        XCTAssertTrue(start.waitForExistence(timeout: 20), "the event page offers the recorder")
+        scrollTo(start, in: app)
+        start.tap()
+
+        let back = app.buttons["fullWindowBack"]
+        XCTAssertTrue(back.waitForExistence(timeout: 20), "the recorder should be a cover, carrying its own way back")
+        XCTAssertFalse(addEvent.exists && addEvent.isHittable, "the recorder should cover the list pane as well as the detail")
+        attach(app, named: "event-recorder-full-window")
+        back.tap()
+
+        XCTAssertTrue(start.waitForExistence(timeout: 20), "leaving the cover returns to the event page")
+        XCTAssertTrue(addEvent.waitForExistence(timeout: 5), "with the list pane still beside it")
     }
 
     /// The column beside the page ends where the pane does — at both orientations.

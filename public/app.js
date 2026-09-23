@@ -39,7 +39,7 @@ import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
   catalogCarLabel, catalogCarName, catalogPrefill,
   defaultMeasurementUnit, diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
-  matchCatalogCars,
+  matchCatalogCars, partOdometerLine, vehicleOdometerLine,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit,
   vehicleLogbook, vehicleTileLine, wearLimitHint,
 } from "./js/garage.js";
@@ -3069,6 +3069,7 @@ async function viewVehicle(vehicleId) {
       <div class="part-meta">Installed ${fmtDate(p.installed_on)}${p.retired_on ? ` — retired ${fmtDate(p.retired_on)}` : ""}${p.cost_cents != null ? ` · ${fmtCost(p.cost_cents)}` : ""}${p.notes ? ` · ${esc(p.notes)}` : ""}</div>
       ${wearBarHtml(p.wear)}
       <div class="part-status">${wearStatusHtml(p)}</div>
+      ${p.odometer ? `<div class="hint part-odometer">${esc(partOdometerLine(p.odometer, units))}</div>` : ""}
       ${measurementChips(p)}
       <form class="btn-row meas-form" data-meas-form="${p.id}" data-meas-kind="${esc(p.kind)}" hidden>
         <input name="value" type="number" step="0.1" min="0" required placeholder="Value" style="max-width:110px">
@@ -3182,6 +3183,12 @@ async function viewVehicle(vehicleId) {
       v.parts_cost_cents && v.event_cost_cents
         ? `<div class="hint cost-breakdown">Parts ${fmtSpend(v.parts_cost_cents)} · track days ${fmtSpend(v.event_cost_cents)}</div>`
         : ""
+    }
+    ${
+      // The car's own odometer (#192): ground truth for distance beside the
+      // hours estimate above, from video imports only — so the line names the
+      // recorded session it came from rather than claiming to be current.
+      v.odometer ? `<div class="hint vehicle-odometer">${esc(vehicleOdometerLine(v.odometer, units))}</div>` : ""
     }
     ${logbookLineHtml()}
     ${bestsHtml()}

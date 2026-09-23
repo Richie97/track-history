@@ -315,9 +315,10 @@ struct RootView: View {
         case .settings:
             SettingsScreen()
         case .record(let eventId):
-            // Discarding leaves the recorder for the dashboard rather than popping one
-            // step onto a Start button.
-            RecordingScreen(eventId: eventId, onFinish: { router.popToRoot() })
+            // Discarding leaves the recorder rather than popping one step onto a
+            // Start button: for the dashboard in a stack, for whatever was under the
+            // cover when it owns the window.
+            RecordingScreen(eventId: eventId, onFinish: { router.finishWindowOwningTask() })
                 // The one screen with a tabletop shape (epic #277, ticket 3).
                 .publishingFoldGeometry()
         case .importVideo(let eventId, let incoming, let forNewEvent):

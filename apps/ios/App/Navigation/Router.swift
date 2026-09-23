@@ -317,6 +317,52 @@ final class AppRouter {
         fullWindow = nil
     }
 
+    /// Whether `route` covers the window rather than taking a pane, at this
+    /// layout class (NS-34): only a route that ``Route/ownsTheWindow``, and only
+    /// at expanded width. Below it the stack already fills the window, so a push
+    /// is full-window and keeps the system's back gesture.
+    ///
+    /// The **window's** class, which is what `\.layout` carries in a pane too —
+    /// a pane narrows the content width, never the class.
+    static func coversTheWindow(_ route: Route, at layoutClass: LayoutClass) -> Bool {
+        layoutClass == .expanded && route.ownsTheWindow
+    }
+
+    /// ``push(_:)``, except that a route which owns the window is presented over
+    /// it at expanded width (#270) — the event page's Record and Import doors.
+    /// The path underneath is left alone, so leaving the cover puts you back on
+    /// the page you started from.
+    func push(_ route: Route, at layoutClass: LayoutClass) {
+        guard let route = route.resolved(runsOnMac: runsOnMac) else { popToRoot(); return }
+        if Self.coversTheWindow(route, at: layoutClass) {
+            fullWindow = route
+        } else {
+            path.append(route)
+        }
+    }
+
+    /// ``open(_:)``, the list pane's counterpart of ``push(_:at:)``.
+    func open(_ route: Route, at layoutClass: LayoutClass) {
+        if Self.coversTheWindow(route, at: layoutClass) {
+            presentFullWindow(route)
+        } else {
+            open(route)
+        }
+    }
+
+    /// Done with a window-owning task — a discarded recording, a finished
+    /// import: close the cover if it is in one, else pop to the dashboard.
+    ///
+    /// Not `popToRoot()` alone, which in a cover empties the path *underneath*
+    /// it — the event page the task was started from — and leaves the cover up.
+    func finishWindowOwningTask() {
+        if fullWindow != nil {
+            dismissFullWindow()
+        } else {
+            popToRoot()
+        }
+    }
+
     /// Handle a URL from the OS. Returns false when it isn't ours, so the caller
     /// can leave it alone (the OAuth redirect is the case that matters: consuming
     /// it here would race the sign-in flow).

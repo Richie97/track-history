@@ -184,6 +184,74 @@ final class RouterTests: XCTestCase {
         XCTAssertEqual(router.path, [.event(2)])
     }
 
+    // MARK: - the event page's doors (#270)
+
+    /// From a page, the recorder and the importer cover the window at expanded
+    /// width and leave the page underneath; below it they are ordinary pushes.
+    func testAPageDoorCoversTheWindowOnlyAtExpandedWidth() {
+        for door in [Route.record(eventId: 2), .importVideo(eventId: 2, incoming: nil)] {
+            let wide = AppRouter(runsOnMac: false)
+            wide.open(.event(2))
+            wide.push(door, at: .expanded)
+            XCTAssertEqual(wide.fullWindow, door)
+            XCTAssertEqual(wide.path, [.event(2)], "the page stays under the cover")
+
+            for narrow in [LayoutClass.compact, .medium] {
+                let router = AppRouter(runsOnMac: false)
+                router.open(.event(2))
+                router.push(door, at: narrow)
+                XCTAssertNil(router.fullWindow)
+                XCTAssertEqual(router.path, [.event(2), door])
+            }
+        }
+
+        // A route that does not own the window is a push at every width.
+        let router = AppRouter(runsOnMac: false)
+        router.open(.event(2))
+        router.push(.track(1), at: .expanded)
+        XCTAssertNil(router.fullWindow)
+        XCTAssertEqual(router.path, [.event(2), .track(1)])
+    }
+
+    /// The list pane's version: a cover at expanded width, a replaced detail
+    /// otherwise — what the dashboard did inline before the rule moved here.
+    func testTheListPaneOpensThroughTheSameRule() {
+        let wide = AppRouter(runsOnMac: false)
+        wide.open(.event(2))
+        wide.open(.record(eventId: nil), at: .expanded)
+        XCTAssertEqual(wide.fullWindow, .record(eventId: nil))
+        XCTAssertEqual(wide.path, [.event(2)])
+
+        let narrow = AppRouter(runsOnMac: false)
+        narrow.open(.record(eventId: nil), at: .compact)
+        XCTAssertNil(narrow.fullWindow)
+        XCTAssertEqual(narrow.path, [.record(eventId: nil)])
+    }
+
+    /// Finishing a task in a cover closes the cover and keeps the page it was
+    /// started from; in a stack it pops to the dashboard, as it always has.
+    func testFinishingAWindowOwningTaskClosesTheCoverAndKeepsThePage() {
+        let router = AppRouter(runsOnMac: false)
+        router.open(.event(2))
+        router.push(.record(eventId: 2), at: .expanded)
+        router.finishWindowOwningTask()
+        XCTAssertNil(router.fullWindow)
+        XCTAssertEqual(router.path, [.event(2)])
+
+        router.push(.record(eventId: 2), at: .compact)
+        router.finishWindowOwningTask()
+        XCTAssertEqual(router.path, [])
+    }
+
+    /// On a Mac a page's Record door lands on the event as a push, never a cover.
+    func testOnAMacAPageRecordDoorIsNeverACover() {
+        let router = AppRouter(runsOnMac: true)
+        router.open(.event(2))
+        router.push(.record(eventId: 5), at: .expanded)
+        XCTAssertNil(router.fullWindow)
+        XCTAssertEqual(router.path, [.event(2), .event(5)])
+    }
+
     // MARK: - the Mac has no recorder
 
     /// On a Mac (epic #230) no way of asking for the recorder reaches it: a

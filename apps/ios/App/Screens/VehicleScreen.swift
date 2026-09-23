@@ -29,6 +29,7 @@ struct VehicleScreen: View {
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
     @Environment(\.layout) private var layout
+    @Environment(\.unitSystem) private var units
 
     @State private var model: VehicleModel?
     /// Sheet and dialog presentation state, held here rather than in the model:
@@ -236,6 +237,16 @@ struct VehicleScreen: View {
                     TEStatTile(label: "Track days", value: Self.fmtDays(model.logbook.trackDays)),
                     TEStatTile(label: "Events", value: "\(model.logbook.events)")
                 ])
+            }
+
+            // The car's own odometer (#192): ground truth for distance beside
+            // the hours estimate, from video imports only — so the line names
+            // the recorded session it came from rather than claiming to be current.
+            if let odometer = Garage.vehicleOdometerLine(model.garageVehicle?.odometer, units) {
+                Text(odometer)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let error = model.writeError {

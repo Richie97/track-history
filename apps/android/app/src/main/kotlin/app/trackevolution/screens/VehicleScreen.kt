@@ -129,6 +129,8 @@ fun VehicleScreen(
         val vehicle = model.vehicle ?: return@TELoadable
         val pro = model.garage
         val logbook = model.logbook
+        // Read here, not inside the LazyColumn's builder, which is not composable.
+        val units = LocalUnitSystem.current
 
         val page = @Composable {
         LazyColumn(
@@ -223,6 +225,16 @@ fun VehicleScreen(
                         )
                     },
                 )
+            }
+
+            // The car's own odometer (#192), from GET /garage and so Pro: ground
+            // truth for distance beside the hours estimate, from video imports
+            // only — so the line names the recorded session it came from rather
+            // than claiming to be current.
+            Garage.vehicleOdometerLine(pro?.odometer, units)?.let { line ->
+                item("odometer") {
+                    Text(line, style = TrackTheme.typography.xs, color = colors.textMuted)
+                }
             }
 
             item("logbook-line") { LogbookLine(logbook, onOpenEvent) }
@@ -650,6 +662,12 @@ private fun WearStory(part: Part) {
             style = TrackTheme.typography.xs,
             color = colors.textFaint,
         )
+    }
+
+    // The odometer's distance beside the hours above (#192) — reported, never
+    // an input to the estimate.
+    Garage.partOdometerLine(part.odometer, LocalUnitSystem.current)?.let { line ->
+        Text(line, style = TrackTheme.typography.xs, color = colors.textMuted)
     }
 }
 
