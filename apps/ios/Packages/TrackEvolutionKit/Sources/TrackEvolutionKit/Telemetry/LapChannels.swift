@@ -189,13 +189,19 @@ public enum TelemetryChannels {
 
     /// Channel sources for any parsed import: PDR uses its odometer + car
     /// channels (works with or without GPS, falling back to GPS distance when a
-    /// file lacks the odometer); everything else needs a GPS trace.
+    /// file lacks the odometer); everything else needs a GPS trace, plus whatever
+    /// car channels the file carried (a VBO logger's rpm, pedals, steering…).
     public static func channelDataFor(_ parsed: ParsedTelemetry) -> ChannelData? {
         func fromTrace() -> ChannelData? {
             guard let gps = parsed.gps, gps.count >= 10 else { return nil }
             return traceChannelData(gps, Geo.projectTrace(gps))
         }
-        if parsed.kind != .pdr { return fromTrace() }
+        // `parsed.kind !== "pdr" && !parsed.carChannels` in the JS. Only the PDR
+        // and VBO parsers produce a `carChannels` object — VBO's always, even
+        // when empty, so its scalars and `meta` ride along — while GoPro and a
+        // phone recording carry none, so the test is on the kind rather than on
+        // whether `carChannels` (never nil here) happens to hold anything.
+        if !hasCarChannels(parsed.kind) { return fromTrace() }
         let car = parsed.carChannels
         let scalars = parsed.lapScalarChannels.filter { !$0.value.isEmpty }
         let meta = parsed.sessionMeta
@@ -208,6 +214,14 @@ public enum TelemetryChannels {
         var merged = base.series
         for (name, _) in CHANNEL_NAMES where car[name] != nil { merged[name] = car[name] }
         return ChannelData(dist: base.dist, series: merged, scalars: scalars, meta: meta)
+    }
+
+    /// Whether a parser of this kind produces a `carChannels` object.
+    static func hasCarChannels(_ kind: ParsedTelemetry.Kind) -> Bool {
+        switch kind {
+        case .pdr, .vbo: true
+        case .gopro, .live: false
+        }
     }
 
     /// Compute and attach `lapChannels` to a parsed import. Called after parsing

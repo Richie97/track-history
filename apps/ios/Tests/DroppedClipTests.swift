@@ -124,7 +124,22 @@ final class DroppedClipTests: XCTestCase {
         wait(for: [opened], timeout: 10)
     }
 
-    /// Anything that isn't a video is declined rather than swallowed, so the drop
+    /// A Racelogic `.vbo` log goes to the same importer: the app declares its type
+    /// in `Info.plist`, and without that declaration the file is just `public.data`
+    /// and would bounce off the page.
+    func testAVboLogIsTakenToo() throws {
+        let opened = expectation(description: "opened")
+        let delivered = Delivered()
+        let accepted = EventScreen.droppedClip(from: [try provider(named: "session.vbo")]) { url in
+            delivered.url = url
+            opened.fulfill()
+        }
+        XCTAssertTrue(accepted, "a .vbo provider should be accepted")
+        wait(for: [opened], timeout: 10)
+        XCTAssertEqual(delivered.url?.lastPathComponent, "session.vbo")
+    }
+
+    /// Anything that isn't a video or a `.vbo` is declined rather than swallowed, so the drop
     /// bounces back to where it came from instead of pushing an importer that
     /// would then have to explain itself.
     func testSomethingThatIsNotAVideoIsDeclined() throws {

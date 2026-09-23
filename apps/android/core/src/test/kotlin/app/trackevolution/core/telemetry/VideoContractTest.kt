@@ -165,72 +165,6 @@ class VideoContractTest {
         }
     }
 
-    private fun assertLaps(laps: List<ParsedLap>, expected: List<VideoFixtures.Lap>, file: String) {
-        assertEquals(expected.size, laps.size, "$file: lap count")
-        laps.zip(expected).forEachIndexed { i, (actual, want) ->
-            // Exact: a lap time is an integer number of milliseconds.
-            assertEquals(want.timeMs, actual.timeMs, "$file: lap $i timeMs")
-            assertEquals(want.estimated, actual.estimated, "$file: lap $i estimated")
-            assertEquals(want.lapNumber, actual.lapNumber, "$file: lap $i lapNumber")
-            assertCloseOrBothNull(want.startT, actual.startT, "$file: lap $i startT")
-            assertCloseOrBothNull(want.endT, actual.endT, "$file: lap $i endT")
-        }
-    }
-
-    private fun assertChannels(channels: SessionChannels?, expected: SessionChannels?, file: String) {
-        if (expected == null) {
-            assertNull(channels, "$file: lapChannels should be absent")
-            return
-        }
-        given(channels, "$file: expected lapChannels but got none")
-        channels!!
-        assertEquals(expected.v, channels.v, "$file: channels version")
-        assertEquals(expected.dStepM, channels.dStepM, "$file: dStepM")
-        assertEquals(expected.laps.size, channels.laps.size, "$file: channel lap count")
-        for ((lap, want) in channels.laps.zip(expected.laps)) {
-            assertEquals(want.n, lap.n, "$file: channel lap ${want.n} number")
-            assertEquals(want.timeMs, lap.timeMs, "$file: channel lap ${want.n} timeMs")
-            // Walk the name lists rather than a hand-written set of fields: a
-            // channel added to CHANNEL_NAMES and never produced by the port
-            // would otherwise pass this test by simply not being looked at.
-            for ((name, _) in TelemetryChannels.CHANNEL_NAMES) {
-                assertSeries(lap.channel(name), want.channel(name), "$file: lap ${want.n} $name")
-            }
-            for ((name, _, _) in TelemetryChannels.SCALAR_NAMES) {
-                assertCloseOrBothNull(
-                    want.scalar(name),
-                    lap.scalar(name),
-                    "$file: lap ${want.n} $name",
-                )
-            }
-        }
-        for ((name, _) in TelemetryChannels.META_NAMES) {
-            assertCloseOrBothNull(expected.meta?.get(name), channels.meta?.get(name), "$file: meta $name")
-        }
-    }
-
-    private fun assertSeries(actual: List<Double>?, expected: List<Double>?, label: String) {
-        if (expected == null) {
-            assertNull(actual, "$label: should be absent")
-            return
-        }
-        given(actual, "$label: expected ${expected.size} values but got none")
-        actual!!
-        assertEquals(expected.size, actual.size, "$label: length")
-        actual.zip(expected).forEachIndexed { i, (a, b) -> assertClose(b, a, "$label[$i]") }
-    }
-
-    private fun assertGate(gate: Gate, expected: VideoFixtures.GateJson, file: String) {
-        assertClose(expected.x, gate.x, "$file: gate x")
-        assertClose(expected.y, gate.y, "$file: gate y")
-        assertCloseOrBothNull(expected.hx, gate.hx, "$file: gate hx")
-        assertCloseOrBothNull(expected.hy, gate.hy, "$file: gate hy")
-        assertClose(expected.x1, gate.x1, "$file: gate x1")
-        assertClose(expected.y1, gate.y1, "$file: gate y1")
-        assertClose(expected.x2, gate.x2, "$file: gate x2")
-        assertClose(expected.y2, gate.y2, "$file: gate y2")
-    }
-
     companion object {
         /**
          * Below any difference either implementation could produce that meant
@@ -248,6 +182,74 @@ class VideoContractTest {
             } else {
                 assertClose(expected, actual, label)
             }
+        }
+
+        // Shared with VBOContractTest, which pins the .vbo parser the same way.
+
+        fun assertLaps(laps: List<ParsedLap>, expected: List<VideoFixtures.Lap>, file: String) {
+            assertEquals(expected.size, laps.size, "$file: lap count")
+            laps.zip(expected).forEachIndexed { i, (actual, want) ->
+                // Exact: a lap time is an integer number of milliseconds.
+                assertEquals(want.timeMs, actual.timeMs, "$file: lap $i timeMs")
+                assertEquals(want.estimated, actual.estimated, "$file: lap $i estimated")
+                assertEquals(want.lapNumber, actual.lapNumber, "$file: lap $i lapNumber")
+                assertCloseOrBothNull(want.startT, actual.startT, "$file: lap $i startT")
+                assertCloseOrBothNull(want.endT, actual.endT, "$file: lap $i endT")
+            }
+        }
+
+        fun assertChannels(channels: SessionChannels?, expected: SessionChannels?, file: String) {
+            if (expected == null) {
+                assertNull(channels, "$file: lapChannels should be absent")
+                return
+            }
+            given(channels, "$file: expected lapChannels but got none")
+            channels!!
+            assertEquals(expected.v, channels.v, "$file: channels version")
+            assertEquals(expected.dStepM, channels.dStepM, "$file: dStepM")
+            assertEquals(expected.laps.size, channels.laps.size, "$file: channel lap count")
+            for ((lap, want) in channels.laps.zip(expected.laps)) {
+                assertEquals(want.n, lap.n, "$file: channel lap ${want.n} number")
+                assertEquals(want.timeMs, lap.timeMs, "$file: channel lap ${want.n} timeMs")
+                // Walk the name lists rather than a hand-written set of fields: a
+                // channel added to CHANNEL_NAMES and never produced by the port
+                // would otherwise pass this test by simply not being looked at.
+                for ((name, _) in TelemetryChannels.CHANNEL_NAMES) {
+                    assertSeries(lap.channel(name), want.channel(name), "$file: lap ${want.n} $name")
+                }
+                for ((name, _, _) in TelemetryChannels.SCALAR_NAMES) {
+                    assertCloseOrBothNull(
+                        want.scalar(name),
+                        lap.scalar(name),
+                        "$file: lap ${want.n} $name",
+                    )
+                }
+            }
+            for ((name, _) in TelemetryChannels.META_NAMES) {
+                assertCloseOrBothNull(expected.meta?.get(name), channels.meta?.get(name), "$file: meta $name")
+            }
+        }
+
+        fun assertSeries(actual: List<Double>?, expected: List<Double>?, label: String) {
+            if (expected == null) {
+                assertNull(actual, "$label: should be absent")
+                return
+            }
+            given(actual, "$label: expected ${expected.size} values but got none")
+            actual!!
+            assertEquals(expected.size, actual.size, "$label: length")
+            actual.zip(expected).forEachIndexed { i, (a, b) -> assertClose(b, a, "$label[$i]") }
+        }
+
+        fun assertGate(gate: Gate, expected: VideoFixtures.GateJson, file: String) {
+            assertClose(expected.x, gate.x, "$file: gate x")
+            assertClose(expected.y, gate.y, "$file: gate y")
+            assertCloseOrBothNull(expected.hx, gate.hx, "$file: gate hx")
+            assertCloseOrBothNull(expected.hy, gate.hy, "$file: gate hy")
+            assertClose(expected.x1, gate.x1, "$file: gate x1")
+            assertClose(expected.y1, gate.y1, "$file: gate y1")
+            assertClose(expected.x2, gate.x2, "$file: gate x2")
+            assertClose(expected.y2, gate.y2, "$file: gate y2")
         }
     }
 }

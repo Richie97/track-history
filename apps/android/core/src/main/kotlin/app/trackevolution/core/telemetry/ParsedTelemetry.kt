@@ -44,7 +44,8 @@ public data class ParsedTelemetry(
     /** Session maxima from a PDR file's car channels. */
     val metrics: Metrics? = null,
 
-    // ---- PDR-only ----------------------------------------------------------
+    // ---- PDR-only, except carChannels / lapScalarChannels / sessionMeta,
+    // ---- which a VBO carries too -------------------------------------------
 
     /**
      * How many beacon crossings the recorder actually logged. Zero means every
@@ -70,6 +71,8 @@ public data class ParsedTelemetry(
     public enum class Kind(public val rawValue: String, public val label: String) {
         PDR("pdr", "PDR"),
         GOPRO("gopro", "GoPro"),
+        /** A Racelogic `.vbo` log — VBOX hardware or a phone app's export. */
+        VBO("vbo", "VBO"),
         /** Not a file parser: the in-app lap recorder. */
         LIVE("live", "Recorded"),
     }

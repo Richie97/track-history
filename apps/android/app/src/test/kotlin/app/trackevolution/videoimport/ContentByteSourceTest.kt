@@ -30,10 +30,24 @@ class ContentByteSourceTest {
 
     private val resolver = ApplicationProvider.getApplicationContext<android.content.Context>().contentResolver
 
-    private fun fixture(name: String): File {
+    private fun fixture(name: String, folder: String = "video"): File {
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile
         while (dir != null && !File(dir, "package.json").isFile) dir = dir.parentFile
-        return File(dir ?: error("repository root not found"), "contracts/logic/video/$name")
+        return File(dir ?: error("repository root not found"), "contracts/logic/$folder/$name")
+    }
+
+    @Test
+    fun `a vbo is dispatched by its name and read through the same seam`() = runBlocking {
+        val clips = TelemetryImporter.parse(
+            resolver,
+            listOf(Uri.fromFile(fixture("vbox-laptiming.vbo", folder = "vbo"))),
+        )
+        val clip = clips.single()
+        assertEquals("vbox-laptiming.vbo", clip.file)
+        assertNull(clip.error)
+        assertEquals(ParsedTelemetry.Kind.VBO, clip.parsed?.kind)
+        assertEquals(listOf(47124, 47124, 47124), clip.parsed?.laps?.map { it.timeMs })
+        assertNotNull(clip.parsed?.lapChannels)
     }
 
     @Test

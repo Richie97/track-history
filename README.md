@@ -222,11 +222,12 @@ to wrap `public/`, so that background GPS recording and CarPlay stop fighting a
 web view. The backend and the web app (`public/`) were unchanged by that work.
 
 **There are three clients, and "add it everywhere" is not the default.** The
-web app is the feature frontier and keeps the desk-bound long tail (`.vbo` and
-other logger-file import, year in review, the setup notebook and its lap-time
+web app is the feature frontier and keeps the desk-bound long tail (year in
+review, the setup notebook and its lap-time
 correlation); the native apps own the on-track path — recording, the logbook you
 check between sessions, the garage you check before an event, CarPlay, and
-**video** import, which belongs on the device the footage is already on. The
+**video** and **`.vbo`** import, which belong on the device the file is already
+on. The
 split is deliberate and is recorded per feature in
 [`docs/specs/native/README.md`](docs/specs/native/README.md); the work breakdown
 is the `NS-*` specs beside it.
@@ -248,8 +249,7 @@ session's best, the racing line when it is the lap the trace was drawn from,
 its own channel traces, and a *Compare laps* control that opens the session's
 overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
 layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
-diff, year in review, the two-event overlay and `.vbo` import stay web-only by
-design.
+diff, year in review and the two-event overlay stay web-only by design.
 
 The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
@@ -579,9 +579,24 @@ byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
   with no beacons still gets lap times, from the GPS line picker or recovered
   from the latitude + odometer channels (details below).
 - **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
-- **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer
-  exports) — laps from the file's `[laptiming]` start line when present,
-  otherwise from the GPS trace.
+- **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer /
+  Porsche Track Precision exports) — laps from the file's `[laptiming]` start
+  line when present (either endpoint order; widened to 40 m and
+  direction-filtered, since Track Precision's is ~15 m and off to one side of
+  the racing line; a recording started or stopped within 30 m of the line gets
+  that crossing extrapolated, which is how Track Precision records), otherwise
+  from the GPS trace. Both `[column names]` layouts are read — one line of
+  space-separated names (VBOX) or one name per line (Track Precision, whose
+  names contain spaces). Longitude is negated out of Racelogic's west-positive
+  convention so the racing line isn't drawn mirrored. Car channels the file
+  carries become per-lap channels like a PDR's: rpm, throttle (a 0–1 pedal
+  fraction is scaled to %), brake (a *pressure*, stored as % of the file's
+  peak), steering, lateral/longitudinal G (Track Precision's `LatAcc_PTPA` /
+  `LongAcc_PTPA`, since its `latacc`/`longacc` columns are G ÷ 9.81), gear,
+  yaw, and tyre pressures (bar → kPa, the 3276.8 no-reading sentinel dropped);
+  a column that never changes is treated as absent. The date comes from a
+  `YYYY-MM-DD` in the file name before Track Precision's "File created at"
+  line, which is the export time.
 
 The two **video** formats also import on the native iOS app (**Import video** on
 any event page, or "Open with Track Evolution" from Files): a GoPro clip arrives
@@ -591,8 +606,11 @@ phone is usually where the footage already is. The parsers are ported (`PDR`,
 and pinned to the JavaScript implementation's output by
 `contracts/logic/video-parsers.json`, so the same clip yields the same lap times
 either way. The clip is read in place through a security-scoped file handle —
-never copied, never uploaded. `.vbo` import stays on the web: a VBOX writes to an
-SD card that gets read on a laptop.
+never copied, never uploaded. **`.vbo` imports on both phones too** — Porsche
+Track Precision records and exports on the phone, so that's where its `.vbo`
+lands. `VBO` in the Kit and `:core` is the port of `public/js/import/vbo.js`,
+pinned by `contracts/logic/vbo-parsers.json` over the committed synthetic files
+in `contracts/logic/vbo/`.
 
 GPS-only sources have no lap markers, so the import preview shows the driven
 track map: **click where the start/finish line is** and laps are timed each

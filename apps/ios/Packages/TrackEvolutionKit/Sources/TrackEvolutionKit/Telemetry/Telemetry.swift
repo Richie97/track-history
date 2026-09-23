@@ -7,17 +7,35 @@ import Foundation
 /// `defaultLabel`), so the phone builds the same session — laps, trace, channels,
 /// notes — the browser would from the same file.
 ///
-/// `.vbo` is deliberately absent. A VBOX writes to an SD card that gets read on a
-/// laptop; video arrives on the phone before the laptop is opened, and that is the
-/// whole reason NS-30 took video off the deferred list and left the rest of the
-/// long tail on it (`docs/specs/native/README.md`).
+/// Two kinds of file: video (`.mp4`, PDR or GoPro, read by byte range so a
+/// multi-GB clip is never copied) and Racelogic `.vbo` logs — VBOX hardware, and
+/// the exports of phone lap timers such as Porsche's Track Precision App, which
+/// land on the phone before any laptop is opened. `.vbo` is dispatched by the
+/// file's *name*, exactly as the JS does, so callers pass it.
 public enum Telemetry {
-    /// Parse an MP4: Corvette PDR first, then GoPro GPMF.
+    /// File extensions the importer accepts — `SUPPORTED_EXT` in the JS.
+    public static let SUPPORTED_EXTENSIONS = ["mp4", "vbo"]
+
+    /// Whether `name` is a `.vbo` log rather than a video.
+    public static func isVbo(_ name: String?) -> Bool {
+        name?.lowercased().hasSuffix(".vbo") == true
+    }
+
+    /// Parse a telemetry file: a `.vbo` log by name, otherwise an MP4 — Corvette
+    /// PDR first, then GoPro GPMF.
     ///
-    /// Both parsers report "no track of mine here" distinctly from "this file is
-    /// mine and it's broken", so a GoPro clip isn't reported as a broken PDR one
-    /// and vice versa.
-    public static func parseTelemetryFile(_ source: some TelemetryByteSource) throws -> ParsedTelemetry {
+    /// Both video parsers report "no track of mine here" distinctly from "this
+    /// file is mine and it's broken", so a GoPro clip isn't reported as a broken
+    /// PDR one and vice versa.
+    public static func parseTelemetryFile(
+        _ source: some TelemetryByteSource, name: String? = nil
+    ) throws -> ParsedTelemetry {
+        if isVbo(name) {
+            // A .vbo is a text log of a few MB, so it is read whole — `Blob.text()`.
+            var vbo = try VBO.parseVboText(decodeText(try source.read(at: 0, count: source.size)), fileName: name)
+            TelemetryChannels.attachLapChannels(&vbo)
+            return vbo
+        }
         var pdrErr: TelemetryParseError?
         do {
             var pdr = try PDR.parsePdrFile(source)
@@ -53,6 +71,13 @@ public enum Telemetry {
             }
             throw pdrErr?.isNoTrack == true ? gpErr : (pdrErr ?? gpErr)
         }
+    }
+
+    /// UTF-8 with replacement and the BOM dropped — what `Blob.text()` yields.
+    static func decodeText(_ data: Data) -> String {
+        var bytes = data[...]
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { bytes = bytes.dropFirst(3) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     // MARK: - The review flow's shared maths

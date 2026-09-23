@@ -301,7 +301,8 @@ a share link, signing in, and landing on that logbook is one flow.
   failure — an empty garage or a failed fetch must not take the logbook down.
 
 **Deliberate absences.** The per-day setup notebook, the setup-vs-lap-times diff,
-year in review, compare, and telemetry file import are web-only
+year in review, the two-event compare, and logger-file import other than video and
+`.vbo` are web-only
 (`docs/specs/native/README.md`). They are absent, not stubbed.
 
 **Absent for want of an endpoint, not by choice:** editing a lap in place and
@@ -824,6 +825,20 @@ Everything downstream is shared with the recorder. `ReviewScreen` takes a
 line picker, the lap list and the save are one code path. A side effect worth
 knowing: because `TelemetryChannels.buildLapChannels` now exists natively, a
 *recorded* session stores per-lap channel data too, which it couldn't before.
+
+**Racelogic `.vbo` logs take the same door.** `VBO.parseVboText` is the port of
+`public/js/import/vbo.js` — VBOX hardware files and phone lap timers' exports such
+as Porsche Track Precision (one column name per line, car channels, a short
+`[laptiming]` line that is widened, recordings started and stopped at the line
+whose edge crossings are extrapolated) — pinned by `VBOContractTests` against
+`contracts/logic/vbo-parsers.json` over the committed `contracts/logic/vbo/*.vbo`.
+`Telemetry.parseTelemetryFile(_:name:)` dispatches on the file *name*, as
+`parse.js` does, and reads a `.vbo` whole (a text log of a few MB, so the no-copy
+rule has nothing to protect). There is no published UTI for the format, so
+`Info.plist` declares `com.racelogic.vbo` as an imported type (plain text, `.vbo`)
+and lists it in `CFBundleDocumentTypes`; without the declaration a `.vbo` is
+greyed out in the file importer, bounces off the event page's drop target, and
+"Open with" never offers the app.
 
 Two testing notes. The parsers take a `TelemetryByteSource` and import no UIKit,
 SwiftUI, Photos or AVFoundation, so `swift test` exercises them on macOS against
