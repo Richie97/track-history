@@ -1,11 +1,5 @@
 package app.trackevolution.navigation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -207,14 +201,6 @@ fun AppNavigationSuite(
             )
         },
     ) {
-        // A bottom bar sits between the content and the gesture handle and pads
-        // itself for it; with no bottom bar the content has to (see the insets
-        // note in `SignedInScaffold`).
-        val contentInsets = if (layoutType == NavigationSuiteType.NavigationBar) {
-            Modifier
-        } else {
-            Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
-        }
-        Box(contentInsets) { content() }
+        content()
     }
 }

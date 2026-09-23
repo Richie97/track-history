@@ -9,11 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -246,12 +242,7 @@ fun SignedInScaffold(
     }
 
     // The insets live here, once: the app draws edge to edge behind the system
-    // bars, and every screen below is laid out inside them — the **top and the
-    // sides**. The bottom is left for `AppNavigationSuite` (NS-37): a bottom tab
-    // bar draws its own container down behind the gesture handle, and it can only
-    // do that if nothing above it has consumed the inset first. Where there is no
-    // bottom bar — the rail, or a route that owns the window — the suite pads its
-    // content by the same inset instead.
+    // bars, and every screen below is laid out inside them.
     //
     // `imePadding` is not optional. Without it the keyboard draws *over* the
     // content, and the submit button of any form long enough to need scrolling —
@@ -262,7 +253,7 @@ fun SignedInScaffold(
         modifier = Modifier
             .fillMaxSize()
             .background(TrackTheme.colors.bgPage)
-            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            .systemBarsPadding()
             .imePadding(),
     ) {
         if (!reviewing && !onRecordScreen) {
