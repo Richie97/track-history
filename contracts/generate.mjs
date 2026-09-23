@@ -609,10 +609,30 @@ async function captureAll(api, anon, f) {
   // catalog matches and neither with telemetry — so `miles_tracks_counted` is
   // below `tracks`, the "across N of M tracks" branch.
   await api("POST", "/events", { ...FIXTURE.patriotEvent, start_date: "2026-05-20", best_time_ms: 76_900 });
+  // The garage was deleted above, so the Pro half gets its tyre back: a car
+  // re-linked to the rich event and a set of tyres installed before it, so
+  // `pro.tire` is an object rather than a null. `pro.top_speed` comes from the
+  // rich event's channel sessions, which survive the deletes. The account is
+  // Pro, so `pro` is the object; a free account's null is pinned by the route
+  // tests.
+  const car = await api("POST", "/vehicles", { name: "Corvette C7" });
+  await api("POST", `/vehicles/${car.body.id}/parts`, {
+    kind: "tires", name: "Continental ExtremeContact Force", installed_on: "2026-03-15",
+  });
+  await api("PUT", `/events/${f.rich.body.id}`, { car: "Corvette C7" });
   record("wrapped", "GET", "/wrapped/:year",
     "Season Wrapped (NS-36): the season's numbers for one calendar year, past events " +
-    "only. `pro` is the one tier-dependent field — null for a free account.",
+    "only. `pro` is the one tier-dependent field — null for a free account; for Pro, " +
+    "the favourite tyre and top speed, each null when there is no data.",
     "src/routes/wrapped.ts", await api("GET", "/wrapped/2026"));
+
+  // The public share of the same season: the slug was cleared above, so it is
+  // claimed again (uncaptured — share-set already pins that response).
+  await api("PUT", "/share", { slug: f.slug });
+  record("share-wrapped", "GET", "/share/:slug/wrapped/:year",
+    "A shared Season Wrapped (unauthenticated): the same shape as GET /wrapped/:year " +
+    "with no `pro` key — the free card set only.",
+    "src/routes/share.ts", await anon("GET", `/share/${f.slug}/wrapped/2026`));
 }
 
 // ---------------------------------------------------------------------------
@@ -635,7 +655,7 @@ const EXPECTED_ROUTES = [
   "GET /vehicles/:id/steering-fit",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
-  "PUT /share", "DELETE /share", "GET /share/:slug",
+  "PUT /share", "DELETE /share", "GET /share/:slug", "GET /share/:slug/wrapped/:year",
   "GET /wrapped/:year",
   // Billing (NS-32). The three store routes — POST /billing/apple,
   // /billing/apple/legacy and /billing/google — need payloads signed by the

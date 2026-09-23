@@ -249,7 +249,7 @@ session's best, the racing line when it is the lap the trace was drawn from,
 its own channel traces, and a *Compare laps* control that opens the session's
 overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
 layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
-diff, year in review and the two-event overlay stay web-only by design.
+diff, year in review, Season Wrapped and the two-event overlay stay web-only by design.
 
 The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
@@ -1270,6 +1270,64 @@ Local testing needs no store: `test/api/billing.test.ts` signs payloads with a
 synthetic certificate chain (`test/fixtures/billing/`, rebuilt by `build.sh`)
 that the Worker trusts only under `DEV_MODE` via `APPLE_IAP_TEST_ROOT_PEM`, and
 mocks the Apple and Google APIs in `vitest.workers.config.mts`.
+
+## Season Wrapped
+
+A season handed back as a story (`docs/specs/native/NS-36-season-wrapped.md`),
+**web-first and free**: `#/wrapped/:year` (`#/wrapped` opens the newest year)
+is a swipe-through of full-screen cards — cover, the numbers (track days,
+tracks, laps, **track miles**), most driven, biggest improvement, fastest lap,
+new tracks, hours behind the wheel, hottest day, the two Pro cards (favourite
+tyre, top speed — drawn *locked* on a free account; see below) and a summary poster. A card
+with no data is skipped, never drawn empty. From 1 November to 31 January the
+dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
+`public/js/wrapped.js`), dismissable per season.
+
+- **Computed on the server**, not the client like year in review:
+  `GET /api/wrapped/:year` runs `seasonWrapped` (`src/lib/wrapped.ts`) over the
+  user's events, the catalog's lap lengths and — for tracks the catalog can't
+  measure — one driven distance per telemetry lap, read in SQL so no channel
+  blob reaches the Worker. That is what lets the public share and the link
+  preview use the same numbers, and makes a native Wrapped a screen rather
+  than a port.
+- **Track miles** are logged laps × lap length, the length resolved from
+  `track_catalog.length_m` (migration `0026`, seeded from each venue's
+  published figure for the named layout), else the median gridded lap
+  distance of the driver's own telemetry there, else the median best-lap trace
+  length; a track with none of those counts zero and the card says "across N of
+  M tracks". Best-lap-only history undercounts, on purpose — the card is the
+  logbook, not an estimate.
+- The story is real DOM (text selects, screen readers read the current card,
+  announced through a live region), navigated by tapping the left/right third,
+  swiping, the arrow keys / Space, or the progress dots; under
+  `prefers-reduced-motion` every transition is a cut. It is the one surface
+  that uses the lime accent generously, noted as such in `style.css`.
+- **The two Pro cards** are the one tier-dependent field: `pro` on
+  `GET /api/wrapped/:year` is `null` for a free account (the client draws both
+  cards locked, with the store links) and for Pro an object whose two cards are
+  each null when there is no data, so *locked* and *empty* stay distinct — a
+  per-field strip decided from `entitledUntil`, like `channels`, never a 402.
+  **Favourite tyre** (`favouriteTire`): for every `tires` part, the year's
+  events on its vehicle inside its service window (`eventsInWindow`, the wear
+  rule), summed by days; ties by hours, then the fresher set. Events reach a
+  vehicle only through `events.vehicle_id`; the setup sheet's `tires_id` is not
+  consulted yet. **Top speed**: the year's highest stored `speed` sample, read
+  with a `json_each` walk over the sessions' channel blobs in SQL — once a year
+  per user, so no trigger-maintained column.
+- **Sharing.** The poster card's *Share image* hands a 1080×1920 PNG to the
+  Web Share API (`navigator.share({ files })`, iOS Safari and Android Chrome)
+  and downloads it where the browser can't share files; *Save wide* is the
+  1200×630 version. Both are drawn on a canvas in the browser
+  (`public/js/wrapped-image.js`, in the viewer's theme, from the same
+  `posterLines` the card renders) — there is no Worker rasteriser (#155) — and
+  the story image is drawn *before* the tap, because Safari only lets
+  `navigator.share` run inside the tap's user activation. An owner with a
+  share slug also gets `/share/<slug>/wrapped/<year>`: the same story through
+  the same renderer, served by `GET /api/share/:slug/wrapped/:year` with **no
+  `pro` key** (so no tyre, no top speed, nothing from the garage or channels —
+  pinned by `test/api/share.test.ts` against a Pro owner), and a `sharePage`
+  route that swaps in the season's own OG title and description
+  (`wrappedSummary`, in the owner's units). The OG *image* stays the brand card.
 
 ## Sharing & leaderboards
 

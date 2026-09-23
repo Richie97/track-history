@@ -38,7 +38,7 @@ struct GoldenContractTests {
         case "garage": try roundTrip([GarageVehicle].self, entry.name)
         case "vehicle-steering-fit": try roundTrip(SteeringFits.self, entry.name)
         case "share-public": try roundTrip(ShareData.self, entry.name)
-        case "wrapped": try roundTrip(Wrapped.self, entry.name)
+        case "wrapped", "share-wrapped": try roundTrip(Wrapped.self, entry.name)
         case "track-create": try roundTrip(CreatedTrack.self, entry.name)
         case "vehicle-create": try roundTrip(Vehicle.self, entry.name)
         case "part-refresh": try roundTrip(PartRefresh.self, entry.name)

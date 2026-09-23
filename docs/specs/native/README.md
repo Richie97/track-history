@@ -437,7 +437,7 @@ Features added after the rewrite shipped, and where they landed:
   share as an image, with a dashboard hero from 1 November to 31 January. Web
   first by the frontier rule, and portrait-first because the link is opened on
   a phone. The two new stats — **track miles** (`track_catalog.length_m`,
-  migration 0022, with the driver's own telemetry as the fallback) and the
+  migration 0026, with the driver's own telemetry as the fallback) and the
   **favourite tyre** (the garage's `eventsInWindow` rule) — are computed in
   `src/lib/wrapped.ts` behind `GET /api/wrapped/:year`, not on the client like
   `year-review.js`, because they need the catalog and every session's channel

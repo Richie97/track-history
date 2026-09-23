@@ -97,7 +97,7 @@ hours, and says so; the two are different questions.)
 For every `parts` row of kind `tires` on any of the driver's vehicles, take the
 year's events on that vehicle that fall inside the part's service window —
 `eventsInWindow` in `lib/wear.ts`, the same rule wear uses — and sum their
-days. The part with the most days wins; ties go to the most hours. Named by
+days. The part with the most days wins; ties go to the most hours, then to the set installed later. Named by
 `parts.name` ("Continental ExtremeContact Force"). An event only counts toward
 a vehicle through `events.vehicle_id`, which the car field auto-matches by
 name — an event whose car isn't in the garage counts toward no tyre.

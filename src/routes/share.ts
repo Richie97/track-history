@@ -9,7 +9,9 @@ import {
   userTotalsStmt,
 } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
-import { isValidSlug } from "../lib/validate";
+import { isValidSlug, isValidUnits } from "../lib/validate";
+import { seasonWrapped, wrappedSummary } from "../lib/wrapped";
+import { wrappedInputs } from "./wrapped";
 
 // Authed share-link management (mounted behind the session middleware).
 export const share = new Hono<AppContext>();
@@ -113,6 +115,41 @@ sharePage.get("/:slug", async (c) => {
   return c.html(html, 200, { "Cache-Control": "public, max-age=300" });
 });
 
+// A shared Season Wrapped (NS-36): the same shell with the season's own title
+// and description, so the link previews as "Eric's 2026 on Track Evolution" —
+// "14 track days · 6 tracks · …". Built only from the free card set the public
+// API below serves. The OG *image* stays the brand card (#155).
+sharePage.get("/:slug/wrapped/:year", async (c) => {
+  const shellRes = await c.env.ASSETS.fetch(new URL("/index.html", c.req.url));
+  let html = await shellRes.text();
+
+  const slug = c.req.param("slug").toLowerCase();
+  const raw = c.req.param("year");
+  const owner = /^\d{4}$/.test(raw)
+    ? await c.env.DB.prepare("SELECT id, name, units FROM users WHERE share_slug = ?")
+        .bind(slug)
+        .first<{ id: number; name: string | null; units: string | null }>()
+    : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const season = owner
+    ? seasonWrapped((await wrappedInputs(c.env.DB, owner.id, Number(raw), today)).inputs, Number(raw), today)
+    : null;
+
+  if (owner && season) {
+    const title = `${owner.name ?? "A driver"}'s ${season.year} on Track Evolution`;
+    const description = wrappedSummary(season, isValidUnits(owner.units) ? owner.units : "imperial");
+    const url = new URL(`/share/${slug}/wrapped/${season.year}`, c.req.url).toString();
+    html = html
+      .replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`)
+      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escHtml(url)}$2`);
+    html = setMeta(html, "name", "description", description);
+    html = setMeta(html, "property", "og:title", title);
+    html = setMeta(html, "property", "og:description", description);
+    html = setMeta(html, "property", "og:image:alt", title);
+  }
+  return c.html(html, 200, { "Cache-Control": "public, max-age=300" });
+});
+
 // Deeper paths under /share/ aren't real routes; hand back the stock shell so
 // the SPA can deal with them, same as the asset fallback would have.
 sharePage.get("/*", async (c) => {
@@ -124,6 +161,27 @@ sharePage.get("/*", async (c) => {
 // middleware (see index.ts). Backs the /share/<slug> pages: stats, times and
 // event metadata only — notes, email and per-lap data stay private.
 export const publicShare = new Hono<AppContext>();
+
+// A shared Season Wrapped (NS-36): the owner's season, **free card set only** —
+// the same shape as GET /api/wrapped/:year without the `pro` key, so no garage
+// part and nothing derived from channels leaves the account. Every figure in
+// it is derivable from what GET /api/share/:slug already publishes (the track
+// miles aside, which are a lap count times a track length). 404 for an unknown
+// slug or a year with no past events.
+publicShare.get("/:slug/wrapped/:year", async (c) => {
+  const slug = c.req.param("slug").toLowerCase();
+  const raw = c.req.param("year");
+  if (!/^\d{4}$/.test(raw)) return c.json({ error: "year must be four digits" }, 400);
+  const owner = await c.env.DB.prepare("SELECT id FROM users WHERE share_slug = ?")
+    .bind(slug)
+    .first<{ id: number }>();
+  if (!owner) return c.json({ error: "not found" }, 404);
+  const year = Number(raw);
+  const today = new Date().toISOString().slice(0, 10);
+  const season = seasonWrapped((await wrappedInputs(c.env.DB, owner.id, year, today)).inputs, year, today);
+  if (!season) return c.json({ error: `no events in ${year}` }, 404);
+  return c.json(season);
+});
 
 publicShare.get("/:slug", async (c) => {
   const slug = c.req.param("slug").toLowerCase();

@@ -22,6 +22,9 @@ import {
   elevationText, eventAmbient, tempText, trackElevationM,
 } from "./js/conditions.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
+import { posterLines, wrappedSeason } from "./js/wrapped.js";
+import { bindWrappedStory, wrappedStoryHtml } from "./js/wrapped-story.js";
+import { downloadBlob, posterBlob, posterFileName, sharePosterBlob } from "./js/wrapped-image.js";
 import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -784,6 +787,14 @@ async function viewDashboard() {
     })
     .join("");
 
+  // Season Wrapped's reveal (NS-36): 1 Nov – 31 Jan, for a year this driver
+  // actually drove, until they dismiss it for that season.
+  const wrapYear = wrappedSeason();
+  const showWrapped =
+    wrapYear != null &&
+    !wrappedDismissed(wrapYear) &&
+    events.some((e) => !isUpcoming(e) && e.start_date.startsWith(`${wrapYear}-`));
+
   const slug = state.me.share_slug || "";
   const view = shell(`
     <div class="btn-row" style="margin-top:20px">
@@ -791,6 +802,7 @@ async function viewDashboard() {
       <a class="btn" href="#/year">Year in review</a>
     </div>
     ${alertStripHtml(garage, { collapsible: true })}
+    ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${state.totals.events}</div></div>
@@ -819,6 +831,11 @@ async function viewDashboard() {
   `);
   // Warm the offline cache in the background while we're on the dashboard.
   scheduleWarm();
+
+  view.querySelector("#wrapped-dismiss")?.addEventListener("click", () => {
+    dismissWrapped(wrapYear);
+    view.querySelector(".wrapped-hero")?.remove();
+  });
 
   const shareMsg = view.querySelector("#share-msg");
   const shareInput = view.querySelector("#share-slug");
@@ -3431,6 +3448,142 @@ async function viewYear(params) {
   wireRowLinks(view);
 }
 
+// --- season wrapped (NS-36) ---
+
+// The dashboard hero is dismissable per season. A per-viewer convenience, so
+// localStorage — wrapped in try/catch like every other read of it here.
+const wrappedDismissKey = (year) => `th-wrapped-dismissed-${year}`;
+function wrappedDismissed(year) {
+  try {
+    return localStorage.getItem(wrappedDismissKey(year)) === "1";
+  } catch {
+    return false;
+  }
+}
+function dismissWrapped(year) {
+  try {
+    localStorage.setItem(wrappedDismissKey(year), "1");
+  } catch {
+    /* private mode: the hero simply comes back next time */
+  }
+}
+
+function wrappedHeroHtml(year) {
+  return `<div class="wrapped-hero">
+    <a href="#/wrapped/${year}"><span class="hero-kicker">Season Wrapped</span>Your ${year} Wrapped is ready →</a>
+    <button type="button" id="wrapped-dismiss" aria-label="Hide the ${year} Wrapped reminder">✕</button>
+  </div>`;
+}
+
+function wrappedYearPicker(years, current, hrefFor) {
+  if (years.length < 2) return "";
+  return `<div class="btn-row wr-years" role="group" aria-label="Year">${years
+    .map((y) =>
+      y === current
+        ? `<span class="btn small primary" aria-current="page">${y}</span>`
+        : `<a class="btn small" href="${hrefFor(y)}">${y}</a>`
+    )
+    .join("")}</div>`;
+}
+
+// The two Pro cards' store links on a free account — proPanelHtml's buttons,
+// without the panel, since the card is already the panel's shape.
+const wrappedLockedHtml = () => `<div class="btn-row">
+    <a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
+    <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>
+  </div>
+  <p class="hint">Track Evolution Pro is ${PRO_PRICE}. Wrapped itself is free.</p>`;
+
+async function viewWrapped(yearParam) {
+  let year = /^\d{4}$/.test(yearParam ?? "") ? Number(yearParam) : null;
+  let years = null;
+  const pastYears = async () => yearsAvailable((await api("/events")).filter((e) => !isUpcoming(e)));
+  if (year == null) {
+    years = await pastYears();
+    year = years[0] ?? new Date().getFullYear();
+  }
+  let data;
+  try {
+    data = await api(`/wrapped/${year}`);
+  } catch (err) {
+    // A year with no track days is a page, not an error.
+    if (!(err instanceof ApiError && err.status === 404)) throw err;
+    years ??= await pastYears();
+    shell(`
+      <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
+      <h1>No track days in ${year} — yet</h1>
+      <p class="sub">Wrapped tells the story of a season once there's a track day in it.</p>
+      ${wrappedYearPicker(years, year, (y) => `#/wrapped/${y}`) || (years.length ? `<div class="btn-row"><a class="btn small" href="#/wrapped/${years[0]}">See ${years[0]}</a></div>` : "")}
+    `);
+    return;
+  }
+  const slug = state.me.share_slug;
+  const publicUrl = slug ? `${location.origin}/share/${encodeURIComponent(slug)}/wrapped/${data.year}` : null;
+  const view = shell(
+    wrappedStoryHtml(data, {
+      units: currentUnits(),
+      share: false,
+      closeHref: "#/",
+      yearPickerHtml: wrappedYearPicker(data.years, data.year, (y) => `#/wrapped/${y}`),
+      lockedHtml: wrappedLockedHtml(),
+      posterActionsHtml: `<div class="wr-actions">
+        <div class="btn-row">
+          <button type="button" class="btn small primary" data-wr="share">Share image</button>
+          <button type="button" class="btn small" data-wr="save">Save image</button>
+          <button type="button" class="btn small" data-wr="save-wide">Save wide</button>
+          ${publicUrl ? `<button type="button" class="btn small" data-wr="copy">Copy link</button>` : ""}
+        </div>
+        ${
+          publicUrl
+            ? ""
+            : `<p class="hint">Want a link to post instead? <a href="#/">Create a share link</a> on the dashboard and this season gets a page of its own.</p>`
+        }
+        <p class="hint" id="wr-msg" aria-live="polite"></p>
+        <div class="btn-row"><a class="btn small ghost" href="#/year?y=${data.year}">The full year in review →</a></div>
+      </div>`,
+    })
+  );
+  const story = view.querySelector("#wrapped-story");
+  bindWrappedStory(story);
+  wireWrappedPoster(story, data, { share: false, publicUrl });
+}
+
+// The poster's buttons. The story image is drawn as soon as the page is up,
+// not on the tap: Safari lets navigator.share run only inside the tap's user
+// activation, and a font load plus a 1080×1920 draw can outlast it.
+function wireWrappedPoster(root, data, { share, publicUrl }) {
+  const units = currentUnits();
+  let storyBlob = null;
+  const drawStory = () => (storyBlob ??= posterBlob(data, { units, share, size: "story" }));
+  setTimeout(drawStory, 300);
+  const msg = root.querySelector("#wr-msg");
+  const say = (text) => {
+    if (msg) msg.textContent = text;
+  };
+  root.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-wr]");
+    if (!btn) return;
+    try {
+      if (btn.dataset.wr === "share") {
+        const result = await sharePosterBlob(await drawStory(), {
+          name: posterFileName(data.year, "story"),
+          title: posterLines(data, units, { share }).title,
+        });
+        say(result === "downloaded" ? "This browser can't share images, so it was saved instead." : "");
+      } else if (btn.dataset.wr === "save") {
+        downloadBlob(await drawStory(), posterFileName(data.year, "story"));
+      } else if (btn.dataset.wr === "save-wide") {
+        downloadBlob(await posterBlob(data, { units, share, size: "wide" }), posterFileName(data.year, "wide"));
+      } else if (btn.dataset.wr === "copy" && publicUrl) {
+        await navigator.clipboard.writeText(publicUrl);
+        say("Link copied.");
+      }
+    } catch (err) {
+      say(err?.message || "Something went wrong.");
+    }
+  });
+}
+
 function viewNotFound() {
   shell(`<div class="empty">Not found. <a href="#/">Back to dashboard</a></div>`);
 }
@@ -3445,7 +3598,11 @@ function wireRowLinks(view) {
 // Served at /share/<slug> via the SPA fallback: a read-only view of one user's
 // history for anyone with the link (no sign-in). Hash-routes within the page.
 
-const SHARE_SLUG = (location.pathname.match(/^\/share\/([^/]+)\/?$/) || [])[1];
+// /share/<slug> is the logbook; /share/<slug>/wrapped/<year> is one season's
+// Wrapped (NS-36), which renders the story and ignores the hash routes.
+const SHARE_MATCH = location.pathname.match(/^\/share\/([^/]+)(?:\/wrapped\/(\d{4}))?\/?$/) || [];
+const SHARE_SLUG = SHARE_MATCH[1];
+const SHARE_WRAPPED_YEAR = SHARE_MATCH[2] ? Number(SHARE_MATCH[2]) : null;
 let shareData = null;
 
 function shareShell(content) {
@@ -3567,20 +3724,53 @@ function shareTrack(trackId) {
   if (chart) chart.bind(view.querySelector("#chart"));
 }
 
+function shareNotFound(heading, text) {
+  $app.innerHTML = `
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="flag">${appLogoHtml("lg")}</div>
+        <h1>${esc(heading)}</h1>
+        <p>${esc(text)}</p>
+        <a class="btn primary" href="/">Go to Track Evolution</a>
+        ${footerHtml({ legal: true })}
+      </div>
+    </div>`;
+}
+
+// A shared season: the same story as the owner's, through the same renderer,
+// with the free card set the public API serves — no Pro cards, locked or not.
+async function shareWrapped(year) {
+  const slug = encodeURIComponent(SHARE_SLUG);
+  const res = await fetch(`/api/share/${slug}/wrapped/${year}`);
+  if (!res.ok) {
+    shareNotFound("Nothing to show", "This season isn't shared, or the link has been disabled.");
+    return;
+  }
+  const data = await res.json();
+  document.title = `${data.name || "A driver"}'s ${data.year} — Track Evolution`;
+  const view = shareShell(
+    wrappedStoryHtml(data, {
+      units: currentUnits(),
+      share: true,
+      closeHref: `/share/${slug}`,
+      yearPickerHtml: wrappedYearPicker(data.years, data.year, (y) => `/share/${slug}/wrapped/${y}`),
+      posterActionsHtml: `<div class="wr-actions">
+        <div class="btn-row">
+          <a class="btn small primary" href="/">Track your own laps</a>
+          <a class="btn small" href="/share/${slug}">${data.name ? `${esc(data.name)}'s` : "Their"} logbook →</a>
+        </div>
+      </div>`,
+    })
+  );
+  bindWrappedStory(view.querySelector("#wrapped-story"));
+}
+
 async function shareRoute() {
+  if (SHARE_WRAPPED_YEAR) return shareWrapped(SHARE_WRAPPED_YEAR);
   if (!shareData) {
     const res = await fetch(`/api/share/${encodeURIComponent(SHARE_SLUG)}`);
     if (!res.ok) {
-      $app.innerHTML = `
-        <div class="login-wrap">
-          <div class="login-card">
-            <div class="flag">${appLogoHtml("lg")}</div>
-            <h1>Link not found</h1>
-            <p>This share link doesn't exist or has been disabled.</p>
-            <a class="btn primary" href="/">Go to Track Evolution</a>
-            ${footerHtml({ legal: true })}
-          </div>
-        </div>`;
+      shareNotFound("Link not found", "This share link doesn't exist or has been disabled.");
       return;
     }
     shareData = await res.json();
@@ -3638,6 +3828,7 @@ async function route() {
     if (parts[0] === "vehicle" && parts[1]) return await viewVehicle(parts[1]);
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
     if (parts[0] === "year") return await viewYear(params);
+    if (parts[0] === "wrapped") return await viewWrapped(parts[1]);
     if (parts[0] === "settings") return await viewSettings();
     viewNotFound();
   } catch (err) {

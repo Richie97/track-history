@@ -30,6 +30,8 @@ public data class Wrapped(
     /**
      * The one tier-dependent field: null for a free account (the client draws
      * the two Pro cards locked); for Pro, each card is null when there is no data.
+     * Absent altogether from the public share (`GET /api/share/:slug/wrapped/:year`),
+     * which carries the free card set only and decodes into this same model.
      */
     val pro: WrappedPro? = null,
 )

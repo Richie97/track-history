@@ -6,6 +6,7 @@
 // UTC) — the userTotals rule, and year in review's `eventYear`.
 
 import type { ComputedEvent } from "./stats";
+import { type HoursEvent, eventHours, eventsInWindow } from "./wear";
 
 export const METRES_PER_MILE = 1609.344;
 
@@ -238,5 +239,83 @@ export function seasonWrapped(inputs: WrappedInputs, year: number, today: string
       .filter((t) => !priorTracks.has(t.track_id))
       .map((t) => ({ track_id: t.track_id, track_name: t.track_name })),
     hottest,
+  };
+}
+
+// The link preview's description for a shared wrapped — the poster's headline
+// in words, in the owner's unit system: "14 track days · 6 tracks · 1,923 laps
+// · 4,281 track miles · most driven VIR (Full)". Mirrors posterLines in
+// public/js/wrapped.js (the backend and frontend share no code); the distance
+// is left out when no track's length was known, as the poster leaves it out.
+export function wrappedSummary(w: Wrapped, units: "imperial" | "metric" = "imperial"): string {
+  const t = w.totals;
+  const n = (v: number) => Math.round(v).toLocaleString("en-US");
+  const days = Number.isInteger(t.track_days) ? n(t.track_days) : t.track_days.toFixed(1);
+  const s = (v: number, one: string) => `${one}${v === 1 ? "" : "s"}`;
+  const parts = [`${days} ${s(t.track_days, "track day")}`, `${n(t.tracks)} ${s(t.tracks, "track")}`, `${n(t.laps)} ${s(t.laps, "lap")}`];
+  if (t.miles_tracks_counted)
+    parts.push(units === "metric" ? `${n(t.miles * 1.609344)} track km` : `${n(t.miles)} track miles`);
+  if (w.most_driven) parts.push(`most driven ${w.most_driven.track_name}`);
+  return parts.join(" · ");
+}
+
+// ---------- the Pro cards (NS-36 ticket 4) -----------------------------------
+
+export type TirePart = {
+  id: number;
+  vehicle_id: number;
+  vehicle_name: string;
+  name: string;
+  installed_on: string;
+  retired_on: string | null;
+};
+
+// A past, vehicle-linked event with eventHours' inputs — vehicleHoursEvents'
+// rows, which is what the garage's wear math runs over.
+export type VehicleEvent = HoursEvent & { vehicle_id: number };
+
+export type TopSpeedRow = { kph: number; track_id: number; track_name: string; event_id: number; date: string };
+
+export type WrappedPro = {
+  tire: { part_id: number; vehicle_id: number; vehicle_name: string; name: string; track_days: number; hours: number } | null;
+  top_speed: TopSpeedRow | null;
+};
+
+// The tyre the season was driven on: for every tyre part, the year's events on
+// its vehicle inside its service window — eventsInWindow, the rule the
+// garage's wear already believes — summed by days. Most days wins; ties go to
+// the most hours, then the part installed later (the fresher set). An event
+// counts toward a vehicle only through events.vehicle_id, so a day whose car
+// isn't in the garage counts toward no tyre. The setup sheet's `tires_id` is
+// deliberately not consulted in v1.
+export function favouriteTire(parts: TirePart[], events: VehicleEvent[], year: number, today: string): WrappedPro["tire"] {
+  let best: WrappedPro["tire"] & { installed_on: string } | null = null;
+  for (const p of parts) {
+    const onCar = events.filter((e) => e.vehicle_id === p.vehicle_id && yearOf(e) === year);
+    const driven = eventsInWindow(p, onCar, today);
+    if (!driven.length) continue;
+    const days = driven.reduce((sum, e) => sum + (e.days ?? 0), 0);
+    const hours = round1(driven.reduce((sum, e) => sum + eventHours(e), 0));
+    const beats =
+      best == null ||
+      days > best.track_days ||
+      (days === best.track_days && (hours > best.hours || (hours === best.hours && p.installed_on > best.installed_on)));
+    if (beats)
+      best = { part_id: p.id, vehicle_id: p.vehicle_id, vehicle_name: p.vehicle_name, name: p.name, track_days: days, hours, installed_on: p.installed_on };
+  }
+  if (!best) return null;
+  const { installed_on, ...tire } = best;
+  return tire;
+}
+
+export function wrappedPro(
+  inputs: { tireParts: TirePart[]; vehicleEvents: VehicleEvent[]; topSpeed: TopSpeedRow | null },
+  year: number,
+  today: string
+): WrappedPro {
+  const top = inputs.topSpeed;
+  return {
+    tire: favouriteTire(inputs.tireParts, inputs.vehicleEvents, year, today),
+    top_speed: top && top.kph > 0 ? { ...top, kph: round1(top.kph) } : null,
   };
 }
