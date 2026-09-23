@@ -269,6 +269,13 @@ npm run db:migrate:local && npm run dev     # then #/wrapped/2026 and /share/<sl
 
 ## Notes
 
+**Update (2026-09): the phone apps got it for the first November.** The
+reasoning below held — a link-out is still refused — and the second option it
+names, a real native screen, was taken a year early: `WrappedScreen` on iOS
+and Android over the same endpoint, with the presentation rules ported as
+`WrappedStory` and pinned by `contracts/logic/wrapped.json`. The public share
+page stays web-only.
+
 **Why not the phone apps now.** The obvious November move is a card in both
 apps that opens the web page — and it lands the driver on the web sign-in
 screen, because the apps authenticate with a bearer token and the phone's

@@ -447,6 +447,13 @@ Features added after the rewrite shipped, and where they landed:
   from the phone apps was considered and refused: bearer-authenticated apps
   cannot hand a signed-in session to the phone's browser, so the link would
   land on the web login.
+  **The native decision came forward to the first November (2026-09):** both
+  apps ship the story rather than waiting a year, which cost what the
+  server-side choice promised — an endpoint client (`wrapped(year)`), a screen,
+  and the one pure layer ported as `WrappedStory` (the reveal window, the card
+  list with its locked/skipped rules, the poster's words), pinned by
+  `contracts/logic/wrapped.json`. The public share page and its link preview
+  stay web: a shared season is a URL, and the web is where a URL lands.
 - **Lap detail** (2026-09, [#267](https://github.com/Richie97/track-history/issues/267)
   iOS, [#268](https://github.com/Richie97/track-history/issues/268) Android) —
   **native only, by design.** On the phones every lap row on the event page
@@ -583,12 +590,12 @@ change* rule does not apply — see the spec for why.
 | NS-33 | [Leaderboards rank only device-timed laps](NS-33-leaderboard-device-timed-laps.md) | Shared | Leaderboards, NS-30, NS-32 |
 | NS-34 | [Large screens: iPad, foldables and tablets](NS-34-large-screens.md) | iOS + Android | NS-23, NS-24, NS-25, NS-26 |
 | NS-35 | [Open a leaderboard lap](NS-35-leaderboard-lap-detail.md) | Shared | Leaderboards, NS-33, #165 |
-| NS-36 | [Season Wrapped](NS-36-season-wrapped.md) | Web (server + web app) | Year in review, share pages, NS-32, the garage |
+| NS-36 | [Season Wrapped](NS-36-season-wrapped.md) | Web (server + web app), then iOS + Android | Year in review, share pages, NS-32, the garage |
 
 ## Deferred — not in this programme
 
 Available on web throughout, ported to native later or never: the setup notebook,
-the setup-vs-lap-times diff, year in review and Season Wrapped (NS-36), and the
+the setup-vs-lap-times diff, year in review, and the
 **two-event** compare view (`viewCompare`).
 
 Four things were on this list and came off it, all for the reason the split

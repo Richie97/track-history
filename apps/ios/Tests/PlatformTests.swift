@@ -54,6 +54,7 @@ final class PlatformTests: XCTestCase {
             .importVideo(eventId: nil, incoming: nil, forNewEvent: true),
             .shared(slug: "abc"),
             .lap(eventId: 1, sessionId: 2, lapId: 3),
+            .wrapped(year: 2026),
         ]
         for route in routes {
             XCTAssertEqual(route.resolved(runsOnMac: true), route, "\(route)")

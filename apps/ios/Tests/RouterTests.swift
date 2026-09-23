@@ -79,6 +79,7 @@ final class RouterTests: XCTestCase {
         XCTAssertTrue(Route.record(eventId: 3).ownsTheWindow)
         XCTAssertTrue(Route.importVideo(eventId: nil, incoming: nil).ownsTheWindow)
         XCTAssertTrue(Route.importVideo(eventId: nil, incoming: nil, forNewEvent: true).ownsTheWindow)
+        XCTAssertTrue(Route.wrapped(year: 2026).ownsTheWindow)
 
         XCTAssertFalse(Route.event(1).ownsTheWindow)
         XCTAssertFalse(Route.track(1).ownsTheWindow)

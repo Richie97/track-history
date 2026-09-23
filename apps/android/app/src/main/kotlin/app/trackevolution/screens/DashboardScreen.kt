@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -73,6 +74,8 @@ fun DashboardScreen(
     onOpenSettings: () -> Unit,
     /** Open the recorder, attached to today's event when there is one (#108). */
     onRecord: (Int?) -> Unit,
+    /** Open Season Wrapped for a year — the November banner's door (NS-36). */
+    onOpenWrapped: (Int) -> Unit = {},
     /**
      * Whether to draw the recorder's second door at all.
      *
@@ -148,6 +151,18 @@ fun DashboardScreen(
                 // among many, and the vehicle page is where it is the point.
                 if (model.alerts.isNotEmpty()) {
                     item("maintenance") { MaintenanceStrip(model.alerts, onOpenVehicle) }
+                }
+
+                // Season Wrapped's reveal (NS-36): 1 Nov – 31 Jan, for a year this
+                // driver drove, until dismissed for that season.
+                model.wrappedYear?.takeIf { !model.wrappedDismissed(it) }?.let { year ->
+                    item("wrapped") {
+                        WrappedBanner(
+                            year = year,
+                            onOpen = { onOpenWrapped(year) },
+                            onDismiss = { model.dismissWrapped(year) },
+                        )
+                    }
                 }
 
                 model.heroEvent?.let { hero ->
@@ -389,6 +404,40 @@ private fun TrackRow(track: Track, selected: Boolean = false, onClick: () -> Uni
                 style = TrackTheme.typography.lapTime,
                 color = colors.textStrong,
             )
+        }
+    }
+}
+
+/** The November reveal — the web's `wrappedHeroHtml`, lime on lime. */
+@Composable
+private fun WrappedBanner(year: Int, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    val colors = TrackTheme.colors
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(colors.accent)
+            .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onOpen)
+                .semantics { testTag = "dashboardWrapped" },
+        ) {
+            Text("SEASON WRAPPED", style = TrackTheme.typography.eyebrow, color = colors.accentContrast.copy(alpha = 0.75f))
+            Text(
+                "Your $year Wrapped is ready →",
+                style = TrackTheme.typography.h3,
+                color = colors.accentContrast,
+            )
+        }
+        androidx.compose.material3.IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.semantics { contentDescription = "Hide the $year Wrapped reminder" },
+        ) {
+            Text("✕", style = TrackTheme.typography.bodyStrong, color = colors.accentContrast)
         }
     }
 }

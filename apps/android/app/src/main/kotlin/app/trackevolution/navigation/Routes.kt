@@ -101,6 +101,16 @@ public sealed interface Route {
      */
     @Serializable
     public data class SessionCompare(val eventId: Int, val sessionId: Int, val lapId: Int? = null) : Route
+
+    /**
+     * Season Wrapped (NS-36): one calendar year as a story of cards, opened from
+     * the dashboard's November banner. It **owns the window** — the scaffold
+     * drops to one pane for it, as for the recorder — and it is not a
+     * `DeepLink` case: the web's `#/wrapped/:year` is a web route, and the app's
+     * door is the banner.
+     */
+    @Serializable
+    public data class Wrapped(val year: Int) : Route
 }
 
 /**
