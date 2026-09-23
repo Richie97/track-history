@@ -4,7 +4,9 @@ import android.app.Activity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -113,14 +115,20 @@ fun PaywallSheet(
                     }
                 }
 
-                else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // The row as tall as its tallest card, and every card that tall: the
+                // yearly plan carries a savings line the monthly one doesn't, and two
+                // side-by-side choices of different heights read as unequal options.
+                else -> Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.height(IntrinsicSize.Min),
+                ) {
                     plans.forEach { plan ->
                         PlanCard(
                             plan = plan,
                             selected = plan.basePlanId == selected?.basePlanId,
                             badge = if (plan.basePlanId == BillingProducts.YEARLY && savings != null) "Save $savings%" else null,
                             onClick = { selectedPlan = plan.basePlanId },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
                 }
