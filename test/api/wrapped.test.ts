@@ -91,13 +91,48 @@ describe("GET /api/wrapped/:year", () => {
     expect(mine.improvement).toBeNull();
   });
 
-  it("carries a null `pro` for free and Pro accounts alike (until ticket 4)", async () => {
-    for (const who of [await signedInUser(), await signedInProUser()]) {
-      await createEvent(who.api, { start_date: pastDate });
-      const res = await who.api("GET", `/wrapped/${thisYear}`);
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty("pro", null);
-    }
+  it("carries `pro: null` for a free account, whatever its garage holds", async () => {
+    const { api } = await signedInUser();
+    await createEvent(api, { start_date: pastDate });
+    const res = await api("GET", `/wrapped/${thisYear}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("pro", null);
+  });
+
+  it("gives a Pro account the object, with nulls when there is nothing to show", async () => {
+    const { api } = await signedInProUser();
+    await createEvent(api, { start_date: pastDate });
+    const res = await api("GET", `/wrapped/${thisYear}`);
+    expect(res.body.pro).toEqual({ tire: null, top_speed: null });
+  });
+
+  it("gives a Pro account its favourite tyre and top speed", async () => {
+    const { api } = await signedInProUser();
+    const car = (await api("POST", "/vehicles", { name: "Corvette C7" })).body;
+    const old = (await api("POST", `/vehicles/${car.id}/parts`, { kind: "tires", name: "Falken RT660", installed_on: `${thisYear - 1}-01-01` })).body;
+    await api("POST", `/vehicles/${car.id}/parts`, { kind: "pads_front", name: "Not a tyre", installed_on: `${thisYear - 1}-01-01` });
+    const ev = await createEvent(api, { track_name: "Road Atlanta", start_date: pastDate, days: 2, car: "Corvette C7" });
+    await api("POST", `/events/${ev}/sessions`, {
+      laps: [90_000, 91_000],
+      channels: {
+        dStepM: 20,
+        laps: [
+          { n: 1, timeMs: 90_000, speed: Array.from({ length: 40 }, (_, i) => 100 + i) },
+          { n: 2, timeMs: 91_000, speed: Array.from({ length: 40 }, (_, i) => 120 + i * 2.5) },
+        ],
+      },
+    });
+    // Another user's faster day must not leak in.
+    const other = await signedInProUser();
+    const oev = await createEvent(other.api, { start_date: pastDate });
+    await other.api("POST", `/events/${oev}/sessions`, {
+      laps: [80_000],
+      channels: { dStepM: 20, laps: [{ n: 1, timeMs: 80_000, speed: Array(40).fill(300) }] },
+    });
+
+    const { pro } = (await api("GET", `/wrapped/${thisYear}`)).body;
+    expect(pro.tire).toEqual({ part_id: old.id, vehicle_id: car.id, vehicle_name: "Corvette C7", name: "Falken RT660", track_days: 2, hours: 4 });
+    expect(pro.top_speed).toEqual({ kph: 217.5, track_id: expect.any(Number), track_name: "Road Atlanta", event_id: ev, date: pastDate });
   });
 });
 

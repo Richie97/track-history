@@ -46,7 +46,23 @@
         "track_name": "Watkins Glen"
       }
     ],
-    "pro": null,
+    "pro": {
+      "tire": {
+        "hours": 4,
+        "name": "Continental ExtremeContact Force",
+        "part_id": 1,
+        "track_days": 2,
+        "vehicle_id": 1,
+        "vehicle_name": "Corvette C7"
+      },
+      "top_speed": {
+        "date": "2026-04-10",
+        "event_id": 1,
+        "kph": 175,
+        "track_id": 1,
+        "track_name": "Virginia International Raceway (Full)"
+      }
+    },
     "through": "2026-01-01",
     "totals": {
       "events": 4,
