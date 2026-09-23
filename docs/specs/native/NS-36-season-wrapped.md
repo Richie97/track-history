@@ -44,7 +44,7 @@ thing with a date on it.
 | Availability | Any year with at least one past event, at any time. The route is a view, not a countdown. What is seasonal is the **reveal**: from 1 November to 31 January the dashboard carries a Wrapped hero for the year that is ending or just ended. A wrapped for the running year says *through <date>*. |
 | Tier | **Free** for the story and the share; **Pro** for the two cards built from Pro data (favourite tyre — garage consumables; top speed — channels). A free account sees those two as **locked** cards, never silently missing. Year in review stays Pro. Rows added to NS-32's tier table. |
 | Where it is computed | **The server**, in one endpoint, with the pure half in `src/lib/wrapped.ts`. Year in review is computed on the client from `/events`; Wrapped is not, because its inputs are different — the catalog's lap lengths, and every session's channel blob for top speed, which is Pro-stripped and far too heavy to ship for one number. The public share needs the same numbers with no session, and the OG description needs them inside the Worker. |
-| Schema | One column: `track_catalog.length_m` (migration 0022), seeded. **No existing response shape changes** — Android decodes the goldens with `ignoreUnknownKeys = false`, so a field added to `/tracks` or `/catalog` is a three-client change; a new endpoint is a one-client change. `GET /api/catalog` keeps returning `{ id, name }`. |
+| Schema | One column: `track_catalog.length_m` (migration 0026 — 0022 went to the units preference while this spec was on its branch), seeded. **No existing response shape changes** — Android decodes the goldens with `ignoreUnknownKeys = false`, so a field added to `/tracks` or `/catalog` is a three-client change; a new endpoint is a one-client change *for the screens* — though the goldens still owe both native suites a decode-only model, since each fails on a manifest entry nothing maps. `GET /api/catalog` keeps returning `{ id, name }`. |
 | Public share | `/share/:slug/wrapped/:year`, only for an owner who already has a share slug, carrying **the free card set only** — no garage, nothing channel-derived. Every number on it is derivable from what `GET /api/share/:slug` already publishes, so this is no new privacy surface and the policy does not need a bump. |
 | The share image | Rendered **on the client** (canvas; a 1080×1920 story and a 1200×630 landscape), handed to the Web Share API with files where the browser has it, downloaded otherwise. No Worker rasteriser: [#155](https://github.com/Richie97/track-history/issues/155)'s blocker stands. The link's OG *image* stays the brand card; its OG *title* and *description* become per-wrapped. |
 | Empty cards | A card with no data is **skipped**, never drawn empty — a card that says "no data" is a card of nothing. The exception is the two Pro cards on a free account, which draw locked. |
@@ -58,11 +58,11 @@ In order. Copy is indicative; the tone is warm and specific, never a dashboard.
 | 1 | **Cover** — "Your 2026 Track Evolution", the driver's name | `users.name` | never |
 | 2 | **The numbers** — track days · tracks · laps · track miles | `SUM(days)`, distinct tracks, `SUM(lap_count)`, miles (below) | never |
 | 3 | **Most driven** — the track with the most track days; "N days · M laps · best m:ss.fff" | per-track sums; ties broken by laps, then events | never (card 2 exists ⇒ a track exists) |
-| 4 | **Biggest improvement** — best before the year → best in the year, seconds found | year-review's `gains`, max positive `gain_ms` with a prior baseline; **fallback:** the largest *in-year* gain (first timed event at a track → best that year), labelled as a first year at that track | no timed track gained anything |
+| 4 | **Biggest improvement** — best before the year → best in the year, seconds found | year-review's `gains`, max positive `gain_ms` with a prior baseline; **fallback:** the largest *in-year* gain (first timed event at a track → best that year), labelled as a first year at that track — and so only at a track with no prior timed baseline | no timed track gained anything |
 | 5 | **Fastest lap** — the year's lowest `best_ms`, with its track and date | `best_ms` across the year's events | no timed event |
 | 6 | **New tracks** — "First time at X, Y" | year-review's `new_tracks` | none |
 | 7 | **Hours behind the wheel** | `SUM(hours)` via `eventHours` (`lib/wear.ts`) | never |
-| 8 | **Hottest day** — the event, its track, the temperature | `MAX(ambient_hi_c)` over the year's events, else `MAX(temp_f)` | no reading at all |
+| 8 | **Hottest day** — the event, its track, the temperature | the hottest event, reading each one's recorded `ambient_hi_c` over its typed `temp_f` (the `eventAmbient` rule — per event, so a hot day someone only typed in isn't beaten by a cooler recorded one) | no reading at all |
 | 9 | **Favourite tyre** — *Pro* — the tyre with the most track days on it | below | Pro and no tyre parts; **locked** on free |
 | 10 | **Top speed** — *Pro* — the year's highest sample, with its track | `MAX` over `speed` in every session's `channels` for the year | Pro and no channels; **locked** on free |
 | 11 | **The poster** — the summary card: the four numbers, most driven, improvement, fastest, tyre; Share / Save / Copy link; a link to year in review for the full table | everything above | never |
@@ -153,7 +153,7 @@ events is 404 `{ "error": "no events in 2026" }`. Otherwise:
   VIR layouts and an event with no laps; add a catalog-matched track with a
   length and one without, so `miles_tracks_counted < tracks` is pinned.
 
-### 2. Migration 0022 — `track_catalog.length_m` (ticket 1)
+### 2. Migration 0026 — `track_catalog.length_m` (ticket 1)
 
 `ALTER TABLE track_catalog ADD COLUMN length_m INTEGER;` plus one `UPDATE` per
 catalog row with a known length, in metres, from the venue's own published
@@ -251,7 +251,7 @@ true before 1 November:
 ## Acceptance criteria
 
 - [ ] `GET /api/wrapped/:year` behaves per requirement 1; `contracts/golden/wrapped.json` is committed; `npm run contracts:check` is clean.
-- [ ] Migration 0022 applies on a database at 0021; `GET /api/catalog` is byte-identical before and after.
+- [ ] Migration 0026 applies on a database at 0025; `GET /api/catalog` is byte-identical before and after.
 - [ ] Every rule in *The two new computations* has a unit test; `miles_tracks_counted < tracks` is pinned by the golden fixture.
 - [ ] `#/wrapped/:year` renders the story on a 375-px-wide viewport with no horizontal scroll, in both themes, with keyboard, tap and swipe navigation, and cuts instead of transitions under reduced motion.
 - [ ] The dashboard hero appears only inside the 1 Nov – 31 Jan window (`wrappedSeason` unit-tested at both edges) and only for a year with events.

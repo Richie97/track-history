@@ -450,6 +450,15 @@
       "status": 200,
       "description": "The signed-in user once entitled: tier pro, source legacy, no expiry.",
       "source": "src/routes/me.ts"
+    },
+    {
+      "name": "wrapped",
+      "file": "wrapped.json",
+      "method": "GET",
+      "path": "/wrapped/:year",
+      "status": 200,
+      "description": "Season Wrapped (NS-36): the season's numbers for one calendar year, past events only. `pro` is the one tier-dependent field — null for a free account.",
+      "source": "src/routes/wrapped.ts"
     }
   ]
 }
