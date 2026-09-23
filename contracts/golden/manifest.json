@@ -459,6 +459,15 @@
       "status": 200,
       "description": "Season Wrapped (NS-36): the season's numbers for one calendar year, past events only. `pro` is the one tier-dependent field — null for a free account.",
       "source": "src/routes/wrapped.ts"
+    },
+    {
+      "name": "share-wrapped",
+      "file": "share-wrapped.json",
+      "method": "GET",
+      "path": "/share/:slug/wrapped/:year",
+      "status": 200,
+      "description": "A shared Season Wrapped (unauthenticated): the same shape as GET /wrapped/:year with no `pro` key — the free card set only.",
+      "source": "src/routes/share.ts"
     }
   ]
 }

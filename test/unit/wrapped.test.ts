@@ -4,6 +4,7 @@ import {
   median,
   polylineLength,
   seasonWrapped,
+  wrappedSummary,
   wrappedYears,
   type WrappedEvent,
   type WrappedInputs,
@@ -298,5 +299,30 @@ describe("track miles", () => {
     expect(median([1, 2, 100])).toBe(2);
     expect(median([1, 3])).toBe(2);
     expect(median([])).toBeNull();
+  });
+});
+
+describe("wrappedSummary — the link preview", () => {
+  const w = (over = {}) =>
+    ({
+      ...seasonWrapped(
+        inputs([ev({ track_id: 1, track_name: "VIR (Full)", start_date: "2026-03-01", days: 14, lap_count: 1923 })], {
+          catalogLengths: [{ track_id: 1, length_m: 3582.5 }],
+        }),
+        2026,
+        TODAY
+      )!,
+      ...over,
+    });
+
+  it("reads like the poster's headline", () => {
+    expect(wrappedSummary(w())).toBe("14 track days · 1 track · 1,923 laps · 4,281 track miles · most driven VIR (Full)");
+  });
+
+  it("speaks the owner's units, and drops a distance nobody could measure", () => {
+    expect(wrappedSummary(w(), "metric")).toContain("6,889 track km");
+    const unmeasured = w();
+    unmeasured.totals = { ...unmeasured.totals, miles: 0, miles_tracks_counted: 0 };
+    expect(wrappedSummary(unmeasured)).toBe("14 track days · 1 track · 1,923 laps · most driven VIR (Full)");
   });
 });

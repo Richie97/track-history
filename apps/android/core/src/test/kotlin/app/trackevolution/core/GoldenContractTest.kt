@@ -92,7 +92,7 @@ class GoldenContractTest {
             "garage" -> roundTrip(entry.name, ListSerializer(GarageVehicle.serializer()))
             "vehicle-steering-fit" -> roundTrip(entry.name, SteeringFits.serializer())
             "share-public" -> roundTrip(entry.name, ShareData.serializer())
-            "wrapped" -> roundTrip(entry.name, Wrapped.serializer())
+            "wrapped", "share-wrapped" -> roundTrip(entry.name, Wrapped.serializer())
             "track-create" -> roundTrip(entry.name, CreatedTrack.serializer())
             "vehicle-create" -> roundTrip(entry.name, Vehicle.serializer())
             "part-refresh" -> roundTrip(entry.name, PartRefresh.serializer())

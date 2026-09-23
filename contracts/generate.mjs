@@ -613,6 +613,14 @@ async function captureAll(api, anon, f) {
     "Season Wrapped (NS-36): the season's numbers for one calendar year, past events " +
     "only. `pro` is the one tier-dependent field — null for a free account.",
     "src/routes/wrapped.ts", await api("GET", "/wrapped/2026"));
+
+  // The public share of the same season: the slug was cleared above, so it is
+  // claimed again (uncaptured — share-set already pins that response).
+  await api("PUT", "/share", { slug: f.slug });
+  record("share-wrapped", "GET", "/share/:slug/wrapped/:year",
+    "A shared Season Wrapped (unauthenticated): the same shape as GET /wrapped/:year " +
+    "with no `pro` key — the free card set only.",
+    "src/routes/share.ts", await anon("GET", `/share/${f.slug}/wrapped/2026`));
 }
 
 // ---------------------------------------------------------------------------
@@ -635,7 +643,7 @@ const EXPECTED_ROUTES = [
   "GET /vehicles/:id/steering-fit",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
-  "PUT /share", "DELETE /share", "GET /share/:slug",
+  "PUT /share", "DELETE /share", "GET /share/:slug", "GET /share/:slug/wrapped/:year",
   "GET /wrapped/:year",
   // Billing (NS-32). The three store routes — POST /billing/apple,
   // /billing/apple/legacy and /billing/google — need payloads signed by the
