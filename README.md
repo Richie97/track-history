@@ -1213,7 +1213,10 @@ server):
   description edit and a resubmission of the same binary. (It cost us a review
   cycle on the first subscription submission, which is why it is spelled out
   here rather than left as "links in the metadata".)
-- *Play Console:* one subscription with monthly and yearly base plans; a
+- *Play Console:* one subscription, `app.trackevolution.pro`, with base plans
+  `app-trackevolution-pro-monthly` and `app-trackevolution-pro-yearly` — the
+  ids `BillingProducts` in the Android app matches on, so a base plan under
+  any other id is silently not offered; a
   service account with *View financial data* and *Manage orders and
   subscriptions* (its JSON key is `GOOGLE_PLAY_SERVICE_ACCOUNT`); an RTDN
   Pub/Sub topic with a **push** subscription to

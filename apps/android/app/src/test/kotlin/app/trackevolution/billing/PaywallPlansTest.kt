@@ -48,7 +48,7 @@ class PaywallPlansTest {
     @Test
     fun `monthly then yearly, from the base plans`() {
         val plans = PaywallPlans.plans(listOf(yearlyBase, monthlyBase))
-        assertEquals(listOf("monthly", "yearly"), plans.map { it.basePlanId })
+        assertEquals(listOf(BillingProducts.MONTHLY, BillingProducts.YEARLY), plans.map { it.basePlanId })
         assertEquals("$1.99", plans[0].price)
         assertEquals("month", plans[0].period)
         assertNull(plans[0].trial)
@@ -70,14 +70,14 @@ class PaywallPlansTest {
     @Test
     fun `a base plan Play does not return is simply absent`() {
         val plans = PaywallPlans.plans(listOf(monthlyBase))
-        assertEquals(listOf("monthly"), plans.map { it.basePlanId })
+        assertEquals(listOf(BillingProducts.MONTHLY), plans.map { it.basePlanId })
         assertEquals(emptyList<Plan>(), PaywallPlans.plans(emptyList()))
     }
 
     @Test
     fun `a base plan the paywall does not know is ignored`() {
         val weekly = monthlyBase.copy(basePlanId = "weekly", offerToken = "w")
-        assertEquals(listOf("monthly"), PaywallPlans.plans(listOf(weekly, monthlyBase)).map { it.basePlanId })
+        assertEquals(listOf(BillingProducts.MONTHLY), PaywallPlans.plans(listOf(weekly, monthlyBase)).map { it.basePlanId })
     }
 
     @Test
