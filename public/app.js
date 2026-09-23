@@ -22,6 +22,8 @@ import {
   elevationText, eventAmbient, tempText, trackElevationM,
 } from "./js/conditions.js";
 import { yearsAvailable, yearReview } from "./js/year-review.js";
+import { wrappedSeason } from "./js/wrapped.js";
+import { bindWrappedStory, wrappedStoryHtml } from "./js/wrapped-story.js";
 import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
@@ -784,6 +786,14 @@ async function viewDashboard() {
     })
     .join("");
 
+  // Season Wrapped's reveal (NS-36): 1 Nov – 31 Jan, for a year this driver
+  // actually drove, until they dismiss it for that season.
+  const wrapYear = wrappedSeason();
+  const showWrapped =
+    wrapYear != null &&
+    !wrappedDismissed(wrapYear) &&
+    events.some((e) => !isUpcoming(e) && e.start_date.startsWith(`${wrapYear}-`));
+
   const slug = state.me.share_slug || "";
   const view = shell(`
     <div class="btn-row" style="margin-top:20px">
@@ -791,6 +801,7 @@ async function viewDashboard() {
       <a class="btn" href="#/year">Year in review</a>
     </div>
     ${alertStripHtml(garage, { collapsible: true })}
+    ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${state.totals.events}</div></div>
@@ -819,6 +830,11 @@ async function viewDashboard() {
   `);
   // Warm the offline cache in the background while we're on the dashboard.
   scheduleWarm();
+
+  view.querySelector("#wrapped-dismiss")?.addEventListener("click", () => {
+    dismissWrapped(wrapYear);
+    view.querySelector(".wrapped-hero")?.remove();
+  });
 
   const shareMsg = view.querySelector("#share-msg");
   const shareInput = view.querySelector("#share-slug");
@@ -3431,6 +3447,90 @@ async function viewYear(params) {
   wireRowLinks(view);
 }
 
+// --- season wrapped (NS-36) ---
+
+// The dashboard hero is dismissable per season. A per-viewer convenience, so
+// localStorage — wrapped in try/catch like every other read of it here.
+const wrappedDismissKey = (year) => `th-wrapped-dismissed-${year}`;
+function wrappedDismissed(year) {
+  try {
+    return localStorage.getItem(wrappedDismissKey(year)) === "1";
+  } catch {
+    return false;
+  }
+}
+function dismissWrapped(year) {
+  try {
+    localStorage.setItem(wrappedDismissKey(year), "1");
+  } catch {
+    /* private mode: the hero simply comes back next time */
+  }
+}
+
+function wrappedHeroHtml(year) {
+  return `<div class="wrapped-hero">
+    <a href="#/wrapped/${year}"><span class="hero-kicker">Season Wrapped</span>Your ${year} Wrapped is ready →</a>
+    <button type="button" id="wrapped-dismiss" aria-label="Hide the ${year} Wrapped reminder">✕</button>
+  </div>`;
+}
+
+function wrappedYearPicker(years, current, hrefFor) {
+  if (years.length < 2) return "";
+  return `<div class="btn-row wr-years" role="group" aria-label="Year">${years
+    .map((y) =>
+      y === current
+        ? `<span class="btn small primary" aria-current="page">${y}</span>`
+        : `<a class="btn small" href="${hrefFor(y)}">${y}</a>`
+    )
+    .join("")}</div>`;
+}
+
+// The two Pro cards' store links on a free account — proPanelHtml's buttons,
+// without the panel, since the card is already the panel's shape.
+const wrappedLockedHtml = () => `<div class="btn-row">
+    <a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
+    <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>
+  </div>
+  <p class="hint">Track Evolution Pro is ${PRO_PRICE}. Wrapped itself is free.</p>`;
+
+async function viewWrapped(yearParam) {
+  let year = /^\d{4}$/.test(yearParam ?? "") ? Number(yearParam) : null;
+  let years = null;
+  const pastYears = async () => yearsAvailable((await api("/events")).filter((e) => !isUpcoming(e)));
+  if (year == null) {
+    years = await pastYears();
+    year = years[0] ?? new Date().getFullYear();
+  }
+  let data;
+  try {
+    data = await api(`/wrapped/${year}`);
+  } catch (err) {
+    // A year with no track days is a page, not an error.
+    if (!(err instanceof ApiError && err.status === 404)) throw err;
+    years ??= await pastYears();
+    shell(`
+      <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
+      <h1>No track days in ${year} — yet</h1>
+      <p class="sub">Wrapped tells the story of a season once there's a track day in it.</p>
+      ${wrappedYearPicker(years, year, (y) => `#/wrapped/${y}`) || (years.length ? `<div class="btn-row"><a class="btn small" href="#/wrapped/${years[0]}">See ${years[0]}</a></div>` : "")}
+    `);
+    return;
+  }
+  const view = shell(
+    wrappedStoryHtml(data, {
+      units: currentUnits(),
+      share: false,
+      closeHref: "#/",
+      yearPickerHtml: wrappedYearPicker(data.years, data.year, (y) => `#/wrapped/${y}`),
+      lockedHtml: wrappedLockedHtml(),
+      posterActionsHtml: `<div class="btn-row wr-actions">
+        <a class="btn small" href="#/year?y=${data.year}">The full year in review →</a>
+      </div>`,
+    })
+  );
+  bindWrappedStory(view.querySelector("#wrapped-story"));
+}
+
 function viewNotFound() {
   shell(`<div class="empty">Not found. <a href="#/">Back to dashboard</a></div>`);
 }
@@ -3638,6 +3738,7 @@ async function route() {
     if (parts[0] === "vehicle" && parts[1]) return await viewVehicle(parts[1]);
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
     if (parts[0] === "year") return await viewYear(params);
+    if (parts[0] === "wrapped") return await viewWrapped(parts[1]);
     if (parts[0] === "settings") return await viewSettings();
     viewNotFound();
   } catch (err) {
