@@ -36,7 +36,6 @@ import androidx.compose.ui.semantics.testTag
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
-import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Track
@@ -146,13 +145,6 @@ fun DashboardScreen(
                     }
                 }
 
-                // Above the fold, because it is the one thing here with a deadline.
-                // Collapsed to a count: on the dashboard maintenance is one section
-                // among many, and the vehicle page is where it is the point.
-                if (model.alerts.isNotEmpty()) {
-                    item("maintenance") { MaintenanceStrip(model.alerts, onOpenVehicle) }
-                }
-
                 // Season Wrapped's reveal (NS-36): 1 Nov – 31 Jan, for a year this
                 // driver drove, until dismissed for that season.
                 model.wrappedYear?.takeIf { !model.wrappedDismissed(it) }?.let { year ->
@@ -167,6 +159,11 @@ fun DashboardScreen(
 
                 model.heroEvent?.let { hero ->
                     item("hero") { HeroCard(hero, selected = selection == Route.Event(hero.id)) { onOpenEvent(hero.id) } }
+                    // The garage's one line here now it has its own tab (NS-37):
+                    // its own control under the hero, since the hero is one already.
+                    model.heroGarage?.let { due ->
+                        item("hero-garage") { HeroGarageLine(due) { onOpenVehicle(due.vehicleId) } }
+                    }
                 }
 
                 item("totals") {
@@ -209,12 +206,6 @@ fun DashboardScreen(
                     }
                 }
 
-                if (model.garage.isNotEmpty()) {
-                    item("garage-header") { TESectionHeader("Garage") }
-                    cardGridItems(model.garage, cardColumns, key = { "veh-${it.id}" }) { vehicle ->
-                        VehicleRow(vehicle, selected = selection == Route.Vehicle(vehicle.id)) { onOpenVehicle(vehicle.id) }
-                    }
-                }
             }
         }
     }
@@ -273,83 +264,22 @@ private fun DashboardTopBar(onOpenSettings: () -> Unit) {
 }
 
 /**
- * The maintenance reminders, collapsed to a count until tapped.
- *
- * A `Column` that expands rather than a Material `ExposedDropdown` or an
- * `AlertDialog`: the web app's `<details>` behaves this way, and a reminder you
- * have to dismiss is one you learn to dismiss without reading.
+ * The next event's car has a part due or nearly so (NS-37, Pro): one line that
+ * opens the car in the Garage tab.
  */
 @Composable
-private fun MaintenanceStrip(alerts: List<Garage.Alert>, onOpenVehicle: (Int) -> Unit) {
+private fun HeroGarageLine(due: HeroGarage, onClick: () -> Unit) {
     val colors = TrackTheme.colors
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    val due = alerts.count { it.status == Garage.PartStatus.DUE }
-
-    TrackCard(
-        modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
-        border = if (due > 0) colors.danger else colors.borderHairline,
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                fmtCount(alerts.size, "maintenance reminder"),
-                style = TrackTheme.typography.bodyStrong,
-                color = if (due > 0) colors.danger else colors.textStrong,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                if (expanded) "▾" else "▸",
-                style = TrackTheme.typography.sm,
-                color = colors.textFaint,
-            )
-        }
-        if (expanded) {
-            alerts.forEach { alert ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenVehicle(alert.vehicle.id) }
-                        .padding(top = 8.dp),
-                ) {
-                    Text(
-                        "${alert.part.kind.label} — " +
-                            if (alert.status == Garage.PartStatus.DUE) {
-                                "replace now"
-                            } else {
-                                Garage.fmtRemaining(alert.part.wear).orEmpty()
-                            },
-                        style = TrackTheme.typography.sm,
-                        color = if (alert.status == Garage.PartStatus.DUE) colors.danger else colors.textBody,
-                    )
-                    Text(
-                        alert.vehicle.name,
-                        style = TrackTheme.typography.xxs,
-                        color = colors.textMuted,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** A car, its accrued hours and how its consumables are doing. */
-@Composable
-private fun VehicleRow(vehicle: GarageVehicle, selected: Boolean = false, onClick: () -> Unit) {
-    val colors = TrackTheme.colors
-    val active = vehicle.parts.count { it.retiredOn == null }
-    TENavCard(onClick = onClick, selected = selected) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text(vehicle.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-                TEMeta(
-                    listOf(
-                        Garage.fmtHours(vehicle.hours),
-                        fmtCount(vehicle.eventDays, "track day"),
-                        fmtCount(active, "consumable"),
-                    ),
-                )
-            }
-        }
-    }
+    Text(
+        "${due.line} →",
+        style = TrackTheme.typography.sm,
+        color = colors.danger,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .semantics { testTag = "heroGarage" },
+    )
 }
 
 /** The nearest upcoming event, with its countdown and checklist progress. */

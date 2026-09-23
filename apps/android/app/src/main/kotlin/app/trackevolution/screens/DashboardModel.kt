@@ -13,6 +13,8 @@ import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Totals
 import app.trackevolution.core.model.Track
+import app.trackevolution.core.label
+import app.trackevolution.navigation.GarageBadge
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -61,10 +63,10 @@ class DashboardModel(
                 return@launch
             }
 
-            // The garage is fetched separately and its failure is swallowed on
-            // purpose (NS-31): it is a section, not the screen, and an empty or
-            // failing garage must not cost the user their logbook.
-            garage = runCatching { api.garage() }.getOrDefault(emptyList())
+            // The garage is fetched only for the hero's due-part line now that it
+            // has its own tab (NS-37), and its failure is swallowed on purpose: a
+            // 402 for a free account, or no network, must not cost the logbook.
+            garage = runCatching { api.garage() }.getOrNull()?.also { GarageBadge.note(it) }.orEmpty()
 
             // Warm every event's detail so an event never opened still reads in
             // the paddock. A warm-up, not a load — failures are ignored.
@@ -73,12 +75,19 @@ class DashboardModel(
     }
 
     /**
-     * The maintenance reminders across every car (NS-31). Derived, not fetched:
-     * `Garage.garageAlerts` is the port of the web app's own rule, so the strip
-     * on the dashboard and the panel on a vehicle page can never disagree.
+     * The next event's car, when something on it needs attention first (NS-37)
+     * — the one thing the dashboard still says about the garage. Pro only by
+     * construction: [garage] is empty for a free account. The web's
+     * `heroGarageHtml`, over `Garage.garageAlerts` for that one car.
      */
-    val alerts: List<Garage.Alert>
-        get() = Garage.garageAlerts(garage)
+    val heroGarage: HeroGarage?
+        get() {
+            val vehicleId = heroEvent?.vehicleId ?: return null
+            val vehicle = garage.firstOrNull { it.id == vehicleId } ?: return null
+            val alerts = Garage.garageAlerts(listOf(vehicle))
+            val first = alerts.firstOrNull() ?: return null
+            return HeroGarage(vehicleId = vehicle.id, line = heroGarageLine(first, alerts.size - 1))
+        }
 
     /** Tracks worth listing: one with no events has nothing to show yet. */
     val tracksWithData: List<Track>
@@ -140,6 +149,14 @@ class DashboardModel(
         dismissStore?.dismiss(year)
     }
 }
+
+/** The hero card's due-part line and the car it opens. */
+data class HeroGarage(val vehicleId: Int, val line: String)
+
+/** "Front pads due on the C8 · +1 more" — `heroGarageHtml`'s words, minus the arrow. */
+internal fun heroGarageLine(first: Garage.Alert, more: Int): String =
+    "${first.part.kind.label} ${if (first.status == Garage.PartStatus.DUE) "due" else "due soon"} " +
+        "on the ${first.vehicle.name}${if (more > 0) " · +$more more" else ""}"
 
 /** Remembers which seasons' Wrapped banner the driver dismissed. */
 interface WrappedDismissStore {

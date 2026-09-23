@@ -29,15 +29,20 @@ class VehicleModelTest {
 
     private val sent = java.util.concurrent.CopyOnWriteArrayList<HttpRequestData>()
 
-    private fun api(garage: String = GARAGE): ApiClient {
+    private fun api(
+        garage: String = GARAGE,
+        vehicles: String = VEHICLES,
+        garageStatus: HttpStatusCode = HttpStatusCode.OK,
+    ): ApiClient {
         val engine = MockEngine { request ->
             sent += request
             val path = request.url.encodedPath
-            val body = when {
-                path.endsWith("/garage") -> garage
-                else -> """{"ok":true}"""
+            when {
+                path.endsWith("/garage") -> respond(garage, garageStatus, JSON)
+                path.endsWith("/vehicles") && request.method.value == "GET" -> respond(vehicles, HttpStatusCode.OK, JSON)
+                path.endsWith("/events") -> respond(EVENTS, HttpStatusCode.OK, JSON)
+                else -> respond("""{"ok":true}""", HttpStatusCode.OK, JSON)
             }
-            respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
         }
         return ApiClient(engine, baseUrl = "https://example.test")
     }
@@ -78,8 +83,37 @@ class VehicleModelTest {
 
     @Test
     fun `a missing car says so rather than showing an empty page`() {
-        val model = loaded(api(garage = "[]"))
+        // The free list decides whether there is a car at all (NS-37), not /garage.
+        val model = loaded(api(vehicles = "[]"))
         assertEquals(LoadState.Failed("That car isn't in your garage any more."), model.state)
+    }
+
+    @Test
+    fun `a free account gets the car with its Pro half locked, not a paywall`() {
+        // NS-37: a 402 from /garage used to turn the whole page into a paywall,
+        // which is why a free account's car had no page.
+        val model = loaded(
+            api(garage = """{"error":"pro required"}""", garageStatus = HttpStatusCode.PaymentRequired),
+        )
+        assertEquals(LoadState.Ready, model.state)
+        assertTrue(model.proLocked)
+        assertEquals(null, model.garage)
+        assertEquals("Corvette Z06", model.vehicle?.name)
+        assertEquals(emptyList<Any>(), model.activeParts)
+        // The free half is the logbook, reduced from the cached events.
+        assertEquals(2, model.logbook.events)
+        assertEquals(3.0, model.logbook.trackDays, 0.0)
+        assertEquals(listOf(100), model.logbook.bests.map { it.trackId })
+    }
+
+    @Test
+    fun `deleting the car sends the delete and marks the page gone`() = runBlocking {
+        val model = loaded()
+        sent.clear()
+        model.deleteVehicle()
+        withTimeout(5_000) { while (!model.deleted) delay(5) }
+        val delete = sent.single { it.method.value == "DELETE" }
+        assertTrue(delete.url.encodedPath.endsWith("/vehicles/1"))
     }
 
     @Test
@@ -139,6 +173,8 @@ class VehicleModelTest {
             val path = request.url.encodedPath
             when {
                 path.endsWith("/garage") -> respond(GARAGE, HttpStatusCode.OK, JSON)
+                path.endsWith("/vehicles") -> respond(VEHICLES, HttpStatusCode.OK, JSON)
+                path.endsWith("/events") -> respond(EVENTS, HttpStatusCode.OK, JSON)
                 else -> respond(
                     """{"error":"A part needs an install date."}""",
                     HttpStatusCode.BadRequest,
@@ -160,6 +196,18 @@ class VehicleModelTest {
 
     private companion object {
         val JSON = headersOf(HttpHeaders.ContentType, "application/json")
+
+        const val VEHICLES = """[{"id":1,"name":"Corvette Z06","is_default":1},{"id":2,"name":"Miata","is_default":0}]"""
+
+        /** Two past days on car 1 (one of them two days long), one on the Miata. */
+        const val EVENTS = """
+            [{"id":5,"track_id":100,"track_name":"VIR","start_date":"2026-04-11","days":2,
+              "vehicle_id":1,"updated_at":1,"lap_count":0,"session_count":0,"best_ms":125000,"hours":4},
+             {"id":6,"track_id":101,"track_name":"NCM","start_date":"2026-05-02","days":1,
+              "vehicle_id":1,"updated_at":1,"lap_count":0,"session_count":0,"hours":2},
+             {"id":7,"track_id":100,"track_name":"VIR","start_date":"2026-06-01","days":1,
+              "vehicle_id":2,"updated_at":1,"lap_count":0,"session_count":0,"best_ms":139000,"hours":2}]
+        """
 
         /** Part 10 is due, 11 is healthy, 12 is retired. */
         const val GARAGE = """

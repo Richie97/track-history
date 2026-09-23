@@ -51,7 +51,8 @@ fun DashboardPane(
         model = model,
         onOpenEvent = { nav.open(Route.Event(it), inListPane) },
         onOpenTrack = { nav.open(Route.Track(it), inListPane) },
-        onOpenVehicle = { nav.open(Route.Vehicle(it), inListPane) },
+        // The car lives in the Garage tab (NS-37): an arrival there, at every width.
+        onOpenVehicle = { nav.show(Route.Vehicle(it)) },
         onNewEvent = { nav.open(Route.EventForm(), inListPane) },
         onOpenSettings = { nav.open(Route.Settings, inListPane) },
         // Never replaced or paned: the record screen owns the window at every

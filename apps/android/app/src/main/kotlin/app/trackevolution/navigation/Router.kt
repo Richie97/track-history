@@ -45,13 +45,11 @@ public class Router {
  * Send a deep link to its screen, replacing whatever was on the stack.
  *
  * A link is an arrival, not a step deeper into where you already were, so the
- * back stack is reset to the dashboard beneath the target: back from a shared
- * link opens the logbook rather than retracing a stack the user never walked.
+ * back stack is reset to the root of the route's **tab** beneath the target
+ * (NS-37): back from a shared link opens the logbook, and back from a car link
+ * opens the Garage, rather than retracing a stack the user never walked.
  */
-public fun NavHostController.showDeepLink(route: Route) {
-    popBackStack(Route.Dashboard, inclusive = false)
-    if (route != Route.Dashboard) navigate(route)
-}
+public fun NavHostController.showDeepLink(route: Route) = show(route)
 
 /**
  * Follow a row that was created offline once its real id arrives.

@@ -8,6 +8,9 @@ import app.trackevolution.core.Garage
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.CatalogCar
+import app.trackevolution.core.model.Event
+import app.trackevolution.core.model.Vehicle
+import app.trackevolution.navigation.GarageBadge
 import app.trackevolution.core.model.SteeringFit
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.MeasurementDraft
@@ -19,10 +22,12 @@ import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.VehiclePatch
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 /**
- * One car's garage page (NS-31): what is fitted, and how much life is left in it.
+ * One car's page (NS-31, NS-37): what it has done — for every account — and for
+ * Pro what is fitted, and how much life is left in it.
  *
  * **Nothing here computes wear.** `GET /api/garage` returns every part with its
  * estimate already computed by `src/lib/wear.ts`; this model fetches, and
@@ -43,7 +48,31 @@ class VehicleModel(
     var state by mutableStateOf<LoadState>(LoadState.Loading)
         private set
 
-    var vehicle by mutableStateOf<GarageVehicle?>(null)
+    /**
+     * The car itself, from the free `GET /vehicles` (NS-37): what every account
+     * sees, and what the *Edit car* form edits.
+     */
+    var vehicle by mutableStateOf<Vehicle?>(null)
+        private set
+
+    /**
+     * The same car from `GET /garage` — hours, parts, wear and spend. Null for a
+     * free account, which sees the Pro half locked ([proLocked]) rather than the
+     * whole page as a paywall.
+     */
+    var garage by mutableStateOf<GarageVehicle?>(null)
+        private set
+
+    /** `/garage` answered 402: the Pro half renders locked, in place. */
+    var proLocked by mutableStateOf(false)
+        private set
+
+    /** The logbook's events, cached — the free half is reduced from them. */
+    var events by mutableStateOf<List<Event>>(emptyList())
+        private set
+
+    /** The car was deleted; the screen leaves. */
+    var deleted by mutableStateOf(false)
         private set
 
     var writeError by mutableStateOf<String?>(null)
@@ -68,30 +97,64 @@ class VehicleModel(
     var steeringFits by mutableStateOf<List<SteeringFit>?>(null)
         private set
 
+    /**
+     * The free half first, the Pro half alongside (NS-37). `/vehicles` and the
+     * cached `/events` decide whether there is a page at all; `/garage` only
+     * decides what the Pro sections show, and a 402 from it locks them rather
+     * than turning the whole car into a paywall — which is what this used to do,
+     * and why a free account's car had no page.
+     */
     fun load() {
         scope.launch {
             try {
-                val found = api.garage().firstOrNull { it.id == vehicleId }
+                val vehicleList = async { api.vehicles() }
+                val eventList = async { api.events() }
+                val garageList = async {
+                    try {
+                        api.garage()
+                    } catch (e: ApiException) {
+                        if (e.isPaymentRequired) proLocked = true
+                        null
+                    }
+                }
+                val found = vehicleList.await().firstOrNull { it.id == vehicleId }
+                events = eventList.await()
+                val pro = garageList.await()
                 if (found == null) {
                     state = LoadState.Failed("That car isn't in your garage any more.")
                     return@launch
                 }
                 vehicle = found
+                if (pro != null) {
+                    proLocked = false
+                    garage = pro.firstOrNull { it.id == vehicleId }
+                    GarageBadge.note(pro)
+                }
                 state = LoadState.Ready
             } catch (e: ApiException) {
                 if (vehicle != null) return@launch
-                // GET /api/garage is Pro since phase D. "Couldn't load this car
-                // — pro required" would read as a bug rather than as a price.
-                state = if (e.isPaymentRequired) {
-                    LoadState.Paywall(
-                        title = "Garage wear tracking is Pro",
-                        blurb = "Pads, tires, rotors and fluid, each with the hours it has actually " +
-                            "done — accrued from your own track days — and what's left of them " +
-                            "before the next event. Your cars themselves stay free.",
-                    )
-                } else {
-                    LoadState.Failed(e.message ?: "Couldn't load this car.")
-                }
+                state = LoadState.Failed(e.message ?: "Couldn't load this car.")
+            }
+        }
+    }
+
+    /** One car's logbook (NS-37), reduced from the cached event list. */
+    val logbook: Garage.VehicleLogbook
+        get() = Garage.vehicleLogbook(vehicleId, events, EventDates.todayIso())
+
+    /**
+     * Cascades to the car's parts and measurements. Events keep the free-text
+     * car name they were logged with and simply stop being linked. Moved here
+     * from Settings (NS-37): delete lives on the car it deletes.
+     */
+    fun deleteVehicle() {
+        scope.launch {
+            writeError = null
+            try {
+                api.deleteVehicle(vehicleId)
+                deleted = true
+            } catch (e: ApiException) {
+                writeError = e.message
             }
         }
     }
@@ -126,17 +189,17 @@ class VehicleModel(
     // ---- Derived ------------------------------------------------------------
 
     val activeParts: List<Part>
-        get() = vehicle?.parts.orEmpty().filter { it.retiredOn == null }
+        get() = garage?.parts.orEmpty().filter { it.retiredOn == null }
 
     val retiredParts: List<Part>
-        get() = vehicle?.parts.orEmpty().filter { it.retiredOn != null }
+        get() = garage?.parts.orEmpty().filter { it.retiredOn != null }
 
     /** Everything ever fitted, retired included — what the car has cost you. */
     val spendCents: Int
-        get() = vehicle?.parts.orEmpty().sumOf { it.costCents ?: 0 }
+        get() = garage?.parts.orEmpty().sumOf { it.costCents ?: 0 }
 
     val alerts: List<Garage.Alert>
-        get() = Garage.garageAlerts(vehicle?.let { listOf(it) })
+        get() = Garage.garageAlerts(garage?.let { listOf(it) })
 
     // ---- Writes -------------------------------------------------------------
 

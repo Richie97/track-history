@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -47,7 +48,8 @@ import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartKind
-import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.Vehicle
+import app.trackevolution.core.LapTime
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.Patch
 import app.trackevolution.ui.LoadState
@@ -60,6 +62,7 @@ import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.TEField
 import app.trackevolution.ui.TELoadable
+import app.trackevolution.ui.TEProLocked
 import app.trackevolution.ui.TEMeta
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.TEStatRow
@@ -70,18 +73,24 @@ import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 
 /**
- * One car: what's fitted, how much life is left in it, and what wore it out
- * (NS-31).
+ * One car: what it has done, for every account — and for Pro what's fitted, how
+ * much life is left in it, and what wore it out (NS-31, NS-37).
  *
- * `viewVehicle` in `public/app.js` is the reference, including its wording. The
- * setup notebook and the setup-vs-lap-times diff stay deferred on native and are
- * absent rather than stubbed.
+ * `viewVehicle` in `public/app.js` is the reference, including its wording. A
+ * free account gets the logbook tiles, the last-out / next-up line, the best in
+ * this car and the *Edit car* form, with the Pro half **locked in place** rather
+ * than the page being a paywall. The setup notebook and the setup-vs-lap-times
+ * diff stay deferred on native and are absent rather than stubbed.
  */
 @Composable
 fun VehicleScreen(
     model: VehicleModel,
     modifier: Modifier = Modifier,
     onRequirePro: () -> Unit = {},
+    onOpenEvent: (Int) -> Unit = {},
+    onOpenTrack: (Int) -> Unit = {},
+    /** The car is gone; leave its page. */
+    onDeleted: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     // Which part has a confirmation open, by **id** rather than by `Part`.
@@ -94,14 +103,19 @@ fun VehicleScreen(
     var confirmRetireId by rememberSaveable { mutableStateOf<Int?>(null) }
     var confirmRefreshId by rememberSaveable { mutableStateOf<Int?>(null) }
     var confirmDeleteId by rememberSaveable { mutableStateOf<Int?>(null) }
+    // The car's own delete (NS-37, moved from Settings), the same pattern: the
+    // vehicle id, saveably.
+    var confirmDeleteCarId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     // Two columns, and which consumable the right one is showing (NS-34 ticket 3).
     //
     // Narrower than the event page's analysis column and with a lower floor,
     // because what goes in it is a two-field form rather than a track map and a
     // stack of charts. Measured against this page's own column rather than the
-    // window's class — see `LayoutMetrics.sideColumnWidth`.
+    // window's class — see `LayoutMetrics.sideColumnWidth`. Pro only: a free
+    // account has no consumables to put in it.
     val partWidth = LocalLayoutMetrics.current.sideColumnWidth(0.42f, 340.dp, 560.dp)
+        .takeIf { model.garage != null }
     val twoColumn = partWidth != null
     var selectedPartId by rememberSaveable { mutableStateOf<Int?>(null) }
     // The car's own form, open or not. Saveable for the same reason the dialogs
@@ -109,9 +123,12 @@ fun VehicleScreen(
     var editingCar by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
+    LaunchedEffect(model.deleted) { if (model.deleted) onDeleted() }
 
-    TELoadable(state = model.state, onRetry = model::load, modifier = modifier, onSubscribe = onRequirePro) {
+    TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val vehicle = model.vehicle ?: return@TELoadable
+        val pro = model.garage
+        val logbook = model.logbook
 
         val page = @Composable {
         LazyColumn(
@@ -137,9 +154,7 @@ fun VehicleScreen(
                             )
                         }
                         // The car itself — name, mods, the pressure the health
-                        // strip aims at, whether new events start on it. This
-                        // used to live only in Settings, a screen away from the
-                        // garage it describes.
+                        // strip aims at, whether new events start on it.
                         TextButton(onClick = { editingCar = !editingCar }) {
                             Text("Edit car", style = TrackTheme.typography.sm, color = colors.accentInk)
                         }
@@ -154,16 +169,16 @@ fun VehicleScreen(
                 item("edit-car") {
                     // The catalog is fetched when the form opens, not with the
                     // page: it is only needed here, and the picker reads it from
-                    // the response cache offline.
+                    // the response cache offline. The measured ratio is Pro.
                     LaunchedEffect(Unit) {
                         model.loadCatalog()
-                        model.loadSteeringFits()
+                        if (model.garage != null) model.loadSteeringFits()
                     }
                     VehicleForm(
                         vehicle,
                         catalog = model.catalog,
                         catalogError = model.catalogError,
-                        steeringFits = model.steeringFits,
+                        steeringFits = if (pro != null) model.steeringFits else null,
                         onCancel = { editingCar = false },
                     ) { edit ->
                         model.updateVehicle(
@@ -173,23 +188,6 @@ fun VehicleScreen(
                         editingCar = false
                     }
                 }
-            }
-
-            // Expanded, not collapsed: on the dashboard maintenance is one
-            // section among many, but on this page it is the point of the view.
-            if (model.alerts.isNotEmpty()) {
-                item("alerts") { MaintenancePanel(model.alerts) }
-            }
-
-            item("tiles") {
-                TEStatRow(
-                    listOf(
-                        "Track hours" to Garage.fmtHours(vehicle.hours),
-                        "Track days" to vehicle.eventDays.toString(),
-                        "Events" to vehicle.eventCount.toString(),
-                        "Parts spend" to (Garage.fmtCost(model.spendCents.takeIf { it > 0 }) ?: "—"),
-                    ),
-                )
             }
 
             model.writeError?.let { message ->
@@ -203,53 +201,106 @@ fun VehicleScreen(
                 }
             }
 
-            item("parts-header") { TESectionHeader("Consumables in service") }
-            item("parts-hint") {
-                Text(
-                    "Wear accrues automatically from this car's logged events (2h per track day " +
-                        "unless an event says otherwise). Log a quick pad or tread measurement " +
-                        "between events and the projection switches from estimated to measured.",
-                    style = TrackTheme.typography.xs,
-                    color = colors.textMuted,
+            // Expanded, not collapsed: on the garage list maintenance is one
+            // line among the cars, but on this page it is the point of the view.
+            if (model.alerts.isNotEmpty()) {
+                item("alerts") { MaintenancePanel(model.alerts) }
+            }
+
+            item("tiles") {
+                TEStatRow(
+                    if (pro != null) {
+                        listOf(
+                            "Track hours" to Garage.fmtHours(pro.hours),
+                            "Track days" to pro.eventDays.toString(),
+                            "Events" to pro.eventCount.toString(),
+                            "Parts spend" to (Garage.fmtCost(model.spendCents.takeIf { it > 0 }) ?: "—"),
+                        )
+                    } else {
+                        listOf(
+                            "Track days" to fmtDays(logbook.trackDays),
+                            "Events" to logbook.events.toString(),
+                        )
+                    },
                 )
             }
 
-            if (model.activeParts.isEmpty()) {
-                item("parts-empty") {
-                    TEEmpty(
-                        "Nothing tracked yet — add pads, tires or fluid below and Track Evolution " +
-                            "will tell you when they're due.",
-                    )
+            item("logbook-line") { LogbookLine(logbook, onOpenEvent) }
+
+            if (logbook.bests.isNotEmpty()) {
+                item("bests-header") { TESectionHeader("Best in this car") }
+                item("bests") { BestsCard(logbook.bests, onOpenTrack = onOpenTrack, onOpenEvent = onOpenEvent) }
+            }
+
+            if (pro == null) {
+                // Locked in place, never simply missing (NS-37).
+                if (model.proLocked) {
+                    item("pro-header") { TESectionHeader("Consumables, hours and costs") }
+                    item("pro-locked") {
+                        TEProLocked(
+                            title = "Consumables, hours and costs",
+                            blurb = GARAGE_PRO_WHAT,
+                            onSubscribe = onRequirePro,
+                        )
+                    }
                 }
             } else {
-                model.activeParts.forEach { part ->
-                    item("part-${part.id}") {
-                        PartCard(
-                            part = part,
-                            model = model,
-                            onRetire = { confirmRetireId = part.id },
-                            onRefresh = { confirmRefreshId = part.id },
-                            onDelete = { confirmDeleteId = part.id },
-                            detailInColumn = twoColumn,
-                            selected = twoColumn &&
-                                (selectedPartId ?: model.activeParts.firstOrNull()?.id) == part.id,
-                            onSelect = { selectedPartId = part.id },
+                item("parts-header") { TESectionHeader("Consumables in service") }
+                item("parts-hint") {
+                    Text(
+                        "Wear accrues automatically from this car's logged events (2h per track day " +
+                            "unless an event says otherwise). Log a quick pad or tread measurement " +
+                            "between events and the projection switches from estimated to measured.",
+                        style = TrackTheme.typography.xs,
+                        color = colors.textMuted,
+                    )
+                }
+
+                if (model.activeParts.isEmpty()) {
+                    item("parts-empty") {
+                        TEEmpty(
+                            "Nothing tracked yet — add pads, tires or fluid below and Track Evolution " +
+                                "will tell you when they're due.",
                         )
+                    }
+                } else {
+                    model.activeParts.forEach { part ->
+                        item("part-${part.id}") {
+                            PartCard(
+                                part = part,
+                                model = model,
+                                onRetire = { confirmRetireId = part.id },
+                                onRefresh = { confirmRefreshId = part.id },
+                                onDelete = { confirmDeleteId = part.id },
+                                detailInColumn = twoColumn,
+                                selected = twoColumn &&
+                                    (selectedPartId ?: model.activeParts.firstOrNull()?.id) == part.id,
+                                onSelect = { selectedPartId = part.id },
+                            )
+                        }
+                    }
+                }
+
+                item("add-part") { AddPartCard(model) }
+
+                if (model.retiredParts.isNotEmpty()) {
+                    item("retired-header") {
+                        TESectionHeader("Retired parts", detail = "cost per hour")
+                    }
+                    model.retiredParts.forEach { part ->
+                        item("retired-${part.id}") { RetiredCard(part) }
                     }
                 }
             }
 
-            item("add-part") { AddPartCard(model) }
-
-            if (model.retiredParts.isNotEmpty()) {
-                item("retired-header") {
-                    TESectionHeader("Retired parts", detail = "cost per hour")
-                }
-                model.retiredParts.forEach { part ->
-                    item("retired-${part.id}") { RetiredCard(part) }
+            item("delete-car") {
+                TextButton(
+                    onClick = { confirmDeleteCarId = vehicle.id },
+                    modifier = Modifier.testTag("deleteCar"),
+                ) {
+                    Text("Delete car", style = TrackTheme.typography.sm, color = colors.danger)
                 }
             }
-
         }
         }
 
@@ -298,6 +349,90 @@ fun VehicleScreen(
             onConfirm = { confirmDeleteId = null; model.deletePart(part.id) },
             onDismiss = { confirmDeleteId = null },
         )
+    }
+
+    model.vehicle?.takeIf { it.id == confirmDeleteCarId }?.let { vehicle ->
+        TEConfirmDialog(
+            text = "Delete ${vehicle.name}? Past events keep the car name they were logged with" +
+                if (model.garage != null) "; its consumables, measurements and wear history go with it." else ".",
+            confirm = "Delete car",
+            onConfirm = { confirmDeleteCarId = null; model.deleteVehicle() },
+            onDismiss = { confirmDeleteCarId = null },
+        )
+    }
+}
+
+/** "2", "1.5" — a track-day count the way the web prints it. */
+private fun fmtDays(days: Double): String =
+    if (days == Math.rint(days)) days.toLong().toString() else days.toString()
+
+/**
+ * Last out and next up (NS-37), each opening its event — the same two facts the
+ * car's tile words, for both tiers.
+ */
+@Composable
+private fun LogbookLine(logbook: Garage.VehicleLogbook, onOpenEvent: (Int) -> Unit) {
+    val colors = TrackTheme.colors
+    val last = logbook.lastEvent
+    val next = logbook.nextEvent
+    if (last == null && next == null) {
+        Text(
+            "No track days in this car yet — pick it on an event and they'll show up here.",
+            style = TrackTheme.typography.sm,
+            color = colors.textMuted,
+        )
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        last?.let {
+            Text(
+                "Last out at ${it.trackName} on ${EventDates.fmtDate(it.startDate)}",
+                style = TrackTheme.typography.sm,
+                color = colors.accentInk,
+                modifier = Modifier.clickable { onOpenEvent(it.id) }.padding(vertical = 4.dp),
+            )
+        }
+        next?.let {
+            Text(
+                "Next: ${it.trackName} on ${EventDates.fmtDate(it.startDate)}",
+                style = TrackTheme.typography.sm,
+                color = colors.accentInk,
+                modifier = Modifier.clickable { onOpenEvent(it.id) }.padding(vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Best in this car, per track (NS-37) — free, since it is the driver's own
+ * logbook. A row opens the track; its date opens the day the time was set.
+ */
+@Composable
+private fun BestsCard(
+    bests: List<Garage.LogbookBest>,
+    onOpenTrack: (Int) -> Unit,
+    onOpenEvent: (Int) -> Unit,
+) {
+    val colors = TrackTheme.colors
+    TrackCard(Modifier.fillMaxWidth().testTag("bestsInCar")) {
+        bests.forEachIndexed { index, best ->
+            if (index > 0) HorizontalDivider(color = colors.borderHairline)
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onOpenTrack(best.trackId) }.padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(best.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+                    Text(
+                        "Set on ${EventDates.fmtDate(best.startDate)}",
+                        style = TrackTheme.typography.xs,
+                        color = colors.accentInk,
+                        modifier = Modifier.clickable { onOpenEvent(best.eventId) },
+                    )
+                }
+                Text(LapTime.fmtMs(best.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
+            }
+        }
     }
 }
 
@@ -861,7 +996,7 @@ internal data class VehicleEdit(
  */
 @Composable
 internal fun VehicleForm(
-    vehicle: GarageVehicle,
+    vehicle: Vehicle,
     catalog: List<CatalogCar>?,
     catalogError: String?,
     steeringFits: List<SteeringFit>? = null,

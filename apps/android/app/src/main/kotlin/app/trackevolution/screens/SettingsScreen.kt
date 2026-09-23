@@ -34,10 +34,8 @@ import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.Garage
 import app.trackevolution.core.Units
 import app.trackevolution.core.model.Entitlement
-import app.trackevolution.core.model.Vehicle
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
-import app.trackevolution.ui.CatalogCarPicker
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -75,7 +73,8 @@ fun SettingsScreen(
     onThemeChange: (ThemeChoice) -> Unit,
     serverUrl: String,
     onOpenLink: (String) -> Unit,
-    onOpenVehicle: (Int) -> Unit,
+    /** Settings' cars row: the Garage tab (NS-37). */
+    onOpenGarage: () -> Unit,
     onShare: (String) -> Unit,
     onSignOut: () -> Unit,
     /** The account's tier, as the server last said it (NS-32). */
@@ -87,7 +86,6 @@ fun SettingsScreen(
     val colors = TrackTheme.colors
     var confirmSignOut by remember { mutableStateOf(false) }
     var confirmDisableShare by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf<Vehicle?>(null) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
@@ -133,10 +131,8 @@ fun SettingsScreen(
                 ChecklistTemplateCard(model, checklistTemplate, hasCustomChecklistTemplate)
             }
 
-            item("vehicles-header") { TESectionHeader("Vehicles") }
-            item("vehicles") {
-                VehiclesCard(model, onOpenVehicle = onOpenVehicle, onDelete = { deleting = it })
-            }
+            item("cars-header") { TESectionHeader("Cars") }
+            item("cars") { CarsCard(onOpenGarage) }
 
             item("legal-header") { TESectionHeader("About & legal") }
             item("legal") { LegalCard(onOpenLink) }
@@ -179,15 +175,6 @@ fun SettingsScreen(
         )
     }
 
-    deleting?.let { vehicle ->
-        TEConfirmDialog(
-            text = "Delete ${vehicle.name}? Its consumables, measurements and wear history go " +
-                "with it. Events keep their car name and simply stop being linked.",
-            confirm = "Delete vehicle",
-            onConfirm = { deleting = null; model.deleteVehicle(vehicle.id) },
-            onDismiss = { deleting = null },
-        )
-    }
 }
 
 @Composable
@@ -593,161 +580,36 @@ private fun ChecklistTemplateCard(
 }
 
 /**
- * The cars an event's Car field is matched against, and the way into each one's
- * garage page (NS-31).
- *
- * This screen owns the *list* — add, rename, make default, delete — while a
- * car's consumables and wear live on its own page, because those are what you
- * look at in the garage rather than in settings.
+ * Where the cars went (NS-37): one row to the Garage tab. A car is managed in
+ * one place — its own page, reached from the Garage — so this screen no longer
+ * lists, adds, renames or deletes them.
  */
 @Composable
-private fun VehiclesCard(
-    model: SettingsModel,
-    onOpenVehicle: (Int) -> Unit,
-    onDelete: (Vehicle) -> Unit,
-) {
+private fun CarsCard(onOpenGarage: () -> Unit) {
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
         Text(
-            "Your cars. The default one pre-fills new events, and an event's Car field is " +
-                "matched to a vehicle by name — so consumables accrue wear from the events you " +
-                "already log. Open a car to track pads, tires and fluid.",
+            "Your cars live in the Garage now — add one there, set the default for new events, " +
+                "and open it to see what it has done.",
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
-            modifier = Modifier.padding(bottom = 10.dp),
+            modifier = Modifier.padding(bottom = 6.dp),
         )
-
-        if (model.vehicles.isEmpty()) {
-            TEEmpty("No cars yet — add your first below.")
-        } else {
-            model.vehicles.forEach { vehicle ->
-                VehicleRow(
-                    vehicle = vehicle,
-                    model = model,
-                    onOpen = { onOpenVehicle(vehicle.id) },
-                    onDelete = { onDelete(vehicle) },
-                )
-            }
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = model.newVehicleName,
-                onValueChange = { model.newVehicleName = it },
-                placeholder = { Text("2023 Corvette Z06", style = TrackTheme.typography.sm) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = model::addVehicle, enabled = model.newVehicleName.isNotBlank()) {
-                Text("Add", style = TrackTheme.typography.sm, color = colors.accentInk)
-            }
-        }
-        // The catalog pick (#222): the server pre-fills the car's wheelbase and
-        // steering ratio from the row, and the pick names the car only when the
-        // driver hasn't — a car already called "Betty" keeps its name.
-        var picking by rememberSaveable { mutableStateOf(false) }
-        if (picking) {
-            LaunchedEffect(Unit) { model.loadCatalog() }
-            CatalogCarPicker(
-                rows = model.catalog,
-                error = model.catalogError,
-                onPick = { model.pickCatalog(it); picking = false },
-                onDismiss = { picking = false },
-            )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { picking = true }, modifier = Modifier.testTag("pickCatalogCar")) {
-                Text(
-                    model.newVehicleCatalog?.let(Garage::catalogCarLabel) ?: "Find it in the catalog…",
-                    style = TrackTheme.typography.xs,
-                    color = colors.accentInk,
-                )
-            }
-            if (model.newVehicleCatalog != null) {
-                TextButton(onClick = { model.newVehicleCatalog = null }, modifier = Modifier.testTag("clearCatalogCar")) {
-                    Text("Clear", style = TrackTheme.typography.xs, color = colors.textMuted)
-                }
-            }
-        }
-        TEErrorBanner(model.vehicleError, modifier = Modifier.padding(top = 8.dp))
-    }
-}
-
-/** One car: a row that opens its garage page, with its list-level actions. */
-@Composable
-private fun VehicleRow(
-    vehicle: Vehicle,
-    model: SettingsModel,
-    onOpen: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val colors = TrackTheme.colors
-    var editing by rememberSaveable(vehicle.id) { mutableStateOf(false) }
-    var name by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.name) }
-    var notes by rememberSaveable(vehicle.id) { mutableStateOf(vehicle.notes.orEmpty()) }
-
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenGarage)
+                .padding(vertical = 8.dp)
+                .testTag("openGarage"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(vehicle.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-                if (vehicle.isDefault) {
-                    Text("Default", style = TrackTheme.typography.xxs, color = colors.accentInk)
-                }
-            }
+            Text(
+                "Cars are in the Garage",
+                style = TrackTheme.typography.bodyStrong,
+                color = colors.accentInk,
+                modifier = Modifier.weight(1f),
+            )
             Text("›", style = TrackTheme.typography.body, color = colors.textFaint)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (!vehicle.isDefault) {
-                TextButton(onClick = { model.makeDefault(vehicle.id) }) {
-                    Text("Make default", style = TrackTheme.typography.xs, color = colors.accentInk)
-                }
-            }
-            TextButton(onClick = { editing = !editing }) {
-                Text("Edit", style = TrackTheme.typography.xs, color = colors.textMuted)
-            }
-            TextButton(onClick = onDelete) {
-                Text("Delete", style = TrackTheme.typography.xs, color = colors.danger)
-            }
-        }
-        if (editing) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TEField(
-                    "Car",
-                    hint = "Past events match this car by name — renaming it away from what they " +
-                        "say stops their hours accruing here",
-                ) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                TEField("Modifications & notes") {
-                    OutlinedTextField(
-                        value = notes,
-                        onValueChange = { notes = it },
-                        placeholder = {
-                            Text("Coilovers, pads, tires, alignment…", style = TrackTheme.typography.sm)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = { model.updateVehicle(vehicle.id, name, notes); editing = false },
-                        enabled = name.isNotBlank(),
-                    ) {
-                        Text("Save", style = TrackTheme.typography.bodyStrong, color = colors.accentInk)
-                    }
-                    TextButton(onClick = { editing = false }) {
-                        Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
-                    }
-                }
-            }
         }
     }
 }

@@ -23,6 +23,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.navigation
 import androidx.navigation.toRoute
 import app.trackevolution.auth.ChecklistTemplateStore
 import app.trackevolution.auth.UnitsStore
@@ -38,6 +39,7 @@ import app.trackevolution.screens.CompareLapsModel
 import app.trackevolution.screens.CompareLapsScreen
 import app.trackevolution.screens.DetailPlaceholder
 import app.trackevolution.screens.EventFormModel
+import app.trackevolution.screens.GarageDetailPlaceholder
 import app.trackevolution.screens.EventFormScreen
 import app.trackevolution.screens.WrappedModel
 import app.trackevolution.screens.WrappedScreen
@@ -142,6 +144,8 @@ fun AppNavHost(
      * draws does.
      */
     dashboardAsDetailPlaceholder: Boolean = false,
+    /** The Garage tab's version of [dashboardAsDetailPlaceholder] (NS-37). */
+    garageAsDetailPlaceholder: Boolean = false,
     /** Which row the list pane should mark, when there is a list pane. */
     selection: Route? = null,
     modifier: Modifier = Modifier,
@@ -152,316 +156,339 @@ fun AppNavHost(
 
     FollowTempIds(nav, api)
 
-    NavHost(navController = nav, startDestination = Route.Dashboard, modifier = modifier) {
+    // Two tabs, two nested graphs (NS-37). Every logbook destination — and
+    // Settings, which belongs to no tab and is reached from the dashboard — is
+    // in the Events graph; the car and the garage list are in the Garage graph.
+    // `Tabs.kt` switches between them with saved back stacks.
+    NavHost(navController = nav, startDestination = EventsGraph, modifier = modifier) {
+        navigation<EventsGraph>(startDestination = Route.Dashboard) {
 
-        pageComposable<Route.Dashboard> {
-            if (dashboardAsDetailPlaceholder) {
-                DetailPlaceholder(
-                    api = api,
-                    onOpenEvent = { nav.navigate(Route.Event(it)) },
-                )
-            } else {
-                DashboardPane(
-                    nav = nav,
-                    api = api,
-                    recorderIdle = recorderIdle,
-                    selection = selection,
-                    inListPane = false,
-                )
-            }
-        }
-
-        pageComposable<Route.Event> { entry ->
-            val route = entry.toRoute<Route.Event>()
-            val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.id) }
-            EventScreen(
-                model = model,
-                checklistTemplate = checklistTemplate,
-                onEdit = { nav.navigate(Route.EventForm(editId = it)) },
-                onOpenTrack = { nav.navigate(Route.Track(it)) },
-                onRecord = { nav.navigate(Route.Record(eventId = it)) },
-                // Not gated: importing is free (NS-32). What a free account
-                // gets out of a clip is the lap times, the racing line and the
-                // car metrics — the per-lap channels the same import writes are
-                // withheld by the server on the way back out, not by a paywall
-                // on the way in.
-                onImport = { id -> nav.navigate(Route.Import(eventId = id)) },
-                onDeleted = { nav.popBackStack() },
-                // Always: the recorder is built into this app, unlike the web
-                // build where `platform.bgLocation` is null and it is hidden.
-                recorderAvailable = true,
-                // The Pro half of the channel panel (#264): the server already
-                // stripped what a free account may not see, and this decides
-                // whether the panel draws its derived views and its upsell.
-                canViewChannels = Entitlement.canViewChannels(entitlement),
-                onSubscribe = onRequirePro,
-                // Every lap is a door (#268), and the session's overlay is a
-                // destination of its own below expanded width.
-                onOpenLap = { sessionId, lapId -> nav.navigate(Route.Lap(route.id, sessionId, lapId)) },
-                onCompareLaps = { sessionId -> nav.navigate(Route.SessionCompare(route.id, sessionId)) },
-            )
-        }
-
-        pageComposable<Route.Lap> { entry ->
-            val route = entry.toRoute<Route.Lap>()
-            // Its own model over the same event: the read comes through the
-            // offline cache the page already warmed, so this costs no request.
-            val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
-            LapDetailScreen(
-                model = model,
-                sessionId = route.sessionId,
-                lapId = route.lapId,
-                canViewChannels = Entitlement.canViewChannels(entitlement),
-                onCompare = { nav.navigate(Route.SessionCompare(route.eventId, route.sessionId, route.lapId)) },
-                onSubscribe = onRequirePro,
-            )
-        }
-
-        pageComposable<Route.SessionCompare> { entry ->
-            val route = entry.toRoute<Route.SessionCompare>()
-            val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
-            SessionCompareScreen(
-                model = model,
-                sessionId = route.sessionId,
-                lapId = route.lapId,
-                canViewChannels = Entitlement.canViewChannels(entitlement),
-                onSubscribe = onRequirePro,
-            )
-        }
-
-        pageComposable<Route.EventForm> { entry ->
-            val route = entry.toRoute<Route.EventForm>()
-            // The form's own destination, so saving can pop exactly it and
-            // nothing else — the screen underneath might be the dashboard, an
-            // event, or a track page.
-            val formDestination = entry.destination.id
-            // The system the temperature is typed in. Read once, at construction:
-            // the draft holds the *typed* number, and a model that changed its
-            // mind about what that number meant would move the driver's entry.
-            val units = LocalUnitSystem.current
-            val model = rememberScreenModel { scope, handle ->
-                EventFormModel(
-                    scope = scope,
-                    api = api,
-                    editId = route.editId,
-                    presetTrack = route.presetTrack,
-                    units = units,
-                    saved = handle,
-                )
-            }
-            // Drafts handed back by a review begun from this form's "Import
-            // video…": taken the moment the form is back on screen.
-            LaunchedEffect(stagedImports) {
-                if (stagedImports.isNotEmpty() && route.editId == null) {
-                    model.stage(stagedImports)
-                    onConsumeStagedImports()
+            pageComposable<Route.Dashboard> {
+                if (dashboardAsDetailPlaceholder) {
+                    DetailPlaceholder(
+                        api = api,
+                        onOpenEvent = { nav.navigate(Route.Event(it)) },
+                    )
+                } else {
+                    DashboardPane(
+                        nav = nav,
+                        api = api,
+                        recorderIdle = recorderIdle,
+                        selection = selection,
+                        inListPane = false,
+                    )
                 }
             }
-            EventFormScreen(
-                model = model,
-                onImport = { nav.navigate(Route.Import(forNewEvent = true)) },
-                onSaved = { id ->
-                    // A new event opens; an edit returns to the event that was
-                    // already underneath. Either way the form itself is gone
-                    // from the back stack — going "back" into a saved form is
-                    // an invitation to save it twice.
-                    if (route.editId == null) {
-                        nav.navigate(Route.Event(id)) {
-                            popUpTo(formDestination) { inclusive = true }
-                        }
-                    } else {
-                        nav.popBackStack()
-                    }
-                },
-                onCancel = { nav.popBackStack() },
-            )
-        }
 
-        pageComposable<Route.Track> { entry ->
-            val route = entry.toRoute<Route.Track>()
-            val model = rememberScreenModel { scope, _ -> TrackModel(scope, api, route.id) }
-            // At expanded width the two-lap compare opens **beside** the page
-            // rather than as its own destination (NS-34 ticket 3). Same
-            // `CompareLapsScreen`, same `Route.CompareLaps` — which a deep link
-            // can still land on — only the container changes.
-            //
-            // The width is `sideColumnWidth`'s, and so is the decision to split
-            // at all: the event page's numbers, because it is the same kind of
-            // content — two laps of channel traces need the width a track map
-            // and its charts need. Measured against the column this page is
-            // actually in and **never the window's class**, which is the whole
-            // subject of `sideColumnWidth`: a tablet in portrait is an expanded
-            // *window* whose detail pane has about 627dp to give, and two
-            // columns do not go into that. Reading the class here gave the
-            // compare its 380dp floor and left the track page ~230dp.
-            //
-            // This page lives in the graph rather than in `TrackScreen`, which
-            // is how it was missed when the event and vehicle pages took the
-            // same fix.
-            val compareWidth = LocalLayoutMetrics.current.sideColumnWidth(0.46f, 380.dp, 620.dp)
-            val sideBySide = compareWidth != null
-            var comparing by rememberSaveable { mutableStateOf(false) }
-            val page = @Composable {
-                TrackScreen(
+            pageComposable<Route.Event> { entry ->
+                val route = entry.toRoute<Route.Event>()
+                val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.id) }
+                EventScreen(
                     model = model,
-                    onOpenEvent = { nav.navigate(Route.Event(it)) },
-                    onAddEvent = { name -> nav.navigate(Route.EventForm(presetTrack = name)) },
-                    onCompareLaps = {
-                        if (sideBySide) comparing = true else nav.navigate(Route.CompareLaps(route.id))
-                    },
-                    // A destination rather than a column, at every width: other
-                    // drivers' laps are a place you go and come back from, not a
-                    // second reading of this page's own.
-                    onLeaderboard = { nav.navigate(Route.Leaderboard(route.id)) },
-                    onShare = share,
-                    serverUrl = serverUrl,
+                    checklistTemplate = checklistTemplate,
+                    onEdit = { nav.navigate(Route.EventForm(editId = it)) },
+                    onOpenTrack = { nav.navigate(Route.Track(it)) },
+                    onRecord = { nav.navigate(Route.Record(eventId = it)) },
+                    // Not gated: importing is free (NS-32). What a free account
+                    // gets out of a clip is the lap times, the racing line and the
+                    // car metrics — the per-lap channels the same import writes are
+                    // withheld by the server on the way back out, not by a paywall
+                    // on the way in.
+                    onImport = { id -> nav.navigate(Route.Import(eventId = id)) },
+                    onDeleted = { nav.popBackStack() },
+                    // Always: the recorder is built into this app, unlike the web
+                    // build where `platform.bgLocation` is null and it is hidden.
+                    recorderAvailable = true,
+                    // The Pro half of the channel panel (#264): the server already
+                    // stripped what a free account may not see, and this decides
+                    // whether the panel draws its derived views and its upsell.
+                    canViewChannels = Entitlement.canViewChannels(entitlement),
+                    onSubscribe = onRequirePro,
+                    // Every lap is a door (#268), and the session's overlay is a
+                    // destination of its own below expanded width.
+                    onOpenLap = { sessionId, lapId -> nav.navigate(Route.Lap(route.id, sessionId, lapId)) },
+                    onCompareLaps = { sessionId -> nav.navigate(Route.SessionCompare(route.id, sessionId)) },
                 )
             }
-            if (compareWidth != null && comparing) {
-                Row(Modifier.fillMaxSize()) {
-                    PaneWidth(Modifier.weight(1f)) { page() }
-                    VerticalDivider()
-                    PaneWidth(Modifier.width(compareWidth)) {
-                        val compare = rememberScreenModel(key = "compare-${route.id}") { scope, _ ->
-                            CompareLapsModel(scope, api, route.id)
+
+            pageComposable<Route.Lap> { entry ->
+                val route = entry.toRoute<Route.Lap>()
+                // Its own model over the same event: the read comes through the
+                // offline cache the page already warmed, so this costs no request.
+                val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+                LapDetailScreen(
+                    model = model,
+                    sessionId = route.sessionId,
+                    lapId = route.lapId,
+                    canViewChannels = Entitlement.canViewChannels(entitlement),
+                    onCompare = { nav.navigate(Route.SessionCompare(route.eventId, route.sessionId, route.lapId)) },
+                    onSubscribe = onRequirePro,
+                )
+            }
+
+            pageComposable<Route.SessionCompare> { entry ->
+                val route = entry.toRoute<Route.SessionCompare>()
+                val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+                SessionCompareScreen(
+                    model = model,
+                    sessionId = route.sessionId,
+                    lapId = route.lapId,
+                    canViewChannels = Entitlement.canViewChannels(entitlement),
+                    onSubscribe = onRequirePro,
+                )
+            }
+
+            pageComposable<Route.EventForm> { entry ->
+                val route = entry.toRoute<Route.EventForm>()
+                // The form's own destination, so saving can pop exactly it and
+                // nothing else — the screen underneath might be the dashboard, an
+                // event, or a track page.
+                val formDestination = entry.destination.id
+                // The system the temperature is typed in. Read once, at construction:
+                // the draft holds the *typed* number, and a model that changed its
+                // mind about what that number meant would move the driver's entry.
+                val units = LocalUnitSystem.current
+                val model = rememberScreenModel { scope, handle ->
+                    EventFormModel(
+                        scope = scope,
+                        api = api,
+                        editId = route.editId,
+                        presetTrack = route.presetTrack,
+                        units = units,
+                        saved = handle,
+                    )
+                }
+                // Drafts handed back by a review begun from this form's "Import
+                // video…": taken the moment the form is back on screen.
+                LaunchedEffect(stagedImports) {
+                    if (stagedImports.isNotEmpty() && route.editId == null) {
+                        model.stage(stagedImports)
+                        onConsumeStagedImports()
+                    }
+                }
+                EventFormScreen(
+                    model = model,
+                    onImport = { nav.navigate(Route.Import(forNewEvent = true)) },
+                    onSaved = { id ->
+                        // A new event opens; an edit returns to the event that was
+                        // already underneath. Either way the form itself is gone
+                        // from the back stack — going "back" into a saved form is
+                        // an invitation to save it twice.
+                        if (route.editId == null) {
+                            nav.navigate(Route.Event(id)) {
+                                popUpTo(formDestination) { inclusive = true }
+                            }
+                        } else {
+                            nav.popBackStack()
                         }
-                        // A destination has a back gesture and a column has
-                        // nothing, so the column needs a way out of its own.
-                        CompareLapsScreen(model = compare, onClose = { comparing = false })
-                    }
+                    },
+                    onCancel = { nav.popBackStack() },
+                )
+            }
+
+            pageComposable<Route.Track> { entry ->
+                val route = entry.toRoute<Route.Track>()
+                val model = rememberScreenModel { scope, _ -> TrackModel(scope, api, route.id) }
+                // At expanded width the two-lap compare opens **beside** the page
+                // rather than as its own destination (NS-34 ticket 3). Same
+                // `CompareLapsScreen`, same `Route.CompareLaps` — which a deep link
+                // can still land on — only the container changes.
+                //
+                // The width is `sideColumnWidth`'s, and so is the decision to split
+                // at all: the event page's numbers, because it is the same kind of
+                // content — two laps of channel traces need the width a track map
+                // and its charts need. Measured against the column this page is
+                // actually in and **never the window's class**, which is the whole
+                // subject of `sideColumnWidth`: a tablet in portrait is an expanded
+                // *window* whose detail pane has about 627dp to give, and two
+                // columns do not go into that. Reading the class here gave the
+                // compare its 380dp floor and left the track page ~230dp.
+                //
+                // This page lives in the graph rather than in `TrackScreen`, which
+                // is how it was missed when the event and vehicle pages took the
+                // same fix.
+                val compareWidth = LocalLayoutMetrics.current.sideColumnWidth(0.46f, 380.dp, 620.dp)
+                val sideBySide = compareWidth != null
+                var comparing by rememberSaveable { mutableStateOf(false) }
+                val page = @Composable {
+                    TrackScreen(
+                        model = model,
+                        onOpenEvent = { nav.navigate(Route.Event(it)) },
+                        onAddEvent = { name -> nav.navigate(Route.EventForm(presetTrack = name)) },
+                        onCompareLaps = {
+                            if (sideBySide) comparing = true else nav.navigate(Route.CompareLaps(route.id))
+                        },
+                        // A destination rather than a column, at every width: other
+                        // drivers' laps are a place you go and come back from, not a
+                        // second reading of this page's own.
+                        onLeaderboard = { nav.navigate(Route.Leaderboard(route.id)) },
+                        onShare = share,
+                        serverUrl = serverUrl,
+                    )
                 }
-            } else {
-                page()
-            }
-        }
-
-        pageComposable<Route.CompareLaps> { entry ->
-            val route = entry.toRoute<Route.CompareLaps>()
-            val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
-            CompareLapsScreen(model = model)
-        }
-
-        pageComposable<Route.Leaderboard> { entry ->
-            val route = entry.toRoute<Route.Leaderboard>()
-            val model = rememberScreenModel { scope, _ -> LeaderboardModel(scope, api, route.trackId) }
-            LeaderboardScreen(
-                model = model,
-                onOpenLap = { nav.navigate(Route.LeaderboardLap(route.trackId, it)) },
-            )
-        }
-
-        pageComposable<Route.LeaderboardLap> { entry ->
-            val route = entry.toRoute<Route.LeaderboardLap>()
-            val model = rememberScreenModel { scope, _ ->
-                LeaderboardLapModel(scope, api, route.trackId, route.lapId)
-            }
-            LeaderboardLapScreen(
-                model = model,
-                canViewChannels = Entitlement.canViewChannels(entitlement),
-                onSubscribe = onRequirePro,
-            )
-        }
-
-        pageComposable<Route.Settings> {
-            val model = rememberScreenModel { scope, _ -> SettingsModel(scope, api, auth, unitsStore) }
-            SettingsScreen(
-                model = model,
-                checklistTemplate = checklistTemplate,
-                hasCustomChecklistTemplate = hasCustomChecklistTemplate,
-                themeChoice = themeChoice,
-                onThemeChange = onThemeChange,
-                serverUrl = serverUrl,
-                onOpenLink = openLink,
-                onOpenVehicle = { nav.navigate(Route.Vehicle(it)) },
-                onShare = share,
-                onSignOut = onSignOut,
-                entitlement = entitlement ?: Entitlement.FREE,
-                onSubscribe = onRequirePro,
-            )
-        }
-
-        // Plain `composable`, not `pageComposable`: the story is full-window at
-        // every width, and the scaffold drops to one pane for it.
-        composable<Route.Wrapped> { entry ->
-            val route = entry.toRoute<Route.Wrapped>()
-            val model = rememberScreenModel { scope, _ -> WrappedModel(scope, api, route.year) }
-            WrappedScreen(
-                model = model,
-                shareUrlFor = { year ->
-                    shareSlug?.takeIf { it.isNotBlank() }?.let { "${serverUrl.trimEnd('/')}/share/$it/wrapped/$year" }
-                },
-                onClose = { nav.popBackStack() },
-                onSubscribe = onRequirePro,
-            )
-        }
-
-        composable<Route.Record> { entry ->
-            val route = entry.toRoute<Route.Record>()
-
-            // Which event this recording actually belongs to. A *running*
-            // recording carries its own attachment and outranks the route,
-            // because it may have been started somewhere the route knows
-            // nothing about — the notification, or the banner, both of which
-            // navigate here as `Route.Record()` with no id at all. Reading the
-            // route in that case is how the screen ends up describing an
-            // attachment that isn't the one in effect.
-            val targetId = recorderState.eventId?.toIntOrNull() ?: route.eventId
-
-            // The name is a lookup rather than something the route carries, for
-            // the same reason: the id in effect isn't always the id we were
-            // navigated with. `events()` is the offline layer's cached list the
-            // dashboard already warmed, so this is normally free, and null —
-            // offline with a cold cache — degrades to naming no track rather
-            // than to claiming there is no event.
-            val eventLabel by produceState<String?>(null, targetId) {
-                value = targetId?.let { id ->
-                    runCatching { api.events().firstOrNull { it.id == id }?.trackName }.getOrNull()
+                if (compareWidth != null && comparing) {
+                    Row(Modifier.fillMaxSize()) {
+                        PaneWidth(Modifier.weight(1f)) { page() }
+                        VerticalDivider()
+                        PaneWidth(Modifier.width(compareWidth)) {
+                            val compare = rememberScreenModel(key = "compare-${route.id}") { scope, _ ->
+                                CompareLapsModel(scope, api, route.id)
+                            }
+                            // A destination has a back gesture and a column has
+                            // nothing, so the column needs a way out of its own.
+                            CompareLapsScreen(model = compare, onClose = { comparing = false })
+                        }
+                    }
+                } else {
+                    page()
                 }
             }
 
-            RecordScreen(
-                state = recorderState,
-                isAttached = targetId != null,
-                eventLabel = eventLabel,
-                // The recorder's gate is at *start* (NS-32 rule 5): a free account
-                // with the gates on sees the paywall here instead of a disabled
-                // button, and a cached Pro proceeds offline. Stop is never gated.
-                onStart = {
-                    if (Entitlement.recordGate(entitlement) == Entitlement.Gate.PAYWALL) {
-                        onRequirePro()
-                    } else {
-                        onStartRecording(route.eventId)
+            pageComposable<Route.CompareLaps> { entry ->
+                val route = entry.toRoute<Route.CompareLaps>()
+                val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
+                CompareLapsScreen(model = model)
+            }
+
+            pageComposable<Route.Leaderboard> { entry ->
+                val route = entry.toRoute<Route.Leaderboard>()
+                val model = rememberScreenModel { scope, _ -> LeaderboardModel(scope, api, route.trackId) }
+                LeaderboardScreen(
+                    model = model,
+                    onOpenLap = { nav.navigate(Route.LeaderboardLap(route.trackId, it)) },
+                )
+            }
+
+            pageComposable<Route.LeaderboardLap> { entry ->
+                val route = entry.toRoute<Route.LeaderboardLap>()
+                val model = rememberScreenModel { scope, _ ->
+                    LeaderboardLapModel(scope, api, route.trackId, route.lapId)
+                }
+                LeaderboardLapScreen(
+                    model = model,
+                    canViewChannels = Entitlement.canViewChannels(entitlement),
+                    onSubscribe = onRequirePro,
+                )
+            }
+
+            pageComposable<Route.Settings> {
+                val model = rememberScreenModel { scope, _ -> SettingsModel(scope, api, auth, unitsStore) }
+                SettingsScreen(
+                    model = model,
+                    checklistTemplate = checklistTemplate,
+                    hasCustomChecklistTemplate = hasCustomChecklistTemplate,
+                    themeChoice = themeChoice,
+                    onThemeChange = onThemeChange,
+                    serverUrl = serverUrl,
+                    onOpenLink = openLink,
+                    onOpenGarage = { nav.selectTab(AppTab.Garage) },
+                    onShare = share,
+                    onSignOut = onSignOut,
+                    entitlement = entitlement ?: Entitlement.FREE,
+                    onSubscribe = onRequirePro,
+                )
+            }
+
+            // Plain `composable`, not `pageComposable`: the story is full-window at
+            // every width, and the scaffold drops to one pane for it.
+            composable<Route.Wrapped> { entry ->
+                val route = entry.toRoute<Route.Wrapped>()
+                val model = rememberScreenModel { scope, _ -> WrappedModel(scope, api, route.year) }
+                WrappedScreen(
+                    model = model,
+                    shareUrlFor = { year ->
+                        shareSlug?.takeIf { it.isNotBlank() }?.let { "${serverUrl.trimEnd('/')}/share/$it/wrapped/$year" }
+                    },
+                    onClose = { nav.popBackStack() },
+                    onSubscribe = onRequirePro,
+                )
+            }
+
+            composable<Route.Record> { entry ->
+                val route = entry.toRoute<Route.Record>()
+
+                // Which event this recording actually belongs to. A *running*
+                // recording carries its own attachment and outranks the route,
+                // because it may have been started somewhere the route knows
+                // nothing about — the notification, or the banner, both of which
+                // navigate here as `Route.Record()` with no id at all. Reading the
+                // route in that case is how the screen ends up describing an
+                // attachment that isn't the one in effect.
+                val targetId = recorderState.eventId?.toIntOrNull() ?: route.eventId
+
+                // The name is a lookup rather than something the route carries, for
+                // the same reason: the id in effect isn't always the id we were
+                // navigated with. `events()` is the offline layer's cached list the
+                // dashboard already warmed, so this is normally free, and null —
+                // offline with a cold cache — degrades to naming no track rather
+                // than to claiming there is no event.
+                val eventLabel by produceState<String?>(null, targetId) {
+                    value = targetId?.let { id ->
+                        runCatching { api.events().firstOrNull { it.id == id }?.trackName }.getOrNull()
                     }
-                },
-                onStop = onStopRecording,
-            )
+                }
+
+                RecordScreen(
+                    state = recorderState,
+                    isAttached = targetId != null,
+                    eventLabel = eventLabel,
+                    // The recorder's gate is at *start* (NS-32 rule 5): a free account
+                    // with the gates on sees the paywall here instead of a disabled
+                    // button, and a cached Pro proceeds offline. Stop is never gated.
+                    onStart = {
+                        if (Entitlement.recordGate(entitlement) == Entitlement.Gate.PAYWALL) {
+                            onRequirePro()
+                        } else {
+                            onStartRecording(route.eventId)
+                        }
+                    },
+                    onStop = onStopRecording,
+                )
+            }
+
+            composable<Route.Import> { entry ->
+                val route = entry.toRoute<Route.Import>()
+                val resolver = context.applicationContext.contentResolver
+                val model = rememberScreenModel { scope, _ -> ImportModel(scope, resolver) }
+                ImportScreen(
+                    model = model,
+                    incoming = incomingImport,
+                    onConsumedIncoming = onConsumedIncomingImport,
+                    onParsed = { clips -> onImportParsed(route, clips) },
+                )
+            }
+
+            pageComposable<Route.Shared> { entry ->
+                val route = entry.toRoute<Route.Shared>()
+                val model = rememberScreenModel { scope, _ -> SharedLogbookModel(scope, api, route.slug) }
+                SharedLogbookScreen(model = model)
+            }
         }
 
-        composable<Route.Import> { entry ->
-            val route = entry.toRoute<Route.Import>()
-            val resolver = context.applicationContext.contentResolver
-            val model = rememberScreenModel { scope, _ -> ImportModel(scope, resolver) }
-            ImportScreen(
-                model = model,
-                incoming = incomingImport,
-                onConsumedIncoming = onConsumedIncomingImport,
-                onParsed = { clips -> onImportParsed(route, clips) },
-            )
-        }
+        navigation<GarageGraph>(startDestination = Route.Garage) {
 
-        pageComposable<Route.Vehicle> { entry ->
-            val route = entry.toRoute<Route.Vehicle>()
-            val model = rememberScreenModel { scope, _ -> VehicleModel(scope, api, route.id) }
-            VehicleScreen(
-                model = model,
-                onRequirePro = onRequirePro,
-            )
-        }
+            pageComposable<Route.Garage> {
+                if (garageAsDetailPlaceholder) {
+                    // At expanded width the garage list is the pane beside this, so
+                    // its root draws "Pick a car" rather than the list twice (NS-34).
+                    GarageDetailPlaceholder()
+                } else {
+                    GaragePane(nav = nav, api = api, selection = null, inListPane = false, onRequirePro = onRequirePro)
+                }
+            }
 
-        pageComposable<Route.Shared> { entry ->
-            val route = entry.toRoute<Route.Shared>()
-            val model = rememberScreenModel { scope, _ -> SharedLogbookModel(scope, api, route.slug) }
-            SharedLogbookScreen(model = model)
+            pageComposable<Route.Vehicle> { entry ->
+                val route = entry.toRoute<Route.Vehicle>()
+                val model = rememberScreenModel { scope, _ -> VehicleModel(scope, api, route.id) }
+                VehicleScreen(
+                    model = model,
+                    onRequirePro = onRequirePro,
+                    // The logbook's rows live in the Events tab: an arrival there.
+                    onOpenEvent = { nav.go(Route.Event(it)) },
+                    onOpenTrack = { nav.go(Route.Track(it)) },
+                    onDeleted = { nav.popBackStack(Route.Garage, inclusive = false) },
+                )
+            }
         }
     }
 }
