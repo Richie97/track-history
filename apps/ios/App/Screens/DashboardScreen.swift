@@ -20,6 +20,9 @@ struct DashboardScreen: View {
 
     @State private var model: DashboardModel?
     @State private var showingDiscardConfirmation = false
+    /// Bumped when the Wrapped banner is dismissed, so the body re-reads the
+    /// per-season flag it keeps in `UserDefaults`.
+    @State private var wrappedDismissals = 0
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -143,6 +146,10 @@ struct DashboardScreen: View {
                 }
             }
 
+            if let year = model.wrappedYear, !Self.wrappedDismissed(year, tick: wrappedDismissals) {
+                wrappedBanner(year)
+            }
+
             if let hero = model.heroEvent {
                 heroCard(hero)
             }
@@ -213,6 +220,56 @@ struct DashboardScreen: View {
         guard let event else { return "Record laps. No event today — the recording is saved to one afterwards." }
         return "Record laps at \(event.trackName)"
     }
+
+    // MARK: - Season Wrapped (NS-36)
+
+    /// The November reveal — the web's `wrappedHeroHtml`. Opens the story over the
+    /// whole window at every width, not only at expanded like `openFromList`: a
+    /// story is full-screen on a phone too, and a cover is the one presentation
+    /// that looks the same everywhere.
+    private func wrappedBanner(_ year: Int) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                router.presentFullWindow(.wrapped(year: year))
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SEASON WRAPPED")
+                        .teStyle(.eyebrow)
+                        .opacity(0.75)
+                    Text("Your \(String(year)) Wrapped is ready →")
+                        .font(.system(size: 18, weight: .semibold))
+                        .multilineTextAlignment(.leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("dashboardWrapped")
+            Button {
+                UserDefaults.standard.set(true, forKey: Self.wrappedDismissKey(year))
+                wrappedDismissals += 1
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hide the \(String(year)) Wrapped reminder")
+        }
+        .foregroundStyle(Color(.accentContrast))
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(Color(.accent), in: .rect(cornerRadius: TERadius.lg))
+    }
+
+    /// Dismissed for the season, on this device — a per-viewer convenience, the
+    /// web's localStorage flag. `tick` only makes the read depend on the counter.
+    private static func wrappedDismissed(_ year: Int, tick _: Int) -> Bool {
+        UserDefaults.standard.bool(forKey: wrappedDismissKey(year))
+    }
+
+    private static func wrappedDismissKey(_ year: Int) -> String { "wrapped-dismissed-\(year)" }
 
     // MARK: - The next event
 
@@ -507,6 +564,15 @@ final class DashboardModel {
         RemoteRecording.pickRecordingEvent(events, todayIso: RemoteRecording.localTodayIso())
     }
     var alsoUpcoming: [Event] { Array(upcoming.dropFirst()) }
+
+    /// The season the November banner promotes, when this driver drove in it —
+    /// `WrappedStory.wrappedSeason` (the Kit's port of the web's reveal window)
+    /// over the viewer's local day, and nil for a year with no past event.
+    var wrappedYear: Int? {
+        guard let year = WrappedStory.wrappedSeason(Date()) else { return nil }
+        let prefix = "\(year)-"
+        return events.contains { !EventDates.isUpcoming($0.startDate) && $0.startDate.hasPrefix(prefix) } ? year : nil
+    }
 }
 
 /// One track's card on the dashboard: its name, its best lap and its counts.

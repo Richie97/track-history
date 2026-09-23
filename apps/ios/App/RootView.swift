@@ -35,6 +35,11 @@ struct RootView: View {
             // without importing a real telemetry file first:
             //   xcrun simctl launch <device> app.trackevolution -channelGraphs
             LapChannelChart.demoScreen
+        } else if ProcessInfo.processInfo.arguments.contains("-wrapped") {
+            // Season Wrapped on a sample season, locked Pro cards unless
+            // `-wrappedPro` is passed too:
+            //   xcrun simctl launch <device> app.trackevolution -wrapped [-wrappedPro]
+            WrappedScreen.demo
         } else {
             shell
         }
@@ -279,6 +284,8 @@ struct RootView: View {
             SharedLogbookScreen(slug: slug)
         case .lap(let eventId, let sessionId, let lapId):
             LapDetailScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
+        case .wrapped(let year):
+            WrappedScreen(year: year)
         }
     }
 
@@ -313,7 +320,7 @@ struct RootView: View {
         // next one on its next pass, which is soon enough.
         case .lap(let eventId, let sessionId, let lapId):
             [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
-        case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new): nil
+        case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped: nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }
         return id

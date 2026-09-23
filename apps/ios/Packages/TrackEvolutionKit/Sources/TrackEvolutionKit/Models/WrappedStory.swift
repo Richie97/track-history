@@ -98,7 +98,7 @@ public enum WrappedStory {
 
     /// `Math.round(n).toLocaleString("en-US")`: ties toward +infinity, thousands
     /// separated by commas.
-    static func int(_ n: Double) -> String {
+    public static func int(_ n: Double) -> String {
         let v = JSMath.roundToInt(n) ?? 0
         let digits = String(abs(v))
         var out = ""

@@ -3,9 +3,8 @@ import Foundation
 /// `GET /api/wrapped/:year` — Season Wrapped (NS-36): one calendar year's
 /// numbers, past events only, computed on the server by `src/lib/wrapped.ts`.
 ///
-/// **No screen reads this yet.** Wrapped is web-first; the model is here so the
-/// golden contract decodes, and so a native Wrapped next November is this model
-/// plus a screen — the computation is the server's, so there is nothing to port.
+/// Read by `WrappedScreen` in the app, through `WrappedStory`'s card rules. The
+/// computation is the server's, so nothing here is ported but the presentation.
 /// Every card is optional because the server skips a card with no data rather
 /// than sending it empty.
 public struct Wrapped: Codable, Hashable, Sendable {

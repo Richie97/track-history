@@ -34,14 +34,20 @@ enum Route: Hashable {
     /// the page made — and finds the session and lap in it. Not a `DeepLink`:
     /// a lap id means nothing away from the page it came from.
     case lap(eventId: Int, sessionId: Int, lapId: Int)
+    /// Season Wrapped (NS-36): one calendar year as a story of cards, opened from
+    /// the dashboard's November banner. Not a `DeepLink` — the web's
+    /// `#/wrapped/:year` is a web route, and the app's door is the banner.
+    case wrapped(year: Int)
 }
 
 extension Route {
     /// Whether this destination needs the **whole window** rather than a pane
     /// (NS-34).
     ///
-    /// Two of them do, for the same reason rather than two: each is a task you are
-    /// doing *instead of* reading the logbook, not alongside it. The record screen
+    /// Three of them do, for the same reason rather than three: each is a task you
+    /// are doing *instead of* reading the logbook, not alongside it. Season Wrapped
+    /// is the third — a story told one full-screen card at a time, which a pane
+    /// would make a postcard of. The record screen
     /// is a phone-in-a-mount layout meant to be read at a glance, and half an iPad
     /// is a worse version of it rather than a bigger one; the importer ends in the
     /// review, which is modal by nature and which NS-26 keeps above the graph on
@@ -51,7 +57,7 @@ extension Route {
     /// window, so a push is full-window and keeps the back gesture.
     var ownsTheWindow: Bool {
         switch self {
-        case .record, .importVideo: true
+        case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .lap: false
         }
     }
@@ -248,7 +254,7 @@ final class AppRouter {
                 )
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.
-            case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new):
+            case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped:
                 return route
             }
         }
