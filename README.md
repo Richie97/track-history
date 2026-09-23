@@ -249,7 +249,7 @@ session's best, the racing line when it is the lap the trace was drawn from,
 its own channel traces, and a *Compare laps* control that opens the session's
 overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
 layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
-diff, year in review and the two-event overlay stay web-only by design.
+diff, year in review, Season Wrapped and the two-event overlay stay web-only by design.
 
 The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
@@ -1270,6 +1270,38 @@ Local testing needs no store: `test/api/billing.test.ts` signs payloads with a
 synthetic certificate chain (`test/fixtures/billing/`, rebuilt by `build.sh`)
 that the Worker trusts only under `DEV_MODE` via `APPLE_IAP_TEST_ROOT_PEM`, and
 mocks the Apple and Google APIs in `vitest.workers.config.mts`.
+
+## Season Wrapped
+
+A season handed back as a story (`docs/specs/native/NS-36-season-wrapped.md`),
+**web-first and free**: `#/wrapped/:year` (`#/wrapped` opens the newest year)
+is a swipe-through of full-screen cards — cover, the numbers (track days,
+tracks, laps, **track miles**), most driven, biggest improvement, fastest lap,
+new tracks, hours behind the wheel, hottest day, the two Pro cards (favourite
+tyre, top speed — drawn *locked* on a free account) and a summary poster. A card
+with no data is skipped, never drawn empty. From 1 November to 31 January the
+dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
+`public/js/wrapped.js`), dismissable per season.
+
+- **Computed on the server**, not the client like year in review:
+  `GET /api/wrapped/:year` runs `seasonWrapped` (`src/lib/wrapped.ts`) over the
+  user's events, the catalog's lap lengths and — for tracks the catalog can't
+  measure — one driven distance per telemetry lap, read in SQL so no channel
+  blob reaches the Worker. That is what lets the public share and the link
+  preview use the same numbers, and makes a native Wrapped a screen rather
+  than a port.
+- **Track miles** are logged laps × lap length, the length resolved from
+  `track_catalog.length_m` (migration `0026`, seeded from each venue's
+  published figure for the named layout), else the median gridded lap
+  distance of the driver's own telemetry there, else the median best-lap trace
+  length; a track with none of those counts zero and the card says "across N of
+  M tracks". Best-lap-only history undercounts, on purpose — the card is the
+  logbook, not an estimate.
+- The story is real DOM (text selects, screen readers read the current card,
+  announced through a live region), navigated by tapping the left/right third,
+  swiping, the arrow keys / Space, or the progress dots; under
+  `prefers-reduced-motion` every transition is a cut. It is the one surface
+  that uses the lime accent generously, noted as such in `style.css`.
 
 ## Sharing & leaderboards
 
