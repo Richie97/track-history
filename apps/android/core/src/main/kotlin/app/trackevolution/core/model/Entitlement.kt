@@ -108,6 +108,16 @@ public data class Entitlement(
         public fun canViewYearInReview(entitlement: Entitlement?): Boolean = isPro(entitlement)
 
         /**
+         * Cost roll-ups across events (NS-37): a track's "\$N spent", a car's
+         * spend, a season's. Entering the line items stays free — it is a write,
+         * and no write is gated — and so does one event's own total. A
+         * client-side gate on a convenience, not a protected field. No Android
+         * screen shows a roll-up yet (costs are web-first); the predicate exists
+         * so the names stay diffable against `public/js/entitlement.js`.
+         */
+        public fun canViewSpend(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /**
          * The web's two-event lap overlay. Ported for name parity with
          * `public/js/entitlement.js` and the shared fixture, though no Android
          * screen reads it — the overlay is web-only (docs/specs/native/README.md).

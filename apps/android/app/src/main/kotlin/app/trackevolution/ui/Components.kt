@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.trackevolution.ui.theme.TrackCard
@@ -284,6 +285,38 @@ fun TEConfirmDialog(
  * thing that makes a logbook look unfinished.
  */
 fun fmtCount(count: Int, noun: String): String = "$count $noun${if (count == 1) "" else "s"}"
+
+/**
+ * A Pro section, **locked in place** (NS-37) — the card a free account sees
+ * where the section's content would be, never the section simply missing. The
+ * inline counterpart of [LoadState.Paywall], which is the whole-screen one and
+ * is now reserved for screens that have nothing free to show.
+ */
+@Composable
+fun TEProLocked(
+    title: String,
+    blurb: String,
+    onSubscribe: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TrackCard(modifier = modifier.fillMaxWidth().semantics { testTag = "proLocked" }) {
+        Text("PRO", style = TrackTheme.typography.eyebrow, color = TrackTheme.colors.accentInk)
+        Text(title, style = TrackTheme.typography.bodyStrong, color = TrackTheme.colors.textStrong)
+        Text(
+            blurb,
+            style = TrackTheme.typography.sm,
+            color = TrackTheme.colors.textMuted,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        TextButton(onClick = onSubscribe) {
+            Text(
+                "See Track Evolution Pro",
+                style = TrackTheme.typography.bodyStrong,
+                color = TrackTheme.colors.accentInk,
+            )
+        }
+    }
+}
 
 /** Dot-separated metadata, skipping whatever is absent. */
 @Composable

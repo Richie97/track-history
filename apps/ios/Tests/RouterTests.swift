@@ -69,6 +69,64 @@ final class RouterTests: XCTestCase {
         XCTAssertEqual(router.selection, .shared(slug: "abc"))
     }
 
+    // MARK: - tabs (NS-37)
+
+    /// Opening a car — from the garage list, a deep link, the dashboard's hero —
+    /// lands on the Garage tab, and the Events stack is left exactly as it was.
+    func testShowingACarSwitchesToTheGarageAndKeepsTheEventsStack() {
+        let router = AppRouter()
+        router.show(.event(1))
+        router.push(.track(2))
+
+        router.show(.vehicle(5))
+        XCTAssertEqual(router.tab, .garage)
+        XCTAssertEqual(router.path, [.vehicle(5)])
+        XCTAssertEqual(router.eventsPath, [.event(1), .track(2)], "the other tab keeps its place")
+
+        router.show(.event(9))
+        XCTAssertEqual(router.tab, .events)
+        XCTAssertEqual(router.garagePath, [.vehicle(5)])
+    }
+
+    /// A push stays on the tab you are on: an event page linking to its car keeps
+    /// the car on the Events stack, so Back returns to the event.
+    func testAPushNeverChangesTab() {
+        let router = AppRouter()
+        router.show(.event(1))
+        router.push(.vehicle(3))
+        XCTAssertEqual(router.tab, .events)
+        XCTAssertEqual(router.eventsPath, [.event(1), .vehicle(3)])
+        XCTAssertTrue(router.garagePath.isEmpty)
+    }
+
+    /// Settings belongs to neither tab and opens wherever you are.
+    func testSettingsOpensOnTheCurrentTab() {
+        let router = AppRouter()
+        router.tab = .garage
+        router.open(.settings)
+        XCTAssertEqual(router.tab, .garage)
+        XCTAssertEqual(router.garagePath, [.settings])
+    }
+
+    /// A link to the dashboard goes home: the Events tab's root.
+    func testTheDashboardLinkReturnsToTheEventsRoot() {
+        let router = AppRouter()
+        router.show(.vehicle(1))
+        XCTAssertTrue(router.open(URL(string: "https://trackevolution.app/#/")!, signedIn: true))
+        XCTAssertEqual(router.tab, .events)
+        XCTAssertTrue(router.eventsPath.isEmpty)
+    }
+
+    /// Temp ids follow their rows on both stacks, not only the one on screen.
+    func testTempIdsAreRemappedOnBothTabs() {
+        let router = AppRouter()
+        router.eventsPath = [.event(-3)]
+        router.garagePath = [.vehicle(2), .event(-3)]
+        router.remapTempIds { $0 == -3 ? 40 : nil }
+        XCTAssertEqual(router.eventsPath, [.event(40)])
+        XCTAssertEqual(router.garagePath, [.vehicle(2), .event(40)])
+    }
+
     // MARK: - which routes own the window
 
     /// The recorder and the importer, and nothing else. A new route added to

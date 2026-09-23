@@ -60,9 +60,16 @@ public sealed interface Route {
     @Serializable
     public data object Settings : Route
 
-    /** A car's garage page: consumables, wear and the track-hours ledger. */
+    /**
+     * A car's page: its logbook for every account, and for Pro its consumables
+     * and wear (NS-37). Lives in the Garage tab's graph.
+     */
     @Serializable
     public data class Vehicle(val id: Int) : Route
+
+    /** The Garage tab's root: a tile per car and **+ Add car** (NS-37). */
+    @Serializable
+    public data object Garage : Route
 
     /** The recorder. Null [eventId] is a recording with no event yet (NS-18). */
     @Serializable
@@ -134,3 +141,38 @@ public fun routeFor(link: DeepLink): Route? = when (link) {
     is DeepLink.Shared -> Route.Shared(link.slug)
     is DeepLink.Vehicle -> Route.Vehicle(link.id)
 }
+
+/**
+ * The signed-in shell's two tabs (NS-37): the logbook and the garage.
+ *
+ * Settings is not a third tab — it stays behind the dashboard's top bar, and so
+ * lives in the Events graph.
+ */
+public enum class AppTab { Events, Garage }
+
+/** The Events tab's nested graph; its start destination is [Route.Dashboard]. */
+@Serializable
+public data object EventsGraph
+
+/** The Garage tab's nested graph; its start destination is [Route.Garage]. */
+@Serializable
+public data object GarageGraph
+
+/**
+ * Which tab a route lives in — iOS's `Route.tab`. Deep links and cross-tab
+ * navigation read it to switch the tab *before* navigating, which is what makes
+ * `/vehicle/:id` land in the Garage at every width. Everything but the car and
+ * the garage itself belongs to the logbook.
+ */
+public val Route.tab: AppTab
+    get() = when (this) {
+        is Route.Vehicle, Route.Garage -> AppTab.Garage
+        else -> AppTab.Events
+    }
+
+/** The start destination of a tab's graph — what `popUpTo` resets it to. */
+public val AppTab.root: Route
+    get() = when (this) {
+        AppTab.Events -> Route.Dashboard
+        AppTab.Garage -> Route.Garage
+    }

@@ -66,6 +66,7 @@ class EntitlementTest {
                 Entitlement.canViewYearInReview(entitlement),
                 "$name: canViewYearInReview",
             )
+            assertEquals(flag("canViewSpend"), Entitlement.canViewSpend(entitlement), "$name: canViewSpend")
             assertEquals(
                 flag("canCompareEvents"),
                 Entitlement.canCompareEvents(entitlement),

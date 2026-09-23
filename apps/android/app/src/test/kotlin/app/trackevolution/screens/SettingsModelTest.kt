@@ -209,27 +209,6 @@ class SettingsModelTest {
         assertNull(model.shareUrl("https://example.test"))
     }
 
-    @Test
-    fun `a failing garage costs the vehicle list and nothing else`() {
-        // /me answers, /vehicles does not: the account, the legal links and the
-        // share panel must still be there.
-        val engine = MockEngine { request ->
-            val path = request.url.encodedPath
-            when {
-                path.endsWith("/me") -> respond(ME, HttpStatusCode.OK, JSON)
-                path.endsWith("/vehicles") ->
-                    respond("""{"error":"nope"}""", HttpStatusCode.InternalServerError, JSON)
-                else -> respond("""{"ok":true}""", HttpStatusCode.OK, JSON)
-            }
-        }
-        val model = model(api = ApiClient(engine, baseUrl = "https://example.test"))
-        model.load()
-
-        await { model.state.takeIf { it == LoadState.Ready } }
-        assertEquals(emptyList<Any>(), model.vehicles)
-        assertEquals("eric", model.slug)
-    }
-
     private companion object {
         val JSON = headersOf(HttpHeaders.ContentType, "application/json")
 

@@ -78,9 +78,9 @@ In `public/js/garage.js`, beside the catalog helpers, ported to the Kit and
   event's computed `best_ms` (the `withComputed` rule, so a manual best counts),
   ordered by most recent event at that track, tracks with no time dropped.
 - **`vehicleTileLine(logbook)`** → the tile's one line: *"14 track days · last
-  at VIR (Full)"*, *"1 track day · last at NCM"*, *"Next: Road Atlanta, 12 Oct"*
-  when the car has only an upcoming event, *"No track days yet"*. Pinned
-  because three clients write it.
+  at VIR (Full)"*, *"1 track day · last at NCM"*, *"Next: Road Atlanta"*
+  when the car has only an upcoming event, *"No track days yet"*. No date in
+  it, since a date is locale work; pinned because three clients write it.
 
 In `public/js/entitlement.js`: **`canViewSpend(entitlement)`**, answering what
 `isPro` does today, named for the decision.
@@ -96,9 +96,9 @@ whose most recent events tie on date (order by event id).
 ### 2. Web (ticket 1)
 
 - **Top bar:** *Events* and *Garage* links after the brand, the current one
-  marked `aria-current="page"`; *Garage* carries the due-parts count for Pro
-  (`garageAlerts`, already pinned) as a badge with a spoken label ("2 parts
-  due"). The links collapse to the same two words at 375 px — no hamburger.
+  marked `aria-current="page"`; *Garage* carries the count of maintenance
+  reminders — due or low — for Pro (`garageAlerts`, already pinned) as a badge
+  with a spoken label ("2 maintenance reminders"). The links collapse to the same two words at 375 px — no hamburger.
 - **`#/garage`:** the maintenance strip (Pro; locked for free) and a card grid
   of cars — name, catalog label, *Default* marker, `vehicleTileLine`, and for
   Pro the hours and the worst part's status line — ending in the **+ Add car**
@@ -107,7 +107,7 @@ whose most recent events tie on date (order by event id).
   garage does. Offline, the tile is disabled with *"Adding a car needs a
   connection"*, since vehicle writes are off `QUEUEABLE`.
 - **`#/vehicle/:id` for a free account:** loads `/vehicles` + `/events`; shows
-  the header, *Track days / Events / Last event* tiles, the **best in this car**
+  the header, *Track days / Events* tiles, a last-out / next-up line, the **best in this car**
   table, and the *Edit car* form; the consumables, *Hours*, *Spent* and the
   measured-ratio line render as locked panels. For Pro it is today's page plus
   the logbook tiles and the bests table.

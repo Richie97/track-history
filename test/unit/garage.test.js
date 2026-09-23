@@ -19,6 +19,8 @@ import {
   setupToDisplay,
   setupToStored,
   setupUnit,
+  vehicleLogbook,
+  vehicleTileLine,
   wearLimitHint,
 } from "../../public/js/garage.js";
 
@@ -257,5 +259,64 @@ describe("catalogPrefill", () => {
   });
   it("has nothing to do when the numbers already match", () => {
     expect(plan(C7, { wheelbase_mm: 2710, steering_ratio: 16.25 }, null)).toEqual(["keep", "keep"]);
+  });
+});
+
+describe("vehicleLogbook / vehicleTileLine (NS-37)", () => {
+  const today = "2026-09-20";
+  const ev = (id, over) => ({
+    id,
+    vehicle_id: 1,
+    track_id: 100,
+    track_name: "VIR",
+    start_date: "2026-06-01",
+    days: 1,
+    best_ms: null,
+    ...over,
+  });
+
+  it("counts track days, not events, and a track day that starts today is past", () => {
+    const lb = vehicleLogbook(1, [ev(1, { days: 2 }), ev(2, { start_date: today })], today);
+    expect(lb.track_days).toBe(3);
+    expect(lb.events).toBe(2);
+    expect(lb.last_event.id).toBe(2);
+    expect(lb.next_event).toBeNull();
+  });
+
+  it("only counts rows the server matched to the car", () => {
+    const lb = vehicleLogbook(1, [ev(1, { vehicle_id: null, car: "C8" }), ev(2, { vehicle_id: 2 })], today);
+    expect(lb.events).toBe(0);
+    expect(vehicleTileLine(lb)).toBe("No track days yet");
+  });
+
+  it("keeps one best per track — the fastest, the earlier event on a tie", () => {
+    const lb = vehicleLogbook(
+      1,
+      [ev(1, { best_ms: 90000 }), ev(2, { start_date: "2026-07-01", best_ms: 90000 }), ev(3, { start_date: "2026-08-01", best_ms: 95000 })],
+      today
+    );
+    expect(lb.bests).toEqual([{ track_id: 100, track_name: "VIR", best_ms: 90000, event_id: 1, start_date: "2026-06-01" }]);
+  });
+
+  it("orders tracks by the car's latest event there, event id breaking a date tie", () => {
+    const lb = vehicleLogbook(
+      1,
+      [
+        ev(1, { track_id: 100, best_ms: 1 }),
+        ev(2, { track_id: 101, track_name: "NCM", start_date: "2026-07-01", best_ms: 2 }),
+        ev(3, { track_id: 102, track_name: "Summit", start_date: "2026-07-01", best_ms: 3 }),
+        ev(4, { track_id: 103, track_name: "Glen", start_date: "2026-08-01" }),
+      ],
+      today
+    );
+    expect(lb.bests.map((b) => b.track_id)).toEqual([102, 101, 100]);
+  });
+
+  it("words the tile from the last event, else the next, else nothing yet", () => {
+    expect(vehicleTileLine(vehicleLogbook(1, [ev(1)], today))).toBe("1 track day · last at VIR");
+    expect(vehicleTileLine(vehicleLogbook(1, [ev(1, { days: 3 })], today))).toBe("3 track days · last at VIR");
+    expect(vehicleTileLine(vehicleLogbook(1, [ev(1, { start_date: "2026-10-01", track_name: "Glen" })], today))).toBe(
+      "Next: Glen"
+    );
   });
 });

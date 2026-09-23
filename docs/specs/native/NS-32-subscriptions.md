@@ -52,6 +52,9 @@ turns lap times into analysis.
 | Public share pages, per-track leaderboards | Free | — (share is unauthenticated; a leaderboard behind a paywall is empty) |
 | Offline reads and writes, prep checklist, themes, Settings | Free | — |
 | The garage's **vehicle list** (pre-fills the car field) | Free | — |
+| The **Garage** page / tab, its car tiles and **+ Add car**, and each car's page with its logbook — track days, events, last and next event, best lap per track ([NS-37](NS-37-garage-tab.md)) | Free | — (computed on the client from `/vehicles` and `/events`; the Pro sections below render locked in place) |
+| Track-day **cost entry** — the four line items on the event form, and one event's own total | Free | — (a write; no write is gated) |
+| **Cost roll-ups** across events — per track, per car, per season ([NS-37](NS-37-garage-tab.md)) | **Pro** | Client: `canViewSpend` (the line items are free data on `/events`); server: the per-car sums ride on `/garage` |
 | GPS lap recorder, live timing, predictive delta | **Pro** | Client, at *start* (rule 5) |
 | Telemetry import — video on the phones, video + `.vbo` on web | Free | — (revised after phase D; see the note below) |
 | Channel graphs — the **speed, throttle and brake** traces, on the event page, the lap detail and the leaderboard lap | Free | — (revised 2026-09, [#264](https://github.com/Richie97/track-history/issues/264); see rule 4) |

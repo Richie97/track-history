@@ -4,6 +4,12 @@ import TrackEvolutionKit
 /// One car's garage page: what it has accrued, what's fitted to it, and what's
 /// about to need replacing. `viewVehicle` in `public/app.js` is the reference.
 ///
+/// **Every account gets the page** (NS-37): the car, its logbook (track days,
+/// last and next event, best lap per track — the Kit's `vehicleLogbook` over the
+/// cached events) and its form are free. The rest reads the Pro
+/// `GET /api/garage`, and a 402 from it locks that half in place rather than
+/// making the whole page a paywall.
+///
 /// The premise worth keeping in mind while reading this: **usage is computed,
 /// never logged.** A part accrues the on-track hours of every event on its vehicle
 /// between its install and retire dates, so the only thing this screen ever asks
@@ -31,6 +37,7 @@ struct VehicleScreen: View {
     /// Which consumable the right column is showing (NS-34 ticket 3).
     @State private var selectedPartId: Int?
     @State private var confirmingRefresh: Part?
+    @State private var confirmingDelete = false
 
     /// Which form is on screen. One value rather than a bool per form, so there
     /// is one `.sheet` to present them all — see the comment on that modifier.
@@ -76,9 +83,12 @@ struct VehicleScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = VehicleModel(api: auth.api, vehicleId: vehicleId)
+                let model = VehicleModel(api: auth.api, vehicleId: vehicleId) { [router] in
+                    router.garageRevision += 1
+                }
                 self.model = model
                 await model.load()
+                if model.garageVehicle != nil { router.garageAlertCount = model.alertCount }
             }
         }
         // One `.sheet`, not three. Stacking a second on the same view is not
@@ -142,8 +152,8 @@ struct VehicleScreen: View {
     /// for: logging a measurement is a two-field form that on a phone sits inside
     /// whichever card you scrolled to, and the column gives it a fixed place.
     @ViewBuilder
-    private func page(_ model: VehicleModel, _ vehicle: GarageVehicle) -> some View {
-        if let partWidth {
+    private func page(_ model: VehicleModel, _ vehicle: Vehicle) -> some View {
+        if let partWidth, model.garageVehicle != nil {
             HStack(spacing: 0) {
                 content(model, vehicle)
                     // Inside the frame on both columns — see the note on
@@ -201,27 +211,145 @@ struct VehicleScreen: View {
         .accessibilityIdentifier("partColumn")
     }
 
-    private func content(_ model: VehicleModel, _ vehicle: GarageVehicle) -> some View {
+    private func content(_ model: VehicleModel, _ vehicle: Vehicle) -> some View {
         TEPage {
+            if vehicle.isDefault {
+                DefaultBadge()
+            }
             if let notes = vehicle.notes, !notes.isEmpty {
                 Text(notes)
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textMuted))
             }
 
-            MaintenanceStrip(garage: [vehicle])
+            if let garageVehicle = model.garageVehicle {
+                MaintenanceStrip(garage: [garageVehicle])
 
-            TEStatRow(tiles: [
-                TEStatTile(label: "Track hours", value: Garage.fmtHours(vehicle.hours)),
-                TEStatTile(label: "Track days", value: "\(vehicle.eventDays)"),
-                TEStatTile(label: "Events", value: "\(vehicle.eventCount)"),
-                TEStatTile(label: "Parts spend", value: Garage.fmtCost(model.spendCents) ?? "—")
-            ])
+                TEStatRow(tiles: [
+                    TEStatTile(label: "Track hours", value: Garage.fmtHours(garageVehicle.hours)),
+                    TEStatTile(label: "Track days", value: "\(garageVehicle.eventDays)"),
+                    TEStatTile(label: "Events", value: "\(garageVehicle.eventCount)"),
+                    TEStatTile(label: "Parts spend", value: Garage.fmtCost(model.spendCents) ?? "—")
+                ])
+            } else {
+                TEStatRow(tiles: [
+                    TEStatTile(label: "Track days", value: Self.fmtDays(model.logbook.trackDays)),
+                    TEStatTile(label: "Events", value: "\(model.logbook.events)")
+                ])
+            }
 
             if let error = model.writeError {
                 TEErrorBanner(message: error)
             }
 
+            logbookSection(model)
+
+            if model.garageVehicle != nil {
+                proSection(model)
+            } else if model.proLocked {
+                ProUpsellCard(
+                    title: "Consumables, hours and costs",
+                    blurb: """
+                        Pads, tires, rotors and fluid, each with the hours it has actually done — \
+                        accrued from this car's own track days — a wear projection, reminders before \
+                        the next event, and what the car has cost you. The car and what it has done \
+                        stay free.
+                        """
+                )
+            } else if let error = model.garageError {
+                TEErrorBanner(message: error)
+            }
+
+            // An alert rather than a confirmation dialog: on an iPad a dialog is a
+            // popover anchored to this button, far down a long page, and a
+            // destructive choice deserves the middle of the screen. On the button
+            // rather than the screen, which already carries the refresh dialog —
+            // one presentation per view is the rule documented above.
+            Button("Delete car") { confirmingDelete = true }
+                .buttonStyle(TEButtonStyle(kind: .danger))
+                .accessibilityIdentifier("deleteVehicle")
+                .alert("Delete \(vehicle.name)?", isPresented: $confirmingDelete) {
+                    Button("Delete this car", role: .destructive) {
+                        Task {
+                            if await model.deleteVehicle() { router.popToRoot() }
+                        }
+                    }
+                    Button("Keep it", role: .cancel) {}
+                } message: {
+                    Text("Events keep their car name and simply stop being linked"
+                        + (model.garageVehicle != nil ? "; its consumables, measurements and wear history go with it." : "."))
+                }
+        }
+        .refreshable { await model.load() }
+    }
+
+    /// `9` not `9.0` — the sum of `days`, which the model carries as a Double.
+    private static func fmtDays(_ days: Double) -> String {
+        days == days.rounded() ? "\(Int(days))" : "\(days)"
+    }
+
+    /// Last out, next up and the best lap at each track — the car's logbook,
+    /// free for every account.
+    @ViewBuilder
+    private func logbookSection(_ model: VehicleModel) -> some View {
+        let logbook = model.logbook
+        if logbook.lastEvent == nil, logbook.nextEvent == nil {
+            Text("No track days in this car yet — pick it on an event and they'll show up here.")
+                .teStyle(.sm)
+                .foregroundStyle(Color(.textMuted))
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                if let last = logbook.lastEvent {
+                    eventLink("Last out", last)
+                }
+                if let next = logbook.nextEvent {
+                    eventLink("Next up", next)
+                }
+            }
+        }
+        if !logbook.bests.isEmpty {
+            TESectionHeader("Best in this car")
+            ForEach(logbook.bests) { best in
+                TENavCard(route: .event(best.eventId), identifier: "vehicleBest") {
+                    Text(best.trackName)
+                        .teStyle(.bodyStrong)
+                        .foregroundStyle(Color(.textStrong))
+                    HStack {
+                        Text(LapTime.fmtMs(best.bestMs))
+                            .teStyle(.lapTime)
+                            .foregroundStyle(Color(.textStrong))
+                        Spacer()
+                        Text(EventDates.fmtDate(best.startDate))
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                    }
+                }
+            }
+        }
+    }
+
+    private func eventLink(_ label: String, _ ref: Garage.EventRef) -> some View {
+        Button {
+            router.push(.event(ref.id))
+        } label: {
+            HStack(spacing: 6) {
+                Text(label)
+                    .teStyle(.eyebrow)
+                    .foregroundStyle(Color(.textFaint))
+                Text(ref.trackName)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.accentInk))
+                Text(EventDates.fmtDate(ref.startDate))
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The consumables — everything the Pro `GET /api/garage` carries.
+    @ViewBuilder
+    private func proSection(_ model: VehicleModel) -> some View {
             TESectionHeader("Consumables in service")
             Text("""
                 Wear accrues automatically from this car's logged events — 2 h per track day unless an \
@@ -249,9 +377,6 @@ struct VehicleScreen: View {
                     retiredCard(part)
                 }
             }
-
-        }
-        .refreshable { await model.load() }
     }
 
     // MARK: - A part in service
@@ -702,35 +827,73 @@ final class VehicleModel {
     let vehicleId: Int
 
     private(set) var state: LoadState = .loading
-    private(set) var vehicle: GarageVehicle?
+    /// The car itself, from the free vehicle list.
+    private(set) var vehicle: Vehicle?
+    /// Its Pro half, when `GET /api/garage` answered.
+    private(set) var garageVehicle: GarageVehicle?
+    /// A 402 from `/garage`: the Pro half renders locked.
+    private(set) var proLocked = false
+    /// Any other `/garage` failure — offline with nothing cached — said in place
+    /// of the Pro half rather than instead of the page.
+    private(set) var garageError: String?
+    private(set) var logbook = Garage.vehicleLogbook(0, [Event](), today: "")
+    private(set) var alertCount = 0
     var writeError: String?
+    /// Told after every write that landed, so the Garage list can re-read.
+    private let onWrite: @MainActor () -> Void
 
-    init(api: APIClient, vehicleId: Int) {
+    init(api: APIClient, vehicleId: Int, onWrite: @escaping @MainActor () -> Void = {}) {
         self.api = api
         self.vehicleId = vehicleId
+        self.onWrite = onWrite
     }
 
     func load() async {
+        async let garageList: Result<[GarageVehicle], Error> = {
+            do { return .success(try await api.garage()) } catch { return .failure(error) }
+        }()
         do {
-            vehicle = try await api.garage().first { $0.id == vehicleId }
+            async let vehicleList = api.vehicles()
+            async let eventList = api.events()
+            let loaded = try await (vehicles: vehicleList, events: eventList)
+            vehicle = loaded.vehicles.first { $0.id == vehicleId }
+            logbook = Garage.vehicleLogbook(vehicleId, loaded.events, today: EventDates.todayISO())
             state = .ready
         } catch let error as APIError {
-            // A 402 is an offer, not a failure: GET /api/garage is Pro since
-            // phase D, and "Couldn't load this — pro required" would read as a
-            // bug rather than as a price.
-            state = error.isProRequired ? .paywall : .failed(error.message)
+            state = .failed(error.message)
         } catch {
             state = .failed(error.localizedDescription)
         }
+        garageError = nil
+        switch await garageList {
+        case .success(let rows):
+            garageVehicle = rows.first { $0.id == vehicleId }
+            // The garage row is the fresher copy when both answered.
+            if let garageVehicle { vehicle = garageVehicle.vehicle }
+            alertCount = Garage.garageAlerts(rows).count
+            proLocked = false
+        case .failure(let error as APIError) where error.isProRequired:
+            // A 402 is an offer, not a failure: GET /api/garage is Pro since
+            // phase D, and "Couldn't load this — pro required" would read as a
+            // bug rather than as a price.
+            garageVehicle = nil
+            proLocked = true
+        case .failure(let error as APIError):
+            garageVehicle = nil
+            garageError = error.message
+        case .failure(let error):
+            garageVehicle = nil
+            garageError = error.localizedDescription
+        }
     }
 
-    var activeParts: [Part] { vehicle?.parts.filter { $0.retiredOn == nil } ?? [] }
-    var retiredParts: [Part] { vehicle?.parts.filter { $0.retiredOn != nil } ?? [] }
+    var activeParts: [Part] { garageVehicle?.parts.filter { $0.retiredOn == nil } ?? [] }
+    var retiredParts: [Part] { garageVehicle?.parts.filter { $0.retiredOn != nil } ?? [] }
 
     /// What this car's consumables have cost so far — retired sets included, since
     /// the point of the number is what the season actually cost.
     var spendCents: Int? {
-        let total = (vehicle?.parts ?? []).compactMap(\.costCents).reduce(0, +)
+        let total = (garageVehicle?.parts ?? []).compactMap(\.costCents).reduce(0, +)
         return total == 0 ? nil : total
     }
 
@@ -741,6 +904,11 @@ final class VehicleModel {
     /// from what past events say stops accruing their hours. The form says so.
     func updateVehicle(_ patch: VehiclePatch) async -> Bool {
         await write { try await $0.updateVehicle(id: self.vehicleId, patch) }
+    }
+
+    /// Cascades to the car's parts and measurements; events keep their car name.
+    func deleteVehicle() async -> Bool {
+        await write { try await $0.deleteVehicle(id: self.vehicleId) }
     }
 
     func addPart(_ draft: PartDraft) async -> Bool {
@@ -778,6 +946,7 @@ final class VehicleModel {
         do {
             try await body(api)
             await load()
+            onWrite()
             return true
         } catch let error as APIError {
             writeError = error.message
@@ -808,7 +977,7 @@ final class VehicleModel {
 /// tells those two cases apart.
 struct VehicleFormSheet: View {
     let api: APIClient
-    let vehicle: GarageVehicle
+    let vehicle: Vehicle
     /// Returns true when the write landed.
     let submit: (VehiclePatch) async -> Bool
 

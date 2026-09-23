@@ -74,26 +74,11 @@ final class GarageUITests: XCTestCase {
     func testGarageTracksAConsumableFromInstallToMeasurement() throws {
         let app = try launchSignedIn(tier: .pro)
 
-        // --- add the car, from Settings
-        app.buttons["Account"].tap()
-        let nameField = app.textFields["Corvette Z06"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 20), "Settings should offer the add-vehicle field")
-        nameField.tap()
-        nameField.typeText(Self.vehicleName)
-        app.buttons["addVehicle"].tap()
-
-        let row = app.buttons["vehicleRow"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 20), "the new vehicle should appear in the list")
-        XCTAssertTrue(
-            app.staticTexts[Self.vehicleName].waitForExistence(timeout: 10),
-            "under the name it was given"
-        )
-
-        // --- open its garage page
-        app.staticTexts[Self.vehicleName].firstMatch.tap()
+        // --- add the car, from the Garage tab's + Add car tile (NS-37)
+        addCar(app)
         XCTAssertTrue(
             app.staticTexts["Consumables in service"].waitForExistence(timeout: 20),
-            "the vehicle row should open the garage page"
+            "adding a car should land on its garage page"
         )
         XCTAssertTrue(app.staticTexts["Track hours"].exists, "with the accrued-hours tiles")
 
@@ -151,25 +136,48 @@ final class GarageUITests: XCTestCase {
 
         attachScreenshot(app, named: "garage-vehicle")
 
-        // --- and the dashboard knows about the car
-        app.navigationBars.buttons.element(boundBy: 0).tap()  // back to Settings
-        app.navigationBars.buttons.element(boundBy: 0).tap()  // back to the dashboard
+        // --- and the Garage knows about the car
+        app.navigationBars.buttons.element(boundBy: 0).tap()  // back to the Garage
         XCTAssertTrue(
-            app.buttons["garageCard"].firstMatch.waitForExistence(timeout: 20),
-            "the dashboard should carry a card per vehicle"
+            app.buttons.matching(NSPredicate(format: "label CONTAINS %@", Self.vehicleName)).firstMatch
+                .waitForExistence(timeout: 20),
+            "the Garage should carry a tile for the car"
         )
+        attachScreenshot(app, named: "garage-tab-pro")
 
-        // --- clear up
-        app.buttons["Account"].tap()
-        XCTAssertTrue(
-            app.staticTexts[Self.vehicleName].waitForExistence(timeout: 20),
-            "back in Settings to delete the car"
-        )
+        // --- clear up, from the car's own page
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", Self.vehicleName)).firstMatch.tap()
         deleteVehicle(app)
-        XCTAssertFalse(
-            app.staticTexts[Self.vehicleName].waitForExistence(timeout: 5),
-            "the vehicle, its part and its measurement should all be gone"
+    }
+
+    /// The Garage for a **free** account (NS-37): the tab, the tile and the car's
+    /// page all work, and the Pro half is shown locked in place rather than the
+    /// page being a paywall.
+    func testAFreeAccountHasAGarageWithTheProHalfLocked() throws {
+        let app = try launchSignedIn(tier: .free)
+
+        addCar(app)
+        XCTAssertTrue(
+            app.staticTexts["Track days"].waitForExistence(timeout: 20),
+            "a free account should land on the car's page, not on a paywall"
         )
+        XCTAssertFalse(app.staticTexts["Consumables in service"].exists, "the consumables are Pro")
+        let upsell = app.buttons["proUpsell"].firstMatch
+        scrollUntilHittable(app, upsell)
+        XCTAssertTrue(upsell.exists, "with the Pro half locked in place")
+        attachScreenshot(app, named: "garage-vehicle-free")
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()  // back to the Garage
+        XCTAssertTrue(
+            app.buttons.matching(NSPredicate(format: "label CONTAINS %@", Self.vehicleName)).firstMatch
+                .waitForExistence(timeout: 20),
+            "the Garage should carry a tile for the car"
+        )
+        XCTAssertTrue(app.buttons["proUpsell"].firstMatch.exists, "and the locked maintenance panel")
+        attachScreenshot(app, named: "garage-tab-free")
+
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", Self.vehicleName)).firstMatch.tap()
+        deleteVehicle(app)
     }
 
     /// Picking a car from the catalog (#222): the pick fills the two spec-sheet
@@ -183,15 +191,13 @@ final class GarageUITests: XCTestCase {
     func testPickingACatalogCarFillsItsGeometry() throws {
         let app = try launchSignedIn(tier: .pro)
 
-        app.buttons["Account"].tap()
-        let nameField = app.textFields["Corvette Z06"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 20), "Settings should offer the add-vehicle field")
+        let nameField = openAddCar(app)
         nameField.tap()
         nameField.typeText(Self.vehicleName)
 
         // --- pick the car
         let pickButton = app.buttons["pickCatalogCar"]
-        scrollUntilHittable(app, pickButton)
+        XCTAssertTrue(pickButton.waitForExistence(timeout: 10))
         pickButton.tap()
         let search = app.textFields["catalogSearch"]
         XCTAssertTrue(search.waitForExistence(timeout: 15), "the catalog picker should open")
@@ -207,16 +213,11 @@ final class GarageUITests: XCTestCase {
         XCTAssertTrue(app.buttons["clearCatalogCar"].exists, "the pick should be shown, and clearable")
 
         app.buttons["addVehicle"].tap()
-        XCTAssertTrue(
-            app.staticTexts[Self.vehicleName].waitForExistence(timeout: 20),
-            "the new vehicle should appear in the list"
-        )
 
         // --- the numbers landed on the car
-        app.staticTexts[Self.vehicleName].firstMatch.tap()
         XCTAssertTrue(
             app.staticTexts["Consumables in service"].waitForExistence(timeout: 20),
-            "the vehicle row should open the garage page"
+            "adding a car should land on its garage page"
         )
         app.buttons["editVehicle"].tap()
         let wheelbase = app.textFields["wheelbaseField"]
@@ -231,60 +232,60 @@ final class GarageUITests: XCTestCase {
         app.buttons["Cancel"].tap()
 
         // --- clear up
-        app.navigationBars.buttons.element(boundBy: 0).tap()  // back to Settings
-        XCTAssertTrue(
-            app.staticTexts[Self.vehicleName].waitForExistence(timeout: 20),
-            "back in Settings to delete the car"
-        )
         deleteVehicle(app)
     }
 
-    /// Delete the test car, by finding the Delete that belongs to *its* row.
-    ///
-    /// Two things this has to get right, and the version before it got neither —
-    /// which nothing noticed, because the suite could not be run at all:
-    ///
-    /// - **Match by label, not identifier.** This button sets no identifier of its
-    ///   own and SwiftUI synthesizes none, so `matching(identifier: "Delete")`
-    ///   matched *nothing* and the walk fell straight through to its failure.
-    /// - **Scroll first.** Settings is longer than a screen and the vehicles sit
-    ///   under the checklist-template editor, so every Delete starts off-screen and
-    ///   `isHittable` is false for all of them. A `where isHittable` filter over
-    ///   elements nobody has scrolled to skips the whole list.
-    ///
-    /// Which Delete belongs to this car is decided by **geometry**: the buttons sit
-    /// under their own row, so the right one is the first Delete at or below the
-    /// row's top edge. The confirmation still quotes the name, and that is asserted
-    /// rather than searched — a delete that reached the wrong dialog should fail
-    /// loudly, not quietly cancel and try the next one.
+    /// Open the Garage tab's *+ Add car* sheet and hand back its name field.
+    @discardableResult
+    private func openAddCar(_ app: XCUIApplication) -> XCUIElement {
+        // Any button, not `tabBars`: on an iPad the tabs are drawn in the top bar
+        // and XCUITest doesn't publish them as a tab bar there.
+        let tab = app.buttons["Garage"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 20), "the shell should carry a Garage tab")
+        tab.tap()
+        let add = app.buttons["addCar"]
+        XCTAssertTrue(add.waitForExistence(timeout: 20), "the Garage should offer + Add car")
+        scrollUntilHittable(app, add)
+        add.tap()
+        let nameField = app.textFields["newVehicleName"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 15), "the add-car sheet should open")
+        return nameField
+    }
+
+    /// Add the test car by name alone; the app then opens its page.
+    private func addCar(_ app: XCUIApplication) {
+        let nameField = openAddCar(app)
+        nameField.tap()
+        nameField.typeText(Self.vehicleName)
+        app.buttons["addVehicle"].tap()
+    }
+
+    /// Delete the test car from its own page — where *Delete car* lives since
+    /// NS-37 — and check the Garage no longer lists it.
     private func deleteVehicle(_ app: XCUIApplication) {
-        let row = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", Self.vehicleName))
-            .firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "the test car should still be listed")
-        scrollUntilHittable(app, row)
+        let delete = app.buttons["deleteVehicle"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 15), "the car's page should offer Delete car")
+        scrollUntilHittable(app, delete)
+        delete.tap()
 
-        let deletes = app.buttons.matching(NSPredicate(format: "label == %@", "Delete"))
-        let mine = deletes.allElementsBoundByIndex
-            .filter { $0.exists && $0.frame.minY >= row.frame.minY }
-            .min { $0.frame.minY < $1.frame.minY }
-        guard let mine, mine.isHittable else {
-            XCTFail("no Delete button under the test vehicle's row")
-            return
-        }
-        mine.tap()
-
-        XCTAssertTrue(
-            app.buttons["Delete vehicle"].waitForExistence(timeout: 10),
-            "deleting a car should ask first — it takes its parts with it"
-        )
+        let confirm = app.buttons["Delete this car"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "deleting a car should ask first")
         XCTAssertTrue(
             app.staticTexts.containing(
                 NSPredicate(format: "label CONTAINS %@", Self.vehicleName)
             ).firstMatch.exists,
             "and the confirmation should name the car being deleted"
         )
-        app.buttons["Delete vehicle"].tap()
+        confirm.tap()
+        XCTAssertTrue(app.buttons["addCar"].waitForExistence(timeout: 20), "back on the Garage")
+        // Waited out, not `XCTAssertFalse(waitForExistence)`: that answers true the
+        // instant the old tile is still drawn, before the list's re-read lands.
+        let tile = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", Self.vehicleName)).firstMatch
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: tile)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [gone], timeout: 15), .completed,
+            "the car, and anything fitted to it, should be gone"
+        )
     }
 
     /// Swipe until the element can actually be tapped, or give up after a few

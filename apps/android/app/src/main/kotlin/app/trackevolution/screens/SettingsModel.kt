@@ -8,29 +8,23 @@ import app.trackevolution.auth.UnitsStore
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.Garage
 import app.trackevolution.core.api.ApiException
-import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.User
-import app.trackevolution.core.model.Vehicle
-import app.trackevolution.core.model.VehicleDraft
-import app.trackevolution.core.model.VehiclePatch
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
  * Settings' data: who you are, the public share link, the prep-checklist
- * template, and the garage's vehicle list (NS-26).
+ * template and the rest of the account (NS-26). The cars moved to the Garage tab
+ * (NS-37).
  *
- * Two things here are deliberately **not** on the offline queue, and so surface
+ * One thing here is deliberately **not** on the offline queue, and so surface
  * the server's own message rather than succeeding locally:
  *
  *  - **The share slug** is claimed against every other user's, so only the
  *    server can say whether it is yours.
- *  - **Vehicle writes** are off the queue by the same rule the garage follows
- *    (NS-31): a duplicate name is a 409, and the first car in an empty garage is
- *    made default server-side.
  */
 class SettingsModel(
     private val scope: CoroutineScope,
@@ -58,29 +52,6 @@ class SettingsModel(
     var slugDraft by mutableStateOf("")
 
     var shareError by mutableStateOf<String?>(null)
-        private set
-
-    var vehicles by mutableStateOf<List<Vehicle>>(emptyList())
-        private set
-
-    var newVehicleName by mutableStateOf("")
-
-    /** The catalog row the next car is being added from, if any (#222). */
-    var newVehicleCatalog by mutableStateOf<CatalogCar?>(null)
-
-    /** The car catalog, fetched when the picker first opens; a cached GET. */
-    var catalog by mutableStateOf<List<CatalogCar>?>(null)
-        private set
-
-    var catalogError by mutableStateOf<String?>(null)
-        private set
-
-    /**
-     * Kept apart from [shareError] on purpose: a rejected slug and a duplicate
-     * vehicle name are half a screen apart, and one message overwriting the
-     * other would point at the wrong field.
-     */
-    var vehicleError by mutableStateOf<String?>(null)
         private set
 
     var checklistError by mutableStateOf<String?>(null)
@@ -120,9 +91,6 @@ class SettingsModel(
                 if (user == null) state = LoadState.Failed(e.message ?: "Couldn't load your account.")
                 return@launch
             }
-            // A section, not the screen: an empty or failing garage must not take
-            // the account and the legal links down with it.
-            vehicles = runCatching { api.vehicles() }.getOrDefault(vehicles)
         }
     }
 
@@ -234,81 +202,6 @@ class SettingsModel(
                 unitsStore.set(units)
             } catch (e: ApiException) {
                 unitsError = e.message
-            }
-        }
-    }
-
-    // ---- Vehicles ----------------------------------------------------------
-
-    /** The first car in an empty garage becomes the default server-side. */
-    fun addVehicle() {
-        val name = newVehicleName.trim()
-        if (name.isEmpty()) return
-        vehicleWrite {
-            // The pick alone: the server fills both numbers from the row.
-            api.createVehicle(VehicleDraft(name = name, catalogId = newVehicleCatalog?.id))
-            newVehicleName = ""
-            newVehicleCatalog = null
-        }
-    }
-
-    fun loadCatalog() {
-        if (catalog != null) return
-        scope.launch {
-            catalogError = null
-            try {
-                catalog = api.carCatalog()
-            } catch (e: ApiException) {
-                catalogError = e.message ?: "Couldn't load the car catalog."
-            }
-        }
-    }
-
-    /**
-     * A catalog row for the car being added. Names it only when the driver
-     * hasn't — the "pre-fill, never overwrite" rule applied to the name.
-     */
-    fun pickCatalog(car: CatalogCar) {
-        newVehicleCatalog = car
-        if (newVehicleName.isBlank()) newVehicleName = Garage.catalogCarName(car)
-    }
-
-    fun makeDefault(id: Int) = vehicleWrite {
-        api.updateVehicle(id, VehiclePatch(isDefault = Patch.Set(true)))
-    }
-
-    /**
-     * Rename a car, or change its notes. Both are always sent: the edit form
-     * shows what is stored, so a cleared field means cleared.
-     *
-     * Renaming matters more than it looks — `events.car` is free text matched to
-     * a vehicle **by name** server-side, so a car renamed away from what past
-     * events say stops accruing their hours. The form says so.
-     */
-    fun updateVehicle(id: Int, name: String, notes: String) = vehicleWrite {
-        api.updateVehicle(
-            id,
-            VehiclePatch(
-                name = Patch.Set(name.trim()),
-                notes = Patch.Set(notes.trim().ifEmpty { null }),
-            ),
-        )
-    }
-
-    /**
-     * Cascades to the car's parts and measurements. Events keep the free-text car
-     * name they were logged with and simply stop being linked.
-     */
-    fun deleteVehicle(id: Int) = vehicleWrite { api.deleteVehicle(id) }
-
-    private fun vehicleWrite(block: suspend () -> Unit) {
-        scope.launch {
-            vehicleError = null
-            try {
-                block()
-                vehicles = runCatching { api.vehicles() }.getOrDefault(vehicles)
-            } catch (e: ApiException) {
-                vehicleError = e.message
             }
         }
     }

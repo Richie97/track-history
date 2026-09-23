@@ -57,6 +57,12 @@ public extension Entitlement {
     static func canUseSetups(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
     static func canViewYearInReview(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
+    /// Cost roll-ups across events — per track, per car, per season (NS-37).
+    /// Entering costs stays free, and so does one event's own total. Ported for
+    /// name parity with `public/js/entitlement.js`: costs are web-first, so no
+    /// native screen shows a roll-up yet.
+    static func canViewSpend(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
+
     /// The web's two-event lap overlay. Ported for name parity with
     /// `public/js/entitlement.js` and the shared fixture, though no native screen
     /// reads it — the overlay is web-only (`docs/specs/native/README.md`).

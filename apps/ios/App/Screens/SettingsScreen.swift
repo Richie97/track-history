@@ -8,9 +8,8 @@ import TrackEvolutionKit
 /// - **Share-link management lives here**, not on the dashboard. The web app puts it
 ///   at the bottom of the dashboard; on a phone a settings screen is where it's
 ///   looked for, and the dashboard is long enough already.
-/// - **Vehicles are managed here**, matching the web app: this screen owns the
-///   list, the default flag and deletion, while a car's consumables and wear live
-///   on its garage page (`VehicleScreen`).
+/// - **Cars are not managed here** any more (NS-37): they have their own tab, and
+///   this screen carries one row that goes to it.
 ///
 /// **Privacy and terms are required on every platform.** The web app carries them in
 /// the footer on signed-out pages and in Settings for signed-in users; the native app
@@ -24,10 +23,8 @@ struct SettingsScreen: View {
 
     @State private var model: SettingsModel?
     @State private var showingPaywall = false
-    @State private var showingCatalog = false
     @State private var confirmingSignOut = false
     @State private var confirmingDisableShare = false
-    @State private var deletingVehicle: Vehicle?
 
     private static let docsURL = URL(string: "https://docs.trackevolution.app")!
 
@@ -71,22 +68,6 @@ struct SettingsScreen: View {
             }
             Button("Keep it", role: .cancel) {}
         }
-        .confirmationDialog(
-            deletingVehicle.map {
-                "Delete \($0.name)? Its consumables, measurements and wear history go with it. "
-                    + "Events keep their car name and simply stop being linked."
-            } ?? "",
-            isPresented: .init(get: { deletingVehicle != nil }, set: { if !$0 { deletingVehicle = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button("Delete vehicle", role: .destructive) {
-                if let vehicle = deletingVehicle {
-                    Task { await model?.deleteVehicle(id: vehicle.id) }
-                }
-                deletingVehicle = nil
-            }
-            Button("Keep it", role: .cancel) { deletingVehicle = nil }
-        }
     }
 
     private func content(_ model: SettingsModel) -> some View {
@@ -119,8 +100,19 @@ struct SettingsScreen: View {
             TESectionHeader("Prep checklist")
             checklistTemplateCard(model)
 
-            TESectionHeader("Vehicles")
-            vehiclesCard(model)
+            TESectionHeader("Cars")
+            TECard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Your cars live in the Garage now — add one there, set the default for new events, and open it to see what it has done.")
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                    Button("Open the Garage") {
+                        router.tab = .garage
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("openGarage")
+                }
+            }
 
             TESectionHeader("About & legal")
             TECard {
@@ -332,11 +324,6 @@ struct SettingsScreen: View {
         }
     }
 
-    // MARK: - Vehicles
-
-    /// The garage's front door: one row per car, each opening its own page. The
-    /// default car pre-fills new events, which is the only reason the flag is
-    /// worth surfacing at all.
     /// The prep list every new checklist starts from.
     ///
     /// Editing it never touches a checklist already on an event: those are
@@ -417,114 +404,6 @@ struct SettingsScreen: View {
                 }
             }
         }
-    }
-
-    private func vehiclesCard(_ model: SettingsModel) -> some View {
-        @Bindable var model = model
-        return TECard {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("""
-                    Your cars. The default one pre-fills new events, and an event's Car field is \
-                    matched to a vehicle by name — so consumables accrue wear from the events you \
-                    already log. Open a car to track pads, tires and fluid.
-                    """)
-                    .teStyle(.sm)
-                    .foregroundStyle(Color(.textMuted))
-
-                if model.vehicles.isEmpty {
-                    TEEmpty("No vehicles yet — add one and its consumables start tracking themselves.")
-                } else {
-                    ForEach(model.vehicles) { vehicle in
-                        vehicleRow(model, vehicle)
-                    }
-                }
-
-                if let error = model.vehicleError {
-                    TEErrorBanner(message: error)
-                }
-
-                // Stacked, not side by side. `TEButtonStyle` sets
-                // `frame(maxWidth: .infinity)`, and pinning that down with
-                // `.fixedSize()` inside an `HStack` gives the layout engine a
-                // contradiction to chew on — which it does, until the watchdog
-                // kills the app mid-keystroke. Full-width is also the shape every
-                // other primary button on this screen has.
-                TextField("Corvette Z06", text: $model.newVehicleName)
-                    .teInput()
-                    .accessibilityIdentifier("newVehicleName")
-                // The catalog pick (#222): the server pre-fills the car's
-                // wheelbase and steering ratio from the row, and the pick names
-                // the car only when the driver hasn't — a car already called
-                // "Betty" keeps its name. The sheet hangs off this button and the
-                // paywall off its own: one presentation per view.
-                Button(model.newVehicleCatalog.map(Garage.catalogCarLabel) ?? "Find it in the catalog…") {
-                    showingCatalog = true
-                }
-                .buttonStyle(TEButtonStyle(kind: .quiet))
-                .accessibilityIdentifier("pickCatalogCar")
-                .sheet(isPresented: $showingCatalog) {
-                    CatalogCarPicker(api: auth.api) { model.pickCatalog($0) }
-                }
-                if model.newVehicleCatalog != nil {
-                    HStack {
-                        Text("Its wheelbase and steering ratio fill in from the catalog.")
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.textFaint))
-                        Spacer()
-                        Button("Clear") { model.newVehicleCatalog = nil }
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.accentInk))
-                            .accessibilityIdentifier("clearCatalogCar")
-                    }
-                }
-                Button("Add vehicle") { Task { await model.addVehicle() } }
-                    .buttonStyle(TEButtonStyle(kind: .accent))
-                    .disabled(model.newVehicleName.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .accessibilityIdentifier("addVehicle")
-            }
-        }
-    }
-
-    private func vehicleRow(_ model: SettingsModel, _ vehicle: Vehicle) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Button {
-                    router.push(.vehicle(vehicle.id))
-                } label: {
-                    HStack(spacing: 8) {
-                        Text(vehicle.name)
-                            .teStyle(.bodyStrong)
-                            .foregroundStyle(Color(.textStrong))
-                        if vehicle.isDefault {
-                            Text("Default")
-                                .teStyle(.xxs)
-                                .foregroundStyle(Color(.accentInk))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color(.accentTint), in: .capsule)
-                        }
-                        Spacer(minLength: 4)
-                        Image(systemName: "chevron.right")
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.textFaint))
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("vehicleRow")
-            }
-            HStack(spacing: 14) {
-                if !vehicle.isDefault {
-                    Button("Make default") { Task { await model.makeDefault(id: vehicle.id) } }
-                        .teStyle(.xs)
-                        .foregroundStyle(Color(.accentInk))
-                }
-                Button("Delete") { deletingVehicle = vehicle }
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.dangerInk))
-                Spacer()
-            }
-        }
-        .padding(.vertical, 4)
     }
 
     // MARK: - Leaderboards
@@ -644,7 +523,7 @@ struct SettingsScreen: View {
     }
 }
 
-/// Settings' data: who you are, the share slug, and the garage's vehicle list.
+/// Settings' data: who you are and the share slug.
 @MainActor
 @Observable
 final class SettingsModel {
@@ -655,13 +534,6 @@ final class SettingsModel {
     private(set) var slug: String?
     var slugDraft = ""
     var writeError: String?
-    private(set) var vehicles: [Vehicle] = []
-    var newVehicleName = ""
-    /// The catalog row the next car is being added from, if any (#222).
-    var newVehicleCatalog: CatalogCar?
-    /// Kept apart from `writeError` so a rejected slug and a duplicate vehicle
-    /// name don't overwrite each other's message halfway down the screen.
-    var vehicleError: String?
     /// Writes still waiting to reach the server — signing out would discard them, so
     /// the confirmation says so.
     private(set) var hasUnsyncedChanges = false
@@ -742,9 +614,6 @@ final class SettingsModel {
     }
 
     func load() async {
-        // The vehicle list is a section, not the screen: an empty garage or a
-        // failed fetch must not take the account and legal pages down with it.
-        async let vehicleList = try? api.vehicles()
         do {
             let me = try await api.me()
             user = me.user
@@ -758,61 +627,6 @@ final class SettingsModel {
             state = .failed(error.message)
         } catch {
             state = .failed(error.localizedDescription)
-        }
-        vehicles = await vehicleList ?? []
-    }
-
-    // MARK: - Vehicles
-
-    /// The first vehicle in an empty garage becomes the default server-side, so
-    /// this never asks about that — it just adds the car.
-    func addVehicle() async {
-        let name = newVehicleName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        await vehicleWrite {
-            // The pick alone: the server fills both numbers from the row.
-            _ = try await $0.createVehicle(VehicleDraft(name: name, catalogId: newVehicleCatalog?.id))
-            self.newVehicleName = ""
-            self.newVehicleCatalog = nil
-        }
-    }
-
-    /// A catalog row for the car being added. Names it only when the driver
-    /// hasn't — the "pre-fill, never overwrite" rule applied to the name.
-    func pickCatalog(_ car: CatalogCar) {
-        newVehicleCatalog = car
-        if newVehicleName.trimmingCharacters(in: .whitespaces).isEmpty {
-            newVehicleName = Garage.catalogCarName(car)
-        }
-    }
-
-    func makeDefault(id: Int) async {
-        var patch = VehiclePatch()
-        patch.isDefault = .set(true)
-        await vehicleWrite { try await $0.updateVehicle(id: id, patch) }
-    }
-
-    /// Cascades to the vehicle's parts and measurements. Events keep their
-    /// free-text car name and simply lose the link.
-    func deleteVehicle(id: Int) async {
-        await vehicleWrite { try await $0.deleteVehicle(id: id) }
-    }
-
-    /// Garage writes are deliberately off the offline queue, so this surfaces the
-    /// server's own message — including the 409 for a duplicate name, which is the
-    /// one a user actually hits.
-    private func vehicleWrite(_ body: (APIClient) async throws -> Void) async {
-        vehicleError = nil
-        do {
-            try await body(api)
-            vehicles = (try? await api.vehicles()) ?? vehicles
-            Haptics.confirm()
-        } catch let error as APIError {
-            vehicleError = error.message
-            Haptics.warn()
-        } catch {
-            vehicleError = error.localizedDescription
-            Haptics.warn()
         }
     }
 

@@ -133,6 +133,12 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeB
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-material3-adaptive = { module = "androidx.compose.material3.adaptive:adaptive", version.ref = "material3Adaptive" }
 compose-material3-adaptive-layout = { module = "androidx.compose.material3.adaptive:adaptive-layout", version.ref = "material3Adaptive" }
+# The Events / Garage tabs (NS-37): a bottom bar at compact width, a rail wider.
+# Versionless on purpose — despite the name it is published in the
+# `androidx.compose.material3` group and versioned with material3 itself, so the
+# Compose BOM carries it (1.3.1 at 2024.12.01) and `material3Adaptive` above is
+# a different release train that never published this artifact.
+compose-material3-adaptive-navigation-suite = { module = "androidx.compose.material3:material3-adaptive-navigation-suite" }
 androidx-window = { module = "androidx.window:window", version.ref = "androidxWindow" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }

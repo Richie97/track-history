@@ -273,6 +273,116 @@ public object Garage {
         )
     }
 
+    // ---- a car's logbook (NS-37) ------------------------------------------------
+
+    /**
+     * The fields [vehicleLogbook] reads off an event row.
+     * [app.trackevolution.core.model.Event] implements it, so logbook rows pass
+     * straight in. `bestMs` is the *computed* best (`withComputed`: a manual
+     * best counts).
+     */
+    public interface LogbookEvent : RemoteRecording.EventCandidate {
+        public val id: Int
+        public val vehicleId: Int?
+        public val trackId: Int
+        public val trackName: String
+        public val bestMs: Int?
+    }
+
+    /** `{ id, track_id, track_name, start_date }` — the last-out / next-up row. */
+    public data class LogbookEventRef(
+        val id: Int,
+        val trackId: Int,
+        val trackName: String,
+        val startDate: String,
+    )
+
+    /** One row of "best in this car": the fastest time at a track, and the day it was set. */
+    public data class LogbookBest(
+        val trackId: Int,
+        val trackName: String,
+        val bestMs: Int,
+        val eventId: Int,
+        val startDate: String,
+    )
+
+    /** `vehicleLogbook`'s answer. [trackDays] is fractional because `days` is. */
+    public data class VehicleLogbook(
+        val trackDays: Double,
+        val events: Int,
+        val lastEvent: LogbookEventRef?,
+        val nextEvent: LogbookEventRef?,
+        val bests: List<LogbookBest>,
+    )
+
+    private val eventOrder: Comparator<LogbookEvent> =
+        compareBy<LogbookEvent> { it.startDate }.thenBy { it.id }
+
+    private fun eventRef(e: LogbookEvent?): LogbookEventRef? =
+        e?.let { LogbookEventRef(id = it.id, trackId = it.trackId, trackName = it.trackName, startDate = it.startDate) }
+
+    /**
+     * `vehicleLogbook(vehicleId, events, today)` in `public/js/garage.js` — the
+     * free half of a car's tile and page, reduced from the cached event list so
+     * it costs no request and works offline. Rows belong to the car by
+     * `vehicleId`, which the server matched from the car name on save; a row
+     * whose `car` text merely reads the same is **not** counted. Past means
+     * `startDate <= today` (the totals' rule). Hours are deliberately absent:
+     * they are the wear math's, and arrive computed on the Pro `GET /garage`.
+     *
+     * `bests` is one row per track with a time, ordered by the car's most recent
+     * event there (event id breaking a date tie); within a track the fastest
+     * wins and a tie keeps the earlier event.
+     */
+    public fun vehicleLogbook(vehicleId: Int, events: List<LogbookEvent>?, today: String): VehicleLogbook {
+        val mine = events.orEmpty().filter { it.vehicleId != null && it.vehicleId == vehicleId }.sortedWith(eventOrder)
+        val past = mine.filter { it.startDate <= today }
+        val upcoming = mine.filter { it.startDate > today }
+        val latest = LinkedHashMap<Int, LogbookEvent>()
+        val best = HashMap<Int, LogbookEvent>()
+        for (e in past) {
+            latest[e.trackId] = e // `past` is ascending, so the last one seen is the latest
+            val ms = e.bestMs ?: continue
+            val current = best[e.trackId]?.bestMs
+            if (current == null || ms < current) best[e.trackId] = e
+        }
+        val bests = latest.entries
+            .filter { best[it.key] != null }
+            .sortedWith { a, b -> eventOrder.compare(b.value, a.value) }
+            .map { entry ->
+                val e = best.getValue(entry.key)
+                LogbookBest(
+                    trackId = e.trackId,
+                    trackName = e.trackName,
+                    bestMs = e.bestMs!!,
+                    eventId = e.id,
+                    startDate = e.startDate,
+                )
+            }
+        return VehicleLogbook(
+            trackDays = past.sumOf { it.days },
+            events = past.size,
+            lastEvent = eventRef(past.lastOrNull()),
+            nextEvent = eventRef(upcoming.firstOrNull()),
+            bests = bests,
+        )
+    }
+
+    /**
+     * `vehicleTileLine(logbook)`: the one line a car's tile carries — "14 track
+     * days · last at VIR (Full)", "Next: Road Atlanta", "No track days yet". No
+     * date in it, since a date is locale work; the words are pinned because
+     * three clients write them.
+     */
+    public fun vehicleTileLine(logbook: VehicleLogbook): String {
+        val days = logbook.trackDays
+        logbook.lastEvent?.let {
+            return "${trimmed(days)} track day${if (days == 1.0) "" else "s"} · last at ${it.trackName}"
+        }
+        logbook.nextEvent?.let { return "Next: ${it.trackName}" }
+        return "No track days yet"
+    }
+
     /** A number the way JavaScript stringifies it: `4.5` → "4.5", `4.0` → "4". */
     private fun trimmed(value: Double): String =
         if (value == Math.rint(value) && kotlin.math.abs(value) < 1e15) {

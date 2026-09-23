@@ -54,6 +54,14 @@ export const canUseGarage = (entitlement) => isPro(entitlement);
 export const canUseSetups = (entitlement) => isPro(entitlement);
 export const canViewYearInReview = (entitlement) => isPro(entitlement);
 
+// Cost roll-ups across events (NS-37): a track's "$N spent", a car's spend, a
+// season's. Entering the line items stays free — it is a write, and no write
+// is gated — and so does one event's own total, which is only the driver's
+// typing added up. The line items are free data on /events, so this is a
+// client-side gate on a convenience, not a protected field; the per-car sums
+// ride on the Pro GET /api/garage besides.
+export const canViewSpend = (entitlement) => isPro(entitlement);
+
 // The two-event lap overlay — one track, two events, lap by lap. Separate from
 // canViewChannels because it reads no channel data at all, only lap times, so
 // the two would move independently if the tier boundary ever did.

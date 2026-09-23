@@ -34,6 +34,14 @@ import app.trackevolution.billing.PaywallSheet
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.navigation.AppNavHost
+import app.trackevolution.navigation.AppNavigationSuite
+import app.trackevolution.navigation.AppTab
+import app.trackevolution.navigation.GarageBadge
+import app.trackevolution.navigation.GaragePane
+import app.trackevolution.navigation.appTab
+import app.trackevolution.navigation.go
+import app.trackevolution.navigation.selectTab
+import app.trackevolution.navigation.show
 import app.trackevolution.navigation.DashboardPane
 import app.trackevolution.navigation.Route
 import app.trackevolution.navigation.Router
@@ -52,8 +60,8 @@ import app.trackevolution.ui.theme.TrackTheme
 import app.trackevolution.videoimport.ImportedClip
 
 /**
- * The signed-in shell: the recording banner, the navigation graph, and the
- * review flow that sits over both.
+ * The signed-in shell: the recording banner, the two tabs (NS-37) around the
+ * navigation graph, and the review flow that sits over all of it.
  *
  * Three rules here are load-bearing, and NS-26 inherits all three from NS-18:
  *
@@ -64,6 +72,11 @@ import app.trackevolution.videoimport.ImportedClip
  *  - **Back never stops a recording.** It navigates; the service carries on.
  *  - **Back at the root minimizes** rather than finishing the activity, because
  *    a recording may be running and the task should stay where the user left it.
+ *    That is the *Events* root; back at the Garage root selects Events (NS-37).
+ *
+ * The tab bar or rail sits **inside** the banners and **under** the review, so a
+ * tab switch can neither hide a recording nor bury an unsaved one — NS-18's rule,
+ * with a second way to break it.
  *
  * Review is an overlay rather than a destination on purpose: "save or discard
  * this recording" is modal by nature, and putting it on the back stack would let
@@ -114,6 +127,19 @@ fun SignedInScaffold(
 
     val onRecordScreen = entry?.destination?.hasRoute(Route.Record::class) == true
     val atRoot = entry?.destination?.hasRoute(Route.Dashboard::class) == true
+    val atGarageRoot = entry?.destination?.hasRoute(Route.Garage::class) == true
+    val tab = entry?.destination.appTab
+
+    // The Garage tab's badge (NS-37): due or low parts, Pro only. Screens that
+    // read `/garage` report what they saw; this refreshes it at most once a
+    // minute on navigation so it is right on the screens that never read it.
+    val garagePro = Entitlement.canUseGarage(entitlement)
+    val garageAlerts by GarageBadge.count.collectAsState()
+    LaunchedEffect(garagePro, entry?.id) {
+        if (garagePro && GarageBadge.isStale()) {
+            runCatching { api.garage() }.onSuccess { GarageBadge.note(it) }
+        }
+    }
 
     // Two panes, or one (NS-34).
     //
@@ -148,7 +174,7 @@ fun SignedInScaffold(
     // dashboard — the whole point of it while driving.
     LaunchedEffect(startOnRecord) {
         if (startOnRecord) {
-            nav.navigate(Route.Record())
+            nav.go(Route.Record())
             onConsumedStartOnRecord()
         }
     }
@@ -180,12 +206,12 @@ fun SignedInScaffold(
                 return@LaunchedEffect
             }
             val importedInto = if (review.isImport) flow.savedEventId else null
-            nav.popBackStack(Route.Dashboard, inclusive = false)
             // An import came from an event's page and its sessions are now on
             // it, so that is where it lands — on a fresh destination, which is
             // what makes the page re-fetch and show them. A recording keeps
-            // landing on the dashboard, as it always has.
-            if (importedInto != null) nav.navigate(Route.Event(importedInto))
+            // landing on the dashboard, as it always has. Either way in the
+            // Events tab, whichever tab the review was opened over.
+            nav.show(if (importedInto != null) Route.Event(importedInto) else Route.Dashboard)
             flow.acknowledgeSaved()
         }
     }
@@ -195,7 +221,7 @@ fun SignedInScaffold(
     // Ungated, like the event page's button — importing is free.
     LaunchedEffect(incomingImport) {
         if (incomingImport == null) return@LaunchedEffect
-        nav.navigate(Route.Import())
+        nav.go(Route.Import())
     }
 
     // Leaving review does not stop or discard anything: the recording stays
@@ -207,6 +233,12 @@ fun SignedInScaffold(
     // `App.minimizeApp()` here for the same reason.
     BackHandler(enabled = atRoot && !reviewing) {
         (context as? Activity)?.moveTaskToBack(true)
+    }
+
+    // The Garage root goes back to the logbook — its stack restored — rather
+    // than popping into a bare dashboard or leaving the app (NS-37).
+    BackHandler(enabled = atGarageRoot && !reviewing) {
+        nav.selectTab(AppTab.Events)
     }
 
     // The insets live here, once: the app draws edge to edge behind the system
@@ -232,7 +264,7 @@ fun SignedInScaffold(
                     if (pending != null && !recorder.isRecording) {
                         reviewing = true
                     } else {
-                        nav.navigate(Route.Record())
+                        nav.go(Route.Record())
                     }
                 },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -248,16 +280,38 @@ fun SignedInScaffold(
             // banners above still span the window and the review overlay below
             // still covers both — which is the rule NS-18 set and a second pane is
             // the easiest way to break by accident.
+            //
+            // The tabs wrap both panes, and drop out entirely for the routes that
+            // own the window — the recorder, the importer and Wrapped — exactly
+            // as the second pane does.
+            AppNavigationSuite(
+                selected = tab,
+                onSelect = { if (it != tab) nav.selectTab(it) },
+                garageBadge = if (garagePro) garageAlerts else 0,
+                showNavigation = !onRecordScreen && !onImportScreen && !onWrappedScreen,
+            ) {
             TwoPaneShell(
                 twoPane = twoPane,
                 listPane = {
-                    DashboardPane(
-                        nav = nav,
-                        api = api,
-                        recorderIdle = recorderIdle,
-                        selection = selection,
-                        inListPane = true,
-                    )
+                    // Each tab's own list (NS-37): the dashboard beside the
+                    // logbook's detail, the garage beside a car.
+                    if (tab == AppTab.Garage) {
+                        GaragePane(
+                            nav = nav,
+                            api = api,
+                            selection = selection,
+                            inListPane = true,
+                            onRequirePro = { paywall = true },
+                        )
+                    } else {
+                        DashboardPane(
+                            nav = nav,
+                            api = api,
+                            recorderIdle = recorderIdle,
+                            selection = selection,
+                            inListPane = true,
+                        )
+                    }
                 },
             ) {
                 AppNavHost(
@@ -277,7 +331,7 @@ fun SignedInScaffold(
                     recorderIdle = !recorder.isRecording && pending == null,
                     onStartRecording = onStartRecording,
                     onStopRecording = { Recorder.stop(context) },
-                    onSignOut = onSignOut,
+                    onSignOut = { GarageBadge.clear(); onSignOut() },
                     entitlement = entitlement,
                     shareSlug = (authState as? AuthState.SignedIn)?.user?.shareSlug,
                     onRequirePro = { paywall = true },
@@ -301,8 +355,10 @@ fun SignedInScaffold(
                     // `popUpTo(Route.Dashboard)` and the minimize-at-root handler
                     // working identically at both widths.
                     dashboardAsDetailPlaceholder = twoPane,
+                    garageAsDetailPlaceholder = twoPane,
                     selection = selection,
                 )
+            }
             }
             if (reviewing) {
                 ReviewScreen(

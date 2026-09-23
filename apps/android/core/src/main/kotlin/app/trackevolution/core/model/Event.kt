@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import app.trackevolution.core.Garage
 import app.trackevolution.core.RemoteRecording
 import app.trackevolution.core.SessionConditions
 
@@ -57,9 +58,9 @@ public value class Conditions(public val rawValue: String) {
  */
 @Serializable
 public data class Event(
-    val id: Int,
-    @SerialName("track_id") val trackId: Int,
-    @SerialName("track_name") val trackName: String,
+    override val id: Int,
+    @SerialName("track_id") override val trackId: Int,
+    @SerialName("track_name") override val trackName: String,
     /** ISO `yyyy-mm-dd`, the format every date column stores. */
     @SerialName("start_date") override val startDate: String,
     /**
@@ -72,7 +73,7 @@ public data class Event(
     val club: String? = null,
     @SerialName("run_group") val runGroup: String? = null,
     val car: String? = null,
-    @SerialName("vehicle_id") val vehicleId: Int? = null,
+    @SerialName("vehicle_id") override val vehicleId: Int? = null,
     val notes: String? = null,
     val conditions: Conditions? = null,
     /** Ambient temperature in °F — a whole number (`isValidTemp`). */
@@ -116,7 +117,7 @@ public data class Event(
     @SerialName("lap_count") val lapCount: Int,
     @SerialName("session_count") val sessionCount: Int,
     /** `min(bestTimeMs, lapBestMs)` — the number the UI shows as *the* best. */
-    @SerialName("best_ms") val bestMs: Int? = null,
+    @SerialName("best_ms") override val bestMs: Int? = null,
     /** Coefficient of variation of lap times; null below 3 laps. */
     val consistency: Double? = null,
     /** On-track hours: the override, else `max(days × 2h, logged lap time)`. */
@@ -126,7 +127,7 @@ public data class Event(
      * entered (`eventCostCents` in `src/lib/costs.ts`).
      */
     @SerialName("cost_cents") val costCents: Int? = null,
-) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent
+) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent, Garage.LogbookEvent
 
 /**
  * `GET /api/events/:id` — an event plus its sessions and per-day setup sheets.

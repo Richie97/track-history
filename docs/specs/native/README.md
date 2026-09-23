@@ -608,7 +608,10 @@ predicts — the work happens where the web app isn't:
   down while iOS was the client being built. Its **analysis** half — the setup
   notebook and the setup-vs-lap-times diff — stays deferred on both platforms,
   and that division is deliberate rather than a stopping point someone ran out of
-  time at.
+  time at. Since [NS-37](NS-37-garage-tab.md) the garage is also the other half
+  of the app on every client — a tab on both phones, a top-bar link on the web —
+  with a **free** half (the cars, *+ Add car*, each car's logbook and best laps)
+  and the consumables and every cost roll-up Pro, shown locked in place.
 - **Video import** (GoPro and Corvette PDR) — NS-30 on iOS, NS-32 on Android. The
   footage is already on the phone that shot or received it, and the argument was
   never platform-specific.

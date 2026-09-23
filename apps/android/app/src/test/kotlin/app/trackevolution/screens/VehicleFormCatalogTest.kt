@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import app.trackevolution.core.model.CatalogCar
-import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.Vehicle
 import app.trackevolution.ui.theme.TrackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -116,7 +116,7 @@ class VehicleFormCatalogTest {
         assertEquals(16.25, edit.steeringRatio!!, 0.0)
     }
 
-    private fun show(vehicle: GarageVehicle, onSave: (VehicleEdit) -> Unit = {}) {
+    private fun show(vehicle: Vehicle, onSave: (VehicleEdit) -> Unit = {}) {
         compose.setContent {
             TrackTheme {
                 VehicleForm(vehicle, catalog = catalog, catalogError = null, onCancel = {}, onSave = onSave)
@@ -129,15 +129,10 @@ class VehicleFormCatalogTest {
         catalogId: Int? = null,
         wheelbaseMm: Int? = null,
         steeringRatio: Double? = null,
-    ) = GarageVehicle(
+    ) = Vehicle(
         id = 1,
         name = name,
         isDefault = true,
-        updatedAt = 1,
-        hours = 0.0,
-        eventCount = 0,
-        eventDays = 0,
-        parts = emptyList(),
         catalogId = catalogId,
         wheelbaseMm = wheelbaseMm,
         steeringRatio = steeringRatio,

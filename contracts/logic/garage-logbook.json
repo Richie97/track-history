@@ -1,0 +1,215 @@
+{
+  "description": "A car's logbook (NS-37) captured from public/js/garage.js: vehicleLogbook reduces the event list to one car's track days, events, last and next event and best lap per track, and vehicleTileLine words it for the car's tile. Ports must match every field. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/garage.js",
+  "today": "2026-09-20",
+  "events": [
+    {
+      "id": 1,
+      "vehicle_id": 10,
+      "car": "C8",
+      "track_id": 100,
+      "track_name": "VIR (Full)",
+      "start_date": "2026-04-11",
+      "days": 2,
+      "best_ms": 125500
+    },
+    {
+      "id": 2,
+      "vehicle_id": 10,
+      "car": "C8",
+      "track_id": 101,
+      "track_name": "Summit Point Main",
+      "start_date": "2026-05-02",
+      "days": 1,
+      "best_ms": 88200
+    },
+    {
+      "id": 3,
+      "vehicle_id": 10,
+      "car": "C8",
+      "track_id": 100,
+      "track_name": "VIR (Full)",
+      "start_date": "2026-06-20",
+      "days": 3,
+      "best_ms": 124030
+    },
+    {
+      "id": 4,
+      "vehicle_id": 10,
+      "car": "C8",
+      "track_id": 102,
+      "track_name": "NCM",
+      "start_date": "2026-06-20",
+      "days": 1,
+      "best_ms": 141900
+    },
+    {
+      "id": 5,
+      "vehicle_id": 10,
+      "car": "C8",
+      "track_id": 101,
+      "track_name": "Summit Point Main",
+      "start_date": "2026-08-15",
+      "days": 1,
+      "best_ms": 88200
+    },
+    {
+      "id": 6,
+      "vehicle_id": 10,
+      "car": "C8",
+      "track_id": 103,
+      "track_name": "Road Atlanta",
+      "start_date": "2026-09-20",
+      "days": 1,
+      "best_ms": null
+    },
+    {
+      "id": 7,
+      "vehicle_id": 10,
+      "car": "C8",
+      "track_id": 104,
+      "track_name": "Watkins Glen",
+      "start_date": "2026-10-10",
+      "days": 2,
+      "best_ms": null
+    },
+    {
+      "id": 8,
+      "vehicle_id": 11,
+      "car": "Miata",
+      "track_id": 100,
+      "track_name": "VIR (Full)",
+      "start_date": "2026-07-04",
+      "days": 1,
+      "best_ms": 139000
+    },
+    {
+      "id": 9,
+      "vehicle_id": null,
+      "car": "C8",
+      "track_id": 102,
+      "track_name": "NCM",
+      "start_date": "2026-07-18",
+      "days": 1,
+      "best_ms": 100000
+    },
+    {
+      "id": 10,
+      "vehicle_id": 12,
+      "car": "GR86",
+      "track_id": 101,
+      "track_name": "Summit Point Main",
+      "start_date": "2026-11-01",
+      "days": 1,
+      "best_ms": null
+    }
+  ],
+  "cases": [
+    {
+      "name": "the busy car",
+      "vehicle_id": 10,
+      "expected": {
+        "logbook": {
+          "track_days": 9,
+          "events": 6,
+          "last_event": {
+            "id": 6,
+            "track_id": 103,
+            "track_name": "Road Atlanta",
+            "start_date": "2026-09-20"
+          },
+          "next_event": {
+            "id": 7,
+            "track_id": 104,
+            "track_name": "Watkins Glen",
+            "start_date": "2026-10-10"
+          },
+          "bests": [
+            {
+              "track_id": 101,
+              "track_name": "Summit Point Main",
+              "best_ms": 88200,
+              "event_id": 2,
+              "start_date": "2026-05-02"
+            },
+            {
+              "track_id": 102,
+              "track_name": "NCM",
+              "best_ms": 141900,
+              "event_id": 4,
+              "start_date": "2026-06-20"
+            },
+            {
+              "track_id": 100,
+              "track_name": "VIR (Full)",
+              "best_ms": 124030,
+              "event_id": 3,
+              "start_date": "2026-06-20"
+            }
+          ]
+        },
+        "tileLine": "9 track days · last at Road Atlanta"
+      }
+    },
+    {
+      "name": "one past event",
+      "vehicle_id": 11,
+      "expected": {
+        "logbook": {
+          "track_days": 1,
+          "events": 1,
+          "last_event": {
+            "id": 8,
+            "track_id": 100,
+            "track_name": "VIR (Full)",
+            "start_date": "2026-07-04"
+          },
+          "next_event": null,
+          "bests": [
+            {
+              "track_id": 100,
+              "track_name": "VIR (Full)",
+              "best_ms": 139000,
+              "event_id": 8,
+              "start_date": "2026-07-04"
+            }
+          ]
+        },
+        "tileLine": "1 track day · last at VIR (Full)"
+      }
+    },
+    {
+      "name": "only an upcoming event",
+      "vehicle_id": 12,
+      "expected": {
+        "logbook": {
+          "track_days": 0,
+          "events": 0,
+          "last_event": null,
+          "next_event": {
+            "id": 10,
+            "track_id": 101,
+            "track_name": "Summit Point Main",
+            "start_date": "2026-11-01"
+          },
+          "bests": []
+        },
+        "tileLine": "Next: Summit Point Main"
+      }
+    },
+    {
+      "name": "no events at all",
+      "vehicle_id": 13,
+      "expected": {
+        "logbook": {
+          "track_days": 0,
+          "events": 0,
+          "last_event": null,
+          "next_event": null,
+          "bests": []
+        },
+        "tileLine": "No track days yet"
+      }
+    }
+  ]
+}
