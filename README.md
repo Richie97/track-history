@@ -249,7 +249,8 @@ session's best, the racing line when it is the lap the trace was drawn from,
 its own channel traces, and a *Compare laps* control that opens the session's
 overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
 layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
-diff, year in review, Season Wrapped and the two-event overlay stay web-only by design.
+diff, year in review and the two-event overlay stay web-only by design; Season
+Wrapped is on all three.
 
 The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
@@ -1314,6 +1315,16 @@ dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
   consulted yet. **Top speed**: the year's highest stored `speed` sample, read
   with a `json_each` walk over the sessions' channel blobs in SQL — once a year
   per user, so no trigger-maintained column.
+- **On the phones too.** iOS and Android carry the same story natively
+  (`WrappedScreen` on each, `Route.wrapped(year:)` / `Route.Wrapped`), opened
+  from the same 1 Nov – 31 Jan dashboard banner and over the same endpoint,
+  with the card rules and the poster's words ported as `WrappedStory` to the
+  Kit and `:core` and pinned to `public/js/wrapped.js` by
+  `contracts/logic/wrapped.json`. The story owns the window at every width. The
+  share image is drawn natively — `ImageRenderer` into `ShareLink` on iOS, an
+  `android.graphics.Canvas` PNG through a `FileProvider` on Android — and
+  `-wrapped` / `-wrappedPro` open the iOS story on a sample season with no
+  server. The public share page stays web.
 - **Sharing.** The poster card's *Share image* hands a 1080×1920 PNG to the
   Web Share API (`navigator.share({ files })`, iOS Safari and Android Chrome)
   and downloads it where the browser can't share files; *Save wide* is the
