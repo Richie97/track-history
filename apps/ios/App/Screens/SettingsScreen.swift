@@ -26,6 +26,7 @@ struct SettingsScreen: View {
     @State private var confirmingSignOut = false
     @State private var confirmingDisableShare = false
 
+    private static let checklistKey = "checklistItem"
     private static let docsURL = URL(string: "https://docs.trackevolution.app")!
 
     var body: some View {
@@ -39,9 +40,15 @@ struct SettingsScreen: View {
         .task {
             if model == nil {
                 let model = SettingsModel(api: auth.api, auth: auth)
+                // A checklist item half-typed before the shell swap (epic #277,
+                // ticket 1) — held on the router, since this model is not.
+                model.newChecklistItem = router.heldText(.settings, Self.checklistKey)
                 self.model = model
                 await model.load()
             }
+        }
+        .onChange(of: model?.newChecklistItem) { _, text in
+            if let text { router.hold(text, Self.checklistKey, .settings) }
         }
         .confirmationDialog(
             model?.hasUnsyncedChanges == true

@@ -592,6 +592,18 @@ change* rule does not apply — see the spec for why.
 | NS-35 | [Open a leaderboard lap](NS-35-leaderboard-lap-detail.md) | Shared | Leaderboards, NS-33, #165 |
 | NS-36 | [Season Wrapped](NS-36-season-wrapped.md) | Web (server + web app), then iOS + Android | Year in review, share pages, NS-32, the garage |
 | NS-37 | [The Garage tab](NS-37-garage-tab.md) | Shared (web, iOS, Android; no server change) | NS-29, NS-31, NS-32, NS-34, #221/#222, #147 |
+| — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
+
+**iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
+NS-34's width classes (closed = compact, open portrait = medium, open
+landscape = expanded), and web-only stays web-only on a 7.6″ iPhone as on a
+13″ iPad. Two things are new. Typed state now survives the shell swap across
+840pt — which the open Duo crosses on every rotation, as an iPad mini always
+did — by living on `AppRouter` (the event form's `eventFormDraft`, other
+pages' `heldFields`). And the tabletop recorder is ported from Android behind
+`#available(iOS 27.1, *)`; its hinge read waits on Xcode 27.1 on CI and
+Xcode Cloud (ticket 2), and the Device Hub verification pass (ticket 4)
+waits on the Duo simulator.
 
 ## Deferred — not in this programme
 

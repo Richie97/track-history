@@ -10,6 +10,7 @@
 		0390889F0A928F8F8BF1C2A0 /* LimitLegend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8625F0FCAC350699C111D37A /* LimitLegend.swift */; };
 		05E3AA3580CA0FCFBB1886CD /* GarageUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */; };
 		06FA7C499CE4618F1B680CD6 /* RecordingBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48AE0050A975A2D2C847DDB /* RecordingBanner.swift */; };
+		075C42EC5206B481B395638E /* FoldsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF84F10C31053C93F89BAFB /* FoldsTests.swift */; };
 		098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */; };
 		0B42C235850422B2C6BF0737 /* EventModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D7E5BFFAD255C5A8CDC979 /* EventModel.swift */; };
 		0C6C6E94CEE1F31E72BB6A12 /* TrackScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C37B0DDB941D4C18A32BA87 /* TrackScreen.swift */; };
@@ -40,6 +41,8 @@
 		4DD2D18B1AB33C8FD5A382E1 /* DroppedClip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071246A4C72D0F6070A346B9 /* DroppedClip.swift */; };
 		4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A61B2645926992E00FFAD3 /* Shape.swift */; };
 		51CF45A0E84DE89AA15DB4D7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF43C9F27E545AD049BEA61F /* Router.swift */; };
+		53752C0F52147E2F2152B3E3 /* FoldPosture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2B499FC28F49DDA82A2334 /* FoldPosture.swift */; };
+		59C8927C18AEAFDA0A97F1DE /* EventFormDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */; };
 		5A671EFFAC149837963BCEBF /* TelemetryImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D8720DD4F67BA47FB3A473 /* TelemetryImporter.swift */; };
 		5E2DF50080E0F859027298D5 /* HealthStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509BAD79B4D55C79C15FE517 /* HealthStrip.swift */; };
 		5EBA32B6F5FA9254C490BFFF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6588990892F4B703C72631 /* RootView.swift */; };
@@ -75,6 +78,7 @@
 		D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */; };
 		D51EB8770639D12CEEE9B9F0 /* PaywallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3FF04EE56EF96EE2E8F5283 /* PaywallSheet.swift */; };
 		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
+		D6C3C7BA8C69F7A9AEB93473 /* EventFormDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABAAE67FE76AB66F49B1FC14 /* EventFormDraft.swift */; };
 		D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D029EFD956A7AC879046769 /* SettingsScreen.swift */; };
 		DA264BA1CC72048E06DF405D /* TelemetryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */; };
 		DAE2D0644FF52D0956D4E4B9 /* ChannelGraphsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2133654268DDDB033D753977 /* ChannelGraphsUITests.swift */; };
@@ -144,6 +148,7 @@
 		53A61B2645926992E00FFAD3 /* Shape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shape.swift; sourceTree = "<group>"; };
 		55E9244DD52E774CD4AC9340 /* Configuration.storekit */ = {isa = PBXFileReference; path = Configuration.storekit; sourceTree = "<group>"; };
 		56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
+		5BF84F10C31053C93F89BAFB /* FoldsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldsTests.swift; sourceTree = "<group>"; };
 		5D136E4DE2F395728D4F10F3 /* EventScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventScreen.swift; sourceTree = "<group>"; };
 		5EBA185EA22E05A952A0F1AD /* CompareLapsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompareLapsScreen.swift; sourceTree = "<group>"; };
 		652E81FAC74F6C94885C0ECE /* TrackEvolutionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrackEvolutionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -165,6 +170,7 @@
 		85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardLapScreen.swift; sourceTree = "<group>"; };
 		8625F0FCAC350699C111D37A /* LimitLegend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitLegend.swift; sourceTree = "<group>"; };
 		87B0E4C546102DECE0F34F9C /* LapDetailScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapDetailScreen.swift; sourceTree = "<group>"; };
+		8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormDraftTests.swift; sourceTree = "<group>"; };
 		8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
 		8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardScreen.swift; sourceTree = "<group>"; };
 		93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageUITests.swift; sourceTree = "<group>"; };
@@ -172,6 +178,8 @@
 		989C8DDBBF66B13CA2A81920 /* CatalogCarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogCarPicker.swift; sourceTree = "<group>"; };
 		A32AEB077B38B164C34ECD9E /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		A9CE6FCEF23CA4222C13FF34 /* TrackEvolution.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrackEvolution.entitlements; sourceTree = "<group>"; };
+		AA2B499FC28F49DDA82A2334 /* FoldPosture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldPosture.swift; sourceTree = "<group>"; };
+		ABAAE67FE76AB66F49B1FC14 /* EventFormDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormDraft.swift; sourceTree = "<group>"; };
 		AC94F085162A76DECDFA4087 /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLogbookScreen.swift; sourceTree = "<group>"; };
 		AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordAndSaveUITests.swift; sourceTree = "<group>"; };
@@ -270,6 +278,7 @@
 				5EBA185EA22E05A952A0F1AD /* CompareLapsScreen.swift */,
 				490360DEB9D237C16354DD63 /* Components.swift */,
 				8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */,
+				ABAAE67FE76AB66F49B1FC14 /* EventFormDraft.swift */,
 				CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */,
 				30D7E5BFFAD255C5A8CDC979 /* EventModel.swift */,
 				5D136E4DE2F395728D4F10F3 /* EventScreen.swift */,
@@ -326,6 +335,8 @@
 			isa = PBXGroup;
 			children = (
 				9717B63A2B268C68C01FC9BC /* DroppedClipTests.swift */,
+				8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */,
+				5BF84F10C31053C93F89BAFB /* FoldsTests.swift */,
 				F06DF26F461D56CF24E50A58 /* LapChannelPanelTests.swift */,
 				C118EA13E96C32F439CD6A0F /* LapDetailTests.swift */,
 				B8DBFF02978726AA4E08D545 /* LayoutClassTests.swift */,
@@ -423,6 +434,7 @@
 			children = (
 				03E3F0A72B7C7860B19B1ED6 /* BrandMark.swift */,
 				8448B97FB1616E831FF9C5C6 /* ColorTokens.generated.swift */,
+				AA2B499FC28F49DDA82A2334 /* FoldPosture.swift */,
 				20E6005E048856702DE32420 /* LayoutClass.swift */,
 				0D436F55509605E4D98ECE48 /* LayoutTokens.generated.swift */,
 				161A592C2B6F0C715B7E17B2 /* Platform.swift */,
@@ -588,10 +600,12 @@
 				7D8383BD1872AF68D53716DD /* DebugImportFixture.swift in Sources */,
 				F02E20EBBCF801FA435B857C /* DetailPlaceholder.swift in Sources */,
 				4DD2D18B1AB33C8FD5A382E1 /* DroppedClip.swift in Sources */,
+				D6C3C7BA8C69F7A9AEB93473 /* EventFormDraft.swift in Sources */,
 				99384036CC3B4CB5D05BD649 /* EventFormScreen.swift in Sources */,
 				0B42C235850422B2C6BF0737 /* EventModel.swift in Sources */,
 				68F38DA8AA921117CCEE56D5 /* EventScreen.swift in Sources */,
 				D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */,
+				53752C0F52147E2F2152B3E3 /* FoldPosture.swift in Sources */,
 				32D05A0ACA64F77EADA631B6 /* FrictionCircle.swift in Sources */,
 				B84EE4B51B19A13263814B43 /* GarageScreen.swift in Sources */,
 				43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */,
@@ -647,6 +661,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C79E68610F3F0CC012D94722 /* DroppedClipTests.swift in Sources */,
+				59C8927C18AEAFDA0A97F1DE /* EventFormDraftTests.swift in Sources */,
+				075C42EC5206B481B395638E /* FoldsTests.swift in Sources */,
 				BFACEC004A16805D3D2645B8 /* LapChannelPanelTests.swift in Sources */,
 				68767EDE7AD832F838E39040 /* LapDetailTests.swift in Sources */,
 				EB1D1E92428310BA3AAE7BAD /* LayoutClassTests.swift in Sources */,
@@ -726,7 +742,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.12;
+				MARKETING_VERSION = 1.13;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -813,7 +829,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.12;
+				MARKETING_VERSION = 1.13;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

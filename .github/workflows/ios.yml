@@ -82,6 +82,11 @@ jobs:
       # The device is whatever the runner image has, since the simulator
       # catalogue moves with Xcode and pinning a model name is how this job
       # starts failing on an image bump that has nothing to do with the app.
+      # Once the image carries Xcode 27.1 the first match may be the iPhone Duo
+      # (epic #277); that is fine here — these tests are pure logic and pass on
+      # any phone. The *toolchain* is a different matter: the tabletop recorder's
+      # hinge read needs the iOS 27.1 SDK, so when it lands `runs-on` moves to
+      # whichever label carries 27.1 (ticket 2), pinned and said so.
       - name: App unit tests
         working-directory: apps/ios
         run: |

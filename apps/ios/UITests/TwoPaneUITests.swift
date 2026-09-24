@@ -274,6 +274,69 @@ final class TwoPaneUITests: XCTestCase {
         )
     }
 
+    /// A half-typed event survives the rotation that swaps the shells (epic #277,
+    /// ticket 1).
+    ///
+    /// `RootView` draws the stack shell below 840pt and the split shell at or
+    /// above it, and swapping containers drops every screen's `@State` — the
+    /// form's model included. On an iPad mini that is a rotation (744 → 1133pt),
+    /// and on the iPhone Duo it is turning the open phone, which is why this
+    /// stopped being an edge case. The fix holds the draft on `AppRouter`, above
+    /// the swap; this is the check that it does, on a device whose two
+    /// orientations straddle the breakpoint. `EventFormDraftTests` pins the rule
+    /// underneath.
+    ///
+    /// Nothing is saved, so nothing is created in the shared dev logbook.
+    func testAHalfTypedEventSurvivesARotationAcrossTheBreakpoint() throws {
+        let app = try launchSignedIn(tier: .free)
+        XCUIDevice.shared.orientation = .portrait
+        waitForWindow(app, landscape: false)
+
+        // 840 is `EXPANDED_MIN_DP`, spelled out because a UI test does not link
+        // the app. The two orientations have to land either side of it, or the
+        // shells never swap and there is nothing to lose.
+        let window = app.windows.firstMatch.frame
+        let (short, long) = (min(window.width, window.height), max(window.width, window.height))
+        try XCTSkipUnless(
+            short >= 600 && short < 840 && long >= 840,
+            "this device's orientations do not straddle 840pt (\(Int(short))×\(Int(long))) — run it on an iPad mini"
+        )
+
+        let addEvent = app.buttons["+ Add event"]
+        XCTAssertTrue(addEvent.waitForExistence(timeout: 20), "the dashboard should load")
+        addEvent.tap()
+
+        let club = app.textFields["formClub"]
+        XCTAssertTrue(club.waitForExistence(timeout: 20), "the new-event form should open")
+        club.tap()
+        club.typeText("Rotation Club")
+        let runGroup = app.textFields["formRunGroup"]
+        runGroup.tap()
+        runGroup.typeText("Advanced")
+
+        for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+            XCUIDevice.shared.orientation = orientation
+            let landscape = orientation == .landscapeLeft
+            waitForWindow(app, landscape: landscape)
+            let name = landscape ? "event-form-after-rotating-to-split" : "event-form-after-rotating-back"
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = name
+            shot.lifetime = .keepAlways
+            add(shot)
+
+            let clubAfter = app.textFields["formClub"]
+            XCTAssertTrue(clubAfter.waitForExistence(timeout: 10), "the form should still be open after rotating")
+            XCTAssertEqual(
+                clubAfter.value as? String, "Rotation Club",
+                "the typed club should survive the shell swap (\(name))"
+            )
+            XCTAssertEqual(
+                app.textFields["formRunGroup"].value as? String, "Advanced",
+                "the typed run group should survive the shell swap (\(name))"
+            )
+        }
+    }
+
     /// Wait for the window to be the shape the device was just turned to.
     ///
     /// Rotation is not instant and the screenshot proves it: measured too early,

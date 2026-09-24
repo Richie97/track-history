@@ -198,7 +198,7 @@ struct VehicleScreen: View {
                         TESectionHeader("Measurements")
                         measurements(model, part)
                     }
-                    MeasurementField(part: part) { draft in
+                    MeasurementField(part: part, route: .vehicle(vehicleId)) { draft in
                         await model.addMeasurement(partId: part.id, draft)
                     }
                 } else {
@@ -428,7 +428,7 @@ struct VehicleScreen: View {
                     if !part.measurements.isEmpty {
                         measurements(model, part)
                     }
-                    MeasurementField(part: part) { draft in
+                    MeasurementField(part: part, route: .vehicle(vehicleId)) { draft in
                         await model.addMeasurement(partId: part.id, draft)
                     }
                 }
@@ -535,21 +535,34 @@ func trimZeros(_ value: Double) -> String {
 /// measured projection, which is why the hint says so on the first one.
 struct MeasurementField: View {
     let part: Part
+    /// The page it sits on, which is what the typed value is held against.
+    let route: Route
     let submit: (MeasurementDraft) async -> Bool
 
     /// For the default unit of a first measurement (tread depth: 32nds or mm).
     @Environment(\.unitSystem) private var units
+    @Environment(AppRouter.self) private var router
 
-    @State private var value = ""
     @State private var unit = ""
     @State private var measuredOn = Date()
-    @State private var open = false
+    @State private var opened = false
+
+    /// The reading as typed, held on the router so the shell swap across 840pt
+    /// keeps it (epic #277, ticket 1). The unit and date re-derive, so they stay
+    /// local; the number is the thing that was typed.
+    private var valueKey: String { "measure.\(part.id)" }
+    private var value: String { router.heldText(route, valueKey) }
+    private var valueBinding: Binding<String> {
+        Binding(get: { value }, set: { router.hold($0, valueKey, route) })
+    }
+    /// A half-typed reading reopens the row it was typed into.
+    private var open: Bool { opened || !value.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if open {
                 HStack(spacing: 8) {
-                    TextField("Value", text: $value)
+                    TextField("Value", text: valueBinding)
                         .teInput()
                         .keyboardType(.decimalPad)
                         .frame(maxWidth: 110)
@@ -578,8 +591,8 @@ struct MeasurementField: View {
                                     : unit.trimmingCharacters(in: .whitespaces)
                             )
                             if await submit(draft) {
-                                value = ""
-                                open = false
+                                router.hold("", valueKey, route)
+                                opened = false
                                 Haptics.confirm()
                             } else {
                                 Haptics.warn()
@@ -588,11 +601,14 @@ struct MeasurementField: View {
                     }
                     .buttonStyle(TEButtonStyle(kind: .accent))
                     .disabled(Double(value.replacingOccurrences(of: ",", with: ".")) == nil)
-                    Button("Cancel") { open = false }
+                    Button("Cancel") {
+                        router.hold("", valueKey, route)
+                        opened = false
+                    }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
                 }
             } else {
-                Button("Measure") { open = true }
+                Button("Measure") { opened = true }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityIdentifier("measurePart")
             }

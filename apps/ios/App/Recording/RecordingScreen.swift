@@ -27,29 +27,22 @@ struct RecordingScreen: View {
     /// dashboard, the banner's sheet closes. nil just dismisses.
     var onFinish: (() -> Void)?
 
+    /// How the device is folded (epic #277, ticket 3). Read from the environment
+    /// by default — `publishingFoldGeometry()` sets it on the record route — and
+    /// passed in by tests, the seam Android's `RecordScreen` uses: a posture
+    /// nobody can produce on a desk is a posture nobody can test.
+    var fold: FoldGeometry?
+    @Environment(\.foldGeometry) private var environmentFold
+
     /// The `-autoRecord` hook must fire once per launch, not once per appearance.
     @MainActor private static var didAutoRecord = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TESpacing.gridGap) {
-                if let recovered = recorder.recovered {
-                    recoveryCard(recovered)
-                }
-                // One card at a time: a stopped recording is waiting to be
-                // reviewed, and offering "start" beside it only invites the
-                // question of what happens to the one on screen.
-                if let reason = stopReason {
-                    stoppedCard(reason)
-                } else {
-                    liveCard
-                }
-                permissionNote
-            }
-            .padding(TESpacing.pageGutter)
-        }
+        layout
         .background(Color(.bgPage))
         .navigationTitle("Record laps")
+        // A large title is a third of the half above the crease; inline there.
+        .navigationBarTitleDisplayMode(posture.posture == .tabletop ? .inline : .automatic)
         .task {
             // `bindRecorder` in the web app does the same: a recording started
             // before its event existed — from CarPlay, say — is adopted by the
@@ -87,6 +80,152 @@ struct RecordingScreen: View {
         }
     }
 
+    // MARK: - Layouts
+
+    private var posture: FoldGeometry { fold ?? environmentFold }
+
+    /// The phone layout, or — half-open on a dash with the hinge across the
+    /// middle — the tabletop one.
+    ///
+    /// Tabletop only while there is a live recorder to glance at: a stopped
+    /// recording is waiting for its review, which is a desk task with a picker
+    /// in it, and a recovered one is a card to read. Book posture gets nothing,
+    /// as on Android.
+    @ViewBuilder
+    private var layout: some View {
+        if posture.posture == .tabletop, stopReason == nil, recorder.recovered == nil {
+            tabletopLayout
+        } else {
+            phoneLayout
+        }
+    }
+
+    /// The layout this screen has always had, in the order it has always been
+    /// in. Posture adds a shape beside this one; it does not get to reorder it.
+    private var phoneLayout: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TESpacing.gridGap) {
+                if let recovered = recorder.recovered {
+                    recoveryCard(recovered)
+                }
+                // One card at a time: a stopped recording is waiting to be
+                // reviewed, and offering "start" beside it only invites the
+                // question of what happens to the one on screen.
+                if let reason = stopReason {
+                    stoppedCard(reason)
+                } else {
+                    liveCard
+                }
+                permissionNote
+            }
+            .padding(TESpacing.pageGutter)
+        }
+    }
+
+    /// The pit-wall shape (epic #277, ticket 3 — the port of Android's
+    /// `TabletopLayout`).
+    ///
+    /// The **timing goes above the crease and the controls below it**, because
+    /// the half you glance at from the driver's seat and the half you reach for
+    /// are different halves, and only one of them is worth a glance at speed.
+    /// Nothing is laid across the hinge: the two halves are siblings sized by
+    /// where the hinge actually is (`Folds.tabletopTopShare`), so a crease off the
+    /// midpoint still gets its content in one piece rather than folded through
+    /// the middle of a lap time. No scroll view — a phone standing on a dash is
+    /// not being scrolled — so the bottom half carries only what Android's does.
+    private var tabletopLayout: some View {
+        GeometryReader { proxy in
+            let top = proxy.size.height * Folds.tabletopTopShare(posture)
+            VStack(spacing: 0) {
+                VStack(spacing: 10) {
+                    if recorder.isRecording {
+                        liveTimingRow(centred: true)
+                    } else {
+                        // Before Start the top half has nothing live to show; the
+                        // elapsed clock says "ready" there rather than leaving it
+                        // blank above the button.
+                        Text(Self.elapsed(recorder.elapsedS))
+                            .teStyle(.lapTimeHero)
+                            .foregroundStyle(Color(.textMuted))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(TESpacing.pageGutter)
+                .frame(height: top)
+                .accessibilityIdentifier("tabletopTiming")
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(Self.attachmentText(isAttached: isAttached))
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                    fixQualityCard
+                    if recorder.isRecording {
+                        TimelineView(.periodic(from: .now, by: 2)) { _ in
+                            if recorder.isStalled {
+                                warning("No GPS fixes are arriving. Recording is still running — check the phone has a view of the sky.")
+                            } else if recorder.isAccuracyPoor {
+                                warning("GPS accuracy is poor right now, so lap times will be rough.")
+                            }
+                        }
+                    }
+                    startStop
+                    Spacer(minLength: 0)
+                }
+                .padding(TESpacing.pageGutter)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: proxy.size.height - top)
+                .accessibilityIdentifier("tabletopControls")
+            }
+        }
+    }
+
+    /// Whether the laps have an event to land in: the screen's own, or one the
+    /// recording already carries.
+    private var isAttached: Bool {
+        eventId != nil || recorder.recording?.eventId != nil
+    }
+
+    /// Android's `attachmentText`, word for word. The event's name is not
+    /// loaded on this screen, so it is always the unnamed form of "attached".
+    static func attachmentText(isAttached: Bool, eventLabel: String? = nil) -> String {
+        if isAttached, let eventLabel { return "Laps will be saved to \(eventLabel)." }
+        if isAttached { return "Laps will be saved to this event." }
+        return "Not attached to an event yet — you can create one after."
+    }
+
+    /// The elapsed clock and the three fix figures, as the tabletop's lower half
+    /// shows them — Android's `FixQuality` card.
+    private var fixQualityCard: some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 8) {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    Text(Self.elapsed(recorder.elapsedS))
+                        .teStyle(.lapTime)
+                        .foregroundStyle(recorder.isRecording ? Color(.accentInk) : Color(.textMuted))
+                        .contentTransition(.numericText())
+                }
+                HStack(spacing: 24) {
+                    stat("Fixes", value: "\(recorder.fixCount)")
+                    stat("Speed", value: Self.speed(recorder.lastSpeedMps, auth.units))
+                    stat("Accuracy", value: Self.accuracy(recorder.lastAccuracyM, auth.units))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var startStop: some View {
+        if recorder.isRecording {
+            Button("Stop recording") {
+                recorder.stop()
+                Haptics.confirm()
+            }
+            .buttonStyle(TEButtonStyle(kind: .danger))
+        } else {
+            startButton
+        }
+    }
+
     // MARK: - Cards
 
     private var liveCard: some View {
@@ -107,7 +246,7 @@ struct RecordingScreen: View {
                 }
 
                 if recorder.isRecording {
-                    liveTimingRow
+                    liveTimingRow(centred: false)
                 }
 
                 HStack(spacing: 24) {
@@ -128,15 +267,7 @@ struct RecordingScreen: View {
                     }
                 }
 
-                if recorder.isRecording {
-                    Button("Stop recording") {
-                        recorder.stop()
-                        Haptics.confirm()
-                    }
-                    .buttonStyle(TEButtonStyle(kind: .danger))
-                } else {
-                    startButton
-                }
+                startStop
             }
         }
     }
@@ -172,12 +303,16 @@ struct RecordingScreen: View {
     /// Live lap timing: lap counter, running lap, last/best, and the predictive
     /// delta to the session's best lap. Times here are unofficial — the saved
     /// laps come from the review line pick — but on track they're what matters.
+    ///
+    /// `centred` is the tabletop half: the same numbers, centred in the space
+    /// above the hinge, because there it is the only thing on that half of the
+    /// screen and it is read from a metre away.
     @ViewBuilder
-    private var liveTimingRow: some View {
+    private func liveTimingRow(centred: Bool) -> some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
             let timing = recorder.liveTiming.display(nowS: recorder.elapsedS)
             if let currentLapS = timing.currentLapS {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: centred ? .center : .leading, spacing: 10) {
                     if let deltaS = timing.deltaS {
                         Text(Self.delta(deltaS))
                             .teStyle(.lapTimeHero)
@@ -200,6 +335,7 @@ struct RecordingScreen: View {
                 Text("Lap timing arms once you're at track pace; laps count from your first flying pass.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
+                    .multilineTextAlignment(centred ? .center : .leading)
             }
         }
     }
