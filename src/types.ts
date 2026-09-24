@@ -43,6 +43,12 @@ export type Env = {
   // this instant (ISO date or epoch ms). Unset ⇒ every claim succeeds; set it
   // to the flip date at phase D.
   LEGACY_CUTOFF?: string;
+
+  // --- MCP rate limits (lib/ratelimit.ts; `ratelimits` in wrangler.jsonc) ---
+  // Optional so a fork without them still runs unlimited.
+  MCP_CALLS?: RateLimit; // per connection (grant): POST /mcp
+  OAUTH_TOKEN?: RateLimit; // per client id: POST /oauth/token
+  OAUTH_REGISTER?: RateLimit; // per IP: POST /oauth/register
 };
 
 export type AppContext = {

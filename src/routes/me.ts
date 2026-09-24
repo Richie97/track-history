@@ -109,3 +109,36 @@ me.put("/me/units", async (c) => {
   await c.env.DB.prepare("UPDATE users SET units = ? WHERE id = ?").bind(units, userId).run();
   return c.json({ ok: true });
 });
+
+// Connected apps (#316): the AI tools this user approved on the MCP consent
+// page (routes/oauth.ts), one row per client. Disconnecting deletes the grant,
+// and its codes and tokens cascade with it, so the next call from that client
+// is a 401 and it has to ask again.
+//
+// Only grants still holding a live token are listed. Clients re-register on
+// reconnect (a fresh client id each time), and an approval whose code was never
+// exchanged, or whose refresh token was revoked or ran out, is not a
+// connection any more — listing those would fill Settings with rows that
+// disconnect nothing.
+me.get("/me/connections", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT g.id, c.name, g.created_at, g.last_used_at
+       FROM oauth_grants g JOIN oauth_clients c ON c.id = g.client_id
+      WHERE g.user_id = ?
+        AND EXISTS (SELECT 1 FROM oauth_tokens t WHERE t.grant_id = g.id AND t.expires_at > ?)
+      ORDER BY g.created_at DESC`
+  )
+    .bind(c.get("userId"), Date.now())
+    .all<{ id: number; name: string | null; created_at: number; last_used_at: number | null }>();
+  return c.json(
+    rows.results.map((r) => ({ id: r.id, name: r.name, connected_at: r.created_at, last_used_at: r.last_used_at }))
+  );
+});
+
+me.delete("/me/connections/:id", async (c) => {
+  const res = await c.env.DB.prepare("DELETE FROM oauth_grants WHERE id = ? AND user_id = ?")
+    .bind(c.req.param("id"), c.get("userId"))
+    .run();
+  if (!res.meta.changes) return c.json({ error: "not found" }, 404);
+  return c.json({ ok: true });
+});

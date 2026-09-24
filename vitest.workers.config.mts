@@ -119,6 +119,28 @@ function appleFetchMock(googleJwk: object) {
       return { id_token: `${b64Url('{"alg":"RS256"}')}.${b64Url(payload)}.fake-signature` };
     })
     .persist();
+
+  // Client-ID metadata documents for the MCP OAuth tests
+  // (test/api/oauth.test.ts): one well-formed, one naming a different
+  // client_id than the URL it was fetched from.
+  fetchMock
+    .get("https://assistant.example")
+    .intercept({ method: "GET", path: "/oauth/client.json" })
+    .reply(200, {
+      client_id: "https://assistant.example/oauth/client.json",
+      client_name: "Metadata Assistant",
+      redirect_uris: ["https://assistant.example/callback"],
+    })
+    .persist();
+  fetchMock
+    .get("https://assistant.example")
+    .intercept({ method: "GET", path: "/oauth/mismatch.json" })
+    .reply(200, {
+      client_id: "https://evil.example/oauth/client.json",
+      client_name: "Mismatched",
+      redirect_uris: ["https://assistant.example/callback"],
+    })
+    .persist();
   return fetchMock;
 }
 

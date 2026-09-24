@@ -495,6 +495,17 @@ Features added after the rewrite shipped, and where they landed:
   notes.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
+- **AI assistants over MCP** (2026-09, epic
+  [#314](https://github.com/Richie97/track-history/issues/314)) —
+  **server-side**, and so on every client at once: a Pro user connects Claude,
+  ChatGPT or any MCP client to `https://trackevolution.app/mcp`, signs in on
+  the Worker's own consent page, and the assistant reads the logbook through
+  read-only tools. No client ships code for it. The one client surface is
+  Settings' list of connected assistants with *Disconnect*, which is
+  **web-only for now** (`GET` / `DELETE /api/me/connections`) — a phone user
+  disconnects in the assistant itself or on the web; the native Settings rows
+  are a follow-up, not a gap in the feature. The in-app coach (#318–#320) is
+  the part that will need native work.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
   server-owned.** The $1 up-front purchase becomes Track Evolution Pro at
   $1.99/month or $19.99/year, sold through StoreKit 2 and Play Billing and

@@ -819,6 +819,16 @@ button.ch-chip.on { background: var(--surface-raised); }
   .btn.apple:hover { background: var(--text-strong); opacity: 0.85; }
 }
 
+/* The MCP consent page (src/routes/oauth.ts) reuses the login card; these are
+   the few things it has that the login screen doesn't. */
+.consent-card { text-align: left; }
+.consent-card h1, .consent-card .flag { text-align: center; }
+.consent-card p { max-width: none; margin: 0 0 14px; }
+.consent-list { margin: 0 0 14px; padding-left: 20px; color: var(--text-muted); font-size: 15px; }
+.consent-list li { margin: 4px 0; }
+.consent-form .login-buttons { margin-top: 18px; }
+.consent-card .consent-fine { font-size: var(--fs-sm); color: var(--text-faint); margin: 18px 0 0; }
+
 .empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
 
 /* ---------- Footer ---------- */
@@ -1081,7 +1091,7 @@ button.ch-chip.on { background: var(--surface-raised); }
 /* The checklist *template* rows (Settings) reuse .check-item without a
    checkbox: nothing here is tickable, so the row isn't a label and the cursor
    shouldn't promise it is. */
-#tmpl-panel .check-item { cursor: default; }
+#tmpl-panel .check-item, #conn-panel .check-item { cursor: default; }
 #tmpl-panel .check-item .x[disabled] { opacity: 0.3; cursor: default; }
 
 /* ---------- Session analysis & comparisons ---------- */

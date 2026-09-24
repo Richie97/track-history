@@ -66,6 +66,8 @@ turns lap times into analysis.
 | Year in review (web) | **Pro** | Client |
 | Season Wrapped — the story, the poster and its public share (web, [NS-36](NS-36-season-wrapped.md)) | Free | — (the share is the acquisition loop; a paywalled poster is a dead one) |
 | Season Wrapped — the favourite-tyre and top-speed cards | **Pro** | Server: the `pro` field of `GET /api/wrapped/:year` is `null` for a free account, the way `channels` is stripped (rule 4); the client draws the two cards locked |
+| Connecting an AI assistant — the MCP server at `/mcp` and its read-only tools ([#314](https://github.com/Richie97/track-history/issues/314)) | **Pro** | Server: the consent page won't approve a free account, and every `tools/call` checks `entitled_until` (loaded with the token, as `requireSession` loads it) and answers a lapsed account with a tool error saying why — never a broken connection. Not `requireEntitlement`: `/mcp` is outside `/api` and isn't a route of the enumerated routers |
+| Settings' list of connected AI assistants, and Disconnect | Free | — (a lapsed user must still be able to revoke what they connected) |
 
 > **Revised after phase D: telemetry import is free.** It was `Pro`, gated on
 > the client at the point of import. The gate is gone on all three clients and
