@@ -13,8 +13,23 @@
     // it to get Content-Type: application/json (see src/routes/wellKnown.ts).
     // /share/* hits the Worker so link scrapers get per-slug OG meta instead
     // of the SPA shell's generic tags. /billing/* are the store webhooks
-    // (src/routes/billingWebhooks.ts), public and outside /api.
-    "run_worker_first": ["/api/*", "/auth/*", "/share/*", "/billing/*", "/.well-known/apple-app-site-association"],
+    // (src/routes/billingWebhooks.ts), public and outside /api. /mcp, /oauth/*
+    // and the two OAuth discovery documents are the MCP server and its
+    // authorization server (src/routes/mcp.ts, oauth.ts) — without these the
+    // SPA fallback would answer them with index.html.
+    "run_worker_first": [
+      "/api/*",
+      "/auth/*",
+      "/share/*",
+      "/billing/*",
+      "/.well-known/apple-app-site-association",
+      "/mcp",
+      "/mcp/*",
+      "/oauth/*",
+      "/.well-known/oauth-protected-resource",
+      "/.well-known/oauth-protected-resource/*",
+      "/.well-known/oauth-authorization-server",
+    ],
   },
   "vars": {
     // <Apple Team ID>.<bundle id> for iOS Universal Links (mobile/ apps).

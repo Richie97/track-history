@@ -1425,6 +1425,63 @@ Wrapped, which is free.
   free account exactly as it is on the event detail — the racing line and the
   times are free.
 
+## AI assistants (MCP)
+
+Pro users can connect Claude, ChatGPT, Claude Code, Cursor or any other
+[Model Context Protocol](https://modelcontextprotocol.io) client to their
+logbook at **`https://<host>/mcp`** (epic #314; user docs:
+`site/docs/ai.html`). The assistant signs the user in through the Worker's own
+OAuth 2.1 authorization server, then reads the logbook through read-only tools.
+Nothing to configure on deploy beyond applying migration `0028`.
+
+- **The MCP server** — `POST /mcp` (`src/routes/mcp.ts` + `src/ai/mcp.ts`):
+  Streamable HTTP, **stateless** and JSON-only (no `Mcp-Session-Id`, no event
+  stream; `GET`/`DELETE` answer 405), protocol versions 2025-11-25, 2025-06-18
+  and 2025-03-26, hand-rolled rather than on the SDK because a stateless,
+  non-streaming server is five JSON-RPC methods. `initialize` carries
+  instructions stating the logbook's conventions (ms, stored units, the app's
+  corner numbering, relative balance); three prompts (`debrief_session`,
+  `compare_to_best`, `plan_next_track_day`).
+- **The tools** (`src/ai/tools.ts`, shared with the planned in-app coach):
+  `get_profile`, `list_tracks`, `list_events`, `get_event`,
+  `get_session_insights`, `compare_laps`, `get_lap_telemetry`,
+  `get_track_history`, `get_setup_vs_lap_times`, `get_garage`,
+  `get_leaderboard`, `get_season_summary`. Each reads **through the API
+  itself** — a private copy of the `/api` router (`apiApp` in `src/api.ts`)
+  behind a middleware that takes the user from the tool's own `Request` — so a
+  tool answers exactly what `GET /api/…` would, with the same ownership
+  scoping, Pro strip and leaderboard rules, and only `GET`s are ever issued.
+  The analysis (sectors, shifts, limits, grip, corners, balance, health, lap
+  compare) runs the web app's own modules, **imported from `public/js/`**
+  (`src/ai/insights.ts`, `allowJs` in `tsconfig.json`); results are summaries
+  in stored units, never the raw channel blob, and bounded in size.
+- **Authorization** (`src/routes/oauth.ts`, pure rules in `src/lib/oauth.ts`,
+  migration `0028_oauth.sql`): discovery at
+  `/.well-known/oauth-protected-resource[/mcp]` and
+  `/.well-known/oauth-authorization-server`; dynamic client registration
+  (`POST /oauth/register`, public clients only) **and** client-ID metadata
+  documents (an https `client_id` fetched on each authorization); the consent
+  page at `GET/POST /oauth/authorize` (signs the user in through `/auth/login`
+  with a `next` back to itself, CSRF double-submit, CSP `frame-ancestors
+  'none'`, refuses a free account); `POST /oauth/token` (authorization code
+  with mandatory PKCE S256, rotating refresh tokens — 1 h access, 90-day
+  refresh) and `POST /oauth/revoke`. The daily cron also sweeps expired codes
+  and tokens and registered clients nobody connected (`sweepOAuth`). **MCP tokens are not app sessions**: they
+  live in `oauth_tokens`, not `auth_sessions`, so an assistant's token opens
+  `/mcp` and nothing under `/api`. All secrets are stored SHA-256-hashed.
+- **Pro** is checked per tool call from the `entitled_until` loaded with the
+  token; a lapsed account's assistant gets a tool error saying why.
+- **Settings → AI assistants** (web) lists live connections and disconnects
+  them (`GET` / `DELETE /api/me/connections`).
+- **CORS** is answered (`*`, no credentials) on `/mcp`, the token/register/
+  revoke endpoints and the discovery documents only — bearer-token surfaces a
+  browser-based MCP client needs. `/api` still answers none.
+
+Try it locally: with `npm run dev` running, `npx @modelcontextprotocol/inspector`
+and point it at `http://localhost:8787/mcp` — the consent page signs in through
+the `DEV_MODE` bypass. The account needs Pro; `POST /auth/dev/entitlement`
+with `{ "pro": true }` grants it on a dev host.
+
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE).

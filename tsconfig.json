@@ -7,6 +7,10 @@
     "types": ["@cloudflare/workers-types"],
     "strict": true,
     "noEmit": true,
+    // src/ai imports the pure analysis modules from public/js (see
+    // src/ai/insights.ts); they are type-inferred, not type-checked.
+    "allowJs": true,
+    "checkJs": false,
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts"]

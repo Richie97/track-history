@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI assistants — Track Evolution docs</title>
+  <meta name="description" content="Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, and ask it about your laps, sessions and garage.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="AI assistants — Track Evolution docs">
+  <meta property="og:description" content="Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, and ask it about your laps, sessions and garage.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/ai.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html" class="active">AI assistants</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>AI assistants</h1>
+    <p class="lede">
+      With Track Evolution Pro, you can connect Claude, ChatGPT or another AI
+      assistant to your logbook and ask it about your driving in plain
+      language: where the time is, how today compared with last year, what to
+      work on next session. It reads your data and can't change anything.
+    </p>
+
+    <h2 id="ask">What you can ask</h2>
+    <p>The assistant sees what the app sees, so it can answer questions like:</p>
+    <ul>
+      <li><em>"Debrief my last session at VIR. Where did I lose time to my best lap?"</em></li>
+      <li><em>"Compare my fastest lap this year at Road Atlanta with last year's. Which corners got faster?"</em></li>
+      <li><em>"Am I trail braking more than I was in the spring?"</em></li>
+      <li><em>"Which setup was I on when I set my best time here?"</em></li>
+      <li><em>"When are my front pads due, and what has this car cost me per track day?"</em></li>
+      <li><em>"Plan my next day at Barber from my history there."</em></li>
+    </ul>
+    <p>
+      It works from the same numbers as the app — lap times, sector splits and
+      the theoretical best, shift points, ABS and traction-control
+      interventions, grip and balance by corner, car health, your garage and
+      your setup sheets — so its answers can point at a specific lap, corner
+      or figure. Laps recorded with the app or imported from telemetry give it
+      far more to work with than typed-in times.
+    </p>
+
+    <h2 id="connect">Connecting</h2>
+    <p>
+      Every assistant asks for the same address:
+    </p>
+    <pre><code>https://trackevolution.app/mcp</code></pre>
+    <p>
+      Add it as a connector in your assistant, and it will send you to Track
+      Evolution to sign in and approve the connection. The approval page says
+      which app is asking and what it will be able to read; choose
+      <strong>Allow</strong> and you're sent back.
+    </p>
+    <h3>Claude</h3>
+    <ol>
+      <li>In Claude, open <strong>Settings → Connectors</strong> and choose
+        <strong>Add custom connector</strong>.</li>
+      <li>Name it <em>Track Evolution</em> and paste the address above.</li>
+      <li>Choose <strong>Connect</strong>, sign in to Track Evolution, and
+        choose <strong>Allow</strong>.</li>
+      <li>In a new chat, turn the Track Evolution connector on from the tools
+        menu and ask away.</li>
+    </ol>
+    <h3>ChatGPT</h3>
+    <p>
+      In ChatGPT's settings, under <strong>Apps &amp; Connectors</strong>, create
+      a custom connector with the address above, then sign in and allow it the
+      same way. Custom connectors depend on your ChatGPT plan.
+    </p>
+    <h3>Other assistants</h3>
+    <p>
+      Any assistant that supports remote connectors — the kind that use the
+      Model Context Protocol and sign you in — can use the same address. In
+      Claude Code, for example:
+    </p>
+    <pre><code>claude mcp add --transport http track-evolution https://trackevolution.app/mcp</code></pre>
+    <div class="callout">
+      Menu names in these apps change as they update; if a step above doesn't
+      match what you see, look for "connectors" or "MCP servers" in the app's
+      settings.
+    </div>
+
+    <h2 id="sees">What it can and can't see</h2>
+    <ul>
+      <li>It can read your tracks, events, sessions and lap times, your lap
+        telemetry and the analysis built on it, your garage, setup sheets and
+        notes, and the leaderboards you can already see in the app.</li>
+      <li>It <strong>can't</strong> add, change or delete anything.</li>
+      <li>It can't see other drivers' logbooks. On a leaderboard it sees
+        exactly what you see: names, best times and dates.</li>
+    </ul>
+
+    <h2 id="privacy">Your data and the assistant</h2>
+    <p>
+      Nothing is sent to an assistant until you connect it and ask it
+      something. Then the assistant's app receives the parts of your logbook
+      it asks for to answer you, and handles them under that provider's terms
+      and your account with them — the same as anything else you paste into a
+      chat. See the <a href="./privacy.html#ai">privacy policy</a>.
+    </p>
+
+    <h2 id="disconnect">Disconnecting</h2>
+    <p>
+      Open <strong>Settings</strong> in the Track Evolution web app (account
+      menu → Settings). <strong>AI assistants</strong> lists every assistant
+      you've connected, when you connected it and when it was last used;
+      <strong>Disconnect</strong> cuts it off immediately. Remove the connector
+      in the assistant too, so it stops offering it.
+    </p>
+
+    <h2 id="pro">Pro</h2>
+    <p>
+      Connecting an assistant is part of Track Evolution Pro. If your
+      subscription lapses, the assistant is told Pro is needed and can't read
+      your logbook until you resubscribe; nothing in your logbook changes
+      either way.
+    </p>
+
+    <h2 id="coaching">A word on coaching</h2>
+    <p>
+      An assistant is a sharp second pair of eyes on your data, not an
+      instructor. Its corner numbers (T1, T2…) are the app's own, counted from
+      the start/finish line, not the circuit's official turn numbers. Treat
+      its suggestions as things to try in the next session, talk them through
+      with your coach, and never use an assistant while you're driving.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./garage.html"><span class="label">Previous</span>← Garage &amp; setup notebook</a>
+      <a href="./privacy.html"><span class="label">Next</span>Privacy policy →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -2765,6 +2765,9 @@ async function viewSettings() {
       <div class="hint" style="margin:8px 0 0">A second, separate choice, off unless you turn it on. It publishes one lap per track — the ranked one already on the board — as its racing line and telemetry traces, so a driver ranked at the same track can compare corner for corner. It never publishes any other lap, your notes, your session labels, your car, the conditions you typed, your setup sheets or your garage. Leaving the leaderboards turns it off.</div>
       <div id="lb-error"></div>
     </div>
+    <h2>AI assistants</h2>
+    <div class="hint" style="margin:0 0 4px">With Pro, you can connect Claude, ChatGPT or another AI assistant to your logbook and ask it about your laps, sessions and garage. It can read your data and can't change anything. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
+    <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
     <h2>Subscription</h2>
     ${subscriptionPanelHtml()}
     <h2>About &amp; legal</h2>
@@ -2839,6 +2842,49 @@ async function viewSettings() {
   });
   const tmplReset = view.querySelector("#tmpl-reset");
   if (tmplReset) tmplReset.onclick = () => saveTemplate([]);
+
+  // --- connected AI assistants (MCP, #316) ---
+  // Loaded after the page draws: it is the one section that needs its own
+  // request, and a failure here shouldn't hold up the rest of Settings.
+  // Disconnecting is a live write (off the offline queue), like every other
+  // account setting.
+  const connPanel = view.querySelector("#conn-panel");
+  const dayOf = (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10));
+  const drawConnections = async () => {
+    let rows;
+    try {
+      rows = await api("/me/connections");
+    } catch (err) {
+      connPanel.innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+      return;
+    }
+    if (!connPanel.isConnected) return;
+    connPanel.innerHTML = rows.length
+      ? rows
+          .map(
+            (r) => `<div class="check-item">
+              <span>${esc(r.name || "Unnamed app")} <span class="hint-inline">connected ${dayOf(r.connected_at)}${
+                r.last_used_at ? ` · last used ${dayOf(r.last_used_at)}` : ""
+              }</span></span>
+              <button type="button" class="btn small" data-conn-del="${r.id}">Disconnect</button>
+            </div>`
+          )
+          .join("") + `<div id="conn-error"></div>`
+      : `<div class="hint" style="margin:0">No assistants connected.</div>`;
+    connPanel.querySelectorAll("[data-conn-del]").forEach((btn) => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          await api(`/me/connections/${btn.dataset.connDel}`, { method: "DELETE" });
+          drawConnections();
+        } catch (err) {
+          btn.disabled = false;
+          connPanel.querySelector("#conn-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+        }
+      };
+    });
+  };
+  drawConnections();
 
   // --- leaderboard opt-in, and the lap-sharing consent stacked on it (NS-35) ---
   const lbOpt = view.querySelector("#lb-opt");

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import type { AppContext, Env } from "../types";
+import type { AppContext, Ctx, Env } from "../types";
 import { decodeIdTokenPayload, isEmailVerified } from "../lib/oidc";
 import { APPLE_ISSUER, appleClientSecret, appleUserName } from "../lib/apple";
 import { isDevHost } from "../lib/dev";
@@ -15,6 +15,7 @@ import {
   sha256Hex,
 } from "../lib/session";
 import { upsertSubscription } from "../lib/billing/store";
+import { isSafeNext } from "../lib/oauth";
 
 export const auth = new Hono<AppContext>();
 
@@ -38,6 +39,28 @@ async function createAuthCode(
     .bind(await sha256Hex(code), userId, codeChallenge, Date.now() + AUTH_CODE_TTL_MS)
     .run();
   return code;
+}
+
+// Where a web sign-in lands afterwards. Normally "/", but the MCP consent page
+// (routes/oauth.ts) sends a signed-out user here with `next` set to the
+// authorization request they came from, so they come back to approve it.
+// isSafeNext only accepts a path back into /oauth/authorize — anything else
+// would make sign-in an open redirect. It rides in a cookie across the
+// provider round trip; SameSite=None because Apple's callback is a cross-site
+// POST (see below).
+const NEXT_COOKIE = "auth_next";
+
+function rememberNext(c: Ctx) {
+  const next = c.req.query("next");
+  if (!isSafeNext(next)) return;
+  setCookie(c, NEXT_COOKIE, next, { httpOnly: true, secure: true, sameSite: "None", path: "/", maxAge: 600 });
+}
+
+function takeNext(c: Ctx): string {
+  const next = getCookie(c, NEXT_COOKIE);
+  if (next === undefined) return "/";
+  deleteCookie(c, NEXT_COOKIE, { path: "/" });
+  return isSafeNext(next) ? next : "/";
 }
 
 // The DEV_MODE bypass only answers on hosts local development actually uses:
@@ -117,8 +140,11 @@ auth.get("/login", async (c) => {
     }
     const token = await createSession(c.env.DB, user.id);
     setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
-    return c.redirect("/");
+    const next = c.req.query("next");
+    return c.redirect(isSafeNext(next) ? next : "/");
   }
+
+  if (!isApp) rememberNext(c);
 
   // The app's PKCE challenge rides in a short-lived cookie (the system
   // browser holds our cookies), and the client type in a state suffix so the
@@ -197,7 +223,7 @@ auth.get("/callback", async (c) => {
 
   const token = await createSession(c.env.DB, userId);
   setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
-  return c.redirect("/");
+  return c.redirect(takeNext(c));
 });
 
 // ---------- Sign in with Apple ------------------------------------------------
@@ -211,7 +237,9 @@ const APPLE_CHALLENGE_COOKIE = "apple_oauth_challenge";
 
 // All four secrets present, or the feature is off (self-hosters may not
 // have an Apple developer account — Google remains the baseline provider).
-function appleConfig(env: Env) {
+// Exported for the MCP consent page (routes/oauth.ts), which draws the same
+// sign-in buttons.
+export function appleConfig(env: Env) {
   const { APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY } = env;
   if (!APPLE_CLIENT_ID || !APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY) return null;
   return {
@@ -243,6 +271,7 @@ auth.get("/apple/login", async (c) => {
   };
   setCookie(c, APPLE_STATE_COOKIE, state, crossSitePostCookie);
   if (isApp) setCookie(c, APPLE_CHALLENGE_COOKIE, appChallenge!, crossSitePostCookie);
+  else rememberNext(c);
 
   const url = new URL(`${APPLE_ISSUER}/auth/authorize`);
   url.searchParams.set("client_id", config.clientId);
@@ -319,7 +348,7 @@ auth.post("/apple/callback", async (c) => {
 
   const token = await createSession(c.env.DB, userId);
   setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c.req.url));
-  return c.redirect("/");
+  return c.redirect(takeNext(c));
 });
 
 // Native app: trade a one-time code (from the custom-scheme redirect) plus
