@@ -36,6 +36,18 @@
     // Override for self-hosted forks.
     "IOS_APP_ID": "L3NS86NMXZ.app.trackevolution",
   },
+  // MCP rate limits (src/lib/ratelimit.ts). namespace_id is account-scoped:
+  // any integer not used by another Worker on the same account.
+  "ratelimits": [
+    // Tool calls per connected assistant: a chat digging into a session makes
+    // 5-15, so 60 a minute is a runaway loop, not a user.
+    { "name": "MCP_CALLS", "namespace_id": "3141", "simple": { "limit": 60, "period": 60 } },
+    // Token requests per client: normal use is one refresh an hour.
+    { "name": "OAUTH_TOKEN", "namespace_id": "3142", "simple": { "limit": 10, "period": 60 } },
+    // Registrations per IP. Generous, because an assistant's servers register
+    // on behalf of every user who connects through them.
+    { "name": "OAUTH_REGISTER", "namespace_id": "3143", "simple": { "limit": 60, "period": 60 } },
+  ],
   "d1_databases": [
     {
       // Must match what the Worker code reads (c.env.DB in src/*.ts)

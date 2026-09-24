@@ -1473,6 +1473,14 @@ Nothing to configure on deploy beyond applying migration `0028`.
   token; a lapsed account's assistant gets a tool error saying why.
 - **Settings → AI assistants** (web) lists live connections and disconnects
   them (`GET` / `DELETE /api/me/connections`).
+- **Rate limits** use Workers' rate-limiting binding (`ratelimits` in
+  `wrangler.jsonc`, `src/lib/ratelimit.ts`), not WAF rules: assistants call
+  from their providers' servers, so an IP stands for thousands of users and
+  only the Worker can tell connections apart. 60 `/mcp` requests a minute per
+  connection, 10 token requests a minute per client, 60 registrations a minute
+  per IP; each answers 429 with `Retry-After: 60`. The three `namespace_id`s
+  are account-scoped — change them if another Worker on the account uses them.
+  A fork without the bindings runs unlimited.
 - **CORS** is answered (`*`, no credentials) on `/mcp`, the token/register/
   revoke endpoints and the discovery documents only — bearer-token surfaces a
   browser-based MCP client needs. `/api` still answers none.

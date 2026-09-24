@@ -34,6 +34,7 @@ import {
   resourceMatches,
 } from "../lib/oauth";
 import { appleConfig } from "./auth";
+import { RATE_LIMIT_RETRY_AFTER_S, withinLimit } from "../lib/ratelimit";
 
 export const oauth = new Hono<AppContext>();
 export const oauthWellKnown = new Hono<AppContext>();
@@ -131,6 +132,11 @@ async function loadClient(db: D1Database, clientId: string | undefined): Promise
 
 oauth.use("/register", bearerCors);
 oauth.post("/register", async (c) => {
+  // Keyed on the connecting IP, which Cloudflare always sets in production.
+  if (!(await withinLimit(c.env.OAUTH_REGISTER, c.req.header("CF-Connecting-IP")))) {
+    c.header("Retry-After", String(RATE_LIMIT_RETRY_AFTER_S));
+    return c.json({ error: "rate_limited", error_description: "too many registrations; try again in a minute" }, 429);
+  }
   const body = await c.req.json().catch(() => null);
   const parsed = parseRegistration(body);
   if ("error" in parsed) return c.json({ error: parsed.error }, 400);
@@ -433,6 +439,13 @@ oauth.use("/token", bearerCors);
 oauth.post("/token", async (c) => {
   const p = await tokenParams(c.req.raw);
   const db = c.env.DB;
+  // Per client: the id a public client sends is all it has to be told apart by.
+  if (!(await withinLimit(c.env.OAUTH_TOKEN, p.client_id ? `client:${p.client_id}` : null))) {
+    return new Response(
+      JSON.stringify({ error: "rate_limited", error_description: "too many token requests; try again in a minute" }),
+      { status: 429, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Retry-After": String(RATE_LIMIT_RETRY_AFTER_S) } }
+    );
+  }
   const origin = originOf(c.req.url);
   if (!resourceMatches(p.resource, origin)) return tokenError("invalid_target", "unknown resource");
 

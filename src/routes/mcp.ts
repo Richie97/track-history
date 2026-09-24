@@ -11,6 +11,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { bearerToken } from "../lib/session";
+import { RATE_LIMIT_RETRY_AFTER_S, withinLimit } from "../lib/ratelimit";
 import { protectedResourceMetadataUrl } from "../lib/oauth";
 import { PARSE_ERROR, PROTOCOL_VERSIONS, handleMessage } from "../ai/mcp";
 import { bearerCors, oauthTokenUser } from "./oauth";
@@ -37,6 +38,11 @@ mcp.post("/", async (c) => {
   if (!token) return unauthorized();
   const user = await oauthTokenUser(c.env.DB, token);
   if (!user) return unauthorized("invalid_token");
+
+  if (!(await withinLimit(c.env.MCP_CALLS, `grant:${user.grantId}`))) {
+    c.header("Retry-After", String(RATE_LIMIT_RETRY_AFTER_S));
+    return c.json({ error: "rate limited — too many requests from this connection; wait a minute" }, 429);
+  }
 
   const now = Date.now();
   if (user.lastUsedAt == null || now - user.lastUsedAt > LAST_USED_RESOLUTION_MS) {
