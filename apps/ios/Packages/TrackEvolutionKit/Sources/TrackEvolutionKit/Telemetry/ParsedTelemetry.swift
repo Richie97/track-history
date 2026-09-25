@@ -16,6 +16,8 @@ public struct ParsedTelemetry: Sendable {
         case gopro
         /// A Racelogic `.vbo` log (`VBO.parseVboText`).
         case vbo
+        /// Porsche Track Precision's CSV export (`TrackPrecisionCsv`).
+        case trackPrecision = "trackprecision"
         /// Not a file parser: the in-app lap recorder.
         case live
 
@@ -25,6 +27,7 @@ public struct ParsedTelemetry: Sendable {
             case .pdr: "PDR"
             case .gopro: "GoPro"
             case .vbo: "VBO"
+            case .trackPrecision: "Track Precision"
             case .live: "Recorded"
             }
         }

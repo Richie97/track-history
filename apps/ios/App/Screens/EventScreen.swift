@@ -90,7 +90,7 @@ struct EventScreen: View {
         // with the other, so a target you have to reach is a target you drop
         // beside. The page already knows which event it is, which is the only
         // thing the drop has to say.
-        .onDrop(of: [.movie, .vbo], isTargeted: $isDropTargeted) { providers in
+        .onDrop(of: [.movie, .vbo, .commaSeparatedText], isTargeted: $isDropTargeted) { providers in
             acceptDroppedClip(providers)
         }
         .overlay {
@@ -872,8 +872,9 @@ struct EventScreen: View {
         // the closure crosses one boundary and is called on the other side of it.
         then open: @escaping @Sendable @MainActor (URL) -> Void
     ) -> Bool {
-        // A clip or a .vbo log — the importer tells them apart by name.
-        let accepted = [UTType.movie.identifier, UTType.vbo.identifier]
+        // A clip, a .vbo log or a Track Precision .csv — the importer tells them
+        // apart by name.
+        let accepted = [UTType.movie.identifier, UTType.vbo.identifier, UTType.commaSeparatedText.identifier]
         guard let (provider, type) = providers.lazy.compactMap({ provider in
             accepted.first(where: provider.hasItemConformingToTypeIdentifier).map { (provider, $0) }
         }).first
@@ -929,7 +930,7 @@ struct EventScreen: View {
             Text("Import a video")
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
-            Text("PDR and GoPro clips and .vbo logs carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
+            Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Button("Import video") {

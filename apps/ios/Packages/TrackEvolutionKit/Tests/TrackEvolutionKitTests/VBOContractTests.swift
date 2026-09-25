@@ -15,6 +15,8 @@ struct VBOContractTests {
         "vbox-laptiming-latfirst.vbo",
         "vbox-shortline.vbo",
         "trackprecision-2026-06-06-09-53-45.vbo",
+        "trackprecision-2024-06-08-09-20-29.vbo",
+        "trackprecision-2026-07-26-14-35-55.vbo",
     ])
     func matchesTheJavaScriptParser(file: String) throws {
         let parsed = try VBOFixtures.parse(file)
@@ -96,7 +98,7 @@ struct VBOContractTests {
 
     // MARK: - Comparisons
 
-    private static func assertTrace(_ actual: [TracePoint]?, _ expected: [TracePoint]?, file: String) {
+    static func assertTrace(_ actual: [TracePoint]?, _ expected: [TracePoint]?, file: String) {
         guard let expected else {
             #expect(actual == nil, "\(file): bestLapTrace should be absent")
             return
@@ -112,7 +114,7 @@ struct VBOContractTests {
         }
     }
 
-    private static func assertSummary(
+    static func assertSummary(
         _ actual: [ChannelPoint]?, _ expected: VBOFixtures.Summary?, _ label: String
     ) {
         guard let expected else {

@@ -196,9 +196,9 @@ public enum TelemetryChannels {
             guard let gps = parsed.gps, gps.count >= 10 else { return nil }
             return traceChannelData(gps, Geo.projectTrace(gps))
         }
-        // `parsed.kind !== "pdr" && !parsed.carChannels` in the JS. Only the PDR
-        // and VBO parsers produce a `carChannels` object — VBO's always, even
-        // when empty, so its scalars and `meta` ride along — while GoPro and a
+        // `parsed.kind !== "pdr" && !parsed.carChannels` in the JS. Only the PDR,
+        // VBO and Track Precision CSV parsers produce a `carChannels` object — the
+        // last two always, even when empty, so its scalars and `meta` ride along — while GoPro and a
         // phone recording carry none, so the test is on the kind rather than on
         // whether `carChannels` (never nil here) happens to hold anything.
         if !hasCarChannels(parsed.kind) { return fromTrace() }
@@ -219,7 +219,7 @@ public enum TelemetryChannels {
     /// Whether a parser of this kind produces a `carChannels` object.
     static func hasCarChannels(_ kind: ParsedTelemetry.Kind) -> Bool {
         switch kind {
-        case .pdr, .vbo: true
+        case .pdr, .vbo, .trackPrecision: true
         case .gopro, .live: false
         }
     }
@@ -266,13 +266,18 @@ public enum TelemetryChannels {
             var last: ChannelPoint
             var sample: (Double, Double) -> Double
         }
+        // A lap may run up to 5 s past either end of a channel (below), and
+        // Series.at extrapolates the end segment's slope out there — a throttle
+        // rising at the last sample read 100.5 %, an absolute latG falling read
+        // -0.004, and either one rejects the whole session server-side — so the
+        // interpolated sampler holds the end value instead, as holdAt does.
         let chanS: [Chan] = CHANNEL_NAMES.compactMap { name, f in
             guard let pts = chans[name], pts.count >= 10 else { return nil }
             let s = series(pts)
             let sample: (Double, Double) -> Double =
                 WINDOW_MAX.contains(name)
                 ? { t, tNext in maxIn(pts, t, tNext) }
-                : STEP_HOLD.contains(name) ? { t, _ in holdAt(pts, t) } : { t, _ in s.at(t) }
+                : STEP_HOLD.contains(name) ? { t, _ in holdAt(pts, t) } : { t, _ in s.at(clampT(t, s)) }
             return Chan(name: name, f: f, first: s.first, last: s.last, sample: sample)
         }
         struct Scalar {
@@ -351,7 +356,12 @@ public enum TelemetryChannels {
             if let best { return best }
         }
         if endT < s.first.t - 5 || startT > s.last.t + 5 { return nil }
-        return s.at(endT)
+        return s.at(clampT(endT, s))
+    }
+
+    /// `t` held inside a series' own time range — see the sampler in `buildLapChannels`.
+    static func clampT(_ t: Double, _ s: Series) -> Double {
+        Swift.min(s.last.t, Swift.max(s.first.t, t))
     }
 
     /// Bring a session under `MAX_TOTAL_VALUES` by dropping whole channels from
