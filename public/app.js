@@ -3174,6 +3174,28 @@ async function viewVehicle(vehicleId) {
       ${partEditForm(p)}
     </div>`;
 
+  // "Buy another set of those": a fresh copy of a retired part's spec — name,
+  // size, cost, replace-at — installed on the chosen date, and by default put
+  // on the car in place of whatever is there now (POST /parts/:id/refresh on a
+  // retired part retires nothing).
+  const retiredRefreshNote = (p, equip) => {
+    const swaps = equip ? equipSwapsOff({ id: null, kind: p.kind }, v.parts) : [];
+    return swaps.length
+      ? `Takes off ${swaps.map((x) => esc(partTitle(x))).join(" and ")} — ${swaps.length === 1 ? "it moves" : "they move"} to Spares.`
+      : equip
+        ? "Goes on the car with hours at zero."
+        : "Goes to Spares with hours at zero.";
+  };
+  const retiredRefreshFormHtml = (p) => `
+    <form class="btn-row equip-form" data-retired-refresh-form="${p.id}">
+      <span class="hint-inline">A new set of ${esc(partTitle(p))}, installed</span>
+      <input name="on" type="date" required value="${today}" min="${esc(p.installed_on)}" aria-label="Install date">
+      <label class="equip-switch"><input type="checkbox" role="switch" name="equipped" checked> Equipped</label>
+      <span class="hint-inline" data-retired-refresh-note>${retiredRefreshNote(p, true)}</span>
+      <button class="btn small primary">Add new set</button>
+      <button class="btn small" type="button" data-retired-refresh-cancel="${p.id}">Cancel</button>
+    </form>`;
+
   const retiredRows = retired
     .map((p) => {
       const perHour = p.cost_cents != null && p.wear.hours > 0 ? `$${(p.cost_cents / 100 / p.wear.hours).toFixed(0)}/h` : "—";
@@ -3184,6 +3206,11 @@ async function viewVehicle(vehicleId) {
         <td class="num">${fmtHours(p.wear.hours)}</td>
         <td class="num">${fmtCost(p.cost_cents) ?? "—"}</td>
         <td class="num">${perHour}</td>
+        <td class="num"><button class="btn small" data-retired-refresh="${p.id}"
+          aria-label="Refresh ${esc(partTitle(p))} into a new set">Refresh</button></td>
+      </tr>
+      <tr class="retired-refresh-row" data-retired-refresh-row="${p.id}" hidden>
+        <td colspan="7">${retiredRefreshFormHtml(p)}</td>
       </tr>`;
     })
     .join("");
@@ -3313,7 +3340,7 @@ async function viewVehicle(vehicleId) {
       <button class="btn primary">+ Add part</button>
     </form>
     ${retired.length ? `<h2>Retired parts</h2>
-    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Part</th><th>In service</th><th class="num">Hours</th><th class="num">Cost</th><th class="num">Cost/hour</th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Part</th><th>In service</th><th class="num">Hours</th><th class="num">Cost</th><th class="num">Cost/hour</th><th class="num"><span class="visually-hidden">Actions</span></th></tr></thead>
     <tbody>${retiredRows}</tbody></table></div>` : ""}`;
   }
 
@@ -3576,6 +3603,37 @@ async function viewVehicle(vehicleId) {
       const part = v.parts.find((p) => String(p.id) === form.dataset.equipForm);
       try {
         await api(`/parts/${part.id}/${part.equipped ? "unequip" : "equip"}`, { method: "POST", body: { on: form.on.value } });
+        route();
+      } catch (err) {
+        partError(err);
+      }
+    };
+  });
+  view.querySelectorAll("[data-retired-refresh]").forEach((btn) => {
+    btn.onclick = () => {
+      const row = view.querySelector(`[data-retired-refresh-row="${btn.dataset.retiredRefresh}"]`);
+      row.hidden = !row.hidden;
+      if (!row.hidden) row.querySelector("button.primary").focus();
+    };
+  });
+  view.querySelectorAll("[data-retired-refresh-cancel]").forEach((btn) => {
+    btn.onclick = () => {
+      view.querySelector(`[data-retired-refresh-row="${btn.dataset.retiredRefreshCancel}"]`).hidden = true;
+      view.querySelector(`[data-retired-refresh="${btn.dataset.retiredRefreshCancel}"]`).focus();
+    };
+  });
+  view.querySelectorAll("[data-retired-refresh-form]").forEach((form) => {
+    const part = v.parts.find((p) => String(p.id) === form.dataset.retiredRefreshForm);
+    form.equipped.onchange = () => {
+      form.querySelector("[data-retired-refresh-note]").innerHTML = retiredRefreshNote(part, form.equipped.checked);
+    };
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      try {
+        await api(`/parts/${part.id}/refresh`, {
+          method: "POST",
+          body: { installed_on: form.on.value, equipped: form.equipped.checked, swap: form.equipped.checked },
+        });
         route();
       } catch (err) {
         partError(err);

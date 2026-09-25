@@ -190,4 +190,32 @@ describe("the mount triggers keep plain PUTs meaning what they did", () => {
     expect((await partOf(api, spareFresh)).equipped).toBe(false);
     expect((await partOf(api, spareFresh)).size).toBe("335/30R18");
   });
+
+  it("a retired part refreshes into a new set without touching its own history", async () => {
+    const { api, vehicleId } = await garageUser();
+    const old = (await api("POST", `/vehicles/${vehicleId}/parts`, {
+      kind: "tires_front", name: "A7", size: "285/30R18", installed_on: "2026-03-01", cost_cents: 90_000, wear_limit: 2,
+    })).body.id;
+    await api("PUT", `/parts/${old}`, { retired_on: "2026-04-01" });
+    const current = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "tires_front", name: "RT660", installed_on: "2026-04-01" })).body.id;
+
+    const res = await api("POST", `/parts/${old}/refresh`, { installed_on: "2026-06-01", swap: true });
+    expect(res.status).toBe(201);
+    expect(res.body.retired_id).toBe(old);
+    const fresh = await partOf(api, res.body.id);
+    expect(fresh).toMatchObject({ kind: "tires_front", name: "A7", size: "285/30R18", installed_on: "2026-06-01", cost_cents: 90_000, wear_limit: 2, equipped: true, retired_on: null });
+    // The old set stays exactly as it was retired…
+    expect((await partOf(api, old)).retired_on).toBe("2026-04-01");
+    expect((await partOf(api, old)).mounts).toEqual([{ mounted_on: "2026-03-01", removed_on: "2026-04-01" }]);
+    // …and swap took off what was on the car in its place.
+    expect((await partOf(api, current)).equipped).toBe(false);
+
+    // Without swap, or straight to the shelf.
+    const again = (await api("POST", `/parts/${old}/refresh`, { installed_on: "2026-07-01" })).body.id;
+    expect((await partOf(api, again)).equipped).toBe(true);
+    expect((await partOf(api, res.body.id)).equipped).toBe(true);
+    const spare = (await api("POST", `/parts/${old}/refresh`, { equipped: false })).body.id;
+    expect((await partOf(api, spare)).equipped).toBe(false);
+    expect((await api("POST", `/parts/${old}/refresh`, { equipped: "yes" })).status).toBe(400);
+  });
 });

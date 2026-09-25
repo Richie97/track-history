@@ -556,6 +556,11 @@ vehicles.put("/parts/:id", requireEntitlement, async (c) => {
 // reset without re-entering the part. The old row keeps its measurements and
 // history; the successor's expected life recomputes from retired lifecycles
 // (which now include the old part), falling back to the old part's value.
+//
+// A *retired* part refreshes too — "buy another set of those": nothing is
+// retired, the successor is a copy of its spec installed on the swap date,
+// and it goes on the car unless the body says `equipped: false`. `swap: true`
+// takes off whatever shares its place, as creating an equipped part does.
 vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const old = await c.env.DB.prepare(
@@ -581,9 +586,8 @@ vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
       notes: string | null;
     }>();
   if (!old) return c.json({ error: "not found" }, 404);
-  if (old.retired_on) return c.json({ error: "part is already retired" }, 400);
-
   const body = await c.req.json<any>().catch(() => ({}));
+  if ("equipped" in body && typeof body.equipped !== "boolean") return c.json({ error: "invalid equipped" }, 400);
   const swapDate = body.installed_on ?? todayISO();
   if (!isValidDate(swapDate) || swapDate < old.installed_on)
     return c.json({ error: "invalid installed_on" }, 400);
@@ -609,8 +613,13 @@ vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
 
   // Retiring closes the old part's mount and the insert mounts the successor
   // (both by trigger, migration 0029). A fresh set of a spare that was on the
-  // shelf is itself a spare, so its mount goes again.
-  await c.env.DB.prepare("UPDATE parts SET retired_on = ? WHERE id = ?").bind(swapDate, old.id).run();
+  // shelf is itself a spare, so its mount goes again. A retired part has
+  // nothing left to retire or inherit: the successor's place is the body's.
+  const onCar = old.retired_on ? body.equipped !== false : Boolean(old.equipped);
+  if (!old.retired_on)
+    await c.env.DB.prepare("UPDATE parts SET retired_on = ? WHERE id = ?").bind(swapDate, old.id).run();
+  else if (onCar && body.swap === true)
+    await swapOffStmt(c.env.DB, old.vehicle_id, old.kind, null, swapDate).run();
   const expected =
     (await retiredLifecycleAvg(c.env.DB, userId, old.vehicle_id, old.kind)) ?? old.expected_hours;
   const row = await c.env.DB.prepare(
@@ -619,7 +628,7 @@ vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
   )
     .bind(old.vehicle_id, old.kind, name, size, swapDate, cost, expected, old.wear_limit, old.notes)
     .first<{ id: number }>();
-  if (!old.equipped) await c.env.DB.prepare("DELETE FROM part_mounts WHERE part_id = ?").bind(row!.id).run();
+  if (!onCar) await c.env.DB.prepare("DELETE FROM part_mounts WHERE part_id = ?").bind(row!.id).run();
   return c.json({ id: row!.id, retired_id: old.id }, 201);
 });
 

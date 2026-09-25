@@ -1226,6 +1226,8 @@ div.garage-alerts { display: flex; gap: 14px; align-items: flex-start; }
 .equip-switch input:disabled { opacity: 0.5; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .equip-switch input, .equip-switch input::after { transition: none; } }
 .part-card.spare { border-style: dashed; }
+.retired-refresh-row td { white-space: normal; }
+.retired-refresh-row .equip-form { margin: 0; }
 .equip-form { margin-top: 12px; }
 .equip-form[hidden] { display: none; }
 .equip-form input { padding: 8px 12px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--surface-input); color: var(--text-strong); font: inherit; font-size: 14px; }

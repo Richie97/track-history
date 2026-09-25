@@ -1140,7 +1140,11 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   consumable with a fresh set of the same thing is one tap — **Refresh**
   (`POST /api/parts/:id/refresh`) retires the current part and inserts a
   same-spec successor with hours reset, its expected life recalibrated from
-  the lifecycle just completed.
+  the lifecycle just completed. Refreshing a **retired** part ("buy another
+  set of those") retires nothing: it adds a copy of its spec installed on the
+  given date, on the car unless the body says `equipped: false`, and
+  `swap: true` takes off what's in its place — the web's Retired parts table
+  has a Refresh button per row for it.
 - **Tyres front and rear, sizes, and the Equipped switch** (migration 0029) —
   tyres can be one part for a full set (`tires`) or two, a front and a rear
   pair (`tires_front` / `tires_rear`), so a staggered car tracks each axle's
