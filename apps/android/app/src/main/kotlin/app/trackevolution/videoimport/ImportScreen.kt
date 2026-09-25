@@ -58,8 +58,9 @@ import kotlinx.coroutines.launch
  * registered MIME type, so providers label it `application/octet-stream` or
  * `text/plain`, and a `.csv` arrives as any of three CSV types; the picker
  * admits them all and the importer dispatches by the file's display name,
- * never by the type. The photo picker and the share-sheet
- * target stay video-only.
+ * never by the type. The photo picker stays video-only; the share-sheet target
+ * takes video and CSV (see the manifest), but not `.vbo`, which has no type of
+ * its own to register for.
  *
  * Only the choosing lives here. Once the clips are parsed [onParsed] hands them
  * to the review overlay and this destination is popped.

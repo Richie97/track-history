@@ -78,12 +78,19 @@
 
             <!-- "Send to Track Evolution" from Files, Photos or the camera app:
                  a PDR or GoPro clip arrives as a content:// URI the importer
-                 reads in place, never copied. -->
+                 reads in place, never copied. The CSV types are Porsche Track
+                 Precision's export, shared straight from that app; any other
+                 CSV is refused by the parser with a message. A .vbo has no MIME
+                 type of its own (it arrives as octet-stream), so it is not a
+                 share target — the document picker takes it instead. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
+                <data android:mimeType="text/csv" />
+                <data android:mimeType="text/comma-separated-values" />
+                <data android:mimeType="application/csv" />
             </intent-filter>
 
             <!-- App Links: open share pages in the app, verified against
