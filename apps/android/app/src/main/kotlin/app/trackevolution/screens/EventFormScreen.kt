@@ -273,7 +273,7 @@ private fun AddLapsCard(
 
         Text("Import a video or VBO", style = type.bodyStrong, color = colors.textStrong)
         Text(
-            "Corvette PDR or GoPro clips, or a .vbo log, already on this phone — laps, " +
+            "Corvette PDR or GoPro clips, or a .vbo or Track Precision .csv log, already on this phone — laps, " +
                 "racing line and channel graphs come out of the telemetry. The file is read " +
                 "in place, never copied or uploaded.",
             style = type.xs,

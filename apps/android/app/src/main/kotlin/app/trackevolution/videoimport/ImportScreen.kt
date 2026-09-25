@@ -41,7 +41,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Pick a video (or a `.vbo` log) on the phone and get lap times out of it.
+ * Pick a video (or a `.vbo` / Track Precision `.csv` log) on the phone and get
+ * lap times out of it.
  *
  * The web app's **Import video / telemetry…** does this on a laptop; this does
  * it on the device that already has the footage — a GoPro clip lands in the
@@ -52,11 +53,12 @@ import kotlinx.coroutines.launch
  * recording goes through, because the laps, the line picker and the save are
  * the same job.
  *
- * `.vbo` files come through the same document picker: Porsche's Track
- * Precision app exports one on the phone itself. There is no registered MIME
- * type for them, so providers label them `application/octet-stream` or
- * `text/plain`; the picker admits both and the importer dispatches by the
- * file's display name, never by the type. The photo picker and the share-sheet
+ * `.vbo` and `.csv` files come through the same document picker: Porsche's
+ * Track Precision app exports both on the phone itself. A `.vbo` has no
+ * registered MIME type, so providers label it `application/octet-stream` or
+ * `text/plain`, and a `.csv` arrives as any of three CSV types; the picker
+ * admits them all and the importer dispatches by the file's display name,
+ * never by the type. The photo picker and the share-sheet
  * target stay video-only.
  *
  * Only the choosing lives here. Once the clips are parsed [onParsed] hands them
@@ -183,7 +185,8 @@ fun ImportScreen(
                     Text(
                         "A .vbo file (Racelogic VBOX, or an export from Porsche's Track Precision app) carries " +
                             "its own start/finish line and usually needs nothing either; one without a line " +
-                            "asks for a tap, like a GoPro clip. Other logger files stay on the web app.",
+                            "asks for a tap, like a GoPro clip. A Track Precision .csv export carries the app's " +
+                            "own lap times. Other logger files stay on the web app.",
                         style = type.xs,
                         color = colors.textFaint,
                         modifier = Modifier.padding(top = 6.dp),
@@ -195,11 +198,21 @@ fun ImportScreen(
 }
 
 /**
- * What the document picker admits: video, plus the two types a provider
- * reports a `.vbo` as (it has no registered one). A non-`.vbo` file of either
- * type is tried as a video and fails with that file's own error line.
+ * What the document picker admits: video, the two types a provider reports a
+ * `.vbo` as (it has no registered one), and the three a `.csv` goes by. A file
+ * that is neither `.vbo` nor `.csv` is tried as a video and fails with that
+ * file's own error line.
  */
-private val PICKER_TYPES = arrayOf("video/mp4", "video/quicktime", "video/*", "application/octet-stream", "text/plain")
+private val PICKER_TYPES = arrayOf(
+    "video/mp4",
+    "video/quicktime",
+    "video/*",
+    "application/octet-stream",
+    "text/plain",
+    "text/csv",
+    "text/comma-separated-values",
+    "application/csv",
+)
 
 /**
  * Picking and parsing, and the states in between.
