@@ -211,19 +211,26 @@ public object TelemetryChannels {
      * whatever car channels the file carried (a VBO logger's rpm, pedals,
      * steering…).
      *
-     * The JS tests `!parsed.carChannels`, and only two parsers set it: PDR, and
-     * VBO — which always sets an object, empty or not, so every VBO takes the
-     * merging path. [ParsedTelemetry.carChannels] is never null here, so the
-     * same decision is spelled as the two kinds that carry one; GoPro and the
-     * live recorder stay on the trace alone, exactly as before.
+     * The JS tests `!parsed.carChannels`, and only three parsers set it: PDR,
+     * and VBO and Track Precision CSV — which always set an object, empty or
+     * not, so every one of those takes the merging path.
+     * [ParsedTelemetry.carChannels] is never null here, so the same decision is
+     * spelled as the kinds that carry one; GoPro and the live recorder stay on
+     * the trace alone, exactly as before.
      */
+    private val CAR_CHANNEL_KINDS = setOf(
+        ParsedTelemetry.Kind.PDR,
+        ParsedTelemetry.Kind.VBO,
+        ParsedTelemetry.Kind.TRACK_PRECISION,
+    )
+
     public fun channelDataFor(parsed: ParsedTelemetry): ChannelData? {
         fun fromTrace(): ChannelData? {
             val gps = parsed.gps ?: return null
             if (gps.size < 10) return null
             return traceChannelData(gps, GeoTrace.projectTrace(gps))
         }
-        if (parsed.kind != ParsedTelemetry.Kind.PDR && parsed.kind != ParsedTelemetry.Kind.VBO) return fromTrace()
+        if (parsed.kind !in CAR_CHANNEL_KINDS) return fromTrace()
         val car = parsed.carChannels
         val scalars = parsed.lapScalarChannels.filterValues { it.isNotEmpty() }
         val meta = parsed.sessionMeta
@@ -276,7 +283,12 @@ public object TelemetryChannels {
         val distS = series(dist)
         // Names, order and rounding factors are the JS's CHANNEL_NAMES. Each
         // channel keeps its own sampler: interpolated by default, held for
-        // enums, OR-ed across the window for flags.
+        // enums, OR-ed across the window for flags. A lap may run up to 5 s
+        // past either end of a channel (below), and Series.at extrapolates the
+        // end segment's slope out there — a throttle rising at the last sample
+        // read 100.5 %, an absolute latG falling read -0.004, and either one
+        // rejects the whole session server-side — so the interpolated sampler
+        // holds the end value instead, as holdAt does.
         val chanS = CHANNEL_NAMES.mapNotNull { (name, f) ->
             val pts = chans[name]
             if (pts == null || pts.size < 10) return@mapNotNull null
@@ -284,7 +296,7 @@ public object TelemetryChannels {
             val sample: (Double, Double) -> Double = when {
                 WINDOW_MAX.contains(name) -> { t, tNext -> maxIn(pts, t, tNext) }
                 STEP_HOLD.contains(name) -> { t, _ -> holdAt(pts, t) }
-                else -> { t, _ -> s.at(t) }
+                else -> { t, _ -> s.at(clampT(t, s)) }
             }
             Chan(name = name, f = f, first = s.first, last = s.last, sample = sample)
         }
@@ -378,8 +390,11 @@ public object TelemetryChannels {
             if (best != null) return best
         }
         if (endT < c.s.first.t - 5 || startT > c.s.last.t + 5) return null
-        return c.s.at(endT)
+        return c.s.at(clampT(endT, c.s))
     }
+
+    /** `t` held inside a series' own time range — see the sampler in [buildLapChannels]. */
+    private fun clampT(t: Double, s: Series): Double = Math.min(s.last.t, Math.max(s.first.t, t))
 
     /**
      * Bring a session under [MAX_TOTAL_VALUES] by dropping whole channels from

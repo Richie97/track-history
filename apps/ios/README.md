@@ -840,6 +840,15 @@ and lists it in `CFBundleDocumentTypes`; without the declaration a `.vbo` is
 greyed out in the file importer, bounces off the event page's drop target, and
 "Open with" never offers the app.
 
+**Track Precision's `.csv` export takes it too.** `TrackPrecisionCsv` is the port
+of `public/js/import/csv.js`, pinned by `TrackPrecisionCsvContractTests` against
+`contracts/logic/csv-parsers.json` over `contracts/logic/csv/*.csv` — including
+`lapsFromLaptime` over the fixture's timer tables, since laps come from the
+app's own `laptime` column rather than a line. CSV is a system type
+(`public.comma-separated-values-text`), so `Info.plist` only lists it in
+`CFBundleDocumentTypes`; a CSV that isn't Track Precision's is refused by the
+parser with a message rather than by the picker.
+
 Two testing notes. The parsers take a `TelemetryByteSource` and import no UIKit,
 SwiftUI, Photos or AVFoundation, so `swift test` exercises them on macOS against
 bytes in memory. And `UITests/VideoImportUITests` reaches the import through the

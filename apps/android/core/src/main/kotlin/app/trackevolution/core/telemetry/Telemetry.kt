@@ -18,20 +18,23 @@ import java.util.Locale
  * [defaultLabel]), so the phone builds the same session — laps, trace,
  * channels, notes — the browser would from the same file.
  *
- * `.vbo` is here too ([VBO]): Porsche's Track Precision app exports one on
- * the phone itself, so it is no longer a file that only ever reaches a laptop.
+ * `.vbo` is here too ([VBO]), and Track Precision's CSV ([TrackPrecisionCsv]):
+ * Porsche's Track Precision app exports both on the phone itself, so neither is
+ * a file that only ever reaches a laptop.
  * The rest of the logger long tail stays on the web.
  */
 public object Telemetry {
 
     /** `SUPPORTED_EXT` in the JS — what [defaultLabel] strips from a file name. */
-    public val SUPPORTED_EXT: Regex = Regex("\\.(mp4|vbo)$", RegexOption.IGNORE_CASE)
+    public val SUPPORTED_EXT: Regex = Regex("\\.(mp4|vbo|csv)$", RegexOption.IGNORE_CASE)
 
     /**
      * Parse one picked file. A name ending `.vbo` is read whole as text and goes
-     * to [VBO.parseVboText] — the dispatch is by name, as `parse.js`'s is,
-     * because a `.vbo` has no registered MIME type and arrives as whatever the
-     * provider guesses. Anything else is an MP4: Corvette PDR first, then GoPro
+     * to [VBO.parseVboText], one ending `.csv` to
+     * [TrackPrecisionCsv.parseTrackPrecisionCsv] — the dispatch is by name, as
+     * `parse.js`'s is, because a `.vbo` has no registered MIME type and a
+     * `.csv` could be anything, and each arrives as whatever the provider
+     * guesses. Anything else is an MP4: Corvette PDR first, then GoPro
      * GPMF.
      *
      * Both video parsers report "no track of mine here" distinctly from "this
@@ -41,6 +44,12 @@ public object Telemetry {
     public fun parseTelemetryFile(source: TelemetryByteSource, fileName: String? = null): ParsedTelemetry {
         if (fileName != null && fileName.lowercase().endsWith(".vbo")) {
             return TelemetryChannels.attachLapChannels(VBO.parseVboText(readText(source), fileName))
+        }
+        // Porsche Track Precision's CSV export — the only CSV layout read.
+        if (fileName != null && fileName.lowercase().endsWith(".csv")) {
+            return TelemetryChannels.attachLapChannels(
+                TrackPrecisionCsv.parseTrackPrecisionCsv(readText(source), fileName),
+            )
         }
         val pdrErr: TelemetryParseException = try {
             return parsePdr(source)
@@ -65,7 +74,7 @@ public object Telemetry {
      */
     internal fun readText(source: TelemetryByteSource): String {
         val size = source.size
-        if (size > MAX_TEXT_BYTES) throw TelemetryParseException("This .vbo file is too large to read")
+        if (size > MAX_TEXT_BYTES) throw TelemetryParseException("This file is too large to read")
         val out = java.io.ByteArrayOutputStream(size.toInt().coerceAtLeast(0))
         var offset = 0L
         while (offset < size) {

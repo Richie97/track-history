@@ -234,7 +234,7 @@ struct EventFormScreen: View {
                     Text("Import a video")
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
-                    Text("PDR and GoPro clips and .vbo logs carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
+                    Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
                     Button("Import video") {

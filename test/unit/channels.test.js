@@ -44,6 +44,17 @@ describe("buildLapChannels", () => {
     expect(out.laps[0].rpm).toBeUndefined();
   });
 
+  it("holds a channel's end value rather than extrapolating past it", () => {
+    // A lap may end up to 5 s after a channel's last sample. Throttle rising
+    // at 10 %/s into its last sample (99 % at 50 s) must read 99 beyond it,
+    // not 100.5 — which the server rejects, and the session with it.
+    const throttle = Array.from({ length: 101 }, (_, i) => ({ t: i * 0.5, v: 49 + i * 0.5 }));
+    const out = buildLapChannels([{ timeMs: 47120, startT: 7, endT: 54.12 }], dist, { speed, throttle });
+    const th = out.laps[0].throttle;
+    expect(Math.max(...th)).toBe(99);
+    expect(th[th.length - 1]).toBe(99);
+  });
+
   it("returns null when there is nothing to cut", () => {
     expect(buildLapChannels([], dist, { speed })).toBeNull();
     expect(buildLapChannels([{ timeMs: 1000 }], dist, { speed })).toBeNull();

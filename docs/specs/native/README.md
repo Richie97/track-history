@@ -66,7 +66,10 @@ was true of Racelogic hardware and false of the exporter that actually produces
 most of them — Porsche's **Track Precision** app, which records on the phone and
 exports its `.vbo` there. Ported as `VBO` to the Kit and `:core` under the same
 names, and pinned by `contracts/logic/vbo-parsers.json` over the committed files
-in `contracts/logic/vbo/`. Everything else on the deferred list stays web-only.
+in `contracts/logic/vbo/`. Track Precision's other export, its **`.csv`**
+(`js/import/csv.js`), followed on the same argument — ported as
+`TrackPrecisionCsv`, pinned by `contracts/logic/csv-parsers.json` over
+`contracts/logic/csv/`. Everything else on the deferred list stays web-only.
 
 ### Post-rewrite feature decisions
 
@@ -641,7 +644,8 @@ predicts — the work happens where the web app isn't:
 - **`.vbo` import** — on both phones (2026-09). Porsche Track Precision records
   and exports on the phone, so for the files people actually have the phone is
   where the `.vbo` is; a VBOX's SD card still goes to a laptop, and the browser
-  still takes it.
+  still takes it. Track Precision's **`.csv`** export too, with laps from the
+  app's own timer rather than a line.
 - **The two-lap telemetry compare**
   ([#165](https://github.com/Richie97/track-history/issues/165)) — pick any two
   laps with stored channels at a track and see the delta and channel overlays.

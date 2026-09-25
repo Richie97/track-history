@@ -73,6 +73,8 @@ public data class ParsedTelemetry(
         GOPRO("gopro", "GoPro"),
         /** A Racelogic `.vbo` log — VBOX hardware or a phone app's export. */
         VBO("vbo", "VBO"),
+        /** Porsche Track Precision's CSV export. */
+        TRACK_PRECISION("trackprecision", "Track Precision"),
         /** Not a file parser: the in-app lap recorder. */
         LIVE("live", "Recorded"),
     }

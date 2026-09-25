@@ -11,7 +11,7 @@ struct ImportedClip: Sendable, Identifiable {
     var error: String?
 }
 
-/// Parsing a selection of videos and `.vbo` logs, off the main actor.
+/// Parsing a selection of videos and `.vbo` / Track Precision `.csv` logs, off the main actor.
 ///
 /// The `importFiles` half of `public/js/import/ui.js`: parse each file, sort by
 /// the clock the recorder wrote, then run the batch pass that re-anchors a
@@ -47,7 +47,7 @@ enum TelemetryImporter {
     private nonisolated static func parseOne(_ pick: PickedVideo) -> ImportedClip {
         do {
             let source = try FileTelemetryByteSource(url: pick.url)
-            // The name decides .vbo vs video, as `parse.js` does.
+            // The name decides .vbo / .csv vs video, as `parse.js` does.
             let parsed = try Telemetry.parseTelemetryFile(source, name: pick.name)
             return ImportedClip(file: pick.name, parsed: parsed)
         } catch let error as TelemetryParseError {

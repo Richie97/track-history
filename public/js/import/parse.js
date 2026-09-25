@@ -3,7 +3,8 @@
 //   { kind, date, time, durationS, laps: [{timeMs, estimated}],
 //     gps: [{t, lat, lon, v?}] | null, needsLine }
 // gps + needsLine feed the start/finish line picker for sources without lap
-// markers (GoPro, beacon-less PDR, VBO without [laptiming]). Every result
+// markers (GoPro, beacon-less PDR, VBO without [laptiming], a Track
+// Precision CSV whose lap timer never completed a lap). Every result
 // also gets `lapChannels` — per-lap channel arrays on
 // a distance grid (js/import/channels.js), stored with the session for the
 // channel graphs; null when laps lack telemetry windows. PDR results also
@@ -16,20 +17,23 @@
 import { parsePdrFile } from "../../pdr.js";
 import { parseGpmfFile } from "./gpmf.js";
 import { parseVboFile } from "./vbo.js";
+import { parseTrackPrecisionCsvFile } from "./csv.js";
 import { lapTrace, projectTrace } from "./geo.js";
 import { recoverPdrLaps } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 
-export const SUPPORTED_EXT = /\.(mp4|vbo)$/i;
+export const SUPPORTED_EXT = /\.(mp4|vbo|csv)$/i;
 
 // "live" is not a file parser: the native apps' GPS lap recorder (whose
 // reference implementation is public/js/record/core.js) produces the same
 // parsed shape and reuses the review + line-picker flow on those platforms.
-export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", vbo: "VBO", live: "Recorded" };
+export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", vbo: "VBO", trackprecision: "Track Precision", live: "Recorded" };
 
 export async function parseTelemetryFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith(".vbo")) return attachLapChannels(await parseVboFile(file));
+  // Porsche Track Precision's CSV export — the only CSV layout read.
+  if (name.endsWith(".csv")) return attachLapChannels(await parseTrackPrecisionCsvFile(file));
 
   // .mp4: Corvette PDR first, then GoPro GPMF. Both parsers throw a
   // "No ... telemetry track" error when the file simply isn't theirs.

@@ -85,6 +85,33 @@ class ContentByteSourceTest {
     }
 
     @Test
+    fun `a Track Precision csv is dispatched by its name and read through the same seam`() = runBlocking {
+        val clips = TelemetryImporter.parse(
+            resolver,
+            listOf(Uri.fromFile(fixture("recording-2026-06-06-09-53-45.csv", folder = "csv"))),
+        )
+        val clip = clips.single()
+        assertNull(clip.error)
+        assertEquals(ParsedTelemetry.Kind.TRACK_PRECISION, clip.parsed?.kind)
+        assertEquals(3, clip.parsed!!.laps.size)
+        assertNotNull(clip.parsed!!.lapChannels)
+    }
+
+    @Test
+    fun `a shared csv with a bare name still reaches the csv parser`() {
+        // A provider that shares "recording-2026-06-06" typed text/csv: the
+        // parser dispatches on the name, so the type supplies the extension.
+        assertEquals("recording-2026-06-06.csv", ContentByteSource.nameForType("recording-2026-06-06", "text/csv"))
+        assertEquals("export.csv", ContentByteSource.nameForType("export", "text/comma-separated-values; charset=utf-8"))
+        assertEquals("export.csv", ContentByteSource.nameForType("export", "application/csv"))
+        // The file's own extension wins, and nothing else is renamed.
+        assertEquals("session.CSV", ContentByteSource.nameForType("session.CSV", "text/csv"))
+        assertEquals("GX010042.MP4", ContentByteSource.nameForType("GX010042.MP4", "text/csv"))
+        assertEquals("clip", ContentByteSource.nameForType("clip", "video/mp4"))
+        assertEquals("clip", ContentByteSource.nameForType("clip", null))
+    }
+
+    @Test
     fun `names the file the way the review and the notes will`() {
         assertEquals("pdr-delta.mp4", ContentByteSource.displayName(resolver, Uri.fromFile(fixture("pdr-delta.mp4"))))
     }

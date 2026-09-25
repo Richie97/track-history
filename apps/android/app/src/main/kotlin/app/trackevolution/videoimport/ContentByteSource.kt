@@ -85,19 +85,39 @@ class ContentByteSource private constructor(
          * and what the session's notes record ("Imported from GX010042.MP4").
          * Falls back to the last path segment for providers that don't publish
          * a display name.
+         *
+         * The parser dispatches on this name, so a name with no extension on a
+         * URI the provider types as CSV gets ".csv" (see [nameForType]):
+         * otherwise a Track Precision export shared under a bare name would be
+         * read as a video.
          */
         fun displayName(resolver: ContentResolver, uri: Uri): String {
+            val type = runCatching { resolver.getType(uri) }.getOrNull()
             if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
                 runCatching {
                     resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                         val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                         if (column >= 0 && cursor.moveToFirst()) {
-                            cursor.getString(column)?.takeIf { it.isNotBlank() }?.let { return it }
+                            cursor.getString(column)?.takeIf { it.isNotBlank() }?.let { return nameForType(it, type) }
                         }
                     }
                 }
             }
-            return uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "video.mp4"
+            val segment = uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+            return segment?.let { nameForType(it, type) } ?: "video.mp4"
+        }
+
+        /** The MIME types a provider reports a CSV as. */
+        internal val CSV_TYPES = setOf("text/csv", "text/comma-separated-values", "application/csv")
+
+        /**
+         * [name] with ".csv" appended when it has no extension of its own and
+         * [type] says CSV. A name that has one is left alone — the file's own
+         * name wins over a provider's guess at its type.
+         */
+        internal fun nameForType(name: String, type: String?): String {
+            val hasExtension = name.substringAfterLast('/').contains('.')
+            return if (!hasExtension && type?.lowercase()?.substringBefore(';')?.trim() in CSV_TYPES) "$name.csv" else name
         }
     }
 }

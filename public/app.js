@@ -1992,14 +1992,14 @@ async function viewEvent(eventId) {
     <h2>Add a session</h2>
     <div class="hint" style="margin:-4px 0 10px">Pull the laps out of a video or logger file, or type them in by hand.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
-      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
+      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo,.csv" multiple hidden>
       <div class="pdr-dropzone-inner">
         <span class="pdr-dropzone-icon">📼</span>
         <div>
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
-          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> files here</span>
+          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
       </div>
     </div>
     ${
@@ -2501,14 +2501,14 @@ async function viewEventForm(eventId, presetTrack) {
         : `<h2>Add laps</h2>
     <div class="hint" style="margin:-4px 0 10px">Optional — pull the laps out of a video or logger file, or type them in, and they're saved with the event. You can always add more from the event page.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
-      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo" multiple hidden>
+      <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo,.csv" multiple hidden>
       <div class="pdr-dropzone-inner">
         <span class="pdr-dropzone-icon">📼</span>
         <div>
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
-          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> files here</span>
+          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video and Racelogic VBO telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
       </div>
     </div>
     ${

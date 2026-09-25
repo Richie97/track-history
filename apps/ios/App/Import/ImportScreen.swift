@@ -85,7 +85,8 @@ struct ImportScreen: View {
                     Text("""
                         Corvette PDR and GoPro clips carry telemetry alongside the picture, \
                         and a Racelogic .vbo log (VBOX, or an export from an app such as \
-                        Porsche Track Precision) is nothing but telemetry. Pick one and the \
+                        Porsche Track Precision) or a Track Precision .csv export is nothing \
+                        but telemetry. Pick one and the \
                         laps come out of it here — the file never leaves this phone, and a \
                         video is never copied; only its telemetry track is read.
                         """)
@@ -128,7 +129,8 @@ struct ImportScreen: View {
                     Text("""
                         A .vbo log with a start/finish line in it arrives timed, with whatever \
                         car channels it recorded; one without asks for the line the same way. \
-                        Other logger formats stay on the web app.
+                        A Track Precision .csv export carries the app's own lap times. Other \
+                        logger formats stay on the web app.
                         """)
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
@@ -153,7 +155,7 @@ struct ImportScreen: View {
                 // Multiple selection from the start: a session is often several
                 // clips, and the batch is what lets a beacon-timed PDR recording
                 // re-anchor a beacon-less one beside it.
-                allowedContentTypes: [.mpeg4Movie, .quickTimeMovie, .movie, .vbo],
+                allowedContentTypes: [.mpeg4Movie, .quickTimeMovie, .movie, .vbo, .commaSeparatedText],
                 allowsMultipleSelection: true
             ) { result in
                 switch result {
