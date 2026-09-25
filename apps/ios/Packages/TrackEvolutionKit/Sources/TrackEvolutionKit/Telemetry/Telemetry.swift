@@ -7,22 +7,33 @@ import Foundation
 /// `defaultLabel`), so the phone builds the same session — laps, trace, channels,
 /// notes — the browser would from the same file.
 ///
-/// Two kinds of file: video (`.mp4`, PDR or GoPro, read by byte range so a
-/// multi-GB clip is never copied) and Racelogic `.vbo` logs — VBOX hardware, and
+/// Three kinds of file: video (`.mp4`, PDR or GoPro, read by byte range so a
+/// multi-GB clip is never copied), Racelogic `.vbo` logs — VBOX hardware, and
 /// the exports of phone lap timers such as Porsche's Track Precision App, which
-/// land on the phone before any laptop is opened. `.vbo` is dispatched by the
-/// file's *name*, exactly as the JS does, so callers pass it.
+/// land on the phone before any laptop is opened — and Track Precision's `.csv`
+/// export. The logs are dispatched by the file's *name*, exactly as the JS
+/// does, so callers pass it.
 public enum Telemetry {
     /// File extensions the importer accepts — `SUPPORTED_EXT` in the JS.
-    public static let SUPPORTED_EXTENSIONS = ["mp4", "vbo"]
+    public static let SUPPORTED_EXTENSIONS = ["mp4", "vbo", "csv"]
 
     /// Whether `name` is a `.vbo` log rather than a video.
     public static func isVbo(_ name: String?) -> Bool {
         name?.lowercased().hasSuffix(".vbo") == true
     }
 
-    /// Parse a telemetry file: a `.vbo` log by name, otherwise an MP4 — Corvette
-    /// PDR first, then GoPro GPMF.
+    /// Whether `name` is a Track Precision `.csv` export — the only CSV layout read.
+    public static func isCsv(_ name: String?) -> Bool {
+        name?.lowercased().hasSuffix(".csv") == true
+    }
+
+    /// Whether `name` is a text log (`.vbo` or `.csv`) rather than a video.
+    public static func isLog(_ name: String?) -> Bool {
+        isVbo(name) || isCsv(name)
+    }
+
+    /// Parse a telemetry file: a `.vbo` or `.csv` log by name, otherwise an MP4 —
+    /// Corvette PDR first, then GoPro GPMF.
     ///
     /// Both video parsers report "no track of mine here" distinctly from "this
     /// file is mine and it's broken", so a GoPro clip isn't reported as a broken
@@ -35,6 +46,13 @@ public enum Telemetry {
             var vbo = try VBO.parseVboText(decodeText(try source.read(at: 0, count: source.size)), fileName: name)
             TelemetryChannels.attachLapChannels(&vbo)
             return vbo
+        }
+        if isCsv(name) {
+            var csv = try TrackPrecisionCsv.parseTrackPrecisionCsv(
+                decodeText(try source.read(at: 0, count: source.size)), fileName: name
+            )
+            TelemetryChannels.attachLapChannels(&csv)
+            return csv
         }
         var pdrErr: TelemetryParseError?
         do {

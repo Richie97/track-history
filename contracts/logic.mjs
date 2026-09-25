@@ -25,6 +25,7 @@ import {
   projectTrace,
 } from "../public/js/import/geo.js";
 import { parseTelemetryFile } from "../public/js/import/parse.js";
+import { lapsFromLaptime } from "../public/js/import/csv.js";
 import { applyGate } from "../public/js/import/ui.js";
 import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
 import { CHANNEL_NAMES, attachLapChannels } from "../public/js/import/channels.js";
@@ -201,6 +202,7 @@ import {
   buildPdrDeltaMp4,
   buildPdrMp4,
   buildPdrRealMp4,
+  buildTrackPrecisionCsv,
   buildVboText,
   circleTrace,
 } from "../test/fixtures/build.mjs";
@@ -1664,7 +1666,9 @@ const videoFixture = {
 // two [laptiming] endpoint orders, a short line the car drives just past the
 // end of (widenGate), a recording started and stopped at the line
 // (edgeCrossings), and Track Precision's car channels with a zeroed column,
-// a "no reading" tire sentinel and G columns scaled by 1/9.81.
+// a "no reading" tire sentinel and G columns scaled by 1/9.81 — plus the
+// 2024 firmware's _PTPA columns in m/s² (accelToG) and a car that stops
+// reporting mid-session (carSilent).
 
 const VBO_DIR = path.join(OUT_DIR, "vbo");
 const edgeTrimmed = (() => {
@@ -1699,6 +1703,16 @@ const vboFixtures = [
     file: "trackprecision-2026-06-06-09-53-45.vbo",
     note: "Porsche Track Precision layout: one column name per line, car channels, started and stopped just either side of the line.",
     text: buildVboText(edgeTrimmed, { withLapTiming: true, trackPrecision: true }),
+  },
+  {
+    file: "trackprecision-2024-06-08-09-20-29.vbo",
+    note: "2024 Track Precision firmware: LatAcc_PTPA in m/s², stored as G.",
+    text: buildVboText(points, { withLapTiming: true, trackPrecision: true, accelMs2: true }),
+  },
+  {
+    file: "trackprecision-2026-07-26-14-35-55.vbo",
+    note: "The car stops reporting at 60 s (every car column 0) while the GPS carries on: its car channels end there.",
+    text: buildVboText(points, { withLapTiming: true, trackPrecision: true, silentAfterS: 60 }),
   },
 ];
 
@@ -1750,6 +1764,142 @@ const vboFixture = {
   source: "public/js/import/vbo.js, public/js/import/channels.js",
   gpsStride: GPS_STRIDE,
   files: vboCases,
+};
+
+// ---------------------------------------------------------------------------
+// Porsche Track Precision CSV parser (public/js/import/csv.js), on the same
+// terms as the .vbo one: the synthetic files are committed under
+// contracts/logic/csv/ and the ports parse those exact bytes. The cases are
+// the firmware differences a port has to get right — the speed column in m/s
+// or km/h (speedToMs against the GPS), accelerations in G or m/s²
+// (accelToG), ", " separators, a lap timer that writes 0 at the line, a
+// recording stopped just short of the line (the extrapolated last lap), a
+// car that stops reporting, and a timer that never runs (the line picker,
+// and the UTC timestamp standing in for a name with no date).
+//
+// lapsFromLaptime is also pinned on its own over small timer tables, since
+// its keep/drop rules — a pit stop, a last lap short of EDGE_M or below
+// EDGE_PACE — are what the committed files are too regular to reach.
+
+const CSV_DIR = path.join(OUT_DIR, "csv");
+const csvTrimmed = (() => {
+  const q = lapS / 4;
+  const kept = circleTrace({ revolutions: 4 }).filter((p) => p.t > q + 0.3 && p.t < q + 3 * lapS - 0.3);
+  const t0 = kept[0].t;
+  return { points: kept.map((p) => ({ ...p, t: p.t - t0 })), firstCrossT: q - t0 };
+})();
+const noTimer = (text) =>
+  text
+    .split("\n")
+    .map((l, i) => (i === 0 || !l ? l : l.replace(/^((?:[^,]*,){8})[^,]*/, "$10")))
+    .join("\n");
+const csvFixtures = [
+  {
+    file: "recording-2026-06-06-09-53-45.csv",
+    note: "Current firmware: speed in m/s, accelerations in G, three laps from the app's timer.",
+    text: buildTrackPrecisionCsv(points),
+  },
+  {
+    file: "recording-2024-06-08-11-21-21.csv",
+    note: "2024 firmware: speed in km/h, accelerations in m/s², a timer that writes 0 on the first sample of a lap.",
+    text: buildTrackPrecisionCsv(points, { speedUnit: "kmh", accelMs2: true, zeroAtLine: true }),
+  },
+  {
+    file: "recording-2025-07-19-09-47-12.csv",
+    note: "', ' separators; started just past the line and stopped 0.3 s short of it: the last lap is extrapolated.",
+    text: buildTrackPrecisionCsv(csvTrimmed.points, { spaced: true, firstCrossT: csvTrimmed.firstCrossT }),
+  },
+  {
+    file: "recording-2026-07-26-14-35-55.csv",
+    note: "The car stops reporting at 60 s: its car channels end there and later laps carry speed alone.",
+    text: buildTrackPrecisionCsv(points, { silentAfterS: 60 }),
+  },
+  {
+    file: "session.csv",
+    note: "A timer that never runs: needs a picked line; no date in the name, so the UTC timestamp's.",
+    text: noTimer(buildTrackPrecisionCsv(points)),
+    pick: true,
+  },
+];
+
+mkdirSync(CSV_DIR, { recursive: true });
+const csvCases = [];
+for (const f of csvFixtures) {
+  writeFileSync(path.join(CSV_DIR, f.file), f.text);
+  const parsed = await parseTelemetryFile(new File([f.text], f.file));
+  const entry = {
+    file: f.file,
+    note: f.note,
+    expected: {
+      ...parsedOut(parsed),
+      bestLapTrace: parsed.bestLapTrace ?? null,
+      carChannels: Object.fromEntries(Object.entries(parsed.carChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])),
+      lapScalarChannels: Object.fromEntries(
+        Object.entries(parsed.lapScalarChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])
+      ),
+    },
+    picked: null,
+  };
+  if (f.pick) {
+    const state = { results: [{ file: f.file, parsed }], origin: parsed.gps[0], gate: null };
+    state.gate = buildGate(projectTrace(parsed.gps, state.origin), pickedIndex);
+    applyGate(state);
+    entry.picked = {
+      pickedIndex,
+      gate: state.gate,
+      laps: parsed.laps.map(lapOut),
+      bestLapTrace: parsed.bestLapTrace,
+      lapChannels: parsed.lapChannels ?? null,
+    };
+  }
+  csvCases.push(entry);
+}
+
+// Timer tables for lapsFromLaptime: 1 Hz samples (the rules don't depend on
+// the rate, and the fixture shouldn't carry 10 Hz of them) round an 1800 m
+// circuit, each lap at its own steady speed (the unit test's `timer`), or at
+// `v`.
+const timerRows = (laps, { t0 = 0.05, until = Infinity, v = null } = {}) => {
+  const out = [];
+  let start = t0;
+  for (const len of laps) {
+    for (let t = Math.ceil(start); t < start + len && t < until; t++) {
+      out.push({ t, lapMs: Math.round((t - start) * 1000), lapM: ((t - start) / len) * 1800, v: v ?? 1800 / len });
+    }
+    start += len;
+  }
+  return out;
+};
+const pitStop = timerRows([40, 45, 46, 1]).map((x) => (x.t >= 60 && x.t < 85.05 ? { ...x, lapMs: 0 } : x));
+const zeroAtLine = timerRows([40, 45, 46, 3]).map((x, i, all) =>
+  i && x.lapMs < all[i - 1].lapMs ? { ...x, lapMs: 0 } : x
+);
+const laptimeCases = [
+  { name: "three laps and a trailing part-lap", rows: timerRows([40, 45, 46, 20]) },
+  { name: "crossings finer than the rows", rows: timerRows([40.013, 45.027, 1]) },
+  { name: "a 0 row at each line", rows: zeroAtLine },
+  { name: "a pit stop drops the lap it interrupted", rows: pitStop },
+  { name: "last lap 0.05 s short at pace: extrapolated", rows: timerRows([40, 45, 46], { until: 131.01 }) },
+  { name: "last lap 1.05 s (41 m) short: left untimed", rows: timerRows([40, 45, 46], { until: 130.01 }) },
+  {
+    name: "last lap reaches the line's distance at pit-lane speed: left untimed",
+    rows: [...timerRows([40, 45]), ...timerRows([225], { t0: 85.05, until: 309.5, v: 8 })],
+  },
+  { name: "the timer never runs", rows: timerRows([40, 45]).map((x) => ({ ...x, lapMs: 0 })) },
+].map((c) => ({ ...c, laps: lapsFromLaptime(c.rows).map(lapOut) }));
+
+const csvFixture = {
+  description:
+    "Reference output of the Porsche Track Precision CSV parser (public/js/import/csv.js, then " +
+    "channels.js) over the committed files in contracts/logic/csv/, and of lapsFromLaptime over " +
+    "small timer tables. The iOS and Android ports must reproduce lap times to the millisecond, " +
+    "coordinates to 1e-9 and every per-lap channel array element for element. Car channel series " +
+    "are summarized (count, first, last, every 100th). Regenerate with `npm run contracts:logic`; " +
+    "never hand-edit.",
+  source: "public/js/import/csv.js, public/js/import/channels.js",
+  gpsStride: GPS_STRIDE,
+  files: csvCases,
+  lapsFromLaptime: laptimeCases,
 };
 
 // ---------------------------------------------------------------------------
@@ -2079,6 +2229,7 @@ writeFileSync(path.join(OUT_DIR, "wrapped.json"), JSON.stringify(wrappedFixture,
 writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "vbo-parsers.json"), JSON.stringify(vboFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "csv-parsers.json"), JSON.stringify(csvFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
@@ -2302,3 +2453,4 @@ console.log(
   `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`
 );
 console.log(`wrote contracts/logic/vbo-parsers.json (${vboCases.length} files) and contracts/logic/vbo/*.vbo`);
+console.log(`wrote contracts/logic/csv-parsers.json (${csvCases.length} files) and contracts/logic/csv/*.csv`);

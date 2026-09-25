@@ -40,9 +40,10 @@ public object VBO {
 
     /**
      * Car channels, by `[column names]` entry → `channels.js` name. The first
-     * name present wins, so Porsche's `LatAcc_PTPA` (true G) is preferred over
-     * its `latacc` column, which despite a "latAccel g" header holds G / 9.81.
-     * `f` converts to the stored unit (see `CHANNEL_NAMES`).
+     * name present wins, so Porsche's `LatAcc_PTPA` is preferred over its
+     * `latacc` column, which on current firmware holds G / 9.81 despite a
+     * "latAccel g" header. The _PTPA columns are not always G either — see
+     * [accelToG]. `f` converts to the stored unit (see `CHANNEL_NAMES`).
      */
     private val CAR_COLUMNS: List<CarColumn> = listOf(
         CarColumn("rpm", listOf("engine", "rpm", "engine speed", "enginespeed")) { it },
@@ -115,6 +116,40 @@ public object VBO {
         return number(m.groupValues[1]) * 3600 + number(m.groupValues[2]) * 60 + number(m.groupValues[3])
     }
 
+    /** Porsche's own factor: PTPA = latacc × 9.81 exactly. */
+    public const val GRAVITY_MS2: Double = 9.81
+    public const val MS2_P99_MIN: Double = 3.0
+    private val ACCEL_CHANNELS = listOf("latG", "longG")
+
+    /**
+     * Acceleration columns change unit with Track Precision's firmware: the 2024
+     * exports write the _PTPA columns (and the CSV export's
+     * `lateralAcceleration` / `longitudinalAcceleration`) in m/s² — a 1.2 G
+     * corner reads 11.8 — and later ones in G. Nothing in the file says which,
+     * so the file's own 99th-percentile magnitude decides: no car on a track
+     * day sustains 3 G, and any lap of one pulls well over 3 m/s². A percentile
+     * rather than the peak, so one kerb spike can't flip the unit. Returns the
+     * factor to G: 1, or 1 / [GRAVITY_MS2].
+     */
+    public fun accelToG(pts: List<ChannelPoint>): Double {
+        if (pts.isEmpty()) return 1.0
+        val mags = pts.map { Math.abs(it.v) }.sorted()
+        return if (mags[Math.floor(0.99 * (mags.size - 1)).toInt()] > MS2_P99_MIN) 1 / GRAVITY_MS2 else 1.0
+    }
+
+    /**
+     * A car that stops talking to the recorder mid-session doesn't blank its
+     * columns: Track Precision goes on writing every car channel as exactly 0
+     * while the GPS keeps going, so a dropout would chart as a flat line at
+     * 0 rpm / 0 G for the rest of the session. An engine at 0 rpm in a car
+     * moving faster than this is that dropout, and the row's car values are
+     * skipped — every channel, not just rpm, since they fail together.
+     */
+    public const val CAR_SILENT_MS: Double = 5.0
+
+    public fun carSilent(rpm: Double?, speedMs: Double?): Boolean =
+        rpm == 0.0 && speedMs != null && speedMs > CAR_SILENT_MS
+
     /**
      * A column that never changes (Track Precision writes every column it knows,
      * zeroed when the car doesn't report it) is no channel at all.
@@ -129,7 +164,7 @@ public object VBO {
      * "File created at" line is the *export* time, so the name is the better
      * source for the session's date when it carries one.
      */
-    internal fun dateFromName(name: String?): String? {
+    public fun dateFromName(name: String?): String? {
         val m = NAME_DATE.find(name ?: "") ?: return null
         return "${m.groupValues[1]}-${m.groupValues[2]}-${m.groupValues[3]}"
     }
@@ -294,6 +329,7 @@ public object VBO {
 
         val iHeight = firstCol(listOf("height", "alt", "altitude"))
         val carCols = CAR_COLUMNS.map { it to firstCol(it.names) }.filter { it.second >= 0 }
+        val iRpm = carCols.firstOrNull { it.first.name == "rpm" }?.second ?: -1
         val iThrottle = firstCol(THROTTLE_COLUMNS)
         val iBrake = firstCol(BRAKE_COLUMNS)
         val tyreCols = TYRE_COLUMNS.map { (name, n) -> name to col(n) }.filter { it.second >= 0 }
@@ -330,6 +366,11 @@ public object VBO {
                 val v = number(f[i])
                 return if (v.isFinite()) v else null
             }
+            if (iHeight >= 0) {
+                val v = num(iHeight)
+                if (v != null) heights.add(v)
+            }
+            if (iRpm >= 0 && carSilent(num(iRpm), points.last().v)) continue
             for ((c, i) in carCols) {
                 val v = num(i)
                 if (v != null) car[c.name]!!.add(ChannelPoint(t = t, v = c.f(v)))
@@ -346,10 +387,6 @@ public object VBO {
                 val v = num(i)
                 if (v != null && v > 0 && v < MAX_TYRE_BAR) tires[name]!!.add(ChannelPoint(t = t, v = v * 100))
             }
-            if (iHeight >= 0) {
-                val v = num(iHeight)
-                if (v != null) heights.add(v)
-            }
         }
         if (points.size < 10) throw TelemetryParseException("VBO file contains no usable GPS data")
 
@@ -360,27 +397,7 @@ public object VBO {
             time = "${pad2(h)}:${pad2(mi)}:${pad2(se)}"
         }
 
-        var carChannels = ParsedTelemetry.CarChannels()
-        for ((name, pts) in car) if (pts.size >= 10 && varies(pts)) carChannels = carChannels.with(name, pts)
-        if (throttle.size >= 10 && varies(throttle)) {
-            val peak = throttle.maxOf { it.v }
-            val scale = if (peak <= 1.0001) 100.0 else 1.0
-            carChannels = carChannels.with(
-                "throttle",
-                throttle.map { ChannelPoint(t = it.t, v = Math.min(100.0, Math.max(0.0, it.v * scale))) },
-            )
-        }
-        if (brake.size >= 10 && varies(brake)) {
-            val peak = brake.maxOf { it.v }
-            carChannels = carChannels.with("brake", brake.map { ChannelPoint(t = it.t, v = (it.v / peak) * 100) })
-        }
-        val lapScalarChannels = LinkedHashMap<String, List<ChannelPoint>>()
-        for ((name, pts) in tires) if (pts.size >= 10) lapScalarChannels[name] = pts
-        val sessionMeta = if (heights.size > 10) {
-            ParsedTelemetry.SessionMeta(elevationM = heights.maxOf { it } - heights.minOf { it })
-        } else {
-            null
-        }
+        val (carChannels, lapScalarChannels, sessionMeta) = finishCarChannels(car, throttle, brake, tires, heights)
 
         // [laptiming]: "Start <lon1> <lat1> <lon2> <lat2>" (minutes, two
         // endpoints of the start/finish line) per Racelogic, though some
@@ -447,6 +464,61 @@ public object VBO {
             // falls back to manual line picking.
             needsLine = laps.isEmpty(),
         )
+    }
+
+    /** What [finishCarChannels] hands back: the parsed shape's three car fields. */
+    public data class FinishedCarChannels(
+        val carChannels: ParsedTelemetry.CarChannels,
+        val lapScalarChannels: Map<String, List<ChannelPoint>>,
+        val sessionMeta: ParsedTelemetry.SessionMeta?,
+    )
+
+    /**
+     * The raw per-sample series a Track Precision file carries → the parsed
+     * shape's `carChannels` / `lapScalarChannels` / `sessionMeta`. Shared by this
+     * parser and the CSV one ([TrackPrecisionCsv]), which read the same car's
+     * same channels out of a different layout, so the rules below apply to both
+     * exports:
+     *   - [car]: rpm, latG, longG, steering, gear, yaw, already converted by
+     *     `CAR_COLUMNS`' `f` (latG a magnitude, gear 0–8), in that order
+     *   - [throttle]: pedal position, 0–1 or 0–100
+     *   - [brake]: pressure, ≥ 0
+     *   - [tires]: tyreKpaLF… in kPa, sentinels already dropped
+     *   - [heights]: metres, or empty
+     */
+    public fun finishCarChannels(
+        car: Map<String, List<ChannelPoint>>,
+        throttle: List<ChannelPoint>,
+        brake: List<ChannelPoint>,
+        tires: Map<String, List<ChannelPoint>>,
+        heights: List<Double>,
+    ): FinishedCarChannels {
+        var carChannels = ParsedTelemetry.CarChannels()
+        for ((name, pts) in car) {
+            if (pts.size < 10 || !varies(pts)) continue
+            val k = if (ACCEL_CHANNELS.contains(name)) accelToG(pts) else 1.0
+            carChannels = carChannels.with(name, if (k == 1.0) pts else pts.map { ChannelPoint(t = it.t, v = it.v * k) })
+        }
+        if (throttle.size >= 10 && varies(throttle)) {
+            val peak = throttle.maxOf { it.v }
+            val scale = if (peak <= 1.0001) 100.0 else 1.0
+            carChannels = carChannels.with(
+                "throttle",
+                throttle.map { ChannelPoint(t = it.t, v = Math.min(100.0, Math.max(0.0, it.v * scale))) },
+            )
+        }
+        if (brake.size >= 10 && varies(brake)) {
+            val peak = brake.maxOf { it.v }
+            carChannels = carChannels.with("brake", brake.map { ChannelPoint(t = it.t, v = (it.v / peak) * 100) })
+        }
+        val lapScalarChannels = LinkedHashMap<String, List<ChannelPoint>>()
+        for ((name, pts) in tires) if (pts.size >= 10) lapScalarChannels[name] = pts
+        val sessionMeta = if (heights.size > 10) {
+            ParsedTelemetry.SessionMeta(elevationM = heights.maxOf { it } - heights.minOf { it })
+        } else {
+            null
+        }
+        return FinishedCarChannels(carChannels, lapScalarChannels, sessionMeta)
     }
 
     private fun pad2(v: Long): String = v.toString().padStart(2, '0')

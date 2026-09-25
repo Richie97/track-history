@@ -226,8 +226,8 @@ web app is the feature frontier and keeps the desk-bound long tail (year in
 review, the setup notebook and its lap-time
 correlation); the native apps own the on-track path — recording, the logbook you
 check between sessions, the garage you check before an event, CarPlay, and
-**video** and **`.vbo`** import, which belong on the device the file is already
-on. The
+**video**, **`.vbo`** and Track Precision **`.csv`** import, which belong on the
+device the file is already on. The
 split is deliberate and is recorded per feature in
 [`docs/specs/native/README.md`](docs/specs/native/README.md); the work breakdown
 is the `NS-*` specs beside it.
@@ -593,11 +593,29 @@ byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
   carries become per-lap channels like a PDR's: rpm, throttle (a 0–1 pedal
   fraction is scaled to %), brake (a *pressure*, stored as % of the file's
   peak), steering, lateral/longitudinal G (Track Precision's `LatAcc_PTPA` /
-  `LongAcc_PTPA`, since its `latacc`/`longacc` columns are G ÷ 9.81), gear,
-  yaw, and tire pressures (bar → kPa, the 3276.8 no-reading sentinel dropped);
-  a column that never changes is treated as absent. The date comes from a
-  `YYYY-MM-DD` in the file name before Track Precision's "File created at"
-  line, which is the export time.
+  `LongAcc_PTPA`, since its `latacc`/`longacc` columns are G ÷ 9.81 — and the
+  _PTPA columns themselves are m/s² on 2024 firmware, so `accelToG` decides the
+  unit per file from the 99th-percentile magnitude), gear, yaw, and tire
+  pressures (bar → kPa, the 3276.8 no-reading sentinel dropped); a column that
+  never changes is treated as absent, and a row reading 0 rpm while the car
+  moves faster than 5 m/s (`carSilent` — the car stopped reporting, and Track
+  Precision writes every car column as 0 from then on) contributes no car
+  values. The date comes from a `YYYY-MM-DD` in the file name before Track
+  Precision's "File created at" line, which is the export time.
+- **Porsche Track Precision CSV** (`public/js/import/csv.js`) — the same app's
+  other export: a camelCase header row, epoch-ms `timestamp`, decimal degrees.
+  Laps come from **the app's own lap timer**: `laptime` is the ms since the car
+  crossed Track Precision's line, so each crossing is `timestamp − laptime` on a
+  lap's first sample (`lapsFromLaptime`) — exact, not estimated, and no line to
+  pick. A lap is kept only if its counter ran the whole way (so a pit stop drops
+  it); a recording stopped within 30 m of the line gets its last lap
+  extrapolated from `lapDistance`, but only at pace, since the cool-down lap
+  rolling down the pit lane reaches a full lap's distance too. A file whose
+  timer never completes a lap falls back to the line picker. Units drift with
+  firmware and the file never says which: `speed` is km/h in 2024 exports and
+  m/s later (`speedToMs` compares it with the GPS trace), and the accelerations
+  are m/s² then G (`accelToG`). The car channels are the VBO's, through the
+  shared `finishCarChannels`.
 
 The two **video** formats also import on the native iOS app (**Import video** on
 any event page, or "Open with Track Evolution" from Files): a GoPro clip arrives
@@ -607,11 +625,12 @@ phone is usually where the footage already is. The parsers are ported (`PDR`,
 and pinned to the JavaScript implementation's output by
 `contracts/logic/video-parsers.json`, so the same clip yields the same lap times
 either way. The clip is read in place through a security-scoped file handle —
-never copied, never uploaded. **`.vbo` imports on both phones too** — Porsche
-Track Precision records and exports on the phone, so that's where its `.vbo`
-lands. `VBO` in the Kit and `:core` is the port of `public/js/import/vbo.js`,
-pinned by `contracts/logic/vbo-parsers.json` over the committed synthetic files
-in `contracts/logic/vbo/`.
+never copied, never uploaded. **`.vbo` and Track Precision `.csv` import on both
+phones too** — Porsche Track Precision records and exports on the phone, so
+that's where its files land. `VBO` and `TrackPrecisionCsv` in the Kit and
+`:core` are the ports of `public/js/import/vbo.js` and `csv.js`, pinned by
+`contracts/logic/vbo-parsers.json` and `csv-parsers.json` over the committed
+synthetic files in `contracts/logic/vbo/` and `contracts/logic/csv/`.
 
 GPS-only sources have no lap markers, so the import preview shows the driven
 track map: **click where the start/finish line is** and laps are timed each

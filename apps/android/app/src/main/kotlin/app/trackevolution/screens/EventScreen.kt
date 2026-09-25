@@ -71,7 +71,7 @@ import app.trackevolution.ui.theme.TrackTheme
  * which stays web-only per the product split — it is desk work. **Video** and
  * `.vbo` import are here, though: a PDR or GoPro clip is already on the phone
  * that shot or received it, which is the argument NS-30 made for iOS, and
- * Porsche's Track Precision app exports its `.vbo` on the phone too. The card
+ * Porsche's Track Precision app exports its `.vbo` and `.csv` on the phone too. The card
  * below opens the chooser; the review that follows is the recorder's.
  */
 @Composable
@@ -678,7 +678,7 @@ private fun AddSessionCard(
             color = colors.textStrong,
         )
         Text(
-            "Corvette PDR or GoPro clips, or a .vbo log, already on this phone — laps, " +
+            "Corvette PDR or GoPro clips, or a .vbo or Track Precision .csv log, already on this phone — laps, " +
                 "racing line and channel graphs come out of the telemetry. The file is read " +
                 "in place, never copied or uploaded.",
             style = TrackTheme.typography.xs,

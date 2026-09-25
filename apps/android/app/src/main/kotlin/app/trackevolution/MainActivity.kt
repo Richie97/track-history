@@ -293,7 +293,7 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(RecordingService.EXTRA_OPEN_RECORDER, false) == true) {
             openRecorder = true
         }
-        sharedVideos(intent)?.let {
+        sharedFiles(intent)?.let {
             incomingImport = it
             return
         }
@@ -306,11 +306,11 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * The videos an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent carries, or null
- * when the intent is anything else. `IntentCompat` rather than the typed
+ * The files an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent carries — videos,
+ * or Track Precision CSVs — or null when the intent is anything else. `IntentCompat` rather than the typed
  * `getParcelableExtra`, which is API 33+.
  */
-private fun sharedVideos(intent: Intent?): List<Uri>? = when (intent?.action) {
+private fun sharedFiles(intent: Intent?): List<Uri>? = when (intent?.action) {
     Intent.ACTION_SEND ->
         listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
     Intent.ACTION_SEND_MULTIPLE ->

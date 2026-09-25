@@ -26,8 +26,9 @@ function timeOfDayS(s) {
 }
 
 // Car channels, by [column names] entry -> channels.js name. The first name
-// present wins, so Porsche's `LatAcc_PTPA` (true G) is preferred over its
-// `latacc` column, which despite a "latAccel g" header holds G / 9.81.
+// present wins, so Porsche's `LatAcc_PTPA` is preferred over its `latacc`
+// column, which on current firmware holds G / 9.81 despite a "latAccel g"
+// header. The _PTPA columns are not always G either — see accelToG.
 // `f` converts to the stored unit (see CHANNEL_NAMES in channels.js).
 const CAR_COLUMNS = [
   ["rpm", ["engine", "rpm", "engine speed", "enginespeed"], (v) => v],
@@ -57,6 +58,32 @@ const TYRE_COLUMNS = [
 // Track Precision writes 3276.8 (0x7FFF / 10) when the car sent no reading.
 const MAX_TYRE_BAR = 10;
 
+// Acceleration columns change unit with Track Precision's firmware: the
+// 2024 exports write the _PTPA columns (and the CSV export's
+// lateralAcceleration / longitudinalAcceleration) in m/s² — a 1.2 G corner
+// reads 11.8 — and later ones in G. Nothing in the file says which, so the
+// file's own 99th-percentile magnitude decides: no car on a track day
+// sustains 3 G, and any lap of one pulls well over 3 m/s². A percentile
+// rather than the peak, so one kerb spike can't flip the unit. Returns the
+// factor to G: 1, or 1 / GRAVITY_MS2.
+export const GRAVITY_MS2 = 9.81; // Porsche's own: PTPA = latacc × 9.81 exactly
+export const MS2_P99_MIN = 3;
+export function accelToG(pts) {
+  if (!pts.length) return 1;
+  const mags = pts.map((p) => Math.abs(p.v)).sort((a, b) => a - b);
+  return mags[Math.floor(0.99 * (mags.length - 1))] > MS2_P99_MIN ? 1 / GRAVITY_MS2 : 1;
+}
+const ACCEL_CHANNELS = ["latG", "longG"];
+
+// A car that stops talking to the recorder mid-session doesn't blank its
+// columns: Track Precision goes on writing every car channel as exactly 0
+// while the GPS keeps going, so a dropout would chart as a flat line at 0
+// rpm / 0 G for the rest of the session. An engine at 0 rpm in a car moving
+// faster than CAR_SILENT_MS is that dropout, and the row's car values are
+// skipped — every channel, not just rpm, since they fail together.
+export const CAR_SILENT_MS = 5;
+export const carSilent = (rpm, speedMs) => rpm === 0 && speedMs != null && speedMs > CAR_SILENT_MS;
+
 // A column that never changes (Track Precision writes every column it knows,
 // zeroed when the car doesn't report it) is no channel at all.
 function varies(pts) {
@@ -67,7 +94,7 @@ function varies(pts) {
 // "recording-2026-06-06-09-53-45.vbo" -> "2026-06-06". Track Precision's
 // "File created at" line is the *export* time, so the name is the better
 // source for the session's date when it carries one.
-function dateFromName(name) {
+export function dateFromName(name) {
   const m = /(\d{4})-(\d{2})-(\d{2})/.exec(name ?? "");
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
@@ -207,6 +234,7 @@ export function parseVboText(text, fileName = null) {
 
   const iHeight = firstCol(["height", "alt", "altitude"]);
   const carCols = CAR_COLUMNS.map(([name, names, f]) => ({ name, i: firstCol(names), f })).filter((c) => c.i >= 0);
+  const iRpm = carCols.find((c) => c.name === "rpm")?.i ?? -1;
   const iThrottle = firstCol(THROTTLE_COLUMNS);
   const iBrake = firstCol(BRAKE_COLUMNS);
   const tyreCols = TYRE_COLUMNS.map(([name, n]) => ({ name, i: col(n) })).filter((c) => c.i >= 0);
@@ -239,6 +267,11 @@ export function parseVboText(text, fileName = null) {
       const v = Number(f[i]);
       return Number.isFinite(v) ? v : null;
     };
+    if (iHeight >= 0) {
+      const v = num(iHeight);
+      if (v != null) heights.push(v);
+    }
+    if (iRpm >= 0 && carSilent(num(iRpm), points[points.length - 1].v)) continue;
     for (const c of carCols) {
       const v = num(c.i);
       if (v != null) car[c.name].push({ t, v: c.f(v) });
@@ -255,10 +288,6 @@ export function parseVboText(text, fileName = null) {
       const v = num(c.i);
       if (v != null && v > 0 && v < MAX_TYRE_BAR) tires[c.name].push({ t, v: v * 100 });
     }
-    if (iHeight >= 0) {
-      const v = num(iHeight);
-      if (v != null) heights.push(v);
-    }
   }
   if (points.length < 10) throw new Error("VBO file contains no usable GPS data");
 
@@ -269,21 +298,7 @@ export function parseVboText(text, fileName = null) {
     time = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}:${String(se).padStart(2, "0")}`;
   }
 
-  const carChannels = {};
-  for (const [name, pts] of Object.entries(car)) if (pts.length >= 10 && varies(pts)) carChannels[name] = pts;
-  if (throttle.length >= 10 && varies(throttle)) {
-    const peak = Math.max(...throttle.map((p) => p.v));
-    const scale = peak <= 1.0001 ? 100 : 1;
-    carChannels.throttle = throttle.map((p) => ({ t: p.t, v: Math.min(100, Math.max(0, p.v * scale)) }));
-  }
-  if (brake.length >= 10 && varies(brake)) {
-    const peak = Math.max(...brake.map((p) => p.v));
-    carChannels.brake = brake.map((p) => ({ t: p.t, v: (p.v / peak) * 100 }));
-  }
-  const lapScalarChannels = {};
-  for (const [name, pts] of Object.entries(tires)) if (pts.length >= 10) lapScalarChannels[name] = pts;
-  const sessionMeta =
-    heights.length > 10 ? { elevationM: Math.max(...heights) - Math.min(...heights) } : null;
+  const { carChannels, lapScalarChannels, sessionMeta } = finishCarChannels({ car, throttle, brake, tires, heights });
 
   // [laptiming]: "Start <lon1> <lat1> <lon2> <lat2>" (minutes, two endpoints
   // of the start/finish line) per Racelogic, though some exporters write
@@ -338,6 +353,39 @@ export function parseVboText(text, fileName = null) {
     // falls back to manual line picking.
     needsLine: laps.length === 0,
   };
+}
+
+// The raw per-sample series a Track Precision file carries -> the parsed
+// shape's carChannels / lapScalarChannels / sessionMeta. Shared by this
+// parser and the CSV one (csv.js), which read the same car's same channels
+// out of a different layout, so the rules below apply to both exports:
+//   car:      { rpm, latG, longG, steering, gear, yaw } as [{t, v}], already
+//             converted by CAR_COLUMNS' `f` (latG a magnitude, gear 0-8)
+//   throttle: pedal position, 0-1 or 0-100
+//   brake:    pressure, >= 0
+//   tires:    { tyreKpaLF, … } in kPa, sentinels already dropped
+//   heights:  metres, or empty
+export function finishCarChannels({ car, throttle, brake, tires, heights }) {
+  const carChannels = {};
+  for (const [name, pts] of Object.entries(car)) {
+    if (pts.length < 10 || !varies(pts)) continue;
+    const k = ACCEL_CHANNELS.includes(name) ? accelToG(pts) : 1;
+    carChannels[name] = k === 1 ? pts : pts.map((p) => ({ t: p.t, v: p.v * k }));
+  }
+  if (throttle.length >= 10 && varies(throttle)) {
+    const peak = Math.max(...throttle.map((p) => p.v));
+    const scale = peak <= 1.0001 ? 100 : 1;
+    carChannels.throttle = throttle.map((p) => ({ t: p.t, v: Math.min(100, Math.max(0, p.v * scale)) }));
+  }
+  if (brake.length >= 10 && varies(brake)) {
+    const peak = Math.max(...brake.map((p) => p.v));
+    carChannels.brake = brake.map((p) => ({ t: p.t, v: (p.v / peak) * 100 }));
+  }
+  const lapScalarChannels = {};
+  for (const [name, pts] of Object.entries(tires)) if (pts.length >= 10) lapScalarChannels[name] = pts;
+  const sessionMeta =
+    heights.length > 10 ? { elevationM: Math.max(...heights) - Math.min(...heights) } : null;
+  return { carChannels, lapScalarChannels, sessionMeta };
 }
 
 export async function parseVboFile(fileBlob) {

@@ -113,42 +113,42 @@ class VBOContractTest {
         }
     }
 
-    private fun assertTrace(parsed: ParsedTelemetry, expected: List<List<Double>>?, file: String) {
-        if (expected == null) {
-            assertNull(parsed.bestLapTrace, "$file: bestLapTrace should be absent")
-            return
-        }
-        val actual = given(parsed.bestLapTrace, "$file: bestLapTrace")
-        assertEquals(expected.size, actual.size, "$file: best-lap trace length")
-        for ((a, b) in actual.zip(expected)) {
-            assertClose(b[0], a.x, "$file: trace x")
-            assertClose(b[1], a.y, "$file: trace y")
-            assertClose(b[2], a.v, "$file: trace v")
-        }
-    }
-
-    private fun assertSummary(actual: List<ChannelPoint>?, expected: VBOFixtures.Summary?, label: String) {
-        if (expected == null) {
-            assertNull(actual, "$label: should be absent")
-            return
-        }
-        val pts = given(actual, "$label: expected ${expected.count} points but got none")
-        assertEquals(expected.count, pts.size, "$label: count")
-        assertPoint(expected.first, pts.first(), "$label first")
-        assertPoint(expected.last, pts.last(), "$label last")
-        val sample = pts.filterIndexed { i, _ -> i % 100 == 0 }
-        assertEquals(expected.sample.size, sample.size, "$label: sample size")
-        sample.zip(expected.sample).forEachIndexed { i, (a, b) -> assertPoint(b, a, "$label sample[$i]") }
-    }
-
-    private fun assertPoint(expected: VideoFixtures.Pt, actual: ChannelPoint, label: String) {
-        assertClose(expected.t, actual.t, "$label t")
-        assertClose(expected.v, actual.v, "$label v")
-    }
-
     companion object {
         @JvmStatic
         fun files(): List<VBOFixtures.Case> = VBOFixtures.fixture.files
+
+        internal fun assertTrace(parsed: ParsedTelemetry, expected: List<List<Double>>?, file: String) {
+            if (expected == null) {
+                assertNull(parsed.bestLapTrace, "$file: bestLapTrace should be absent")
+                return
+            }
+            val actual = given(parsed.bestLapTrace, "$file: bestLapTrace")
+            assertEquals(expected.size, actual.size, "$file: best-lap trace length")
+            for ((a, b) in actual.zip(expected)) {
+                assertClose(b[0], a.x, "$file: trace x")
+                assertClose(b[1], a.y, "$file: trace y")
+                assertClose(b[2], a.v, "$file: trace v")
+            }
+        }
+
+        internal fun assertSummary(actual: List<ChannelPoint>?, expected: VBOFixtures.Summary?, label: String) {
+            if (expected == null) {
+                assertNull(actual, "$label: should be absent")
+                return
+            }
+            val pts = given(actual, "$label: expected ${expected.count} points but got none")
+            assertEquals(expected.count, pts.size, "$label: count")
+            assertPoint(expected.first, pts.first(), "$label first")
+            assertPoint(expected.last, pts.last(), "$label last")
+            val sample = pts.filterIndexed { i, _ -> i % 100 == 0 }
+            assertEquals(expected.sample.size, sample.size, "$label: sample size")
+            sample.zip(expected.sample).forEachIndexed { i, (a, b) -> assertPoint(b, a, "$label sample[$i]") }
+        }
+
+        internal fun assertPoint(expected: VideoFixtures.Pt, actual: ChannelPoint, label: String) {
+            assertClose(expected.t, actual.t, "$label t")
+            assertClose(expected.v, actual.v, "$label v")
+        }
     }
 }
 

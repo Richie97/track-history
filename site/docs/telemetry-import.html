@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telemetry import — Track Evolution docs</title>
-  <meta name="description" content="Import Corvette PDR, GoPro and Racelogic VBO recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta name="description" content="Import Corvette PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Track Evolution">
   <meta property="og:title" content="Telemetry import — Track Evolution docs">
-  <meta property="og:description" content="Import Corvette PDR, GoPro and Racelogic VBO recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta property="og:description" content="Import Corvette PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:url" content="https://docs.trackevolution.app/docs/telemetry-import.html">
   <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -99,10 +99,10 @@
       imports without needing gigabytes of free space.
     </p>
     <p>
-      VBO files import on the phone too. Porsche's Track Precision app records
-      and exports on your phone, so its VBO is already there — share it to Track
-      Evolution or pick it from Files. A VBOX's SD card works just as well in the
-      browser.
+      VBO and CSV files import on the phone too. Porsche's Track Precision app
+      records and exports on your phone, so its VBO or CSV export is already
+      there — share it to Track Evolution or pick it from Files. A VBOX's SD card
+      works just as well in the browser.
     </p>
 
     <h2 id="sources">Supported sources</h2>
@@ -126,6 +126,11 @@
             <td>Racelogic VBO<br><small>(VBOX; RaceChrono / TrackAddict / Harry's LapTimer / Porsche Track Precision exports)</small></td>
             <td>The GPS samples in the file, plus any car channels it logged — RPM, throttle, brake, steering, G, gear and tire pressures</td>
             <td>The file's <code>[laptiming]</code> start line when present, otherwise the line picker</td>
+          </tr>
+          <tr>
+            <td>Porsche Track Precision CSV</td>
+            <td>The GPS samples, plus the car channels the app recorded — RPM, throttle, brake, steering, G, gear and tire pressures</td>
+            <td>Track Precision's own lap timer — the same lap times the app showed you, with no line to pick. A recording whose timer never finished a lap uses the line picker</td>
           </tr>
         </tbody>
       </table>

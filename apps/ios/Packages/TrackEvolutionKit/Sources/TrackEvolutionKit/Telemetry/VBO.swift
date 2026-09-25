@@ -33,9 +33,10 @@ public enum VBO {
     // MARK: - Column tables
 
     /// Car channels, by `[column names]` entry → `CHANNEL_NAMES` name. The first
-    /// name present wins, so Porsche's `LatAcc_PTPA` (true G) is preferred over its
-    /// `latacc` column, which despite a "latAccel g" header holds G / 9.81. The
-    /// closure converts to the stored unit.
+    /// name present wins, so Porsche's `LatAcc_PTPA` is preferred over its
+    /// `latacc` column, which on current firmware holds G / 9.81 despite a
+    /// "latAccel g" header. The _PTPA columns are not always G either — see
+    /// `accelToG`. The closure converts to the stored unit.
     static let CAR_COLUMNS: [(String, [String], @Sendable (Double) -> Double)] = [
         ("rpm", ["engine", "rpm", "engine speed", "enginespeed"], { $0 }),
         // Stored as a magnitude, like PDR.
@@ -96,6 +97,38 @@ public enum VBO {
 
     private static func isAsciiDigit(_ c: UInt8) -> Bool {
         c >= UInt8(ascii: "0") && c <= UInt8(ascii: "9")
+    }
+
+    /// Porsche's own factor: PTPA = latacc × 9.81 exactly.
+    public static let GRAVITY_MS2: Double = 9.81
+    public static let MS2_P99_MIN: Double = 3
+    static let ACCEL_CHANNELS = ["latG", "longG"]
+
+    /// Acceleration columns change unit with Track Precision's firmware: the 2024
+    /// exports write the _PTPA columns (and the CSV export's
+    /// `lateralAcceleration` / `longitudinalAcceleration`) in m/s² — a 1.2 G
+    /// corner reads 11.8 — and later ones in G. Nothing in the file says which,
+    /// so the file's own 99th-percentile magnitude decides: no car on a track day
+    /// sustains 3 G, and any lap of one pulls well over 3 m/s². A percentile
+    /// rather than the peak, so one kerb spike can't flip the unit. Returns the
+    /// factor to G: 1, or 1 / `GRAVITY_MS2`.
+    public static func accelToG(_ pts: [ChannelPoint]) -> Double {
+        if pts.isEmpty { return 1 }
+        let mags = pts.map { abs($0.v) }.sorted()
+        return mags[Int((0.99 * Double(mags.count - 1)).rounded(.down))] > MS2_P99_MIN ? 1 / GRAVITY_MS2 : 1
+    }
+
+    /// A car that stops talking to the recorder mid-session doesn't blank its
+    /// columns: Track Precision goes on writing every car channel as exactly 0
+    /// while the GPS keeps going, so a dropout would chart as a flat line at
+    /// 0 rpm / 0 G for the rest of the session. An engine at 0 rpm in a car
+    /// moving faster than this is that dropout, and the row's car values are
+    /// skipped — every channel, not just rpm, since they fail together.
+    public static let CAR_SILENT_MS: Double = 5
+
+    public static func carSilent(_ rpm: Double?, _ speedMs: Double?) -> Bool {
+        guard rpm == 0, let speedMs else { return false }
+        return speedMs > CAR_SILENT_MS
     }
 
     /// A column that never changes (Track Precision writes every column it knows,
@@ -197,6 +230,56 @@ public enum VBO {
         return crossings
     }
 
+    // MARK: - Car channels
+
+    /// The raw per-sample series a Track Precision file carries → the parsed
+    /// shape's `carChannels` / `lapScalarChannels` / `sessionMeta`. Shared by this
+    /// parser and the CSV one (`TrackPrecisionCsv`), which read the same car's
+    /// same channels out of a different layout, so the rules below apply to both
+    /// exports:
+    ///   - `car`: rpm, latG, longG, steering, gear, yaw in that order, already
+    ///     converted by `CAR_COLUMNS`' closure (latG a magnitude, gear 0–8)
+    ///   - `throttle`: pedal position, 0–1 or 0–100
+    ///   - `brake`: pressure, ≥ 0
+    ///   - `tires`: tyreKpaLF… in kPa, sentinels already dropped
+    ///   - `heights`: metres, or empty
+    static func finishCarChannels(
+        car: [(name: String, pts: [ChannelPoint])],
+        throttle: [ChannelPoint],
+        brake: [ChannelPoint],
+        tires: [(name: String, pts: [ChannelPoint])],
+        heights: [Double]
+    ) -> (
+        carChannels: ParsedTelemetry.CarChannels,
+        lapScalarChannels: [String: [ChannelPoint]],
+        sessionMeta: ParsedTelemetry.SessionMeta?
+    ) {
+        var carChannels = ParsedTelemetry.CarChannels()
+        for (name, pts) in car where pts.count >= 10 && varies(pts) {
+            let k = ACCEL_CHANNELS.contains(name) ? accelToG(pts) : 1
+            carChannels[name] = k == 1 ? pts : pts.map { ChannelPoint(t: $0.t, v: $0.v * k) }
+        }
+        if throttle.count >= 10 && varies(throttle) {
+            let peak = throttle.map(\.v).max()!
+            let scale: Double = peak <= 1.0001 ? 100 : 1
+            carChannels.throttle = throttle.map {
+                ChannelPoint(t: $0.t, v: min(100, max(0, $0.v * scale)))
+            }
+        }
+        if brake.count >= 10 && varies(brake) {
+            let peak = brake.map(\.v).max()!
+            carChannels.brake = brake.map { ChannelPoint(t: $0.t, v: ($0.v / peak) * 100) }
+        }
+        var lapScalarChannels: [String: [ChannelPoint]] = [:]
+        for (name, pts) in tires where pts.count >= 10 {
+            lapScalarChannels[name] = pts
+        }
+        let sessionMeta = heights.count > 10
+            ? ParsedTelemetry.SessionMeta(elevationM: heights.max()! - heights.min()!)
+            : nil
+        return (carChannels, lapScalarChannels, sessionMeta)
+    }
+
     // MARK: - Parse
 
     public static func parseVboText(_ text: String, fileName: String? = nil) throws -> ParsedTelemetry {
@@ -272,6 +355,7 @@ public enum VBO {
             var f: @Sendable (Double) -> Double
         }
         let carCols = CAR_COLUMNS.map { CarCol(name: $0.0, i: firstCol($0.1), f: $0.2) }.filter { $0.i >= 0 }
+        let iRpm = carCols.first { $0.name == "rpm" }?.i ?? -1
         let iThrottle = firstCol(THROTTLE_COLUMNS)
         let iBrake = firstCol(BRAKE_COLUMNS)
         let tyreCols = TYRE_COLUMNS.map { (name: $0.0, i: col($0.1)) }.filter { $0.i >= 0 }
@@ -305,6 +389,8 @@ public enum VBO {
                 let v = jsNumber(f[i])
                 return v.isFinite ? v : nil
             }
+            if iHeight >= 0, let v = num(iHeight) { heights.append(v) }
+            if iRpm >= 0 && carSilent(num(iRpm), points[points.count - 1].v) { continue }
             for (k, c) in carCols.enumerated() {
                 if let v = num(c.i) { car[k].append(ChannelPoint(t: t, v: c.f(v))) }
             }
@@ -319,7 +405,6 @@ public enum VBO {
                     tires[k].append(ChannelPoint(t: t, v: v * 100))
                 }
             }
-            if iHeight >= 0, let v = num(iHeight) { heights.append(v) }
         }
         if points.count < 10 {
             throw TelemetryParseError(message: "VBO file contains no usable GPS data")
@@ -332,28 +417,16 @@ public enum VBO {
             time = [h, mi, se].map { $0 < 10 ? "0\($0)" : String($0) }.joined(separator: ":")
         }
 
-        var carChannels = ParsedTelemetry.CarChannels()
-        for (k, c) in carCols.enumerated() where car[k].count >= 10 && varies(car[k]) {
-            carChannels[c.name] = car[k]
-        }
-        if throttle.count >= 10 && varies(throttle) {
-            let peak = throttle.map(\.v).max()!
-            let scale: Double = peak <= 1.0001 ? 100 : 1
-            carChannels.throttle = throttle.map {
-                ChannelPoint(t: $0.t, v: min(100, max(0, $0.v * scale)))
-            }
-        }
-        if brake.count >= 10 && varies(brake) {
-            let peak = brake.map(\.v).max()!
-            carChannels.brake = brake.map { ChannelPoint(t: $0.t, v: ($0.v / peak) * 100) }
-        }
-        var lapScalarChannels: [String: [ChannelPoint]] = [:]
-        for (k, c) in tyreCols.enumerated() where tires[k].count >= 10 {
-            lapScalarChannels[c.name] = tires[k]
-        }
-        let sessionMeta = heights.count > 10
-            ? ParsedTelemetry.SessionMeta(elevationM: heights.max()! - heights.min()!)
-            : nil
+        let finished = finishCarChannels(
+            car: carCols.enumerated().map { (name: $0.element.name, pts: car[$0.offset]) },
+            throttle: throttle,
+            brake: brake,
+            tires: tyreCols.enumerated().map { (name: $0.element.name, pts: tires[$0.offset]) },
+            heights: heights
+        )
+        let carChannels = finished.carChannels
+        let lapScalarChannels = finished.lapScalarChannels
+        let sessionMeta = finished.sessionMeta
 
         // [laptiming]: "Start <lon1> <lat1> <lon2> <lat2>" (minutes, two
         // endpoints of the start/finish line) per Racelogic, though some
