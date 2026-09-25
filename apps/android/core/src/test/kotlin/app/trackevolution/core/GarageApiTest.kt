@@ -182,7 +182,14 @@ class GarageApiTest {
         assertTrue(odometer.km > 70_000)
         assertEquals(2, odometer.readings)
         assertEquals(0, odometer.otherCar)
-        assertTrue(corvette.parts.all { it.odometer != null })
+        // Every part on the car has a span; the rear pair that has never been
+        // fitted (migration 0029) has neither a span nor a mount.
+        assertTrue(corvette.parts.filter { it.equipped == true }.all { it.odometer != null })
+        val spare = corvette.parts.single { it.equipped == false }
+        assertEquals(PartKind.TIRES_REAR, spare.kind)
+        assertEquals("275/40R17", spare.size)
+        assertTrue(spare.mounts.isEmpty())
+        assertNull(spare.odometer)
         assertNull(garage.single { it.name == "Miata" }.odometer)
     }
 

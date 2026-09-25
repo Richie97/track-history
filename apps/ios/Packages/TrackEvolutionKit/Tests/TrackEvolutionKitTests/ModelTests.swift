@@ -141,7 +141,14 @@ struct ModelTests {
         #expect(odometer.km > 70_000)
         #expect(odometer.readings == 2)
         #expect(odometer.otherCar == 0)
-        #expect(corvette.parts.allSatisfy { $0.odometer != nil })
+        // Every part on the car has a span; the rear pair that has never been
+        // fitted (migration 0029) has neither a span nor a mount.
+        #expect(corvette.parts.filter { $0.equipped == true }.allSatisfy { $0.odometer != nil })
+        let spare = try #require(corvette.parts.first { $0.equipped == false })
+        #expect(spare.kind == .tiresRear)
+        #expect(spare.size == "275/40R17")
+        #expect(spare.mounts == [])
+        #expect(spare.odometer == nil)
         #expect(garage.first { $0.name == "Miata" }?.odometer == nil)
     }
 
@@ -181,7 +188,9 @@ struct ModelTests {
     @Test func garageWearEstimateKeepsItsSourceAndNulls() throws {
         let garage = try Goldens.decode([GarageVehicle].self, "garage")
         let parts = garage.flatMap(\.parts)
-        let tires = try #require(parts.first { $0.kind == .tires })
+        let tires = try #require(parts.first { $0.kind == .tiresFront })
+        #expect(tires.size == "255/40R17")
+        #expect(tires.mounts?.first?.removedOn == nil)
         #expect(tires.wear.source == nil, "no expected life and no measurements → no projection")
         #expect(tires.wear.remainingHours == nil)
         #expect(tires.wear.pctUsed == nil)
