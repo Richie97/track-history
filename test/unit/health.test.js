@@ -36,7 +36,7 @@ import {
 } from "../../public/js/health.js";
 
 // Three laps of a warming car: oil climbing through the watch line and over
-// it, fuel draining, tyres growing, the battery sagging on the last lap.
+// it, fuel draining, tires growing, the battery sagging on the last lap.
 // `boost` is a trace, so its per-lap peak is derived; lap 2 stores no
 // coolant so the column has a hole.
 const lap1 = {
@@ -94,7 +94,7 @@ describe("scalarSeries / sessionExtreme", () => {
     expect(sessionExtreme(defFor("oilC"), scalarSeries(channels, "oilC"))).toEqual({ chIdx: 2, v: 131 });
     expect(sessionExtreme(defFor("oilKpa"), scalarSeries(channels, "oilKpa"))).toEqual({ chIdx: 2, v: 240 });
     expect(sessionExtreme(defFor("battV"), scalarSeries(channels, "battV"))).toEqual({ chIdx: 2, v: 12.4 });
-    // an end-of-lap reading's extreme is the highest, the pressure the tyre reached
+    // an end-of-lap reading's extreme is the highest, the pressure the tire reached
     expect(sessionExtreme(defFor("tyreKpaLF"), scalarSeries(channels, "tyreKpaLF"))).toEqual({ chIdx: 2, v: 216 });
     expect(sessionExtreme(defFor("oilC"), [])).toBeNull();
   });
@@ -292,8 +292,8 @@ describe("web rendering", () => {
   });
   it("renders the spread tables and the fuel line", () => {
     const spread = tyreSpreadHtml(channels, lit, label, "us");
-    expect(spread).toContain("Tyre temperature spread");
-    expect(spread).toContain("Tyre pressure spread");
+    expect(spread).toContain("Tire temperature spread");
+    expect(spread).toContain("Tire pressure spread");
     expect(spread).toContain("+25 °F"); // lap 3 LF−RF: 14 °C
     expect(SPREAD_WATCH_C).toBe(10);
     expect(spread).toContain('class="num hs-low">+25 °F');

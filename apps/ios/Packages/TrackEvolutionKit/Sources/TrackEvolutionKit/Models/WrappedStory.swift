@@ -89,7 +89,7 @@ public enum WrappedStory {
         .newTracks: "New tracks",
         .hours: "Hours behind the wheel",
         .hottest: "Hottest day",
-        .tire: "Favourite tyre",
+        .tire: "Favorite tire",
         .topSpeed: "Top speed",
         .poster: "Your season",
     ]
@@ -161,7 +161,7 @@ public enum WrappedStory {
         if let m = data.mostDriven { rows.append(["Most driven", m.trackName]) }
         if let g = data.improvement { rows.append(["Biggest improvement", "\(g.trackName), −\(fmtGain(g.gainMs))"]) }
         if let f = data.fastest { rows.append(["Fastest lap", "\(f.trackName), \(LapTime.fmtMs(f.bestMs))"]) }
-        if let tire = data.pro?.tire { rows.append(["Favourite tyre", tire.name]) }
+        if let tire = data.pro?.tire { rows.append(["Favorite tire", tire.name]) }
         let who = share ? "\(data.name.flatMap { $0.isEmpty ? nil : $0 } ?? "A driver")'s" : "My"
         return Poster(title: "\(who) \(data.year) Track Evolution", headline: headline, rows: rows)
     }

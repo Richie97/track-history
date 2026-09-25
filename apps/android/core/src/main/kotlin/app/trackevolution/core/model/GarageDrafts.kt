@@ -44,7 +44,7 @@ public data class VehiclePatch(
     val notes: Patch<String> = Patch.Unchanged,
     val isDefault: Patch<Boolean> = Patch.Unchanged,
     /**
-     * The hot tyre pressure the health strip's pressure loop aims at, in psi
+     * The hot tire pressure the health strip's pressure loop aims at, in psi
      * (5–100, rounded to a tenth server-side). `Set(null)` clears it.
      */
     val targetHotPsi: Patch<Double> = Patch.Unchanged,

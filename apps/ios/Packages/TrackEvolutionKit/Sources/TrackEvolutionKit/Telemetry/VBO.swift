@@ -55,7 +55,7 @@ public enum VBO {
     /// 0-100 brake axis PDR's pedal position uses.
     static let BRAKE_COLUMNS = ["braking", "brake", "brake pressure", "braking pressure"]
 
-    /// Tyre pressures, bar → kPa, one reading per lap (the lap-end value).
+    /// Tire pressures, bar → kPa, one reading per lap (the lap-end value).
     static let TYRE_COLUMNS: [(String, String)] = [
         ("tyreKpaLF", "tire pressure front left"),
         ("tyreKpaRF", "tire pressure front right"),
@@ -284,7 +284,7 @@ public enum VBO {
         var car: [[ChannelPoint]] = Array(repeating: [], count: carCols.count)
         var throttle: [ChannelPoint] = []
         var brake: [ChannelPoint] = []
-        var tyres: [[ChannelPoint]] = Array(repeating: [], count: tyreCols.count)
+        var tires: [[ChannelPoint]] = Array(repeating: [], count: tyreCols.count)
         var heights: [Double] = []
         var t0: Double?
         for row in sections["data"] ?? [] {
@@ -316,7 +316,7 @@ public enum VBO {
             }
             for (k, c) in tyreCols.enumerated() {
                 if let v = num(c.i), v > 0, v < MAX_TYRE_BAR {
-                    tyres[k].append(ChannelPoint(t: t, v: v * 100))
+                    tires[k].append(ChannelPoint(t: t, v: v * 100))
                 }
             }
             if iHeight >= 0, let v = num(iHeight) { heights.append(v) }
@@ -348,8 +348,8 @@ public enum VBO {
             carChannels.brake = brake.map { ChannelPoint(t: $0.t, v: ($0.v / peak) * 100) }
         }
         var lapScalarChannels: [String: [ChannelPoint]] = [:]
-        for (k, c) in tyreCols.enumerated() where tyres[k].count >= 10 {
-            lapScalarChannels[c.name] = tyres[k]
+        for (k, c) in tyreCols.enumerated() where tires[k].count >= 10 {
+            lapScalarChannels[c.name] = tires[k]
         }
         let sessionMeta = heights.count > 10
             ? ParsedTelemetry.SessionMeta(elevationM: heights.max()! - heights.min()!)

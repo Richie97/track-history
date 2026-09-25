@@ -164,7 +164,7 @@ describe("partStatus / fmtRemaining", () => {
   });
 });
 
-describe("equipping (front / rear tyres, spares)", () => {
+describe("equipping (front / rear tires, spares)", () => {
   const parts = [
     { id: 1, kind: "tires", name: "Street", equipped: false, retired_on: null },
     { id: 2, kind: "tires_front", name: "A7", size: "285/30R18", equipped: true, retired_on: null },
@@ -181,7 +181,7 @@ describe("equipping (front / rear tyres, spares)", () => {
     expect(equipSwapKinds("rotors_rear")).toEqual(["rotors_rear"]);
   });
 
-  it("treats every tyre kind as tread depth and heat cycles", () => {
+  it("treats every tire kind as tread depth and heat cycles", () => {
     expect(isTireKind("tires_rear")).toBe(true);
     expect(isTireKind("pads_rear")).toBe(false);
     expect(defaultMeasurementUnit("tires_front", "imperial")).toBe("32nds");

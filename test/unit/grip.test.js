@@ -82,7 +82,7 @@ describe("gripPoints", () => {
 describe("gripShares", () => {
   it("scores the cross at zero on both quadrants", () => {
     const sh = gripShares(cross);
-    expect(sh.loaded).toBe(6); // the two zero samples are the tyre doing nothing
+    expect(sh.loaded).toBe(6); // the two zero samples are the tire doing nothing
     expect(sh.trailBrake).toBe(0);
     expect(sh.powerDown).toBe(0);
     expect(sh.trailPct).toBe(0);
@@ -104,7 +104,7 @@ describe("gripShares", () => {
     };
     expect(gripShares(under).trailBrake).toBe(1); // only the third sample
   });
-  it("is null for a lap that never loads the tyre", () => {
+  it("is null for a lap that never loads the tire", () => {
     expect(gripShares({ latG: [0, 0.1], longG: [0, -0.1] })).toBeNull();
     expect(gripShares({ speed: [1] })).toBeNull();
     // exactly at the threshold counts as loaded

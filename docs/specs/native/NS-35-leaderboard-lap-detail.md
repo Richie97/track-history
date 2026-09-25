@@ -44,7 +44,7 @@ leaderboard and punishes the drivers who already opted in.
 | Consent | Two flags. `leaderboard_opt_in` publishes name + best time + date, unchanged. `leaderboard_share_laps` additionally publishes **that one lap**. Opting out clears both **in the same statement**, so a rejoin cannot silently re-publish. |
 | How much is reachable | **One lap per driver per catalog track** — the one the board already names. Not the session it came from, not their other laps, not the event. |
 | What it carries | Gridded channel traces, the stored racing line, lap time, date, driver display name, and the recorded ambient temperature and elevation. |
-| What it never carries | Anything user-entered — session label, notes, event, car, typed conditions, setup sheet — plus the **per-lap scalars** (oil, coolant, fuel, battery, tyre pressures and temperatures: the car's condition, not the lap) and **`meta.odometerKm`** (the car's lifetime mileage). |
+| What it never carries | Anything user-entered — session label, notes, event, car, typed conditions, setup sheet — plus the **per-lap scalars** (oil, coolant, fuel, battery, tire pressures and temperatures: the car's condition, not the lap) and **`meta.odometerKm`** (the car's lifetime mileage). |
 | Tier | The lap is **Free**, as leaderboards are. `channels` is the one Pro field, stripped exactly as on the event detail (NS-32 rule 4) — the racing line and the times are free, and a free account gets an offer under them, not instead of them. |
 | Failure mode | Every refusal is a **404**, never a 403 — a 403 confirms the lap exists. |
 | Deep links | **No.** A lap id means nothing away from the leaderboard it came from, and a link to one goes stale the moment its owner sets a faster lap or turns sharing off. |

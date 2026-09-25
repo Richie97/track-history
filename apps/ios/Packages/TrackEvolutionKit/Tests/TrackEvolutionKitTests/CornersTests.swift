@@ -70,7 +70,7 @@ struct CornersTests {
 
     @Test func segmentsTheUnionSoTheListIsOneListForTheSession() {
         // The second lap takes the first corner wider (load starts a point
-        // earlier) and never loads the tyre through the chicane.
+        // earlier) and never loads the tire through the chicane.
         let wide = LapChannels(
             n: 2, timeMs: 91_000, speed: Array(repeating: 100, count: 24),
             latG: latG.enumerated().map { k, g in k == 1 ? 0.4 : (k >= 9 && k <= 13 ? 0.1 : g) }

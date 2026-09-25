@@ -25,7 +25,7 @@ export const PART_KINDS = [
 ];
 export const partKindLabel = (kind) => (PART_KINDS.find(([k]) => k === kind) || [])[1] ?? kind;
 
-// A full set and a front or rear pair are all tyres: tread depth, heat cycles.
+// A full set and a front or rear pair are all tires: tread depth, heat cycles.
 export const isTireKind = (kind) => kind === "tires" || kind === "tires_front" || kind === "tires_rear";
 
 // Which kinds share a place on the car with `kind` — what equipping a part

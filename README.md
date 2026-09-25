@@ -594,7 +594,7 @@ byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
   fraction is scaled to %), brake (a *pressure*, stored as % of the file's
   peak), steering, lateral/longitudinal G (Track Precision's `LatAcc_PTPA` /
   `LongAcc_PTPA`, since its `latacc`/`longacc` columns are G ÷ 9.81), gear,
-  yaw, and tyre pressures (bar → kPa, the 3276.8 no-reading sentinel dropped);
+  yaw, and tire pressures (bar → kPa, the 3276.8 no-reading sentinel dropped);
   a column that never changes is treated as absent. The date comes from a
   `YYYY-MM-DD` in the file name before Track Precision's "File created at"
   line, which is the export time.
@@ -630,8 +630,8 @@ Which shape a channel gets is decided by its sample rate. A PDR file carries
 66 channels, and the ones below about 5 Hz produce one real sample every
 40–90 m, so an array on the 20 m grid would be interpolation rather than
 data. Those are stored as **one value per lap** instead — peak oil, coolant
-and transmission temperatures, minimum oil pressure, fuel level and tyre
-pressures at the lap's end, peak tyre temperatures, minimum battery voltage —
+and transmission temperatures, minimum oil pressure, fuel level and tire
+pressures at the lap's end, peak tire temperatures, minimum battery voltage —
 and four numbers describing the whole session (ambient and intake air
 temperature, the track's elevation range, and the car's own odometer reading)
 are stored alongside them. The per-lap figures are the channel panel's
@@ -690,15 +690,15 @@ and the session's stats line counts the places on track where each happened
 and stability control read zero all day with the systems switched off,
 which is normal on track, and "off" and "never needed" can't be told apart.
 Thresholds (slip above 5 % for wheelspin, below −3 % for lockup — neither
-tight, because a tyre makes force through a few percent of slip and that is
-the tyre working, not letting go) are display semantics, named constants in
+tight, because a tire makes force through a few percent of slip and that is
+the tire working, not letting go) are display semantics, named constants in
 `public/js/limits.js`, ported as `Limits` and pinned for both native clients
 by `contracts/logic/limits.json`.
 
 The same imports' `latG` and `longG` become the **friction circle** on the
 *Grip* tab. Neither channel says much alone — a longitudinal-G trace is the
 brake trace with extra steps — but plotted against each other they show how
-much of the tyre is actually being used: every 20 m sample of the highlighted
+much of the tire is actually being used: every 20 m sample of the highlighted
 laps as a point on a square axis (braking up, power down, cornering to the
 sides) over a dim envelope of the session's other laps, with a dashed
 reference arc at the session's own peak combined G. That arc is the **99th
@@ -707,7 +707,7 @@ the day. Brake in a straight line, turn, then accelerate and the points draw a
 cross; trail the brake in and feed the power out and they fill the circle —
 the empty space between the two is the lost time, and unlike a delta trace it
 says what to do differently rather than only where. Underneath, a read-out
-puts numbers on it: the share of the samples where the tyre was actually
+puts numbers on it: the share of the samples where the tire was actually
 working (0.3 G combined or more) spent cornering *while* braking and cornering
 *while* on the power, per highlighted lap and pooled for the session — two
 figures that trend across a day. Hovering a point marks that distance on every
@@ -796,7 +796,7 @@ and the lateral-G and yaw traces), and *Car* (the session health strip);
 only tabs with content render, and a session with one populated tab renders
 flat. All of it — the tabs, the ribbon, the shift points, the limit marks and
 their bands, the friction circle, the balance read-out and the Car tab's health
-strip — is on the web app and both phone apps; only the tyre-pressure loop
+strip — is on the web app and both phone apps; only the tire-pressure loop
 below stays web-only, because the setup notebook it writes to is.
 
 **Session health** ([#190](https://github.com/Richie97/track-history/issues/190),
@@ -810,7 +810,7 @@ Figures with a line worth watching (oil above ~130 °C, oil pressure below a
 floor, battery under 12.5 V, fuel running low) **shade rather than alarm**,
 using the garage's own wear vocabulary (`low` approaching, `due` past it) so
 there is no second colour scale. Two derived figures ride with it: the
-**cross-corner tyre spread** per lap — LF−RF and LR−RR, and front minus rear
+**cross-corner tire spread** per lap — LF−RF and LR−RR, and front minus rear
 — for temperatures and pressures, which is camber and balance evidence, and
 **fuel burn**, the median drop per lap and the laps left at that rate, which
 also joins the session's stats line beside any figure past its line. A
@@ -823,9 +823,9 @@ and pinned for both by `contracts/logic/health.json`; each client draws its own
 cards and their sparklines but not the per-lap table — fifteen columns is a
 desk layout, and the sparkline carries the shape in the width a phone has.
 
-The tab also closes the **tyre-pressure loop** the setup notebook opens, and
+The tab also closes the **tire-pressure loop** the setup notebook opens, and
 this half is web-only because the notebook is: the sheet records the cold
-pressures set in the morning, the import knows the hot pressures the tyres
+pressures set in the morning, the import knows the hot pressures the tires
 reached (the highest end-of-lap reading per corner), and a per-vehicle
 **target hot pressure** (`vehicles.target_hot_psi`, set right there on the
 card or from Settings) turns the two into *"LF ran 27.0 cold → 31.3 hot; start
@@ -1050,7 +1050,7 @@ doesn't retain the previous user's logbook.
 - **Vehicles** are a per-user garage (the web's **Garage** link, `#/garage`,
   NS-37 — a card per car plus a *+ Add car* tile; every account can add a car
   and open it) with a name,
-  free-text modification notes and an optional **target hot tyre pressure**
+  free-text modification notes and an optional **target hot tire pressure**
   (`target_hot_psi`, one number for all four corners — what the session health
   strip's pressure loop aims the next cold pressures at). A car can also carry
   its two spec-sheet constants, **wheelbase** (`wheelbase_mm`, whole
@@ -1145,8 +1145,8 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   given date, on the car unless the body says `equipped: false`, and
   `swap: true` takes off what's in its place — the web's Retired parts table
   has a Refresh button per row for it.
-- **Tyres front and rear, sizes, and the Equipped switch** (migration 0029) —
-  tyres can be one part for a full set (`tires`) or two, a front and a rear
+- **Tires front and rear, sizes, and the Equipped switch** (migration 0029) —
+  tires can be one part for a full set (`tires`) or two, a front and a rear
   pair (`tires_front` / `tires_rear`), so a staggered car tracks each axle's
   size, wear and replacement on its own schedule. Every part carries an
   optional free-text `size`. A part is also **equipped** or **on the shelf**:
@@ -1181,7 +1181,7 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   stores the full resolved snapshot, so diffing never chases a chain. The
   track page's "Setup vs. lap times" table (`GET /api/tracks/:id/setups`)
   shows every sheet at that track with what changed between sheets next to
-  the event's best/consistency. An imported session's hot tyre pressures can
+  the event's best/consistency. An imported session's hot tire pressures can
   be written onto the day's sheet from the channel panel's Car tab, with the
   suggested cold pressures for next time (see *Session health* above).
 - **Spend** — the vehicle page's *Spent* tile is the car's parts (every
@@ -1341,8 +1341,8 @@ A season handed back as a story (`docs/specs/native/NS-36-season-wrapped.md`),
 **web-first and free**: `#/wrapped/:year` (`#/wrapped` opens the newest year)
 is a swipe-through of full-screen cards — cover, the numbers (track days,
 tracks, laps, **track miles**), most driven, biggest improvement, fastest lap,
-new tracks, hours behind the wheel, hottest day, the two Pro cards (favourite
-tyre, top speed — drawn *locked* on a free account; see below) and a summary poster. A card
+new tracks, hours behind the wheel, hottest day, the two Pro cards (favorite
+tire, top speed — drawn *locked* on a free account; see below) and a summary poster. A card
 with no data is skipped, never drawn empty. From 1 November to 31 January the
 dashboard carries a *Your 2026 Wrapped is ready* hero (`wrappedSeason` in
 `public/js/wrapped.js`), dismissable per season. Year in review links each
@@ -1374,7 +1374,7 @@ Wrapped, which is free.
   cards locked, with the store links) and for Pro an object whose two cards are
   each null when there is no data, so *locked* and *empty* stay distinct — a
   per-field strip decided from `entitledUntil`, like `channels`, never a 402.
-  **Favourite tyre** (`favouriteTire`): for every `tires` part, the year's
+  **Favorite tire** (`favouriteTire`): for every `tires` part, the year's
   events on its vehicle inside its service window (`eventsInWindow`, the wear
   rule), summed by days; ties by hours, then the fresher set. Events reach a
   vehicle only through `events.vehicle_id`; the setup sheet's `tires_id` is not
@@ -1401,7 +1401,7 @@ Wrapped, which is free.
   `navigator.share` run inside the tap's user activation. An owner with a
   share slug also gets `/share/<slug>/wrapped/<year>`: the same story through
   the same renderer, served by `GET /api/share/:slug/wrapped/:year` with **no
-  `pro` key** (so no tyre, no top speed, nothing from the garage or channels —
+  `pro` key** (so no tire, no top speed, nothing from the garage or channels —
   pinned by `test/api/share.test.ts` against a Pro owner), and a `sharePage`
   route that swaps in the season's own OG title and description
   (`wrappedSummary`, in the owner's units). The OG *image* stays the brand card.
@@ -1450,7 +1450,7 @@ Wrapped, which is free.
   the stored racing line (local `[x, y, v]` metres, so it carries no absolute
   position), the time, the date and the recorded ambient temperature and
   elevation. Nothing user-entered is published at any setting, and the per-lap
-  scalars (oil, fuel, tyre pressures) and the car's lifetime odometer are
+  scalars (oil, fuel, tire pressures) and the car's lifetime odometer are
   excluded on purpose. Every refusal is a 404 rather than a 403, which would
   confirm the lap exists. `channels` remains the one Pro field, stripped for a
   free account exactly as it is on the event detail — the racing line and the

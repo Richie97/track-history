@@ -6,10 +6,10 @@ import TrackEvolutionKit
 ///
 /// The panel's Car tab: one card per figure the import stored — peak oil,
 /// coolant and transmission temperature, minimum oil pressure and battery, fuel
-/// and the four tyre pressures at lap end, peak tyre temperature per corner,
+/// and the four tire pressures at lap end, peak tire temperature per corner,
 /// and per-lap peak boost — carrying the session's number by that channel's own
 /// rule, a sparkline across the laps with its threshold bands shaded, and the
-/// cross-corner tyre spread and fuel outlook under them. The maths is the Kit's
+/// cross-corner tire spread and fuel outlook under them. The maths is the Kit's
 /// `Health`, pinned to the web implementation by `contracts/logic/health.json`;
 /// this file draws.
 ///
@@ -344,12 +344,12 @@ struct HealthStrip: View {
                     .teStyle(.eyebrow)
                     .foregroundStyle(Color(.textFaint))
                 if let temps, let def = Health.defFor("tyreCLF") {
-                    Text(spreadText(def, temps, "Tyre temps"))
+                    Text(spreadText(def, temps, "Tire temps"))
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
                 }
                 if let pressures, let def = Health.defFor("tyreKpaLF") {
-                    Text(spreadText(def, pressures, "Tyre pressures"))
+                    Text(spreadText(def, pressures, "Tire pressures"))
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
                 }

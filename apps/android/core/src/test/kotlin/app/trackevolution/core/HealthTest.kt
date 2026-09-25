@@ -170,7 +170,7 @@ class HealthTest {
         assertEquals(-2.0, s.deltaPsi)
         // Rounded to the sheet's half-psi step.
         assertEquals(28.5, Health.suggestCold(31.4, 36.9, 34.0)!!.suggestedPsi)
-        // A tyre that didn't grow enough wants more cold pressure, not less.
+        // A tire that didn't grow enough wants more cold pressure, not less.
         assertEquals(4.0, Health.suggestCold(30.0, 30.0, 34.0)!!.deltaPsi)
         assertNull(Health.suggestCold(null, 36.0, 34.0))
         assertNull(Health.suggestCold(31.0, 36.0, null))

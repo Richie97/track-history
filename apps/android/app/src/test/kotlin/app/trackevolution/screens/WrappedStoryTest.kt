@@ -80,8 +80,8 @@ class WrappedStoryTest {
         show(free) { asked++ }
         val cards = WrappedStory.wrappedCards(free)
         val tire = cards.indexOfFirst { it.kind == WrappedStory.Kind.TIRE }
-        compose.onNodeWithContentDescription("Card ${tire + 1}: Favourite tyre").performClick()
-        compose.onNodeWithText("FAVOURITE TYRE").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Card ${tire + 1}: Favorite tire").performClick()
+        compose.onNodeWithText("FAVORITE TIRE").assertIsDisplayed()
         compose.onNodeWithTag("wrappedProUpsell").performClick()
         assertEquals(1, asked)
     }

@@ -1138,7 +1138,7 @@ final class VehicleModel {
         }
     }
 
-    /// On the car right now, in the car's own order (pads, tyres, rotors,
+    /// On the car right now, in the car's own order (pads, tires, rotors,
     /// fluids) — `onCarParts` in `public/app.js`. A spare isn't wearing, so it
     /// is neither here nor in the alerts until it goes back on.
     var activeParts: [Part] { Garage.sortedByKind((garageVehicle?.parts ?? []).filter(Garage.isOnCar)) }
@@ -1243,7 +1243,7 @@ final class VehicleModel {
 
 // MARK: - The car itself
 
-/// Edit the car: its name, its modifications and notes, the hot tyre pressure the
+/// Edit the car: its name, its modifications and notes, the hot tire pressure the
 /// health strip's pressure loop aims at, whether new events start on it, and —
 /// #208 / #222 — its two spec-sheet numbers, picked from the car catalog or
 /// typed. `viewVehicle`'s `#veh-form` in `public/app.js` is the reference.

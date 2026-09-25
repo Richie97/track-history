@@ -136,7 +136,7 @@ struct HealthTests {
         #expect(s.deltaPsi == -2)
         // Rounded to the sheet's half-psi step.
         #expect(try #require(Health.suggestCold(31.4, 36.9, 34)).suggestedPsi == 28.5)
-        // A tyre that didn't grow enough wants more cold pressure, not less.
+        // A tire that didn't grow enough wants more cold pressure, not less.
         #expect(try #require(Health.suggestCold(30, 30, 34)).deltaPsi == 4)
         #expect(Health.suggestCold(nil, 36, 34) == nil)
         #expect(Health.suggestCold(31, 36, nil) == nil)

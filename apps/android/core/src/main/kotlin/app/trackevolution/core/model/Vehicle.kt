@@ -38,7 +38,7 @@ public data class Vehicle(
     @Serializable(with = IntAsBooleanSerializer::class)
     val isDefault: Boolean,
     /**
-     * The target hot tyre pressure (psi, all four corners) the web app's
+     * The target hot tire pressure (psi, all four corners) the web app's
      * pressure loop aims the next cold pressures at (#190). Set on the web,
      * decoded here so the response stays pinned; nothing native reads it yet.
      */
@@ -114,7 +114,7 @@ public value class PartKind(public val rawValue: String) {
     public companion object {
         public val PADS_FRONT: PartKind = PartKind("pads_front")
         public val PADS_REAR: PartKind = PartKind("pads_rear")
-        /** A full set — all four corners the same tyre. */
+        /** A full set — all four corners the same tire. */
         public val TIRES: PartKind = PartKind("tires")
         /** A front or rear pair, for a staggered car (its own size and wear). */
         public val TIRES_FRONT: PartKind = PartKind("tires_front")
@@ -221,7 +221,7 @@ public data class WearEstimate(
     /** Accrued on-track hours in the part's service window. */
     val hours: Double,
     val events: Int,
-    /** Event-days in the window ≈ heat cycles for tyres. */
+    /** Event-days in the window ≈ heat cycles for tires. */
     val cycles: Int,
     @SerialName("expected_hours") val expectedHours: Double? = null,
     @SerialName("remaining_hours") val remainingHours: Double? = null,

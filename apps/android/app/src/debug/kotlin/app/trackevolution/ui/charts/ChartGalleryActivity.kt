@@ -228,7 +228,7 @@ private val gallerySession = SessionChannels(
                 if (k % 37 == 18) 0.0 else (2 + (wave * 3).toInt()).toDouble()
             },
             // The per-lap scalars the Car tab reads (#190): oil climbing past its
-            // line by the last lap, fuel draining, and a tyre spread that is a
+            // line by the last lap, fuel draining, and a tire spread that is a
             // camber question rather than noise.
             oilC = 112 + n * 6.0,
             oilKpa = 330 - n * 30.0,

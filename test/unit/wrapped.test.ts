@@ -331,11 +331,11 @@ describe("wrappedSummary — the link preview", () => {
   });
 });
 
-describe("favourite tyre (Pro)", () => {
+describe("favorite tire (Pro)", () => {
   const part = (o: Partial<TirePart> & { id: number }): TirePart => ({
     vehicle_id: 1,
     vehicle_name: "Corvette",
-    name: `Tyre ${o.id}`,
+    name: `Tire ${o.id}`,
     installed_on: "2026-01-01",
     retired_on: null,
     ...o,
@@ -348,7 +348,7 @@ describe("favourite tyre (Pro)", () => {
     ...o,
   });
 
-  it("is the tyre with the most track days inside its service window", () => {
+  it("is the tire with the most track days inside its service window", () => {
     const tire = favouriteTire(
       [
         part({ id: 1, name: "Falken RT660", installed_on: "2026-01-01", retired_on: "2026-05-31" }),
@@ -366,7 +366,7 @@ describe("favourite tyre (Pro)", () => {
     expect(tire).toEqual({ part_id: 2, vehicle_id: 1, vehicle_name: "Corvette", name: "Continental ExtremeContact Force", track_days: 3, hours: 6 });
   });
 
-  it("counts only the year's events, only on the tyre's own car, and none still to come", () => {
+  it("counts only the year's events, only on the tire's own car, and none still to come", () => {
     const tire = favouriteTire(
       [part({ id: 1, installed_on: "2024-01-01" }), part({ id: 2, vehicle_id: 2, installed_on: "2026-01-01" })],
       [
@@ -396,7 +396,7 @@ describe("favourite tyre (Pro)", () => {
     expect(fresher!.part_id).toBe(2);
   });
 
-  it("is null when no tyre saw a track day", () => {
+  it("is null when no tire saw a track day", () => {
     expect(favouriteTire([part({ id: 1, installed_on: "2026-09-01" })], [vev({ start_date: "2026-05-01" })], 2026, TODAY)).toBeNull();
     expect(favouriteTire([], [vev({ start_date: "2026-05-01" })], 2026, TODAY)).toBeNull();
   });

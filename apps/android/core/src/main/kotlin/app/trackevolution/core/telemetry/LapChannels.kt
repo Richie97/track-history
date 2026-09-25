@@ -85,7 +85,7 @@ public object TelemetryChannels {
         MIN,
 
         /**
-         * The value as the lap finished — what you want for a tyre pressure or a
+         * The value as the lap finished — what you want for a tire pressure or a
          * fuel level, and not what you want for an oil temperature.
          */
         END,

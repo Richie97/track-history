@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createEvent, signedInProUser } from "./helpers";
 
 // Equip / unequip (migration 0029): a part accrues wear only while it's on the
-// car, a front and a rear pair of tyres are separate parts with their own
+// car, a front and a rear pair of tires are separate parts with their own
 // sizes, and equipping one takes off whatever shares its place.
 
 async function garageUser() {
@@ -15,7 +15,7 @@ async function garageUser() {
 const partOf = async (api: Awaited<ReturnType<typeof garageUser>>["api"], id: number) =>
   (await api("GET", "/garage")).body[0].parts.find((p: { id: number }) => p.id === id);
 
-describe("part sizes and front / rear tyres", () => {
+describe("part sizes and front / rear tires", () => {
   it("stores a size on a front and a rear pair and trims it", async () => {
     const { api, vehicleId } = await garageUser();
     const front = await api("POST", `/vehicles/${vehicleId}/parts`, {

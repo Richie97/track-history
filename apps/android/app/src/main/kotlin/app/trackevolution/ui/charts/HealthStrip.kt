@@ -62,10 +62,10 @@ private val UNITS: Health.Units
  *
  * The panel's Car tab: one card per figure the import stored — peak oil,
  * coolant and transmission temperature, minimum oil pressure and battery, fuel
- * and the four tyre pressures at lap end, peak tyre temperature per corner, and
+ * and the four tire pressures at lap end, peak tire temperature per corner, and
  * per-lap peak boost — carrying the session's number by that channel's own
  * rule, a sparkline across the laps with its threshold bands shaded, and the
- * cross-corner tyre spread and fuel outlook under them. The maths is `Health`
+ * cross-corner tire spread and fuel outlook under them. The maths is `Health`
  * in `:core`, pinned to the web implementation by `contracts/logic/health.json`;
  * this file draws.
  *
@@ -341,7 +341,7 @@ private fun SpreadLines(channels: SessionChannels) {
         temps?.let { spread ->
             Health.defFor("tyreCLF")?.let {
                 Text(
-                    text(it, spread, "Tyre temps"),
+                    text(it, spread, "Tire temps"),
                     style = TrackTheme.typography.xs,
                     color = colors.textMuted,
                 )
@@ -350,7 +350,7 @@ private fun SpreadLines(channels: SessionChannels) {
         pressures?.let { spread ->
             Health.defFor("tyreKpaLF")?.let {
                 Text(
-                    text(it, spread, "Tyre pressures"),
+                    text(it, spread, "Tire pressures"),
                     style = TrackTheme.typography.xs,
                     color = colors.textMuted,
                 )

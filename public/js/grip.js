@@ -6,7 +6,7 @@
 // draw the one picture in amateur telemetry that says what to do differently
 // rather than only where the time went.
 //
-// The tyre has one grip budget, spent in any direction. Brake in a straight
+// The tire has one grip budget, spent in any direction. Brake in a straight
 // line, release, turn, then accelerate and the samples draw a cross: full
 // braking at the top, full cornering at the sides, nothing in between.
 // Trail the brake into the corner and feed the throttle out of it and the
@@ -35,9 +35,9 @@
 import { esc } from "./format.js";
 import { currentUnits, fmtDist as fmtDistIn } from "./units.js";
 
-// Combined G below this is the car coasting, not the tyre working. It is the
+// Combined G below this is the car coasting, not the tire working. It is the
 // denominator of the read-out: "of the time you were actually using the
-// tyre, how much of it was combined" is the question that trends across a
+// tire, how much of it was combined" is the question that trends across a
 // day, and one long straight would otherwise decide the answer.
 export const MIN_LOAD_G = 0.3;
 
@@ -298,7 +298,7 @@ export function gripReadoutHtml(channels, lit, labelFor) {
       <thead><tr><th></th><th class="num">Braking + cornering</th><th class="num">Cornering + power</th></tr></thead>
       <tbody>${body}${all}</tbody>
     </table></div>
-    <div class="hint">Share of the samples where the tyre was working (${fmtG(MIN_LOAD_G)} G combined or more) spent doing two things at once. A driver who brakes straight, turns, then accelerates scores low on both — the gap between that cross and the arc is time.</div>`;
+    <div class="hint">Share of the samples where the tire was working (${fmtG(MIN_LOAD_G)} G combined or more) spent doing two things at once. A driver who brakes straight, turns, then accelerates scores low on both — the gap between that cross and the arc is time.</div>`;
 }
 
 // The whole Grip-tab card: the scatter plus its read-out. Returns "" when the
@@ -308,7 +308,7 @@ export function gripCircleHtml(channels, lit, labelFor) {
   const svg = frictionCircleSvg(channels, lit, labelFor);
   if (!svg) return "";
   return `<div class="ch-grip">
-    <div class="sec-head">Friction circle <span class="hint">— how much of the tyre is actually being used. 20 m samples, so this is the shape of grip usage, not peak G.</span></div>
+    <div class="sec-head">Friction circle <span class="hint">— how much of the tire is actually being used. 20 m samples, so this is the shape of grip usage, not peak G.</span></div>
     <div class="grip-plot">${svg}</div>
     ${gripReadoutHtml(channels, lit, labelFor)}
   </div>`;

@@ -2188,7 +2188,7 @@ async function viewEvent(eventId) {
       // container rather than a slot on the distance axis — followed by the
       // balance scatter and per-corner table (#189), above the lateral-G and
       // yaw traces, and on Car the health strip (#190): the per-lap scalars
-      // as small multiples, the tyre spread, the pressure loop and the
+      // as small multiples, the tire spread, the pressure loop and the
       // per-lap table.
       renderExtras: (lit, dispN) => ({
         time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
@@ -3070,7 +3070,7 @@ async function viewVehicle(vehicleId) {
   const initialPick = v.catalog_id == null ? null : carCatalog.find((r) => r.id === v.catalog_id) ?? null;
   // On the car, on the shelf (a spare set, the street pads — off the car but
   // not thrown away), and retired. Cards read in the car's own order — pads,
-  // tyres front then rear, rotors, fluids — rather than by install date.
+  // tires front then rear, rotors, fluids — rather than by install date.
   const kindOrder = (p) => PART_KINDS.findIndex(([k]) => k === p.kind);
   const byKind = (a, b) => kindOrder(a) - kindOrder(b) || b.installed_on.localeCompare(a.installed_on);
   const active = pro ? onCarParts(v.parts).sort(byKind) : [];

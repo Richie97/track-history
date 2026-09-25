@@ -32,9 +32,9 @@ const clearDefault = (db: D1Database, userId: number) =>
 
 const normNotes = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
 
-// The target hot tyre pressure (psi, all four corners) the session health
+// The target hot tire pressure (psi, all four corners) the session health
 // strip's pressure loop aims the next cold pressures at (#190). null clears
-// it; a value outside what a road or race tyre ever runs is rejected.
+// it; a value outside what a road or race tire ever runs is rejected.
 // Returns undefined for an invalid value.
 const normTargetPsi = (v: unknown): number | null | undefined => {
   if (v == null) return null;
@@ -370,7 +370,7 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
       // What the car has cost (#147), in cents: its past track days' entered
       // costs (the same events the hours accrue from — an upcoming one isn't
       // spent yet, on the same rule) and every part ever fitted, retired ones
-      // included, since a season's real cost includes the tyres it consumed.
+      // included, since a season's real cost includes the tires it consumed.
       // Zero rather than null when nothing was entered: these are sums.
       event_cost_cents: events.reduce((sum, e) => sum + (eventCostCents(e) ?? 0), 0),
       parts_cost_cents: parts.reduce((sum, p) => sum + (p.cost_cents ?? 0), 0),
@@ -674,7 +674,7 @@ async function ownedPartMounts(db: D1Database, userId: number, id: string) {
 
 // The equip switch (migration 0029): put a part that's on the shelf back on
 // the car as of `on` (default today), taking off whatever shares its place —
-// the other set of tyres, the other pads — as of the same day. Swapped parts
+// the other set of tires, the other pads — as of the same day. Swapped parts
 // go to the shelf, not to retirement: their wear stops and resumes when they
 // go back on. Answers the ids it took off so a client can say so.
 vehicles.post("/parts/:id/equip", requireEntitlement, async (c) => {

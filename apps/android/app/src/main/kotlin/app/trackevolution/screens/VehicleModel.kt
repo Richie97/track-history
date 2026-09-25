@@ -190,7 +190,7 @@ class VehicleModel(
     // ---- Derived ------------------------------------------------------------
 
     /**
-     * On the car right now, in the car's own order (pads, tyres, rotors,
+     * On the car right now, in the car's own order (pads, tires, rotors,
      * fluids) — `onCarParts` in `public/app.js`. A spare on the shelf isn't
      * wearing, so it is neither here nor in [alerts] until it goes back on.
      */

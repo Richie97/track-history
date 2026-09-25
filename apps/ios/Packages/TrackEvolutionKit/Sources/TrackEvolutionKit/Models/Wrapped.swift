@@ -136,7 +136,7 @@ public struct WrappedPro: Codable, Hashable, Sendable {
     }
 }
 
-/// The tyre with the most track days on it this year (garage consumables).
+/// The tire with the most track days on it this year (garage consumables).
 public struct WrappedTire: Codable, Hashable, Sendable {
     public var partId: Int
     public var vehicleId: Int

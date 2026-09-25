@@ -211,7 +211,7 @@ Features added after the rewrite shipped, and where they landed:
   fourteen per-lap scalars plus per-lap peak boost as small multiples (a card
   per figure with the session's number by that channel's own rule and a
   sparkline across the laps), threshold shading in the garage's wear
-  vocabulary rather than alarms, the cross-corner tyre spread per lap, fuel
+  vocabulary rather than alarms, the cross-corner tire spread per lap, fuel
   burn and laps remaining, and a per-lap table; the stats line names any
   figure past its line and the fuel outlook. The pure half is
   `public/js/health.js`, ported as `Health` to the Kit
@@ -236,7 +236,7 @@ Features added after the rewrite shipped, and where they landed:
   lines; and values stay in the stored units (°C, kPa) with display
   conversion a separate step, so the fixture pins numbers rather than a
   locale — the web shows °F and psi, the phones may choose. The
-  **tyre-pressure loop** — the sheet's cold pressures, the import's hot ones
+  **tire-pressure loop** — the sheet's cold pressures, the import's hot ones
   and a per-vehicle target (`vehicles.target_hot_psi`, the one schema change)
   becoming the cold pressure to start from next time, recorded onto the day's
   sheet with a *next time* note that copies forward — stays web-only because
@@ -433,16 +433,16 @@ Features added after the rewrite shipped, and where they landed:
 - **Season Wrapped** (2026-09, [NS-36](NS-36-season-wrapped.md)) —
   **web-first, server-computed.** Year in review as a story: full-screen cards
   for the season's numbers, the most-driven track, the biggest improvement,
-  the fastest lap and the favourite tyre, ending on a poster the driver can
+  the fastest lap and the favorite tire, ending on a poster the driver can
   share as an image, with a dashboard hero from 1 November to 31 January. Web
   first by the frontier rule, and portrait-first because the link is opened on
   a phone. The two new stats — **track miles** (`track_catalog.length_m`,
   migration 0026, with the driver's own telemetry as the fallback) and the
-  **favourite tyre** (the garage's `eventsInWindow` rule) — are computed in
+  **favorite tire** (the garage's `eventsInWindow` rule) — are computed in
   `src/lib/wrapped.ts` behind `GET /api/wrapped/:year`, not on the client like
   `year-review.js`, because they need the catalog and every session's channel
   blob. That choice is what makes a native Wrapped next year an endpoint plus a
-  screen rather than a port. The story and the share are **Free**; the tyre
+  screen rather than a port. The story and the share are **Free**; the tire
   and top-speed cards are **Pro** and draw locked on a free account. A link-out
   from the phone apps was considered and refused: bearer-authenticated apps
   cannot hand a signed-in session to the phone's browser, so the link would
@@ -493,7 +493,7 @@ Features added after the rewrite shipped, and where they landed:
   drops a cost the web entered, and neither phone shows one yet. Costs are
   private: `GET /api/share/:slug` strips the line items and the total like
   notes.
-- **Front / rear tyres, part sizes and the Equipped switch** (2026-09,
+- **Front / rear tires, part sizes and the Equipped switch** (2026-09,
   migration 0029) — **all three**. The server gained `tires_front` /
   `tires_rear` part kinds, a free-text `parts.size`, and `part_mounts` — the
   stretches a part was on the car, which the wear math now accrues over — with
@@ -509,7 +509,7 @@ Features added after the rewrite shipped, and where they landed:
   sentences and the swap choice are `Garage.equipSwapKinds` / `equipSwapsOff`
   / `partTitle` / `equipNote` / `addSwapNote` in the Kit and `:core`, the first
   three pinned by `contracts/logic/garage-status.json`. The setup sheet's two
-  new tyre refs (`tires_f_id` / `tires_r_id`) stay with the notebook, web-only.
+  new tire refs (`tires_f_id` / `tires_r_id`) stay with the notebook, web-only.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **AI assistants over MCP** (2026-09, epic

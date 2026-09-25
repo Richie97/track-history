@@ -2,7 +2,7 @@
 //
 // Every PDR import stores fourteen numbers per lap that are not lap-time data
 // — peak oil / coolant / transmission temperature, minimum oil pressure, fuel
-// and the four tyre pressures as the lap ended, peak tyre temperature on each
+// and the four tire pressures as the lap ended, peak tire temperature on each
 // corner, minimum battery voltage (SCALAR_NAMES in js/import/channels.js) —
 // plus a `boost` trace whose per-lap peak is a heat-soak signal rather than a
 // driving one. They answer "is the car okay, and is it set up right", which
@@ -11,7 +11,7 @@
 // Three rules shape everything here.
 //
 // **The reduction is the importer's, never re-derived.** A stored `oilC` is
-// the lap's peak, `oilKpa` its minimum, a tyre pressure the value as the lap
+// the lap's peak, `oilKpa` its minimum, a tire pressure the value as the lap
 // finished; HEALTH_DEFS restates each rule only so the view can *say* it
 // ("peak", "min", "at lap end"). Boost is the one figure not stored as a
 // scalar — it is a gridded trace — so its per-lap peak is derived here, and
@@ -25,7 +25,7 @@
 // tuned for the cars this app sees; a figure with no line has no status.
 //
 // **Cross-corner spread is the figure that matters.** LF−RF and front−rear
-// tyre-temperature deltas are camber and balance evidence, and they are what
+// tire-temperature deltas are camber and balance evidence, and they are what
 // a setup change is judged by; `tyreSpread` is that reduction and the
 // pressure-loop below is the action it leads to: given the setup sheet's cold
 // pressures, the import's hot pressures and a target hot pressure per
@@ -51,16 +51,16 @@ export const HEALTH_DEFS = [
   { key: "oilC", label: "Oil temp", group: "temps", unit: "°C", reduce: "max", watch: 120, over: 130 },
   { key: "coolantC", label: "Coolant", group: "temps", unit: "°C", reduce: "max", watch: 110, over: 120 },
   { key: "transC", label: "Transmission", group: "temps", unit: "°C", reduce: "max", watch: 110, over: 125 },
-  { key: "tyreCLF", label: "Tyre LF", group: "temps", unit: "°C", reduce: "max" },
-  { key: "tyreCRF", label: "Tyre RF", group: "temps", unit: "°C", reduce: "max" },
-  { key: "tyreCLR", label: "Tyre LR", group: "temps", unit: "°C", reduce: "max" },
-  { key: "tyreCRR", label: "Tyre RR", group: "temps", unit: "°C", reduce: "max" },
+  { key: "tyreCLF", label: "Tire LF", group: "temps", unit: "°C", reduce: "max" },
+  { key: "tyreCRF", label: "Tire RF", group: "temps", unit: "°C", reduce: "max" },
+  { key: "tyreCLR", label: "Tire LR", group: "temps", unit: "°C", reduce: "max" },
+  { key: "tyreCRR", label: "Tire RR", group: "temps", unit: "°C", reduce: "max" },
   { key: "oilKpa", label: "Oil pressure", group: "pressures", unit: "kPa", reduce: "min", low: true, watch: 200, over: 120 },
   { key: "boost", label: "Boost", group: "pressures", unit: "kPa", reduce: "max", derived: true },
-  { key: "tyreKpaLF", label: "Tyre LF", group: "pressures", unit: "kPa", reduce: "end" },
-  { key: "tyreKpaRF", label: "Tyre RF", group: "pressures", unit: "kPa", reduce: "end" },
-  { key: "tyreKpaLR", label: "Tyre LR", group: "pressures", unit: "kPa", reduce: "end" },
-  { key: "tyreKpaRR", label: "Tyre RR", group: "pressures", unit: "kPa", reduce: "end" },
+  { key: "tyreKpaLF", label: "Tire LF", group: "pressures", unit: "kPa", reduce: "end" },
+  { key: "tyreKpaRF", label: "Tire RF", group: "pressures", unit: "kPa", reduce: "end" },
+  { key: "tyreKpaLR", label: "Tire LR", group: "pressures", unit: "kPa", reduce: "end" },
+  { key: "tyreKpaRR", label: "Tire RR", group: "pressures", unit: "kPa", reduce: "end" },
   { key: "fuelPct", label: "Fuel", group: "electrical", unit: "%", reduce: "end", low: true, watch: 20, over: 10 },
   { key: "battV", label: "Battery", group: "electrical", unit: "V", reduce: "min", low: true, watch: 13, over: 12.5 },
 ];
@@ -236,8 +236,8 @@ export function fuelBurn(channels) {
   };
 }
 
-// Hot tyre pressures for the session, per corner: the highest end-of-lap
-// reading (the pressure the tyre reached) with the lap it came from, and the
+// Hot tire pressures for the session, per corner: the highest end-of-lap
+// reading (the pressure the tire reached) with the lap it came from, and the
 // last lap's reading. kPa, as stored. null when no lap stored any corner.
 export function hotPressures(channels) {
   const out = {};
@@ -255,7 +255,7 @@ export function hotPressures(channels) {
 // Round to the setup sheet's own step.
 export const roundPsi = (psi) => Math.round(psi / PSI_STEP) * PSI_STEP;
 
-// The one arithmetic the loop rests on: a tyre that grew from `cold` to `hot`
+// The one arithmetic the loop rests on: a tire that grew from `cold` to `hot`
 // gains the same amount next time, so to land on `target` hot, start from
 // cold minus the overshoot. Rounded to the sheet's step. null unless all
 // three are known.
@@ -492,8 +492,8 @@ export function healthTableHtml(channels, lit, labelFor, units = "us") {
 // corners exist; positive is left or front hotter / higher.
 export function tyreSpreadHtml(channels, lit, labelFor, units = "us") {
   const kinds = [
-    ["tyreC", "Tyre temperature spread", defFor("tyreCLF")],
-    ["tyreKpa", "Tyre pressure spread", defFor("tyreKpaLF")],
+    ["tyreC", "Tire temperature spread", defFor("tyreCLF")],
+    ["tyreKpa", "Tire pressure spread", defFor("tyreKpaLF")],
   ]
     .map(([kind, label, def]) => ({ kind, label, def, rows: sessionSpread(channels, kind) }))
     .filter((k) => k.rows.length);
@@ -607,7 +607,7 @@ export function pressureLoopHtml(ctx, labelFor) {
         }.</span>`
     : "";
   return `<div class="health-loop">
-    <div class="sec-head">Tyre pressures vs your setup sheet ${daySel}<span class="hint">— cold from the sheet, hot from the import (the highest end-of-lap reading), and the cold pressure to start from next time to land on target.</span></div>
+    <div class="sec-head">Tire pressures vs your setup sheet ${daySel}<span class="hint">— cold from the sheet, hot from the import (the highest end-of-lap reading), and the cold pressure to start from next time to land on target.</span></div>
     <div class="table-wrap"><table>
       <thead><tr><th></th><th class="num">Cold (sheet)</th><th class="num">Hot (import)</th><th class="num">Target hot</th><th class="num">Next cold</th></tr></thead>
       <tbody>${rows}</tbody>

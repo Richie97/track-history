@@ -10,7 +10,7 @@ import Foundation
 /// Neither says much alone — a longitudinal-G trace is the brake trace with
 /// extra steps — but plotted against each other they draw the one picture in
 /// amateur telemetry that says what to do differently rather than only where
-/// the time went. The tyre has one grip budget, spent in any direction: brake
+/// the time went. The tire has one grip budget, spent in any direction: brake
 /// in a straight line, release, turn, then accelerate and the samples draw a
 /// cross; trail the brake into the corner and feed the throttle out of it and
 /// they fill the circle. The empty space between the two is the lost time.
@@ -31,9 +31,9 @@ import Foundation
 /// grip usage rather than peak G. The peaks are the session's max lateral and
 /// braking G, taken from the full-rate series at import.
 public enum Grip {
-    /// Combined G below this is the car coasting, not the tyre working. It is
+    /// Combined G below this is the car coasting, not the tire working. It is
     /// the denominator of the read-out: "of the time you were actually using the
-    /// tyre, how much of it was combined" is the question that trends across a
+    /// tire, how much of it was combined" is the question that trends across a
     /// day, and one long straight would otherwise decide the answer.
     public static let MIN_LOAD_G: Double = 0.3
 

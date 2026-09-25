@@ -78,7 +78,7 @@ struct GripTests {
 
     @Test func scoresTheCrossAtZeroOnBothQuadrants() throws {
         let sh = try #require(Grip.gripShares(cross))
-        #expect(sh.loaded == 6) // the two zero samples are the tyre doing nothing
+        #expect(sh.loaded == 6) // the two zero samples are the tire doing nothing
         #expect(sh.trailBrake == 0)
         #expect(sh.powerDown == 0)
         #expect(sh.trailPct == 0)

@@ -211,7 +211,7 @@ export const isValidDate = (v: unknown): v is string =>
 export const PART_KINDS = [
   "pads_front",
   "pads_rear",
-  "tires", // a full set, when all four corners are the same tyre
+  "tires", // a full set, when all four corners are the same tire
   "tires_front", // a front pair — its own size, wear and replacement
   "tires_rear",
   "rotors_front",

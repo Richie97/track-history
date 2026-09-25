@@ -78,7 +78,7 @@ export function eventsInWindow<E extends HoursEvent>(
 
 // Which kinds share a place on the car with `kind`: equipping a part takes the
 // equipped parts of these kinds off (POST /parts/:id/equip). A full set of
-// tyres and a front or rear pair occupy the same corners, so each swaps the
+// tires and a front or rear pair occupy the same corners, so each swaps the
 // other; "other" is anything at all and swaps nothing. Mirrored by
 // equipSwapKinds in public/js/garage.js — keep the two in step.
 export function equipSwapKinds(kind: string): string[] {

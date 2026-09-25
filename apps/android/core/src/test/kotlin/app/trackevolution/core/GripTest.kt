@@ -105,7 +105,7 @@ class GripTest {
     @Test
     fun `scores the cross at zero on both quadrants`() {
         val sh = requireNotNull(Grip.gripShares(cross))
-        assertEquals(6, sh.loaded) // the two zero samples are the tyre doing nothing
+        assertEquals(6, sh.loaded) // the two zero samples are the tire doing nothing
         assertEquals(0, sh.trailBrake)
         assertEquals(0, sh.powerDown)
         assertEquals(0.0, sh.trailPct, 1e-12)
@@ -135,7 +135,7 @@ class GripTest {
     }
 
     @Test
-    fun `is null for a lap that never loads the tyre`() {
+    fun `is null for a lap that never loads the tire`() {
         assertNull(Grip.gripShares(LapChannels(n = 1, timeMs = 0, latG = listOf(0.0, 0.1), longG = listOf(0.0, -0.1))))
         assertNull(Grip.gripShares(LapChannels(n = 1, timeMs = 0, speed = listOf(1.0))))
         // exactly at the threshold counts as loaded

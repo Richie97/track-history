@@ -47,7 +47,7 @@ const THROTTLE_COLUMNS = ["pedal", "throttle", "throttle position", "accelerator
 // 0-100 brake axis PDR's pedal position uses.
 const BRAKE_COLUMNS = ["braking", "brake", "brake pressure", "braking pressure"];
 
-// Tyre pressures, bar -> kPa, one reading per lap (the lap-end value).
+// Tire pressures, bar -> kPa, one reading per lap (the lap-end value).
 const TYRE_COLUMNS = [
   ["tyreKpaLF", "tire pressure front left"],
   ["tyreKpaRF", "tire pressure front right"],
@@ -219,7 +219,7 @@ export function parseVboText(text, fileName = null) {
   const car = Object.fromEntries(carCols.map((c) => [c.name, []]));
   const throttle = [];
   const brake = [];
-  const tyres = Object.fromEntries(tyreCols.map((c) => [c.name, []]));
+  const tires = Object.fromEntries(tyreCols.map((c) => [c.name, []]));
   const heights = [];
   let t0 = null;
   for (const row of sections["data"] ?? []) {
@@ -253,7 +253,7 @@ export function parseVboText(text, fileName = null) {
     }
     for (const c of tyreCols) {
       const v = num(c.i);
-      if (v != null && v > 0 && v < MAX_TYRE_BAR) tyres[c.name].push({ t, v: v * 100 });
+      if (v != null && v > 0 && v < MAX_TYRE_BAR) tires[c.name].push({ t, v: v * 100 });
     }
     if (iHeight >= 0) {
       const v = num(iHeight);
@@ -281,7 +281,7 @@ export function parseVboText(text, fileName = null) {
     carChannels.brake = brake.map((p) => ({ t: p.t, v: (p.v / peak) * 100 }));
   }
   const lapScalarChannels = {};
-  for (const [name, pts] of Object.entries(tyres)) if (pts.length >= 10) lapScalarChannels[name] = pts;
+  for (const [name, pts] of Object.entries(tires)) if (pts.length >= 10) lapScalarChannels[name] = pts;
   const sessionMeta =
     heights.length > 10 ? { elevationM: Math.max(...heights) - Math.min(...heights) } : null;
 

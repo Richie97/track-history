@@ -94,7 +94,7 @@ struct WearStatusLine: View {
     static func text(_ part: Part) -> String {
         let wear = part.wear
         var bits = ["\(Garage.fmtHours(wear.hours)) on part"]
-        // Tyres wear by heat cycle more than by hour, so they count days; anything
+        // Tires wear by heat cycle more than by hour, so they count days; anything
         // else counts events, which is what a pad's life is spoken about in.
         if part.kind.isTire {
             bits.append("\(fmtCount(wear.cycles, "heat cycle"))")

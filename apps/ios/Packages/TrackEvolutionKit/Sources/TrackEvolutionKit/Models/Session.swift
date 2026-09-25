@@ -174,12 +174,12 @@ public struct LapChannels: Codable, Hashable, Sendable {
     /// Fuel level as the lap finished, %.
     public var fuelPct: Double?
     public var battV: Double?
-    /// Tyre pressures as the lap finished, kPa.
+    /// Tire pressures as the lap finished, kPa.
     public var tyreKpaLF: Double?
     public var tyreKpaRF: Double?
     public var tyreKpaLR: Double?
     public var tyreKpaRR: Double?
-    /// Peak tyre temperatures during the lap, °C.
+    /// Peak tire temperatures during the lap, °C.
     public var tyreCLF: Double?
     public var tyreCRF: Double?
     public var tyreCLR: Double?

@@ -223,7 +223,7 @@ public object Garage {
     public fun isSpare(part: Part): Boolean = part.retiredOn == null && part.equipped == false
 
     /**
-     * Parts in the car's own order — pads, tyres full set then front then
+     * Parts in the car's own order — pads, tires full set then front then
      * rear, rotors, fluids — newest first within a kind, as the web page
      * lists them. A kind the client doesn't know sorts first, like the JS's
      * `findIndex` of -1.

@@ -32,7 +32,7 @@ describe("limitAt / hasLimitData", () => {
     expect(limitAt(lap, "vsc", 9)).toBe(false);
     expect(limitAt(lap, "wheelspin", 10)).toBe(true);
     expect(limitAt(lap, "wheelspin", 8)).toBe(false); // 0.5 % is noise
-    expect(limitAt(lap, "wheelspin", 11)).toBe(false); // 4.5 % is a tyre working, not spinning
+    expect(limitAt(lap, "wheelspin", 11)).toBe(false); // 4.5 % is a tire working, not spinning
     expect(limitAt({ wheelSlip: [WHEELSPIN_PCT] }, "wheelspin", 0)).toBe(false); // strictly above
     expect(limitAt({ wheelSlip: [LOCKUP_PCT] }, "lockup", 0)).toBe(false); // strictly below
     expect(limitAt(lap, "lockup", 3)).toBe(true);

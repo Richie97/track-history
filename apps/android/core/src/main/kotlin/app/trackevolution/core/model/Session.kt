@@ -175,12 +175,12 @@ public data class LapChannels(
     /** Fuel level as the lap finished, percent. */
     val fuelPct: Double? = null,
     val battV: Double? = null,
-    /** Tyre pressures as the lap finished, kPa. */
+    /** Tire pressures as the lap finished, kPa. */
     val tyreKpaLF: Double? = null,
     val tyreKpaRF: Double? = null,
     val tyreKpaLR: Double? = null,
     val tyreKpaRR: Double? = null,
-    /** Peak tyre temperatures during the lap, °C. */
+    /** Peak tire temperatures during the lap, °C. */
     val tyreCLF: Double? = null,
     val tyreCRF: Double? = null,
     val tyreCLR: Double? = null,

@@ -175,7 +175,7 @@ public enum Garage {
     /// On the shelf: off the car but not retired — a spare set, the street pads.
     public static func isSpare(_ part: Part) -> Bool { part.retiredOn == nil && part.equipped == false }
 
-    /// Parts in the car's own order — pads, tyres full set then front then rear,
+    /// Parts in the car's own order — pads, tires full set then front then rear,
     /// rotors, fluids — newest first within a kind, as the web page lists them.
     /// A kind the client doesn't know sorts first, like the JS's `findIndex` of -1.
     public static func sortedByKind(_ parts: [Part]) -> [Part] {

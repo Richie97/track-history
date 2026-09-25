@@ -9,7 +9,7 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
     public var name: String
     public var notes: String?
     public var isDefault: Bool
-    /// The target hot tyre pressure (psi, all four corners) the web app's
+    /// The target hot tire pressure (psi, all four corners) the web app's
     /// pressure loop aims the next cold pressures at (#190). Set on the web,
     /// decoded here so the response stays pinned; nothing native reads it yet.
     public var targetHotPsi: Double?
@@ -214,7 +214,7 @@ public struct PartKind: RawRepresentable, Codable, Hashable, Sendable {
 
     public static let padsFront = PartKind(rawValue: "pads_front")
     public static let padsRear = PartKind(rawValue: "pads_rear")
-    /// A full set — all four corners the same tyre.
+    /// A full set — all four corners the same tire.
     public static let tires = PartKind(rawValue: "tires")
     /// A front or rear pair, for a staggered car (its own size and wear).
     public static let tiresFront = PartKind(rawValue: "tires_front")
@@ -353,7 +353,7 @@ public struct WearEstimate: Codable, Hashable, Sendable {
     /// Accrued on-track hours in the part's service window.
     public var hours: Double
     public var events: Int
-    /// Event-days in the window ≈ heat cycles for tyres.
+    /// Event-days in the window ≈ heat cycles for tires.
     public var cycles: Int
     public var expectedHours: Double?
     public var remainingHours: Double?

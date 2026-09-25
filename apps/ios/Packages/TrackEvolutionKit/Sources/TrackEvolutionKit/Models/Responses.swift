@@ -24,7 +24,7 @@ public struct CreatedTrack: Codable, Hashable, Sendable, Identifiable {
 }
 
 /// `POST /api/parts/:id/equip` — the ids of the parts equipping it took off
-/// the car (what shared its place: the other set of tyres, the other pads).
+/// the car (what shared its place: the other set of tires, the other pads).
 public struct PartEquip: Codable, Hashable, Sendable {
     public var ok: Bool
     public var unequipped: [Int]

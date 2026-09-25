@@ -70,7 +70,7 @@ public object VBO {
      */
     private val BRAKE_COLUMNS = listOf("braking", "brake", "brake pressure", "braking pressure")
 
-    /** Tyre pressures, bar → kPa, one reading per lap (the lap-end value). */
+    /** Tire pressures, bar → kPa, one reading per lap (the lap-end value). */
     private val TYRE_COLUMNS: List<Pair<String, String>> = listOf(
         "tyreKpaLF" to "tire pressure front left",
         "tyreKpaRF" to "tire pressure front right",
@@ -307,8 +307,8 @@ public object VBO {
         for ((c, _) in carCols) car[c.name] = ArrayList()
         val throttle = ArrayList<ChannelPoint>()
         val brake = ArrayList<ChannelPoint>()
-        val tyres = LinkedHashMap<String, MutableList<ChannelPoint>>()
-        for ((name, _) in tyreCols) tyres[name] = ArrayList()
+        val tires = LinkedHashMap<String, MutableList<ChannelPoint>>()
+        for ((name, _) in tyreCols) tires[name] = ArrayList()
         val heights = ArrayList<Double>()
         var t0: Double? = null
         for (row in sections["data"] ?: emptyList()) {
@@ -344,7 +344,7 @@ public object VBO {
             }
             for ((name, i) in tyreCols) {
                 val v = num(i)
-                if (v != null && v > 0 && v < MAX_TYRE_BAR) tyres[name]!!.add(ChannelPoint(t = t, v = v * 100))
+                if (v != null && v > 0 && v < MAX_TYRE_BAR) tires[name]!!.add(ChannelPoint(t = t, v = v * 100))
             }
             if (iHeight >= 0) {
                 val v = num(iHeight)
@@ -375,7 +375,7 @@ public object VBO {
             carChannels = carChannels.with("brake", brake.map { ChannelPoint(t = it.t, v = (it.v / peak) * 100) })
         }
         val lapScalarChannels = LinkedHashMap<String, List<ChannelPoint>>()
-        for ((name, pts) in tyres) if (pts.size >= 10) lapScalarChannels[name] = pts
+        for ((name, pts) in tires) if (pts.size >= 10) lapScalarChannels[name] = pts
         val sessionMeta = if (heights.size > 10) {
             ParsedTelemetry.SessionMeta(elevationM = heights.maxOf { it } - heights.minOf { it })
         } else {

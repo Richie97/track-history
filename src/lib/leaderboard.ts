@@ -14,9 +14,9 @@
 // Two exclusions are deliberate and are the reason this is an allow-list:
 //
 //   - **Per-lap scalars** (`SCALAR_SPECS` — oil and coolant temperature, oil
-//     pressure, fuel level, battery voltage, tyre pressures and temperatures)
+//     pressure, fuel level, battery voltage, tire pressures and temperatures)
 //     describe the *car's* condition, not the lap. Publishing a stranger's
-//     fuel level and tyre pressures is a different disclosure from publishing
+//     fuel level and tire pressures is a different disclosure from publishing
 //     their line, and nobody asked for it.
 //   - **`meta.odometerKm`** is the car's lifetime odometer. It is the single
 //     most identifying number in the blob and has nothing to do with a lap

@@ -38,7 +38,7 @@ public data class PartRefresh(
 
 /**
  * `POST /api/parts/:id/equip` — the ids of the parts equipping it took off the
- * car (what shared its place: the other set of tyres, the other pads).
+ * car (what shared its place: the other set of tires, the other pads).
  */
 @Serializable
 public data class PartEquip(

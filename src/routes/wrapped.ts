@@ -19,7 +19,7 @@ export const wrapped = new Hono<AppContext>();
 // no blob ever crosses into the Worker.
 //
 // `withPro` appends the Pro cards' three statements to the same batch — the
-// tyre parts, the vehicle-linked events their window runs over, and the year's
+// tire parts, the vehicle-linked events their window runs over, and the year's
 // top speed — and is only ever set for an entitled account; the public share
 // never sets it.
 export async function wrappedInputs(

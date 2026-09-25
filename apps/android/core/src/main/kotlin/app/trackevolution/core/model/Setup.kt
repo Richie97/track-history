@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 public data class SetupSheet(
-    /** Tyre pressures, psi. */
+    /** Tire pressures, psi. */
     @SerialName("tp_cold") val tpCold: CornerValues? = null,
     @SerialName("tp_hot") val tpHot: CornerValues? = null,
     /** Degrees. */

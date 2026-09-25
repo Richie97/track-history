@@ -68,12 +68,12 @@ describe("lapCorners", () => {
 describe("sessionCorners", () => {
   it("segments the union of every lap's mask, so the list is one list for the session", () => {
     // The second lap takes the first corner wider (load starts a point
-    // earlier) and never loads the tyre through the chicane.
+    // earlier) and never loads the tire through the chicane.
     const wide = { ...lap, latG: latG.map((g, k) => (k === 1 ? 0.4 : k >= 9 && k <= 13 ? 0.1 : g)) };
     const cs = sessionCorners({ laps: [lap, wide] });
     expect(cs.map((c) => [c.n, c.k0, c.k1, c.laps])).toEqual([
       [1, 1, 5, 2], // the union starts where the wide lap did; both laps took it
-      [2, 9, 13, 1], // only the first lap loaded the tyre here
+      [2, 9, 13, 1], // only the first lap loaded the tire here
     ]);
     expect(cs[0].peakG).toBeCloseTo(1.0, 9); // the highest any lap saw
   });

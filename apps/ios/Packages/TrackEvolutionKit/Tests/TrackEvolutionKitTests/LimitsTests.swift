@@ -32,7 +32,7 @@ struct LimitsTests {
         #expect(Limits.limitAt(lap, "vsc", 9) == false)
         #expect(Limits.limitAt(lap, "wheelspin", 10) == true)
         #expect(Limits.limitAt(lap, "wheelspin", 8) == false) // 0.5 % is noise
-        #expect(Limits.limitAt(lap, "wheelspin", 11) == false) // 4.5 % is a tyre working, not spinning
+        #expect(Limits.limitAt(lap, "wheelspin", 11) == false) // 4.5 % is a tire working, not spinning
         #expect(Limits.limitAt(LapChannels(n: 1, timeMs: 0, wheelSlip: [Limits.WHEELSPIN_PCT]), "wheelspin", 0) == false) // strictly above
         #expect(Limits.limitAt(LapChannels(n: 1, timeMs: 0, wheelSlip: [Limits.LOCKUP_PCT]), "lockup", 0) == false) // strictly below
         #expect(Limits.limitAt(lap, "lockup", 3) == true)

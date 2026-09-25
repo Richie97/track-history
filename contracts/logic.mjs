@@ -642,7 +642,7 @@ const gripLapC = { n: 3, timeMs: 93000, speed: Array.from({ length: 20 }, () => 
 const gripChannels = { v: 1, dStepM: 20, laps: [gripLapA, gripLapB, gripLapC] };
 // Each sample sits exactly on a threshold: k0/k1 count as trail braking (both
 // bounds are inclusive), k2 fails the lateral bound, k3 counts as power, k4
-// fails the longitudinal bound, and k5 never loads the tyre at all.
+// fails the longitudinal bound, and k5 never loads the tire at all.
 const gripEdgeLap = {
   n: 1,
   timeMs: 60000,
@@ -695,7 +695,7 @@ const gripFixture = {
 // window for all of them.
 const cornerLatG = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0, 0.7, 0.8, 0.2, 0.9, 0.7, 0.1, 0, 0, 1.4, 0, 0, 0.1, 0, 0, 0];
 const cornerLapA = { n: 1, timeMs: 90000, speed: Array.from({ length: 24 }, () => 100), latG: cornerLatG };
-// Takes the first corner a point wider and never loads the tyre in the chicane.
+// Takes the first corner a point wider and never loads the tire in the chicane.
 const cornerLapB = {
   n: 2,
   timeMs: 91000,
@@ -1664,7 +1664,7 @@ const videoFixture = {
 // two [laptiming] endpoint orders, a short line the car drives just past the
 // end of (widenGate), a recording started and stopped at the line
 // (edgeCrossings), and Track Precision's car channels with a zeroed column,
-// a "no reading" tyre sentinel and G columns scaled by 1/9.81.
+// a "no reading" tire sentinel and G columns scaled by 1/9.81.
 
 const VBO_DIR = path.join(OUT_DIR, "vbo");
 const edgeTrimmed = (() => {

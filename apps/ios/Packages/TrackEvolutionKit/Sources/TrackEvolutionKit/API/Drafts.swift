@@ -269,7 +269,7 @@ public struct VehiclePatch: Encodable, Hashable, Sendable {
     public var name: Patch<String> = .unchanged
     public var notes: Patch<String> = .unchanged
     public var isDefault: Patch<Bool> = .unchanged
-    /// The hot tyre pressure the health strip's pressure loop aims at, in psi
+    /// The hot tire pressure the health strip's pressure loop aims at, in psi
     /// (5–100, rounded to a tenth server-side). `.set(nil)` clears it.
     public var targetHotPsi: Patch<Double> = .unchanged
     /// The car-catalog pick (#221). Setting a row re-pre-fills *both* geometry

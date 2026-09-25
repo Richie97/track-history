@@ -922,7 +922,7 @@ private fun PartForm(
         TEField("Type") {
             // Chips rather than a dropdown: ten kinds is few enough to show
             // outright, and a picker hides the vocabulary from a first-time user
-            // who doesn't yet know what the app tracks. Wrapping, since the tyre
+            // who doesn't yet know what the app tracks. Wrapping, since the tire
             // pairs (migration 0029) made the list longer than two phone rows.
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1299,7 +1299,7 @@ internal data class VehicleEdit(
 )
 
 /**
- * Edit the car: its name, its modifications and notes, the hot tyre pressure the
+ * Edit the car: its name, its modifications and notes, the hot tire pressure the
  * health strip's pressure loop aims at, whether new events start on it, and —
  * #208 / #222 — its two spec-sheet numbers, picked from the car catalog or typed.
  * `viewVehicle`'s `#veh-form` in `public/app.js`. Inline under the heading, as
