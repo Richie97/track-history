@@ -36,6 +36,16 @@ public data class PartRefresh(
     @SerialName("retired_id") val retiredId: Int,
 )
 
+/**
+ * `POST /api/parts/:id/equip` — the ids of the parts equipping it took off the
+ * car (what shared its place: the other set of tires, the other pads).
+ */
+@Serializable
+public data class PartEquip(
+    val ok: Boolean,
+    val unequipped: List<Int>,
+)
+
 /** The error body every failing endpoint returns. */
 @Serializable
 public data class ServerErrorBody(

@@ -36,7 +36,7 @@ const CAR_COLUMNS = [
 ];
 const THROTTLE_COLUMN = "pedalforce"; // 0-1
 const BRAKE_COLUMN = "brakingpressure"; // bar
-// Tyre pressures, bar -> kPa. 3276.8 (0x7FFF / 10) is "no reading", as in
+// Tire pressures, bar -> kPa. 3276.8 (0x7FFF / 10) is "no reading", as in
 // the .vbo.
 const TYRE_COLUMNS = [
   ["tyreKpaLF", "tirepressurefl"],
@@ -226,7 +226,7 @@ export function parseTrackPrecisionCsv(text, fileName = null) {
   const car = Object.fromEntries(carCols.map((c) => [c.name, []]));
   const throttle = [];
   const brake = [];
-  const tyres = Object.fromEntries(tyreCols.map((c) => [c.name, []]));
+  const tires = Object.fromEntries(tyreCols.map((c) => [c.name, []]));
   const iRpm = carCols.find((c) => c.name === "rpm")?.i ?? -1;
   for (let r = 0; r < rows.length; r++) {
     const { t, num } = rows[r];
@@ -245,7 +245,7 @@ export function parseTrackPrecisionCsv(text, fileName = null) {
     if (br != null) brake.push({ t, v: Math.max(0, br) });
     for (const c of tyreCols) {
       const x = num(c.i);
-      if (x != null && x > 0 && x < MAX_TYRE_BAR) tyres[c.name].push({ t, v: x * 100 });
+      if (x != null && x > 0 && x < MAX_TYRE_BAR) tires[c.name].push({ t, v: x * 100 });
     }
   }
 
@@ -253,7 +253,7 @@ export function parseTrackPrecisionCsv(text, fileName = null) {
     car,
     throttle,
     brake,
-    tyres,
+    tires,
     heights: [],
   });
 

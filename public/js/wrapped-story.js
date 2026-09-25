@@ -98,9 +98,9 @@ function cardBody(card, data, ctx) {
     }
     case "tire":
       if (card.locked)
-        return lockedBody("Favourite tyre", "The tyre with the most track days on it this year, from your garage.", ctx);
+        return lockedBody("Favorite tire", "The tire with the most track days on it this year, from your garage.", ctx);
       return `
-        <div class="wr-kicker">Favourite tyre</div>
+        <div class="wr-kicker">Favorite tire</div>
         <p class="wr-lede">The rubber ${share ? "they" : "you"} lived on</p>
         <h2 class="wr-big">${esc(data.pro.tire.name)}</h2>
         <p class="wr-line">${fmtDays(data.pro.tire.track_days)} ${plural(data.pro.tire.track_days, "track day")} · ${esc(data.pro.tire.vehicle_name)}</p>`;

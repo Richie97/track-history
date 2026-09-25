@@ -90,7 +90,7 @@ public object WrappedStory {
         Kind.NEW_TRACKS to "New tracks",
         Kind.HOURS to "Hours behind the wheel",
         Kind.HOTTEST to "Hottest day",
-        Kind.TIRE to "Favourite tyre",
+        Kind.TIRE to "Favorite tire",
         Kind.TOP_SPEED to "Top speed",
         Kind.POSTER to "Your season",
     )
@@ -142,7 +142,7 @@ public object WrappedStory {
             data.mostDriven?.let { add("Most driven" to it.trackName) }
             data.improvement?.let { add("Biggest improvement" to "${it.trackName}, −${fmtGain(it.gainMs)}") }
             data.fastest?.let { add("Fastest lap" to "${it.trackName}, ${LapTime.fmtMs(it.bestMs)}") }
-            data.pro?.tire?.let { add("Favourite tyre" to it.name) }
+            data.pro?.tire?.let { add("Favorite tire" to it.name) }
         }
         val who = if (share) "${data.name?.takeIf { it.isNotEmpty() } ?: "A driver"}'s" else "My"
         return Poster("$who ${data.year} Track Evolution", headline, rows)

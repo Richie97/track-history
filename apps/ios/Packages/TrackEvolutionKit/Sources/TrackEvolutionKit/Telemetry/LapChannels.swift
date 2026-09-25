@@ -66,7 +66,7 @@ public enum TelemetryChannels {
         case max
         /// Smallest value inside the lap's own window.
         case min
-        /// The value as the lap finished — what you want for a tyre pressure
+        /// The value as the lap finished — what you want for a tire pressure
         /// or a fuel level, and not what you want for an oil temperature.
         case end
     }

@@ -97,7 +97,7 @@ public data class WrappedPro(
     @SerialName("top_speed") val topSpeed: WrappedTopSpeed? = null,
 )
 
-/** The tyre with the most track days on it this year (garage consumables). */
+/** The tire with the most track days on it this year (garage consumables). */
 @Serializable
 public data class WrappedTire(
     @SerialName("part_id") val partId: Int,

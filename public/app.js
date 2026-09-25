@@ -38,7 +38,8 @@ import { sessionsToCreate, stagedSummary } from "./js/event-form.js";
 import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
   catalogCarLabel, catalogCarName, catalogPrefill,
-  defaultMeasurementUnit, diffSetups, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
+  defaultMeasurementUnit, diffSetups, equipSwapsOff, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
+  isTireKind, partTitle,
   matchCatalogCars, partOdometerLine, vehicleOdometerLine,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit,
   vehicleLogbook, vehicleTileLine, wearLimitHint,
@@ -153,7 +154,7 @@ const wearBarHtml = (wear) => {
 function wearStatusHtml(p) {
   const w = p.wear;
   const bits = [`<span class="t">${fmtHours(w.hours)}</span> on part`];
-  if (p.kind === "tires") bits.push(`${w.cycles} heat cycle${w.cycles === 1 ? "" : "s"}`);
+  if (isTireKind(p.kind)) bits.push(`${w.cycles} heat cycle${w.cycles === 1 ? "" : "s"}`);
   else if (w.events) bits.push(`${w.events} event${w.events === 1 ? "" : "s"}`);
   const remaining = fmtRemaining(w);
   if (remaining) {
@@ -164,19 +165,23 @@ function wearStatusHtml(p) {
         ? `measured ${Math.round(w.wear_per_hour * 100) / 100} ${esc(w.unit ?? "")}/h`
         : `vs. ${fmtHours(w.expected_hours)} expected`
     );
-  } else if (!p.retired_on) {
+  } else if (!p.retired_on && p.equipped !== false) {
     bits.push(`<span class="hint-inline">no life estimate — set expected hours or log two measurements</span>`);
   }
   return bits.join(" · ");
 }
 
-// The maintenance items worth shouting about: active parts at or near the
+// The parts on the car right now — a spare on the shelf isn't wearing, so it
+// is neither "in service" nor worth an alert until it goes back on. A part
+// with no `equipped` (a response cached before 0029) counts as on the car.
+const onCarParts = (parts) => parts.filter((p) => !p.retired_on && p.equipped !== false);
+
+// The maintenance items worth shouting about: parts on the car at or near the
 // end of their life, worst first.
 const garageAlerts = (garage) =>
   (garage ?? [])
     .flatMap((v) =>
-      v.parts
-        .filter((p) => !p.retired_on)
+      onCarParts(v.parts)
         .map((p) => ({ vehicle: v, part: p, status: partStatus(p.wear) }))
         .filter((a) => a.status === "due" || a.status === "low")
     )
@@ -190,7 +195,7 @@ const alertStripHtml = (garage) => {
   const chips = `<div class="ga-chips">${alerts
     .map(
       (a) => `<a class="ga-chip ${a.status}" href="#/vehicle/${a.vehicle.id}">
-        ${esc(partKindLabel(a.part.kind))} — ${
+        ${esc(partKindLabel(a.part.kind))}${a.part.size ? ` ${esc(a.part.size)}` : ""} — ${
           a.status === "due" ? "replace now" : fmtRemaining(a.part.wear)
         }<span class="ga-veh">${esc(a.vehicle.name)}</span></a>`
     )
@@ -241,7 +246,7 @@ function setupSheetHtml(sheet, prev, partsById) {
     const p = partsById?.get(sheet[key]);
     boxes.push(
       `<div class="setup-box"><span class="sb-label">${label}</span>
-       <span class="sb-vals">${sv(key, p ? p.name : `#${sheet[key]}`)}</span></div>`
+       <span class="sb-vals">${sv(key, p ? partTitle(p) : `#${sheet[key]}`)}</span></div>`
     );
   }
   return `${boxes.length ? `<div class="setup-grid">${boxes.join("")}</div>` : ""}
@@ -282,8 +287,8 @@ function setupFormHtml(day, sheet, partOptions, existing) {
     return `<div class="field"><label>${label}</label>
       <select name="sf:${key}"><option value="">—</option>${opts
         .map(
-          (p) => `<option value="${p.id}"${sheet?.[key] === p.id ? " selected" : ""}>${esc(p.name)}${
-            p.retired_on ? " (retired)" : ""
+          (p) => `<option value="${p.id}"${sheet?.[key] === p.id ? " selected" : ""}>${esc(partTitle(p))}${
+            p.retired_on ? " (retired)" : p.equipped === false ? " (spare)" : ""
           }</option>`
         )
         .join("")}</select></div>`;
@@ -329,7 +334,7 @@ function diffChipsHtml(prev, cur, partsById, max = 8) {
     if (v == null) return "—";
     if (PART_REFS.some(([k]) => k === key)) {
       const p = partsById?.get(v);
-      return p ? p.name : `#${v}`;
+      return p ? partTitle(p) : `#${v}`;
     }
     return fmtSetupValue(key, v, currentUnits());
   };
@@ -2183,7 +2188,7 @@ async function viewEvent(eventId) {
       // container rather than a slot on the distance axis — followed by the
       // balance scatter and per-corner table (#189), above the lateral-G and
       // yaw traces, and on Car the health strip (#190): the per-lap scalars
-      // as small multiples, the tyre spread, the pressure loop and the
+      // as small multiples, the tire spread, the pressure loop and the
       // per-lap table.
       renderExtras: (lit, dispN) => ({
         time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
@@ -2946,7 +2951,7 @@ async function viewGarage() {
     const row = v.catalog_id == null ? null : catalogById.get(v.catalog_id);
     let proLines = "";
     if (g) {
-      const active = g.parts.filter((p) => !p.retired_on);
+      const active = onCarParts(g.parts);
       const alerts = garageAlerts([g]);
       proLines = `<div class="meta">${fmtHours(g.hours)} on track</div>
         <div class="meta garage-status ${alerts[0]?.status ?? "ok"}">${
@@ -3063,7 +3068,13 @@ async function viewVehicle(vehicleId) {
   const logbook = vehicleLogbook(v.id, events, todayISO());
   // The catalog row the car's numbers came from, if it was picked from one.
   const initialPick = v.catalog_id == null ? null : carCatalog.find((r) => r.id === v.catalog_id) ?? null;
-  const active = pro ? v.parts.filter((p) => !p.retired_on) : [];
+  // On the car, on the shelf (a spare set, the street pads — off the car but
+  // not thrown away), and retired. Cards read in the car's own order — pads,
+  // tires front then rear, rotors, fluids — rather than by install date.
+  const kindOrder = (p) => PART_KINDS.findIndex(([k]) => k === p.kind);
+  const byKind = (a, b) => kindOrder(a) - kindOrder(b) || b.installed_on.localeCompare(a.installed_on);
+  const active = pro ? onCarParts(v.parts).sort(byKind) : [];
+  const shelf = pro ? v.parts.filter((p) => !p.retired_on && p.equipped === false).sort(byKind) : [];
   const retired = pro ? v.parts.filter((p) => p.retired_on) : [];
   // What the car has cost (#147): its parts and its track days, both summed
   // server-side on /garage (past events only — an upcoming one isn't spent).
@@ -3087,6 +3098,7 @@ async function viewVehicle(vehicleId) {
         <div class="field"><label>Type</label>
           <select name="kind">${PART_KINDS.map(([k, l]) => `<option value="${k}"${p.kind === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
         <div class="field"><label>Part / compound</label><input name="name" required value="${esc(p.name)}"></div>
+        <div class="field"><label>Size (optional)</label><input name="size" maxlength="40" value="${esc(p.size ?? "")}" placeholder="${isTireKind(p.kind) ? "285/30R18" : ""}"></div>
         <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${esc(p.installed_on)}"></div>
         <div class="field"><label>Retired (blank = in service)</label><input name="retired_on" type="date" value="${esc(p.retired_on ?? "")}"></div>
         <div class="field"><label>Cost ($)</label><input name="cost" type="number" min="0" step="0.01" value="${p.cost_cents != null ? (p.cost_cents / 100).toFixed(2) : ""}"></div>
@@ -3101,21 +3113,56 @@ async function viewVehicle(vehicleId) {
       </div>
     </form>`;
 
+  // When a part came off the car last, for a spare's meta line.
+  const lastOff = (p) =>
+    (p.mounts ?? []).reduce((max, m) => (m.removed_on && m.removed_on > max ? m.removed_on : max), "");
+
+  // The Equipped switch and the small confirm row it opens: the date the swap
+  // happened (today unless it was earlier) and, turning one on, what it takes
+  // off — the server makes the same choice (equipSwapKinds).
+  const equipSwitchHtml = (p) => `
+    <label class="equip-switch"><input type="checkbox" role="switch" data-part-equip="${p.id}"${p.equipped ? " checked" : ""}
+      aria-describedby="equip-note-${p.id}"> Equipped</label>`;
+  const equipFormHtml = (p) => {
+    const swaps = equipSwapsOff(p, v.parts);
+    const note = p.equipped
+      ? "Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on."
+      : swaps.length
+        ? `Put it on the car? This takes off ${swaps.map((x) => esc(partTitle(x))).join(" and ")} — ${
+            swaps.length === 1 ? "it moves" : "they move"
+          } to Spares.`
+        : "Put it on the car? Its wear picks up from here.";
+    const min = p.equipped
+      ? (p.mounts ?? []).find((m) => m.removed_on == null)?.mounted_on ?? p.installed_on
+      : lastOff(p) || p.installed_on;
+    return `<form class="btn-row equip-form" data-equip-form="${p.id}" hidden>
+      <span class="hint-inline" id="equip-note-${p.id}">${note}</span>
+      <input name="on" type="date" required value="${today}" min="${esc(min)}" max="${today}" aria-label="Swap date">
+      <button class="btn small primary">${p.equipped ? "Take off" : "Equip"}</button>
+      <button class="btn small" type="button" data-equip-cancel="${p.id}">Cancel</button>
+    </form>`;
+  };
+
   const partCard = (p) => `
-    <div class="panel part-card">
+    <div class="panel part-card${p.equipped === false ? " spare" : ""}">
       <div class="part-head">
         <span class="part-kind">${esc(partKindLabel(p.kind))}</span>
         <span class="part-name">${esc(p.name)}</span>
+        ${p.size ? `<span class="part-size hint-inline">${esc(p.size)}</span>` : ""}
         <span class="grow"></span>
+        ${p.retired_on ? "" : equipSwitchHtml(p)}
         <button class="btn small" data-meas-toggle="${p.id}">Measure</button>
         ${p.retired_on ? "" : `<button class="btn small" data-part-refresh="${p.id}">Refresh</button>
         <button class="btn small" data-part-retire="${p.id}">Retire</button>`}
         <button class="btn small" data-part-edit="${p.id}">Edit</button>
       </div>
-      <div class="part-meta">Installed ${fmtDate(p.installed_on)}${p.retired_on ? ` — retired ${fmtDate(p.retired_on)}` : ""}${p.cost_cents != null ? ` · ${fmtCost(p.cost_cents)}` : ""}${p.notes ? ` · ${esc(p.notes)}` : ""}</div>
+      <div class="part-meta">Installed ${fmtDate(p.installed_on)}${
+        p.equipped === false && lastOff(p) ? ` · off the car since ${fmtDate(lastOff(p))}` : p.equipped === false ? " · not fitted yet" : ""
+      }${p.retired_on ? ` — retired ${fmtDate(p.retired_on)}` : ""}${p.cost_cents != null ? ` · ${fmtCost(p.cost_cents)}` : ""}${p.notes ? ` · ${esc(p.notes)}` : ""}</div>
       ${wearBarHtml(p.wear)}
       <div class="part-status">${wearStatusHtml(p)}</div>
       ${p.odometer ? `<div class="hint part-odometer">${esc(partOdometerLine(p.odometer, units))}</div>` : ""}
+      ${p.retired_on ? "" : equipFormHtml(p)}
       ${measurementChips(p)}
       <form class="btn-row meas-form" data-meas-form="${p.id}" data-meas-kind="${esc(p.kind)}" hidden>
         <input name="value" type="number" step="0.1" min="0" required placeholder="Value" style="max-width:110px">
@@ -3127,16 +3174,43 @@ async function viewVehicle(vehicleId) {
       ${partEditForm(p)}
     </div>`;
 
+  // "Buy another set of those": a fresh copy of a retired part's spec — name,
+  // size, cost, replace-at — installed on the chosen date, and by default put
+  // on the car in place of whatever is there now (POST /parts/:id/refresh on a
+  // retired part retires nothing).
+  const retiredRefreshNote = (p, equip) => {
+    const swaps = equip ? equipSwapsOff({ id: null, kind: p.kind }, v.parts) : [];
+    return swaps.length
+      ? `Takes off ${swaps.map((x) => esc(partTitle(x))).join(" and ")} — ${swaps.length === 1 ? "it moves" : "they move"} to Spares.`
+      : equip
+        ? "Goes on the car with hours at zero."
+        : "Goes to Spares with hours at zero.";
+  };
+  const retiredRefreshFormHtml = (p) => `
+    <form class="btn-row equip-form" data-retired-refresh-form="${p.id}">
+      <span class="hint-inline">A new set of ${esc(partTitle(p))}, installed</span>
+      <input name="on" type="date" required value="${today}" min="${esc(p.installed_on)}" aria-label="Install date">
+      <label class="equip-switch"><input type="checkbox" role="switch" name="equipped" checked> Equipped</label>
+      <span class="hint-inline" data-retired-refresh-note>${retiredRefreshNote(p, true)}</span>
+      <button class="btn small primary">Add new set</button>
+      <button class="btn small" type="button" data-retired-refresh-cancel="${p.id}">Cancel</button>
+    </form>`;
+
   const retiredRows = retired
     .map((p) => {
       const perHour = p.cost_cents != null && p.wear.hours > 0 ? `$${(p.cost_cents / 100 / p.wear.hours).toFixed(0)}/h` : "—";
       return `<tr>
         <td>${esc(partKindLabel(p.kind))}</td>
-        <td>${esc(p.name)}</td>
+        <td>${esc(partTitle(p))}</td>
         <td class="date">${fmtDate(p.installed_on)} – ${fmtDate(p.retired_on)}</td>
         <td class="num">${fmtHours(p.wear.hours)}</td>
         <td class="num">${fmtCost(p.cost_cents) ?? "—"}</td>
         <td class="num">${perHour}</td>
+        <td class="num"><button class="btn small" data-retired-refresh="${p.id}"
+          aria-label="Refresh ${esc(partTitle(p))} into a new set">Refresh</button></td>
+      </tr>
+      <tr class="retired-refresh-row" data-retired-refresh-row="${p.id}" hidden>
+        <td colspan="7">${retiredRefreshFormHtml(p)}</td>
       </tr>`;
     })
     .join("");
@@ -3238,25 +3312,35 @@ async function viewVehicle(vehicleId) {
     }
     ${logbookLineHtml()}
     ${bestsHtml()}
-    <h2>Consumables in service</h2>
-    <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (2h per track day unless an event says otherwise). Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
+    <h2>On the car</h2>
+    <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (2h per track day unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
     ${active.map(partCard).join("") || `<div class="empty">Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.</div>`}
+    ${
+      shelf.length
+        ? `<h2>Spares</h2>
+    <div class="hint" style="margin:0 0 4px">Off the car but not retired — a second set of wheels, the street pads. Their hours are frozen until you equip them, which takes off whatever is in their place.</div>
+    ${shelf.map(partCard).join("")}`
+        : ""
+    }
     <form class="panel" id="part-add">
       <div class="form-grid">
         <div class="field"><label>Type</label>
           <select name="kind">${PART_KINDS.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
-        <div class="field"><label>Part / compound</label><input name="name" required placeholder="Hawk DTC-60, RE-71RS 255/40…"></div>
+        <div class="field"><label>Part / compound</label><input name="name" required placeholder="Hawk DTC-60, Hoosier A7…"></div>
+        <div class="field"><label>Size (optional)</label><input name="size" maxlength="40" placeholder="285/30R18"></div>
         <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${today}"></div>
         <div class="field"><label>Cost ($, optional)</label><input name="cost" type="number" min="0" step="0.01" placeholder="389"></div>
         <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" placeholder="auto from history"></div>
         <div class="field"><label>Replace at (optional)</label><input name="wear_limit" type="number" min="0" step="0.5" placeholder="${wearLimitHint("pads_front", units)}"></div>
       </div>
-      <div class="field"><label>Notes</label><input name="notes" placeholder="Sizes, torque specs, where bought…"></div>
+      <div class="field"><label>Notes</label><input name="notes" placeholder="Torque specs, where bought…"></div>
+      <div class="field"><label class="equip-switch"><input type="checkbox" role="switch" name="equipped" checked> Equipped — on the car now</label>
+        <div class="hint" id="part-add-swap"></div></div>
       <div id="part-error"></div>
       <button class="btn primary">+ Add part</button>
     </form>
     ${retired.length ? `<h2>Retired parts</h2>
-    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Part</th><th>In service</th><th class="num">Hours</th><th class="num">Cost</th><th class="num">Cost/hour</th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Part</th><th>In service</th><th class="num">Hours</th><th class="num">Cost</th><th class="num">Cost/hour</th><th class="num"><span class="visually-hidden">Actions</span></th></tr></thead>
     <tbody>${retiredRows}</tbody></table></div>` : ""}`;
   }
 
@@ -3405,9 +3489,20 @@ async function viewVehicle(vehicleId) {
   // The replace-at hint follows the chosen kind (tread depth is not a pad
   // thickness), in the user's tread-depth idiom.
   const partAdd = view.querySelector("#part-add");
+  // What adding this part equipped will take off, said before it happens.
+  const addSwapNote = () => {
+    const swaps = partAdd.equipped.checked ? equipSwapsOff({ id: null, kind: partAdd.kind.value }, v.parts) : [];
+    partAdd.querySelector("#part-add-swap").textContent = swaps.length
+      ? `Takes off ${swaps.map(partTitle).join(" and ")} — ${swaps.length === 1 ? "it moves" : "they move"} to Spares.`
+      : "";
+  };
   partAdd.kind.onchange = () => {
     partAdd.wear_limit.placeholder = wearLimitHint(partAdd.kind.value, units);
+    partAdd.size.placeholder = isTireKind(partAdd.kind.value) ? "285/30R18" : "";
+    addSwapNote();
   };
+  partAdd.equipped.onchange = addSwapNote;
+  addSwapNote();
   partAdd.onsubmit = async (evt) => {
     evt.preventDefault();
     const f = evt.target;
@@ -3417,7 +3512,10 @@ async function viewVehicle(vehicleId) {
         body: {
           kind: f.kind.value,
           name: f.name.value.trim(),
+          size: f.size.value.trim() || null,
           installed_on: f.installed_on.value,
+          equipped: f.equipped.checked,
+          swap: f.equipped.checked,
           cost_cents: f.cost.value.trim() === "" ? null : Math.round(Number(f.cost.value) * 100),
           expected_hours: numOrNull(f.expected_hours.value),
           wear_limit: numOrNull(f.wear_limit.value),
@@ -3481,6 +3579,67 @@ async function viewVehicle(vehicleId) {
       route();
     };
   });
+  // The switch doesn't write on its own: it opens the confirm row (date, and
+  // what comes off), and Cancel puts it back.
+  view.querySelectorAll("[data-part-equip]").forEach((input) => {
+    input.onchange = () => {
+      const form = view.querySelector(`[data-equip-form="${input.dataset.partEquip}"]`);
+      form.hidden = false;
+      form.querySelector("button.primary").focus();
+    };
+  });
+  view.querySelectorAll("[data-equip-cancel]").forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.dataset.equipCancel;
+      view.querySelector(`[data-equip-form="${id}"]`).hidden = true;
+      const input = view.querySelector(`[data-part-equip="${id}"]`);
+      input.checked = !input.checked;
+      input.focus();
+    };
+  });
+  view.querySelectorAll("[data-equip-form]").forEach((form) => {
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      const part = v.parts.find((p) => String(p.id) === form.dataset.equipForm);
+      try {
+        await api(`/parts/${part.id}/${part.equipped ? "unequip" : "equip"}`, { method: "POST", body: { on: form.on.value } });
+        route();
+      } catch (err) {
+        partError(err);
+      }
+    };
+  });
+  view.querySelectorAll("[data-retired-refresh]").forEach((btn) => {
+    btn.onclick = () => {
+      const row = view.querySelector(`[data-retired-refresh-row="${btn.dataset.retiredRefresh}"]`);
+      row.hidden = !row.hidden;
+      if (!row.hidden) row.querySelector("button.primary").focus();
+    };
+  });
+  view.querySelectorAll("[data-retired-refresh-cancel]").forEach((btn) => {
+    btn.onclick = () => {
+      view.querySelector(`[data-retired-refresh-row="${btn.dataset.retiredRefreshCancel}"]`).hidden = true;
+      view.querySelector(`[data-retired-refresh="${btn.dataset.retiredRefreshCancel}"]`).focus();
+    };
+  });
+  view.querySelectorAll("[data-retired-refresh-form]").forEach((form) => {
+    const part = v.parts.find((p) => String(p.id) === form.dataset.retiredRefreshForm);
+    form.equipped.onchange = () => {
+      form.querySelector("[data-retired-refresh-note]").innerHTML = retiredRefreshNote(part, form.equipped.checked);
+    };
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      try {
+        await api(`/parts/${part.id}/refresh`, {
+          method: "POST",
+          body: { installed_on: form.on.value, equipped: form.equipped.checked, swap: form.equipped.checked },
+        });
+        route();
+      } catch (err) {
+        partError(err);
+      }
+    };
+  });
   view.querySelectorAll("[data-part-edit]").forEach((btn) => {
     btn.onclick = () => {
       const form = view.querySelector(`[data-part-form="${btn.dataset.partEdit}"]`);
@@ -3508,6 +3667,7 @@ async function viewVehicle(vehicleId) {
           body: {
             kind: form.kind.value,
             name: form.name.value.trim(),
+            size: form.size.value.trim() || null,
             installed_on: form.installed_on.value,
             retired_on: form.retired_on.value || null,
             cost_cents: form.cost.value.trim() === "" ? null : Math.round(Number(form.cost.value) * 100),

@@ -132,11 +132,12 @@ public object Garage {
     )
 
     /**
-     * The maintenance items worth shouting about: **active** parts that are due
-     * or low, worst first. `garageAlerts` in `public/app.js`.
+     * The maintenance items worth shouting about: parts **on the car** that are
+     * due or low, worst first. `garageAlerts` in `public/app.js`.
      *
      * Retired parts are excluded on purpose — a worn-out part you already
-     * replaced is history, not a reminder. The sort is stable, like the JS
+     * replaced is history, not a reminder — and so are spares on the shelf
+     * ([Part.equipped] false, migration 0029), which aren't wearing. The sort is stable, like the JS
      * `sort` on a 0/1 key: due first, and within each group the order the
      * vehicles and their parts already came in.
      */
@@ -144,7 +145,7 @@ public object Garage {
         garage.orEmpty()
             .flatMap { vehicle ->
                 vehicle.parts.mapNotNull { part ->
-                    if (part.retiredOn != null) return@mapNotNull null
+                    if (part.retiredOn != null || part.equipped == false) return@mapNotNull null
                     val status = partStatus(part.wear) ?: return@mapNotNull null
                     if (status != PartStatus.DUE && status != PartStatus.LOW) return@mapNotNull null
                     Alert(vehicle = vehicle, part = part, status = status)
@@ -163,7 +164,7 @@ public object Garage {
      * `contracts/logic/garage-status.json` pins. "" for a kind with no hint.
      */
     public fun wearLimitHint(kind: PartKind, units: UnitSystem): String =
-        if (Units.isMetric(units) && kind == PartKind.TIRES) "3 (mm)" else kind.wearLimitHint.orEmpty()
+        if (Units.isMetric(units) && isTireKind(kind)) "3 (mm)" else kind.wearLimitHint.orEmpty()
 
     /**
      * `defaultMeasurementUnit(kind, units)`: the unit a new wear measurement is
@@ -171,7 +172,109 @@ public object Garage {
      * default — a part's later measurements follow its first one.
      */
     public fun defaultMeasurementUnit(kind: PartKind, units: UnitSystem): String =
-        if (kind == PartKind.TIRES && !Units.isMetric(units)) "32nds" else "mm"
+        if (isTireKind(kind) && !Units.isMetric(units)) "32nds" else "mm"
+
+    /** `isTireKind` in `public/js/garage.js`: a full set or a front or rear pair. */
+    public fun isTireKind(kind: PartKind): Boolean =
+        kind == PartKind.TIRES || kind == PartKind.TIRES_FRONT || kind == PartKind.TIRES_REAR
+
+    // ---- on the car, or on the shelf (migration 0029) ---------------------------
+
+    /**
+     * `equipSwapKinds` in `public/js/garage.js` (and `src/lib/wear.ts`): which
+     * kinds share a place on the car with [kind] — what equipping a part takes
+     * off. A full set swaps with either pair and the pairs swap with a full
+     * set, but a front pair leaves the rears alone; `other` swaps nothing.
+     */
+    public fun equipSwapKinds(kind: PartKind): List<PartKind> = when (kind) {
+        PartKind.OTHER -> emptyList()
+        PartKind.TIRES -> listOf(PartKind.TIRES, PartKind.TIRES_FRONT, PartKind.TIRES_REAR)
+        PartKind.TIRES_FRONT, PartKind.TIRES_REAR -> listOf(kind, PartKind.TIRES)
+        else -> listOf(kind)
+    }
+
+    /**
+     * `equipSwapsOff`: the equipped parts that equipping a part of [kind] (with
+     * id [partId], null for one not created yet) would take off the car. The
+     * server makes the same choice; this is only so the switch can say so
+     * first. A part with no `equipped` — cached before 0029 — is never named,
+     * as in the JS, where `undefined` is falsy.
+     */
+    public fun equipSwapsOff(partId: Int?, kind: PartKind, parts: List<Part>): List<Part> {
+        val kinds = equipSwapKinds(kind)
+        return parts.filter {
+            it.id != partId && it.equipped == true && it.retiredOn == null && it.kind in kinds
+        }
+    }
+
+    /** `partTitle`: the part's name with its size, when it has one — "Hoosier A7 · 285/30R18". */
+    public fun partTitle(name: String?, size: String?): String =
+        if (!size.isNullOrEmpty()) "${name.orEmpty()} · $size" else name.orEmpty()
+
+    public fun partTitle(part: Part): String = partTitle(part.name, part.size)
+
+    /**
+     * On the car right now — `onCarParts` in `public/app.js`. A part with no
+     * `equipped` (a response cached before 0029) counts as on the car.
+     */
+    public fun isOnCar(part: Part): Boolean = part.retiredOn == null && part.equipped != false
+
+    /** On the shelf: off the car but not retired — a spare set, the street pads. */
+    public fun isSpare(part: Part): Boolean = part.retiredOn == null && part.equipped == false
+
+    /**
+     * Parts in the car's own order — pads, tires full set then front then
+     * rear, rotors, fluids — newest first within a kind, as the web page
+     * lists them. A kind the client doesn't know sorts first, like the JS's
+     * `findIndex` of -1.
+     */
+    public fun sortedByKind(parts: List<Part>): List<Part> =
+        parts.sortedWith(
+            compareBy<Part> { PartKind.all.indexOf(it.kind) }.thenByDescending { it.installedOn },
+        )
+
+    /**
+     * When the part last came off the car (the latest `removed_on`), or null
+     * if it never has — a spare with no history is "not fitted yet".
+     */
+    public fun lastOff(part: Part): String? = part.mounts.mapNotNull { it.removedOn }.maxOrNull()
+
+    /**
+     * The earliest date the Equipped switch accepts for its swap: taking a
+     * part off can't predate the stretch it is on, and putting one on can't go
+     * back inside a stretch it was already on. The server refuses the same.
+     */
+    public fun earliestSwapDate(part: Part): String =
+        if (part.equipped != false) {
+            part.mounts.firstOrNull { it.removedOn == null }?.mountedOn ?: part.installedOn
+        } else {
+            lastOff(part)?.takeIf { it > part.installedOn } ?: part.installedOn
+        }
+
+    /**
+     * What the Equipped switch says before it writes: taking a part off, or
+     * putting it on and what that takes off. The web page's confirm row.
+     */
+    public fun equipNote(part: Part, parts: List<Part>): String {
+        if (part.equipped != false) {
+            return "Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on."
+        }
+        val swaps = equipSwapsOff(part.id, part.kind, parts)
+        return if (swaps.isEmpty()) "Put it on the car? Its wear picks up from here."
+        else "Put it on the car? This takes off ${swapList(swaps)} — ${movesTo(swaps)} to Spares."
+    }
+
+    /**
+     * What adding (or refreshing into) a new part of [kind] takes off when it
+     * goes on the car; null when nothing does. The add form's hint.
+     */
+    public fun addSwapNote(kind: PartKind, parts: List<Part>): String? {
+        val swaps = equipSwapsOff(null, kind, parts)
+        return if (swaps.isEmpty()) null else "Takes off ${swapList(swaps)} — ${movesTo(swaps)} to Spares."
+    }
+
+    private fun swapList(swaps: List<Part>) = swaps.joinToString(" and ") { partTitle(it) }
+    private fun movesTo(swaps: List<Part>) = if (swaps.size == 1) "it moves" else "they move"
 
     // ---- car catalog (#222) ---------------------------------------------------
     //
@@ -429,7 +532,9 @@ public val PartKind.label: String
     get() = when (this) {
         PartKind.PADS_FRONT -> "Front pads"
         PartKind.PADS_REAR -> "Rear pads"
-        PartKind.TIRES -> "Tires"
+        PartKind.TIRES -> "Tires (full set)"
+        PartKind.TIRES_FRONT -> "Front tires"
+        PartKind.TIRES_REAR -> "Rear tires"
         PartKind.ROTORS_FRONT -> "Front rotors"
         PartKind.ROTORS_REAR -> "Rear rotors"
         PartKind.BRAKE_FLUID -> "Brake fluid"
@@ -445,7 +550,7 @@ public val PartKind.label: String
 public val PartKind.wearLimitHint: String?
     get() = when (this) {
         PartKind.PADS_FRONT, PartKind.PADS_REAR -> "3 (mm)"
-        PartKind.TIRES -> "3 (32nds)"
+        PartKind.TIRES, PartKind.TIRES_FRONT, PartKind.TIRES_REAR -> "3 (32nds)"
         PartKind.ROTORS_FRONT -> "28 (mm)"
         PartKind.ROTORS_REAR -> "26 (mm)"
         else -> null

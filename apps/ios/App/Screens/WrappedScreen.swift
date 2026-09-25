@@ -376,9 +376,9 @@ struct WrappedCardView: View {
             }
         case .tire:
             if card.locked {
-                locked("Favourite tyre", "The tyre with the most track days on it this year, from your garage.")
+                locked("Favorite tire", "The tire with the most track days on it this year, from your garage.")
             } else if let tire = data.pro?.tire {
-                kicker("Favourite tyre")
+                kicker("Favorite tire")
                 lede("The rubber you lived on")
                 big(tire.name)
                 line(["\(WrappedStory.fmtDays(tire.trackDays)) \(WrappedStory.plural(tire.trackDays, "track day"))", tire.vehicleName])

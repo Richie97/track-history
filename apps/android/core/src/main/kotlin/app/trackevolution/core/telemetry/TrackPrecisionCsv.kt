@@ -55,7 +55,7 @@ public object TrackPrecisionCsv {
     private const val THROTTLE_COLUMN = "pedalforce" // 0-1
     private const val BRAKE_COLUMN = "brakingpressure" // bar
 
-    /** Tyre pressures, bar → kPa. 3276.8 (0x7FFF / 10) is "no reading", as in the `.vbo`. */
+    /** Tire pressures, bar → kPa. 3276.8 (0x7FFF / 10) is "no reading", as in the `.vbo`. */
     private val TYRE_COLUMNS: List<Pair<String, String>> = listOf(
         "tyreKpaLF" to "tirepressurefl",
         "tyreKpaRF" to "tirepressurefr",
@@ -275,8 +275,8 @@ public object TrackPrecisionCsv {
         for ((c, _) in carCols) car[c.name] = ArrayList()
         val throttle = ArrayList<ChannelPoint>()
         val brake = ArrayList<ChannelPoint>()
-        val tyres = LinkedHashMap<String, MutableList<ChannelPoint>>()
-        for ((name, _) in tyreCols) tyres[name] = ArrayList()
+        val tires = LinkedHashMap<String, MutableList<ChannelPoint>>()
+        for ((name, _) in tyreCols) tires[name] = ArrayList()
         val iRpm = carCols.firstOrNull { it.first.name == "rpm" }?.second ?: -1
         for (row in rows) {
             val t = row.t
@@ -295,12 +295,12 @@ public object TrackPrecisionCsv {
             if (br != null) brake.add(ChannelPoint(t = t, v = Math.max(0.0, br)))
             for ((name, i) in tyreCols) {
                 val x = row.num(i)
-                if (x != null && x > 0 && x < MAX_TYRE_BAR) tyres[name]!!.add(ChannelPoint(t = t, v = x * 100))
+                if (x != null && x > 0 && x < MAX_TYRE_BAR) tires[name]!!.add(ChannelPoint(t = t, v = x * 100))
             }
         }
 
         val (carChannels, lapScalarChannels, sessionMeta) =
-            VBO.finishCarChannels(car, throttle, brake, tyres, emptyList())
+            VBO.finishCarChannels(car, throttle, brake, tires, emptyList())
 
         val laps = if (iLap >= 0) lapsFromLaptime(lapRows) else emptyList()
         var bestLapTrace: List<TraceSample>? = null

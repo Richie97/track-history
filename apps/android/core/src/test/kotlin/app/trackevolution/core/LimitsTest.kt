@@ -55,7 +55,7 @@ class LimitsTest {
         assertEquals(false, Limits.limitAt(lap, "vsc", 9))
         assertEquals(true, Limits.limitAt(lap, "wheelspin", 10))
         assertEquals(false, Limits.limitAt(lap, "wheelspin", 8)) // 0.5 % is noise
-        assertEquals(false, Limits.limitAt(lap, "wheelspin", 11)) // 4.5 % is a tyre working, not spinning
+        assertEquals(false, Limits.limitAt(lap, "wheelspin", 11)) // 4.5 % is a tire working, not spinning
         assertEquals(false, Limits.limitAt(LapChannels(n = 1, timeMs = 0, wheelSlip = listOf(Limits.WHEELSPIN_PCT)), "wheelspin", 0)) // strictly above
         assertEquals(false, Limits.limitAt(LapChannels(n = 1, timeMs = 0, wheelSlip = listOf(Limits.LOCKUP_PCT)), "lockup", 0)) // strictly below
         assertEquals(true, Limits.limitAt(lap, "lockup", 3))

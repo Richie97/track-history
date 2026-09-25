@@ -13,6 +13,7 @@ import app.trackevolution.core.model.SteeringFits
 import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
+import app.trackevolution.core.model.PartEquip
 import app.trackevolution.core.model.PartRefresh
 import app.trackevolution.core.model.ServerErrorBody
 import app.trackevolution.core.model.SetupPrefill
@@ -96,13 +97,14 @@ class GoldenContractTest {
             "track-create" -> roundTrip(entry.name, CreatedTrack.serializer())
             "vehicle-create" -> roundTrip(entry.name, Vehicle.serializer())
             "part-refresh" -> roundTrip(entry.name, PartRefresh.serializer())
+            "part-equip" -> roundTrip(entry.name, PartEquip.serializer())
             "share-set" -> roundTrip(entry.name, ShareSlug.serializer())
             "event-create", "session-create", "part-create", "measurement-create" ->
                 roundTrip(entry.name, CreatedId.serializer())
             "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
             "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
-            "checklist-template-set", "leaderboard-opt-in", "units-set",
+            "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(

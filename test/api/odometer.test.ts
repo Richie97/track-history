@@ -94,7 +94,7 @@ describe("GET /garage odometer (#192)", () => {
     expect(v.odometer).toEqual({ km: 70800, on: "2026-04-20", readings: 3, other_car: 1 });
     const byId = Object.fromEntries(v.parts.map((p: { id: number }) => [p.id, p]));
     expect(byId[pads.body.id].odometer).toEqual({ km: 800, from: "2026-03-10", to: "2026-04-20", readings: 3 });
-    // One reading in the tyres' window is not a distance.
+    // One reading in the tires' window is not a distance.
     expect(byId[tires.body.id].odometer).toBeNull();
     // The hours estimate is untouched by any of it: three linked days at 2 h,
     // the borrowed-car day included — the odometer never feeds wear.ts.

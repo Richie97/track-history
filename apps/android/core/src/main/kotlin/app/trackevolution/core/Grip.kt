@@ -20,7 +20,7 @@ import kotlin.math.min
  * Neither says much alone — a longitudinal-G trace is the brake trace with
  * extra steps — but plotted against each other they draw the one picture in
  * amateur telemetry that says what to do differently rather than only where the
- * time went. The tyre has one grip budget, spent in any direction: brake in a
+ * time went. The tire has one grip budget, spent in any direction: brake in a
  * straight line, release, turn, then accelerate and the samples draw a cross;
  * trail the brake into the corner and feed the throttle out of it and they fill
  * the circle. The empty space between the two is the lost time.
@@ -44,9 +44,9 @@ import kotlin.math.min
 public object Grip {
 
     /**
-     * Combined G below this is the car coasting, not the tyre working. It is the
+     * Combined G below this is the car coasting, not the tire working. It is the
      * denominator of the read-out: "of the time you were actually using the
-     * tyre, how much of it was combined" is the question that trends across a
+     * tire, how much of it was combined" is the question that trends across a
      * day, and one long straight would otherwise decide the answer.
      */
     public const val MIN_LOAD_G: Double = 0.3

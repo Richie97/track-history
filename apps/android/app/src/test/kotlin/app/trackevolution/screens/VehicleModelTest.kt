@@ -60,10 +60,56 @@ class VehicleModelTest {
         Json.parseToJsonElement((request.body as TextContent).text).jsonObject
 
     @Test
-    fun `splits parts into in-service and retired`() {
+    fun `splits parts into on the car, spares and retired`() {
         val model = loaded()
         assertEquals(listOf(10, 11), model.activeParts.map { it.id })
+        assertEquals(listOf(13), model.spareParts.map { it.id })
         assertEquals(listOf(12), model.retiredParts.map { it.id })
+    }
+
+    private fun sentTo(suffix: String): HttpRequestData = runBlocking {
+        withTimeout(5_000) {
+            var found = sent.firstOrNull { it.url.encodedPath.endsWith(suffix) }
+            while (found == null) {
+                delay(5)
+                found = sent.firstOrNull { it.url.encodedPath.endsWith(suffix) }
+            }
+            found
+        }
+    }
+
+    @Test
+    fun `the Equipped switch posts equip or unequip with its date`() {
+        val model = loaded()
+        sent.clear()
+        model.setEquipped(model.spareParts.single(), equipped = true, on = "2026-08-01")
+        assertEquals("2026-08-01", bodyOf(sentTo("/parts/13/equip"))["on"]!!.jsonPrimitive.content)
+
+        model.setEquipped(model.activeParts.first(), equipped = false, on = "2026-08-02")
+        assertEquals("2026-08-02", bodyOf(sentTo("/parts/10/unequip"))["on"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a new set of a retired part goes on the car and swaps, or to the shelf`() {
+        val model = loaded()
+        sent.clear()
+        model.refreshRetiredPart(12, on = "2026-08-01", equipped = true)
+        val onCar = bodyOf(sentTo("/parts/12/refresh"))
+        assertEquals("2026-08-01", onCar["installed_on"]!!.jsonPrimitive.content)
+        assertEquals("true", onCar["equipped"]!!.jsonPrimitive.content)
+        assertEquals("true", onCar["swap"]!!.jsonPrimitive.content)
+
+        sent.clear()
+        model.refreshRetiredPart(12, on = "2026-08-01", equipped = false)
+        val shelf = bodyOf(sentTo("/parts/12/refresh"))
+        assertEquals("false", shelf["equipped"]!!.jsonPrimitive.content)
+        assertEquals("false", shelf["swap"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a spare's alert waits until it is back on the car`() {
+        // 13 is all but worn out, but it's on the shelf and not wearing.
+        assertEquals(listOf(10), loaded().alerts.map { it.part.id })
     }
 
     @Test
@@ -209,7 +255,7 @@ class VehicleModelTest {
               "vehicle_id":2,"updated_at":1,"lap_count":0,"session_count":0,"best_ms":139000,"hours":2}]
         """
 
-        /** Part 10 is due, 11 is healthy, 12 is retired. */
+        /** Part 10 is due, 11 is healthy, 12 is retired, 13 is a nearly-done spare on the shelf. */
         const val GARAGE = """
             [{"id":1,"name":"Corvette Z06","is_default":1,"updated_at":1,"hours":12.5,
               "event_count":4,"event_days":6,"parts":[
@@ -222,7 +268,11 @@ class VehicleModelTest {
                 {"id":12,"vehicle_id":1,"kind":"rotors_front","name":"Girodisc",
                  "installed_on":"2025-01-01","retired_on":"2026-01-01","cost_cents":120000,
                  "measurements":[],
-                 "wear":{"hours":18,"events":6,"cycles":8,"remaining_hours":0,"pct_used":1}}]}]
+                 "wear":{"hours":18,"events":6,"cycles":8,"remaining_hours":0,"pct_used":1}},
+                {"id":13,"vehicle_id":1,"kind":"tires","name":"Street","size":"255/40R17",
+                 "installed_on":"2025-06-01","equipped":false,
+                 "mounts":[{"mounted_on":"2025-06-01","removed_on":"2026-02-01"}],"measurements":[],
+                 "wear":{"hours":7,"events":2,"cycles":3,"remaining_hours":0.2,"pct_used":0.97}}]}]
         """
     }
 }

@@ -136,7 +136,7 @@ fun FrictionCircle(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Friction circle", style = TrackTheme.typography.xxs, color = colors.textMuted)
             Text(
-                "How much of the tyre is being used. 20 m samples, so this is the shape of " +
+                "How much of the tire is being used. 20 m samples, so this is the shape of " +
                     "grip usage, not peak G.",
                 style = TrackTheme.typography.xxs,
                 color = colors.textFaint,
@@ -422,7 +422,7 @@ private fun Readout(
             )
         }
         Text(
-            "Share of the samples where the tyre was working (${"%.2f".format(Grip.MIN_LOAD_G)} G combined " +
+            "Share of the samples where the tire was working (${"%.2f".format(Grip.MIN_LOAD_G)} G combined " +
                 "or more) spent doing two things at once. Brake straight, turn, then accelerate and both " +
                 "stay low — the gap to the arc is time.",
             style = TrackTheme.typography.xxs,

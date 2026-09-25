@@ -143,6 +143,10 @@ import {
   partKindLabel,
   partOdometerLine,
   partStatus,
+  partTitle,
+  equipSwapKinds,
+  equipSwapsOff,
+  isTireKind,
   vehicleLogbook,
   vehicleOdometerLine,
   vehicleTileLine,
@@ -640,7 +644,7 @@ const gripLapC = { n: 3, timeMs: 93000, speed: Array.from({ length: 20 }, () => 
 const gripChannels = { v: 1, dStepM: 20, laps: [gripLapA, gripLapB, gripLapC] };
 // Each sample sits exactly on a threshold: k0/k1 count as trail braking (both
 // bounds are inclusive), k2 fails the lateral bound, k3 counts as power, k4
-// fails the longitudinal bound, and k5 never loads the tyre at all.
+// fails the longitudinal bound, and k5 never loads the tire at all.
 const gripEdgeLap = {
   n: 1,
   timeMs: 60000,
@@ -693,7 +697,7 @@ const gripFixture = {
 // window for all of them.
 const cornerLatG = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0, 0.7, 0.8, 0.2, 0.9, 0.7, 0.1, 0, 0, 1.4, 0, 0, 0.1, 0, 0, 0];
 const cornerLapA = { n: 1, timeMs: 90000, speed: Array.from({ length: 24 }, () => 100), latG: cornerLatG };
-// Takes the first corner a point wider and never loads the tyre in the chicane.
+// Takes the first corner a point wider and never loads the tire in the chicane.
 const cornerLapB = {
   n: 2,
   timeMs: 91000,
@@ -1325,7 +1329,44 @@ const garageFixture = {
     kind,
     label: partKindLabel(kind),
     wearLimitHint: WEAR_LIMIT_HINTS[kind] ?? null,
+    isTire: isTireKind(kind),
+    swapKinds: equipSwapKinds(kind),
   })),
+  // The Equipped switch (migration 0029): what equipping a part takes off, said
+  // before it happens. The shelf is chosen for the ways a port goes wrong: a
+  // full set and a staggered pair both fitted, a retired set that is still
+  // `equipped: false`, a spare of the same kind, a part with no `equipped`
+  // (cached before 0029 — never swapped), and `other`, which swaps nothing.
+  equip: (() => {
+    const shelf = [
+      { id: 1, kind: "tires", name: "RE-71RS", size: "255/40R17", equipped: true, retired_on: null },
+      { id: 2, kind: "tires_front", name: "A7", size: "275/35R18", equipped: true, retired_on: null },
+      { id: 3, kind: "tires_rear", name: "A7", size: "315/30R18", equipped: true, retired_on: null },
+      { id: 4, kind: "tires", name: "Street", size: null, equipped: false, retired_on: null },
+      { id: 5, kind: "tires_rear", name: "Old A7", size: null, equipped: false, retired_on: "2026-05-01" },
+      { id: 6, kind: "pads_front", name: "DTC-60", size: null, equipped: true, retired_on: null },
+      { id: 7, kind: "pads_front", name: "Street pads", size: null, equipped: false, retired_on: null },
+      { id: 8, kind: "other", name: "Wipers", size: null, equipped: true, retired_on: null },
+      { id: 9, kind: "pads_rear", name: "Cached", size: null, retired_on: null },
+    ];
+    const probes = [
+      { id: 4, kind: "tires" },
+      { id: 2, kind: "tires_front" },
+      { id: null, kind: "tires_rear" },
+      { id: 7, kind: "pads_front" },
+      { id: null, kind: "pads_rear" },
+      { id: null, kind: "other" },
+    ];
+    return {
+      parts: shelf,
+      cases: probes.map((part) => ({ part, swapsOff: equipSwapsOff(part, shelf).map((p) => p.id) })),
+    };
+  })(),
+  titles: [
+    { name: "Hoosier A7", size: "285/30R18" },
+    { name: "DTC-60", size: null },
+    { name: "DTC-60", size: "" },
+  ].map((p) => ({ part: p, title: partTitle(p) })),
   // The car's own odometer beside the hours (#192). Rows chosen for the ways a
   // port goes wrong: a half that rounds up, a reading that needs two group
   // separators, the singular and plural skipped-reading suffix, and null.
@@ -1625,7 +1666,7 @@ const videoFixture = {
 // two [laptiming] endpoint orders, a short line the car drives just past the
 // end of (widenGate), a recording started and stopped at the line
 // (edgeCrossings), and Track Precision's car channels with a zeroed column,
-// a "no reading" tyre sentinel and G columns scaled by 1/9.81 — plus the
+// a "no reading" tire sentinel and G columns scaled by 1/9.81 — plus the
 // 2024 firmware's _PTPA columns in m/s² (accelToG) and a car that stops
 // reporting mid-session (carSilent).
 

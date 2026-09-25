@@ -47,19 +47,27 @@ struct VehicleScreen: View {
         case editPart(Part)
         /// The car itself: name, mods, target hot pressure, default.
         case car
+        /// The Equipped switch's confirm (migration 0029): the swap date, and
+        /// what putting a part on takes off. A sheet rather than a second
+        /// presentation modifier, for the one-sheet rule above.
+        case equip(Part)
+        /// "Buy another set of those" for a retired part.
+        case refreshRetired(Part)
 
-        var id: Int {
+        var id: String {
             switch self {
-            case .addPart: 0
-            case .editPart(let part): part.id
-            case .car: -1
+            case .addPart: "add"
+            case .editPart(let part): "edit-\(part.id)"
+            case .car: "car"
+            case .equip(let part): "equip-\(part.id)"
+            case .refreshRetired(let part): "refresh-\(part.id)"
             }
         }
 
         var part: Part? {
             switch self {
             case .editPart(let part): part
-            case .addPart, .car: nil
+            case .addPart, .car, .equip, .refreshRetired: nil
             }
         }
 
@@ -67,7 +75,7 @@ struct VehicleScreen: View {
             switch self {
             case .addPart: .add
             case .editPart(let part): .edit(part)
-            case .car: nil
+            case .car, .equip, .refreshRetired: nil
             }
         }
     }
@@ -98,14 +106,23 @@ struct VehicleScreen: View {
         // with them. The enum is what makes "which form" a single piece of state.
         .sheet(item: $sheet) { form in
             if let model {
-                if let mode = form.partMode {
+                if case .equip(let part) = form {
+                    EquipSheet(part: part, parts: model.allParts) { on in
+                        await model.setEquipped(part, Garage.isSpare(part), on: on)
+                    }
+                } else if case .refreshRetired(let part) = form {
+                    RetiredRefreshSheet(part: part, parts: model.allParts) { on, equipped in
+                        await model.refreshRetiredPart(id: part.id, on: on, equipped: equipped)
+                    }
+                } else if let mode = form.partMode {
                     PartFormSheet(
                         mode: mode,
+                        carParts: model.allParts,
                         submit: { draft, patch in
                             switch form {
                             case .addPart: await model.addPart(draft)
                             case .editPart(let part): await model.updatePart(id: part.id, patch)
-                            case .car: false
+                            case .car, .equip, .refreshRetired: false
                             }
                         },
                         onDelete: form.part.map { part in
@@ -186,11 +203,11 @@ struct VehicleScreen: View {
 
     /// The selected part's measurements.
     private func partColumn(_ model: VehicleModel) -> some View {
-        let part = model.activeParts.first { $0.id == selectedPartId } ?? model.activeParts.first
+        let part = selectedPart(model)
         return ScrollView {
             VStack(alignment: .leading, spacing: TESpacing.gridGap) {
                 if let part {
-                    Text(part.name ?? part.kind.label)
+                    Text(Garage.partTitle(part).isEmpty ? part.kind.label : Garage.partTitle(part))
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
                     WearStatusLine(part: part)
@@ -361,11 +378,12 @@ struct VehicleScreen: View {
     /// The consumables — everything the Pro `GET /api/garage` carries.
     @ViewBuilder
     private func proSection(_ model: VehicleModel) -> some View {
-            TESectionHeader("Consumables in service")
+            TESectionHeader("On the car")
             Text("""
                 Wear accrues automatically from this car's logged events — 2 h per track day unless an \
-                event says otherwise. Log a quick pad or tread measurement between events and the \
-                projection switches from estimated to measured.
+                event says otherwise — but only while a part is equipped: switch it off to put a set on \
+                the shelf, and on again to swap it back. Log a quick pad or tread measurement between \
+                events and the projection switches from estimated to measured.
                 """)
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
@@ -374,6 +392,20 @@ struct VehicleScreen: View {
                 TEEmpty("Nothing tracked yet — add pads, tires or fluid and the app will tell you when they're due.")
             } else {
                 ForEach(model.activeParts) { part in
+                    partCard(model, part)
+                }
+            }
+
+            // The shelf (migration 0029): off the car, not thrown away.
+            if !model.spareParts.isEmpty {
+                TESectionHeader("Spares")
+                Text("""
+                    Off the car but not retired — a second set of wheels, the street pads. Their hours \
+                    are frozen until you equip them, which takes off whatever is in their place.
+                    """)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                ForEach(model.spareParts) { part in
                     partCard(model, part)
                 }
             }
@@ -407,15 +439,28 @@ struct VehicleScreen: View {
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
                     Spacer(minLength: 4)
-                    if let status = Garage.partStatus(part.wear) {
+                    if let status = Garage.partStatus(part.wear), Garage.isOnCar(part) {
                         Text(status.label)
                             .teStyle(.xs)
                             .foregroundStyle(status.ink)
                     }
                 }
 
+                // The Equipped switch (migration 0029). It never writes on its
+                // own: flipping it opens the confirm, so until that lands the
+                // switch keeps showing where the part really is.
+                Toggle("Equipped", isOn: Binding(
+                    get: { !Garage.isSpare(part) },
+                    set: { _ in sheet = .equip(part) }
+                ))
+                .teStyle(.sm)
+                .tint(Color(.accent))
+                .accessibilityIdentifier("equipPart")
+
                 TEMeta([
+                    part.size.flatMap { $0.isEmpty ? nil : $0 },
                     "Installed \(EventDates.fmtDate(part.installedOn))",
+                    Self.shelfLine(part),
                     Garage.fmtCost(part.costCents),
                     part.notes
                 ])
@@ -461,7 +506,16 @@ struct VehicleScreen: View {
     /// service. Never nothing while there is something to show — an empty column
     /// beside a list of parts reads as broken rather than as unselected.
     private func selectedPart(_ model: VehicleModel) -> Part? {
-        model.activeParts.first { $0.id == selectedPartId } ?? model.activeParts.first
+        let candidates = model.activeParts + model.spareParts
+        return candidates.first { $0.id == selectedPartId } ?? candidates.first
+    }
+
+    /// A spare's place in its history: when it last came off the car, or that
+    /// it hasn't been on yet. Nil for a part on the car.
+    private static func shelfLine(_ part: Part) -> String? {
+        guard Garage.isSpare(part) else { return nil }
+        if let off = Garage.lastOff(part) { return "off the car since \(EventDates.fmtDate(off))" }
+        return "not fitted yet"
     }
 
     private func measurements(_ model: VehicleModel, _ part: Part) -> some View {
@@ -497,7 +551,7 @@ struct VehicleScreen: View {
         TECard(padding: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(part.name ?? part.kind.label)
+                    Text(Garage.partTitle(part).isEmpty ? part.kind.label : Garage.partTitle(part))
                         .teStyle(.bodyStrong)
                         .foregroundStyle(Color(.textStrong))
                     Spacer(minLength: 8)
@@ -511,6 +565,11 @@ struct VehicleScreen: View {
                     Garage.fmtHours(part.wear.hours),
                     Garage.fmtCost(part.costCents)
                 ])
+                // "Buy another set of those" (migration 0029).
+                Button("Refresh") { sheet = .refreshRetired(part) }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityLabel("Refresh \(Garage.partTitle(part)) into a new set")
+                    .accessibilityIdentifier("refreshRetiredPart")
             }
         }
     }
@@ -641,6 +700,8 @@ struct PartFormSheet: View {
     }
 
     let mode: Mode
+    /// The car's parts, so adding one equipped can say what it takes off.
+    var carParts: [Part] = []
     /// Returns true when the write landed. Both shapes are passed so the caller
     /// picks the one its request needs — a create takes a draft, an edit a patch.
     let submit: (PartDraft, PartPatch) async -> Bool
@@ -655,6 +716,9 @@ struct PartFormSheet: View {
 
     @State private var kind: PartKind = .padsFront
     @State private var name = ""
+    @State private var size = ""
+    /// Adding only: on the car now, or straight to the shelf (migration 0029).
+    @State private var equipped = true
     @State private var installedOn = Date()
     @State private var retired = false
     @State private var retiredOn = Date()
@@ -685,8 +749,18 @@ struct PartFormSheet: View {
                         }
 
                         TEField(label: "Part / compound") {
-                            TextField("Hawk DTC-60, RE-71RS 255/40…", text: $name)
+                            TextField("Hawk DTC-60, Hoosier A7…", text: $name)
                                 .teInput()
+                        }
+
+                        TEField(label: "Size (optional)") {
+                            TextField(kind.isTire ? "285/30R18" : "", text: $size)
+                                .teInput()
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.characters)
+                                // The server's limit, enforced where it's typed.
+                                .onChange(of: size) { _, new in if new.count > 40 { size = String(new.prefix(40)) } }
+                                .accessibilityIdentifier("partSize")
                         }
 
                         TEField(label: "Installed") {
@@ -731,9 +805,24 @@ struct PartFormSheet: View {
                         }
 
                         TEField(label: "Notes") {
-                            TextField("Sizes, torque specs, where bought…", text: $notes, axis: .vertical)
+                            TextField("Torque specs, where bought…", text: $notes, axis: .vertical)
                                 .teInput()
                                 .lineLimit(2...4)
+                        }
+
+                        if !isEditing {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Toggle("Equipped — on the car now", isOn: $equipped)
+                                    .teStyle(.sm)
+                                    .tint(Color(.accent))
+                                    .accessibilityIdentifier("addPartEquipped")
+                                if equipped, let note = Garage.addSwapNote(kind, in: carParts) {
+                                    Text(note)
+                                        .teStyle(.xs)
+                                        .foregroundStyle(Color(.textMuted))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                         }
                     }
                 }
@@ -779,6 +868,7 @@ struct PartFormSheet: View {
             if case .edit(let part) = mode {
                 kind = part.kind
                 name = part.name ?? ""
+                size = part.size ?? ""
                 installedOn = EventDates.date(fromISO: part.installedOn) ?? Date()
                 retired = part.retiredOn != nil
                 retiredOn = part.retiredOn.flatMap { EventDates.date(fromISO: $0) } ?? Date()
@@ -798,6 +888,7 @@ struct PartFormSheet: View {
         let expected = number(from: expectedHours)
         let limit = number(from: wearLimit)
         let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
+        let trimmedSize = size.trimmingCharacters(in: .whitespaces)
 
         var draft = PartDraft(
             kind: kind, name: trimmedName, installedOn: EventDates.isoString(from: installedOn)
@@ -806,6 +897,11 @@ struct PartFormSheet: View {
         draft.expectedHours = expected
         draft.wearLimit = limit
         draft.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
+        draft.size = trimmedSize.isEmpty ? nil : trimmedSize
+        // Equipped, it takes off what it replaces (`swap`), as the switch does;
+        // switched off, it goes straight to the shelf.
+        draft.equipped = equipped
+        draft.swap = equipped
 
         // Every field is sent on an edit, so clearing one clears it server-side —
         // `.set(nil)` rather than `.unchanged`, which would silently keep the old
@@ -813,6 +909,7 @@ struct PartFormSheet: View {
         var patch = PartPatch()
         patch.kind = .set(kind)
         patch.name = .set(trimmedName)
+        patch.size = .set(trimmedSize.isEmpty ? nil : trimmedSize)
         patch.installedOn = .set(EventDates.isoString(from: installedOn))
         patch.retiredOn = .set(retired ? EventDates.isoString(from: retiredOn) : nil)
         patch.costCents = .set(centsValue)
@@ -836,6 +933,133 @@ struct PartFormSheet: View {
     private func cents(from text: String) -> Int? {
         guard let dollars = number(from: text) else { return nil }
         return Int((dollars * 100).rounded())
+    }
+}
+
+// MARK: - On the car, or on the shelf (migration 0029)
+
+/// The Equipped switch's confirm: what the swap does, in the web page's words,
+/// and the date it happened — today unless it was earlier, never before the
+/// part's current stretch began or back inside one it was already on.
+struct EquipSheet: View {
+    let part: Part
+    let parts: [Part]
+    /// Returns true when the write landed.
+    let submit: (String) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var on = Date()
+    @State private var saving = false
+
+    private var earliest: Date {
+        EventDates.date(fromISO: Garage.earliestSwapDate(part)) ?? .distantPast
+    }
+
+    var body: some View {
+        NavigationStack {
+            TEPage {
+                Text(Garage.equipNote(part, in: parts))
+                    .teStyle(.body)
+                    .foregroundStyle(Color(.textStrong))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("equipNote")
+                TEField(label: "Swap date") {
+                    DatePicker("Swap date", selection: $on, in: earliest...max(earliest, Date()), displayedComponents: .date)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                }
+                Button(saving ? "Saving…" : (Garage.isSpare(part) ? "Equip" : "Take off")) {
+                    Task {
+                        saving = true
+                        defer { saving = false }
+                        if await submit(EventDates.isoString(from: on)) {
+                            Haptics.confirm()
+                            dismiss()
+                        } else {
+                            Haptics.warn()
+                        }
+                    }
+                }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .disabled(saving)
+                .accessibilityIdentifier("confirmEquip")
+            }
+            .navigationTitle(Garage.partTitle(part).isEmpty ? part.kind.label : Garage.partTitle(part))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+/// "Buy another set of those" for a retired part: a fresh copy of its spec —
+/// name, size, cost, replace-at — installed on the chosen date, on the car in
+/// place of whatever is there by default, or on the shelf.
+struct RetiredRefreshSheet: View {
+    let part: Part
+    let parts: [Part]
+    /// Returns true when the write landed.
+    let submit: (String, Bool) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var on = Date()
+    @State private var equipped = true
+    @State private var saving = false
+
+    private var note: String {
+        if equipped, let swap = Garage.addSwapNote(part.kind, in: parts) { return swap }
+        return equipped ? "Goes on the car with hours at zero." : "Goes to Spares with hours at zero."
+    }
+
+    var body: some View {
+        NavigationStack {
+            TEPage {
+                TEField(label: "Installed") {
+                    DatePicker(
+                        "Installed",
+                        selection: $on,
+                        in: (EventDates.date(fromISO: part.installedOn) ?? .distantPast)...,
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                }
+                Toggle("Equipped", isOn: $equipped)
+                    .teStyle(.sm)
+                    .tint(Color(.accent))
+                Text(note)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(saving ? "Saving…" : "Add new set") {
+                    Task {
+                        saving = true
+                        defer { saving = false }
+                        if await submit(EventDates.isoString(from: on), equipped) {
+                            Haptics.confirm()
+                            dismiss()
+                        } else {
+                            Haptics.warn()
+                        }
+                    }
+                }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .disabled(saving)
+                .accessibilityIdentifier("confirmRetiredRefresh")
+            }
+            .navigationTitle("A new set of \(Garage.partTitle(part))")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -914,8 +1138,16 @@ final class VehicleModel {
         }
     }
 
-    var activeParts: [Part] { garageVehicle?.parts.filter { $0.retiredOn == nil } ?? [] }
+    /// On the car right now, in the car's own order (pads, tires, rotors,
+    /// fluids) — `onCarParts` in `public/app.js`. A spare isn't wearing, so it
+    /// is neither here nor in the alerts until it goes back on.
+    var activeParts: [Part] { Garage.sortedByKind((garageVehicle?.parts ?? []).filter(Garage.isOnCar)) }
+    /// Off the car but not retired (migration 0029) — a second set of wheels,
+    /// the street pads.
+    var spareParts: [Part] { Garage.sortedByKind((garageVehicle?.parts ?? []).filter(Garage.isSpare)) }
     var retiredParts: [Part] { garageVehicle?.parts.filter { $0.retiredOn != nil } ?? [] }
+    /// Every part on the car's page, for the switch's "this takes off …".
+    var allParts: [Part] { garageVehicle?.parts ?? [] }
 
     /// What this car's consumables have cost so far — retired sets included, since
     /// the point of the number is what the season actually cost.
@@ -959,6 +1191,30 @@ final class VehicleModel {
         await write { _ = try await $0.refreshPart(id: id) }
     }
 
+    /// "Buy another set of those": a fresh copy of a *retired* part's spec,
+    /// installed on `on` — nothing is retired. On the car by default, taking off
+    /// whatever shares its place (`swap`); `equipped: false` shelves it instead.
+    func refreshRetiredPart(id: Int, on: String, equipped: Bool) async -> Bool {
+        await write {
+            _ = try await $0.refreshPart(
+                id: id, PartRefreshDraft(installedOn: on, equipped: equipped, swap: equipped)
+            )
+        }
+    }
+
+    /// The Equipped switch (migration 0029), confirmed: onto the car — taking
+    /// off whatever shares its place as of the same day — or onto the shelf.
+    /// The server decides what comes off; `Garage.equipNote` only said so first.
+    func setEquipped(_ part: Part, _ equipped: Bool, on: String) async -> Bool {
+        await write {
+            if equipped {
+                _ = try await $0.equipPart(id: part.id, PartEquipDraft(on: on))
+            } else {
+                try await $0.unequipPart(id: part.id, PartEquipDraft(on: on))
+            }
+        }
+    }
+
     func addMeasurement(partId: Int, _ draft: MeasurementDraft) async -> Bool {
         await write { _ = try await $0.addMeasurement(partId: partId, draft) }
     }
@@ -987,7 +1243,7 @@ final class VehicleModel {
 
 // MARK: - The car itself
 
-/// Edit the car: its name, its modifications and notes, the hot tyre pressure the
+/// Edit the car: its name, its modifications and notes, the hot tire pressure the
 /// health strip's pressure loop aims at, whether new events start on it, and —
 /// #208 / #222 — its two spec-sheet numbers, picked from the car catalog or
 /// typed. `viewVehicle`'s `#veh-form` in `public/app.js` is the reference.

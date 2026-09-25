@@ -424,12 +424,12 @@ private fun WrappedCard(
             }
             WrappedStory.Kind.TIRE -> when {
                 card.locked -> Locked(
-                    "Favourite tyre",
-                    "The tyre with the most track days on it this year, from your garage.",
+                    "Favorite tire",
+                    "The tire with the most track days on it this year, from your garage.",
                     onSubscribe,
                 )
                 else -> data.pro?.tire?.let { tire ->
-                    Kicker("Favourite tyre")
+                    Kicker("Favorite tire")
                     Lede("The rubber you lived on")
                     Big(tire.name)
                     Line(

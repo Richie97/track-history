@@ -22,11 +22,47 @@
       "parts": [
         {
           "cost_cents": null,
+          "equipped": false,
           "expected_hours": null,
           "id": 1,
           "installed_on": "2026-03-15",
-          "kind": "tires",
+          "kind": "tires_rear",
           "measurements": [],
+          "mounts": [],
+          "name": "Falken RT660",
+          "notes": null,
+          "odometer": null,
+          "retired_on": null,
+          "size": "275/40R17",
+          "vehicle_id": 1,
+          "wear": {
+            "cycles": 0,
+            "events": 0,
+            "expected_hours": null,
+            "hours": 0,
+            "last_value": null,
+            "pct_used": null,
+            "remaining_hours": null,
+            "source": null,
+            "unit": null,
+            "wear_per_hour": null
+          },
+          "wear_limit": null
+        },
+        {
+          "cost_cents": null,
+          "equipped": true,
+          "expected_hours": null,
+          "id": 1,
+          "installed_on": "2026-03-15",
+          "kind": "tires_front",
+          "measurements": [],
+          "mounts": [
+            {
+              "mounted_on": "2026-03-15",
+              "removed_on": null
+            }
+          ],
           "name": "Falken RT660",
           "notes": null,
           "odometer": {
@@ -36,6 +72,7 @@
             "to": "2026-04-10"
           },
           "retired_on": null,
+          "size": "255/40R17",
           "vehicle_id": 1,
           "wear": {
             "cycles": 2,
@@ -53,6 +90,7 @@
         },
         {
           "cost_cents": 32000,
+          "equipped": true,
           "expected_hours": 24,
           "id": 1,
           "installed_on": "2026-03-01",
@@ -73,6 +111,12 @@
               "value": 7.8
             }
           ],
+          "mounts": [
+            {
+              "mounted_on": "2026-03-01",
+              "removed_on": null
+            }
+          ],
           "name": "Carbotech XP12",
           "notes": null,
           "odometer": {
@@ -82,6 +126,7 @@
             "to": "2026-04-10"
           },
           "retired_on": null,
+          "size": null,
           "vehicle_id": 1,
           "wear": {
             "cycles": 2,

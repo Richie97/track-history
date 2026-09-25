@@ -48,7 +48,7 @@ const THROTTLE_COLUMNS = ["pedal", "throttle", "throttle position", "accelerator
 // 0-100 brake axis PDR's pedal position uses.
 const BRAKE_COLUMNS = ["braking", "brake", "brake pressure", "braking pressure"];
 
-// Tyre pressures, bar -> kPa, one reading per lap (the lap-end value).
+// Tire pressures, bar -> kPa, one reading per lap (the lap-end value).
 const TYRE_COLUMNS = [
   ["tyreKpaLF", "tire pressure front left"],
   ["tyreKpaRF", "tire pressure front right"],
@@ -247,7 +247,7 @@ export function parseVboText(text, fileName = null) {
   const car = Object.fromEntries(carCols.map((c) => [c.name, []]));
   const throttle = [];
   const brake = [];
-  const tyres = Object.fromEntries(tyreCols.map((c) => [c.name, []]));
+  const tires = Object.fromEntries(tyreCols.map((c) => [c.name, []]));
   const heights = [];
   let t0 = null;
   for (const row of sections["data"] ?? []) {
@@ -286,7 +286,7 @@ export function parseVboText(text, fileName = null) {
     }
     for (const c of tyreCols) {
       const v = num(c.i);
-      if (v != null && v > 0 && v < MAX_TYRE_BAR) tyres[c.name].push({ t, v: v * 100 });
+      if (v != null && v > 0 && v < MAX_TYRE_BAR) tires[c.name].push({ t, v: v * 100 });
     }
   }
   if (points.length < 10) throw new Error("VBO file contains no usable GPS data");
@@ -298,7 +298,7 @@ export function parseVboText(text, fileName = null) {
     time = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}:${String(se).padStart(2, "0")}`;
   }
 
-  const { carChannels, lapScalarChannels, sessionMeta } = finishCarChannels({ car, throttle, brake, tyres, heights });
+  const { carChannels, lapScalarChannels, sessionMeta } = finishCarChannels({ car, throttle, brake, tires, heights });
 
   // [laptiming]: "Start <lon1> <lat1> <lon2> <lat2>" (minutes, two endpoints
   // of the start/finish line) per Racelogic, though some exporters write
@@ -363,9 +363,9 @@ export function parseVboText(text, fileName = null) {
 //             converted by CAR_COLUMNS' `f` (latG a magnitude, gear 0-8)
 //   throttle: pedal position, 0-1 or 0-100
 //   brake:    pressure, >= 0
-//   tyres:    { tyreKpaLF, … } in kPa, sentinels already dropped
+//   tires:    { tyreKpaLF, … } in kPa, sentinels already dropped
 //   heights:  metres, or empty
-export function finishCarChannels({ car, throttle, brake, tyres, heights }) {
+export function finishCarChannels({ car, throttle, brake, tires, heights }) {
   const carChannels = {};
   for (const [name, pts] of Object.entries(car)) {
     if (pts.length < 10 || !varies(pts)) continue;
@@ -382,7 +382,7 @@ export function finishCarChannels({ car, throttle, brake, tyres, heights }) {
     carChannels.brake = brake.map((p) => ({ t: p.t, v: (p.v / peak) * 100 }));
   }
   const lapScalarChannels = {};
-  for (const [name, pts] of Object.entries(tyres)) if (pts.length >= 10) lapScalarChannels[name] = pts;
+  for (const [name, pts] of Object.entries(tires)) if (pts.length >= 10) lapScalarChannels[name] = pts;
   const sessionMeta =
     heights.length > 10 ? { elevationM: Math.max(...heights) - Math.min(...heights) } : null;
   return { carChannels, lapScalarChannels, sessionMeta };

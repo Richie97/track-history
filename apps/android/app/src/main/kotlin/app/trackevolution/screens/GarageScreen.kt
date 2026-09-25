@@ -211,7 +211,7 @@ private fun CarTile(vehicle: Vehicle, model: GarageModel, selected: Boolean, onC
         )
         if (pro != null) {
             val alerts = Garage.garageAlerts(listOf(pro))
-            val active = pro.parts.count { it.retiredOn == null }
+            val active = pro.parts.count(Garage::isOnCar)
             Text(
                 "${Garage.fmtHours(pro.hours)} on track",
                 style = TrackTheme.typography.xs,

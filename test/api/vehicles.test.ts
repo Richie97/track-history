@@ -77,7 +77,7 @@ describe("PUT /api/vehicles/:id", () => {
     expect(row.notes).toBe("Öhlins DFV");
   });
 
-  it("stores, updates and clears the target hot tyre pressure", async () => {
+  it("stores, updates and clears the target hot tire pressure", async () => {
     const { api } = await signedInUser();
     // Set on create, read back on the list and the garage.
     const { body: v } = await api("POST", "/vehicles", { name: "Corvette", target_hot_psi: 32 });

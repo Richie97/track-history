@@ -82,7 +82,7 @@ struct FrictionCircle: View {
                         Text("Friction circle")
                             .teStyle(.eyebrow)
                             .foregroundStyle(Color(.textMuted))
-                        Text("How much of the tyre is being used. 20 m samples, so this is the shape of grip usage, not peak G.")
+                        Text("How much of the tire is being used. 20 m samples, so this is the shape of grip usage, not peak G.")
                             .teStyle(.xxs)
                             .foregroundStyle(Color(.textFaint))
                     }
@@ -335,7 +335,7 @@ struct FrictionCircle: View {
                         }
                     }
                 }
-                Text("Share of the samples where the tyre was working (\(String(format: "%.2f", Grip.MIN_LOAD_G)) G combined or more) spent doing two things at once. Brake straight, turn, then accelerate and both stay low — the gap to the arc is time.")
+                Text("Share of the samples where the tire was working (\(String(format: "%.2f", Grip.MIN_LOAD_G)) G combined or more) spent doing two things at once. Brake straight, turn, then accelerate and both stay low — the gap to the arc is time.")
                     .teStyle(.xxs)
                     .foregroundStyle(Color(.textFaint))
             }

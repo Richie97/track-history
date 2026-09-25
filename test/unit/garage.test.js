@@ -6,6 +6,10 @@ import {
   catalogPrefill,
   defaultMeasurementUnit,
   diffSetups,
+  equipSwapKinds,
+  equipSwapsOff,
+  isTireKind,
+  partTitle,
   flatLabel,
   flatUnit,
   flattenSetup,
@@ -157,6 +161,36 @@ describe("partStatus / fmtRemaining", () => {
     expect(fmtRemaining(wear(2.7))).toBe("~2.7 h left (≈1.5 track days)");
     expect(fmtRemaining(wear(8))).toBe("~8 h left (≈4 track days)");
     expect(fmtRemaining(wear(null))).toBeNull();
+  });
+});
+
+describe("equipping (front / rear tires, spares)", () => {
+  const parts = [
+    { id: 1, kind: "tires", name: "Street", equipped: false, retired_on: null },
+    { id: 2, kind: "tires_front", name: "A7", size: "285/30R18", equipped: true, retired_on: null },
+    { id: 3, kind: "tires_rear", name: "A7", size: "335/30R18", equipped: true, retired_on: null },
+    { id: 4, kind: "tires_front", name: "Old A7", equipped: false, retired_on: "2026-01-01" },
+    { id: 5, kind: "pads_front", name: "DTC-60", equipped: true, retired_on: null },
+    { id: 6, kind: "other", name: "Camera", equipped: true, retired_on: null },
+  ];
+
+  it("a full set takes both pairs off; a pair takes the full set and its own axle", () => {
+    expect(equipSwapsOff(parts[0], parts).map((p) => p.id)).toEqual([2, 3]);
+    expect(equipSwapsOff({ id: 9, kind: "tires_front" }, parts).map((p) => p.id)).toEqual([2]);
+    expect(equipSwapsOff({ id: 9, kind: "other" }, parts)).toEqual([]);
+    expect(equipSwapKinds("rotors_rear")).toEqual(["rotors_rear"]);
+  });
+
+  it("treats every tire kind as tread depth and heat cycles", () => {
+    expect(isTireKind("tires_rear")).toBe(true);
+    expect(isTireKind("pads_rear")).toBe(false);
+    expect(defaultMeasurementUnit("tires_front", "imperial")).toBe("32nds");
+    expect(wearLimitHint("tires_rear", "metric")).toBe("3 (mm)");
+  });
+
+  it("titles a part with its size when it has one", () => {
+    expect(partTitle(parts[1])).toBe("A7 · 285/30R18");
+    expect(partTitle(parts[0])).toBe("Street");
   });
 });
 

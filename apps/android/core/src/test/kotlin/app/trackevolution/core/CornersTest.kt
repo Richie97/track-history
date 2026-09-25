@@ -88,7 +88,7 @@ class CornersTest {
     @Test
     fun `segments the union so the list is one list for the session`() {
         // The second lap takes the first corner wider (load starts a point
-        // earlier) and never loads the tyre through the chicane.
+        // earlier) and never loads the tire through the chicane.
         val wide = lap.copy(
             n = 2,
             latG = latG.mapIndexed { k, g -> if (k == 1) 0.4 else if (k in 9..13) 0.1 else g },

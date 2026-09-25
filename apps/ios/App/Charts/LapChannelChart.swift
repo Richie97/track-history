@@ -1012,7 +1012,7 @@ extension LapChannelChart {
                     v < -0.85 ? Double(Limits.FLAG_ABS) : v > 0.9 ? Double(Limits.FLAG_TC) : 0
                 }
                 // The per-lap scalars the Car tab reads (#190): oil climbing past
-                // its line by the last lap, fuel draining, and a tyre spread that
+                // its line by the last lap, fuel draining, and a tire spread that
                 // is a camber question rather than noise.
                 let heat = Double(index)
                 return LapChannels(

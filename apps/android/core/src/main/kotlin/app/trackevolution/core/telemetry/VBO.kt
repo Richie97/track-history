@@ -71,7 +71,7 @@ public object VBO {
      */
     private val BRAKE_COLUMNS = listOf("braking", "brake", "brake pressure", "braking pressure")
 
-    /** Tyre pressures, bar → kPa, one reading per lap (the lap-end value). */
+    /** Tire pressures, bar → kPa, one reading per lap (the lap-end value). */
     private val TYRE_COLUMNS: List<Pair<String, String>> = listOf(
         "tyreKpaLF" to "tire pressure front left",
         "tyreKpaRF" to "tire pressure front right",
@@ -343,8 +343,8 @@ public object VBO {
         for ((c, _) in carCols) car[c.name] = ArrayList()
         val throttle = ArrayList<ChannelPoint>()
         val brake = ArrayList<ChannelPoint>()
-        val tyres = LinkedHashMap<String, MutableList<ChannelPoint>>()
-        for ((name, _) in tyreCols) tyres[name] = ArrayList()
+        val tires = LinkedHashMap<String, MutableList<ChannelPoint>>()
+        for ((name, _) in tyreCols) tires[name] = ArrayList()
         val heights = ArrayList<Double>()
         var t0: Double? = null
         for (row in sections["data"] ?: emptyList()) {
@@ -385,7 +385,7 @@ public object VBO {
             }
             for ((name, i) in tyreCols) {
                 val v = num(i)
-                if (v != null && v > 0 && v < MAX_TYRE_BAR) tyres[name]!!.add(ChannelPoint(t = t, v = v * 100))
+                if (v != null && v > 0 && v < MAX_TYRE_BAR) tires[name]!!.add(ChannelPoint(t = t, v = v * 100))
             }
         }
         if (points.size < 10) throw TelemetryParseException("VBO file contains no usable GPS data")
@@ -397,7 +397,7 @@ public object VBO {
             time = "${pad2(h)}:${pad2(mi)}:${pad2(se)}"
         }
 
-        val (carChannels, lapScalarChannels, sessionMeta) = finishCarChannels(car, throttle, brake, tyres, heights)
+        val (carChannels, lapScalarChannels, sessionMeta) = finishCarChannels(car, throttle, brake, tires, heights)
 
         // [laptiming]: "Start <lon1> <lat1> <lon2> <lat2>" (minutes, two
         // endpoints of the start/finish line) per Racelogic, though some
@@ -483,14 +483,14 @@ public object VBO {
      *     `CAR_COLUMNS`' `f` (latG a magnitude, gear 0–8), in that order
      *   - [throttle]: pedal position, 0–1 or 0–100
      *   - [brake]: pressure, ≥ 0
-     *   - [tyres]: tyreKpaLF… in kPa, sentinels already dropped
+     *   - [tires]: tyreKpaLF… in kPa, sentinels already dropped
      *   - [heights]: metres, or empty
      */
     public fun finishCarChannels(
         car: Map<String, List<ChannelPoint>>,
         throttle: List<ChannelPoint>,
         brake: List<ChannelPoint>,
-        tyres: Map<String, List<ChannelPoint>>,
+        tires: Map<String, List<ChannelPoint>>,
         heights: List<Double>,
     ): FinishedCarChannels {
         var carChannels = ParsedTelemetry.CarChannels()
@@ -512,7 +512,7 @@ public object VBO {
             carChannels = carChannels.with("brake", brake.map { ChannelPoint(t = it.t, v = (it.v / peak) * 100) })
         }
         val lapScalarChannels = LinkedHashMap<String, List<ChannelPoint>>()
-        for ((name, pts) in tyres) if (pts.size >= 10) lapScalarChannels[name] = pts
+        for ((name, pts) in tires) if (pts.size >= 10) lapScalarChannels[name] = pts
         val sessionMeta = if (heights.size > 10) {
             ParsedTelemetry.SessionMeta(elevationM = heights.maxOf { it } - heights.minOf { it })
         } else {

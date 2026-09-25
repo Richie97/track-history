@@ -211,7 +211,7 @@ describe("a shared Season Wrapped (NS-36)", () => {
     const vehicle = (await api("POST", "/vehicles", { name: "Secret Garage Car" })).body;
     await api("POST", `/vehicles/${vehicle.id}/parts`, {
       kind: "tires",
-      name: "Secret Tyre Compound",
+      name: "Secret Tire Compound",
       installed_on: `${year - 1}-01-01`,
     });
     const ev = await createEvent(api, { start_date: past, car: "Secret Garage Car" });
@@ -229,7 +229,7 @@ describe("a shared Season Wrapped (NS-36)", () => {
     expect(res.status).toBe(200);
     const body = JSON.parse(text);
     expect(body).not.toHaveProperty("pro");
-    for (const secret of ["Secret Tyre Compound", "Secret Garage Car", "7777", "199", "top_speed", "tire"])
+    for (const secret of ["Secret Tire Compound", "Secret Garage Car", "7777", "199", "top_speed", "tire"])
       expect(text, secret).not.toContain(secret);
   });
 

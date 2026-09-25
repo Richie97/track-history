@@ -66,7 +66,7 @@ export const STEP_HOLD = ["gear"];
 // Slow channels (0.5-1.4 Hz) reduced to one number per lap, with how to
 // reduce them and the rounding factor. "max" and "min" are over the lap's own
 // window; "end" is the value as the lap finished — which is what you want for
-// a tyre pressure or a fuel level, and not what you want for an oil
+// a tire pressure or a fuel level, and not what you want for an oil
 // temperature.
 export const SCALAR_NAMES = [
   ["oilC", "max", 10],

@@ -10,7 +10,7 @@ import Foundation
 ///
 /// Every PDR import stores fourteen numbers per lap that are not lap-time data
 /// — peak oil / coolant / transmission temperature, minimum oil pressure, fuel
-/// and the four tyre pressures as the lap ended, peak tyre temperature on each
+/// and the four tire pressures as the lap ended, peak tire temperature on each
 /// corner, minimum battery voltage — plus a `boost` trace whose per-lap peak is
 /// a heat-soak signal rather than a driving one. They answer "is the car okay,
 /// and is it set up right", which is the other half of a track day, and they
@@ -19,7 +19,7 @@ import Foundation
 /// Three rules shape everything here and this port inherits all of them.
 ///
 /// **The reduction is the importer's, never re-derived.** A stored `oilC` is
-/// the lap's peak, `oilKpa` its minimum, a tyre pressure the value as the lap
+/// the lap's peak, `oilKpa` its minimum, a tire pressure the value as the lap
 /// finished; ``HEALTH_DEFS`` restates each rule only so the view can *say* it
 /// ("peak", "min", "at lap end"). Boost is the one figure not stored as a
 /// scalar — it is a gridded trace — so its per-lap peak is derived here, and
@@ -38,7 +38,7 @@ import Foundation
 /// numbers rather than a locale. The web shows °F and psi; the phones do too,
 /// through ``Units/us``.
 ///
-/// The **tyre-pressure loop** — the setup sheet's cold pressures and a
+/// The **tire-pressure loop** — the setup sheet's cold pressures and a
 /// per-vehicle target turning the import's hot pressures into the cold pressure
 /// to start from next time — is web-only, because the setup notebook is. What
 /// ports is the arithmetic under it (``hotPressures(_:)``, ``suggestCold(_:_:_:)``)
@@ -117,19 +117,19 @@ public enum Health {
         Def(key: "oilC", label: "Oil temp", group: "temps", unit: "°C", reduce: .max, watch: 120, over: 130),
         Def(key: "coolantC", label: "Coolant", group: "temps", unit: "°C", reduce: .max, watch: 110, over: 120),
         Def(key: "transC", label: "Transmission", group: "temps", unit: "°C", reduce: .max, watch: 110, over: 125),
-        Def(key: "tyreCLF", label: "Tyre LF", group: "temps", unit: "°C", reduce: .max),
-        Def(key: "tyreCRF", label: "Tyre RF", group: "temps", unit: "°C", reduce: .max),
-        Def(key: "tyreCLR", label: "Tyre LR", group: "temps", unit: "°C", reduce: .max),
-        Def(key: "tyreCRR", label: "Tyre RR", group: "temps", unit: "°C", reduce: .max),
+        Def(key: "tyreCLF", label: "Tire LF", group: "temps", unit: "°C", reduce: .max),
+        Def(key: "tyreCRF", label: "Tire RF", group: "temps", unit: "°C", reduce: .max),
+        Def(key: "tyreCLR", label: "Tire LR", group: "temps", unit: "°C", reduce: .max),
+        Def(key: "tyreCRR", label: "Tire RR", group: "temps", unit: "°C", reduce: .max),
         Def(
             key: "oilKpa", label: "Oil pressure", group: "pressures", unit: "kPa", reduce: .min,
             low: true, watch: 200, over: 120
         ),
         Def(key: "boost", label: "Boost", group: "pressures", unit: "kPa", reduce: .max, derived: true),
-        Def(key: "tyreKpaLF", label: "Tyre LF", group: "pressures", unit: "kPa", reduce: .end),
-        Def(key: "tyreKpaRF", label: "Tyre RF", group: "pressures", unit: "kPa", reduce: .end),
-        Def(key: "tyreKpaLR", label: "Tyre LR", group: "pressures", unit: "kPa", reduce: .end),
-        Def(key: "tyreKpaRR", label: "Tyre RR", group: "pressures", unit: "kPa", reduce: .end),
+        Def(key: "tyreKpaLF", label: "Tire LF", group: "pressures", unit: "kPa", reduce: .end),
+        Def(key: "tyreKpaRF", label: "Tire RF", group: "pressures", unit: "kPa", reduce: .end),
+        Def(key: "tyreKpaLR", label: "Tire LR", group: "pressures", unit: "kPa", reduce: .end),
+        Def(key: "tyreKpaRR", label: "Tire RR", group: "pressures", unit: "kPa", reduce: .end),
         Def(
             key: "fuelPct", label: "Fuel", group: "electrical", unit: "%", reduce: .end,
             low: true, watch: 20, over: 10
@@ -374,8 +374,8 @@ public enum Health {
         public var lastKpa: Double
     }
 
-    /// Hot tyre pressures for the session, per corner: the highest end-of-lap
-    /// reading (the pressure the tyre reached) with the lap it came from, and
+    /// Hot tire pressures for the session, per corner: the highest end-of-lap
+    /// reading (the pressure the tire reached) with the lap it came from, and
     /// the last lap's reading. nil when no lap stored any corner.
     public static func hotPressures(_ channels: SessionChannels?) -> [String: HotPressure]? {
         var out: [String: HotPressure] = [:]
@@ -406,7 +406,7 @@ public enum Health {
         public var deltaPsi: Double
     }
 
-    /// The one arithmetic the web's pressure loop rests on: a tyre that grew
+    /// The one arithmetic the web's pressure loop rests on: a tire that grew
     /// from `cold` to `hot` gains the same amount next time, so to land on
     /// `target` hot, start from cold minus the overshoot. Rounded to the
     /// sheet's step. nil unless all three are known.

@@ -299,6 +299,24 @@
       "source": "src/routes/vehicles.ts"
     },
     {
+      "name": "part-equip",
+      "file": "part-equip.json",
+      "method": "POST",
+      "path": "/parts/:id/equip",
+      "status": 200,
+      "description": "Put a spare back on the car as of a date, taking off whatever shares its place; `unequipped` lists the ids it took off (empty here: a rear pair swaps no front pair).",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
+      "name": "part-unequip",
+      "file": "part-unequip.json",
+      "method": "POST",
+      "path": "/parts/:id/unequip",
+      "status": 200,
+      "description": "Take a part off the car as of a date without retiring it — it goes to the shelf.",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
       "name": "measurement-create",
       "file": "measurement-create.json",
       "method": "POST",
@@ -457,7 +475,7 @@
       "method": "GET",
       "path": "/wrapped/:year",
       "status": 200,
-      "description": "Season Wrapped (NS-36): the season's numbers for one calendar year, past events only. `pro` is the one tier-dependent field — null for a free account; for Pro, the favourite tyre and top speed, each null when there is no data.",
+      "description": "Season Wrapped (NS-36): the season's numbers for one calendar year, past events only. `pro` is the one tier-dependent field — null for a free account; for Pro, the favorite tire and top speed, each null when there is no data.",
       "source": "src/routes/wrapped.ts"
     },
     {

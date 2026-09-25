@@ -125,7 +125,7 @@ struct GarageScreen: View {
                 .teStyle(.sm)
                 .foregroundStyle(Color(.textMuted))
             if let garageRow {
-                let active = garageRow.parts.filter { $0.retiredOn == nil }
+                let active = garageRow.parts.filter(Garage.isOnCar)
                 let worst = Garage.garageAlerts([garageRow]).first?.status
                 Text("\(Garage.fmtHours(garageRow.hours)) on track")
                     .teStyle(.xs)

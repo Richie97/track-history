@@ -665,6 +665,16 @@
       "output": "3 (32nds)"
     },
     {
+      "kind": "tires_front",
+      "units": "imperial",
+      "output": "3 (32nds)"
+    },
+    {
+      "kind": "tires_rear",
+      "units": "imperial",
+      "output": "3 (32nds)"
+    },
+    {
       "kind": "rotors_front",
       "units": "imperial",
       "output": "28 (mm)"
@@ -701,6 +711,16 @@
     },
     {
       "kind": "tires",
+      "units": "metric",
+      "output": "3 (mm)"
+    },
+    {
+      "kind": "tires_front",
+      "units": "metric",
+      "output": "3 (mm)"
+    },
+    {
+      "kind": "tires_rear",
       "units": "metric",
       "output": "3 (mm)"
     },
@@ -747,6 +767,16 @@
       "output": "32nds"
     },
     {
+      "kind": "tires_front",
+      "units": "imperial",
+      "output": "32nds"
+    },
+    {
+      "kind": "tires_rear",
+      "units": "imperial",
+      "output": "32nds"
+    },
+    {
       "kind": "rotors_front",
       "units": "imperial",
       "output": "mm"
@@ -783,6 +813,16 @@
     },
     {
       "kind": "tires",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "tires_front",
+      "units": "metric",
+      "output": "mm"
+    },
+    {
+      "kind": "tires_rear",
       "units": "metric",
       "output": "mm"
     },

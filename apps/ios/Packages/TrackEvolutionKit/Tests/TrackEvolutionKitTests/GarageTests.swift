@@ -38,6 +38,25 @@ struct GarageTests {
             let ported = PartKind(rawValue: kind.kind)
             #expect(ported.label == kind.label)
             #expect(ported.wearLimitHint == kind.wearLimitHint)
+            #expect(ported.isTire == kind.isTire, "isTireKind(\(kind.kind))")
+            #expect(Garage.equipSwapKinds(ported).map(\.rawValue) == kind.swapKinds, "equipSwapKinds(\(kind.kind))")
+        }
+        // The Equipped switch (migration 0029): what equipping takes off.
+        let shelf = fixture.equip.parts.map { row in
+            Part(
+                id: row.id, vehicleId: 1, kind: PartKind(rawValue: row.kind), name: row.name, size: row.size,
+                installedOn: "2026-01-01", retiredOn: row.retiredOn, equipped: row.equipped,
+                expectedHours: nil, wearLimit: nil, costCents: nil, notes: nil,
+                measurements: [], wear: makeWear(remaining: nil)
+            )
+        }
+        for row in fixture.equip.cases {
+            let off = Garage.equipSwapsOff(partId: row.part.id, kind: PartKind(rawValue: row.part.kind), in: shelf)
+            #expect(off.map(\.id) == row.swapsOff, "equipSwapsOff(\(String(describing: row.part.id)), \(row.part.kind))")
+        }
+        #expect(fixture.equip.cases.count >= 6)
+        for row in fixture.titles {
+            #expect(Garage.partTitle(name: row.part.name, size: row.part.size) == row.title)
         }
         // The car's own odometer (#192).
         for row in fixture.odometer {
@@ -51,6 +70,74 @@ struct GarageTests {
         // passing vacuously.
         #expect(fixture.cases.count >= 10)
         #expect(fixture.kinds.count == PartKind.all.count)
+    }
+
+    // MARK: - On the car, or on the shelf (migration 0029)
+
+    @Test func sortsTheOnCarSpareAndRetiredPartsApart() {
+        var onCar = makePart(id: 1, kind: .padsFront, remaining: 2); onCar.equipped = true
+        let cached = makePart(id: 2, kind: .padsFront, remaining: 2) // no `equipped`: cached before 0029
+        var spare = makePart(id: 3, kind: .padsFront, remaining: 2); spare.equipped = false
+        var retired = makePart(id: 4, kind: .padsFront, remaining: 2, retiredOn: "2026-03-01"); retired.equipped = false
+        let all = [onCar, cached, spare, retired]
+        #expect(all.filter(Garage.isOnCar).map(\.id) == [1, 2])
+        #expect(all.filter(Garage.isSpare).map(\.id) == [3])
+    }
+
+    @Test func listsPartsInTheCarsOrderNewestFirstWithinAKind() {
+        let rotor = makePart(id: 1, kind: .rotorsFront, remaining: 2)
+        let rearTires = makePart(id: 2, kind: .tiresRear, remaining: 2)
+        var oldPads = makePart(id: 3, kind: .padsFront, remaining: 2); oldPads.installedOn = "2025-06-01"
+        var newPads = makePart(id: 4, kind: .padsFront, remaining: 2); newPads.installedOn = "2026-06-01"
+        let fullSet = makePart(id: 5, kind: .tires, remaining: 2)
+        #expect(Garage.sortedByKind([rotor, rearTires, oldPads, newPads, fullSet]).map(\.id) == [4, 3, 5, 2, 1])
+    }
+
+    @Test func boundsTheSwapDateByThePartsMounts() {
+        var fitted = makePart(id: 1, kind: .padsFront, remaining: 2)
+        fitted.equipped = true
+        fitted.mounts = [PartMount(mountedOn: "2026-01-01", removedOn: "2026-02-01"), PartMount(mountedOn: "2026-04-10")]
+        #expect(Garage.earliestSwapDate(fitted) == "2026-04-10")
+        #expect(Garage.lastOff(fitted) == "2026-02-01")
+
+        var offSince = makePart(id: 2, kind: .padsFront, remaining: 2)
+        offSince.equipped = false
+        offSince.mounts = [
+            PartMount(mountedOn: "2026-01-01", removedOn: "2026-02-01"),
+            PartMount(mountedOn: "2026-03-01", removedOn: "2026-05-20"),
+        ]
+        #expect(Garage.earliestSwapDate(offSince) == "2026-05-20")
+
+        var neverFitted = makePart(id: 3, kind: .padsFront, remaining: 2)
+        neverFitted.equipped = false
+        neverFitted.mounts = []
+        #expect(Garage.lastOff(neverFitted) == nil)
+        #expect(Garage.earliestSwapDate(neverFitted) == "2026-01-01")
+    }
+
+    @Test func saysWhatTheSwitchWillTakeOffBeforeItDoes() {
+        var fullSet = makePart(id: 1, kind: .tires, remaining: 2)
+        fullSet.name = "RE-71RS"; fullSet.size = "255/40R17"; fullSet.equipped = true
+        var front = makePart(id: 2, kind: .tiresFront, remaining: 2)
+        front.name = "A7"; front.equipped = false
+        var rear = makePart(id: 3, kind: .tiresRear, remaining: 2)
+        rear.name = "A7"; rear.equipped = true
+        var spareSet = makePart(id: 4, kind: .tires, remaining: 2)
+        spareSet.name = "Street"; spareSet.equipped = false
+        let parts = [fullSet, front, rear, spareSet]
+
+        #expect(Garage.equipNote(fullSet, in: parts)
+            == "Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on.")
+        #expect(Garage.equipNote(front, in: parts)
+            == "Put it on the car? This takes off RE-71RS · 255/40R17 — it moves to Spares.")
+        #expect(Garage.equipNote(spareSet, in: parts)
+            == "Put it on the car? This takes off RE-71RS · 255/40R17 and A7 — they move to Spares.")
+        var pads = makePart(id: 9, kind: .padsFront, remaining: 2)
+        pads.name = "Hawk DTC-60"; pads.equipped = true
+        #expect(Garage.addSwapNote(.padsFront, in: [pads]) == "Takes off Hawk DTC-60 — it moves to Spares.")
+        #expect(Garage.addSwapNote(.other, in: parts) == nil)
+        var oil = makePart(id: 5, kind: .oil, remaining: 2); oil.equipped = false
+        #expect(Garage.equipNote(oil, in: parts) == "Put it on the car? Its wear picks up from here.")
     }
 
     // MARK: - Car catalog picker (#222)
@@ -289,6 +376,48 @@ struct GarageFixture: Decodable {
         let kind: String
         let label: String
         let wearLimitHint: String?
+        let isTire: Bool
+        let swapKinds: [String]
+    }
+
+    struct Equip: Decodable {
+        struct Row: Decodable {
+            let id: Int
+            let kind: String
+            let name: String
+            let size: String?
+            /// Absent on the row standing in for a response cached before 0029.
+            let equipped: Bool?
+            let retiredOn: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id, kind, name, size, equipped
+                case retiredOn = "retired_on"
+            }
+        }
+
+        struct Probe: Decodable {
+            let id: Int?
+            let kind: String
+        }
+
+        struct Case: Decodable {
+            let part: Probe
+            let swapsOff: [Int]
+        }
+
+        let parts: [Row]
+        let cases: [Case]
+    }
+
+    struct TitleCase: Decodable {
+        struct Named: Decodable {
+            let name: String
+            let size: String?
+        }
+
+        let part: Named
+        let title: String
     }
 
     struct VehicleOdometerCase: Decodable {
@@ -307,6 +436,8 @@ struct GarageFixture: Decodable {
     let hours: [HoursCase]
     let cost: [CostCase]
     let kinds: [KindCase]
+    let equip: Equip
+    let titles: [TitleCase]
     let odometer: [VehicleOdometerCase]
     let partOdometer: [PartOdometerCase]
 

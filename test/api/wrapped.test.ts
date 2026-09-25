@@ -106,11 +106,11 @@ describe("GET /api/wrapped/:year", () => {
     expect(res.body.pro).toEqual({ tire: null, top_speed: null });
   });
 
-  it("gives a Pro account its favourite tyre and top speed", async () => {
+  it("gives a Pro account its favorite tire and top speed", async () => {
     const { api } = await signedInProUser();
     const car = (await api("POST", "/vehicles", { name: "Corvette C7" })).body;
     const old = (await api("POST", `/vehicles/${car.id}/parts`, { kind: "tires", name: "Falken RT660", installed_on: `${thisYear - 1}-01-01` })).body;
-    await api("POST", `/vehicles/${car.id}/parts`, { kind: "pads_front", name: "Not a tyre", installed_on: `${thisYear - 1}-01-01` });
+    await api("POST", `/vehicles/${car.id}/parts`, { kind: "pads_front", name: "Not a tire", installed_on: `${thisYear - 1}-01-01` });
     const ev = await createEvent(api, { track_name: "Road Atlanta", start_date: pastDate, days: 2, car: "Corvette C7" });
     await api("POST", `/events/${ev}/sessions`, {
       laps: [90_000, 91_000],

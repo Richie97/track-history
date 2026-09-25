@@ -58,7 +58,7 @@ export const CARD_TITLES = {
   new_tracks: "New tracks",
   hours: "Hours behind the wheel",
   hottest: "Hottest day",
-  tire: "Favourite tyre",
+  tire: "Favorite tire",
   top_speed: "Top speed",
   poster: "Your season",
 };
@@ -108,7 +108,7 @@ export function posterLines(data, units, { share = false } = {}) {
   if (data.most_driven) rows.push(["Most driven", data.most_driven.track_name]);
   if (data.improvement) rows.push(["Biggest improvement", `${data.improvement.track_name}, −${fmtGain(data.improvement.gain_ms)}`]);
   if (data.fastest) rows.push(["Fastest lap", `${data.fastest.track_name}, ${fmtMs(data.fastest.best_ms)}`]);
-  if (data.pro?.tire) rows.push(["Favourite tyre", data.pro.tire.name]);
+  if (data.pro?.tire) rows.push(["Favorite tire", data.pro.tire.name]);
   const who = share ? `${data.name || "A driver"}'s` : "My";
   return { title: `${who} ${data.year} Track Evolution`, headline, rows };
 }

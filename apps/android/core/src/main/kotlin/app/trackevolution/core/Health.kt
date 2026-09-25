@@ -21,7 +21,7 @@ import kotlinx.serialization.Serializable
  *
  * Every PDR import stores fourteen numbers per lap that are not lap-time data —
  * peak oil / coolant / transmission temperature, minimum oil pressure, fuel and
- * the four tyre pressures as the lap ended, peak tyre temperature on each
+ * the four tire pressures as the lap ended, peak tire temperature on each
  * corner, minimum battery voltage — plus a `boost` trace whose per-lap peak is
  * a heat-soak signal rather than a driving one. They answer "is the car okay,
  * and is it set up right", which is the other half of a track day, and they fill
@@ -30,7 +30,7 @@ import kotlinx.serialization.Serializable
  * Three rules shape everything here and this port inherits all of them.
  *
  * **The reduction is the importer's, never re-derived.** A stored `oilC` is the
- * lap's peak, `oilKpa` its minimum, a tyre pressure the value as the lap
+ * lap's peak, `oilKpa` its minimum, a tire pressure the value as the lap
  * finished; [HEALTH_DEFS] restates each rule only so the view can *say* it
  * ("peak", "min", "at lap end"). Boost is the one figure not stored as a scalar
  * — it is a gridded trace — so its per-lap peak is derived here, and that is the
@@ -49,7 +49,7 @@ import kotlinx.serialization.Serializable
  * rather than a locale. The web shows °F and psi; the phones do too, through
  * [Units.US].
  *
- * The **tyre-pressure loop** — the setup sheet's cold pressures and a
+ * The **tire-pressure loop** — the setup sheet's cold pressures and a
  * per-vehicle target turning the import's hot pressures into the cold pressure
  * to start from next time — is web-only, because the setup notebook is. What
  * ports is the arithmetic under it ([hotPressures], [suggestCold]) and nothing
@@ -103,16 +103,16 @@ public object Health {
         Def("oilC", "Oil temp", "temps", "°C", Reduce.MAX, watch = 120.0, over = 130.0),
         Def("coolantC", "Coolant", "temps", "°C", Reduce.MAX, watch = 110.0, over = 120.0),
         Def("transC", "Transmission", "temps", "°C", Reduce.MAX, watch = 110.0, over = 125.0),
-        Def("tyreCLF", "Tyre LF", "temps", "°C", Reduce.MAX),
-        Def("tyreCRF", "Tyre RF", "temps", "°C", Reduce.MAX),
-        Def("tyreCLR", "Tyre LR", "temps", "°C", Reduce.MAX),
-        Def("tyreCRR", "Tyre RR", "temps", "°C", Reduce.MAX),
+        Def("tyreCLF", "Tire LF", "temps", "°C", Reduce.MAX),
+        Def("tyreCRF", "Tire RF", "temps", "°C", Reduce.MAX),
+        Def("tyreCLR", "Tire LR", "temps", "°C", Reduce.MAX),
+        Def("tyreCRR", "Tire RR", "temps", "°C", Reduce.MAX),
         Def("oilKpa", "Oil pressure", "pressures", "kPa", Reduce.MIN, low = true, watch = 200.0, over = 120.0),
         Def("boost", "Boost", "pressures", "kPa", Reduce.MAX, derived = true),
-        Def("tyreKpaLF", "Tyre LF", "pressures", "kPa", Reduce.END),
-        Def("tyreKpaRF", "Tyre RF", "pressures", "kPa", Reduce.END),
-        Def("tyreKpaLR", "Tyre LR", "pressures", "kPa", Reduce.END),
-        Def("tyreKpaRR", "Tyre RR", "pressures", "kPa", Reduce.END),
+        Def("tyreKpaLF", "Tire LF", "pressures", "kPa", Reduce.END),
+        Def("tyreKpaRF", "Tire RF", "pressures", "kPa", Reduce.END),
+        Def("tyreKpaLR", "Tire LR", "pressures", "kPa", Reduce.END),
+        Def("tyreKpaRR", "Tire RR", "pressures", "kPa", Reduce.END),
         Def("fuelPct", "Fuel", "electrical", "%", Reduce.END, low = true, watch = 20.0, over = 10.0),
         Def("battV", "Battery", "electrical", "V", Reduce.MIN, low = true, watch = 13.0, over = 12.5),
     )
@@ -339,8 +339,8 @@ public object Health {
     public data class HotPressure(val peakKpa: Double, val peakChIdx: Int, val lastKpa: Double)
 
     /**
-     * Hot tyre pressures for the session, per corner: the highest end-of-lap
-     * reading (the pressure the tyre reached) with the lap it came from, and the
+     * Hot tire pressures for the session, per corner: the highest end-of-lap
+     * reading (the pressure the tire reached) with the lap it came from, and the
      * last lap's reading. Null when no lap stored any corner.
      */
     public fun hotPressures(channels: SessionChannels?): Map<String, HotPressure>? {
@@ -373,7 +373,7 @@ public object Health {
     )
 
     /**
-     * The one arithmetic the web's pressure loop rests on: a tyre that grew from
+     * The one arithmetic the web's pressure loop rests on: a tire that grew from
      * `cold` to `hot` gains the same amount next time, so to land on `target`
      * hot, start from cold minus the overshoot. Rounded to the sheet's step.
      * Null unless all three are known.

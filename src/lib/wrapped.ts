@@ -6,7 +6,7 @@
 // UTC) — the userTotals rule, and year in review's `eventYear`.
 
 import type { ComputedEvent } from "./stats";
-import { type HoursEvent, eventHours, eventsInWindow } from "./wear";
+import { type HoursEvent, type Mount, eventHours, eventsInWindow } from "./wear";
 
 export const METRES_PER_MILE = 1609.344;
 
@@ -268,6 +268,7 @@ export type TirePart = {
   name: string;
   installed_on: string;
   retired_on: string | null;
+  mounts?: Mount[]; // the stretches it was on the car (wear.ts)
 };
 
 // A past, vehicle-linked event with eventHours' inputs — vehicleHoursEvents'
@@ -281,12 +282,13 @@ export type WrappedPro = {
   top_speed: TopSpeedRow | null;
 };
 
-// The tyre the season was driven on: for every tyre part, the year's events on
-// its vehicle inside its service window — eventsInWindow, the rule the
-// garage's wear already believes — summed by days. Most days wins; ties go to
+// The tire the season was driven on: for every tire part (a full set or a
+// front or rear pair), the year's events on its vehicle while it was on the
+// car — eventsInWindow, the rule the garage's wear already believes — summed
+// by days. Most days wins; ties go to
 // the most hours, then the part installed later (the fresher set). An event
 // counts toward a vehicle only through events.vehicle_id, so a day whose car
-// isn't in the garage counts toward no tyre. The setup sheet's `tires_id` is
+// isn't in the garage counts toward no tire. The setup sheet's `tires_id` is
 // deliberately not consulted in v1.
 export function favouriteTire(parts: TirePart[], events: VehicleEvent[], year: number, today: string): WrappedPro["tire"] {
   let best: WrappedPro["tire"] & { installed_on: string } | null = null;

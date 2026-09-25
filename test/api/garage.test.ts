@@ -266,7 +266,7 @@ describe("part refresh", () => {
     expect(fresh.expected_hours).toBeNull();
   });
 
-  it("rejects retired parts, bad swap dates, and foreign parts", async () => {
+  it("rejects bad swap dates and foreign parts, and refreshes a retired part into a new set", async () => {
     const a = await garageUser();
     const b = await signedInProUser();
     await addPads(a.api, a.vehicleId, { installed_on: PAST });
@@ -275,8 +275,11 @@ describe("part refresh", () => {
     expect((await a.api("POST", `/parts/${partId}/refresh`, { installed_on: "soon" })).status).toBe(400);
     // Swap date before the part was even installed makes a negative window.
     expect((await a.api("POST", `/parts/${partId}/refresh`, { installed_on: "2026-04-01" })).status).toBe(400);
+    // A retired part is "buy another set of those" (part-mounts.test.ts has
+    // the details): a successor, and the retired row left as it was.
     await a.api("PUT", `/parts/${partId}`, { retired_on: "2026-06-01" });
-    expect((await a.api("POST", `/parts/${partId}/refresh`)).status).toBe(400);
+    expect((await a.api("POST", `/parts/${partId}/refresh`)).status).toBe(201);
+    expect((await a.api("GET", "/garage")).body[0].parts.find((p: { id: number }) => p.id === partId).retired_on).toBe("2026-06-01");
   });
 });
 

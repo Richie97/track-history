@@ -94,9 +94,9 @@ struct WearStatusLine: View {
     static func text(_ part: Part) -> String {
         let wear = part.wear
         var bits = ["\(Garage.fmtHours(wear.hours)) on part"]
-        // Tyres wear by heat cycle more than by hour, so they count days; anything
+        // Tires wear by heat cycle more than by hour, so they count days; anything
         // else counts events, which is what a pad's life is spoken about in.
-        if part.kind == .tires {
+        if part.kind.isTire {
             bits.append("\(fmtCount(wear.cycles, "heat cycle"))")
         } else if wear.events > 0 {
             bits.append(fmtCount(wear.events, "event"))
@@ -109,7 +109,8 @@ struct WearStatusLine: View {
             } else {
                 bits.append("vs. \(Garage.fmtHours(wear.expectedHours)) expected")
             }
-        } else if part.retiredOn == nil {
+        } else if Garage.isOnCar(part) {
+            // A spare on the shelf isn't wearing, so it has nothing to estimate yet.
             bits.append("no life estimate — set expected hours or log two measurements")
         }
         return bits.joined(separator: " · ")
@@ -182,7 +183,7 @@ struct MaintenanceStrip: View {
                     router.push(.vehicle(alert.vehicle.id))
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(alert.part.kind.label)
+                        Text([alert.part.kind.label, alert.part.size].compactMap { $0 }.joined(separator: " "))
                             .teStyle(.sm)
                             .foregroundStyle(alert.status == .due ? Color(.dangerInk) : Color(.textStrong))
                         Text(

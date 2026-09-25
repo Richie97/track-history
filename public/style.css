@@ -1208,6 +1208,29 @@ div.garage-alerts { display: flex; gap: 14px; align-items: flex-start; }
 .meas-form[hidden] { display: none; } /* .btn-row's flex would beat the hidden attribute */
 .meas-form input { padding: 8px 12px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--surface-input); color: var(--text-strong); font: inherit; font-size: 14px; }
 .part-edit { margin-top: 14px; }
+/* The Equipped switch: on = on the car, off = a spare on the shelf. */
+.equip-switch { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-muted); cursor: pointer; user-select: none; }
+.equip-switch input {
+  appearance: none; -webkit-appearance: none; margin: 0; flex: none;
+  width: 36px; height: 20px; border-radius: 999px; position: relative; cursor: pointer;
+  background: var(--surface-raised); border: 1px solid var(--border-strong);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.equip-switch input::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--text-muted); transition: transform var(--dur-fast) var(--ease-standard);
+}
+.equip-switch input:checked { background: var(--accent); border-color: var(--accent); }
+.equip-switch input:checked::after { transform: translateX(16px); background: var(--accent-contrast); }
+.equip-switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.equip-switch input:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .equip-switch input, .equip-switch input::after { transition: none; } }
+.part-card.spare { border-style: dashed; }
+.retired-refresh-row td { white-space: normal; }
+.retired-refresh-row .equip-form { margin: 0; }
+.equip-form { margin-top: 12px; }
+.equip-form[hidden] { display: none; }
+.equip-form input { padding: 8px 12px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--surface-input); color: var(--text-strong); font: inherit; font-size: 14px; }
 .hint-inline { font-size: var(--fs-xs); color: var(--text-faint); }
 .tile .value .unit { font-size: 0.55em; color: var(--text-muted); margin-left: 3px; }
 

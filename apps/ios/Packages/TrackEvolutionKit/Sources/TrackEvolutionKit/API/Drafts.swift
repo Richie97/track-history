@@ -269,7 +269,7 @@ public struct VehiclePatch: Encodable, Hashable, Sendable {
     public var name: Patch<String> = .unchanged
     public var notes: Patch<String> = .unchanged
     public var isDefault: Patch<Bool> = .unchanged
-    /// The hot tyre pressure the health strip's pressure loop aims at, in psi
+    /// The hot tire pressure the health strip's pressure loop aims at, in psi
     /// (5–100, rounded to a tenth server-side). `.set(nil)` clears it.
     public var targetHotPsi: Patch<Double> = .unchanged
     /// The car-catalog pick (#221). Setting a row re-pre-fills *both* geometry
@@ -314,14 +314,21 @@ public struct VehiclePatch: Encodable, Hashable, Sendable {
 public struct PartDraft: Encodable, Hashable, Sendable {
     public var kind: PartKind
     public var name: String
+    /// Free text, up to 40 characters ("255/40R17"); migration 0029.
+    public var size: String?
     public var installedOn: String
     public var costCents: Int?
     public var expectedHours: Double?
     public var wearLimit: Double?
     public var notes: String?
+    /// `false` adds a spare straight to the shelf; nil (or `true`) puts it on
+    /// the car from `installedOn`, as every part was before migration 0029.
+    public var equipped: Bool?
+    /// With `equipped`, also take off whatever shares its place, as equipping does.
+    public var swap: Bool?
 
     public enum CodingKeys: String, CodingKey {
-        case kind, name, notes
+        case kind, name, size, notes, equipped, swap
         case installedOn = "installed_on"
         case costCents = "cost_cents"
         case expectedHours = "expected_hours"
@@ -342,6 +349,8 @@ public struct PartPatch: Encodable, Hashable, Sendable {
     public var kind: Patch<PartKind> = .unchanged
     /// Not nullable server-side — see `VehiclePatch.name`.
     public var name: Patch<String> = .unchanged
+    /// `.set(nil)` clears the size.
+    public var size: Patch<String> = .unchanged
     public var installedOn: Patch<String> = .unchanged
     /// `.set(nil)` puts a retired part back in service.
     public var retiredOn: Patch<String> = .unchanged
@@ -351,7 +360,7 @@ public struct PartPatch: Encodable, Hashable, Sendable {
     public var notes: Patch<String> = .unchanged
 
     public enum CodingKeys: String, CodingKey {
-        case kind, name, notes
+        case kind, name, size, notes
         case installedOn = "installed_on"
         case retiredOn = "retired_on"
         case costCents = "cost_cents"
@@ -372,6 +381,7 @@ public struct PartPatch: Encodable, Hashable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(kind, forKey: .kind)
         try c.encode(name, forKey: .name)
+        try c.encode(size, forKey: .size)
         try c.encode(installedOn, forKey: .installedOn)
         try c.encode(retiredOn, forKey: .retiredOn)
         try c.encode(costCents, forKey: .costCents)
@@ -381,24 +391,46 @@ public struct PartPatch: Encodable, Hashable, Sendable {
     }
 }
 
+/// The body of `POST /api/parts/:id/equip` and `/unequip`: the swap date,
+/// today on the server when nil.
+public struct PartEquipDraft: Encodable, Hashable, Sendable {
+    public var on: String?
+
+    public init(on: String? = nil) {
+        self.on = on
+    }
+}
+
 /// `POST /api/parts/:id/refresh` — "fresh set of the same part". Every field is
 /// optional: the successor inherits the old part's spec, and the swap defaults to
 /// today. Send `name`/`costCents` only when this set actually differs.
+///
+/// On a part already *retired* it is "buy another set of those": nothing is
+/// retired, and the copy goes on the car unless `equipped` is `false`, with
+/// `swap` taking off whatever shares its place. On a part in service the
+/// successor takes the old one's place, so both are ignored there.
 public struct PartRefreshDraft: Encodable, Hashable, Sendable {
     public var installedOn: String?
     public var name: String?
     public var costCents: Int?
+    public var equipped: Bool?
+    public var swap: Bool?
 
     public enum CodingKeys: String, CodingKey {
-        case name
+        case name, equipped, swap
         case installedOn = "installed_on"
         case costCents = "cost_cents"
     }
 
-    public init(installedOn: String? = nil, name: String? = nil, costCents: Int? = nil) {
+    public init(
+        installedOn: String? = nil, name: String? = nil, costCents: Int? = nil,
+        equipped: Bool? = nil, swap: Bool? = nil
+    ) {
         self.installedOn = installedOn
         self.name = name
         self.costCents = costCents
+        self.equipped = equipped
+        self.swap = swap
     }
 }
 

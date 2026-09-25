@@ -42,7 +42,7 @@ public enum TrackPrecisionCsv {
     static let THROTTLE_COLUMN = "pedalforce" // 0-1
     static let BRAKE_COLUMN = "brakingpressure" // bar
 
-    /// Tyre pressures, bar → kPa. 3276.8 (0x7FFF / 10) is "no reading", as in the
+    /// Tire pressures, bar → kPa. 3276.8 (0x7FFF / 10) is "no reading", as in the
     /// `.vbo`.
     static let TYRE_COLUMNS: [(String, String)] = [
         ("tyreKpaLF", "tirepressurefl"),
@@ -296,7 +296,7 @@ public enum TrackPrecisionCsv {
         var car: [[ChannelPoint]] = Array(repeating: [], count: carCols.count)
         var throttle: [ChannelPoint] = []
         var brake: [ChannelPoint] = []
-        var tyres: [[ChannelPoint]] = Array(repeating: [], count: tyreCols.count)
+        var tires: [[ChannelPoint]] = Array(repeating: [], count: tyreCols.count)
         let iRpm = carCols.first { $0.name == "rpm" }?.i ?? -1
         for row in rows {
             let t = row.t
@@ -311,7 +311,7 @@ public enum TrackPrecisionCsv {
             if let br = row.num(iBrake) { brake.append(ChannelPoint(t: t, v: max(0, br))) }
             for (j, c) in tyreCols.enumerated() {
                 if let x = row.num(c.i), x > 0, x < MAX_TYRE_BAR {
-                    tyres[j].append(ChannelPoint(t: t, v: x * 100))
+                    tires[j].append(ChannelPoint(t: t, v: x * 100))
                 }
             }
         }
@@ -320,7 +320,7 @@ public enum TrackPrecisionCsv {
             car: carCols.enumerated().map { (name: $0.element.name, pts: car[$0.offset]) },
             throttle: throttle,
             brake: brake,
-            tyres: tyreCols.enumerated().map { (name: $0.element.name, pts: tyres[$0.offset]) },
+            tires: tyreCols.enumerated().map { (name: $0.element.name, pts: tires[$0.offset]) },
             heights: []
         )
 

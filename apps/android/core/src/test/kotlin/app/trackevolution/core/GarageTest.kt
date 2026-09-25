@@ -4,6 +4,7 @@ import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartKind
+import app.trackevolution.core.model.PartMount
 import app.trackevolution.core.model.PartOdometer
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.VehicleOdometer
@@ -82,7 +83,52 @@ class GarageTest {
                 case["wearLimitHint"]!!.jsonPrimitive.contentOrNullSafe(),
                 kind.wearLimitHint,
             )
+            assertEquals(case["isTire"]!!.jsonPrimitive.content.toBoolean(), Garage.isTireKind(kind), "isTireKind($kind)")
+            assertEquals(
+                case["swapKinds"]!!.jsonArray.map { it.jsonPrimitive.content },
+                Garage.equipSwapKinds(kind).map { it.rawValue },
+                "equipSwapKinds($kind)",
+            )
         }
+
+        // The Equipped switch (migration 0029): what equipping takes off.
+        val equip = fixture["equip"]!!.jsonObject
+        val shelf = equip["parts"]!!.jsonArray.map { element ->
+            val row = element.jsonObject
+            Part(
+                id = row["id"]!!.jsonPrimitive.content.toInt(),
+                vehicleId = 1,
+                kind = PartKind(row["kind"]!!.jsonPrimitive.content),
+                name = row["name"]!!.jsonPrimitive.content,
+                size = row["size"]!!.jsonPrimitive.contentOrNullSafe(),
+                installedOn = "2026-01-01",
+                retiredOn = row["retired_on"]!!.jsonPrimitive.contentOrNullSafe(),
+                equipped = row["equipped"]?.jsonPrimitive?.content?.toBoolean(),
+                measurements = emptyList(),
+                wear = wear(null),
+            )
+        }
+        val equipCases = equip["cases"]!!.jsonArray
+        for (element in equipCases) {
+            val case = element.jsonObject
+            val probe = case["part"]!!.jsonObject
+            val id = probe["id"]!!.jsonPrimitive.contentOrNullSafe()?.toInt()
+            val kind = PartKind(probe["kind"]!!.jsonPrimitive.content)
+            assertEquals(
+                case["swapsOff"]!!.jsonArray.map { it.jsonPrimitive.content.toInt() },
+                Garage.equipSwapsOff(id, kind, shelf).map { it.id },
+                "equipSwapsOff($id, $kind)",
+            )
+        }
+        for (element in fixture["titles"]!!.jsonArray) {
+            val case = element.jsonObject
+            val part = case["part"]!!.jsonObject
+            assertEquals(
+                case["title"]!!.jsonPrimitive.content,
+                Garage.partTitle(part["name"]!!.jsonPrimitive.content, part["size"]!!.jsonPrimitive.contentOrNullSafe()),
+            )
+        }
+        assertTrue(equipCases.size >= 6, "equip fixture shrank")
 
         // The car's own odometer (#192).
         val odometer = fixture["odometer"]!!.jsonArray
@@ -276,6 +322,82 @@ class GarageTest {
     @Test
     fun `an absent garage produces no alerts rather than throwing`() {
         assertEquals(emptyList<Garage.Alert>(), Garage.garageAlerts(null))
+    }
+
+    // ---- On the car, or on the shelf (migration 0029) -------------------------
+
+    @Test
+    fun `sorts the on-car, spare and retired parts apart`() {
+        val onCar = part(1, 2.0).copy(equipped = true)
+        val cached = part(2, 2.0) // no `equipped`: cached before 0029
+        val spare = part(3, 2.0).copy(equipped = false)
+        val retired = part(4, 2.0, retiredOn = "2026-03-01").copy(equipped = false)
+        assertEquals(listOf(1, 2), listOf(onCar, cached, spare, retired).filter(Garage::isOnCar).map { it.id })
+        assertEquals(listOf(3), listOf(onCar, cached, spare, retired).filter(Garage::isSpare).map { it.id })
+    }
+
+    @Test
+    fun `lists parts in the car's order, newest first within a kind`() {
+        val rotor = part(1, 2.0).copy(kind = PartKind.ROTORS_FRONT)
+        val rearTires = part(2, 2.0).copy(kind = PartKind.TIRES_REAR)
+        val oldPads = part(3, 2.0).copy(installedOn = "2025-06-01")
+        val newPads = part(4, 2.0).copy(installedOn = "2026-06-01")
+        val fullSet = part(5, 2.0).copy(kind = PartKind.TIRES)
+        assertEquals(
+            listOf(4, 3, 5, 2, 1),
+            Garage.sortedByKind(listOf(rotor, rearTires, oldPads, newPads, fullSet)).map { it.id },
+        )
+    }
+
+    @Test
+    fun `bounds the swap date by the part's mounts`() {
+        val fitted = part(1, 2.0).copy(
+            equipped = true,
+            mounts = listOf(
+                PartMount("2026-01-01", "2026-02-01"),
+                PartMount("2026-04-10", null),
+            ),
+        )
+        assertEquals("2026-04-10", Garage.earliestSwapDate(fitted))
+        assertEquals("2026-02-01", Garage.lastOff(fitted))
+
+        val offSince = part(2, 2.0).copy(
+            equipped = false,
+            mounts = listOf(PartMount("2026-01-01", "2026-02-01"), PartMount("2026-03-01", "2026-05-20")),
+        )
+        assertEquals("2026-05-20", Garage.earliestSwapDate(offSince))
+
+        val neverFitted = part(3, 2.0).copy(equipped = false, mounts = emptyList())
+        assertNull(Garage.lastOff(neverFitted))
+        assertEquals("2026-01-01", Garage.earliestSwapDate(neverFitted))
+    }
+
+    @Test
+    fun `says what the switch will take off before it does`() {
+        val fullSet = part(1, 2.0).copy(kind = PartKind.TIRES, name = "RE-71RS", size = "255/40R17", equipped = true)
+        val front = part(2, 2.0).copy(kind = PartKind.TIRES_FRONT, name = "A7", equipped = false)
+        val rear = part(3, 2.0).copy(kind = PartKind.TIRES_REAR, name = "A7", equipped = true)
+        val spareSet = part(4, 2.0).copy(kind = PartKind.TIRES, name = "Street", equipped = false)
+        val parts = listOf(fullSet, front, rear, spareSet)
+
+        assertEquals(
+            "Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on.",
+            Garage.equipNote(fullSet, parts),
+        )
+        assertEquals(
+            "Put it on the car? This takes off RE-71RS · 255/40R17 — it moves to Spares.",
+            Garage.equipNote(front, parts),
+        )
+        assertEquals(
+            "Put it on the car? This takes off RE-71RS · 255/40R17 and A7 — they move to Spares.",
+            Garage.equipNote(spareSet, parts),
+        )
+        assertEquals("Takes off Hawk DTC-60 — it moves to Spares.", Garage.addSwapNote(PartKind.PADS_FRONT, listOf(part(9, 2.0).copy(equipped = true))))
+        assertNull(Garage.addSwapNote(PartKind.OTHER, parts))
+        assertEquals(
+            "Put it on the car? Its wear picks up from here.",
+            Garage.equipNote(part(5, 2.0).copy(kind = PartKind.OIL, equipped = false), parts),
+        )
     }
 
     // ---- Fixtures -----------------------------------------------------------

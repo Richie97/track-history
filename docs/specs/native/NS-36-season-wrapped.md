@@ -6,7 +6,7 @@
 
 In November a driver opens Track Evolution and gets their season handed back
 to them as a story: a swipe-through of full-screen cards — the numbers, the
-track they drove most, the time they found, their fastest lap, the tyre they
+track they drove most, the time they found, their fastest lap, the tire they
 lived on — ending on one card they can post to the club group chat.
 
 ```
@@ -17,7 +17,7 @@ My 2026 Track Evolution
 Most driven          VIR (Full)
 Biggest improvement  Summit Point, −4.83 s
 Fastest lap          VIR (Full), 2:00.03
-Favourite tyre       Continental ExtremeContact Force
+Favorite tire       Continental ExtremeContact Force
 ```
 
 Spotify Wrapped, for track days.
@@ -29,7 +29,7 @@ table of best-before against best-this-year. It answers the question and makes
 nobody feel anything, and nothing on it can be shared as a picture.
 
 Wrapped is the same data plus two stats the app has never computed — **track
-miles** and **favourite tyre** — with a different job. The off-season is the one
+miles** and **favorite tire** — with a different job. The off-season is the one
 moment a driver is at a desk, already nostalgic, and one tap from posting. The
 app's acquisition loop is sharing (share pages, per-slug OG tags, leaderboards);
 Wrapped is the first thing built to be shared *as an image*, and the first
@@ -42,7 +42,7 @@ thing with a date on it.
 | Platform | **Web-first**, laid out portrait-first. The frontier rule from the README: new ideas land on the web and graduate once proven. The page is opened from a link on a phone as often as at a desk, so it is designed for a phone screen and merely fine on a wide one. A native screen is a decision for after the first November, not this spec — see *Why not the phone apps now* below for why a link-out is not the answer either. |
 | Season | The **calendar year**, same as year in review (`eventYear`). Past events only — `start_date <= today`, UTC, the `userTotals` rule. |
 | Availability | Any year with at least one past event, at any time. The route is a view, not a countdown. What is seasonal is the **reveal**: from 1 November to 31 January the dashboard carries a Wrapped hero for the year that is ending or just ended. A wrapped for the running year says *through <date>*. |
-| Tier | **Free** for the story and the share; **Pro** for the two cards built from Pro data (favourite tyre — garage consumables; top speed — channels). A free account sees those two as **locked** cards, never silently missing. Year in review stays Pro. Rows added to NS-32's tier table. |
+| Tier | **Free** for the story and the share; **Pro** for the two cards built from Pro data (favorite tire — garage consumables; top speed — channels). A free account sees those two as **locked** cards, never silently missing. Year in review stays Pro. Rows added to NS-32's tier table. |
 | Where it is computed | **The server**, in one endpoint, with the pure half in `src/lib/wrapped.ts`. Year in review is computed on the client from `/events`; Wrapped is not, because its inputs are different — the catalog's lap lengths, and every session's channel blob for top speed, which is Pro-stripped and far too heavy to ship for one number. The public share needs the same numbers with no session, and the OG description needs them inside the Worker. |
 | Schema | One column: `track_catalog.length_m` (migration 0026 — 0022 went to the units preference while this spec was on its branch), seeded. **No existing response shape changes** — Android decodes the goldens with `ignoreUnknownKeys = false`, so a field added to `/tracks` or `/catalog` is a three-client change; a new endpoint is a one-client change *for the screens* — though the goldens still owe both native suites a decode-only model, since each fails on a manifest entry nothing maps. `GET /api/catalog` keeps returning `{ id, name }`. |
 | Public share | `/share/:slug/wrapped/:year`, only for an owner who already has a share slug, carrying **the free card set only** — no garage, nothing channel-derived. Every number on it is derivable from what `GET /api/share/:slug` already publishes, so this is no new privacy surface and the policy does not need a bump. |
@@ -63,9 +63,9 @@ In order. Copy is indicative; the tone is warm and specific, never a dashboard.
 | 6 | **New tracks** — "First time at X, Y" | year-review's `new_tracks` | none |
 | 7 | **Hours behind the wheel** | `SUM(hours)` via `eventHours` (`lib/wear.ts`) | never |
 | 8 | **Hottest day** — the event, its track, the temperature | the hottest event, reading each one's recorded `ambient_hi_c` over its typed `temp_f` (the `eventAmbient` rule — per event, so a hot day someone only typed in isn't beaten by a cooler recorded one) | no reading at all |
-| 9 | **Favourite tyre** — *Pro* — the tyre with the most track days on it | below | Pro and no tyre parts; **locked** on free |
+| 9 | **Favorite tire** — *Pro* — the tire with the most track days on it | below | Pro and no tire parts; **locked** on free |
 | 10 | **Top speed** — *Pro* — the year's highest sample, with its track | `MAX` over `speed` in every session's `channels` for the year | Pro and no channels; **locked** on free |
-| 11 | **The poster** — the summary card: the four numbers, most driven, improvement, fastest, tyre; Share / Save / Copy link; a link to year in review for the full table | everything above | never |
+| 11 | **The poster** — the summary card: the four numbers, most driven, improvement, fastest, tire; Share / Save / Copy link; a link to year in review for the full table | everything above | never |
 
 Units follow the app's existing display convention (miles, mph, °F, with the
 stored SI kept in the response); if a units toggle lands first, Wrapped reads
@@ -92,7 +92,7 @@ card does not correct for it — the numbers card is the driver's logbook, not
 an estimate of their life. (`eventHours` already makes the opposite call for
 hours, and says so; the two are different questions.)
 
-### Favourite tyre
+### Favorite tire
 
 For every `parts` row of kind `tires` on any of the driver's vehicles, take the
 year's events on that vehicle that fall inside the part's service window —
@@ -100,7 +100,7 @@ year's events on that vehicle that fall inside the part's service window —
 days. The part with the most days wins; ties go to the most hours, then to the set installed later. Named by
 `parts.name` ("Continental ExtremeContact Force"). An event only counts toward
 a vehicle through `events.vehicle_id`, which the car field auto-matches by
-name — an event whose car isn't in the garage counts toward no tyre.
+name — an event whose car isn't in the garage counts toward no tire.
 
 A setup sheet's explicit `tires_id` for a day is the better signal and is
 **not** used in v1; the window rule is what the garage already believes, and
@@ -146,7 +146,7 @@ events is 404 `{ "error": "no events in 2026" }`. Otherwise:
   present and `null` for everyone.
 - The pure half is `src/lib/wrapped.ts` — `seasonWrapped(inputs, year, today)`
   over plain rows, no I/O — and every rule in this spec (miles precedence,
-  the tie-breaks, the improvement fallback, the tyre window) has a unit test
+  the tie-breaks, the improvement fallback, the tire window) has a unit test
   in `test/unit/wrapped.test.ts`. The route is thin and batched (`DB.batch`,
   like `/me`).
 - The capture is `contracts/golden/wrapped.json`. The fixture already has two
@@ -220,14 +220,14 @@ merge**, because a wrong length is a wrong number on somebody's poster.
 
 ### 5. The Pro cards (ticket 4)
 
-- Server: `pro.tire` per *Favourite tyre* above (`vehicleHoursEvents` and
+- Server: `pro.tire` per *Favorite tire* above (`vehicleHoursEvents` and
   `eventsInWindow` already exist for wear); `pro.top_speed` as
   `{ kph, track_id, track_name, event_id, date }` from a `json_each` walk over
   the year's sessions' `channels` laps' `speed` arrays — once a year per user
   is not a hot path, so no trigger-maintained column. Unit tests for the
   window rule and the tie-break; an api test that a free account gets
   `pro: null` and a Pro account gets the object with `null`s when empty.
-- Web: cards 9 and 10 for Pro; the locked treatment for free; the tyre line
+- Web: cards 9 and 10 for Pro; the locked treatment for free; the tire line
   on the poster when present. Fixture regenerated.
 - NS-32 tier table: the rows land with **this** PR's spec change, ahead of the
   first merge — done in this spec's PR, not deferred.
@@ -292,7 +292,7 @@ decision.
 and will slot in as card 8½ when that lands. A per-track length override on the
 track form is the fix for a driver at a non-catalog track with no telemetry; it
 touches `/tracks`' shape and so is a three-client change, which is why it is not
-here. The setup-sheet `tires_id` refinement of the tyre rule is a one-line
+here. The setup-sheet `tires_id` refinement of the tire rule is a one-line
 change once someone's card is wrong. A per-slug OG *image* is #155.
 
 **The gains table is not duplicated.** Card 4 shows one track; the full

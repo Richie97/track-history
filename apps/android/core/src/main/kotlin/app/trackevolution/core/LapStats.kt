@@ -44,7 +44,7 @@ public object LapStats {
     /**
      * Least-squares slope of the clean laps, in milliseconds per lap.
      *
-     * Positive means going off through the session — tyres, heat, or the driver.
+     * Positive means going off through the session — tires, heat, or the driver.
      * Negative means still finding time. Null below four clean laps, because a
      * trend drawn through three points is a shape, not a trend.
      */

@@ -16,6 +16,7 @@ import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartDraft
+import app.trackevolution.core.model.PartEquipDraft
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefreshDraft
 import app.trackevolution.core.model.Patch
@@ -188,8 +189,21 @@ class VehicleModel(
 
     // ---- Derived ------------------------------------------------------------
 
+    /**
+     * On the car right now, in the car's own order (pads, tires, rotors,
+     * fluids) — `onCarParts` in `public/app.js`. A spare on the shelf isn't
+     * wearing, so it is neither here nor in [alerts] until it goes back on.
+     */
     val activeParts: List<Part>
-        get() = garage?.parts.orEmpty().filter { it.retiredOn == null }
+        get() = Garage.sortedByKind(garage?.parts.orEmpty().filter(Garage::isOnCar))
+
+    /** Off the car but not retired (migration 0029) — a second set of wheels, the street pads. */
+    val spareParts: List<Part>
+        get() = Garage.sortedByKind(garage?.parts.orEmpty().filter(Garage::isSpare))
+
+    /** Every part the car has, for the Equipped switch's "this takes off …". */
+    val allParts: List<Part>
+        get() = garage?.parts.orEmpty()
 
     val retiredParts: List<Part>
         get() = garage?.parts.orEmpty().filter { it.retiredOn != null }
@@ -262,6 +276,25 @@ class VehicleModel(
      */
     fun refreshPart(id: Int, on: String = EventDates.todayIso()) =
         write { api.refreshPart(id, PartRefreshDraft(installedOn = on)) }
+
+    /**
+     * "Buy another set of those": a fresh copy of a *retired* part's spec,
+     * installed on [on] — nothing is retired. On the car by default, taking off
+     * whatever shares its place (`swap`); `equipped = false` puts it on the
+     * shelf instead.
+     */
+    fun refreshRetiredPart(id: Int, on: String, equipped: Boolean) =
+        write { api.refreshPart(id, PartRefreshDraft(installedOn = on, equipped = equipped, swap = equipped)) }
+
+    /**
+     * The Equipped switch (migration 0029), confirmed: on the car → the shelf,
+     * or back on, taking off whatever shares its place as of the same day. The
+     * server decides what that is; [Garage.equipNote] only said so first.
+     */
+    fun setEquipped(part: Part, equipped: Boolean, on: String) = write {
+        val draft = PartEquipDraft(on = on)
+        if (equipped) api.equipPart(part.id, draft) else api.unequipPart(part.id, draft)
+    }
 
     fun addMeasurement(partId: Int, draft: MeasurementDraft) =
         write { api.addMeasurement(partId, draft) }

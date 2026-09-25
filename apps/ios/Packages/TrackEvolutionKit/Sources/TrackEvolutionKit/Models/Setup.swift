@@ -9,7 +9,7 @@ import Foundation
 /// track-setup responses decode losslessly, and so a native editor later has
 /// somewhere to land.
 public struct SetupSheet: Codable, Hashable, Sendable {
-    /// Tyre pressures, psi.
+    /// Tire pressures, psi.
     public var tpCold: CornerValues?
     public var tpHot: CornerValues?
     /// Degrees.

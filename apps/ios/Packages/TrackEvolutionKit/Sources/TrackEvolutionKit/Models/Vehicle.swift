@@ -9,7 +9,7 @@ public struct Vehicle: Codable, Hashable, Sendable, Identifiable {
     public var name: String
     public var notes: String?
     public var isDefault: Bool
-    /// The target hot tyre pressure (psi, all four corners) the web app's
+    /// The target hot tire pressure (psi, all four corners) the web app's
     /// pressure loop aims the next cold pressures at (#190). Set on the web,
     /// decoded here so the response stays pinned; nothing native reads it yet.
     public var targetHotPsi: Double?
@@ -214,7 +214,11 @@ public struct PartKind: RawRepresentable, Codable, Hashable, Sendable {
 
     public static let padsFront = PartKind(rawValue: "pads_front")
     public static let padsRear = PartKind(rawValue: "pads_rear")
+    /// A full set — all four corners the same tire.
     public static let tires = PartKind(rawValue: "tires")
+    /// A front or rear pair, for a staggered car (its own size and wear).
+    public static let tiresFront = PartKind(rawValue: "tires_front")
+    public static let tiresRear = PartKind(rawValue: "tires_rear")
     public static let rotorsFront = PartKind(rawValue: "rotors_front")
     public static let rotorsRear = PartKind(rawValue: "rotors_rear")
     public static let brakeFluid = PartKind(rawValue: "brake_fluid")
@@ -222,8 +226,11 @@ public struct PartKind: RawRepresentable, Codable, Hashable, Sendable {
     public static let other = PartKind(rawValue: "other")
 
     public static let all: [PartKind] = [
-        .padsFront, .padsRear, .tires, .rotorsFront, .rotorsRear, .brakeFluid, .oil, .other
+        .padsFront, .padsRear, .tires, .tiresFront, .tiresRear, .rotorsFront, .rotorsRear, .brakeFluid, .oil, .other
     ]
+
+    /// `isTireKind` in `public/js/garage.js`: a full set or a front or rear pair.
+    public var isTire: Bool { self == .tires || self == .tiresFront || self == .tiresRear }
 }
 
 /// A consumable fitted to a vehicle, with its wear measurements and estimate.
@@ -232,8 +239,16 @@ public struct Part: Codable, Hashable, Sendable, Identifiable {
     public var vehicleId: Int
     public var kind: PartKind
     public var name: String?
+    /// A free-text size or spec ("255/40R17"), migration 0029.
+    public var size: String? = nil
     public var installedOn: String
     public var retiredOn: String?
+    /// On the car right now (migration 0029). False and not retired means a
+    /// spare on the shelf, whose wear is frozen until it goes back on. Nil from
+    /// a response cached before the field existed — read as on the car.
+    public var equipped: Bool? = nil
+    /// The stretches the part was on the car; wear accrues across these only.
+    public var mounts: [PartMount]? = nil
     /// Expected service life in on-track hours; defaulted from retired
     /// lifecycles of the same kind when the user doesn't supply one.
     public var expectedHours: Double?
@@ -249,13 +264,30 @@ public struct Part: Codable, Hashable, Sendable, Identifiable {
     public var odometer: PartOdometer? = nil
 
     public enum CodingKeys: String, CodingKey {
-        case id, kind, name, notes, measurements, wear, odometer
+        case id, kind, name, size, equipped, mounts, notes, measurements, wear, odometer
         case vehicleId = "vehicle_id"
         case installedOn = "installed_on"
         case retiredOn = "retired_on"
         case expectedHours = "expected_hours"
         case wearLimit = "wear_limit"
         case costCents = "cost_cents"
+    }
+}
+
+/// One stretch a part was on the car (both ends inclusive).
+public struct PartMount: Codable, Hashable, Sendable {
+    public var mountedOn: String
+    /// Nil while it is still fitted.
+    public var removedOn: String?
+
+    public init(mountedOn: String, removedOn: String? = nil) {
+        self.mountedOn = mountedOn
+        self.removedOn = removedOn
+    }
+
+    public enum CodingKeys: String, CodingKey {
+        case mountedOn = "mounted_on"
+        case removedOn = "removed_on"
     }
 }
 
@@ -321,7 +353,7 @@ public struct WearEstimate: Codable, Hashable, Sendable {
     /// Accrued on-track hours in the part's service window.
     public var hours: Double
     public var events: Int
-    /// Event-days in the window ≈ heat cycles for tyres.
+    /// Event-days in the window ≈ heat cycles for tires.
     public var cycles: Int
     public var expectedHours: Double?
     public var remainingHours: Double?

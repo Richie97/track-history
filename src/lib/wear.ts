@@ -25,22 +25,67 @@ export function eventHours(e: HoursEvent): number {
   return Math.max(estimate, logged);
 }
 
+// A stretch a part was actually on the car (migration 0029). Both ends are
+// inclusive; removed_on is null while it is still fitted.
+export type Mount = {
+  mounted_on: string; // ISO yyyy-mm-dd
+  removed_on: string | null;
+};
+
 export type PartWindow = {
   installed_on: string; // ISO yyyy-mm-dd
   retired_on: string | null; // NULL while in service
+  // The stretches it was on the car. Absent means "on the car for its whole
+  // life" — the rule before parts could be unequipped, and still the right
+  // answer for a whole-vehicle total. Present and empty means on the shelf
+  // since it was bought: nothing accrues.
+  mounts?: Mount[];
 };
 
-// Events that count against a part: started within its service window and
+// The windows a part accrues over: each mount, clipped to the part's lifetime
+// (installed_on … retired_on) and to today.
+export function serviceWindows(part: PartWindow, today: string): { from: string; to: string }[] {
+  const lifeEnd = part.retired_on ?? today;
+  const mounts = part.mounts ?? [{ mounted_on: part.installed_on, removed_on: part.retired_on }];
+  return mounts
+    .map((m) => {
+      const from = m.mounted_on > part.installed_on ? m.mounted_on : part.installed_on;
+      let to = m.removed_on ?? lifeEnd;
+      if (to > lifeEnd) to = lifeEnd;
+      if (to > today) to = today;
+      return { from, to };
+    })
+    .filter((w) => w.from <= w.to);
+}
+
+// Whether a date falls inside any of the part's service windows.
+export function onCarOn(part: PartWindow, date: string, today: string): boolean {
+  return serviceWindows(part, today).some((w) => date >= w.from && date <= w.to);
+}
+
+// Events that count against a part: started while it was on the car and
 // already driven (an upcoming event isn't wear yet — same rule as userTotals).
 export function eventsInWindow<E extends HoursEvent>(
   part: PartWindow,
   events: E[],
   today: string
 ): E[] {
-  const end = part.retired_on ?? today;
+  const windows = serviceWindows(part, today);
   return events.filter(
-    (e) => e.start_date <= today && e.start_date >= part.installed_on && e.start_date <= end
+    (e) => e.start_date <= today && windows.some((w) => e.start_date >= w.from && e.start_date <= w.to)
   );
+}
+
+// Which kinds share a place on the car with `kind`: equipping a part takes the
+// equipped parts of these kinds off (POST /parts/:id/equip). A full set of
+// tires and a front or rear pair occupy the same corners, so each swaps the
+// other; "other" is anything at all and swaps nothing. Mirrored by
+// equipSwapKinds in public/js/garage.js — keep the two in step.
+export function equipSwapKinds(kind: string): string[] {
+  if (kind === "other") return [];
+  if (kind === "tires") return ["tires", "tires_front", "tires_rear"];
+  if (kind === "tires_front" || kind === "tires_rear") return [kind, "tires"];
+  return [kind];
 }
 
 export type Measurement = {

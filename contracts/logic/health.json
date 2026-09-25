@@ -188,28 +188,28 @@
       },
       {
         "key": "tyreCLF",
-        "label": "Tyre LF",
+        "label": "Tire LF",
         "group": "temps",
         "unit": "°C",
         "reduce": "max"
       },
       {
         "key": "tyreCRF",
-        "label": "Tyre RF",
+        "label": "Tire RF",
         "group": "temps",
         "unit": "°C",
         "reduce": "max"
       },
       {
         "key": "tyreCLR",
-        "label": "Tyre LR",
+        "label": "Tire LR",
         "group": "temps",
         "unit": "°C",
         "reduce": "max"
       },
       {
         "key": "tyreCRR",
-        "label": "Tyre RR",
+        "label": "Tire RR",
         "group": "temps",
         "unit": "°C",
         "reduce": "max"
@@ -234,28 +234,28 @@
       },
       {
         "key": "tyreKpaLF",
-        "label": "Tyre LF",
+        "label": "Tire LF",
         "group": "pressures",
         "unit": "kPa",
         "reduce": "end"
       },
       {
         "key": "tyreKpaRF",
-        "label": "Tyre RF",
+        "label": "Tire RF",
         "group": "pressures",
         "unit": "kPa",
         "reduce": "end"
       },
       {
         "key": "tyreKpaLR",
-        "label": "Tyre LR",
+        "label": "Tire LR",
         "group": "pressures",
         "unit": "kPa",
         "reduce": "end"
       },
       {
         "key": "tyreKpaRR",
-        "label": "Tyre RR",
+        "label": "Tire RR",
         "group": "pressures",
         "unit": "kPa",
         "reduce": "end"
