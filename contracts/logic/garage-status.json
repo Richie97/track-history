@@ -275,52 +275,247 @@
     {
       "kind": "pads_front",
       "label": "Front pads",
-      "wearLimitHint": "3 (mm)"
+      "wearLimitHint": "3 (mm)",
+      "isTire": false,
+      "swapKinds": [
+        "pads_front"
+      ]
     },
     {
       "kind": "pads_rear",
       "label": "Rear pads",
-      "wearLimitHint": "3 (mm)"
+      "wearLimitHint": "3 (mm)",
+      "isTire": false,
+      "swapKinds": [
+        "pads_rear"
+      ]
     },
     {
       "kind": "tires",
       "label": "Tires (full set)",
-      "wearLimitHint": "3 (32nds)"
+      "wearLimitHint": "3 (32nds)",
+      "isTire": true,
+      "swapKinds": [
+        "tires",
+        "tires_front",
+        "tires_rear"
+      ]
     },
     {
       "kind": "tires_front",
       "label": "Front tires",
-      "wearLimitHint": "3 (32nds)"
+      "wearLimitHint": "3 (32nds)",
+      "isTire": true,
+      "swapKinds": [
+        "tires_front",
+        "tires"
+      ]
     },
     {
       "kind": "tires_rear",
       "label": "Rear tires",
-      "wearLimitHint": "3 (32nds)"
+      "wearLimitHint": "3 (32nds)",
+      "isTire": true,
+      "swapKinds": [
+        "tires_rear",
+        "tires"
+      ]
     },
     {
       "kind": "rotors_front",
       "label": "Front rotors",
-      "wearLimitHint": "28 (mm)"
+      "wearLimitHint": "28 (mm)",
+      "isTire": false,
+      "swapKinds": [
+        "rotors_front"
+      ]
     },
     {
       "kind": "rotors_rear",
       "label": "Rear rotors",
-      "wearLimitHint": "26 (mm)"
+      "wearLimitHint": "26 (mm)",
+      "isTire": false,
+      "swapKinds": [
+        "rotors_rear"
+      ]
     },
     {
       "kind": "brake_fluid",
       "label": "Brake fluid",
-      "wearLimitHint": null
+      "wearLimitHint": null,
+      "isTire": false,
+      "swapKinds": [
+        "brake_fluid"
+      ]
     },
     {
       "kind": "oil",
       "label": "Oil",
-      "wearLimitHint": null
+      "wearLimitHint": null,
+      "isTire": false,
+      "swapKinds": [
+        "oil"
+      ]
     },
     {
       "kind": "other",
       "label": "Other",
-      "wearLimitHint": null
+      "wearLimitHint": null,
+      "isTire": false,
+      "swapKinds": []
+    }
+  ],
+  "equip": {
+    "parts": [
+      {
+        "id": 1,
+        "kind": "tires",
+        "name": "RE-71RS",
+        "size": "255/40R17",
+        "equipped": true,
+        "retired_on": null
+      },
+      {
+        "id": 2,
+        "kind": "tires_front",
+        "name": "A7",
+        "size": "275/35R18",
+        "equipped": true,
+        "retired_on": null
+      },
+      {
+        "id": 3,
+        "kind": "tires_rear",
+        "name": "A7",
+        "size": "315/30R18",
+        "equipped": true,
+        "retired_on": null
+      },
+      {
+        "id": 4,
+        "kind": "tires",
+        "name": "Street",
+        "size": null,
+        "equipped": false,
+        "retired_on": null
+      },
+      {
+        "id": 5,
+        "kind": "tires_rear",
+        "name": "Old A7",
+        "size": null,
+        "equipped": false,
+        "retired_on": "2026-05-01"
+      },
+      {
+        "id": 6,
+        "kind": "pads_front",
+        "name": "DTC-60",
+        "size": null,
+        "equipped": true,
+        "retired_on": null
+      },
+      {
+        "id": 7,
+        "kind": "pads_front",
+        "name": "Street pads",
+        "size": null,
+        "equipped": false,
+        "retired_on": null
+      },
+      {
+        "id": 8,
+        "kind": "other",
+        "name": "Wipers",
+        "size": null,
+        "equipped": true,
+        "retired_on": null
+      },
+      {
+        "id": 9,
+        "kind": "pads_rear",
+        "name": "Cached",
+        "size": null,
+        "retired_on": null
+      }
+    ],
+    "cases": [
+      {
+        "part": {
+          "id": 4,
+          "kind": "tires"
+        },
+        "swapsOff": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "part": {
+          "id": 2,
+          "kind": "tires_front"
+        },
+        "swapsOff": [
+          1
+        ]
+      },
+      {
+        "part": {
+          "id": null,
+          "kind": "tires_rear"
+        },
+        "swapsOff": [
+          1,
+          3
+        ]
+      },
+      {
+        "part": {
+          "id": 7,
+          "kind": "pads_front"
+        },
+        "swapsOff": [
+          6
+        ]
+      },
+      {
+        "part": {
+          "id": null,
+          "kind": "pads_rear"
+        },
+        "swapsOff": []
+      },
+      {
+        "part": {
+          "id": null,
+          "kind": "other"
+        },
+        "swapsOff": []
+      }
+    ]
+  },
+  "titles": [
+    {
+      "part": {
+        "name": "Hoosier A7",
+        "size": "285/30R18"
+      },
+      "title": "Hoosier A7 · 285/30R18"
+    },
+    {
+      "part": {
+        "name": "DTC-60",
+        "size": null
+      },
+      "title": "DTC-60"
+    },
+    {
+      "part": {
+        "name": "DTC-60",
+        "size": ""
+      },
+      "title": "DTC-60"
     }
   ],
   "odometer": [

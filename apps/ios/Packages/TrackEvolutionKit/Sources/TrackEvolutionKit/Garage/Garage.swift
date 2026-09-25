@@ -132,6 +132,101 @@ public enum Garage {
             .map(\.element)
     }
 
+    // MARK: - On the car, or on the shelf (migration 0029)
+
+    /// `equipSwapKinds` in `public/js/garage.js` (and `src/lib/wear.ts`): which
+    /// kinds share a place on the car with `kind` — what equipping a part takes
+    /// off. A full set swaps with either pair and the pairs swap with a full
+    /// set, but a front pair leaves the rears alone; `other` swaps nothing.
+    public static func equipSwapKinds(_ kind: PartKind) -> [PartKind] {
+        switch kind {
+        case .other: []
+        case .tires: [.tires, .tiresFront, .tiresRear]
+        case .tiresFront, .tiresRear: [kind, .tires]
+        default: [kind]
+        }
+    }
+
+    /// `equipSwapsOff`: the equipped parts that equipping a part of `kind` (with
+    /// id `partId`, nil for one not created yet) would take off the car. The
+    /// server makes the same choice; this is only so the switch can say so
+    /// first. A part with no `equipped` — cached before 0029 — is never named,
+    /// as in the JS, where `undefined` is falsy.
+    public static func equipSwapsOff(partId: Int?, kind: PartKind, in parts: [Part]) -> [Part] {
+        let kinds = equipSwapKinds(kind)
+        return parts.filter {
+            $0.id != partId && $0.equipped == true && $0.retiredOn == nil && kinds.contains($0.kind)
+        }
+    }
+
+    /// `partTitle`: the part's name with its size, when it has one —
+    /// "Hoosier A7 · 285/30R18".
+    public static func partTitle(name: String?, size: String?) -> String {
+        if let size, !size.isEmpty { return "\(name ?? "") · \(size)" }
+        return name ?? ""
+    }
+
+    public static func partTitle(_ part: Part) -> String { partTitle(name: part.name, size: part.size) }
+
+    /// On the car right now — `onCarParts` in `public/app.js`. A part with no
+    /// `equipped` (a response cached before 0029) counts as on the car.
+    public static func isOnCar(_ part: Part) -> Bool { part.retiredOn == nil && part.equipped != false }
+
+    /// On the shelf: off the car but not retired — a spare set, the street pads.
+    public static func isSpare(_ part: Part) -> Bool { part.retiredOn == nil && part.equipped == false }
+
+    /// Parts in the car's own order — pads, tyres full set then front then rear,
+    /// rotors, fluids — newest first within a kind, as the web page lists them.
+    /// A kind the client doesn't know sorts first, like the JS's `findIndex` of -1.
+    public static func sortedByKind(_ parts: [Part]) -> [Part] {
+        let order = { (kind: PartKind) in PartKind.all.firstIndex(of: kind) ?? -1 }
+        return parts.enumerated().sorted { a, b in
+            let (ka, kb) = (order(a.element.kind), order(b.element.kind))
+            if ka != kb { return ka < kb }
+            if a.element.installedOn != b.element.installedOn { return a.element.installedOn > b.element.installedOn }
+            return a.offset < b.offset
+        }.map(\.element)
+    }
+
+    /// When the part last came off the car (the latest `removedOn`), or nil if
+    /// it never has — a spare with no history is "not fitted yet".
+    public static func lastOff(_ part: Part) -> String? {
+        (part.mounts ?? []).compactMap(\.removedOn).max()
+    }
+
+    /// The earliest date the Equipped switch accepts for its swap: taking a part
+    /// off can't predate the stretch it is on, and putting one on can't go back
+    /// inside a stretch it was already on. The server refuses the same.
+    public static func earliestSwapDate(_ part: Part) -> String {
+        if part.equipped != false {
+            return (part.mounts ?? []).first { $0.removedOn == nil }?.mountedOn ?? part.installedOn
+        }
+        if let off = lastOff(part), off > part.installedOn { return off }
+        return part.installedOn
+    }
+
+    /// What the Equipped switch says before it writes: taking a part off, or
+    /// putting it on and what that takes off. The web page's confirm row.
+    public static func equipNote(_ part: Part, in parts: [Part]) -> String {
+        if part.equipped != false {
+            return "Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on."
+        }
+        let swaps = equipSwapsOff(partId: part.id, kind: part.kind, in: parts)
+        return swaps.isEmpty
+            ? "Put it on the car? Its wear picks up from here."
+            : "Put it on the car? This takes off \(swapList(swaps)) — \(movesTo(swaps)) to Spares."
+    }
+
+    /// What adding (or refreshing into) a new part of `kind` takes off when it
+    /// goes on the car; nil when nothing does. The add form's hint.
+    public static func addSwapNote(_ kind: PartKind, in parts: [Part]) -> String? {
+        let swaps = equipSwapsOff(partId: nil, kind: kind, in: parts)
+        return swaps.isEmpty ? nil : "Takes off \(swapList(swaps)) — \(movesTo(swaps)) to Spares."
+    }
+
+    private static func swapList(_ swaps: [Part]) -> String { swaps.map(partTitle).joined(separator: " and ") }
+    private static func movesTo(_ swaps: [Part]) -> String { swaps.count == 1 ? "it moves" : "they move" }
+
     // MARK: - Car catalog (#222)
 
     /// "Chevrolet Corvette C7" — `catalogCarName`: the name a pick writes into an

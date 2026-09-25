@@ -3,6 +3,8 @@ package app.trackevolution.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -103,6 +108,12 @@ fun VehicleScreen(
     var confirmRetireId by rememberSaveable { mutableStateOf<Int?>(null) }
     var confirmRefreshId by rememberSaveable { mutableStateOf<Int?>(null) }
     var confirmDeleteId by rememberSaveable { mutableStateOf<Int?>(null) }
+    // The Equipped switch's confirm row (migration 0029) and a retired part's
+    // "another set of those" — ids again, for the same reasons. Inline in the
+    // card, as the web page's confirm row is, rather than a dialog: the row
+    // carries a date field, and a text field is a form, not an alert.
+    var confirmEquipId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var refreshRetiredId by rememberSaveable { mutableStateOf<Int?>(null) }
     // The car's own delete (NS-37, moved from Settings), the same pattern: the
     // vehicle id, saveably.
     var confirmDeleteCarId by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -257,12 +268,14 @@ fun VehicleScreen(
                     }
                 }
             } else {
-                item("parts-header") { TESectionHeader("Consumables in service") }
+                item("parts-header") { TESectionHeader("On the car") }
                 item("parts-hint") {
                     Text(
                         "Wear accrues automatically from this car's logged events (2h per track day " +
-                            "unless an event says otherwise). Log a quick pad or tread measurement " +
-                            "between events and the projection switches from estimated to measured.",
+                            "unless an event says otherwise), but only while a part is equipped — flip " +
+                            "the switch off to put a set on the shelf, and on again to swap it back. Log " +
+                            "a quick pad or tread measurement between events and the projection switches " +
+                            "from estimated to measured.",
                         style = TrackTheme.typography.xs,
                         color = colors.textMuted,
                     )
@@ -284,9 +297,42 @@ fun VehicleScreen(
                                 onRetire = { confirmRetireId = part.id },
                                 onRefresh = { confirmRefreshId = part.id },
                                 onDelete = { confirmDeleteId = part.id },
+                                onToggleEquipped = { confirmEquipId = if (confirmEquipId == part.id) null else part.id },
+                                equipping = confirmEquipId == part.id,
+                                onEquipDone = { confirmEquipId = null },
                                 detailInColumn = twoColumn,
-                                selected = twoColumn &&
-                                    (selectedPartId ?: model.activeParts.firstOrNull()?.id) == part.id,
+                                selected = twoColumn && selectedPart(model, selectedPartId)?.id == part.id,
+                                onSelect = { selectedPartId = part.id },
+                            )
+                        }
+                    }
+                }
+
+                // The shelf (migration 0029): off the car, not thrown away.
+                if (model.spareParts.isNotEmpty()) {
+                    item("spares-header") { TESectionHeader("Spares") }
+                    item("spares-hint") {
+                        Text(
+                            "Off the car but not retired — a second set of wheels, the street pads. " +
+                                "Their hours are frozen until you equip them, which takes off whatever " +
+                                "is in their place.",
+                            style = TrackTheme.typography.xs,
+                            color = colors.textMuted,
+                        )
+                    }
+                    model.spareParts.forEach { part ->
+                        item("spare-${part.id}") {
+                            PartCard(
+                                part = part,
+                                model = model,
+                                onRetire = { confirmRetireId = part.id },
+                                onRefresh = { confirmRefreshId = part.id },
+                                onDelete = { confirmDeleteId = part.id },
+                                onToggleEquipped = { confirmEquipId = if (confirmEquipId == part.id) null else part.id },
+                                equipping = confirmEquipId == part.id,
+                                onEquipDone = { confirmEquipId = null },
+                                detailInColumn = twoColumn,
+                                selected = twoColumn && selectedPart(model, selectedPartId)?.id == part.id,
                                 onSelect = { selectedPartId = part.id },
                             )
                         }
@@ -300,7 +346,18 @@ fun VehicleScreen(
                         TESectionHeader("Retired parts", detail = "cost per hour")
                     }
                     model.retiredParts.forEach { part ->
-                        item("retired-${part.id}") { RetiredCard(part) }
+                        item("retired-${part.id}") {
+                            RetiredCard(
+                                part,
+                                refreshing = refreshRetiredId == part.id,
+                                parts = model.allParts,
+                                onRefresh = { refreshRetiredId = if (refreshRetiredId == part.id) null else part.id },
+                                onConfirm = { on, equipped ->
+                                    refreshRetiredId = null
+                                    model.refreshRetiredPart(part.id, on, equipped)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -321,11 +378,7 @@ fun VehicleScreen(
                 PaneWidth(Modifier.weight(1f)) { page() }
                 VerticalDivider(color = colors.borderHairline)
                 PaneWidth(Modifier.width(partWidth)) {
-                    PartColumn(
-                        part = model.activeParts.firstOrNull { it.id == selectedPartId }
-                            ?: model.activeParts.firstOrNull(),
-                        model = model,
-                    )
+                    PartColumn(part = selectedPart(model, selectedPartId), model = model)
                 }
             }
         } else {
@@ -346,7 +399,8 @@ fun VehicleScreen(
     partById(model, confirmRefreshId)?.let { part ->
         TEConfirmDialog(
             text = "Replace ${part.kind.label} with the same spec? The old one is retired as of " +
-                "today and a new one goes on in its place.",
+                if (Garage.isSpare(part)) "today and a new one takes its place on the shelf."
+                else "today and a new one goes on in its place.",
             confirm = "Replace",
             onConfirm = { confirmRefreshId = null; model.refreshPart(part.id) },
             onDismiss = { confirmRefreshId = null },
@@ -456,7 +510,7 @@ private fun MaintenancePanel(alerts: List<Garage.Alert>) {
         Text("Maintenance due", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
         alerts.forEach { alert ->
             Text(
-                "${alert.part.kind.label} — " +
+                "${alert.part.kind.label}${alert.part.size?.let { " $it" }.orEmpty()} — " +
                     if (alert.status == Garage.PartStatus.DUE) {
                         "replace now"
                     } else {
@@ -512,7 +566,7 @@ private fun PartColumn(part: Part?, model: VehicleModel) {
             TEEmpty("Add a consumable and its measurements will show here.")
         } else {
             Text(
-                part.name ?: part.kind.label,
+                Garage.partTitle(part).ifEmpty { part.kind.label },
                 style = TrackTheme.typography.h3,
                 color = colors.textStrong,
             )
@@ -533,6 +587,12 @@ private fun PartCard(
     onRetire: () -> Unit,
     onRefresh: () -> Unit,
     onDelete: () -> Unit,
+    /** The Equipped switch was flipped; the card confirms before it writes. */
+    onToggleEquipped: () -> Unit,
+    /** The confirm row is open. */
+    equipping: Boolean = false,
+    /** It closed, confirmed or cancelled. */
+    onEquipDone: () -> Unit = {},
     /** Whether the measurements live in the column beside this instead. */
     detailInColumn: Boolean = false,
     selected: Boolean = false,
@@ -552,20 +612,46 @@ private fun PartCard(
         color = if (selected) colors.accentTint else null,
         border = if (selected) colors.accent else null,
     ) {
-        Text(part.kind.label, style = TrackTheme.typography.eyebrow, color = colors.accentInk)
-        Text(
-            part.name ?: part.kind.label,
-            style = TrackTheme.typography.bodyStrong,
-            color = colors.textStrong,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(part.kind.label, style = TrackTheme.typography.eyebrow, color = colors.accentInk)
+                Text(
+                    part.name ?: part.kind.label,
+                    style = TrackTheme.typography.bodyStrong,
+                    color = colors.textStrong,
+                )
+                part.size?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, style = TrackTheme.typography.xs, color = colors.textMuted)
+                }
+            }
+            if (part.retiredOn == null) EquipSwitch(part, onToggleEquipped)
+        }
+        val lastOff = Garage.lastOff(part)
         TEMeta(
             listOf(
                 "Installed ${EventDates.fmtDate(part.installedOn)}",
+                when {
+                    !Garage.isSpare(part) -> null
+                    lastOff != null -> "off the car since ${EventDates.fmtDate(lastOff)}"
+                    else -> "not fitted yet"
+                },
                 part.retiredOn?.let { "retired ${EventDates.fmtDate(it)}" },
                 Garage.fmtCost(part.costCents),
                 part.notes,
             ),
         )
+
+        if (equipping) {
+            EquipConfirm(
+                part = part,
+                parts = model.allParts,
+                onConfirm = { on ->
+                    onEquipDone()
+                    model.setEquipped(part, equipped = Garage.isSpare(part), on = on)
+                },
+                onCancel = onEquipDone,
+            )
+        }
 
         TEWearBar(part.wear, modifier = Modifier.padding(vertical = 8.dp))
         WearStory(part)
@@ -607,7 +693,7 @@ private fun PartCard(
                 submitLabel = "Save changes",
                 onCancel = { editing = false },
                 onDelete = onDelete,
-                onSubmit = { patch ->
+                onSubmit = { patch, _ ->
                     model.updatePart(part.id, patch)
                     editing = false
                 },
@@ -656,7 +742,7 @@ private fun WearStory(part: Part) {
             style = TrackTheme.typography.xxs,
             color = colors.textFaint,
         )
-    } else if (part.retiredOn == null) {
+    } else if (Garage.isOnCar(part)) {
         Text(
             "No life estimate — set expected hours or log two measurements.",
             style = TrackTheme.typography.xs,
@@ -681,8 +767,17 @@ private fun WearStory(part: Part) {
  */
 private fun partById(model: VehicleModel, id: Int?): Part? {
     if (id == null) return null
-    return model.activeParts.firstOrNull { it.id == id }
-        ?: model.retiredParts.firstOrNull { it.id == id }
+    return model.allParts.firstOrNull { it.id == id }
+}
+
+/**
+ * The part the expanded page's right-hand column shows: the one picked, while
+ * it is still on the car or the shelf, else the first on the car, else the
+ * first spare.
+ */
+private fun selectedPart(model: VehicleModel, id: Int?): Part? {
+    val candidates = model.activeParts + model.spareParts
+    return candidates.firstOrNull { it.id == id } ?: candidates.firstOrNull()
 }
 
 @Composable
@@ -769,8 +864,11 @@ private fun AddPartCard(model: VehicleModel) {
                 submitLabel = "Add part",
                 onCancel = { open = false },
                 onDelete = null,
-                onSubmit = { patch ->
-                    model.addPart(patch.toDraft())
+                addingTo = model.allParts,
+                onSubmit = { patch, equipped ->
+                    // Equipped, it takes off what it replaces (`swap`), as the
+                    // switch does; unticked, it goes straight to the shelf.
+                    model.addPart(patch.toDraft().copy(equipped = equipped, swap = equipped))
                     open = false
                 },
             )
@@ -786,18 +884,28 @@ private fun AddPartCard(model: VehicleModel) {
  * [PartDraft] on the way out. Every field is sent on save, so clearing one
  * clears it server-side, which is what the web form does.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PartForm(
     existing: Part?,
     submitLabel: String,
     onCancel: () -> Unit,
     onDelete: (() -> Unit)?,
-    onSubmit: (PartPatch) -> Unit,
+    /**
+     * The car's parts when this form *adds* one: it then carries the Equipped
+     * switch and says what an equipped part takes off. Null for an edit, where
+     * the card's own switch does that.
+     */
+    addingTo: List<Part>? = null,
+    /** The patch, and — adding — whether the part goes on the car. */
+    onSubmit: (PartPatch, Boolean) -> Unit,
 ) {
     val colors = TrackTheme.colors
     val key = existing?.id ?: 0
     var kind by rememberSaveable(key) { mutableStateOf(existing?.kind?.rawValue ?: PartKind.PADS_FRONT.rawValue) }
     var name by rememberSaveable(key) { mutableStateOf(existing?.name.orEmpty()) }
+    var size by rememberSaveable(key) { mutableStateOf(existing?.size.orEmpty()) }
+    var equipped by rememberSaveable(key) { mutableStateOf(true) }
     var installedOn by rememberSaveable(key) {
         mutableStateOf(existing?.installedOn ?: EventDates.todayIso())
     }
@@ -812,18 +920,17 @@ private fun PartForm(
 
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TEField("Type") {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                // Chips rather than a dropdown: eight kinds is few enough to show
-                // outright, and a picker hides the vocabulary from a first-time
-                // user who doesn't yet know what the app tracks.
-                PartKind.all.take(4).forEach { option ->
+            // Chips rather than a dropdown: ten kinds is few enough to show
+            // outright, and a picker hides the vocabulary from a first-time user
+            // who doesn't yet know what the app tracks. Wrapping, since the tyre
+            // pairs (migration 0029) made the list longer than two phone rows.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                PartKind.all.forEach { option ->
                     KindChip(option, kind == option.rawValue) { kind = option.rawValue }
                 }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PartKind.all.drop(4).forEach { option ->
-                KindChip(option, kind == option.rawValue) { kind = option.rawValue }
             }
         }
 
@@ -832,10 +939,23 @@ private fun PartForm(
                 value = name,
                 onValueChange = { name = it },
                 placeholder = {
-                    Text("Hawk DTC-60, RE-71RS 255/40…", style = TrackTheme.typography.sm)
+                    Text("Hawk DTC-60, Hoosier A7…", style = TrackTheme.typography.sm)
                 },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        TEField("Size (optional)") {
+            OutlinedTextField(
+                value = size,
+                // The server's limit, enforced where it is typed rather than
+                // refused on save.
+                onValueChange = { size = it.take(40) },
+                placeholder = {
+                    if (Garage.isTireKind(PartKind(kind))) Text("285/30R18", style = TrackTheme.typography.sm)
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().testTag("partSize"),
             )
         }
         TEField("Installed") {
@@ -866,10 +986,22 @@ private fun PartForm(
                 value = notes,
                 onValueChange = { notes = it },
                 placeholder = {
-                    Text("Sizes, torque specs, where bought…", style = TrackTheme.typography.sm)
+                    Text("Torque specs, where bought…", style = TrackTheme.typography.sm)
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+        if (addingTo != null) {
+            EquippedToggle(
+                checked = equipped,
+                label = "Equipped — on the car now",
+                onCheckedChange = { equipped = it },
+            )
+            if (equipped) {
+                Garage.addSwapNote(PartKind(kind), addingTo)?.let {
+                    Text(it, style = TrackTheme.typography.xs, color = colors.textMuted)
+                }
+            }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -879,6 +1011,7 @@ private fun PartForm(
                         PartPatch(
                             kind = Patch.Set(PartKind(kind)),
                             name = Patch.Set(name.trim().ifEmpty { null }),
+                            size = Patch.Set(size.trim().ifEmpty { null }),
                             installedOn = Patch.Set(installedOn.trim()),
                             costCents = Patch.Set(
                                 cost.trim().toDoubleOrNull()?.let { kotlin.math.round(it * 100).toInt() },
@@ -887,6 +1020,7 @@ private fun PartForm(
                             wearLimit = Patch.Set(wearLimit.trim().toDoubleOrNull()),
                             notes = Patch.Set(notes.trim().ifEmpty { null }),
                         ),
+                        equipped,
                     )
                 },
                 enabled = name.isNotBlank(),
@@ -937,9 +1071,162 @@ private fun NumberField(value: String, placeholder: String, onValueChange: (Stri
     )
 }
 
+/**
+ * The Equipped switch on a part card (migration 0029). It never writes on its
+ * own: flipping it asks the page to confirm — the swap date, and what putting
+ * it on takes off — so the switch shows the part's real state until then.
+ */
+@Composable
+private fun EquipSwitch(part: Part, onToggle: () -> Unit) {
+    EquippedToggle(
+        checked = !Garage.isSpare(part),
+        label = "Equipped",
+        onCheckedChange = { onToggle() },
+        modifier = Modifier.testTag("equip-${part.id}"),
+    )
+}
+
+/**
+ * A switch and its label as one control, so TalkBack reads "Equipped, switch,
+ * on" and the whole row is the touch target — the `role="switch"` checkbox
+ * the web page draws.
+ */
+@Composable
+private fun EquippedToggle(
+    checked: Boolean,
+    label: String,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = TrackTheme.colors
+    Row(
+        modifier = modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.accentInk,
+                checkedTrackColor = colors.accentTint,
+            ),
+        )
+        Text(label, style = TrackTheme.typography.sm, color = colors.textBody)
+    }
+}
+
+/**
+ * A swap-date field bounded the way the server bounds it: a real date, not
+ * before [earliest], and not after [latest] when there is one. Blank is not
+ * allowed — the web's input is `required` — so the default is today.
+ */
+private fun validSwapDate(date: String, earliest: String, latest: String?): Boolean =
+    EventDates.epochDay(date) != null && date.length == 10 && date >= earliest && (latest == null || date <= latest)
+
+/**
+ * The Equipped switch's confirm row (migration 0029): what the swap does, in
+ * the web page's words, and the date it happened — today unless it was earlier,
+ * never before the part's current stretch began or back inside one it was
+ * already on.
+ */
+@Composable
+private fun EquipConfirm(
+    part: Part,
+    parts: List<Part>,
+    onConfirm: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val colors = TrackTheme.colors
+    val today = EventDates.todayIso()
+    val earliest = Garage.earliestSwapDate(part)
+    var on by rememberSaveable(part.id) { mutableStateOf(today) }
+    val valid = validSwapDate(on.trim(), earliest, today)
+    TrackCard(Modifier.fillMaxWidth().padding(top = 8.dp), color = colors.surfaceRaised, contentPadding = 12.dp) {
+        Text(Garage.equipNote(part, parts), style = TrackTheme.typography.sm, color = colors.textStrong)
+        TEField(
+            "Swap date",
+            hint = if (valid) null else "Between ${EventDates.fmtDate(earliest)} and today",
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            OutlinedTextField(
+                value = on,
+                onValueChange = { on = it },
+                singleLine = true,
+                isError = !valid,
+                modifier = Modifier.fillMaxWidth().testTag("equipDate"),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            Button(
+                onClick = { onConfirm(on.trim()) },
+                enabled = valid,
+                colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.accentContrast),
+            ) {
+                Text(if (Garage.isSpare(part)) "Equip" else "Take off", style = TrackTheme.typography.bodyStrong)
+            }
+            TextButton(onClick = onCancel) {
+                Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
+            }
+        }
+    }
+}
+
+/**
+ * "Buy another set of those" for a retired part: a fresh copy of its spec —
+ * name, size, cost, replace-at — installed on the chosen date, on the car in
+ * place of whatever is there by default, or on the shelf.
+ */
+@Composable
+private fun RetiredRefreshForm(
+    part: Part,
+    parts: List<Part>,
+    onConfirm: (String, Boolean) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val colors = TrackTheme.colors
+    var on by rememberSaveable(part.id) { mutableStateOf(EventDates.todayIso()) }
+    var equipped by rememberSaveable(part.id) { mutableStateOf(true) }
+    val valid = validSwapDate(on.trim(), part.installedOn, null)
+    val note = (if (equipped) Garage.addSwapNote(part.kind, parts) else null)
+        ?: if (equipped) "Goes on the car with hours at zero." else "Goes to Spares with hours at zero."
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("A new set of ${Garage.partTitle(part)}", style = TrackTheme.typography.sm, color = colors.textStrong)
+        TEField("Installed", hint = if (valid) null else "On or after ${EventDates.fmtDate(part.installedOn)}") {
+            OutlinedTextField(
+                value = on,
+                onValueChange = { on = it },
+                singleLine = true,
+                isError = !valid,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        EquippedToggle(checked = equipped, label = "Equipped", onCheckedChange = { equipped = it })
+        Text(note, style = TrackTheme.typography.xs, color = colors.textMuted)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { onConfirm(on.trim(), equipped) },
+                enabled = valid,
+                colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.accentContrast),
+            ) {
+                Text("Add new set", style = TrackTheme.typography.bodyStrong)
+            }
+            TextButton(onClick = onCancel) {
+                Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
+            }
+        }
+    }
+}
+
 /** A retired part, and what it cost per hour of use. */
 @Composable
-private fun RetiredCard(part: Part) {
+private fun RetiredCard(
+    part: Part,
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    onConfirm: (String, Boolean) -> Unit,
+    parts: List<Part> = emptyList(),
+) {
     val colors = TrackTheme.colors
     val perHour = part.costCents
         ?.takeIf { part.wear.hours > 0 }
@@ -949,7 +1236,7 @@ private fun RetiredCard(part: Part) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "${part.kind.label} · ${part.name.orEmpty()}",
+                    "${part.kind.label} · ${Garage.partTitle(part)}",
                     style = TrackTheme.typography.sm,
                     color = colors.textStrong,
                 )
@@ -961,11 +1248,25 @@ private fun RetiredCard(part: Part) {
                     ),
                 )
             }
-            Text(
-                perHour ?: "—",
-                style = TrackTheme.typography.sm,
-                color = colors.textMuted,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    perHour ?: "—",
+                    style = TrackTheme.typography.sm,
+                    color = colors.textMuted,
+                )
+                // "Buy another set of those" (migration 0029).
+                TextButton(
+                    onClick = onRefresh,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Refresh ${Garage.partTitle(part)} into a new set"
+                    },
+                ) {
+                    Text("Refresh", style = TrackTheme.typography.xs, color = colors.accentInk)
+                }
+            }
+        }
+        if (refreshing) {
+            RetiredRefreshForm(part, parts, onConfirm = onConfirm, onCancel = onRefresh)
         }
     }
 }
@@ -978,6 +1279,7 @@ private fun RetiredCard(part: Part) {
 private fun PartPatch.toDraft(): PartDraft = PartDraft(
     kind = (kind as? Patch.Set)?.value ?: PartKind.OTHER,
     name = (name as? Patch.Set)?.value,
+    size = (size as? Patch.Set)?.value,
     installedOn = (installedOn as? Patch.Set)?.value ?: EventDates.todayIso(),
     costCents = (costCents as? Patch.Set)?.value,
     expectedHours = (expectedHours as? Patch.Set)?.value,

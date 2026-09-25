@@ -96,17 +96,28 @@ public object VehiclePatchSerializer : KSerializer<VehiclePatch> {
 public data class PartDraft(
     val kind: PartKind,
     val name: String? = null,
+    /** Free text, up to 40 characters ("255/40R17"); migration 0029. */
+    val size: String? = null,
     @SerialName("installed_on") val installedOn: String,
     @SerialName("cost_cents") val costCents: Int? = null,
     @SerialName("expected_hours") val expectedHours: Double? = null,
     @SerialName("wear_limit") val wearLimit: Double? = null,
     val notes: String? = null,
+    /**
+     * `false` adds a spare straight to the shelf; omitted (or `true`) puts it
+     * on the car from [installedOn], as every part was before migration 0029.
+     */
+    val equipped: Boolean? = null,
+    /** With [equipped], also take off whatever shares its place, as equipping does. */
+    val swap: Boolean? = null,
 )
 
 @Serializable(with = PartPatchSerializer::class)
 public data class PartPatch(
     val kind: Patch<PartKind> = Patch.Unchanged,
     val name: Patch<String> = Patch.Unchanged,
+    /** `Set(null)` clears the size. */
+    val size: Patch<String> = Patch.Unchanged,
     val installedOn: Patch<String> = Patch.Unchanged,
     /** Setting this retires the part; clearing it puts it back in service. */
     val retiredOn: Patch<String> = Patch.Unchanged,
@@ -126,6 +137,7 @@ public object PartPatchSerializer : KSerializer<PartPatch> {
         val body = PatchBody(out.json)
         body.put("kind", value.kind) { JsonPrimitive(it.rawValue) }
         body.put("name", value.name) { JsonPrimitive(it) }
+        body.put("size", value.size) { JsonPrimitive(it) }
         body.put("installed_on", value.installedOn) { JsonPrimitive(it) }
         body.put("retired_on", value.retiredOn) { JsonPrimitive(it) }
         body.put("cost_cents", value.costCents) { JsonPrimitive(it) }
@@ -140,12 +152,19 @@ public object PartPatchSerializer : KSerializer<PartPatch> {
  * One-tap replacement. Every field is optional: the successor inherits the
  * retired part's spec, which is the whole point — swapping pads should not mean
  * re-entering what they are.
+ *
+ * On a part already *retired* it is "buy another set of those": nothing is
+ * retired, and the copy goes on the car unless [equipped] is `false`, with
+ * [swap] taking off whatever shares its place. On a part in service the
+ * successor takes the old one's place, so both are ignored there.
  */
 @Serializable
 public data class PartRefreshDraft(
     @SerialName("installed_on") val installedOn: String? = null,
     val name: String? = null,
     @SerialName("cost_cents") val costCents: Int? = null,
+    val equipped: Boolean? = null,
+    val swap: Boolean? = null,
 )
 
 /**

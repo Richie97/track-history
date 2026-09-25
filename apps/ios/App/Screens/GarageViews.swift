@@ -109,7 +109,8 @@ struct WearStatusLine: View {
             } else {
                 bits.append("vs. \(Garage.fmtHours(wear.expectedHours)) expected")
             }
-        } else if part.retiredOn == nil {
+        } else if Garage.isOnCar(part) {
+            // A spare on the shelf isn't wearing, so it has nothing to estimate yet.
             bits.append("no life estimate — set expected hours or log two measurements")
         }
         return bits.joined(separator: " · ")
@@ -182,7 +183,7 @@ struct MaintenanceStrip: View {
                     router.push(.vehicle(alert.vehicle.id))
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(alert.part.kind.label)
+                        Text([alert.part.kind.label, alert.part.size].compactMap { $0 }.joined(separator: " "))
                             .teStyle(.sm)
                             .foregroundStyle(alert.status == .due ? Color(.dangerInk) : Color(.textStrong))
                         Text(

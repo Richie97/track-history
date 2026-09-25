@@ -1165,8 +1165,13 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   mount. `GET /api/garage` returns `size`, `equipped` and `mounts` on every
   part. The web vehicle page lists parts **on the car** and **spares**, each
   with an Equipped switch that confirms the swap date and names what comes
-  off. The native apps decode all three fields and offer the two new tyre
-  kinds; the switch itself is web-only for now.
+  off. The iOS and Android vehicle pages carry the same: *On the car* and
+  *Spares* sections, a size field on the part form, an Equipped switch on
+  every card that confirms before it writes (a sheet on iOS, an inline row on Android) (date bounded by the
+  part's mounts, with the swap named first), an Equipped toggle when adding a
+  part, and a Refresh on each retired part. What a swap takes off is
+  `equipSwapKinds` / `equipSwapsOff` ported as `Garage` in the Kit and `:core`
+  and pinned by `contracts/logic/garage-status.json`.
 - **Setup notebook** (`setups` table, one JSON sheet per event day, validated
   by `sanitizeSetup` in `src/lib/validate.ts`) — tire pressures (cold/hot per
   corner), camber/toe/caster, damper clicks, sway settings, fuel, and

@@ -494,19 +494,22 @@ Features added after the rewrite shipped, and where they landed:
   private: `GET /api/share/:slug` strips the line items and the total like
   notes.
 - **Front / rear tyres, part sizes and the Equipped switch** (2026-09,
-  migration 0029) — **web first**, the same arrangement as costs. The server
-  gained `tires_front` / `tires_rear` part kinds, a free-text `parts.size`,
-  and `part_mounts` — the stretches a part was on the car, which the wear math
-  now accrues over — with `POST /parts/:id/equip | /unequip`. The web vehicle
-  page carries the switch (on the car vs. spares) and the size field. **The
-  models are all-three now**: both `Part`s decode `size`, `equipped` and
-  `mounts`, both `PartKind`s carry the two new kinds with their labels and
-  tread-depth hints (pinned by `garage-status.json` / `units.json`), both
-  `garageAlerts` skip a spare, and both API clients have `equipPart` /
-  `unequipPart` — so the phones can add a front or rear pair today, and the
-  switch and the size field are the follow-up. Until then a phone lists a
-  spare among its active parts, with its wear frozen, which is accurate if
-  not yet labelled.
+  migration 0029) — **all three**. The server gained `tires_front` /
+  `tires_rear` part kinds, a free-text `parts.size`, and `part_mounts` — the
+  stretches a part was on the car, which the wear math now accrues over — with
+  `POST /parts/:id/equip | /unequip`, and a refresh on a *retired* part ("buy
+  another set of those"). Both `Part`s decode `size`, `equipped` and `mounts`,
+  both `PartKind`s carry the two new kinds, and both vehicle pages carry what
+  the web one does: *On the car* and *Spares* sections in the car's own kind
+  order, an Equipped switch per card that **never writes on its own** — it
+  opens a confirm (an `EquipSheet` on iOS, one case of the page's single
+  `.sheet`; an inline confirm row in the card on Android, as on the web) with the swap date bounded by the
+  part's mounts and the parts it takes off named first — a size field, an
+  Equipped toggle when adding a part, and a Refresh per retired part. The
+  sentences and the swap choice are `Garage.equipSwapKinds` / `equipSwapsOff`
+  / `partTitle` / `equipNote` / `addSwapNote` in the Kit and `:core`, the first
+  three pinned by `contracts/logic/garage-status.json`. The setup sheet's two
+  new tyre refs (`tires_f_id` / `tires_r_id`) stay with the notebook, web-only.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **AI assistants over MCP** (2026-09, epic
