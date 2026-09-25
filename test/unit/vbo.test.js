@@ -99,6 +99,24 @@ describe("parseVboText", () => {
     expect(out.lapScalarChannels.tyreKpaRF).toBeUndefined();
   });
 
+  it("reads 2024 firmware's _PTPA columns, which are m/s², as G", () => {
+    const out = parseVboText(
+      buildVboText(circleTrace(), { withLapTiming: true, trackPrecision: true, accelMs2: true }),
+      "recording-2024-06-08-09-20-29.vbo"
+    );
+    expect(Math.max(...out.carChannels.latG.map((p) => p.v))).toBeCloseTo(0.9, 2);
+  });
+
+  it("drops the car channels once the car stops reporting", () => {
+    // every car column written as 0 from 60 s while the GPS carries on
+    const out = parseVboText(
+      buildVboText(circleTrace(), { withLapTiming: true, trackPrecision: true, silentAfterS: 60 }),
+      "recording-2026-07-26-14-35-55.vbo"
+    );
+    for (const pts of Object.values(out.carChannels)) expect(pts[pts.length - 1].t).toBeLessThan(60);
+    expect(out.gps[out.gps.length - 1].t).toBeGreaterThan(150);
+  });
+
   it("falls back to the export date when the name has none", () => {
     const out = parseVboText(buildVboText(circleTrace(), { trackPrecision: true }), "session.vbo");
     expect(out.date).toBe("2026-09-22");

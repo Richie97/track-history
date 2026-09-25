@@ -95,6 +95,10 @@ export const META_NAMES = [
 
 const round = (v, f) => Math.round(v * f) / f;
 
+// `t` held inside a series' own time range — see the interpolated sampler in
+// buildLapChannels for why nothing may be read past either end.
+const clampT = (t, s) => Math.min(s.last.t, Math.max(s.first.t, t));
+
 // Index of the last sample at or before `t`, or -1. `arr` is sorted by t.
 function holdIndex(arr, t) {
   let lo = 0, hi = arr.length - 1, best = -1;
@@ -200,13 +204,18 @@ export function buildLapChannels(laps, dist, chans, dStepM = D_STEP_M, opts = {}
   );
   // Each channel keeps its own sampler: interpolated by default, held for
   // enums, OR-ed across the window for flags (see WINDOW_MAX / STEP_HOLD).
+  // A lap may run up to 5 s past either end of a channel (below), and
+  // series.at extrapolates the end segment's slope out there — a throttle
+  // rising at the last sample read 100.5 %, an absolute latG falling read
+  // -0.004, and either one rejects the whole session server-side. So the
+  // interpolated sampler holds the end value instead, as holdAt does.
   const chanS = named.map(([name, pts, f]) => {
     const s = series(pts);
     const sample = WINDOW_MAX.includes(name)
       ? (t, tNext) => maxIn(pts, t, tNext)
       : STEP_HOLD.includes(name)
         ? (t) => holdAt(pts, t)
-        : (t) => s.at(t);
+        : (t) => s.at(clampT(t, s));
     return { name, f, first: s.first, last: s.last, sample };
   });
   const scalarS = SCALAR_NAMES.map(([name, reduce, f]) => [name, scalars[name], reduce, f]).filter(
@@ -267,7 +276,7 @@ function reduceScalar(c, startT, endT) {
     if (best != null) return best;
   }
   if (endT < c.s.first.t - 5 || startT > c.s.last.t + 5) return null;
-  return c.s.at(endT);
+  return c.s.at(clampT(endT, c.s));
 }
 
 // Bring a session under MAX_TOTAL_VALUES by dropping whole channels from the

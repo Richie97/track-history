@@ -47,9 +47,20 @@ const vboLon = (lon) => (-lon * 60).toFixed(5);
 // writes the Porsche Track Precision App's layout: an export-time "created
 // at" line, one column name per line (names with spaces), car channels, and
 // a zeroed column the car didn't report.
+// `accelMs2` writes LatAcc_PTPA in m/s², as the 2024 Track Precision
+// firmware does; `silentAfterS` has the car stop reporting (every car column
+// written as 0) from that time on while the GPS carries on.
 export function buildVboText(
   points,
-  { withLapTiming = false, startTod = "091500.00", latFirst = false, trackPrecision = false, lineHalfM = 20 } = {}
+  {
+    withLapTiming = false,
+    startTod = "091500.00",
+    latFirst = false,
+    trackPrecision = false,
+    lineHalfM = 20,
+    accelMs2 = false,
+    silentAfterS = null,
+  } = {}
 ) {
   const todBase =
     Number(startTod.slice(0, 2)) * 3600 + Number(startTod.slice(2, 4)) * 60 + Number(startTod.slice(4));
@@ -67,7 +78,9 @@ export function buildVboText(
     const pedal = (0.5 + 0.5 * Math.sin(ph)).toFixed(2);
     const braking = Math.max(0, -40 * Math.sin(ph)).toFixed(1);
     const latG = 0.9 * Math.cos(ph);
-    return `${base} ${Math.sin(ph) > 0 ? 4 : 3} ${(4000 + 2000 * Math.sin(ph)).toFixed(0)} ${pedal} ${braking} ${(30 * Math.cos(ph)).toFixed(2)} ${(latG / 9.81).toFixed(4)} ${latG.toFixed(3)} 2.1 3276.8 0`;
+    if (silentAfterS != null && p.t >= silentAfterS) return `${base} 0 0 0.00 0.0 0.00 0.0000 0.000 0.0 3276.8 0`;
+    const ptpa = accelMs2 ? latG * 9.81 : latG;
+    return `${base} ${Math.sin(ph) > 0 ? 4 : 3} ${(4000 + 2000 * Math.sin(ph)).toFixed(0)} ${pedal} ${braking} ${(30 * Math.cos(ph)).toFixed(2)} ${(ptpa / 9.81).toFixed(4)} ${ptpa.toFixed(3)} 2.1 3276.8 0`;
   });
   let lapTiming = "";
   if (withLapTiming) {
@@ -112,6 +125,106 @@ sats time lat long velocity
 [data]
 ${rows.join("\n")}
 `;
+}
+
+// --- Porsche Track Precision CSV ---------------------------------------------------
+
+// The app's CSV export: its 34 camelCase columns (empty where the car sent
+// nothing), epoch-ms timestamps, decimal degrees, and its own lap timer
+// against a line at a quarter turn of circleTrace — `laptime` is the ms since
+// the car last crossed it, 0 before the first crossing, and `lapDistance`
+// the metres. Options mirror the firmware differences the parser handles:
+//   speedUnit    "kmh" (2024 exports) or "ms" (later)
+//   accelMs2     accelerations in m/s² (2024) rather than G
+//   spaced       ", " between fields, as newer app versions write
+//   zeroAtLine   the first sample of each lap written as laptime 0, as some
+//                firmware does, rather than the small value since the line
+//   silentAfterS the car stops reporting (car columns 0) from then on
+//   radius / speed as circleTrace's, so the line lands on the circle
+//   firstCrossT  when the car first crosses the line (see below)
+export const CSV_START_TS = 1780000000000; // 2026-05-28T20:26:40Z
+export function buildTrackPrecisionCsv(
+  points,
+  {
+    speedUnit = "ms",
+    accelMs2 = false,
+    spaced = false,
+    zeroAtLine = false,
+    silentAfterS = null,
+    radius = 300,
+    speed = 40,
+    firstCrossT = null,
+  } = {}
+) {
+  const header = [
+    "brakingPressure", "currentGear", "distanceCounter", "electronicStabilityProgram", "engineSpeed",
+    "fuelConsumption", "gearSelection", "lapDistance", "laptime", "lateralAcceleration",
+    "longitudinalAcceleration", "longitudinalSlipRR", "longitudinalSlipRL", "longitudinalSlipFR",
+    "longitudinalSlipFL", "pedalForce", "sectorDistance", "sectorTime", "speed", "steeringWheelAngle",
+    "timestamp", "tirePressureFR", "tirePressureFL", "tirePressureRR", "tirePressureRL", "tripDistance",
+    "wpoCharismaDamper", "wpoCharismaMotor", "wpoCharismaTransmission", "wpoOversteer", "wpoUndersteer",
+    "latitude", "longitude", "yawVelocity",
+  ];
+  // Crossings of the quarter-turn line in the points' own clock: the first at
+  // `firstCrossT` (a quarter lap in for an untrimmed circleTrace; negative
+  // for a recording that starts just past the line, whose timer is already
+  // running), then one every lap.
+  const lapS = (2 * Math.PI * radius) / speed;
+  const cross0 = firstCrossT ?? lapS / 4;
+  let prevLap = null;
+  const rows = points.map((p) => {
+    const k = Math.floor((p.t - cross0) / lapS);
+    const running = k >= 0;
+    const since = p.t - (cross0 + k * lapS);
+    const trueLap = running ? Math.round(since * 1000) : 0;
+    const lapMs = zeroAtLine && prevLap != null && trueLap < prevLap ? 0 : trueLap;
+    prevLap = trueLap;
+    const lapM = running ? since * speed : 0;
+    const ph = (2 * Math.PI * p.t) / 10;
+    const silent = silentAfterS != null && p.t >= silentAfterS;
+    const latG = 0.9 * Math.cos(ph);
+    const longG = -0.6 * Math.sin(ph);
+    const g = accelMs2 ? 9.81 : 1;
+    const v = speedUnit === "kmh" ? p.v * 3.6 : p.v;
+    const f = {
+      brakingPressure: silent ? "0.0" : Math.max(0, -40 * Math.sin(ph)).toFixed(1),
+      currentGear: silent ? "0" : String(Math.sin(ph) > 0 ? 4 : 3),
+      distanceCounter: (p.t * speed).toFixed(3),
+      electronicStabilityProgram: "",
+      engineSpeed: silent ? "0" : (4000 + 2000 * Math.sin(ph)).toFixed(0),
+      fuelConsumption: "0.0",
+      gearSelection: "",
+      lapDistance: lapM.toFixed(1),
+      laptime: String(lapMs),
+      lateralAcceleration: silent ? "0.0" : (latG * g).toFixed(3),
+      longitudinalAcceleration: silent ? "0.0" : (longG * g).toFixed(3),
+      longitudinalSlipRR: "0.0",
+      longitudinalSlipRL: "0.0",
+      longitudinalSlipFR: "0.0",
+      longitudinalSlipFL: "0.0",
+      pedalForce: silent ? "0.0" : (0.5 + 0.5 * Math.sin(ph)).toFixed(2),
+      sectorDistance: "",
+      sectorTime: "",
+      speed: v.toFixed(3),
+      steeringWheelAngle: silent ? "0.0" : (30 * Math.cos(ph)).toFixed(2),
+      timestamp: String(CSV_START_TS + Math.round(p.t * 1000)),
+      tirePressureFR: "3276.8",
+      tirePressureFL: silent ? "0.0" : "2.1",
+      tirePressureRR: "3276.8",
+      tirePressureRL: "3276.8",
+      tripDistance: "0",
+      wpoCharismaDamper: "",
+      wpoCharismaMotor: "",
+      wpoCharismaTransmission: "",
+      wpoOversteer: "0.0",
+      wpoUndersteer: "0.0",
+      latitude: p.lat.toFixed(9),
+      longitude: p.lon.toFixed(9),
+      yawVelocity: "0.0",
+    };
+    return header.map((h) => f[h]).join(spaced ? ", " : ",");
+  });
+  return [header.join(spaced ? ", " : ","), ...rows].join("\n") + "\n";
 }
 
 // --- shared helpers --------------------------------------------------------------
