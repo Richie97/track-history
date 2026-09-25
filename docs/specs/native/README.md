@@ -493,6 +493,20 @@ Features added after the rewrite shipped, and where they landed:
   drops a cost the web entered, and neither phone shows one yet. Costs are
   private: `GET /api/share/:slug` strips the line items and the total like
   notes.
+- **Front / rear tyres, part sizes and the Equipped switch** (2026-09,
+  migration 0029) — **web first**, the same arrangement as costs. The server
+  gained `tires_front` / `tires_rear` part kinds, a free-text `parts.size`,
+  and `part_mounts` — the stretches a part was on the car, which the wear math
+  now accrues over — with `POST /parts/:id/equip | /unequip`. The web vehicle
+  page carries the switch (on the car vs. spares) and the size field. **The
+  models are all-three now**: both `Part`s decode `size`, `equipped` and
+  `mounts`, both `PartKind`s carry the two new kinds with their labels and
+  tread-depth hints (pinned by `garage-status.json` / `units.json`), both
+  `garageAlerts` skip a spare, and both API clients have `equipPart` /
+  `unequipPart` — so the phones can add a front or rear pair today, and the
+  switch and the size field are the follow-up. Until then a phone lists a
+  spare among its active parts, with its wear frozen, which is accurate if
+  not yet labelled.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **AI assistants over MCP** (2026-09, epic

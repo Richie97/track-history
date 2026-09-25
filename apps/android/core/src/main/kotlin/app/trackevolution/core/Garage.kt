@@ -132,11 +132,12 @@ public object Garage {
     )
 
     /**
-     * The maintenance items worth shouting about: **active** parts that are due
-     * or low, worst first. `garageAlerts` in `public/app.js`.
+     * The maintenance items worth shouting about: parts **on the car** that are
+     * due or low, worst first. `garageAlerts` in `public/app.js`.
      *
      * Retired parts are excluded on purpose — a worn-out part you already
-     * replaced is history, not a reminder. The sort is stable, like the JS
+     * replaced is history, not a reminder — and so are spares on the shelf
+     * ([Part.equipped] false, migration 0029), which aren't wearing. The sort is stable, like the JS
      * `sort` on a 0/1 key: due first, and within each group the order the
      * vehicles and their parts already came in.
      */
@@ -144,7 +145,7 @@ public object Garage {
         garage.orEmpty()
             .flatMap { vehicle ->
                 vehicle.parts.mapNotNull { part ->
-                    if (part.retiredOn != null) return@mapNotNull null
+                    if (part.retiredOn != null || part.equipped == false) return@mapNotNull null
                     val status = partStatus(part.wear) ?: return@mapNotNull null
                     if (status != PartStatus.DUE && status != PartStatus.LOW) return@mapNotNull null
                     Alert(vehicle = vehicle, part = part, status = status)
@@ -163,7 +164,7 @@ public object Garage {
      * `contracts/logic/garage-status.json` pins. "" for a kind with no hint.
      */
     public fun wearLimitHint(kind: PartKind, units: UnitSystem): String =
-        if (Units.isMetric(units) && kind == PartKind.TIRES) "3 (mm)" else kind.wearLimitHint.orEmpty()
+        if (Units.isMetric(units) && isTireKind(kind)) "3 (mm)" else kind.wearLimitHint.orEmpty()
 
     /**
      * `defaultMeasurementUnit(kind, units)`: the unit a new wear measurement is
@@ -171,7 +172,11 @@ public object Garage {
      * default — a part's later measurements follow its first one.
      */
     public fun defaultMeasurementUnit(kind: PartKind, units: UnitSystem): String =
-        if (kind == PartKind.TIRES && !Units.isMetric(units)) "32nds" else "mm"
+        if (isTireKind(kind) && !Units.isMetric(units)) "32nds" else "mm"
+
+    /** `isTireKind` in `public/js/garage.js`: a full set or a front or rear pair. */
+    public fun isTireKind(kind: PartKind): Boolean =
+        kind == PartKind.TIRES || kind == PartKind.TIRES_FRONT || kind == PartKind.TIRES_REAR
 
     // ---- car catalog (#222) ---------------------------------------------------
     //
@@ -429,7 +434,9 @@ public val PartKind.label: String
     get() = when (this) {
         PartKind.PADS_FRONT -> "Front pads"
         PartKind.PADS_REAR -> "Rear pads"
-        PartKind.TIRES -> "Tires"
+        PartKind.TIRES -> "Tires (full set)"
+        PartKind.TIRES_FRONT -> "Front tires"
+        PartKind.TIRES_REAR -> "Rear tires"
         PartKind.ROTORS_FRONT -> "Front rotors"
         PartKind.ROTORS_REAR -> "Rear rotors"
         PartKind.BRAKE_FLUID -> "Brake fluid"
@@ -445,7 +452,7 @@ public val PartKind.label: String
 public val PartKind.wearLimitHint: String?
     get() = when (this) {
         PartKind.PADS_FRONT, PartKind.PADS_REAR -> "3 (mm)"
-        PartKind.TIRES -> "3 (32nds)"
+        PartKind.TIRES, PartKind.TIRES_FRONT, PartKind.TIRES_REAR -> "3 (32nds)"
         PartKind.ROTORS_FRONT -> "28 (mm)"
         PartKind.ROTORS_REAR -> "26 (mm)"
         else -> null

@@ -39,9 +39,21 @@ export const VEHICLES = [
         cost: 379, wear_limit: 3, expected_hours: 24,
         measurements: [["2026-06-16", 9.5, "mm"]],
       },
+      // A staggered car: fronts and rears are different sizes, bought and
+      // worn out on their own schedules, so each is its own part.
       {
-        key: "re71", kind: "tires", name: "RE-71RS 275/345", installed: "2026-01-15",
-        cost: 1980, expected_hours: 20, notes: "Square-ish setup, shaved fronts",
+        key: "re71f", kind: "tires_front", name: "Bridgestone RE-71RS", size: "275/35R19", installed: "2026-01-15",
+        cost: 860, expected_hours: 20, notes: "Shaved to 7/32",
+      },
+      {
+        key: "re71r", kind: "tires_rear", name: "Bridgestone RE-71RS", size: "345/30R20", installed: "2026-01-15",
+        cost: 1120, expected_hours: 18,
+      },
+      // The street set: off the car since the RE-71s went on (optional
+      // `mounts`: the stretches a part was on the car; [] = never fitted).
+      {
+        kind: "tires", name: "Michelin PS4S", size: "275/35R19 · 345/30R20", installed: "2025-11-30",
+        mounts: [["2025-11-30", "2026-01-15"]], cost: 1790, notes: "Street / rain set on the spare wheels",
       },
       {
         key: "srf", kind: "brake_fluid", name: "Castrol SRF", installed: "2025-11-30",
@@ -147,7 +159,7 @@ export const SETUPS = [
       tp_cold: { fl: 30, fr: 30, rl: 28.5, rr: 28.5 }, tp_hot: { fl: 34, fr: 34, rl: 32.5, rr: 32.5 },
       camber: { f: -3.2, r: -2.0 }, toe: { f: -0.05, r: 0.1 },
       rebound: { f: 10, r: 8 }, compression: { f: 6, r: 6 }, sway: { f: 2, r: 2 }, fuel: 14,
-      parts: { tires: "re71", pads_f: "dtc70f", pads_r: "dtc70r" },
+      parts: { tires_f: "re71f", tires_r: "re71r", pads_f: "dtc70f", pads_r: "dtc70r" },
       notes: "New RE-71RS + DTC-70s. RE-71 wants lower hot targets than the PS4S.",
     },
   },
@@ -157,7 +169,7 @@ export const SETUPS = [
       tp_cold: { fl: 30, fr: 30, rl: 28.5, rr: 28.5 }, tp_hot: { fl: 34, fr: 34, rl: 32.5, rr: 32.5 },
       camber: { f: -3.4, r: -2.2 }, toe: { f: -0.05, r: 0.1 },
       rebound: { f: 10, r: 8 }, compression: { f: 6, r: 6 }, sway: { f: 2, r: 2 }, fuel: 12,
-      parts: { tires: "re71", pads_f: "dtc70f", pads_r: "dtc70r" },
+      parts: { tires_f: "re71f", tires_r: "re71r", pads_f: "dtc70f", pads_r: "dtc70r" },
       notes: "A little more camber all around for the stickier tire.",
     },
   },
@@ -167,7 +179,7 @@ export const SETUPS = [
       tp_cold: { fl: 29.5, fr: 29.5, rl: 28, rr: 28 }, tp_hot: { fl: 33.5, fr: 33.5, rl: 32, rr: 32 },
       camber: { f: -3.4, r: -2.2 }, toe: { f: -0.05, r: 0.1 },
       rebound: { f: 12, r: 9 }, compression: { f: 6, r: 6 }, sway: { f: 2, r: 2 }, fuel: 12,
-      parts: { tires: "re71", pads_f: "dtc70f", pads_r: "dtc70r" },
+      parts: { tires_f: "re71f", tires_r: "re71r", pads_f: "dtc70f", pads_r: "dtc70r" },
       notes: "Chasing entry stability into T1 — stiffer rebound both ends.",
     },
   },
@@ -177,7 +189,7 @@ export const SETUPS = [
       tp_cold: { fl: 29.5, fr: 29.5, rl: 28, rr: 28 }, tp_hot: { fl: 33.5, fr: 33.5, rl: 32, rr: 32 },
       camber: { f: -3.4, r: -2.2 }, toe: { f: -0.08, r: 0.12 },
       rebound: { f: 12, r: 9 }, compression: { f: 6, r: 6 }, sway: { f: 2, r: 2 }, fuel: 12,
-      parts: { tires: "re71", pads_f: "dtc70f", pads_r: "dtc70r" },
+      parts: { tires_f: "re71f", tires_r: "re71r", pads_f: "dtc70f", pads_r: "dtc70r" },
       notes: "Touch more front toe-out — turn-in sharper. PB pace all afternoon.",
     },
   },

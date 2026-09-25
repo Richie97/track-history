@@ -314,6 +314,17 @@ public actor APIClient {
         try await send("POST", "/parts/\(id)/refresh", body: draft, as: PartRefresh.self)
     }
 
+    /// Puts a spare back on the car (migration 0029), taking off whatever shares
+    /// its place; answers the ids it took off. Live only, like every garage write.
+    public func equipPart(id: Int, _ draft: PartEquipDraft = PartEquipDraft()) async throws -> PartEquip {
+        try await send("POST", "/parts/\(id)/equip", body: draft, as: PartEquip.self)
+    }
+
+    /// Takes a part off the car without retiring it — it goes to the shelf.
+    public func unequipPart(id: Int, _ draft: PartEquipDraft = PartEquipDraft()) async throws {
+        _ = try await send("POST", "/parts/\(id)/unequip", body: draft, as: OKResponse.self)
+    }
+
     public func addMeasurement(partId: Int, _ draft: MeasurementDraft) async throws -> Int {
         try await send("POST", "/parts/\(partId)/measurements", body: draft, as: CreatedID.self).id
     }

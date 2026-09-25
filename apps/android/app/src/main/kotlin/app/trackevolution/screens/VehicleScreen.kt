@@ -631,7 +631,7 @@ private fun WearStory(part: Part) {
 
     val usage = buildList {
         add("${Garage.fmtHours(wear.hours)} on part")
-        if (part.kind == PartKind.TIRES) {
+        if (Garage.isTireKind(part.kind)) {
             add(fmtCount(wear.cycles, "heat cycle"))
         } else if (wear.events > 0) {
             add(fmtCount(wear.events, "event"))

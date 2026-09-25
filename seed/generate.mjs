@@ -68,10 +68,18 @@ VEHICLES.forEach((v, i) => {
     partId++;
     if (p.key) partIdByKey.set(p.key, partId);
     lines.push(
-      `INSERT INTO parts (id, vehicle_id, kind, name, installed_on, retired_on, cost_cents, expected_hours, wear_limit, notes) ` +
-        `VALUES (${partId}, ${vid}, ${q(p.kind)}, ${q(p.name)}, ${q(p.installed)}, ${q(p.retired ?? null)}, ` +
+      `INSERT INTO parts (id, vehicle_id, kind, name, size, installed_on, retired_on, cost_cents, expected_hours, wear_limit, notes) ` +
+        `VALUES (${partId}, ${vid}, ${q(p.kind)}, ${q(p.name)}, ${q(p.size ?? null)}, ${q(p.installed)}, ${q(p.retired ?? null)}, ` +
         `${p.cost != null ? Math.round(p.cost * 100) : "NULL"}, ${p.expected_hours ?? "NULL"}, ${p.wear_limit ?? "NULL"}, ${q(p.notes ?? null)});`
     );
+    // The insert trigger (migration 0029) mounts the part for its whole life.
+    // `mounts: [[on, off | null], …]` replaces that with the stretches it was
+    // really on the car — [] for a spare that has never been fitted.
+    if (p.mounts) {
+      lines.push(`DELETE FROM part_mounts WHERE part_id = ${partId};`);
+      for (const [on, off] of p.mounts)
+        lines.push(`INSERT INTO part_mounts (part_id, mounted_on, removed_on) VALUES (${partId}, ${q(on)}, ${q(off ?? null)});`);
+    }
     for (const [date, value, unit] of p.measurements ?? []) {
       lines.push(
         `INSERT INTO part_measurements (part_id, measured_on, value, unit) VALUES (${partId}, ${q(date)}, ${value}, ${q(unit ?? "mm")});`
@@ -127,7 +135,7 @@ for (const s of SETUPS) {
   const eid = eventIdByDate.get(s.event);
   if (!eid) throw new Error(`Setup references unknown event date: ${s.event}`);
   const { parts, ...data } = s.data;
-  for (const [from, to] of [["tires", "tires_id"], ["pads_f", "pads_f_id"], ["pads_r", "pads_r_id"]]) {
+  for (const [from, to] of [["tires", "tires_id"], ["tires_f", "tires_f_id"], ["tires_r", "tires_r_id"], ["pads_f", "pads_f_id"], ["pads_r", "pads_r_id"]]) {
     if (!parts?.[from]) continue;
     const pid = partIdByKey.get(parts[from]);
     if (!pid) throw new Error(`Setup references unknown part key: ${parts[from]}`);

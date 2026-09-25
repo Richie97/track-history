@@ -27,6 +27,8 @@ import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.SteeringFits
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.PartDraft
+import app.trackevolution.core.model.PartEquip
+import app.trackevolution.core.model.PartEquipDraft
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefresh
 import app.trackevolution.core.model.PartRefreshDraft
@@ -425,6 +427,18 @@ public class ApiClient(
             "POST", "/parts/$id/refresh",
             encode(PartRefreshDraft.serializer(), draft), PartRefresh.serializer(),
         )
+
+    /**
+     * Puts a spare back on the car (migration 0029), taking off whatever shares
+     * its place; answers the ids it took off. Live only, like every garage write.
+     */
+    public suspend fun equipPart(id: Int, draft: PartEquipDraft = PartEquipDraft()): PartEquip =
+        send("POST", "/parts/$id/equip", encode(PartEquipDraft.serializer(), draft), PartEquip.serializer())
+
+    /** Takes a part off the car without retiring it — it goes to the shelf. */
+    public suspend fun unequipPart(id: Int, draft: PartEquipDraft = PartEquipDraft()) {
+        send("POST", "/parts/$id/unequip", encode(PartEquipDraft.serializer(), draft), OkResponse.serializer())
+    }
 
     public suspend fun addMeasurement(partId: Int, draft: MeasurementDraft): Int =
         send(

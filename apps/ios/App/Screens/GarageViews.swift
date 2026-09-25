@@ -96,7 +96,7 @@ struct WearStatusLine: View {
         var bits = ["\(Garage.fmtHours(wear.hours)) on part"]
         // Tyres wear by heat cycle more than by hour, so they count days; anything
         // else counts events, which is what a pad's life is spoken about in.
-        if part.kind == .tires {
+        if part.kind.isTire {
             bits.append("\(fmtCount(wear.cycles, "heat cycle"))")
         } else if wear.events > 0 {
             bits.append(fmtCount(wear.events, "event"))

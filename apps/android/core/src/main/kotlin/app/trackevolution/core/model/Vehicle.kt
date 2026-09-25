@@ -114,7 +114,11 @@ public value class PartKind(public val rawValue: String) {
     public companion object {
         public val PADS_FRONT: PartKind = PartKind("pads_front")
         public val PADS_REAR: PartKind = PartKind("pads_rear")
+        /** A full set — all four corners the same tyre. */
         public val TIRES: PartKind = PartKind("tires")
+        /** A front or rear pair, for a staggered car (its own size and wear). */
+        public val TIRES_FRONT: PartKind = PartKind("tires_front")
+        public val TIRES_REAR: PartKind = PartKind("tires_rear")
         public val ROTORS_FRONT: PartKind = PartKind("rotors_front")
         public val ROTORS_REAR: PartKind = PartKind("rotors_rear")
         public val BRAKE_FLUID: PartKind = PartKind("brake_fluid")
@@ -122,7 +126,7 @@ public value class PartKind(public val rawValue: String) {
         public val OTHER: PartKind = PartKind("other")
 
         public val all: List<PartKind> = listOf(
-            PADS_FRONT, PADS_REAR, TIRES, ROTORS_FRONT, ROTORS_REAR, BRAKE_FLUID, OIL, OTHER,
+            PADS_FRONT, PADS_REAR, TIRES, TIRES_FRONT, TIRES_REAR, ROTORS_FRONT, ROTORS_REAR, BRAKE_FLUID, OIL, OTHER,
         )
     }
 }
@@ -134,8 +138,18 @@ public data class Part(
     @SerialName("vehicle_id") val vehicleId: Int,
     val kind: PartKind,
     val name: String? = null,
+    /** A free-text size or spec ("255/40R17"), migration 0029. */
+    val size: String? = null,
     @SerialName("installed_on") val installedOn: String,
     @SerialName("retired_on") val retiredOn: String? = null,
+    /**
+     * On the car right now (migration 0029). False and not retired means a
+     * spare on the shelf, whose wear is frozen until it goes back on. Null
+     * from a response cached before the field existed — read as on the car.
+     */
+    val equipped: Boolean? = null,
+    /** The stretches the part was on the car; wear accrues across these only. */
+    val mounts: List<PartMount> = emptyList(),
     /**
      * Expected service life in on-track hours; defaulted from retired lifecycles
      * of the same kind when the user doesn't supply one.
@@ -178,6 +192,14 @@ public data class PartOdometer(
     val from: String,
     val to: String,
     val readings: Int,
+)
+
+/** One stretch a part was on the car (both ends inclusive). */
+@Serializable
+public data class PartMount(
+    @SerialName("mounted_on") val mountedOn: String,
+    /** Null while it is still fitted. */
+    @SerialName("removed_on") val removedOn: String? = null,
 )
 
 /** A logged wear measurement (pad thickness, tread depth, …). */

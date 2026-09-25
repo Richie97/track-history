@@ -103,16 +103,17 @@ public enum Garage {
         }
     }
 
-    /// The maintenance items worth shouting about: **active** parts that are due
-    /// or low, worst first. `garageAlerts` in `public/app.js`.
+    /// The maintenance items worth shouting about: parts **on the car** that are
+    /// due or low, worst first. `garageAlerts` in `public/app.js`.
     ///
     /// Retired parts are excluded on purpose — a worn-out part you already
-    /// replaced is history, not a reminder.
+    /// replaced is history, not a reminder — and so are spares on the shelf
+    /// (`equipped == false`, migration 0029), which aren't wearing.
     public static func garageAlerts(_ garage: [GarageVehicle]) -> [Alert] {
         garage
             .flatMap { vehicle in
                 vehicle.parts.compactMap { part -> Alert? in
-                    guard part.retiredOn == nil,
+                    guard part.retiredOn == nil, part.equipped != false,
                           let status = partStatus(part.wear),
                           status == .due || status == .low
                     else { return nil }
@@ -289,7 +290,9 @@ public extension PartKind {
         switch self {
         case .padsFront: "Front pads"
         case .padsRear: "Rear pads"
-        case .tires: "Tires"
+        case .tires: "Tires (full set)"
+        case .tiresFront: "Front tires"
+        case .tiresRear: "Rear tires"
         case .rotorsFront: "Front rotors"
         case .rotorsRear: "Rear rotors"
         case .brakeFluid: "Brake fluid"
@@ -306,7 +309,7 @@ public extension PartKind {
     var wearLimitHint: String? {
         switch self {
         case .padsFront, .padsRear: "3 (mm)"
-        case .tires: "3 (32nds)"
+        case .tires, .tiresFront, .tiresRear: "3 (32nds)"
         case .rotorsFront: "28 (mm)"
         case .rotorsRear: "26 (mm)"
         default: nil

@@ -381,6 +381,16 @@ public struct PartPatch: Encodable, Hashable, Sendable {
     }
 }
 
+/// The body of `POST /api/parts/:id/equip` and `/unequip`: the swap date,
+/// today on the server when nil.
+public struct PartEquipDraft: Encodable, Hashable, Sendable {
+    public var on: String?
+
+    public init(on: String? = nil) {
+        self.on = on
+    }
+}
+
 /// `POST /api/parts/:id/refresh` — "fresh set of the same part". Every field is
 /// optional: the successor inherits the old part's spec, and the swap defaults to
 /// today. Send `name`/`costCents` only when this set actually differs.

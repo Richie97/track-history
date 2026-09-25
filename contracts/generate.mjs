@@ -362,10 +362,21 @@ async function build(api) {
   });
   // A part with no expected_hours and no measurements — wear falls back to the
   // prior, and remaining-life projection has nothing to regress on.
+  // A front pair with its size (migration 0029)…
   await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
-    kind: "tires",
+    kind: "tires_front",
     name: "Falken RT660",
+    size: "255/40R17",
     installed_on: "2026-03-15",
+  });
+  // …and a rear pair that has never been fitted: `equipped: false` with an
+  // empty `mounts`, the spare-on-the-shelf branch.
+  const spareRears = await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
+    kind: "tires_rear",
+    name: "Falken RT660",
+    size: "275/40R17",
+    installed_on: "2026-03-15",
+    equipped: false,
   });
 
   // Two measurements: enough for the least-squares projection path.
@@ -381,7 +392,7 @@ async function build(api) {
   const trackId = tracks.find((t) => t.name === FIXTURE.richEvent.track_name)?.id;
   if (!trackId) throw new Error("fixture track not found — did resolveTrack change?");
 
-  return { rich, patriot, bare, s1, vehicle, pads, trackId, slug: "contract-fixture" };
+  return { rich, patriot, bare, s1, vehicle, pads, spareRears, trackId, slug: "contract-fixture" };
 }
 
 // ---------------------------------------------------------------------------
@@ -535,6 +546,15 @@ async function captureAll(api, anon, f) {
     "One-tap replacement: retires the part and inserts a same-spec successor.",
     "src/routes/vehicles.ts", await api("POST", `/parts/${part}/refresh`, { installed_on: "2026-06-01" }));
 
+  record("part-equip", "POST", "/parts/:id/equip",
+    "Put a spare back on the car as of a date, taking off whatever shares its place; " +
+    "`unequipped` lists the ids it took off (empty here: a rear pair swaps no front pair).",
+    "src/routes/vehicles.ts", await api("POST", `/parts/${f.spareRears.body.id}/equip`, { on: "2026-06-01" }));
+
+  record("part-unequip", "POST", "/parts/:id/unequip",
+    "Take a part off the car as of a date without retiring it — it goes to the shelf.",
+    "src/routes/vehicles.ts", await api("POST", `/parts/${f.spareRears.body.id}/unequip`, { on: "2026-07-01" }));
+
   record("measurement-create", "POST", "/parts/:id/measurements", "Log a wear measurement.",
     "src/routes/vehicles.ts",
     await api("POST", `/parts/${part}/measurements`, { measured_on: "2026-05-20", value: 6.9, unit: "mm" }));
@@ -657,6 +677,7 @@ const EXPECTED_ROUTES = [
   "GET /garage",
   "GET /vehicles/:id/steering-fit",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",
+  "POST /parts/:id/equip", "POST /parts/:id/unequip",
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug", "GET /share/:slug/wrapped/:year",
   "GET /wrapped/:year",

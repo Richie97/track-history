@@ -163,14 +163,14 @@ public enum Units {
     /// tread depth changes idiom (32nds of an inch vs. mm). nil where the JS
     /// returns "" — a kind with no hint.
     public static func wearLimitHint(_ kind: PartKind, _ units: UnitSystem) -> String? {
-        isMetric(units) && kind == .tires ? "3 (mm)" : kind.wearLimitHint
+        isMetric(units) && kind.isTire ? "3 (mm)" : kind.wearLimitHint
     }
 
     /// The unit a new wear measurement is offered in. A measurement stores its own
     /// unit string, so this is only a default — a part's later measurements follow
     /// its first one.
     public static func defaultMeasurementUnit(_ kind: PartKind, _ units: UnitSystem) -> String {
-        kind == .tires && !isMetric(units) ? "32nds" : "mm"
+        kind.isTire && !isMetric(units) ? "32nds" : "mm"
     }
 
     // MARK: - JavaScript number formatting

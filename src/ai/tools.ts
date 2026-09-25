@@ -480,7 +480,7 @@ export const TOOLS: Tool[] = [
     name: "get_garage",
     title: "Garage",
     description:
-      "The driver's cars and their consumables (pads, tyres, rotors, fluids…): accrued on-track hours, wear measurements, estimated life remaining and a status (ok / low / due), what each car's track days and parts have cost, and the car's own odometer where recorded.",
+      "The driver's cars and their consumables (pads, tyres — a full set or separate front and rear pairs, each with its size — rotors, fluids…): whether each is on the car now or on the shelf as a spare, accrued on-track hours (counted only while it was on the car), wear measurements, estimated life remaining and a status (ok / low / due), what each car's track days and parts have cost, and the car's own odometer where recorded.",
     inputSchema: {
       type: "object",
       properties: { include_retired: { type: "boolean", description: "Include parts already replaced (default false)." } },
@@ -509,6 +509,9 @@ export const TOOLS: Tool[] = [
               part_id: p.id,
               kind: partKindLabel(p.kind),
               name: p.name,
+              size: p.size ?? null,
+              // On the car now; false and not retired means a spare on the shelf.
+              equipped: Boolean(p.equipped),
               installed_on: p.installed_on,
               retired_on: p.retired_on,
               cost_cents: p.cost_cents,

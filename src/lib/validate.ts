@@ -211,7 +211,9 @@ export const isValidDate = (v: unknown): v is string =>
 export const PART_KINDS = [
   "pads_front",
   "pads_rear",
-  "tires",
+  "tires", // a full set, when all four corners are the same tyre
+  "tires_front", // a front pair — its own size, wear and replacement
+  "tires_rear",
   "rotors_front",
   "rotors_rear",
   "brake_fluid",
@@ -240,6 +242,8 @@ export type SetupSheet = {
   sway?: Partial<Record<AxleKey, number>>; // bar position / hole
   fuel?: number; // gallons at session start
   tires_id?: number; // parts.id refs — which consumables were on the car
+  tires_f_id?: number; // a front / rear pair, when the car runs a staggered set
+  tires_r_id?: number;
   pads_f_id?: number;
   pads_r_id?: number;
   notes?: string;
@@ -284,7 +288,7 @@ export function sanitizeSetup(v: unknown): SetupSheet | null | undefined {
     if (typeof o.fuel !== "number" || !Number.isFinite(o.fuel) || o.fuel < 0 || o.fuel > 50) return undefined;
     out.fuel = Math.round(o.fuel * 10) / 10;
   }
-  for (const ref of ["tires_id", "pads_f_id", "pads_r_id"] as const) {
+  for (const ref of ["tires_id", "tires_f_id", "tires_r_id", "pads_f_id", "pads_r_id"] as const) {
     const val = o[ref];
     if (val == null) continue;
     if (typeof val !== "number" || !Number.isInteger(val) || val <= 0) return undefined;

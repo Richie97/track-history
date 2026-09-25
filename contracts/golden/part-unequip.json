@@ -1,0 +1,8 @@
+{
+  "method": "POST",
+  "path": "/parts/:id/unequip",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

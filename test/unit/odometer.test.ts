@@ -58,6 +58,21 @@ describe("partOdometer", () => {
     expect(partOdometer(part, readings, today)).toEqual({ km: 380, from: "2026-04-20", to: "2026-05-20", readings: 2 });
   });
 
+  it("sums the stretches the part was on the car and skips the shelf time", () => {
+    const part = {
+      installed_on: "2026-02-01",
+      retired_on: null,
+      mounts: [
+        { mounted_on: "2026-02-01", removed_on: "2026-03-10" },
+        { mounted_on: "2026-04-01", removed_on: null },
+      ],
+    };
+    // 69000 → 70090.4 in the first stretch, 70800 → 71180 in the second; the
+    // 710 km between them were driven on something else.
+    expect(partOdometer(part, readings, today)).toEqual({ km: 1470.4, from: "2026-02-01", to: "2026-05-20", readings: 5 });
+    expect(partOdometer({ ...part, mounts: [] }, readings, today)).toBeNull();
+  });
+
   it("needs two readings — one says nothing about distance", () => {
     expect(partOdometer({ installed_on: "2026-05-01", retired_on: null }, readings, today)).toBeNull();
   });

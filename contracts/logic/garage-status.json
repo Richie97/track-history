@@ -284,7 +284,17 @@
     },
     {
       "kind": "tires",
-      "label": "Tires",
+      "label": "Tires (full set)",
+      "wearLimitHint": "3 (32nds)"
+    },
+    {
+      "kind": "tires_front",
+      "label": "Front tires",
+      "wearLimitHint": "3 (32nds)"
+    },
+    {
+      "kind": "tires_rear",
+      "label": "Rear tires",
       "wearLimitHint": "3 (32nds)"
     },
     {

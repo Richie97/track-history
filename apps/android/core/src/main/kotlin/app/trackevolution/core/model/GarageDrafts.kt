@@ -148,6 +148,15 @@ public data class PartRefreshDraft(
     @SerialName("cost_cents") val costCents: Int? = null,
 )
 
+/**
+ * The body of `POST /api/parts/:id/equip` and `/unequip`: the swap date,
+ * today on the server when omitted.
+ */
+@Serializable
+public data class PartEquipDraft(
+    val on: String? = null,
+)
+
 // ---- Measurements ---------------------------------------------------------
 
 @Serializable

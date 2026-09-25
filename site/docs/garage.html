@@ -163,8 +163,11 @@
     <h2 id="parts">Consumables and wear projections</h2>
     <p>
       Add parts — brake pads, tires, rotors, brake fluid, oil — to a vehicle
-      with their install date, cost, and optionally an expected life in track
-      hours. From then on wear accrues by itself as you log events. Each part
+      with their install date, cost, an optional size, and optionally an
+      expected life in track hours. Tires can be one entry for a full set, or
+      two — <strong>front tires</strong> and <strong>rear tires</strong> — for
+      a staggered car, so each axle keeps its own size, wear and replacement
+      date. From then on wear accrues by itself as you log events. Each part
       shows a wear bar and a projection of what's left, from the best
       information available:
     </p>
@@ -187,6 +190,26 @@
       set differs — different compound, different price — refresh anyway and
       tweak it with Edit.
     </p>
+    <h3 id="equipped">On the car, or on the shelf</h3>
+    <p>
+      Every part has an <strong>Equipped</strong> switch. Turn it off and the
+      part moves to <strong>Spares</strong> — still yours, not retired — and
+      stops accruing wear. Turn a spare back on and it goes back on the car,
+      taking off whatever is in its place: the other set of tires, the other
+      pads. A full set of tires swaps out a front and a rear pair and the
+      other way round; a front pair leaves the rears alone. The switch asks
+      for the date of the swap (today unless you did it earlier) and says
+      what it will take off before it does.
+    </p>
+    <p>
+      So a second set of wheels, rain tires, or street pads can come and go
+      as often as you swap them, and each part's hours, heat cycles and
+      recorded miles count only the days it was actually on the car. Adding a
+      new part equipped takes off the one it replaces the same way — untick
+      Equipped to add a spare straight to the shelf. The switch and sizes are
+      in the web garage for now; the phone apps can already add front and
+      rear tires.
+    </p>
     <p>
       Parts due (or nearly due) for replacement surface as a
       <strong>maintenance-due strip</strong> on your dashboard — "front pads,
@@ -204,9 +227,9 @@
     <p>
       Your season's <a href="./index.html#wrapped">Wrapped</a> names a
       <strong>favourite tyre</strong> (Pro) from the same records: the set of
-      tires with the most track days on it that year, counting the events on
-      its car between its install and retire dates — the same days its wear
-      is counted from. Ties go to the one with more track hours. An event only
+      tires (a full set, or a front or rear pair) with the most track days on
+      it that year, counting the events on its car while it was equipped — the
+      same days its wear is counted from. Ties go to the one with more track hours. An event only
       counts toward a car when its car field matches a car in your garage.
     </p>
 

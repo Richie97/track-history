@@ -20,6 +20,8 @@
 //     one's history. A reading below the running maximum is taken as another
 //     car's and skipped, never treated as an error or as a rollback.
 
+import { type PartWindow, serviceWindows } from "./wear";
+
 export type OdometerReading = {
   start_date: string; // ISO yyyy-mm-dd of the session's event
   km: number;
@@ -65,26 +67,33 @@ export type PartOdometer = {
   to: string; // date of the last
   readings: number;
 };
-
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
 // Distance the car's odometer covered while a part was fitted, *as far as the
-// recordings show*: from the first reading in its service window to the last.
-// The window is the same one wear.ts accrues hours over (installed on or after,
-// retired on or before, nothing upcoming). A lower bound by construction — the
-// first reading is the end of a session, and nothing after the last recorded
-// session is known. Needs two readings; one says nothing about distance.
+// recordings show*: within each stretch it was on the car (the same service
+// windows wear.ts accrues hours over — lifetime-clipped, nothing upcoming),
+// from the first reading to the last, summed across stretches. A set that
+// spent a month on the shelf is not credited with the miles the car did
+// without it. A lower bound by construction — the first reading is the end of
+// a session, and nothing after the last recorded session is known. Needs two
+// readings in one stretch; one says nothing about distance.
 export function partOdometer(
-  part: { installed_on: string; retired_on: string | null },
+  part: PartWindow,
   readings: OdometerReading[],
   today: string
 ): PartOdometer | null {
-  const end = part.retired_on ?? today;
-  const inWindow = carReadings(readings).kept.filter(
-    (r) => r.start_date >= part.installed_on && r.start_date <= end && r.start_date <= today
-  );
-  if (inWindow.length < 2) return null;
-  const first = inWindow[0];
-  const last = inWindow[inWindow.length - 1];
-  return { km: round1(last.km - first.km), from: first.start_date, to: last.start_date, readings: inWindow.length };
+  const kept = carReadings(readings).kept;
+  let km = 0;
+  let spans = 0;
+  const used: OdometerReading[] = [];
+  for (const w of serviceWindows(part, today)) {
+    const inWindow = kept.filter((r) => r.start_date >= w.from && r.start_date <= w.to);
+    used.push(...inWindow);
+    if (inWindow.length < 2) continue;
+    km += inWindow[inWindow.length - 1].km - inWindow[0].km;
+    spans++;
+  }
+  if (!spans) return null;
+  used.sort((a, b) => a.start_date.localeCompare(b.start_date));
+  return { km: round1(km), from: used[0].start_date, to: used[used.length - 1].start_date, readings: used.length };
 }

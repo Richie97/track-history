@@ -14,7 +14,9 @@ import { fmtOdometer, isMetric, L_PER_GAL, PSI_PER_BAR } from "./units.js";
 export const PART_KINDS = [
   ["pads_front", "Front pads"],
   ["pads_rear", "Rear pads"],
-  ["tires", "Tires"],
+  ["tires", "Tires (full set)"],
+  ["tires_front", "Front tires"],
+  ["tires_rear", "Rear tires"],
   ["rotors_front", "Front rotors"],
   ["rotors_rear", "Rear rotors"],
   ["brake_fluid", "Brake fluid"],
@@ -22,6 +24,29 @@ export const PART_KINDS = [
   ["other", "Other"],
 ];
 export const partKindLabel = (kind) => (PART_KINDS.find(([k]) => k === kind) || [])[1] ?? kind;
+
+// A full set and a front or rear pair are all tyres: tread depth, heat cycles.
+export const isTireKind = (kind) => kind === "tires" || kind === "tires_front" || kind === "tires_rear";
+
+// Which kinds share a place on the car with `kind` — what equipping a part
+// takes off. Mirrors equipSwapKinds in src/lib/wear.ts; keep the two in step.
+export function equipSwapKinds(kind) {
+  if (kind === "other") return [];
+  if (kind === "tires") return ["tires", "tires_front", "tires_rear"];
+  if (kind === "tires_front" || kind === "tires_rear") return [kind, "tires"];
+  return [kind];
+}
+
+// The equipped parts equipping `part` would take off the car, from a
+// vehicle's /garage parts — the server makes the same choice
+// (POST /parts/:id/equip); this is only so the switch can say so first.
+export const equipSwapsOff = (part, parts) => {
+  const kinds = equipSwapKinds(part.kind);
+  return parts.filter((p) => p.id !== part.id && p.equipped && !p.retired_on && kinds.includes(p.kind));
+};
+
+// The part's name with its size, when it has one: "Hoosier A7 · 285/30R18".
+export const partTitle = (p) => (p.size ? `${p.name} · ${p.size}` : p.name);
 
 // Suggested replace-at levels shown as form placeholders (not enforced).
 // Pads and rotors are specified in millimetres on both sides of the Atlantic;
@@ -31,10 +56,12 @@ export const WEAR_LIMIT_HINTS = {
   pads_front: "3 (mm)",
   pads_rear: "3 (mm)",
   tires: "3 (32nds)",
+  tires_front: "3 (32nds)",
+  tires_rear: "3 (32nds)",
   rotors_front: "28 (mm)",
   rotors_rear: "26 (mm)",
 };
-export const WEAR_LIMIT_HINTS_METRIC = { ...WEAR_LIMIT_HINTS, tires: "3 (mm)" };
+export const WEAR_LIMIT_HINTS_METRIC = { ...WEAR_LIMIT_HINTS, tires: "3 (mm)", tires_front: "3 (mm)", tires_rear: "3 (mm)" };
 export const wearLimitHint = (kind, units) =>
   (isMetric(units) ? WEAR_LIMIT_HINTS_METRIC : WEAR_LIMIT_HINTS)[kind] ?? "";
 
@@ -42,7 +69,7 @@ export const wearLimitHint = (kind, units) =>
 // unit string, so this is only a default — a part's later measurements follow
 // its first one (see the measurement form in app.js).
 export const defaultMeasurementUnit = (kind, units) =>
-  kind === "tires" && !isMetric(units) ? "32nds" : "mm";
+  isTireKind(kind) && !isMetric(units) ? "32nds" : "mm";
 
 // ---------- setup sheet spec -------------------------------------------------
 
@@ -102,6 +129,8 @@ export const AXLE_KEYS = [
 // Part references a sheet can carry: which consumables were on the car.
 export const PART_REFS = [
   ["tires_id", "Tires", "tires"],
+  ["tires_f_id", "Front tires", "tires_front"],
+  ["tires_r_id", "Rear tires", "tires_rear"],
   ["pads_f_id", "Front pads", "pads_front"],
   ["pads_r_id", "Rear pads", "pads_rear"],
 ];

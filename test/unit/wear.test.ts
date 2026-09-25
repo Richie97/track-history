@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventHours, eventsInWindow, wearEstimate, type HoursEvent } from "../../src/lib/wear";
+import { equipSwapKinds, eventHours, eventsInWindow, serviceWindows, wearEstimate, type HoursEvent } from "../../src/lib/wear";
 
 const TODAY = "2026-07-19";
 
@@ -47,6 +47,61 @@ describe("eventsInWindow", () => {
       "2025-04-12",
       "2025-11-01",
     ]);
+  });
+});
+
+describe("mounts (equip / unequip)", () => {
+  const events = [ev("2026-03-10"), ev("2026-04-10"), ev("2026-05-10"), ev("2026-08-01")];
+
+  it("with no mounts listed, the part was on for its whole life", () => {
+    expect(serviceWindows({ installed_on: "2026-03-01", retired_on: null }, TODAY)).toEqual([{ from: "2026-03-01", to: TODAY }]);
+  });
+
+  it("accrues only across the stretches it was on the car", () => {
+    const part = {
+      installed_on: "2026-03-01",
+      retired_on: null,
+      mounts: [
+        { mounted_on: "2026-03-01", removed_on: "2026-04-01" },
+        { mounted_on: "2026-05-01", removed_on: null },
+      ],
+    };
+    expect(eventsInWindow(part, events, TODAY).map((e) => e.start_date)).toEqual(["2026-03-10", "2026-05-10"]);
+    expect(wearEstimate({ ...part, expected_hours: 10, wear_limit: null }, events, [], TODAY).hours).toBe(8);
+  });
+
+  it("a part on the shelf since it was bought accrues nothing", () => {
+    expect(eventsInWindow({ installed_on: "2026-03-01", retired_on: null, mounts: [] }, events, TODAY)).toEqual([]);
+  });
+
+  it("clips mounts to the part's lifetime and to today", () => {
+    const part = {
+      installed_on: "2026-03-05",
+      retired_on: "2026-04-15",
+      mounts: [{ mounted_on: "2026-03-01", removed_on: "2026-09-01" }],
+    };
+    expect(serviceWindows(part, TODAY)).toEqual([{ from: "2026-03-05", to: "2026-04-15" }]);
+    expect(serviceWindows({ installed_on: "2026-03-01", retired_on: null, mounts: [{ mounted_on: "2026-08-01", removed_on: null }] }, TODAY)).toEqual([]);
+  });
+
+  it("an event on the swap day counts once, not twice", () => {
+    const part = {
+      installed_on: "2026-03-01",
+      retired_on: null,
+      mounts: [
+        { mounted_on: "2026-03-01", removed_on: "2026-04-10" },
+        { mounted_on: "2026-04-10", removed_on: null },
+      ],
+    };
+    expect(eventsInWindow(part, events, TODAY)).toHaveLength(3);
+  });
+
+  it("swaps what shares a place: a full set against either pair, never 'other'", () => {
+    expect(equipSwapKinds("tires")).toEqual(["tires", "tires_front", "tires_rear"]);
+    expect(equipSwapKinds("tires_front")).toEqual(["tires_front", "tires"]);
+    expect(equipSwapKinds("tires_rear")).toEqual(["tires_rear", "tires"]);
+    expect(equipSwapKinds("pads_front")).toEqual(["pads_front"]);
+    expect(equipSwapKinds("other")).toEqual([]);
   });
 });
 

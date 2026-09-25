@@ -1141,6 +1141,28 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   (`POST /api/parts/:id/refresh`) retires the current part and inserts a
   same-spec successor with hours reset, its expected life recalibrated from
   the lifecycle just completed.
+- **Tyres front and rear, sizes, and the Equipped switch** (migration 0029) —
+  tyres can be one part for a full set (`tires`) or two, a front and a rear
+  pair (`tires_front` / `tires_rear`), so a staggered car tracks each axle's
+  size, wear and replacement on its own schedule. Every part carries an
+  optional free-text `size`. A part is also **equipped** or **on the shelf**:
+  `part_mounts` records the stretches it was actually on the car, and wear,
+  heat cycles and the odometer span accrue across those alone, so a second set
+  of wheels or the street pads can come off and go back on without being
+  retired. `POST /api/parts/:id/equip` (`{ on? }`) puts a part back on and
+  takes off whatever shares its place (`equipSwapKinds` in `src/lib/wear.ts`:
+  the same kind, and a full set against either pair; `other` swaps nothing),
+  answering `{ ok, unequipped: [ids] }`; `POST /api/parts/:id/unequip` takes
+  one off. Creating a part accepts `equipped: false` (a spare straight to the
+  shelf) and `swap: true` (take off what it replaces). The mounts are kept in
+  step with `installed_on` / `retired_on` by triggers, so a part inserted by
+  the seed or a support script is on the car from its install date, and
+  retiring or un-retiring one through a plain `PUT` closes or reopens its
+  mount. `GET /api/garage` returns `size`, `equipped` and `mounts` on every
+  part. The web vehicle page lists parts **on the car** and **spares**, each
+  with an Equipped switch that confirms the swap date and names what comes
+  off. The native apps decode all three fields and offer the two new tyre
+  kinds; the switch itself is web-only for now.
 - **Setup notebook** (`setups` table, one JSON sheet per event day, validated
   by `sanitizeSetup` in `src/lib/validate.ts`) — tire pressures (cold/hot per
   corner), camber/toe/caster, damper clicks, sway settings, fuel, and
