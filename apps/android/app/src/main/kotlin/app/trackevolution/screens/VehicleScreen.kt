@@ -271,8 +271,9 @@ fun VehicleScreen(
                 item("parts-header") { TESectionHeader("On the car") }
                 item("parts-hint") {
                     Text(
-                        "Wear accrues automatically from this car's logged events (2h per track day " +
-                            "unless an event says otherwise), but only while a part is equipped — flip " +
+                        "Wear accrues automatically from this car's logged events (the logged lap " +
+                            "time on days with 3+ laps, else 1h15m per track day, unless an event says " +
+                            "otherwise), but only while a part is equipped — flip " +
                             "the switch off to put a set on the shelf, and on again to swap it back. Log " +
                             "a quick pad or tread measurement between events and the projection switches " +
                             "from estimated to measured.",

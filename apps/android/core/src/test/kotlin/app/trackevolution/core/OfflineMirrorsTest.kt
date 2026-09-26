@@ -82,21 +82,24 @@ class OfflineMirrorsTest {
     }
 
     @Test
-    fun `hours takes the override, else the greater of two per day and time on track`() {
+    fun `hours takes the override, else three or more laps, else an hour and a quarter per day`() {
         // Two days, nothing logged: the estimate.
-        assertEquals(4.0, recompute(days = 2.0).event.hours)
+        assertEquals(2.5, recompute(days = 2.0).event.hours)
 
-        // Laps only push the estimate up, never down — sparse logging must not
-        // shrink the seat time.
-        assertEquals(4.0, recompute(days = 2.0, laps = List(10) { 120_000 }).event.hours)
+        // 3+ laps replace the estimate in both directions: 20 minutes of laps
+        // on a two-day event is 0.3h, 5h of laps on a one-day event is 5h.
+        assertEquals(0.3, recompute(days = 2.0, laps = List(10) { 120_000 }).event.hours)
         assertEquals(5.0, recompute(days = 1.0, laps = List(150) { 120_000 }).event.hours)
+
+        // Fewer than 3 laps is sparse logging and keeps the estimate.
+        assertEquals(2.5, recompute(days = 2.0, laps = listOf(120_000, 121_000)).event.hours)
 
         // The override wins outright, and only when positive.
         assertEquals(1.5, recompute(days = 2.0, trackHours = 1.5).event.hours)
-        assertEquals(4.0, recompute(days = 2.0, trackHours = 0.0).event.hours)
+        assertEquals(2.5, recompute(days = 2.0, trackHours = 0.0).event.hours)
 
         // Rounded to 1dp, the way `withComputed` does.
-        assertEquals(0.7, recompute(days = 0.0, laps = listOf(2_400_000)).event.hours)
+        assertEquals(0.7, recompute(days = 0.0, laps = List(3) { 800_000 }).event.hours)
     }
 
     @Test

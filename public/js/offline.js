@@ -413,7 +413,9 @@ export function recomputeDetail(d) {
   const hours =
     d.track_hours != null && d.track_hours > 0
       ? d.track_hours
-      : Math.max((d.days || 0) * 2, laps.reduce((a, b) => a + b, 0) / 3_600_000);
+      : laps.length >= 3
+        ? laps.reduce((a, b) => a + b, 0) / 3_600_000
+        : (d.days || 0) * 1.25;
   d.hours = Math.round(hours * 10) / 10;
   d.cost_cents = eventCostCents(d);
   return d;

@@ -227,8 +227,8 @@ struct GarageTests {
     }
 
     @Test func drawsTheLowLineAtTwoTrackDays() {
-        #expect(Garage.partStatus(makeWear(remaining: 4)) == .low)
-        #expect(Garage.partStatus(makeWear(remaining: 4.01)) == .ok)
+        #expect(Garage.partStatus(makeWear(remaining: 2.5)) == .low)
+        #expect(Garage.partStatus(makeWear(remaining: 2.51)) == .ok)
         #expect(Garage.partStatus(makeWear(remaining: 0)) == .due)
         #expect(Garage.partStatus(makeWear(remaining: -1)) == .due)
     }
@@ -245,9 +245,9 @@ struct GarageTests {
     @Test func namesTheRemainingLifeInTrackDays() {
         #expect(Garage.fmtRemaining(nil) == nil)
         #expect(Garage.fmtRemaining(makeWear(remaining: 0)) == "replace now")
-        #expect(Garage.fmtRemaining(makeWear(remaining: 2)) == "~2 h left (≈1 track day)")
-        #expect(Garage.fmtRemaining(makeWear(remaining: 3.4)) == "~3.4 h left (≈1.5 track days)")
-        #expect(Garage.fmtRemaining(makeWear(remaining: 9.4)) == "~9.4 h left (≈5 track days)")
+        #expect(Garage.fmtRemaining(makeWear(remaining: 1.25)) == "~1.3 h left (≈1 track day)")
+        #expect(Garage.fmtRemaining(makeWear(remaining: 1.9)) == "~1.9 h left (≈1.5 track days)")
+        #expect(Garage.fmtRemaining(makeWear(remaining: 6.3)) == "~6.3 h left (≈5 track days)")
     }
 
     @Test func formatsCostWithCentsOnlyWhenThereAreAny() {
@@ -284,7 +284,7 @@ struct GarageTests {
     @Test func putsDueBeforeLowAndKeepsTheOriginalOrderWithin() {
         let garage = [
             makeVehicle(id: 1, name: "Corvette", parts: [
-                makePart(id: 10, kind: .padsFront, remaining: 3),  // low
+                makePart(id: 10, kind: .padsFront, remaining: 2),  // low
                 makePart(id: 11, kind: .tires, remaining: 0)       // due
             ]),
             makeVehicle(id: 2, name: "Miata", parts: [

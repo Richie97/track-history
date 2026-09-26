@@ -34,7 +34,7 @@
         "unit": null
       },
       "status": "ok",
-      "remaining": "~9.4 h left (≈5 track days)"
+      "remaining": "~9.4 h left (≈8 track days)"
     },
     {
       "name": "exactly at the low threshold",
@@ -50,8 +50,8 @@
         "last_value": null,
         "unit": null
       },
-      "status": "low",
-      "remaining": "~4 h left (≈2 track days)"
+      "status": "ok",
+      "remaining": "~4 h left (≈3 track days)"
     },
     {
       "name": "just above the low threshold",
@@ -68,7 +68,7 @@
         "unit": null
       },
       "status": "ok",
-      "remaining": "~4.1 h left (≈2 track days)"
+      "remaining": "~4.1 h left (≈3 track days)"
     },
     {
       "name": "low, half a day left",
@@ -85,7 +85,7 @@
         "unit": null
       },
       "status": "low",
-      "remaining": "~1 h left (≈0.5 track days)"
+      "remaining": "~1 h left (≈1 track day)"
     },
     {
       "name": "low, one day left",
@@ -102,7 +102,7 @@
         "unit": null
       },
       "status": "low",
-      "remaining": "~2 h left (≈1 track day)"
+      "remaining": "~2 h left (≈1.5 track days)"
     },
     {
       "name": "nothing left",
@@ -170,7 +170,7 @@
         "unit": null
       },
       "status": "ok",
-      "remaining": "~4.4 h left (≈2 track days)"
+      "remaining": "~4.4 h left (≈4 track days)"
     },
     {
       "name": "keeps half-day precision",
@@ -186,8 +186,8 @@
         "last_value": null,
         "unit": null
       },
-      "status": "low",
-      "remaining": "~3.4 h left (≈1.5 track days)"
+      "status": "ok",
+      "remaining": "~3.4 h left (≈3 track days)"
     },
     {
       "name": "one track day",
@@ -204,7 +204,7 @@
         "unit": null
       },
       "status": "low",
-      "remaining": "~2 h left (≈1 track day)"
+      "remaining": "~2 h left (≈1.5 track days)"
     }
   ],
   "hours": [

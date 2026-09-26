@@ -116,10 +116,10 @@ fun EventFormScreen(
                     }
                     TEField(
                         "On-track hours",
-                        hint = "Blank uses the 2h-per-day estimate",
+                        hint = "Blank uses your logged laps (3+), else 1h15m per day",
                         modifier = Modifier.weight(1f),
                     ) {
-                        NumberField(model.trackHours, placeholder = "est. 2h per day") {
+                        NumberField(model.trackHours, placeholder = "from laps, or 1h15m/day") {
                             model.trackHours = it
                         }
                     }

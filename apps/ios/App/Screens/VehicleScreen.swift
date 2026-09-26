@@ -380,8 +380,8 @@ struct VehicleScreen: View {
     private func proSection(_ model: VehicleModel) -> some View {
             TESectionHeader("On the car")
             Text("""
-                Wear accrues automatically from this car's logged events — 2 h per track day unless an \
-                event says otherwise — but only while a part is equipped: switch it off to put a set on \
+                Wear accrues automatically from this car's logged events — the logged lap time on days \
+                with 3+ laps, else 1 h 15 m per track day, unless an event says otherwise — but only while a part is equipped: switch it off to put a set on \
                 the shelf, and on again to swap it back. Log a quick pad or tread measurement between \
                 events and the projection switches from estimated to measured.
                 """)

@@ -107,7 +107,7 @@ struct OfflineMirrorsTests {
         #expect(detail.event.costCents == 0)
     }
 
-    @Test func hoursTakesTheOverrideElseTheGreaterOfTwoPerDayAndTimeOnTrack() throws {
+    @Test func hoursTakesTheOverrideElseThreeOrMoreLapsElseAnHourAndAQuarterPerDay() throws {
         var detail = try Goldens.decode(EventDetail.self, "event-detail-no-laps")
 
         detail.event.trackHours = 3.5
@@ -117,9 +117,10 @@ struct OfflineMirrorsTests {
         detail.event.trackHours = nil
         detail.event.days = 2
         OfflineMirrors.recomputeDetail(&detail)
-        #expect(detail.event.hours == 4, "2 days × 2h with no laps")
+        #expect(detail.event.hours == 2.5, "2 days × 1.25h with no laps")
 
-        // Six hours of logged laps beats the 2h/day estimate.
+        // 3+ laps replace the estimate in both directions: six hours of laps
+        // beats the 1.25h/day estimate...
         detail.sessions = [
             Session(
                 id: 1, label: nil, notes: nil, sort: 1, trace: nil, channels: nil,
@@ -128,6 +129,16 @@ struct OfflineMirrorsTests {
         ]
         OfflineMirrors.recomputeDetail(&detail)
         #expect(detail.event.hours == 6)
+
+        // ...and 20 minutes of laps pulls it down.
+        detail.sessions[0].laps = (1...10).map { Lap(id: $0, sessionId: 1, lapNum: $0, timeMs: 120_000) }
+        OfflineMirrors.recomputeDetail(&detail)
+        #expect(detail.event.hours == 0.3)
+
+        // Fewer than 3 laps is sparse logging and keeps the estimate.
+        detail.sessions[0].laps = (1...2).map { Lap(id: $0, sessionId: 1, lapNum: $0, timeMs: 120_000) }
+        OfflineMirrors.recomputeDetail(&detail)
+        #expect(detail.event.hours == 2.5)
         #expect(detail.event.trackHours == nil, "the override is not invented")
     }
 

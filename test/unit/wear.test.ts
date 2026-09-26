@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { equipSwapKinds, eventHours, eventsInWindow, serviceWindows, wearEstimate, type HoursEvent } from "../../src/lib/wear";
+import { DEFAULT_HOURS_PER_DAY, equipSwapKinds, eventHours, eventsInWindow, serviceWindows, wearEstimate, type HoursEvent } from "../../src/lib/wear";
 
 const TODAY = "2026-07-19";
 
@@ -8,13 +8,15 @@ const ev = (start_date: string, days = 2, extra: Partial<HoursEvent> = {}): Hour
   days,
   track_hours: null,
   lap_ms_sum: null,
+  lap_count: null,
   ...extra,
 });
 
 describe("eventHours", () => {
-  it("defaults to 2h per day", () => {
-    expect(eventHours(ev("2026-05-01", 2))).toBe(4);
-    expect(eventHours(ev("2026-05-01", 0.5))).toBe(1);
+  it("defaults to 1h15m per day", () => {
+    expect(DEFAULT_HOURS_PER_DAY).toBe(1.25);
+    expect(eventHours(ev("2026-05-01", 2))).toBe(2.5);
+    expect(eventHours(ev("2026-05-01", 0.5))).toBe(0.625);
   });
 
   it("an explicit override wins over everything", () => {
@@ -22,11 +24,19 @@ describe("eventHours", () => {
     expect(eventHours(ev("2026-05-01", 2, { track_hours: 1, lap_ms_sum: 20_000_000 }))).toBe(1);
   });
 
-  it("logged lap time only ever pushes the estimate up", () => {
-    // 3h of laps on a 1-day event beats the 2h estimate...
-    expect(eventHours(ev("2026-05-01", 1, { lap_ms_sum: 3 * 3_600_000 }))).toBe(3);
-    // ...but 30min of best-lap-only logging on a 2-day event doesn't pull it down.
-    expect(eventHours(ev("2026-05-01", 2, { lap_ms_sum: 30 * 60_000 }))).toBe(4);
+  it("3+ logged laps replace the day-count estimate in both directions", () => {
+    // 3h of laps on a 1-day event beats the 1h15m estimate...
+    expect(eventHours(ev("2026-05-01", 1, { lap_ms_sum: 3 * 3_600_000, lap_count: 90 }))).toBe(3);
+    // ...and 45min of laps on a 1-day event pulls it down from 1h15m.
+    expect(eventHours(ev("2026-05-01", 1, { lap_ms_sum: 45 * 60_000, lap_count: 22 }))).toBeCloseTo(0.75);
+    // Exactly MIN_TIMED_LAPS counts.
+    expect(eventHours(ev("2026-05-01", 2, { lap_ms_sum: 6 * 60_000, lap_count: 3 }))).toBeCloseTo(0.1);
+  });
+
+  it("fewer than 3 laps is sparse logging and keeps the estimate", () => {
+    // A best-lap-only history says nothing about seat time.
+    expect(eventHours(ev("2026-05-01", 2, { lap_ms_sum: 2 * 120_000, lap_count: 2 }))).toBe(2.5);
+    expect(eventHours(ev("2026-05-01", 1, { lap_ms_sum: 5 * 3_600_000, lap_count: 2 }))).toBe(1.25);
   });
 });
 
@@ -51,7 +61,9 @@ describe("eventsInWindow", () => {
 });
 
 describe("mounts (equip / unequip)", () => {
-  const events = [ev("2026-03-10"), ev("2026-04-10"), ev("2026-05-10"), ev("2026-08-01")];
+  // An explicit 4h each, so the wear math here doesn't move with the default.
+  const h4 = { track_hours: 4 };
+  const events = [ev("2026-03-10", 2, h4), ev("2026-04-10", 2, h4), ev("2026-05-10", 2, h4), ev("2026-08-01", 2, h4)];
 
   it("with no mounts listed, the part was on for its whole life", () => {
     expect(serviceWindows({ installed_on: "2026-03-01", retired_on: null }, TODAY)).toEqual([{ from: "2026-03-01", to: TODAY }]);
@@ -107,7 +119,8 @@ describe("mounts (equip / unequip)", () => {
 
 describe("wearEstimate", () => {
   const base = { installed_on: "2026-01-15", retired_on: null, expected_hours: null, wear_limit: null };
-  const season = [ev("2026-02-14"), ev("2026-04-18"), ev("2026-06-13")]; // 4h each
+  // An explicit 4h each, so the projection math doesn't move with the default.
+  const season = [ev("2026-02-14", 2, { track_hours: 4 }), ev("2026-04-18", 2, { track_hours: 4 }), ev("2026-06-13", 2, { track_hours: 4 })];
 
   it("accrues hours and event-day cycles with no projection basis", () => {
     const w = wearEstimate(base, season, [], TODAY);

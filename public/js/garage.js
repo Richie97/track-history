@@ -204,7 +204,7 @@ export function diffSetups(prev, cur) {
 
 // Rough conversion for "how many more track days" phrasing — matches
 // DEFAULT_HOURS_PER_DAY in src/lib/wear.ts.
-export const HOURS_PER_DAY = 2;
+export const HOURS_PER_DAY = 1.25;
 
 // Traffic-light status for a part's wear estimate:
 //   due  — replace now (over the limit / past expected life)

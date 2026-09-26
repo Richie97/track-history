@@ -88,7 +88,7 @@ public struct Event: Codable, Hashable, Sendable, Identifiable {
     public var bestMs: Int?
     /// Coefficient of variation of lap times; nil below 3 laps.
     public var consistency: Double?
-    /// On-track hours: the override, else `max(days × 2h, logged lap time)`.
+    /// On-track hours: the override, else the logged lap time with 3+ laps, else `days × 1h15m`.
     public var hours: Double
     /// The sum of the entered cost line items; nil — not zero — when none was
     /// entered (`eventCostCents` in `src/lib/costs.ts`).

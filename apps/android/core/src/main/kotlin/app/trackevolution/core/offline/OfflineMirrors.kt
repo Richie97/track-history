@@ -64,7 +64,7 @@ public object OfflineMirrors {
      *  - [Event.consistency] is the coefficient of variation, and **null below 3
      *    laps** — not zero. Two laps say nothing about consistency.
      *  - [Event.hours] is the manual override when set, else
-     *    `max(days × 2h, logged lap time)`, rounded to 1dp. It is never null.
+     *    the logged lap time with 3+ laps, else `days × 1h15m`, rounded to 1dp. It is never null.
      *  - [Event.costCents] is the sum of the entered cost line items, and
      *    **null when none was entered** — not zero, so an uncosted day never
      *    reads as a free one (#147).
@@ -85,14 +85,17 @@ public object OfflineMirrors {
             null
         }
 
-        // `eventHours`: the override wins; otherwise the greater of the
-        // 2h-per-day estimate and the time actually spent on track.
+        // `eventHours`: the override wins; otherwise 3+ logged laps are the
+        // time actually spent on track, and anything sparser is the 1h15m-per-day
+        // estimate.
         val lapHours = laps.sumOf { it.toDouble() } / 3_600_000.0
         val override = detail.event.trackHours
         val hours = if (override != null && override > 0) {
             override
+        } else if (laps.size >= 3) {
+            lapHours
         } else {
-            max(detail.event.days * HOURS_PER_DAY, lapHours)
+            detail.event.days * HOURS_PER_DAY
         }
 
         // `eventCostCents`: the entered line items summed, null when there are none.
@@ -124,5 +127,5 @@ public object OfflineMirrors {
     public fun listRow(detail: EventDetail): Event = detail.event
 
     /** `DEFAULT_HOURS_PER_DAY` in `src/lib/wear.ts`. */
-    private const val HOURS_PER_DAY = 2.0
+    private const val HOURS_PER_DAY = 1.25
 }

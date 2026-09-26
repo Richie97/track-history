@@ -131,7 +131,7 @@ describe("GET /api/wrapped/:year", () => {
     });
 
     const { pro } = (await api("GET", `/wrapped/${thisYear}`)).body;
-    expect(pro.tire).toEqual({ part_id: old.id, vehicle_id: car.id, vehicle_name: "Corvette C7", name: "Falken RT660", track_days: 2, hours: 4 });
+    expect(pro.tire).toEqual({ part_id: old.id, vehicle_id: car.id, vehicle_name: "Corvette C7", name: "Falken RT660", track_days: 2, hours: 2.5 });
     expect(pro.top_speed).toEqual({ kph: 217.5, track_id: expect.any(Number), track_name: "Road Atlanta", event_id: ev, date: pastDate });
   });
 });

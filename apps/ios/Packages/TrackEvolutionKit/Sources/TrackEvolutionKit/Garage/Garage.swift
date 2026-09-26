@@ -17,7 +17,7 @@ import Foundation
 public enum Garage {
     /// Rough conversion for "how many more track days" phrasing — matches
     /// `DEFAULT_HOURS_PER_DAY` in `src/lib/wear.ts`.
-    public static let HOURS_PER_DAY = 2.0
+    public static let HOURS_PER_DAY = 1.25
 
     /// Traffic-light status for a part's wear estimate. `nil` means there was no
     /// basis for one — no expected life and fewer than two measurements — which
