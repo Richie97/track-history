@@ -23,6 +23,7 @@
       "/share/*",
       "/billing/*",
       "/.well-known/apple-app-site-association",
+      "/.well-known/openai-apps-challenge",
       "/mcp",
       "/mcp/*",
       "/oauth/*",

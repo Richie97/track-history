@@ -15,6 +15,9 @@ export type Env = {
   APPLE_KEY_ID?: string;
   APPLE_PRIVATE_KEY?: string;
   IOS_APP_ID?: string;
+  // OpenAI Apps domain-verification token, served verbatim at
+  // /.well-known/openai-apps-challenge (src/routes/wellKnown.ts). A secret.
+  OPENAI_APPS_CHALLENGE?: string;
   DEV_MODE?: string;
   DEV_USER_EMAIL?: string;
   DEV_USER_NAME?: string;

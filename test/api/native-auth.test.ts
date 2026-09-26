@@ -154,4 +154,11 @@ describe("deep-link association files", () => {
     const body = (await res.json()) as any;
     expect(body.applinks.details[0].components).toEqual([{ "/": "/share/*" }]);
   });
+
+  it("serves the OpenAI Apps challenge token as plain text", async () => {
+    const res = await SELF.fetch("https://example.com/.well-known/openai-apps-challenge");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toMatch(/text\/plain/);
+    expect(await res.text()).toBe("test-openai-challenge");
+  });
 });

@@ -1531,6 +1531,11 @@ Nothing to configure on deploy beyond applying migration `0028`.
   token; a lapsed account's assistant gets a tool error saying why.
 - **Settings → AI assistants** (web) lists live connections and disconnects
   them (`GET` / `DELETE /api/me/connections`).
+- **ChatGPT app listing**: OpenAI's developer console verifies the domain by
+  fetching `/.well-known/openai-apps-challenge`. The Worker serves the
+  `OPENAI_APPS_CHALLENGE` secret there as plain text (404 when unset), so set
+  it with `npx wrangler secret put OPENAI_APPS_CHALLENGE`, paste the console's
+  token, and re-run the verification.
 - **Rate limits** use Workers' rate-limiting binding (`ratelimits` in
   `wrangler.jsonc`, `src/lib/ratelimit.ts`), not WAF rules: assistants call
   from their providers' servers, so an IP stands for thousands of users and

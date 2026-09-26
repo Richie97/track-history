@@ -165,6 +165,7 @@ export default defineConfig(async () => {
             APPLE_TEAM_ID: "TESTTEAM01",
             APPLE_KEY_ID: "TESTKEY001",
             APPLE_PRIVATE_KEY: appleKeyPem,
+            OPENAI_APPS_CHALLENGE: "test-openai-challenge",
             // Billing (NS-32). The App Store Server API key is only ever used
             // to sign requests the mock doesn't verify, so the sign-in key
             // stands in. APPLE_IAP_TEST_ROOT_PEM is honoured under DEV_MODE so

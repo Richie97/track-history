@@ -18,3 +18,13 @@ wellKnown.get("/apple-app-site-association", (c) => {
     },
   });
 });
+
+// OpenAI Apps domain verification for the MCP server (listing the connector
+// in ChatGPT). The token comes from OpenAI's developer console and is set with
+// `npx wrangler secret put OPENAI_APPS_CHALLENGE`; unset, the route is a 404,
+// so a fork without a listing answers as if the file didn't exist.
+wellKnown.get("/openai-apps-challenge", (c) => {
+  const token = c.env.OPENAI_APPS_CHALLENGE?.trim();
+  if (!token) return c.text("not found", 404);
+  return c.text(token, 200, { "Cache-Control": "no-store" });
+});
