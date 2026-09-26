@@ -1484,7 +1484,9 @@ Pro users can connect Claude, ChatGPT, Claude Code, Cursor or any other
 logbook at **`https://<host>/mcp`** (epic #314; user docs:
 `site/docs/ai.html`). The assistant signs the user in through the Worker's own
 OAuth 2.1 authorization server, then reads the logbook through read-only tools.
-Nothing to configure on deploy beyond applying migration `0028`.
+Nothing to configure on deploy beyond applying migration `0028`. Claude users can also connect from the
+[Claude directory listing](https://claude.ai/directory/track-evolution), which
+`site/docs/ai.html` points them at first.
 
 - **The MCP server** — `POST /mcp` (`src/routes/mcp.ts` + `src/ai/mcp.ts`):
   Streamable HTTP, **stateless** and JSON-only (no `Mcp-Session-Id`, no event
