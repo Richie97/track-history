@@ -5,6 +5,7 @@ import app.trackevolution.core.api.StaticToken
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartEquipDraft
+import app.trackevolution.core.model.PartMountDraft
 import app.trackevolution.core.model.PartKind
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefreshDraft
@@ -22,6 +23,7 @@ import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -195,16 +197,18 @@ class GarageApiTest {
     }
 
     @Test
-    fun `carries the session a mid-day swap divided the day at`() = runTest {
-        // Migration 0030: the front pair came off before a session and its
-        // replacement went on before the same one, so both mounts name it.
+    fun `carries the point in the day a mid-day swap divided it at`() = runTest {
+        // Migration 0030: the front pair came off after a session and its
+        // replacement went on at the same point, so both mounts name it.
         val corvette = client { ok(Goldens.bodyText("garage")) }.garage().single { it.name == "Corvette C7" }
         val on = corvette.parts.single { it.kind == PartKind.TIRES_FRONT && it.equipped == true }.mounts.single()
         val off = corvette.parts.single { it.kind == PartKind.TIRES_FRONT && it.equipped == false }.mounts.single()
-        assertNotNull(on.mountedSessionId)
-        assertNull(on.removedSessionId)
-        assertEquals(on.mountedSessionId, off.removedSessionId)
-        assertNull(off.mountedSessionId)
+        assertNotNull(on.mountedEventId)
+        assertNotNull(on.mountedAfterSessionId)
+        assertNull(on.removedEventId)
+        assertEquals(on.mountedEventId, off.removedEventId)
+        assertEquals(on.mountedAfterSessionId, off.removedAfterSessionId)
+        assertNull(off.mountedEventId)
         assertEquals(on.mountedOn, off.removedOn)
     }
 
@@ -264,26 +268,29 @@ class GarageApiTest {
     }
 
     @Test
-    fun `names the session a mid-day swap happened before, and omits it otherwise`() = runTest {
-        // Migration 0030: `session_id` divides the swap day's hours at that
-        // session. Null is the whole-day rule and must not reach the body.
+    fun `after_session_id is absent, null or a session — three different requests`() = runTest {
+        // Migration 0030: absent lets the server pick the point, null is the
+        // event's start, a number is after that session.
         val api = client { request ->
-            if (request.url.encodedPath.endsWith("/equip")) ok("""{"ok":true,"unequipped":[]}""")
-            else if (request.url.encodedPath.endsWith("/refresh")) ok("""{"retired_id":11,"id":12}""")
-            else if (request.url.encodedPath.endsWith("/parts")) ok("""{"id":13}""")
-            else ok("""{"ok":true}""")
+            when {
+                request.url.encodedPath.endsWith("/equip") -> ok("""{"ok":true,"unequipped":[]}""")
+                request.url.encodedPath.endsWith("/mount") -> ok("""{"ok":true,"moved":[7]}""")
+                else -> ok("""{"ok":true}""")
+            }
         }
-        api.equipPart(11, PartEquipDraft(on = "2026-05-02", sessionId = 21))
-        api.unequipPart(11, PartEquipDraft(on = "2026-05-02", sessionId = 22))
-        api.refreshPart(11, PartRefreshDraft(installedOn = "2026-05-02", sessionId = 23))
-        api.createPart(
-            3,
-            PartDraft(kind = PartKind.TIRES, installedOn = "2026-05-02", equipped = true, swap = true, sessionId = 24),
-        )
-        api.equipPart(11, PartEquipDraft(on = "2026-05-02"))
+        api.equipPart(11)
+        api.unequipPart(11, PartEquipDraft(on = "2026-05-02", afterSessionId = Patch.Set(22)))
+        api.unequipPart(11, PartEquipDraft(on = "2026-05-02", afterSessionId = Patch.Set(null)))
+        val moved = api.editPartMount(11, PartMountDraft(mountedOn = "2026-05-02", afterSessionId = Patch.Set(21)))
 
-        assertEquals(listOf("21", "22", "23", "24"), recorded.take(4).map { bodyOf(it)["session_id"]!!.jsonPrimitive.content })
-        assertFalse("session_id" in bodyOf(recorded[4]))
+        assertTrue(bodyOf(recorded[0]).isEmpty())
+        assertEquals("22", bodyOf(recorded[1])["after_session_id"]!!.jsonPrimitive.content)
+        assertEquals(JsonNull, bodyOf(recorded[2])["after_session_id"])
+        assertEquals("PUT", recorded[3].method.value)
+        assertEquals("https://example.test/api/parts/11/mount", recorded[3].url.toString())
+        assertEquals("2026-05-02", bodyOf(recorded[3])["mounted_on"]!!.jsonPrimitive.content)
+        assertEquals("21", bodyOf(recorded[3])["after_session_id"]!!.jsonPrimitive.content)
+        assertEquals(listOf(7), moved.moved)
     }
 
     @Test

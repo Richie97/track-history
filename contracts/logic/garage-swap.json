@@ -1,5 +1,5 @@
 {
-  "description": "The swap-between-sessions picker (migration 0030) captured from public/js/garage.js: swapSessionEvent finds the event on a car whose days cover a swap date (eventLastDay is its last day), and swapSessionChoices words that event's sessions as picker rows. Ports must match every field. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "description": "The swap-between-sessions picker (migration 0030) captured from public/js/garage.js: swapSessionEvent finds the event on a car whose days cover a swap date (eventLastDay is its last day), swapSessionChoices words that event's sessions as picker rows (id null: the event's start) and defaultSwapChoice is the row the server picks unasked. Ports must match every field. Regenerate with `npm run contracts:logic`; never hand-edit.",
   "source": "public/js/garage.js",
   "events": [
     {
@@ -194,26 +194,37 @@
       ],
       "choices": [
         {
+          "id": null,
+          "label": "Start of the day"
+        },
+        {
           "id": 21,
-          "label": "Before Morning · 5 laps"
+          "label": "After Morning · 5 laps"
         },
         {
           "id": 22,
-          "label": "Before Session 2 · 1 lap"
+          "label": "After Session 2 · 1 lap"
         },
         {
           "id": 23,
-          "label": "Before Session 3"
+          "label": "After Session 3"
         },
         {
           "id": 24,
-          "label": "Before Session 4 · 2 laps"
+          "label": "After Session 4 · 2 laps"
         }
-      ]
+      ],
+      "default": 24
     },
     {
       "sessions": [],
-      "choices": []
+      "choices": [
+        {
+          "id": null,
+          "label": "Start of the day"
+        }
+      ],
+      "default": null
     }
   ]
 }

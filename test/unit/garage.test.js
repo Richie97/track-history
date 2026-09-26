@@ -5,6 +5,7 @@ import {
   catalogCarName,
   catalogPrefill,
   defaultMeasurementUnit,
+  defaultSwapChoice,
   diffSetups,
   eventLastDay,
   equipSwapKinds,
@@ -409,18 +410,25 @@ describe("swaps between sessions (migration 0030)", () => {
     expect(swapSessionEvent(10, "2026-09-14", events)?.id).toBe(5);
   });
 
-  it("words the sessions as the moment before each one", () => {
-    expect(
-      swapSessionChoices([
-        { id: 21, label: "Morning", laps: [{}, {}, {}] },
-        { id: 22, label: null, laps: [{}] },
-        { id: 23, label: "  ", laps: [] },
-      ])
-    ).toEqual([
-      { id: 21, label: "Before Morning · 3 laps" },
-      { id: 22, label: "Before Session 2 · 1 lap" },
-      { id: 23, label: "Before Session 3" },
+  it("words the event's start and the moment after each session", () => {
+    const sessions = [
+      { id: 21, label: "Morning", laps: [{}, {}, {}] },
+      { id: 22, label: null, laps: [{}] },
+      { id: 23, label: "  ", laps: [] },
+    ];
+    expect(swapSessionChoices(sessions)).toEqual([
+      { id: null, label: "Start of the day" },
+      { id: 21, label: "After Morning · 3 laps" },
+      { id: 22, label: "After Session 2 · 1 lap" },
+      { id: 23, label: "After Session 3" },
     ]);
-    expect(swapSessionChoices(undefined)).toEqual([]);
+    expect(swapSessionChoices(undefined)).toEqual([{ id: null, label: "Start of the day" }]);
   });
+
+  it("defaults to after the last session logged, or the start when there is none", () => {
+    expect(defaultSwapChoice([{ id: 21 }, { id: 22 }])).toBe(22);
+    expect(defaultSwapChoice([])).toBeNull();
+    expect(defaultSwapChoice(undefined)).toBeNull();
+  });
+
 });

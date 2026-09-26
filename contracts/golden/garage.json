@@ -30,10 +30,12 @@
           "measurements": [],
           "mounts": [
             {
+              "mounted_after_session_id": 1,
+              "mounted_event_id": 1,
               "mounted_on": "2026-04-10",
-              "mounted_session_id": 2,
-              "removed_on": null,
-              "removed_session_id": null
+              "removed_after_session_id": null,
+              "removed_event_id": null,
+              "removed_on": null
             }
           ],
           "name": "Hoosier A7",
@@ -100,10 +102,12 @@
           "measurements": [],
           "mounts": [
             {
+              "mounted_after_session_id": null,
+              "mounted_event_id": null,
               "mounted_on": "2026-03-15",
-              "mounted_session_id": null,
-              "removed_on": "2026-04-10",
-              "removed_session_id": 2
+              "removed_after_session_id": 1,
+              "removed_event_id": 1,
+              "removed_on": "2026-04-10"
             }
           ],
           "name": "Falken RT660",
@@ -156,10 +160,12 @@
           ],
           "mounts": [
             {
+              "mounted_after_session_id": null,
+              "mounted_event_id": null,
               "mounted_on": "2026-03-01",
-              "mounted_session_id": null,
-              "removed_on": null,
-              "removed_session_id": null
+              "removed_after_session_id": null,
+              "removed_event_id": null,
+              "removed_on": null
             }
           ],
           "name": "Carbotech XP12",

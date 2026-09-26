@@ -18,9 +18,10 @@ export type HoursEvent = {
   track_hours: number | null; // per-event override
   lap_ms_sum: number | null; // total logged lap time, ms
   lap_count: number | null; // logged laps across the event's sessions
+  id?: number; // the event, which a mount's swap point names (migration 0030)
   // The event's sessions in running order (sort, then id), each with its
-  // logged lap time — what a mount that starts or ends at a session divides the
-  // event by (migration 0030). Absent or empty: the event is indivisible.
+  // logged lap time — what a swap point inside the event divides it by
+  // (migration 0030). Absent or empty: the event is one indivisible piece.
   sessions?: HoursSession[];
 };
 
@@ -42,16 +43,19 @@ export function eventHours(e: HoursEvent): number {
 // A stretch a part was actually on the car (migration 0029). Both ends are
 // inclusive; removed_on is null while it is still fitted.
 //
-// Either end can also name a session (migration 0030) — a swap made between
-// sessions. mounted_session_id is the first session the part ran; removed_session_id
-// is the first session it did *not* run (the one its replacement started), so a
-// mid-day swap writes the same session id on both parts' mounts and the day's
-// hours divide between them instead of counting twice.
+// Either end can also sit at a point inside that day's event (migration 0030):
+// *_event_id is the event the swap happened during, *_after_session_id the last
+// of its sessions before the swap (null: the event's start, before any session).
+// Sessions after the point — logged then or imported later — ran on the part
+// that went on. A mid-day swap writes the same point on both parts' mounts, so
+// the day's hours divide between them instead of counting twice.
 export type Mount = {
   mounted_on: string; // ISO yyyy-mm-dd
   removed_on: string | null;
-  mounted_session_id?: number | null;
-  removed_session_id?: number | null;
+  mounted_event_id?: number | null;
+  mounted_after_session_id?: number | null;
+  removed_event_id?: number | null;
+  removed_after_session_id?: number | null;
 };
 
 export type PartWindow = {
@@ -64,14 +68,19 @@ export type PartWindow = {
   mounts?: Mount[];
 };
 
-type Window = { from: string; to: string; fromSession: number | null; toSession: number | null };
+// A swap point inside an event: after `after` (a session id), or at its start.
+type Point = { event: number; after: number | null };
+type Window = { from: string; to: string; fromPoint: Point | null; toPoint: Point | null };
+
+const point = (event: number | null | undefined, after: number | null | undefined): Point | null =>
+  event == null ? null : { event, after: after ?? null };
 
 // The windows a part accrues over: each mount, clipped to the part's lifetime
-// (installed_on … retired_on) and to today. A session boundary survives only
-// on an end the clipping left where it was.
+// (installed_on … retired_on) and to today. A swap point survives only on an
+// end the clipping left where it was.
 function mountWindows(part: PartWindow, today: string): Window[] {
   const lifeEnd = part.retired_on ?? today;
-  const mounts = part.mounts ?? [{ mounted_on: part.installed_on, removed_on: part.retired_on }];
+  const mounts: Mount[] = part.mounts ?? [{ mounted_on: part.installed_on, removed_on: part.retired_on }];
   return mounts
     .map((m) => {
       const clippedFrom = m.mounted_on < part.installed_on;
@@ -83,8 +92,8 @@ function mountWindows(part: PartWindow, today: string): Window[] {
       return {
         from,
         to,
-        fromSession: clippedFrom ? null : m.mounted_session_id ?? null,
-        toSession: clippedTo ? null : m.removed_session_id ?? null,
+        fromPoint: clippedFrom ? null : point(m.mounted_event_id, m.mounted_after_session_id),
+        toPoint: clippedTo ? null : point(m.removed_event_id, m.removed_after_session_id),
       };
     })
     .filter((w) => w.from <= w.to);
@@ -99,23 +108,33 @@ export function onCarOn(part: PartWindow, date: string, today: string): boolean 
   return serviceWindows(part, today).some((w) => date >= w.from && date <= w.to);
 }
 
-// How much of one event a window covers, 0…1. Without a session boundary on
-// this event the answer is all or nothing by the event's start date — an event
+// How much of one event a window covers, 0…1. Without a swap point on this
+// event the answer is all or nothing by the event's start date — an event
 // counts against a part that was on the car the day it started, which is the
-// rule dates alone can give. A boundary that names one of the event's sessions
-// cuts it there: the part ran the sessions from its mounted session up to (not
-// including) its removed one, and gets that share of the event, weighted by
-// logged lap time — or by session count when no session logged a lap.
+// rule dates alone can give. A point on this event cuts it there: the sessions
+// after a mount's start point and up to its end point are the part's, and it
+// gets that share of the event, weighted by logged lap time — or by session
+// count when no session logged a lap. An event with no sessions yet is one
+// indivisible piece that sits after its start point: a part mounted at the
+// start runs it, a part removed at the start doesn't.
 function windowShare(w: Window, e: HoursEvent): number {
   const sessions = e.sessions ?? [];
-  const at = (id: number | null) => (id == null ? -1 : sessions.findIndex((s) => s.id === id));
-  const startIdx = at(w.fromSession);
-  const endIdx = at(w.toSession);
-  if (startIdx < 0 && endIdx < 0) return e.start_date >= w.from && e.start_date <= w.to ? 1 : 0;
-  // A boundary on this event decides that end; the other end is the dates'.
-  const lo = startIdx >= 0 ? startIdx : e.start_date >= w.from ? 0 : sessions.length;
-  const hi = endIdx >= 0 ? endIdx : e.start_date <= w.to ? sessions.length : 0;
+  const units = sessions.length || 1;
+  // Where a point cuts this event: the index of the first session after it.
+  const cutAt = (p: Point | null) => {
+    if (!p || p.event !== e.id) return null;
+    if (p.after == null) return 0;
+    const i = sessions.findIndex((s) => s.id === p.after);
+    return i < 0 ? 0 : i + 1;
+  };
+  const start = cutAt(w.fromPoint);
+  const end = cutAt(w.toPoint);
+  if (start == null && end == null) return e.start_date >= w.from && e.start_date <= w.to ? 1 : 0;
+  // A point on this event decides that end; the other end is the dates'.
+  const lo = start ?? (e.start_date >= w.from ? 0 : units);
+  const hi = end ?? (e.start_date <= w.to ? units : 0);
   if (hi <= lo) return 0;
+  if (!sessions.length) return 1;
   const byLaps = sessions.some((s) => (s.lap_ms_sum ?? 0) > 0);
   const weight = (s: HoursSession) => (byLaps ? s.lap_ms_sum ?? 0 : 1);
   const total = sessions.reduce((sum, s) => sum + weight(s), 0);

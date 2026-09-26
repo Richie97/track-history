@@ -152,6 +152,7 @@ import {
   vehicleTileLine,
   swapSessionEvent,
   swapSessionChoices,
+  defaultSwapChoice,
   eventLastDay,
   wearLimitHint,
 } from "../public/js/garage.js";
@@ -2395,13 +2396,18 @@ const swapFixture = {
   description:
     "The swap-between-sessions picker (migration 0030) captured from public/js/garage.js: " +
     "swapSessionEvent finds the event on a car whose days cover a swap date (eventLastDay is its " +
-    "last day), and swapSessionChoices words that event's sessions as picker rows. Ports must match " +
+    "last day), swapSessionChoices words that event's sessions as picker rows (id null: the " +
+    "event's start) and defaultSwapChoice is the row the server picks unasked. Ports must match " +
     "every field. Regenerate with `npm run contracts:logic`; never hand-edit.",
   source: "public/js/garage.js",
   events: swapEvents,
   eventCases: swapEventCases,
   lastDays: swapEvents.map((e) => ({ event_id: e.id, last_day: eventLastDay(e) })),
-  choiceCases: swapSessionLists.map((sessions) => ({ sessions, choices: swapSessionChoices(sessions) })),
+  choiceCases: swapSessionLists.map((sessions) => ({
+    sessions,
+    choices: swapSessionChoices(sessions),
+    default: defaultSwapChoice(sessions),
+  })),
 };
 writeFileSync(path.join(OUT_DIR, "garage-swap.json"), JSON.stringify(swapFixture, null, 2) + "\n");
 

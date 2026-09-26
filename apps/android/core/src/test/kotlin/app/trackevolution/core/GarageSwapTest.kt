@@ -72,16 +72,24 @@ class GarageSwapTest {
     }
 
     @Test
-    fun `words the sessions as the moment before each one`() {
+    fun `words the event's start and the moment after each session`() {
         assertEquals(
             listOf(
-                Garage.SwapSessionChoice(21, "Before Morning · 3 laps"),
-                Garage.SwapSessionChoice(22, "Before Session 2 · 1 lap"),
-                Garage.SwapSessionChoice(23, "Before Session 3"),
+                Garage.SwapSessionChoice(null, "Start of the day"),
+                Garage.SwapSessionChoice(21, "After Morning · 3 laps"),
+                Garage.SwapSessionChoice(22, "After Session 2 · 1 lap"),
+                Garage.SwapSessionChoice(23, "After Session 3"),
             ),
             Garage.swapSessionChoices(listOf(Sess(21, "Morning", 3), Sess(22, null, 1), Sess(23, "  ", 0))),
         )
-        assertTrue(Garage.swapSessionChoices(null).isEmpty())
+        assertEquals(listOf(Garage.SwapSessionChoice(null, "Start of the day")), Garage.swapSessionChoices(null))
+    }
+
+    @Test
+    fun `defaults to after the last session logged, or the start when there is none`() {
+        assertEquals(22, Garage.defaultSwapChoice(listOf(Sess(21, null, 0), Sess(22, null, 0))))
+        assertNull(Garage.defaultSwapChoice(emptyList()))
+        assertNull(Garage.defaultSwapChoice(null))
     }
 
     // ---- Cross-language agreement ----------------------------------------------
@@ -134,9 +142,10 @@ class GarageSwapTest {
             }
             val want = c["choices"]!!.jsonArray.map {
                 val o = it.jsonObject
-                Garage.SwapSessionChoice(o.int("id")!!, o["label"]!!.jsonPrimitive.content)
+                Garage.SwapSessionChoice(o.int("id"), o["label"]!!.jsonPrimitive.content)
             }
             assertEquals(want, Garage.swapSessionChoices(sessions))
+            assertEquals(c.int("default"), Garage.defaultSwapChoice(sessions), "defaultSwapChoice")
         }
     }
 

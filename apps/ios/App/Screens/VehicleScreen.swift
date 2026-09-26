@@ -37,6 +37,10 @@ struct VehicleScreen: View {
     @State private var sheet: VehicleSheet?
     /// Which consumable the right column is showing (NS-34 ticket 3).
     @State private var selectedPartId: Int?
+    /// A part whose Refresh is waiting on its confirmation.
+    @State private var confirmingRefresh: Part?
+    /// A spare whose one-tap equip is in flight, so the switch can't fire twice.
+    @State private var equippingPartId: Int?
     @State private var confirmingDelete = false
 
     /// Which form is on screen. One value rather than a bool per form, so there
@@ -46,31 +50,28 @@ struct VehicleScreen: View {
         case editPart(Part)
         /// The car itself: name, mods, target hot pressure, default.
         case car
-        /// The Equipped switch's confirm (migration 0029): the swap date, and
-        /// what putting a part on takes off. A sheet rather than a second
-        /// presentation modifier, for the one-sheet rule above.
-        case equip(Part)
+        /// The Equipped switch turning *off* (migration 0029): the swap date
+        /// and, on a track day, where in it (0030). Turning a part on is one
+        /// tap and needs no sheet. A sheet rather than a second presentation
+        /// modifier, for the one-sheet rule above.
+        case takeOff(Part)
         /// "Buy another set of those" for a retired part.
         case refreshRetired(Part)
-        /// "Fresh set of the same part" for one in service: the swap date and,
-        /// migration 0030, which session it happened before.
-        case refresh(Part)
 
         var id: String {
             switch self {
             case .addPart: "add"
             case .editPart(let part): "edit-\(part.id)"
             case .car: "car"
-            case .equip(let part): "equip-\(part.id)"
+            case .takeOff(let part): "take-off-\(part.id)"
             case .refreshRetired(let part): "refresh-retired-\(part.id)"
-            case .refresh(let part): "refresh-\(part.id)"
             }
         }
 
         var part: Part? {
             switch self {
             case .editPart(let part): part
-            case .addPart, .car, .equip, .refreshRetired, .refresh: nil
+            case .addPart, .car, .takeOff, .refreshRetired: nil
             }
         }
 
@@ -78,7 +79,7 @@ struct VehicleScreen: View {
             switch self {
             case .addPart: .add
             case .editPart(let part): .edit(part)
-            case .car, .equip, .refreshRetired, .refresh: nil
+            case .car, .takeOff, .refreshRetired: nil
             }
         }
     }
@@ -109,29 +110,24 @@ struct VehicleScreen: View {
         // with them. The enum is what makes "which form" a single piece of state.
         .sheet(item: $sheet) { form in
             if let model {
-                if case .equip(let part) = form {
-                    EquipSheet(part: part, parts: model.allParts, swapSessions: model.swapSessionChoices(on:)) { on, sessionId in
-                        await model.setEquipped(part, Garage.isSpare(part), on: on, sessionId: sessionId)
+                if case .takeOff(let part) = form {
+                    TakeOffSheet(part: part, parts: model.allParts, swapPoint: model.swapPoint(on:)) { on, point in
+                        await model.takeOff(part, on: on, afterSessionId: point)
                     }
                 } else if case .refreshRetired(let part) = form {
-                    RetiredRefreshSheet(part: part, parts: model.allParts, swapSessions: model.swapSessionChoices(on:)) {
-                        on, equipped, sessionId in
-                        await model.refreshRetiredPart(id: part.id, on: on, equipped: equipped, sessionId: sessionId)
-                    }
-                } else if case .refresh(let part) = form {
-                    RefreshSheet(part: part, swapSessions: model.swapSessionChoices(on:)) { on, sessionId in
-                        await model.refreshPart(id: part.id, on: on, sessionId: sessionId)
+                    RetiredRefreshSheet(part: part, parts: model.allParts) { on, equipped in
+                        await model.refreshRetiredPart(id: part.id, on: on, equipped: equipped)
                     }
                 } else if let mode = form.partMode {
                     PartFormSheet(
                         mode: mode,
                         carParts: model.allParts,
-                        swapSessions: model.swapSessionChoices(on:),
-                        submit: { draft, patch in
+                        swapPoint: model.swapPoint(on:),
+                        submit: { draft, patch, mount in
                             switch form {
                             case .addPart: await model.addPart(draft)
-                            case .editPart(let part): await model.updatePart(id: part.id, patch)
-                            case .car, .equip, .refreshRetired, .refresh: false
+                            case .editPart(let part): await model.updatePart(id: part.id, patch, mount: mount)
+                            case .car, .takeOff, .refreshRetired: false
                             }
                         },
                         onDelete: form.part.map { part in
@@ -155,6 +151,25 @@ struct VehicleScreen: View {
                     .accessibilityLabel("Edit car")
                     .accessibilityIdentifier("editVehicle")
             }
+        }
+        // The one dialog on this view — `.sheet` is the one sheet. No date and no
+        // picker: the swap is now, and on a track day the server puts it after
+        // the last session logged; editing the new part corrects either.
+        .confirmationDialog(
+            "Fresh set of the same part? This retires the current one now (keeping its history) and installs "
+                + "a new one with the same details — hours reset to zero. If you're at the track, the swap goes "
+                + "in after the last session logged; edit the new part to change when it went on, or its cost "
+                + "or compound.",
+            isPresented: .init(get: { confirmingRefresh != nil }, set: { if !$0 { confirmingRefresh = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Install a fresh set") {
+                if let part = confirmingRefresh {
+                    Task { await model?.refreshPart(id: part.id) }
+                }
+                confirmingRefresh = nil
+            }
+            Button("Cancel", role: .cancel) { confirmingRefresh = nil }
         }
     }
 
@@ -441,15 +456,30 @@ struct VehicleScreen: View {
                     }
                 }
 
-                // The Equipped switch (migration 0029). It never writes on its
-                // own: flipping it opens the confirm, so until that lands the
-                // switch keeps showing where the part really is.
+                // The Equipped switch (migration 0029). Turning a spare on is
+                // one tap — today, at the server's point in the day — while
+                // taking a part off opens its confirm (date, and where in the
+                // day). Either way the switch keeps showing where the part
+                // really is until the write lands and the page re-reads.
                 Toggle("Equipped", isOn: Binding(
                     get: { !Garage.isSpare(part) },
-                    set: { _ in sheet = .equip(part) }
+                    set: { on in
+                        if on {
+                            guard equippingPartId == nil else { return }
+                            equippingPartId = part.id
+                            Task {
+                                if await model.equip(part) { Haptics.confirm() } else { Haptics.warn() }
+                                equippingPartId = nil
+                            }
+                        } else {
+                            sheet = .takeOff(part)
+                        }
+                    }
                 ))
                 .teStyle(.sm)
                 .tint(Color(.accent))
+                .disabled(equippingPartId == part.id)
+                .accessibilityHint(Garage.isSpare(part) ? Self.equipHint(part, in: model.allParts) : "")
                 .accessibilityIdentifier("equipPart")
 
                 TEMeta([
@@ -474,7 +504,7 @@ struct VehicleScreen: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button("Refresh") { sheet = .refresh(part) }
+                    Button("Refresh") { confirmingRefresh = part }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
                         .accessibilityLabel("Refresh \(Garage.partTitle(part).isEmpty ? part.kind.label : Garage.partTitle(part)) with a fresh set")
                         .accessibilityIdentifier("refreshPart")
@@ -505,6 +535,15 @@ struct VehicleScreen: View {
     private func selectedPart(_ model: VehicleModel) -> Part? {
         let candidates = model.activeParts + model.spareParts
         return candidates.first { $0.id == selectedPartId } ?? candidates.first
+    }
+
+    /// What turning a spare on will do, said before the one tap does it — the
+    /// web's `equipNoteText`.
+    private static func equipHint(_ part: Part, in parts: [Part]) -> String {
+        let swaps = Garage.equipSwapsOff(partId: part.id, kind: part.kind, in: parts)
+        return swaps.isEmpty
+            ? "Turning this on puts it on the car."
+            : "Turning this on takes off \(swaps.map(Garage.partTitle).joined(separator: " and "))."
     }
 
     /// A spare's place in its history: when it last came off the car, or that
@@ -699,12 +738,13 @@ struct PartFormSheet: View {
     let mode: Mode
     /// The car's parts, so adding one equipped can say what it takes off.
     var carParts: [Part] = []
-    /// Adding equipped: the "When in the day" rows for the install date
+    /// Editing: the "When in the day" rows for when the part went on the car
     /// (migration 0030). Nil offers no picker.
-    var swapSessions: SwapSessionLookup?
-    /// Returns true when the write landed. Both shapes are passed so the caller
-    /// picks the one its request needs — a create takes a draft, an edit a patch.
-    let submit: (PartDraft, PartPatch) async -> Bool
+    var swapPoint: SwapPointLookup?
+    /// Returns true when the write landed. Every shape is passed so the caller
+    /// picks the ones its request needs — a create takes a draft, an edit a
+    /// patch, plus a mount move when when-it-went-on changed.
+    let submit: (PartDraft, PartPatch, PartMountDraft?) async -> Bool
     /// Present only when editing. Deleting takes the measurements with it, which
     /// is why retiring is offered first on the card and this sits at the bottom.
     var onDelete: (() async -> Bool)?
@@ -719,9 +759,13 @@ struct PartFormSheet: View {
     @State private var size = ""
     /// Adding only: on the car now, or straight to the shelf (migration 0029).
     @State private var equipped = true
-    /// The session the new part first ran, when fitted mid-day (migration 0030).
-    @State private var sessionId: Int?
     @State private var installedOn = Date()
+    /// Editing, when the part last went on the car — its latest mount's start
+    /// (migration 0030) — for a part not fitted the day it was installed.
+    @State private var mountedOn = Date()
+    /// Where in that day, and whether the picker is showing it.
+    @State private var point: Int?
+    @State private var pointState: SwapPickerState = .resolving
     @State private var retired = false
     @State private var retiredOn = Date()
     @State private var cost = ""
@@ -734,6 +778,44 @@ struct PartFormSheet: View {
     private var isEditing: Bool {
         if case .edit = mode { return true }
         return false
+    }
+
+    private var editedPart: Part? {
+        if case .edit(let part) = mode { return part }
+        return nil
+    }
+
+    /// The mount "when it went on" edits: the part's latest (the server lists
+    /// them oldest first). Nil for a part never on the car.
+    private var latestMount: PartMount? { editedPart?.mounts?.last }
+
+    /// Fitted the day it was installed and never off since: the Installed
+    /// field *is* the mount date, and the picker sits under it.
+    private var fittedAtInstall: Bool {
+        guard let part = editedPart, let mounts = part.mounts else { return false }
+        return mounts.count == 1 && mounts[0].mountedOn == part.installedOn
+    }
+
+    /// The date the mount's start is edited through: Installed, or its own field.
+    private var mountDate: Date { fittedAtInstall ? installedOn : mountedOn }
+
+    /// The mount's current point as the picker reads it: the session, or nil for
+    /// the event's start — and for no point at all (the date rule).
+    private static func pointValue(_ m: PartMount) -> Int? {
+        m.mountedEventId == nil ? nil : m.mountedAfterSessionId
+    }
+
+    /// What to send `PUT /parts/:id/mount`, or nil when neither the date nor the
+    /// point moved — `moved` in the web's part form.
+    private var mountMove: PartMountDraft? {
+        guard let m = latestMount, swapPoint != nil else { return nil }
+        let date = EventDates.isoString(from: mountDate)
+        let body: Patch<Int> = pointState == .shown ? .set(point) : .unchanged
+        let moved = date != m.mountedOn
+            || (pointState == .shown && point != Self.pointValue(m))
+            // Off a track day now: the point it had is dropped.
+            || (m.mountedEventId != nil && pointState == .hidden)
+        return moved ? PartMountDraft(mountedOn: date, afterSessionId: body) : nil
     }
 
     var body: some View {
@@ -771,9 +853,30 @@ struct PartFormSheet: View {
                                     .labelsHidden()
                                     .datePickerStyle(.compact)
                             }
-                            if !isEditing, let swapSessions {
+                            if fittedAtInstall, let swapPoint, let m = latestMount {
                                 SwapSessionPicker(
-                                    date: installedOn, active: equipped, lookup: swapSessions, selection: $sessionId
+                                    date: installedOn, lookup: swapPoint,
+                                    initial: (m.mountedOn, Self.pointValue(m)),
+                                    selection: $point, state: $pointState
+                                )
+                            }
+                        }
+
+                        // When it last went on the car, for a part that has been
+                        // off since it was installed (migration 0030).
+                        if !fittedAtInstall, let swapPoint, let m = latestMount, let part = editedPart {
+                            let label = part.equipped == true ? "On the car since" : "Last went on"
+                            VStack(alignment: .leading, spacing: 0) {
+                                TEField(label: label) {
+                                    DatePicker(label, selection: $mountedOn, in: ...Date(), displayedComponents: .date)
+                                        .labelsHidden()
+                                        .datePickerStyle(.compact)
+                                        .accessibilityIdentifier("partMountedOn")
+                                }
+                                SwapSessionPicker(
+                                    date: mountedOn, lookup: swapPoint,
+                                    initial: (m.mountedOn, Self.pointValue(m)),
+                                    selection: $point, state: $pointState
                                 )
                             }
                         }
@@ -840,7 +943,12 @@ struct PartFormSheet: View {
                     Task { await save() }
                 }
                 .buttonStyle(TEButtonStyle(kind: .accent))
-                .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty)
+                // Not while the point is still being looked up: saving then would
+                // read a point the form hasn't shown yet.
+                .disabled(
+                    saving || name.trimmingCharacters(in: .whitespaces).isEmpty
+                        || (latestMount != nil && swapPoint != nil && pointState == .resolving)
+                )
                 .accessibilityIdentifier("savePart")
 
                 if onDelete != nil {
@@ -879,6 +987,10 @@ struct PartFormSheet: View {
                 name = part.name ?? ""
                 size = part.size ?? ""
                 installedOn = EventDates.date(fromISO: part.installedOn) ?? Date()
+                if let m = part.mounts?.last {
+                    mountedOn = EventDates.date(fromISO: m.mountedOn) ?? Date()
+                    point = Self.pointValue(m)
+                }
                 retired = part.retiredOn != nil
                 retiredOn = part.retiredOn.flatMap { EventDates.date(fromISO: $0) } ?? Date()
                 cost = part.costCents.map { trimZeros(Double($0) / 100) } ?? ""
@@ -911,7 +1023,6 @@ struct PartFormSheet: View {
         // switched off, it goes straight to the shelf.
         draft.equipped = equipped
         draft.swap = equipped
-        draft.sessionId = equipped ? sessionId : nil
 
         // Every field is sent on an edit, so clearing one clears it server-side —
         // `.set(nil)` rather than `.unchanged`, which would silently keep the old
@@ -920,14 +1031,17 @@ struct PartFormSheet: View {
         patch.kind = .set(kind)
         patch.name = .set(trimmedName)
         patch.size = .set(trimmedSize.isEmpty ? nil : trimmedSize)
-        patch.installedOn = .set(EventDates.isoString(from: installedOn))
+        // A part fitted the day it was installed moves both dates through the
+        // mount route, which keeps what came off the car in step with it.
+        let move = mountMove
+        patch.installedOn = fittedAtInstall && move != nil ? .unchanged : .set(EventDates.isoString(from: installedOn))
         patch.retiredOn = .set(retired ? EventDates.isoString(from: retiredOn) : nil)
         patch.costCents = .set(centsValue)
         patch.expectedHours = .set(expected)
         patch.wearLimit = .set(limit)
         patch.notes = .set(trimmedNotes.isEmpty ? nil : trimmedNotes)
 
-        if await submit(draft, patch) {
+        if await submit(draft, patch, move) {
             Haptics.confirm()
             dismiss()
         } else {
@@ -948,21 +1062,23 @@ struct PartFormSheet: View {
 
 // MARK: - On the car, or on the shelf (migration 0029)
 
-/// The Equipped switch's confirm: what the swap does, in the web page's words,
-/// and the date it happened — today unless it was earlier, never before the
-/// part's current stretch began or back inside one it was already on.
-struct EquipSheet: View {
+/// The Equipped switch turning off: the date the part came off — today unless
+/// it was earlier, never before its current stretch began — and, when that
+/// date is one of the car's track days, where in it (migration 0030). Turning
+/// a part on is one tap and has no sheet.
+struct TakeOffSheet: View {
     let part: Part
     let parts: [Part]
-    /// The "When in the day" rows for the swap date (migration 0030).
-    let swapSessions: SwapSessionLookup
-    /// The swap date and the session it happened before (nil: the whole day).
-    /// Returns true when the write landed.
-    let submit: (String, Int?) async -> Bool
+    /// The "When in the day" rows for the date.
+    let swapPoint: SwapPointLookup
+    /// The date and the point: `.set(nil)` the event's start, `.unchanged` when
+    /// the date isn't a track day. Returns true when the write landed.
+    let submit: (String, Patch<Int>) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var on = Date()
-    @State private var sessionId: Int?
+    @State private var point: Int?
+    @State private var pointState: SwapPickerState = .resolving
     @State private var saving = false
 
     private var earliest: Date {
@@ -983,13 +1099,14 @@ struct EquipSheet: View {
                             .labelsHidden()
                             .datePickerStyle(.compact)
                     }
-                    SwapSessionPicker(date: on, lookup: swapSessions, selection: $sessionId)
+                    SwapSessionPicker(date: on, lookup: swapPoint, selection: $point, state: $pointState)
                 }
-                Button(saving ? "Saving…" : (Garage.isSpare(part) ? "Equip" : "Take off")) {
+                Button(saving ? "Saving…" : "Take off") {
                     Task {
                         saving = true
                         defer { saving = false }
-                        if await submit(EventDates.isoString(from: on), sessionId) {
+                        let body: Patch<Int> = pointState == .shown ? .set(point) : .unchanged
+                        if await submit(EventDates.isoString(from: on), body) {
                             Haptics.confirm()
                             dismiss()
                         } else {
@@ -998,7 +1115,7 @@ struct EquipSheet: View {
                     }
                 }
                 .buttonStyle(TEButtonStyle(kind: .accent))
-                .disabled(saving)
+                .disabled(saving || pointState == .resolving)
                 .accessibilityIdentifier("confirmEquip")
             }
             .navigationTitle(Garage.partTitle(part).isEmpty ? part.kind.label : Garage.partTitle(part))
@@ -1019,16 +1136,11 @@ struct EquipSheet: View {
 struct RetiredRefreshSheet: View {
     let part: Part
     let parts: [Part]
-    /// The "When in the day" rows for the install date (migration 0030),
-    /// offered only while the new set goes on the car.
-    let swapSessions: SwapSessionLookup
-    /// Install date, equipped, and the session it first ran (nil: the whole
-    /// day). Returns true when the write landed.
-    let submit: (String, Bool, Int?) async -> Bool
+    /// Returns true when the write landed.
+    let submit: (String, Bool) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var on = Date()
-    @State private var sessionId: Int?
     @State private var equipped = true
     @State private var saving = false
 
@@ -1040,18 +1152,15 @@ struct RetiredRefreshSheet: View {
     var body: some View {
         NavigationStack {
             TEPage {
-                VStack(alignment: .leading, spacing: 0) {
-                    TEField(label: "Installed") {
-                        DatePicker(
-                            "Installed",
-                            selection: $on,
-                            in: (EventDates.date(fromISO: part.installedOn) ?? .distantPast)...,
-                            displayedComponents: .date
-                        )
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                    }
-                    SwapSessionPicker(date: on, active: equipped, lookup: swapSessions, selection: $sessionId)
+                TEField(label: "Installed") {
+                    DatePicker(
+                        "Installed",
+                        selection: $on,
+                        in: (EventDates.date(fromISO: part.installedOn) ?? .distantPast)...,
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
                 }
                 Toggle("Equipped", isOn: $equipped)
                     .teStyle(.sm)
@@ -1064,7 +1173,7 @@ struct RetiredRefreshSheet: View {
                     Task {
                         saving = true
                         defer { saving = false }
-                        if await submit(EventDates.isoString(from: on), equipped, equipped ? sessionId : nil) {
+                        if await submit(EventDates.isoString(from: on), equipped) {
                             Haptics.confirm()
                             dismiss()
                         } else {
@@ -1088,109 +1197,57 @@ struct RetiredRefreshSheet: View {
     }
 }
 
-/// "Fresh set of the same part" for a part in service: this one retires with
-/// its history as of the swap date and a same-spec successor starts at zero
-/// hours — the web's inline refresh row (`refreshFormHtml`). The date and the
-/// session picker are what the old today-only confirmation lacked: a set
-/// swapped at the track is usually recorded afterwards.
-struct RefreshSheet: View {
-    let part: Part
-    /// The "When in the day" rows for the swap date (migration 0030).
-    let swapSessions: SwapSessionLookup
-    /// The swap date and the session the fresh set first ran (nil: the whole
-    /// day). Returns true when the write landed.
-    let submit: (String, Int?) async -> Bool
+// MARK: - Where in the day (migration 0030)
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var on = Date()
-    @State private var sessionId: Int?
-    @State private var saving = false
-
-    private var earliest: Date {
-        EventDates.date(fromISO: part.installedOn) ?? .distantPast
-    }
-
-    var body: some View {
-        NavigationStack {
-            TEPage {
-                Text("Fresh set of the same part — this one retires with its history, the new one starts at zero hours.")
-                    .teStyle(.body)
-                    .foregroundStyle(Color(.textStrong))
-                    .fixedSize(horizontal: false, vertical: true)
-                VStack(alignment: .leading, spacing: 0) {
-                    TEField(label: "Swapped on") {
-                        DatePicker("Swapped on", selection: $on, in: earliest...max(earliest, Date()), displayedComponents: .date)
-                            .labelsHidden()
-                            .datePickerStyle(.compact)
-                    }
-                    // A spare's fresh set is itself a spare: nothing comes off the
-                    // car, so there is no session to swap at (the server refuses one).
-                    if !Garage.isSpare(part) {
-                        SwapSessionPicker(date: on, lookup: swapSessions, selection: $sessionId)
-                    }
-                }
-                Button(saving ? "Saving…" : "Fit fresh set") {
-                    Task {
-                        saving = true
-                        defer { saving = false }
-                        if await submit(EventDates.isoString(from: on), sessionId) {
-                            Haptics.confirm()
-                            dismiss()
-                        } else {
-                            Haptics.warn()
-                        }
-                    }
-                }
-                .buttonStyle(TEButtonStyle(kind: .accent))
-                .disabled(saving)
-                .accessibilityIdentifier("confirmRefresh")
-            }
-            .navigationTitle(Garage.partTitle(part).isEmpty ? part.kind.label : Garage.partTitle(part))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
+/// The "When in the day" picker's rows for a swap date — `VehicleModel`'s
+/// `swapPoint(on:)`. Nil when the date is none of the car's track days (or the
+/// event can't be read), which hides the picker.
+struct SwapPointOptions: Sendable {
+    var choices: [Garage.SwapChoice]
+    /// The row the server would pick unasked: after the last session logged.
+    var defaultId: Int?
 }
 
-// MARK: - Between which sessions (migration 0030)
+typealias SwapPointLookup = @MainActor (String) async -> SwapPointOptions?
 
-/// Looks up the "When in the day" rows for a swap date — `VehicleModel`'s
-/// `swapSessionChoices(on:)`.
-typealias SwapSessionLookup = @MainActor (String) async -> [Garage.SwapChoice]
+/// Whether the picker has an answer yet, and whether it is showing one. The
+/// caller sends `after_session_id` only while `.shown`, and waits out
+/// `.resolving` rather than saving a point the form hasn't displayed.
+enum SwapPickerState: Hashable {
+    case resolving, hidden, shown
+}
 
-/// "When in the day" — which session a swap happened before, so a mid-day
-/// change divides the day's hours between the two parts instead of crediting
-/// both with all of it. The port of `bindSwapSessions` in `public/app.js`:
-/// it fills itself with the sessions of this car's event covering `date`, and
-/// draws nothing when there is none (or none logged), leaving the whole-day
-/// rule. "Whole day" (nil) is the default.
+/// "When in the day" — where in a track day a swap happened: the event's
+/// start, or after one of its sessions, so a mid-day change divides the day's
+/// hours between the two parts. The port of `bindSwapSessions` in
+/// `public/app.js`: it fills itself with the sessions of this car's event
+/// covering `date` and draws nothing when there is none. Each fill preselects
+/// the server's default (after the last session logged) — except that
+/// `initial`, the point a part already has, is preselected on the first fill
+/// for its own date.
 ///
 /// Placed under its date field inside a zero-spacing stack, so a hidden picker
 /// leaves no gap: it carries its own top padding when it shows.
 struct SwapSessionPicker: View {
     let date: Date
-    /// False stands the picker down — a part going to the shelf has no swap.
-    var active: Bool = true
-    let lookup: SwapSessionLookup
+    let lookup: SwapPointLookup
+    /// The date and point to preselect once, when the lookup is for that date.
+    var initial: (date: String, id: Int?)?
     @Binding var selection: Int?
+    @Binding var state: SwapPickerState
 
     @State private var choices: [Garage.SwapChoice] = []
+    @State private var usedInitial = false
 
-    private var key: String { active ? EventDates.isoString(from: date) : "" }
+    private var key: String { EventDates.isoString(from: date) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if active && !choices.isEmpty {
-                TEField(label: "When in the day", hint: "Which session the swap happened before — the day's hours are split there") {
+            if state == .shown && !choices.isEmpty {
+                TEField(label: "When in the day", hint: "Where in the track day the swap happened — the day's hours are split there") {
                     Picker("When in the day", selection: $selection) {
-                        Text("Whole day").tag(Int?.none)
                         ForEach(choices) { choice in
-                            Text(choice.label).tag(Int?.some(choice.id))
+                            Text(choice.label).tag(choice.id)
                         }
                     }
                     .pickerStyle(.menu)
@@ -1201,14 +1258,26 @@ struct SwapSessionPicker: View {
                 .padding(.top, 12)
             }
         }
-        // Keyed on the date (and whether it applies): a new date cancels the
-        // lookup in flight, and the cancellation check drops a stale answer
-        // rather than letting it overwrite the fresher one.
+        // Keyed on the date: a new date cancels the lookup in flight, and the
+        // cancellation check drops a stale answer rather than letting it
+        // overwrite the fresher one.
         .task(id: key) {
-            let found = key.isEmpty ? [] : await lookup(key)
+            let asked = key
+            state = .resolving
+            let options = await lookup(asked)
             guard !Task.isCancelled else { return }
-            choices = found
-            if let picked = selection, !found.contains(where: { $0.id == picked }) { selection = nil }
+            choices = options?.choices ?? []
+            if let options {
+                if !usedInitial, let initial, initial.date == asked {
+                    selection = initial.id
+                    usedInitial = true
+                } else {
+                    selection = options.defaultId
+                }
+                state = .shown
+            } else {
+                state = .hidden
+            }
         }
     }
 }
@@ -1328,8 +1397,14 @@ final class VehicleModel {
         await write { _ = try await $0.createPart(vehicleId: self.vehicleId, draft) }
     }
 
-    func updatePart(id: Int, _ patch: PartPatch) async -> Bool {
-        await write { try await $0.updatePart(id: id, patch) }
+    /// The part's fields, then — when when-it-went-on changed — its latest
+    /// mount (`PUT /parts/:id/mount`, migration 0030), which moves whatever came
+    /// off the car at the old point with it.
+    func updatePart(id: Int, _ patch: PartPatch, mount: PartMountDraft? = nil) async -> Bool {
+        await write {
+            try await $0.updatePart(id: id, patch)
+            if let mount { _ = try await $0.editPartMount(id: id, mount) }
+        }
     }
 
     func deletePart(id: Int) async -> Bool {
@@ -1341,52 +1416,50 @@ final class VehicleModel {
         await write { try await $0.updatePart(id: id, .retiring(on: EventDates.todayISO())) }
     }
 
-    /// "Fresh set of the same part": retires this one as of `on` and installs a
-    /// same-spec successor with hours at zero. `sessionId` is the session the
-    /// fresh set first ran (migration 0030); nil is the whole-day rule.
-    func refreshPart(id: Int, on: String, sessionId: Int?) async -> Bool {
-        await write {
-            _ = try await $0.refreshPart(id: id, PartRefreshDraft(installedOn: on, sessionId: sessionId))
-        }
+    /// "Fresh set of the same part": retires this one now and installs a
+    /// same-spec successor with hours at zero. No fields: on a track day the
+    /// server puts the swap after the last session logged (migration 0030),
+    /// and editing the new part corrects it.
+    func refreshPart(id: Int) async -> Bool {
+        await write { _ = try await $0.refreshPart(id: id) }
     }
 
     /// "Buy another set of those": a fresh copy of a *retired* part's spec,
     /// installed on `on` — nothing is retired. On the car by default, taking off
     /// whatever shares its place (`swap`); `equipped: false` shelves it instead.
-    func refreshRetiredPart(id: Int, on: String, equipped: Bool, sessionId: Int?) async -> Bool {
+    func refreshRetiredPart(id: Int, on: String, equipped: Bool) async -> Bool {
         await write {
             _ = try await $0.refreshPart(
-                id: id,
-                PartRefreshDraft(
-                    installedOn: on, equipped: equipped, swap: equipped,
-                    sessionId: equipped ? sessionId : nil
-                )
+                id: id, PartRefreshDraft(installedOn: on, equipped: equipped, swap: equipped)
             )
         }
     }
 
-    /// The Equipped switch (migration 0029), confirmed: onto the car — taking
-    /// off whatever shares its place as of the same day — or onto the shelf.
-    /// The server decides what comes off; `Garage.equipNote` only said so first.
-    func setEquipped(_ part: Part, _ equipped: Bool, on: String, sessionId: Int? = nil) async -> Bool {
-        await write {
-            if equipped {
-                _ = try await $0.equipPart(id: part.id, PartEquipDraft(on: on, sessionId: sessionId))
-            } else {
-                try await $0.unequipPart(id: part.id, PartEquipDraft(on: on, sessionId: sessionId))
-            }
-        }
+    /// The Equipped switch turning on (migration 0029): one tap, no fields —
+    /// today, at the server's point in the day (0030) — taking off whatever
+    /// shares its place. The server decides what comes off.
+    func equip(_ part: Part) async -> Bool {
+        await write { _ = try await $0.equipPart(id: part.id) }
+    }
+
+    /// The Equipped switch turning off, confirmed: onto the shelf as of `on`,
+    /// at `afterSessionId` in that day (`.unchanged` when it isn't a track day).
+    func takeOff(_ part: Part, on: String, afterSessionId: Patch<Int>) async -> Bool {
+        await write { try await $0.unequipPart(id: part.id, PartEquipDraft(on: on, afterSessionId: afterSessionId)) }
     }
 
     /// The "When in the day" rows for a swap on `date` (migration 0030): the
     /// sessions of this car's event covering that date, read from the event's
-    /// detail — `bindSwapSessions` in `public/app.js`. Empty when no event on
-    /// this car covers the date, it logged no sessions, or the detail can't be
-    /// read; the picker then hides and the swap takes the whole-day rule.
-    func swapSessionChoices(on date: String) async -> [Garage.SwapChoice] {
-        guard let event = Garage.swapSessionEvent(vehicleId, date, events) else { return [] }
-        guard let detail = try? await api.event(id: event.id) else { return [] }
-        return Garage.swapSessionChoices(detail.sessions)
+    /// detail — `bindSwapSessions` in `public/app.js`. Nil when no event on
+    /// this car covers the date or its detail can't be read; the picker then
+    /// hides and the key is left out.
+    func swapPoint(on date: String) async -> SwapPointOptions? {
+        guard let event = Garage.swapSessionEvent(vehicleId, date, events) else { return nil }
+        guard let detail = try? await api.event(id: event.id) else { return nil }
+        return SwapPointOptions(
+            choices: Garage.swapSessionChoices(detail.sessions),
+            defaultId: Garage.defaultSwapChoice(detail.sessions)
+        )
     }
 
     func addMeasurement(partId: Int, _ draft: MeasurementDraft) async -> Bool {

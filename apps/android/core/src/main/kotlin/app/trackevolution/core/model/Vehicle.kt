@@ -201,15 +201,16 @@ public data class PartMount(
     /** Null while it is still fitted. */
     @SerialName("removed_on") val removedOn: String? = null,
     /**
-     * The first session the part ran on [mountedOn] (migration 0030), so a
-     * mid-day swap divides that day's hours; null means the whole day.
+     * Where in a track day it went on (migration 0030): the event the swap
+     * happened during, and the last of that event's sessions before it — a null
+     * session with an event is the event's start, and a null event is the
+     * plain date rule. The same pair on [removedOn] ends the stretch; a
+     * mid-day swap writes one part's removed point as the other's mounted one.
      */
-    @SerialName("mounted_session_id") val mountedSessionId: Int? = null,
-    /**
-     * The first session on [removedOn] it did **not** run — the one its
-     * replacement started. A mid-day swap writes the same id on both parts.
-     */
-    @SerialName("removed_session_id") val removedSessionId: Int? = null,
+    @SerialName("mounted_event_id") val mountedEventId: Int? = null,
+    @SerialName("mounted_after_session_id") val mountedAfterSessionId: Int? = null,
+    @SerialName("removed_event_id") val removedEventId: Int? = null,
+    @SerialName("removed_after_session_id") val removedAfterSessionId: Int? = null,
 )
 
 /** A logged wear measurement (pad thickness, tread depth, …). */

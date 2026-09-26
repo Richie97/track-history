@@ -514,10 +514,12 @@ public object Garage {
 
     // ---- swaps between sessions (migration 0030) ------------------------------
     //
-    // A swap can name the session it happened before, so a mid-day pad or tire
-    // change divides the day's hours between the two parts instead of crediting
-    // both with all of it. The picker's pure half, shared by the three clients
-    // and pinned by contracts/logic/garage-swap.json.
+    // A swap on one of a car's track days sits at a point in that event — after
+    // one of its sessions, or at its start — so a mid-day pad or tire change
+    // divides the day's hours between the two parts instead of crediting both
+    // with all of it. The server picks the point on its own (after the last
+    // session logged so far); these are the pure half of the pickers that
+    // correct it, pinned by contracts/logic/garage-swap.json.
 
     /** What [swapSessionEvent] reads of an event: `{ id, vehicle_id, start_date, days }`. */
     public interface SwapEvent : RemoteRecording.EventCandidate {
@@ -532,8 +534,11 @@ public object Garage {
         public val lapCount: Int
     }
 
-    /** One picker row: the session id sent as `session_id`, and its words. */
-    public data class SwapSessionChoice(val id: Int, val label: String)
+    /**
+     * One picker row: the `after_session_id` it sends — null for the event's
+     * start — and its words.
+     */
+    public data class SwapSessionChoice(val id: Int?, val label: String)
 
     /**
      * `eventLastDay(event)`: the last day an event covers — its start plus its
@@ -567,21 +572,29 @@ public object Garage {
     }
 
     /**
-     * `swapSessionChoices(sessions)`: the picker's rows for that event's
-     * sessions, in the order they ran — "Before Session 3 · 5 laps". The swap
-     * happened before this session, so the part coming off ran the ones above
-     * it and the part going on ran this one onward. A session with no label
-     * (or a blank one) is named by its place.
+     * `swapSessionChoices(sessions)`: the picker's rows — the event's start,
+     * then after each session in the order they ran ("After Session 2 · 5
+     * laps"). A swap after a session means the part coming off ran it and
+     * everything before it, and the part going on ran everything after. A
+     * session with no label (or a blank one) is named by its place.
      */
     public fun swapSessionChoices(sessions: List<SwapSession>?): List<SwapSessionChoice> =
-        sessions.orEmpty().mapIndexed { i, s ->
-            val name = s.label?.trim()?.ifEmpty { null } ?: "Session ${i + 1}"
-            val n = s.lapCount
-            SwapSessionChoice(
-                id = s.id,
-                label = "Before $name" + if (n > 0) " · $n lap${if (n == 1) "" else "s"}" else "",
-            )
-        }
+        listOf(SwapSessionChoice(null, "Start of the day")) +
+            sessions.orEmpty().mapIndexed { i, s ->
+                val name = s.label?.trim()?.ifEmpty { null } ?: "Session ${i + 1}"
+                val n = s.lapCount
+                SwapSessionChoice(
+                    id = s.id,
+                    label = "After $name" + if (n > 0) " · $n lap${if (n == 1) "" else "s"}" else "",
+                )
+            }
+
+    /**
+     * `defaultSwapChoice(sessions)`: where the server puts a swap it isn't
+     * told the point of — after the last session logged so far, or the event's
+     * start (null) when none is.
+     */
+    public fun defaultSwapChoice(sessions: List<SwapSession>?): Int? = sessions?.lastOrNull()?.id
 
     /** A number the way JavaScript stringifies it: `4.5` → "4.5", `4.0` → "4". */
     private fun trimmed(value: Double): String =

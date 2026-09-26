@@ -1194,28 +1194,33 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   `equipSwapKinds` / `equipSwapsOff` ported as `Garage` in the Kit and `:core`
   and pinned by `contracts/logic/garage-status.json`.
 - **Swaps between sessions** (migration 0030) — either end of a mount can
-  also name a session: `mounted_session_id` (the first session the part ran)
-  and `removed_session_id` (the first it didn't — the one its replacement
-  started), so a mid-day swap writes the same session on both parts. An event
-  with a session boundary on it is divided rather than credited whole:
-  `eventShares` in `src/lib/wear.ts` gives each part the share of the event's
-  sessions it ran, weighted by logged lap time (session count when none logged
-  a lap), and hours are `eventHours × share`; without a session the date rule
-  stands (an event counts whole against a part on the car the day it started).
-  `POST /api/parts/:id/equip`, `/unequip`, `/refresh` and `POST
-  /api/vehicles/:id/parts` take an optional `session_id`, which must be a
-  session of an event on that car whose days cover the swap date (400
-  otherwise); with no date it dates the swap to that event's first day. The
-  mounts on `GET /api/garage` carry both ids. Triggers drop a session end when
-  0029's triggers move its date, and deleting the session sets it to NULL, so
-  either falls back to the date rule. Every client's swap confirm offers a
-  *When in the day* picker over that event's sessions — `swapSessionEvent` /
-  `swapSessionChoices` / `eventLastDay` in `public/js/garage.js`, ported to
-  `Garage` in the Kit and `:core` and pinned by `contracts/logic/garage-swap.json`. An active part's *Refresh* is no
-  longer a confirm that always meant today: on all three clients it opens a
-  row (a sheet on iOS) with the swap date and the same picker, which a spare's
-  refresh leaves out — its fresh set goes to the shelf, so nothing comes off
-  the car at a session and the server refuses one.
+  sit at a point inside that day's event: `*_event_id` and
+  `*_after_session_id` (the last of its sessions before the swap, or NULL for
+  the event's start). "After" rather than "before" because a swap is recorded
+  as it happens: the sessions logged so far ran on the old part, and every
+  session logged afterwards — imported that evening — runs on the new one. A
+  mid-day swap writes the same point on both parts. `eventShares` in
+  `src/lib/wear.ts` gives each part the share of an event's sessions it ran,
+  weighted by logged lap time (session count when none logged a lap; an event
+  with no sessions yet is one piece after its start), and hours are
+  `eventHours × share`; without a point the date rule stands. **The server picks
+  the point**: equip, unequip, refresh and create, on a date one of the car's
+  events covers, swap after that event's last session logged so far (or at its
+  start) — so Equip is one click on every client — unless the body names
+  `after_session_id` (a session of that event, or null for its start; 400 for
+  anything else). `PUT /api/parts/:id/mount` (`{ mounted_on?, after_session_id? }`)
+  edits when a part went on after the fact — its latest mount's start — and
+  moves whatever came off the car at the old point with it (a part sharing its
+  place whose mount ended there, a refreshed part's retirement included),
+  answering `{ ok, moved }`; a part fitted the day it was installed moves its
+  install date too. The mounts on `GET /api/garage` carry all four columns.
+  Deleting the session a swap came after moves the point back to after the
+  session before it, and 0029's triggers moving an end's date drop its point.
+  On every client Equip is one tap, Refresh one confirm, adding a part asks
+  only its date; the take-off row and the part's Edit form carry a *When in
+  the day* select — `swapSessionEvent` / `swapSessionChoices` /
+  `defaultSwapChoice` / `eventLastDay` in `public/js/garage.js`, ported to
+  `Garage` in the Kit and `:core` and pinned by `contracts/logic/garage-swap.json`.
 - **Setup notebook** (`setups` table, one JSON sheet per event day, validated
   by `sanitizeSetup` in `src/lib/validate.ts`) — tire pressures (cold/hot per
   corner), camber/toe/caster, damper clicks, sway settings, fuel, and

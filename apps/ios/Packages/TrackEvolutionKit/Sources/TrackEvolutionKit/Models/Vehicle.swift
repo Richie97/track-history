@@ -279,25 +279,37 @@ public struct PartMount: Codable, Hashable, Sendable {
     public var mountedOn: String
     /// Nil while it is still fitted.
     public var removedOn: String?
-    /// The first session the part ran on `mountedOn` (migration 0030); nil is
-    /// the whole-day rule. Optional so a payload cached before it decodes.
-    public var mountedSessionId: Int?
-    /// The first session it did *not* run on `removedOn` — the one its
-    /// replacement started. A mid-day swap writes the same id on both parts.
-    public var removedSessionId: Int?
+    /// The swap point it went on at (migration 0030): the event the swap
+    /// happened during, and the last of its sessions before it — a nil session
+    /// with an event is the event's start, and a nil event is the date rule.
+    /// All four optional so a payload cached before them decodes.
+    public var mountedEventId: Int?
+    public var mountedAfterSessionId: Int?
+    /// The point it came off at, read the same way. A mid-day swap writes the
+    /// same point on both parts.
+    public var removedEventId: Int?
+    public var removedAfterSessionId: Int?
 
-    public init(mountedOn: String, removedOn: String? = nil, mountedSessionId: Int? = nil, removedSessionId: Int? = nil) {
+    public init(
+        mountedOn: String, removedOn: String? = nil,
+        mountedEventId: Int? = nil, mountedAfterSessionId: Int? = nil,
+        removedEventId: Int? = nil, removedAfterSessionId: Int? = nil
+    ) {
         self.mountedOn = mountedOn
         self.removedOn = removedOn
-        self.mountedSessionId = mountedSessionId
-        self.removedSessionId = removedSessionId
+        self.mountedEventId = mountedEventId
+        self.mountedAfterSessionId = mountedAfterSessionId
+        self.removedEventId = removedEventId
+        self.removedAfterSessionId = removedAfterSessionId
     }
 
     public enum CodingKeys: String, CodingKey {
         case mountedOn = "mounted_on"
         case removedOn = "removed_on"
-        case mountedSessionId = "mounted_session_id"
-        case removedSessionId = "removed_session_id"
+        case mountedEventId = "mounted_event_id"
+        case mountedAfterSessionId = "mounted_after_session_id"
+        case removedEventId = "removed_event_id"
+        case removedAfterSessionId = "removed_after_session_id"
     }
 }
 

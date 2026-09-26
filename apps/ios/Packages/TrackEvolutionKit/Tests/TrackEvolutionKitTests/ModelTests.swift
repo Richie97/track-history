@@ -185,17 +185,19 @@ struct ModelTests {
         }
     }
 
-    /// Migration 0030: a mid-day swap writes the same session id on both parts —
-    /// the one the new set started, and the one the old set did not run.
-    @Test func garageMountsCarryTheSessionAMidDaySwapHappenedBefore() throws {
+    /// Migration 0030: a mid-day swap writes the same point on both parts —
+    /// the event it happened during and the last session before it.
+    @Test func garageMountsCarryTheSwapPointAMidDaySwapHappenedAt() throws {
         let garage = try Goldens.decode([GarageVehicle].self, "garage")
         let parts = garage.flatMap(\.parts).filter { $0.kind == .tiresFront }
         let on = try #require(parts.first { $0.equipped == true }?.mounts?.first)
         let off = try #require(parts.first { $0.equipped == false }?.mounts?.first)
-        let id = try #require(on.mountedSessionId)
-        #expect(on.removedSessionId == nil)
-        #expect(off.mountedSessionId == nil)
-        #expect(off.removedSessionId == id)
+        let event = try #require(on.mountedEventId)
+        let session = try #require(on.mountedAfterSessionId)
+        #expect(on.removedEventId == nil && on.removedAfterSessionId == nil)
+        #expect(off.mountedEventId == nil && off.mountedAfterSessionId == nil)
+        #expect(off.removedEventId == event)
+        #expect(off.removedAfterSessionId == session)
         #expect(off.removedOn == on.mountedOn)
     }
 

@@ -110,11 +110,6 @@ public data class PartDraft(
     val equipped: Boolean? = null,
     /** With [equipped], also take off whatever shares its place, as equipping does. */
     val swap: Boolean? = null,
-    /**
-     * The session the part went on before (migration 0030), when it went on
-     * mid-day; only meaningful while [equipped]. Omitted when null.
-     */
-    @SerialName("session_id") val sessionId: Int? = null,
 )
 
 @Serializable(with = PartPatchSerializer::class)
@@ -170,24 +165,64 @@ public data class PartRefreshDraft(
     @SerialName("cost_cents") val costCents: Int? = null,
     val equipped: Boolean? = null,
     val swap: Boolean? = null,
-    /** The session the new set went on before (migration 0030); null is the whole day. */
-    @SerialName("session_id") val sessionId: Int? = null,
 )
 
 /**
  * The body of `POST /api/parts/:id/equip` and `/unequip`: the swap date,
- * today on the server when omitted.
+ * today on the server when omitted, and where in that day (migration 0030).
+ *
+ * [afterSessionId] is three-state, which is why this is a patch-style body:
+ * [Patch.Unchanged] leaves the key out and the server picks the point itself
+ * (after the covering event's last session logged so far, else the date
+ * rule); `Set(null)` is the event's start; `Set(id)` is after that session,
+ * which must belong to the car's event covering the date or it is a 400.
  */
-@Serializable
+@Serializable(with = PartEquipDraftSerializer::class)
 public data class PartEquipDraft(
     val on: String? = null,
-    /**
-     * The session the swap happened before (migration 0030), so the day's
-     * hours divide at it; null is the date rule. With no [on], the server
-     * dates the swap to that session's event's first day.
-     */
-    @SerialName("session_id") val sessionId: Int? = null,
+    val afterSessionId: Patch<Int> = Patch.Unchanged,
 )
+
+public object PartEquipDraftSerializer : KSerializer<PartEquipDraft> {
+    override val descriptor: SerialDescriptor = patchDescriptor("PartEquipDraft")
+
+    override fun deserialize(decoder: Decoder): PartEquipDraft = neverDecoded("PartEquipDraft")
+
+    override fun serialize(encoder: Encoder, value: PartEquipDraft) {
+        val out = jsonEncoder(encoder, "PartEquipDraft")
+        val body = PatchBody(out.json)
+        body.put("on", value.on?.let { JsonPrimitive(it) })
+        body.put("after_session_id", value.afterSessionId) { JsonPrimitive(it) }
+        out.encodeJsonElement(body.build())
+    }
+}
+
+/**
+ * `PUT /api/parts/:id/mount` (migration 0030): when a part last went on the
+ * car — its latest mount's start — edited after the fact. Whatever came off at
+ * the old point moves with it, and a part fitted the day it was installed
+ * moves its install date too. [afterSessionId] is three-state exactly as on
+ * [PartEquipDraft].
+ */
+@Serializable(with = PartMountDraftSerializer::class)
+public data class PartMountDraft(
+    val mountedOn: String? = null,
+    val afterSessionId: Patch<Int> = Patch.Unchanged,
+)
+
+public object PartMountDraftSerializer : KSerializer<PartMountDraft> {
+    override val descriptor: SerialDescriptor = patchDescriptor("PartMountDraft")
+
+    override fun deserialize(decoder: Decoder): PartMountDraft = neverDecoded("PartMountDraft")
+
+    override fun serialize(encoder: Encoder, value: PartMountDraft) {
+        val out = jsonEncoder(encoder, "PartMountDraft")
+        val body = PatchBody(out.json)
+        body.put("mounted_on", value.mountedOn?.let { JsonPrimitive(it) })
+        body.put("after_session_id", value.afterSessionId) { JsonPrimitive(it) }
+        out.encodeJsonElement(body.build())
+    }
+}
 
 // ---- Measurements ---------------------------------------------------------
 

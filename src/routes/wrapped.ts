@@ -45,7 +45,8 @@ export async function wrappedInputs(
             // days it missed (migration 0029).
             `SELECT p.id, p.vehicle_id, v.name AS vehicle_name, p.name, p.installed_on, p.retired_on,
                     (SELECT json_group_array(json_object('mounted_on', m.mounted_on, 'removed_on', m.removed_on,
-                       'mounted_session_id', m.mounted_session_id, 'removed_session_id', m.removed_session_id))
+                       'mounted_event_id', m.mounted_event_id, 'mounted_after_session_id', m.mounted_after_session_id,
+                       'removed_event_id', m.removed_event_id, 'removed_after_session_id', m.removed_after_session_id))
                      FROM part_mounts m WHERE m.part_id = p.id) AS mounts
              FROM parts p JOIN vehicles v ON v.id = p.vehicle_id
              WHERE v.user_id = ? AND p.kind IN ('tires', 'tires_front', 'tires_rear')`
