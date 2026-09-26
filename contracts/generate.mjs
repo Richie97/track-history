@@ -369,6 +369,17 @@ async function build(api) {
     size: "255/40R17",
     installed_on: "2026-03-15",
   });
+  // …swapped for a fresh pair after the rich event's first session (migration
+  // 0030), so both mounts carry a swap point: the old pair's removed_* and the
+  // new pair's mounted_* name the same event and session…
+  await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
+    kind: "tires_front",
+    name: "Hoosier A7",
+    size: "255/40R17",
+    installed_on: FIXTURE.richEvent.start_date,
+    swap: true,
+    after_session_id: s1.body.id,
+  });
   // …and a rear pair that has never been fitted: `equipped: false` with an
   // empty `mounts`, the spare-on-the-shelf branch.
   const spareRears = await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
@@ -551,6 +562,11 @@ async function captureAll(api, anon, f) {
     "`unequipped` lists the ids it took off (empty here: a rear pair swaps no front pair).",
     "src/routes/vehicles.ts", await api("POST", `/parts/${f.spareRears.body.id}/equip`, { on: "2026-06-01" }));
 
+  record("part-mount-edit", "PUT", "/parts/:id/mount",
+    "When a part went on the car, edited after the fact: moves its latest mount's start and whatever came " +
+    "off the car at the old point with it; `moved` lists those parts' ids (empty here: nothing came off).",
+    "src/routes/vehicles.ts", await api("PUT", `/parts/${f.spareRears.body.id}/mount`, { mounted_on: "2026-06-02" }));
+
   record("part-unequip", "POST", "/parts/:id/unequip",
     "Take a part off the car as of a date without retiring it — it goes to the shelf.",
     "src/routes/vehicles.ts", await api("POST", `/parts/${f.spareRears.body.id}/unequip`, { on: "2026-07-01" }));
@@ -677,7 +693,7 @@ const EXPECTED_ROUTES = [
   "GET /garage",
   "GET /vehicles/:id/steering-fit",
   "POST /vehicles/:id/parts", "PUT /parts/:id", "DELETE /parts/:id", "POST /parts/:id/refresh",
-  "POST /parts/:id/equip", "POST /parts/:id/unequip",
+  "POST /parts/:id/equip", "POST /parts/:id/unequip", "PUT /parts/:id/mount",
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug", "GET /share/:slug/wrapped/:year",
   "GET /wrapped/:year",

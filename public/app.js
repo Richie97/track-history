@@ -42,7 +42,7 @@ import {
   isTireKind, partTitle,
   matchCatalogCars, partOdometerLine, vehicleOdometerLine,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit,
-  vehicleLogbook, vehicleTileLine, wearLimitHint,
+  defaultSwapChoice, swapSessionChoices, swapSessionEvent, vehicleLogbook, vehicleTileLine, wearLimitHint,
 } from "./js/garage.js";
 import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtDist, fmtSpeedKph, speedUnit, tempInputSpec, tempToDisplay, tempToStored, tempUnit, usUnits } from "./js/units.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
@@ -3092,17 +3092,30 @@ async function viewVehicle(vehicleId) {
           .join("")}</div>`
       : "";
 
-  const partEditForm = (p) => `
+  // When a part last went on the car (migration 0030) — its latest mount's
+  // start — and whether that's the day it was installed, in which case the
+  // Installed field is that date and "When in the day" sits under it.
+  const latestMount = (p) => (p.mounts ?? [])[p.mounts?.length - 1] ?? null;
+  const fittedAtInstall = (p) => p.mounts?.length === 1 && p.mounts[0].mounted_on === p.installed_on;
+  const mountPointValue = (m) => (m.mounted_event_id == null ? "" : String(m.mounted_after_session_id ?? ""));
+  const partEditForm = (p) => {
+    const m = latestMount(p);
+    const atInstall = fittedAtInstall(p);
+    return `
     <form class="part-edit" data-part-form="${p.id}" hidden>
       <div class="form-grid">
         <div class="field"><label>Type</label>
           <select name="kind">${PART_KINDS.map(([k, l]) => `<option value="${k}"${p.kind === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
         <div class="field"><label>Part / compound</label><input name="name" required value="${esc(p.name)}"></div>
         <div class="field"><label>Size (optional)</label><input name="size" maxlength="40" value="${esc(p.size ?? "")}" placeholder="${isTireKind(p.kind) ? "285/30R18" : ""}"></div>
-        <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${esc(p.installed_on)}"></div>
+        <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${esc(p.installed_on)}">
+          ${atInstall ? swapSelectHtml() : ""}</div>
+        ${m && !atInstall ? `<div class="field"><label>${p.equipped ? "On the car since" : "Last went on"}</label>
+          <input name="mounted_on" type="date" required value="${esc(m.mounted_on)}" max="${today}">
+          ${swapSelectHtml()}</div>` : ""}
         <div class="field"><label>Retired (blank = in service)</label><input name="retired_on" type="date" value="${esc(p.retired_on ?? "")}"></div>
         <div class="field"><label>Cost ($)</label><input name="cost" type="number" min="0" step="0.01" value="${p.cost_cents != null ? (p.cost_cents / 100).toFixed(2) : ""}"></div>
-        <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" value="${p.expected_hours ?? ""}"></div>
+        <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.1" value="${p.expected_hours ?? ""}"></div>
         <div class="field"><label>Replace at (measured value)</label><input name="wear_limit" type="number" min="0" step="0.5" value="${p.wear_limit ?? ""}" placeholder="${wearLimitHint(p.kind, units)}"></div>
       </div>
       <div class="field"><label>Notes</label><input name="notes" value="${esc(p.notes ?? "")}" placeholder="Sizes, torque specs, where bought…"></div>
@@ -3112,6 +3125,7 @@ async function viewVehicle(vehicleId) {
         <button class="btn small danger" type="button" data-part-delete="${p.id}">Delete part</button>
       </div>
     </form>`;
+  };
 
   // When a part came off the car last, for a spare's meta line.
   const lastOff = (p) =>
@@ -3120,25 +3134,67 @@ async function viewVehicle(vehicleId) {
   // The Equipped switch and the small confirm row it opens: the date the swap
   // happened (today unless it was earlier) and, turning one on, what it takes
   // off — the server makes the same choice (equipSwapKinds).
+  // Where in a track day a swap happened (migration 0030). The server works it
+  // out on its own — after the last session logged so far — so Equip, Refresh
+  // and adding a part don't ask; the take-off row and a part's edit form offer
+  // this select to say otherwise. It fills itself with the sessions of this
+  // car's event on the chosen date and stays hidden when there is none.
+  const swapSelectHtml = () => `<select name="session_id" aria-label="When in the day" hidden></select>`;
+  // `initial` is the row to preselect on the first fill (a session id, or ""
+  // for the event's start); after that, and without one, the server's default.
+  const bindSwapSessions = (form, dateInput, initial) => {
+    const select = form.session_id;
+    let token = 0;
+    let first = true;
+    const fill = async () => {
+      const mine = ++token;
+      delete select.dataset.ready;
+      const ev = swapSessionEvent(v.id, dateInput.value, events);
+      const detail = ev ? await api(`/events/${ev.id}`).catch(() => null) : null;
+      if (mine !== token) return;
+      const choices = detail ? swapSessionChoices(detail.sessions) : [];
+      const want = first && initial !== undefined ? initial : String(defaultSwapChoice(detail?.sessions) ?? "");
+      first = false;
+      select.innerHTML = choices
+        .map((c) => `<option value="${c.id ?? ""}"${String(c.id ?? "") === want ? " selected" : ""}>${esc(c.label)}</option>`)
+        .join("");
+      select.hidden = !choices.length;
+      select.dataset.ready = "1";
+    };
+    dateInput.addEventListener("change", fill);
+    fill();
+    return fill;
+  };
+  // The body's after_session_id: left out when the date isn't a track day, null
+  // for the event's start.
+  const swapPointBody = (form) =>
+    !form.session_id || form.session_id.hidden
+      ? {}
+      : { after_session_id: form.session_id.value ? Number(form.session_id.value) : null };
+
+  // What turning a spare on will take off, said to a screen reader before the
+  // one click does it.
+  const equipNoteText = (p) => {
+    const swaps = equipSwapsOff(p, v.parts);
+    return swaps.length
+      ? `Turning this on takes off ${swaps.map(partTitle).join(" and ")}.`
+      : "Turning this on puts it on the car.";
+  };
   const equipSwitchHtml = (p) => `
     <label class="equip-switch"><input type="checkbox" role="switch" data-part-equip="${p.id}"${p.equipped ? " checked" : ""}
-      aria-describedby="equip-note-${p.id}"> Equipped</label>`;
+      aria-describedby="${p.equipped ? `equip-note-${p.id}` : `equip-swap-${p.id}`}"> Equipped</label>
+    ${p.equipped ? "" : `<span class="visually-hidden" id="equip-swap-${p.id}">${esc(equipNoteText(p))}</span>`}`;
+  // Equip is one click (it writes as the switch turns on, dated today at the
+  // server's point in the day); taking a part off confirms first, with the
+  // date and where in the day.
   const equipFormHtml = (p) => {
-    const swaps = equipSwapsOff(p, v.parts);
-    const note = p.equipped
-      ? "Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on."
-      : swaps.length
-        ? `Put it on the car? This takes off ${swaps.map((x) => esc(partTitle(x))).join(" and ")} — ${
-            swaps.length === 1 ? "it moves" : "they move"
-          } to Spares.`
-        : "Put it on the car? Its wear picks up from here.";
-    const min = p.equipped
-      ? (p.mounts ?? []).find((m) => m.removed_on == null)?.mounted_on ?? p.installed_on
-      : lastOff(p) || p.installed_on;
+    if (!p.equipped) return "";
+    const min = (p.mounts ?? []).find((m) => m.removed_on == null)?.mounted_on ?? p.installed_on;
     return `<form class="btn-row equip-form" data-equip-form="${p.id}" hidden>
-      <span class="hint-inline" id="equip-note-${p.id}">${note}</span>
+      <span class="hint-inline" id="equip-note-${p.id}">Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on.</span>
       <input name="on" type="date" required value="${today}" min="${esc(min)}" max="${today}" aria-label="Swap date">
-      <button class="btn small primary">${p.equipped ? "Take off" : "Equip"}</button>
+      ${swapSelectHtml()}
+      <button class="btn small primary">Take off</button>
       <button class="btn small" type="button" data-equip-cancel="${p.id}">Cancel</button>
     </form>`;
   };
@@ -3330,7 +3386,7 @@ async function viewVehicle(vehicleId) {
         <div class="field"><label>Size (optional)</label><input name="size" maxlength="40" placeholder="285/30R18"></div>
         <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${today}"></div>
         <div class="field"><label>Cost ($, optional)</label><input name="cost" type="number" min="0" step="0.01" placeholder="389"></div>
-        <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" placeholder="auto from history"></div>
+        <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.1" placeholder="auto from history"></div>
         <div class="field"><label>Replace at (optional)</label><input name="wear_limit" type="number" min="0" step="0.5" placeholder="${wearLimitHint("pads_front", units)}"></div>
       </div>
       <div class="field"><label>Notes</label><input name="notes" placeholder="Torque specs, where bought…"></div>
@@ -3562,7 +3618,7 @@ async function viewVehicle(vehicleId) {
   });
   view.querySelectorAll("[data-part-refresh]").forEach((btn) => {
     btn.onclick = async () => {
-      if (!confirm("Fresh set of the same part? This retires the current one today (keeping its history) and installs a new one with the same details — hours reset to zero. Edit the new part afterwards if the cost or compound changed."))
+      if (!confirm("Fresh set of the same part? This retires the current one now (keeping its history) and installs a new one with the same details — hours reset to zero. If you're at the track, the swap goes in after the last session logged; edit the new part to change when it went on, or its cost or compound."))
         return;
       try {
         await api(`/parts/${btn.dataset.partRefresh}/refresh`, { method: "POST", body: {} });
@@ -3582,8 +3638,21 @@ async function viewVehicle(vehicleId) {
   // The switch doesn't write on its own: it opens the confirm row (date, and
   // what comes off), and Cancel puts it back.
   view.querySelectorAll("[data-part-equip]").forEach((input) => {
-    input.onchange = () => {
-      const form = view.querySelector(`[data-equip-form="${input.dataset.partEquip}"]`);
+    input.onchange = async () => {
+      const id = input.dataset.partEquip;
+      if (input.checked) {
+        input.disabled = true;
+        try {
+          await api(`/parts/${id}/equip`, { method: "POST", body: {} });
+          route();
+        } catch (err) {
+          input.checked = false;
+          input.disabled = false;
+          partError(err);
+        }
+        return;
+      }
+      const form = view.querySelector(`[data-equip-form="${id}"]`);
       form.hidden = false;
       form.querySelector("button.primary").focus();
     };
@@ -3598,11 +3667,15 @@ async function viewVehicle(vehicleId) {
     };
   });
   view.querySelectorAll("[data-equip-form]").forEach((form) => {
+    bindSwapSessions(form, form.on);
     form.onsubmit = async (evt) => {
       evt.preventDefault();
-      const part = v.parts.find((p) => String(p.id) === form.dataset.equipForm);
+      if (!form.session_id.dataset.ready) return; // the select is still resolving its day
       try {
-        await api(`/parts/${part.id}/${part.equipped ? "unequip" : "equip"}`, { method: "POST", body: { on: form.on.value } });
+        await api(`/parts/${form.dataset.equipForm}/unequip`, {
+          method: "POST",
+          body: { on: form.on.value, ...swapPointBody(form) },
+        });
         route();
       } catch (err) {
         partError(err);
@@ -3632,7 +3705,11 @@ async function viewVehicle(vehicleId) {
       try {
         await api(`/parts/${part.id}/refresh`, {
           method: "POST",
-          body: { installed_on: form.on.value, equipped: form.equipped.checked, swap: form.equipped.checked },
+          body: {
+            installed_on: form.on.value,
+            equipped: form.equipped.checked,
+            swap: form.equipped.checked,
+          },
         });
         route();
       } catch (err) {
@@ -3659,16 +3736,33 @@ async function viewVehicle(vehicleId) {
     };
   });
   view.querySelectorAll("[data-part-form]").forEach((form) => {
+    const part = v.parts.find((p) => String(p.id) === form.dataset.partForm);
+    const m = latestMount(part);
+    const atInstall = fittedAtInstall(part);
+    // The date the mount's start is edited through: its own field, or Installed.
+    const mountDate = atInstall ? form.installed_on : form.mounted_on;
+    if (m && mountDate) bindSwapSessions(form, mountDate, mountPointValue(m));
     form.onsubmit = async (evt) => {
       evt.preventDefault();
+      // Until the select has resolved its day, it can't say the point changed.
+      if (form.session_id && !form.session_id.dataset.ready) return;
+      const point = swapPointBody(form);
+      const moved =
+        m &&
+        mountDate &&
+        (mountDate.value !== m.mounted_on ||
+          ("after_session_id" in point && String(point.after_session_id ?? "") !== mountPointValue(m)) ||
+          (m.mounted_event_id != null && !("after_session_id" in point)));
       try {
-        await api(`/parts/${form.dataset.partForm}`, {
+        await api(`/parts/${part.id}`, {
           method: "PUT",
           body: {
             kind: form.kind.value,
             name: form.name.value.trim(),
             size: form.size.value.trim() || null,
-            installed_on: form.installed_on.value,
+            // A part fitted the day it was installed moves both through the
+            // mount below, which keeps what came off the car in step.
+            ...(atInstall && moved ? {} : { installed_on: form.installed_on.value }),
             retired_on: form.retired_on.value || null,
             cost_cents: form.cost.value.trim() === "" ? null : Math.round(Number(form.cost.value) * 100),
             expected_hours: numOrNull(form.expected_hours.value),
@@ -3676,6 +3770,9 @@ async function viewVehicle(vehicleId) {
             notes: form.notes.value.trim() || null,
           },
         });
+        // When it went on the car, and where in that day; what came off at the
+        // old point moves with it (PUT /parts/:id/mount).
+        if (moved) await api(`/parts/${part.id}/mount`, { method: "PUT", body: { mounted_on: mountDate.value, ...point } });
         route();
       } catch (err) {
         partError(err);

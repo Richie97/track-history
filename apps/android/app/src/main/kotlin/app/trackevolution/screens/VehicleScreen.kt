@@ -1,6 +1,7 @@
 package app.trackevolution.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -18,6 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +57,8 @@ import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartKind
+import app.trackevolution.core.model.PartMount
+import app.trackevolution.core.model.PartMountDraft
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.model.PartPatch
@@ -108,10 +114,11 @@ fun VehicleScreen(
     var confirmRetireId by rememberSaveable { mutableStateOf<Int?>(null) }
     var confirmRefreshId by rememberSaveable { mutableStateOf<Int?>(null) }
     var confirmDeleteId by rememberSaveable { mutableStateOf<Int?>(null) }
-    // The Equipped switch's confirm row (migration 0029) and a retired part's
-    // "another set of those" — ids again, for the same reasons. Inline in the
-    // card, as the web page's confirm row is, rather than a dialog: the row
-    // carries a date field, and a text field is a form, not an alert.
+    // The Equipped switch's take-off row (migration 0029; turning one *on* is a
+    // single tap since 0030) and a retired part's "another set of those" — ids
+    // again, for the same reasons. Inline in the card, as the web page's row
+    // is, rather than a dialog: the row carries a date field, and a text field
+    // is a form, not an alert.
     var confirmEquipId by rememberSaveable { mutableStateOf<Int?>(null) }
     var refreshRetiredId by rememberSaveable { mutableStateOf<Int?>(null) }
     // The car's own delete (NS-37, moved from Settings), the same pattern: the
@@ -397,12 +404,16 @@ fun VehicleScreen(
         )
     }
 
+    // Back to one confirm (migration 0030): no date and no picker — the server
+    // swaps now, at the track after the last session logged, and the new part's
+    // edit form corrects when it went on. The web page's words.
     partById(model, confirmRefreshId)?.let { part ->
         TEConfirmDialog(
-            text = "Replace ${part.kind.label} with the same spec? The old one is retired as of " +
-                if (Garage.isSpare(part)) "today and a new one takes its place on the shelf."
-                else "today and a new one goes on in its place.",
-            confirm = "Replace",
+            text = "Fresh set of the same part? This retires the current one now (keeping its history) and " +
+                "installs a new one with the same details — hours reset to zero. If you're at the track, the " +
+                "swap goes in after the last session logged; edit the new part to change when it went on, or " +
+                "its cost or compound.",
+            confirm = "Fit fresh set",
             onConfirm = { confirmRefreshId = null; model.refreshPart(part.id) },
             onDismiss = { confirmRefreshId = null },
         )
@@ -588,9 +599,12 @@ private fun PartCard(
     onRetire: () -> Unit,
     onRefresh: () -> Unit,
     onDelete: () -> Unit,
-    /** The Equipped switch was flipped; the card confirms before it writes. */
+    /**
+     * The Equipped switch was turned off; the card confirms before it writes.
+     * Turning it on writes at once (migration 0030) and never calls this.
+     */
     onToggleEquipped: () -> Unit,
-    /** The confirm row is open. */
+    /** The take-off row is open. */
     equipping: Boolean = false,
     /** It closed, confirmed or cancelled. */
     onEquipDone: () -> Unit = {},
@@ -625,7 +639,13 @@ private fun PartCard(
                     Text(it, style = TrackTheme.typography.xs, color = colors.textMuted)
                 }
             }
-            if (part.retiredOn == null) EquipSwitch(part, onToggleEquipped)
+            if (part.retiredOn == null) {
+                EquipSwitch(
+                    part,
+                    parts = model.allParts,
+                    onToggle = { if (Garage.isSpare(part)) model.equip(part) else onToggleEquipped() },
+                )
+            }
         }
         val lastOff = Garage.lastOff(part)
         TEMeta(
@@ -642,13 +662,14 @@ private fun PartCard(
             ),
         )
 
-        if (equipping) {
-            EquipConfirm(
+        if (equipping && !Garage.isSpare(part)) {
+            TakeOffConfirm(
                 part = part,
                 parts = model.allParts,
-                onConfirm = { on ->
+                model = model,
+                onConfirm = { on, point ->
                     onEquipDone()
-                    model.setEquipped(part, equipped = Garage.isSpare(part), on = on)
+                    model.takeOff(part, on = on, afterSessionId = point)
                 },
                 onCancel = onEquipDone,
             )
@@ -669,7 +690,7 @@ private fun PartCard(
                 }
             }
             if (part.retiredOn == null) {
-                TextButton(onClick = onRefresh) {
+                TextButton(onClick = onRefresh, modifier = Modifier.testTag("refresh-${part.id}")) {
                     Text("Replace", style = TrackTheme.typography.xs, color = colors.accentInk)
                 }
                 TextButton(onClick = onRetire) {
@@ -694,8 +715,9 @@ private fun PartCard(
                 submitLabel = "Save changes",
                 onCancel = { editing = false },
                 onDelete = onDelete,
-                onSubmit = { patch, _ ->
-                    model.updatePart(part.id, patch)
+                mountModel = model,
+                onSubmit = { patch, _, mount ->
+                    model.editPart(part.id, patch, mount)
                     editing = false
                 },
             )
@@ -866,7 +888,7 @@ private fun AddPartCard(model: VehicleModel) {
                 onCancel = { open = false },
                 onDelete = null,
                 addingTo = model.allParts,
-                onSubmit = { patch, equipped ->
+                onSubmit = { patch, equipped, _ ->
                     // Equipped, it takes off what it replaces (`swap`), as the
                     // switch does; unticked, it goes straight to the shelf.
                     model.addPart(patch.toDraft().copy(equipped = equipped, swap = equipped))
@@ -898,8 +920,16 @@ private fun PartForm(
      * the card's own switch does that.
      */
     addingTo: List<Part>? = null,
-    /** The patch, and — adding — whether the part goes on the car. */
-    onSubmit: (PartPatch, Boolean) -> Unit,
+    /**
+     * Editing: the page's model, for "when it went on" (migration 0030) — the
+     * latest mount's date and the "When in the day" picker. Null when adding.
+     */
+    mountModel: VehicleModel? = null,
+    /**
+     * The patch; adding, whether the part goes on the car; editing, the mount
+     * edit when the form moved when it went on (null when it didn't).
+     */
+    onSubmit: (PartPatch, Boolean, PartMountDraft?) -> Unit,
 ) {
     val colors = TrackTheme.colors
     val key = existing?.id ?: 0
@@ -918,6 +948,19 @@ private fun PartForm(
     }
     var wearLimit by rememberSaveable(key) { mutableStateOf(existing?.wearLimit?.toString().orEmpty()) }
     var notes by rememberSaveable(key) { mutableStateOf(existing?.notes.orEmpty()) }
+    // When it last went on the car (migration 0030): the latest mount's start.
+    // Fitted the day it was installed, the Installed field *is* that date and
+    // the picker sits under it; otherwise the mount gets its own date field.
+    val mount = existing?.takeIf { mountModel != null }?.mounts?.lastOrNull()
+    val atInstall = existing != null && existing.mounts.size == 1 && existing.mounts[0].mountedOn == existing.installedOn
+    var mountedOn by rememberSaveable(key) { mutableStateOf(mount?.mountedOn.orEmpty()) }
+    var point by rememberSaveable(key) { mutableStateOf<Int?>(null) }
+    var pointShown by rememberSaveable(key) { mutableStateOf(false) }
+    // Until the picker has resolved its day it can't say the point changed, so
+    // Save waits: an early save would read a showing picker as hidden and move
+    // the mount to the server's default.
+    var pointResolved by remember(key) { mutableStateOf(false) }
+    val mountDate = if (atInstall) installedOn else mountedOn
 
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TEField("Type") {
@@ -964,7 +1007,28 @@ private fun PartForm(
                 value = installedOn,
                 onValueChange = { installedOn = it },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("partInstalled"),
+            )
+        }
+        if (mount != null && mountModel != null) {
+            if (!atInstall) {
+                TEField(if (Garage.isOnCar(existing!!)) "On the car since" else "Last went on") {
+                    OutlinedTextField(
+                        value = mountedOn,
+                        onValueChange = { mountedOn = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("partMountedOn"),
+                    )
+                }
+            }
+            SwapSessionPicker(
+                model = mountModel,
+                date = mountDate,
+                initial = Patch.Set(mountPoint(mount)),
+                selected = point,
+                onSelect = { point = it },
+                onShown = { pointShown = it; pointResolved = true },
+                onResolving = { pointResolved = false },
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1008,12 +1072,23 @@ private fun PartForm(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = {
+                    // Moved: a new date, a new point, or a point the date no
+                    // longer has (a track day's point on a non-track day) —
+                    // the web page's rule, with its `mountPointValue` compare.
+                    val movedMount = mount != null && (
+                        mountDate.trim() != mount.mountedOn ||
+                            (pointShown && point != mountPoint(mount)) ||
+                            (mount.mountedEventId != null && !pointShown)
+                        )
                     onSubmit(
                         PartPatch(
                             kind = Patch.Set(PartKind(kind)),
                             name = Patch.Set(name.trim().ifEmpty { null }),
                             size = Patch.Set(size.trim().ifEmpty { null }),
-                            installedOn = Patch.Set(installedOn.trim()),
+                            // Fitted the day it was installed, a moving mount
+                            // moves the install date itself, keeping what came
+                            // off the car in step — so the part PUT leaves it.
+                            installedOn = if (atInstall && movedMount) Patch.Unchanged else Patch.Set(installedOn.trim()),
                             costCents = Patch.Set(
                                 cost.trim().toDoubleOrNull()?.let { kotlin.math.round(it * 100).toInt() },
                             ),
@@ -1022,9 +1097,17 @@ private fun PartForm(
                             notes = Patch.Set(notes.trim().ifEmpty { null }),
                         ),
                         equipped,
+                        if (movedMount) {
+                            PartMountDraft(
+                                mountedOn = mountDate.trim(),
+                                afterSessionId = if (pointShown) Patch.Set(point) else Patch.Unchanged,
+                            )
+                        } else {
+                            null
+                        },
                     )
                 },
-                enabled = name.isNotBlank(),
+                enabled = name.isNotBlank() && (mount == null || pointResolved),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colors.accent,
                     contentColor = colors.accentContrast,
@@ -1073,17 +1156,29 @@ private fun NumberField(value: String, placeholder: String, onValueChange: (Stri
 }
 
 /**
- * The Equipped switch on a part card (migration 0029). It never writes on its
- * own: flipping it asks the page to confirm — the swap date, and what putting
- * it on takes off — so the switch shows the part's real state until then.
+ * The Equipped switch on a part card (migration 0029). Turning a spare on is one
+ * tap that writes (migration 0030) — today, at the server's point in the day —
+ * so TalkBack hears what it takes off before the tap, as the web page's
+ * visually-hidden note says it. Turning one off opens the take-off row first,
+ * so the switch shows the part's real state until then.
  */
 @Composable
-private fun EquipSwitch(part: Part, onToggle: () -> Unit) {
+private fun EquipSwitch(part: Part, parts: List<Part>, onToggle: () -> Unit) {
+    val spare = Garage.isSpare(part)
+    val note = if (spare) {
+        val swaps = Garage.equipSwapsOff(part.id, part.kind, parts)
+        if (swaps.isEmpty()) "Turning this on puts it on the car."
+        else "Turning this on takes off ${swaps.joinToString(" and ") { Garage.partTitle(it) }}."
+    } else {
+        null
+    }
     EquippedToggle(
-        checked = !Garage.isSpare(part),
+        checked = !spare,
         label = "Equipped",
         onCheckedChange = { onToggle() },
-        modifier = Modifier.testTag("equip-${part.id}"),
+        modifier = Modifier
+            .testTag("equip-${part.id}")
+            .then(if (note != null) Modifier.semantics { contentDescription = "Equipped. $note" } else Modifier),
     )
 }
 
@@ -1126,22 +1221,31 @@ private fun validSwapDate(date: String, earliest: String, latest: String?): Bool
     EventDates.epochDay(date) != null && date.length == 10 && date >= earliest && (latest == null || date <= latest)
 
 /**
- * The Equipped switch's confirm row (migration 0029): what the swap does, in
- * the web page's words, and the date it happened — today unless it was earlier,
- * never before the part's current stretch began or back inside one it was
- * already on.
+ * The Equipped switch's take-off row (migration 0029): what taking it off does,
+ * in the web page's words, the date it happened — today unless it was earlier,
+ * never before the part's current stretch began — and, on a track day, where in
+ * it (migration 0030). Turning a spare on has no row: it is one tap.
  */
 @Composable
-private fun EquipConfirm(
+private fun TakeOffConfirm(
     part: Part,
     parts: List<Part>,
-    onConfirm: (String) -> Unit,
+    model: VehicleModel,
+    /**
+     * The swap date, and where in that day: `Set(id)` after a session,
+     * `Set(null)` the event's start, [Patch.Unchanged] when the date is no
+     * track day of this car's and the picker was hidden.
+     */
+    onConfirm: (String, Patch<Int>) -> Unit,
     onCancel: () -> Unit,
 ) {
     val colors = TrackTheme.colors
     val today = EventDates.todayIso()
     val earliest = Garage.earliestSwapDate(part)
     var on by rememberSaveable(part.id) { mutableStateOf(today) }
+    var point by rememberSaveable(part.id) { mutableStateOf<Int?>(null) }
+    var pointShown by rememberSaveable(part.id) { mutableStateOf(false) }
+    var pointResolved by remember(part.id) { mutableStateOf(false) }
     val valid = validSwapDate(on.trim(), earliest, today)
     TrackCard(Modifier.fillMaxWidth().padding(top = 8.dp), color = colors.surfaceRaised, contentPadding = 12.dp) {
         Text(Garage.equipNote(part, parts), style = TrackTheme.typography.sm, color = colors.textStrong)
@@ -1158,16 +1262,110 @@ private fun EquipConfirm(
                 modifier = Modifier.fillMaxWidth().testTag("equipDate"),
             )
         }
+        SwapSessionPicker(
+            model = model,
+            date = on,
+            selected = point,
+            onSelect = { point = it },
+            onShown = { pointShown = it; pointResolved = true },
+            onResolving = { pointResolved = false },
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
             Button(
-                onClick = { onConfirm(on.trim()) },
-                enabled = valid,
+                onClick = { onConfirm(on.trim(), if (pointShown) Patch.Set(point) else Patch.Unchanged) },
+                enabled = valid && pointResolved,
                 colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.accentContrast),
             ) {
-                Text(if (Garage.isSpare(part)) "Equip" else "Take off", style = TrackTheme.typography.bodyStrong)
+                Text("Take off", style = TrackTheme.typography.bodyStrong)
             }
             TextButton(onClick = onCancel) {
                 Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
+            }
+        }
+    }
+}
+
+/**
+ * Where in a track day a mount begins (migration 0030), as the picker's value:
+ * the session it went on after, or null for the event's start — which is also
+ * what a mount with no point (the date rule) reads as, as `mountPointValue` in
+ * `public/app.js` has it.
+ */
+private fun mountPoint(mount: PartMount): Int? =
+    if (mount.mountedEventId == null) null else mount.mountedAfterSessionId
+
+/**
+ * "When in the day" (migration 0030): where in a track day a swap on [date]
+ * happened — the event's start or after one of its sessions — so a mid-day
+ * change divides that day's hours between the two parts rather than crediting
+ * both with all of it. `bindSwapSessions` in `public/app.js`.
+ *
+ * It resolves the car's event covering the date and offers
+ * [Garage.swapSessionChoices] from its sessions; [onShown] says whether it is
+ * showing, because a hidden picker means the request leaves `after_session_id`
+ * out (the server's rule) where a shown one always sends it — null for the
+ * start. The first resolve preselects [initial] when it is [Patch.Set] (an
+ * edit's current point); every later date preselects
+ * [Garage.defaultSwapChoice], the point the server would have picked. The
+ * effect is keyed on the date, so an answer for an earlier date is cancelled
+ * rather than landing over the current one, and the date it last resolved is
+ * saveable, so a rotation keeps the driver's pick instead of resetting it.
+ */
+@Composable
+private fun SwapSessionPicker(
+    model: VehicleModel,
+    date: String,
+    selected: Int?,
+    onSelect: (Int?) -> Unit,
+    onShown: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    /** Called when a lookup starts, before [onShown] answers it. */
+    onResolving: () -> Unit = {},
+    initial: Patch<Int> = Patch.Unchanged,
+) {
+    val colors = TrackTheme.colors
+    var choices by remember { mutableStateOf<List<Garage.SwapSessionChoice>>(emptyList()) }
+    var resolvedFor by rememberSaveable { mutableStateOf<String?>(null) }
+    var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(date, model.events) {
+        onResolving()
+        val options = model.swapOptions(date)
+        choices = options?.choices.orEmpty()
+        onShown(options != null)
+        if (options != null) {
+            val ids = options.choices.map { it.id }
+            val want = when {
+                resolvedFor == date && selected in ids -> selected
+                resolvedFor == null && initial is Patch.Set -> initial.value
+                else -> options.defaultId
+            }
+            onSelect(want.takeIf { it in ids })
+        }
+        resolvedFor = date
+    }
+    if (choices.isEmpty()) return
+
+    val current = choices.firstOrNull { it.id == selected }?.label ?: choices.first().label
+    TEField("When in the day", modifier = modifier) {
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("swapSession")
+                    .semantics { contentDescription = "When in the day: $current" },
+            ) {
+                Text(current, style = TrackTheme.typography.sm, color = colors.textBody, modifier = Modifier.weight(1f))
+                Text("▾", style = TrackTheme.typography.sm, color = colors.textMuted)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                choices.forEach { choice ->
+                    DropdownMenuItem(
+                        text = { Text(choice.label, style = TrackTheme.typography.sm) },
+                        onClick = { onSelect(choice.id); expanded = false },
+                    )
+                }
             }
         }
     }

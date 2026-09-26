@@ -29,6 +29,8 @@ import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartEquip
 import app.trackevolution.core.model.PartEquipDraft
+import app.trackevolution.core.model.PartMountDraft
+import app.trackevolution.core.model.PartMountMove
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefresh
 import app.trackevolution.core.model.PartRefreshDraft
@@ -439,6 +441,13 @@ public class ApiClient(
     public suspend fun unequipPart(id: Int, draft: PartEquipDraft = PartEquipDraft()) {
         send("POST", "/parts/$id/unequip", encode(PartEquipDraft.serializer(), draft), OkResponse.serializer())
     }
+
+    /**
+     * Moves when a part last went on the car and where in that day (migration
+     * 0030); answers the ids of what came off at the old point and moved too.
+     */
+    public suspend fun editPartMount(id: Int, draft: PartMountDraft): PartMountMove =
+        send("PUT", "/parts/$id/mount", encode(PartMountDraft.serializer(), draft), PartMountMove.serializer())
 
     public suspend fun addMeasurement(partId: Int, draft: MeasurementDraft): Int =
         send(

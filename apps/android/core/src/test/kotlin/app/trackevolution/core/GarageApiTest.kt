@@ -4,6 +4,8 @@ import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.StaticToken
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.PartDraft
+import app.trackevolution.core.model.PartEquipDraft
+import app.trackevolution.core.model.PartMountDraft
 import app.trackevolution.core.model.PartKind
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefreshDraft
@@ -21,6 +23,7 @@ import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -185,12 +188,28 @@ class GarageApiTest {
         // Every part on the car has a span; the rear pair that has never been
         // fitted (migration 0029) has neither a span nor a mount.
         assertTrue(corvette.parts.filter { it.equipped == true }.all { it.odometer != null })
-        val spare = corvette.parts.single { it.equipped == false }
+        val spare = corvette.parts.single { it.equipped == false && it.mounts.isEmpty() }
         assertEquals(PartKind.TIRES_REAR, spare.kind)
         assertEquals("275/40R17", spare.size)
         assertTrue(spare.mounts.isEmpty())
         assertNull(spare.odometer)
         assertNull(garage.single { it.name == "Miata" }.odometer)
+    }
+
+    @Test
+    fun `carries the point in the day a mid-day swap divided it at`() = runTest {
+        // Migration 0030: the front pair came off after a session and its
+        // replacement went on at the same point, so both mounts name it.
+        val corvette = client { ok(Goldens.bodyText("garage")) }.garage().single { it.name == "Corvette C7" }
+        val on = corvette.parts.single { it.kind == PartKind.TIRES_FRONT && it.equipped == true }.mounts.single()
+        val off = corvette.parts.single { it.kind == PartKind.TIRES_FRONT && it.equipped == false }.mounts.single()
+        assertNotNull(on.mountedEventId)
+        assertNotNull(on.mountedAfterSessionId)
+        assertNull(on.removedEventId)
+        assertEquals(on.mountedEventId, off.removedEventId)
+        assertEquals(on.mountedAfterSessionId, off.removedAfterSessionId)
+        assertNull(off.mountedEventId)
+        assertEquals(on.mountedOn, off.removedOn)
     }
 
     // ---- Parts -------------------------------------------------------------
@@ -246,6 +265,32 @@ class GarageApiTest {
         val body = bodyOf(recorded.single())
         assertEquals("2026-08-02", body["installed_on"]!!.jsonPrimitive.content)
         assertEquals("42000", body["cost_cents"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `after_session_id is absent, null or a session — three different requests`() = runTest {
+        // Migration 0030: absent lets the server pick the point, null is the
+        // event's start, a number is after that session.
+        val api = client { request ->
+            when {
+                request.url.encodedPath.endsWith("/equip") -> ok("""{"ok":true,"unequipped":[]}""")
+                request.url.encodedPath.endsWith("/mount") -> ok("""{"ok":true,"moved":[7]}""")
+                else -> ok("""{"ok":true}""")
+            }
+        }
+        api.equipPart(11)
+        api.unequipPart(11, PartEquipDraft(on = "2026-05-02", afterSessionId = Patch.Set(22)))
+        api.unequipPart(11, PartEquipDraft(on = "2026-05-02", afterSessionId = Patch.Set(null)))
+        val moved = api.editPartMount(11, PartMountDraft(mountedOn = "2026-05-02", afterSessionId = Patch.Set(21)))
+
+        assertTrue(bodyOf(recorded[0]).isEmpty())
+        assertEquals("22", bodyOf(recorded[1])["after_session_id"]!!.jsonPrimitive.content)
+        assertEquals(JsonNull, bodyOf(recorded[2])["after_session_id"])
+        assertEquals("PUT", recorded[3].method.value)
+        assertEquals("https://example.test/api/parts/11/mount", recorded[3].url.toString())
+        assertEquals("2026-05-02", bodyOf(recorded[3])["mounted_on"]!!.jsonPrimitive.content)
+        assertEquals("21", bodyOf(recorded[3])["after_session_id"]!!.jsonPrimitive.content)
+        assertEquals(listOf(7), moved.moved)
     }
 
     @Test

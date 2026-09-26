@@ -1,0 +1,9 @@
+{
+  "method": "PUT",
+  "path": "/parts/:id/mount",
+  "status": 200,
+  "body": {
+    "moved": [],
+    "ok": true
+  }
+}

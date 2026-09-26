@@ -17,11 +17,13 @@ import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartDraft
 import app.trackevolution.core.model.PartEquipDraft
+import app.trackevolution.core.model.PartMountDraft
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefreshDraft
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.VehiclePatch
 import app.trackevolution.ui.LoadState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -258,6 +260,18 @@ class VehicleModel(
 
     fun updatePart(id: Int, patch: PartPatch) = write { api.updatePart(id, patch) }
 
+    /**
+     * The edit form's save (migration 0030): the part's own fields, then — when
+     * the form moved when it went on the car, or where in that day — the mount
+     * edit, which also moves whatever came off at the old point and, for a part
+     * fitted the day it was installed, the install date. Two writes in order,
+     * so the mount moves against the part's saved dates.
+     */
+    fun editPart(id: Int, patch: PartPatch, mount: PartMountDraft?) = write {
+        api.updatePart(id, patch)
+        if (mount != null) api.editPartMount(id, mount)
+    }
+
     fun deletePart(id: Int) = write { api.deletePart(id) }
 
     /**
@@ -270,12 +284,12 @@ class VehicleModel(
         write { api.updatePart(id, PartPatch(retiredOn = Patch.Set(on))) }
 
     /**
-     * One-tap replacement: the server retires this part as of the swap date and
-     * inserts a same-spec successor. The successor's id is the server's to
+     * One-tap replacement, sent with no fields: the server retires this part now
+     * and inserts a same-spec successor — at the track, after the last session
+     * logged so far (migration 0030); the new part's edit form corrects that. The successor's id is the server's to
      * invent, which is one of the reasons this cannot be queued offline.
      */
-    fun refreshPart(id: Int, on: String = EventDates.todayIso()) =
-        write { api.refreshPart(id, PartRefreshDraft(installedOn = on)) }
+    fun refreshPart(id: Int) = write { api.refreshPart(id) }
 
     /**
      * "Buy another set of those": a fresh copy of a *retired* part's spec,
@@ -287,13 +301,44 @@ class VehicleModel(
         write { api.refreshPart(id, PartRefreshDraft(installedOn = on, equipped = equipped, swap = equipped)) }
 
     /**
-     * The Equipped switch (migration 0029), confirmed: on the car → the shelf,
-     * or back on, taking off whatever shares its place as of the same day. The
-     * server decides what that is; [Garage.equipNote] only said so first.
+     * The Equipped switch turning on (migration 0029): one tap, no fields — today,
+     * at the server's point in the day (migration 0030) — taking off whatever
+     * shares its place. The server decides what that is.
      */
-    fun setEquipped(part: Part, equipped: Boolean, on: String) = write {
-        val draft = PartEquipDraft(on = on)
-        if (equipped) api.equipPart(part.id, draft) else api.unequipPart(part.id, draft)
+    fun equip(part: Part) = write { api.equipPart(part.id) }
+
+    /**
+     * The Equipped switch turning off, confirmed: to the shelf as of [on], at
+     * [afterSessionId] — [Patch.Unchanged] when the date is not a track day (the
+     * server's rule), `Set(null)` for the event's start, `Set(id)` after that
+     * session.
+     */
+    fun takeOff(part: Part, on: String, afterSessionId: Patch<Int> = Patch.Unchanged) =
+        write { api.unequipPart(part.id, PartEquipDraft(on = on, afterSessionId = afterSessionId)) }
+
+    /** The "When in the day" picker's rows, and the one the server would pick unasked. */
+    data class SwapOptions(val choices: List<Garage.SwapSessionChoice>, val defaultId: Int?)
+
+    /**
+     * The picker for a swap on [date] (migration 0030): this car's event
+     * covering the date — [Garage.swapSessionEvent] over the cached events —
+     * and that event's sessions, read from its detail, as
+     * [Garage.swapSessionChoices] (the start, then after each session) with
+     * [Garage.defaultSwapChoice]. Null when no event covers the date or its
+     * detail can't be read: the picker is hidden and the request leaves
+     * `after_session_id` out, as the web page's `bindSwapSessions` does.
+     */
+    suspend fun swapOptions(date: String): SwapOptions? {
+        val day = date.trim().takeIf { it.length == 10 && EventDates.epochDay(it) != null } ?: return null
+        val event = Garage.swapSessionEvent(vehicleId, day, events) ?: return null
+        val detail = try {
+            api.event(event.id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        return SwapOptions(Garage.swapSessionChoices(detail.sessions), Garage.defaultSwapChoice(detail.sessions))
     }
 
     fun addMeasurement(partId: Int, draft: MeasurementDraft) =

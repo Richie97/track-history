@@ -12,8 +12,29 @@ async function garageUser() {
   return { ...u, vehicleId: veh.body.id as number };
 }
 
-const partOf = async (api: Awaited<ReturnType<typeof garageUser>>["api"], id: number) =>
-  (await api("GET", "/garage")).body[0].parts.find((p: { id: number }) => p.id === id);
+// The part as /garage returns it, with the mounts' swap points (migration
+// 0030) dropped where they're null, so a date-only mount reads as its dates.
+type MountJson = {
+  mounted_on: string;
+  removed_on: string | null;
+  mounted_event_id: number | null;
+  mounted_after_session_id: number | null;
+  removed_event_id: number | null;
+  removed_after_session_id: number | null;
+};
+const partOf = async (api: Awaited<ReturnType<typeof garageUser>>["api"], id: number) => {
+  const part = (await api("GET", "/garage")).body[0].parts.find((p: { id: number }) => p.id === id);
+  return part && {
+    ...part,
+    mounts: part.mounts.map(
+      ({ mounted_event_id, mounted_after_session_id, removed_event_id, removed_after_session_id, ...dates }: MountJson) => ({
+        ...dates,
+        ...(mounted_event_id != null && { mounted_event_id, mounted_after_session_id }),
+        ...(removed_event_id != null && { removed_event_id, removed_after_session_id }),
+      })
+    ),
+  };
+};
 
 describe("part sizes and front / rear tires", () => {
   it("stores a size on a front and a rear pair and trims it", async () => {
@@ -217,5 +238,237 @@ describe("the mount triggers keep plain PUTs meaning what they did", () => {
     const spare = (await api("POST", `/parts/${old}/refresh`, { equipped: false })).body.id;
     expect((await partOf(api, spare)).equipped).toBe(false);
     expect((await api("POST", `/parts/${old}/refresh`, { equipped: "yes" })).status).toBe(400);
+  });
+});
+
+describe("swaps between sessions (migration 0030)", () => {
+  type Api = Awaited<ReturnType<typeof garageUser>>["api"];
+  // A one-day event on the car; each session is five 2-minute laps, a tenth of
+  // an event with all four sessions in (0.67 h).
+  async function trackDay(api: Api, extra: Record<string, unknown> = {}) {
+    const eventId = await createEvent(api, { car: "Corvette Z06", start_date: "2026-05-02", days: 1, ...extra });
+    const sessions: number[] = [];
+    const log = async (n: number) => {
+      for (let i = 0; i < n; i++)
+        sessions.push(
+          (await api("POST", `/events/${eventId}/sessions`, { label: `Session ${sessions.length + 1}`, laps: Array(5).fill(120_000) })).body.id
+        );
+    };
+    return { eventId, sessions, log };
+  }
+  const rawMounts = async (api: Api, id: number): Promise<MountJson[]> =>
+    (await api("GET", "/garage")).body[0].parts.find((p: { id: number }) => p.id === id).mounts;
+  const tires = async (api: Api, vehicleId: number) => ({
+    street: (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "tires", name: "PS4S", installed_on: "2026-03-01" })).body.id,
+    track: (await api("POST", `/vehicles/${vehicleId}/parts`, {
+      kind: "tires", name: "A7", installed_on: "2026-03-01", equipped: false,
+    })).body.id,
+  });
+
+  it("equip on a track day swaps after the last session logged, and later sessions run on the new set", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(2);
+    const { street, track } = await tires(api, vehicleId);
+
+    const res = await api("POST", `/parts/${track}/equip`, { on: "2026-05-02" });
+    expect(res.status).toBe(200);
+    expect(res.body.unequipped).toEqual([street]);
+    const at = { event: day.eventId, after: day.sessions[1] };
+    expect(await rawMounts(api, street)).toEqual([
+      {
+        mounted_on: "2026-03-01", removed_on: "2026-05-02", mounted_event_id: null, mounted_after_session_id: null,
+        removed_event_id: at.event, removed_after_session_id: at.after,
+      },
+    ]);
+    expect(await rawMounts(api, track)).toEqual([
+      {
+        mounted_on: "2026-05-02", removed_on: null, mounted_event_id: at.event, mounted_after_session_id: at.after,
+        removed_event_id: null, removed_after_session_id: null,
+      },
+    ]);
+    // The afternoon's two sessions are imported that evening.
+    await day.log(2);
+    expect((await partOf(api, street)).wear.hours).toBe(0.3);
+    expect((await partOf(api, track)).wear.hours).toBe(0.3);
+  });
+
+  it("a swap before any session is logged gives the whole day to the part that went on", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    const { street, track } = await tires(api, vehicleId);
+    await api("POST", `/parts/${track}/equip`, { on: "2026-05-02" });
+    expect((await rawMounts(api, track))[0]).toMatchObject({ mounted_event_id: day.eventId, mounted_after_session_id: null });
+    await day.log(4);
+    expect((await partOf(api, street)).wear.hours).toBe(0);
+    expect((await partOf(api, track)).wear.hours).toBe(0.7);
+  });
+
+  it("a date that isn't a track day on this car keeps the date rule", async () => {
+    const { api, vehicleId } = await garageUser();
+    await trackDay(api);
+    const { track } = await tires(api, vehicleId);
+    await api("POST", `/parts/${track}/equip`, { on: "2026-05-05" });
+    expect((await partOf(api, track)).mounts).toEqual([{ mounted_on: "2026-05-05", removed_on: null }]);
+  });
+
+  it("names the point explicitly: after a session, or null for the event's start", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(4);
+    const pads = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "pads_front", name: "DTC-60", installed_on: "2026-03-01" })).body.id;
+    expect((await api("POST", `/parts/${pads}/unequip`, { on: "2026-05-02", after_session_id: day.sessions[0] })).status).toBe(200);
+    expect((await partOf(api, pads)).wear.hours).toBe(0.2); // one session of four
+    const spare = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "pads_rear", name: "DTC-30", installed_on: "2026-03-01" })).body.id;
+    await api("POST", `/parts/${spare}/unequip`, { on: "2026-05-02", after_session_id: null });
+    expect((await partOf(api, spare)).wear.hours).toBe(0);
+  });
+
+  it("refresh on a track day retires the old pads and starts the new ones after the last session", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(3);
+    const old = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "pads_front", name: "DTC-60", installed_on: "2026-03-01" })).body.id;
+    const res = await api("POST", `/parts/${old}/refresh`, { installed_on: "2026-05-02" });
+    expect(res.status).toBe(201);
+    expect((await rawMounts(api, old))[0].removed_after_session_id).toBe(day.sessions[2]);
+    expect((await rawMounts(api, res.body.id))[0].mounted_after_session_id).toBe(day.sessions[2]);
+    await day.log(1);
+    expect((await partOf(api, old)).wear.hours).toBe(0.5); // three of four sessions
+    expect((await partOf(api, res.body.id)).wear.hours).toBe(0.2);
+  });
+
+  it("adding a set with swap on a track day takes the old one off at the same point", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(2);
+    const old = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "tires", name: "PS4S", installed_on: "2026-03-01" })).body.id;
+    const fresh = await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "tires", name: "A7", installed_on: "2026-05-02", swap: true });
+    expect(fresh.status).toBe(201);
+    expect((await rawMounts(api, old))[0].removed_after_session_id).toBe(day.sessions[1]);
+    expect((await rawMounts(api, fresh.body.id))[0].mounted_after_session_id).toBe(day.sessions[1]);
+    // A spare added on a track day goes to the shelf, with no point to sit at.
+    const spare = (await api("POST", `/vehicles/${vehicleId}/parts`, {
+      kind: "tires", name: "Rain", installed_on: "2026-05-02", equipped: false,
+    })).body.id;
+    expect((await partOf(api, spare)).mounts).toEqual([]);
+  });
+
+  it("refuses a session that isn't that day's on that car, or this account's", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(1);
+    const pads = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "pads_front", name: "DTC-60", installed_on: "2026-03-01" })).body.id;
+    // No track day on that date.
+    expect((await api("POST", `/parts/${pads}/unequip`, { on: "2026-05-03", after_session_id: day.sessions[0] })).body.error).toBe(
+      "after_session_id is not on that date"
+    );
+    // A session of an event on no car.
+    const loose = await createEvent(api, { start_date: "2026-05-02" });
+    const looseSession = (await api("POST", `/events/${loose}/sessions`, { laps: [120_000] })).body.id;
+    expect((await api("POST", `/parts/${pads}/unequip`, { on: "2026-05-02", after_session_id: looseSession })).status).toBe(400);
+    // Someone else's.
+    const other = await garageUser();
+    const theirs = await trackDay(other.api);
+    await theirs.log(1);
+    expect((await api("POST", `/parts/${pads}/unequip`, { on: "2026-05-02", after_session_id: theirs.sessions[0] })).status).toBe(400);
+    expect((await api("POST", `/parts/${pads}/unequip`, { on: "2026-05-02", after_session_id: "3" })).status).toBe(400);
+    expect((await partOf(api, pads)).equipped).toBe(true);
+  });
+
+  it("a weekend swap on the second day credits the new set with the sessions it ran", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api, { days: 2 });
+    await day.log(2);
+    const old = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "tires", name: "PS4S", installed_on: "2026-03-01" })).body.id;
+    const fresh = (await api("POST", `/vehicles/${vehicleId}/parts`, {
+      kind: "tires", name: "A7", installed_on: "2026-05-03", swap: true,
+    })).body.id;
+    await day.log(2);
+    expect((await partOf(api, old)).wear.hours).toBe(0.3);
+    expect((await partOf(api, fresh)).wear.hours).toBe(0.3);
+  });
+
+  it("editing when a part went on moves the part it replaced with it", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(4);
+    const { street, track } = await tires(api, vehicleId);
+    await api("POST", `/parts/${track}/equip`, { on: "2026-05-02" }); // after the last session: the new set ran none
+    expect((await partOf(api, track)).wear.hours).toBe(0);
+
+    // It actually went on after the first session.
+    const res = await api("PUT", `/parts/${track}/mount`, { after_session_id: day.sessions[0] });
+    expect(res.status).toBe(200);
+    expect(res.body.moved).toEqual([street]);
+    expect((await rawMounts(api, street))[0]).toMatchObject({ removed_on: "2026-05-02", removed_after_session_id: day.sessions[0] });
+    expect((await partOf(api, street)).wear.hours).toBe(0.2);
+    expect((await partOf(api, track)).wear.hours).toBe(0.5);
+
+    // Or on another day altogether: the old set comes off then too, by date.
+    expect((await api("PUT", `/parts/${track}/mount`, { mounted_on: "2026-05-10" })).body.moved).toEqual([street]);
+    expect((await partOf(api, street)).mounts).toEqual([{ mounted_on: "2026-03-01", removed_on: "2026-05-10" }]);
+    expect((await partOf(api, track)).mounts).toEqual([{ mounted_on: "2026-05-10", removed_on: null }]);
+    expect((await partOf(api, street)).wear.hours).toBe(0.7);
+  });
+
+  it("editing a refreshed part's install moves the old part's retirement with it", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(4);
+    const old = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "pads_front", name: "DTC-60", installed_on: "2026-03-01" })).body.id;
+    const fresh = (await api("POST", `/parts/${old}/refresh`, { installed_on: "2026-05-02" })).body.id;
+    expect((await api("PUT", `/parts/${fresh}/mount`, { mounted_on: "2026-04-20" })).body.moved).toEqual([old]);
+    expect(await partOf(api, old)).toMatchObject({ retired_on: "2026-04-20", mounts: [{ mounted_on: "2026-03-01", removed_on: "2026-04-20" }] });
+    // Its first mount moved, so its install date did too.
+    expect((await partOf(api, fresh)).installed_on).toBe("2026-04-20");
+    expect((await partOf(api, fresh)).wear.hours).toBe(0.7);
+  });
+
+  it("a part bought as a spare and fitted later keeps its install date as a floor", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(2);
+    const { track } = await tires(api, vehicleId); // installed 2026-03-01, on the shelf
+    await api("POST", `/parts/${track}/equip`, { on: "2026-05-02" });
+    expect((await api("PUT", `/parts/${track}/mount`, { mounted_on: "2026-04-01" })).status).toBe(200);
+    expect((await partOf(api, track)).installed_on).toBe("2026-03-01");
+    expect((await api("PUT", `/parts/${track}/mount`, { mounted_on: "2026-02-01" })).status).toBe(400);
+  });
+
+  it("refuses an edit that would overlap the part's own history or run past today", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(1);
+    const { track } = await tires(api, vehicleId);
+    await api("POST", `/parts/${track}/equip`, { on: "2026-04-01" });
+    await api("POST", `/parts/${track}/unequip`, { on: "2026-04-10" });
+    await api("POST", `/parts/${track}/equip`, { on: "2026-05-02" });
+    expect((await api("PUT", `/parts/${track}/mount`, { mounted_on: "2026-04-05" })).status).toBe(400); // inside the last stretch
+    expect((await api("PUT", `/parts/${track}/mount`, { mounted_on: "2099-01-01" })).status).toBe(400);
+    const never = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "oil", name: "Spare oil", installed_on: "2026-03-01", equipped: false })).body.id;
+    expect((await api("PUT", `/parts/${never}/mount`, {})).body.error).toBe("part has never been on the car");
+  });
+
+  it("deleting the session a swap came after moves it back to after the one before", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(3);
+    const { track } = await tires(api, vehicleId);
+    await api("POST", `/parts/${track}/equip`, { on: "2026-05-02", after_session_id: day.sessions[1] });
+    expect((await api("DELETE", `/sessions/${day.sessions[1]}`)).status).toBe(200);
+    expect((await rawMounts(api, track))[0].mounted_after_session_id).toBe(day.sessions[0]);
+    expect((await api("DELETE", `/sessions/${day.sessions[0]}`)).status).toBe(200);
+    expect((await rawMounts(api, track))[0]).toMatchObject({ mounted_event_id: day.eventId, mounted_after_session_id: null });
+  });
+
+  it("un-retiring drops the point the retirement closed at", async () => {
+    const { api, vehicleId } = await garageUser();
+    const day = await trackDay(api);
+    await day.log(2);
+    const old = (await api("POST", `/vehicles/${vehicleId}/parts`, { kind: "pads_front", name: "DTC-60", installed_on: "2026-03-01" })).body.id;
+    await api("POST", `/parts/${old}/refresh`, { installed_on: "2026-05-02" });
+    await api("PUT", `/parts/${old}`, { retired_on: null });
+    expect((await rawMounts(api, old))[0]).toMatchObject({ removed_on: null, removed_event_id: null, removed_after_session_id: null });
   });
 });

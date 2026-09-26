@@ -30,6 +30,13 @@ public struct PartEquip: Codable, Hashable, Sendable {
     public var unequipped: [Int]
 }
 
+/// `PUT /api/parts/:id/mount` (migration 0030) — the ids of the parts that
+/// came off the car at the old point and moved with it.
+public struct PartMountEdit: Codable, Hashable, Sendable {
+    public var ok: Bool
+    public var moved: [Int]
+}
+
 /// `POST /api/parts/:id/refresh` — the new part, plus the id of the one it
 /// replaced.
 public struct PartRefresh: Codable, Hashable, Sendable {

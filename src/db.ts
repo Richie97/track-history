@@ -262,8 +262,34 @@ export function vehicleOdometerStmt(db: D1Database, userId: number) {
     .bind(userId);
 }
 
-export async function vehicleHoursEvents(db: D1Database, userId: number) {
-  return (await vehicleHoursEventsStmt(db, userId).all<VehicleHoursEvent>()).results;
+// The sessions of those same events in running order, each with its logged lap
+// time — what a mount that starts or ends at a session (migration 0030) divides
+// an event by. No channel blob is read.
+export type VehicleHoursSession = { id: number; event_id: number; lap_ms_sum: number | null };
+
+export function vehicleHoursSessionsStmt(db: D1Database, userId: number) {
+  return db
+    .prepare(
+      `SELECT s.id, s.event_id, (SELECT SUM(l.time_ms) FROM laps l WHERE l.session_id = s.id) AS lap_ms_sum
+       FROM sessions s JOIN events e ON e.id = s.event_id
+       WHERE e.user_id = ? AND e.vehicle_id IS NOT NULL AND e.start_date <= date('now')
+       ORDER BY s.event_id, s.sort, s.id`
+    )
+    .bind(userId);
+}
+
+// Hang each event's sessions on it, in the order the statement gave them.
+export function withHoursSessions<E extends { id: number }>(
+  events: E[],
+  sessions: VehicleHoursSession[]
+): (E & { sessions: { id: number; lap_ms_sum: number | null }[] })[] {
+  const byEvent = new Map<number, { id: number; lap_ms_sum: number | null }[]>();
+  for (const { id, event_id, lap_ms_sum } of sessions) {
+    const list = byEvent.get(event_id) ?? [];
+    list.push({ id, lap_ms_sum });
+    byEvent.set(event_id, list);
+  }
+  return events.map((e) => ({ ...e, sessions: byEvent.get(e.id) ?? [] }));
 }
 
 // Lap numbers continue from the session's current MAX(lap_num), computed

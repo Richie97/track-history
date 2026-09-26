@@ -43,6 +43,7 @@ struct GoldenContractTests {
         case "vehicle-create": try roundTrip(Vehicle.self, entry.name)
         case "part-refresh": try roundTrip(PartRefresh.self, entry.name)
         case "part-equip": try roundTrip(PartEquip.self, entry.name)
+        case "part-mount-edit": try roundTrip(PartMountEdit.self, entry.name)
         case "share-set": try roundTrip(ShareSlug.self, entry.name)
         case "event-create", "session-create", "part-create", "measurement-create":
             try roundTrip(CreatedID.self, entry.name)

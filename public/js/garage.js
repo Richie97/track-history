@@ -411,3 +411,59 @@ export function vehicleTileLine(logbook) {
   if (next) return `Next: ${next.track_name}`;
   return "No track days yet";
 }
+
+// --- swaps between sessions (migration 0030) --------------------------------
+//
+// A swap on one of a car's track days sits at a point in that event — after one
+// of its sessions, or at its start — so a mid-day pad or tire change divides the
+// day's hours between the two parts instead of crediting both with all of it.
+// The server picks the point on its own (after the last session logged so far);
+// these are the pure half of the pickers that correct it, shared by the three
+// clients and pinned by contracts/logic/garage-swap.json.
+
+// The last day an event covers: its start plus its day count, less one, with a
+// part day counting whole — the rule the server's swap check uses.
+export function eventLastDay(event) {
+  const d = new Date(`${event.start_date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + Math.max(1, Math.ceil(event.days || 1)) - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// The event on this car a swap on `date` could fall between sessions of: one
+// whose days cover the date, matched by vehicle_id as the server matches it
+// (never the free-text car). Two covering events — rare, a double-booked
+// weekend — go to the one that started later, then the higher id. Null when
+// none does, and the picker offers nothing.
+export function swapSessionEvent(vehicleId, date, events) {
+  let best = null;
+  for (const e of events ?? []) {
+    if (e.vehicle_id == null || e.vehicle_id !== vehicleId) continue;
+    if (!date || e.start_date > date || eventLastDay(e) < date) continue;
+    if (!best || e.start_date > best.start_date || (e.start_date === best.start_date && e.id > best.id)) best = e;
+  }
+  return best;
+}
+
+// The picker's rows for that event's sessions: the event's start, then after
+// each session in the order they ran — "After Session 2 · 5 laps". A swap after
+// a session means the part coming off ran it and everything before it, and the
+// part going on ran everything after, including sessions logged later. A
+// session with no label is named by its place. `id` is what the server takes as
+// after_session_id: null for the start.
+export function swapSessionChoices(sessions) {
+  return [
+    { id: null, label: "Start of the day" },
+    ...(sessions ?? []).map((s, i) => {
+      const name = (s.label ?? "").trim() || `Session ${i + 1}`;
+      const n = (s.laps ?? []).length;
+      return { id: s.id, label: `After ${name}${n ? ` · ${n} lap${n === 1 ? "" : "s"}` : ""}` };
+    }),
+  ];
+}
+
+// Where the server puts a swap it isn't told the point of: after the last
+// session logged so far, or the event's start when none is.
+export function defaultSwapChoice(sessions) {
+  const list = sessions ?? [];
+  return list.length ? list[list.length - 1].id : null;
+}

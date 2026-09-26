@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { eventSelect, vehicleHoursEventsStmt } from "../db";
+import { eventSelect, type VehicleHoursSession, vehicleHoursEventsStmt, vehicleHoursSessionsStmt, withHoursSessions } from "../db";
 import { isEntitled } from "../lib/entitlement";
 import { type EventRow, withComputed } from "../lib/stats";
 import {
@@ -44,13 +44,16 @@ export async function wrappedInputs(
             // as JSON so a set that sat on the shelf isn't credited with the
             // days it missed (migration 0029).
             `SELECT p.id, p.vehicle_id, v.name AS vehicle_name, p.name, p.installed_on, p.retired_on,
-                    (SELECT json_group_array(json_object('mounted_on', m.mounted_on, 'removed_on', m.removed_on))
+                    (SELECT json_group_array(json_object('mounted_on', m.mounted_on, 'removed_on', m.removed_on,
+                       'mounted_event_id', m.mounted_event_id, 'mounted_after_session_id', m.mounted_after_session_id,
+                       'removed_event_id', m.removed_event_id, 'removed_after_session_id', m.removed_after_session_id))
                      FROM part_mounts m WHERE m.part_id = p.id) AS mounts
              FROM parts p JOIN vehicles v ON v.id = p.vehicle_id
              WHERE v.user_id = ? AND p.kind IN ('tires', 'tires_front', 'tires_rear')`
           )
           .bind(userId),
         vehicleHoursEventsStmt(db, userId),
+        vehicleHoursSessionsStmt(db, userId),
         // Once a year per user is not a hot path, so this walks every speed
         // sample of the year's sessions in SQL rather than keeping a
         // trigger-maintained column for one card.
@@ -103,8 +106,11 @@ export async function wrappedInputs(
           ...p,
           mounts: JSON.parse(p.mounts) as TirePart["mounts"],
         })),
-        vehicleEvents: proRes[1].results as VehicleEvent[],
-        topSpeed: (proRes[2].results[0] as TopSpeedRow | undefined) ?? null,
+        vehicleEvents: withHoursSessions(
+          proRes[1].results as (VehicleEvent & { id: number })[],
+          proRes[2].results as VehicleHoursSession[]
+        ),
+        topSpeed: (proRes[3].results[0] as TopSpeedRow | undefined) ?? null,
       }
     : null;
   return { inputs, pro };

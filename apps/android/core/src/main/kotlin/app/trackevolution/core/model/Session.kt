@@ -21,8 +21,8 @@ public data class Lap(
 /** A run group session within an event, with its laps. */
 @Serializable
 public data class Session(
-    val id: Int,
-    val label: String? = null,
+    override val id: Int,
+    override val label: String? = null,
     val notes: String? = null,
     val sort: Int,
     /**
@@ -46,7 +46,10 @@ public data class Session(
     @SerialName("ambient_c") val ambientC: Double? = null,
     @SerialName("elevation_m") val elevationM: Double? = null,
     val laps: List<Lap>,
-)
+) : app.trackevolution.core.Garage.SwapSession {
+    /** `laps.length`, for the swap picker's row (migration 0030). Not serialized: no backing field. */
+    override val lapCount: Int get() = laps.size
+}
 
 /**
  * One `[x, y, v]` point of a stored trace: local meters east/north plus speed.

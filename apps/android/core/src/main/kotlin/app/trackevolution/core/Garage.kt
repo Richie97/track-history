@@ -512,6 +512,90 @@ public object Garage {
         return "No track days yet"
     }
 
+    // ---- swaps between sessions (migration 0030) ------------------------------
+    //
+    // A swap on one of a car's track days sits at a point in that event — after
+    // one of its sessions, or at its start — so a mid-day pad or tire change
+    // divides the day's hours between the two parts instead of crediting both
+    // with all of it. The server picks the point on its own (after the last
+    // session logged so far); these are the pure half of the pickers that
+    // correct it, pinned by contracts/logic/garage-swap.json.
+
+    /** What [swapSessionEvent] reads of an event: `{ id, vehicle_id, start_date, days }`. */
+    public interface SwapEvent : RemoteRecording.EventCandidate {
+        public val id: Int
+        public val vehicleId: Int?
+    }
+
+    /** What [swapSessionChoices] reads of a session: `{ id, label, laps.length }`. */
+    public interface SwapSession {
+        public val id: Int
+        public val label: String?
+        public val lapCount: Int
+    }
+
+    /**
+     * One picker row: the `after_session_id` it sends — null for the event's
+     * start — and its words.
+     */
+    public data class SwapSessionChoice(val id: Int?, val label: String)
+
+    /**
+     * `eventLastDay(event)`: the last day an event covers — its start plus its
+     * day count, less one, with a part day counting whole (`ceil`, at least 1;
+     * a zero count reads as one, as JavaScript's `days || 1` does). The rule
+     * the server's swap check uses.
+     */
+    public fun eventLastDay(event: RemoteRecording.EventCandidate): String {
+        val days = if (event.days == 0.0 || event.days.isNaN()) 1.0 else event.days
+        val span = maxOf(1.0, kotlin.math.ceil(days)).toLong()
+        return java.time.LocalDate.parse(event.startDate).plusDays(span - 1).toString()
+    }
+
+    /**
+     * `swapSessionEvent(vehicleId, date, events)`: the event on this car a swap
+     * on [date] could fall between sessions of — one whose days cover the date,
+     * matched by `vehicleId` as the server matches it (never the free-text car;
+     * a null never matches). Two covering events go to the one that started
+     * later, then the higher id. Null when none does, or the date is blank, and
+     * the picker offers nothing.
+     */
+    public fun <E : SwapEvent> swapSessionEvent(vehicleId: Int, date: String?, events: List<E>?): E? {
+        var best: E? = null
+        for (e in events.orEmpty()) {
+            if (e.vehicleId == null || e.vehicleId != vehicleId) continue
+            if (date.isNullOrEmpty() || e.startDate > date || eventLastDay(e) < date) continue
+            val b = best
+            if (b == null || e.startDate > b.startDate || (e.startDate == b.startDate && e.id > b.id)) best = e
+        }
+        return best
+    }
+
+    /**
+     * `swapSessionChoices(sessions)`: the picker's rows — the event's start,
+     * then after each session in the order they ran ("After Session 2 · 5
+     * laps"). A swap after a session means the part coming off ran it and
+     * everything before it, and the part going on ran everything after. A
+     * session with no label (or a blank one) is named by its place.
+     */
+    public fun swapSessionChoices(sessions: List<SwapSession>?): List<SwapSessionChoice> =
+        listOf(SwapSessionChoice(null, "Start of the day")) +
+            sessions.orEmpty().mapIndexed { i, s ->
+                val name = s.label?.trim()?.ifEmpty { null } ?: "Session ${i + 1}"
+                val n = s.lapCount
+                SwapSessionChoice(
+                    id = s.id,
+                    label = "After $name" + if (n > 0) " · $n lap${if (n == 1) "" else "s"}" else "",
+                )
+            }
+
+    /**
+     * `defaultSwapChoice(sessions)`: where the server puts a swap it isn't
+     * told the point of — after the last session logged so far, or the event's
+     * start (null) when none is.
+     */
+    public fun defaultSwapChoice(sessions: List<SwapSession>?): Int? = sessions?.lastOrNull()?.id
+
     /** A number the way JavaScript stringifies it: `4.5` → "4.5", `4.0` → "4". */
     private fun trimmed(value: Double): String =
         if (value == Math.rint(value) && kotlin.math.abs(value) < 1e15) {

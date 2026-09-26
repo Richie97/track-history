@@ -98,6 +98,7 @@ class GoldenContractTest {
             "vehicle-create" -> roundTrip(entry.name, Vehicle.serializer())
             "part-refresh" -> roundTrip(entry.name, PartRefresh.serializer())
             "part-equip" -> roundTrip(entry.name, PartEquip.serializer())
+            "part-mount-edit" -> roundTrip(entry.name, app.trackevolution.core.model.PartMountMove.serializer())
             "share-set" -> roundTrip(entry.name, ShareSlug.serializer())
             "event-create", "session-create", "part-create", "measurement-create" ->
                 roundTrip(entry.name, CreatedId.serializer())

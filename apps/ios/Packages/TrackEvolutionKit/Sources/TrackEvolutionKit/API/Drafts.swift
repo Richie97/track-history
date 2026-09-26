@@ -326,9 +326,16 @@ public struct PartDraft: Encodable, Hashable, Sendable {
     public var equipped: Bool?
     /// With `equipped`, also take off whatever shares its place, as equipping does.
     public var swap: Bool?
+    /// With `equipped`, where in a track day it went on (migration 0030): after this
+    /// session of the event covering the date. `.unchanged` (the default) sends
+    /// no key and the server picks the point itself — after the event's last
+    /// session logged so far; `.set(nil)` is the event's start; a session id
+    /// must belong to the event covering the date, or it is a 400.
+    public var afterSessionId: Patch<Int> = .unchanged
 
     public enum CodingKeys: String, CodingKey {
         case kind, name, size, notes, equipped, swap
+        case afterSessionId = "after_session_id"
         case installedOn = "installed_on"
         case costCents = "cost_cents"
         case expectedHours = "expected_hours"
@@ -339,6 +346,21 @@ public struct PartDraft: Encodable, Hashable, Sendable {
         self.kind = kind
         self.name = name
         self.installedOn = installedOn
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(size, forKey: .size)
+        try c.encode(installedOn, forKey: .installedOn)
+        try c.encodeIfPresent(costCents, forKey: .costCents)
+        try c.encodeIfPresent(expectedHours, forKey: .expectedHours)
+        try c.encodeIfPresent(wearLimit, forKey: .wearLimit)
+        try c.encodeIfPresent(notes, forKey: .notes)
+        try c.encodeIfPresent(equipped, forKey: .equipped)
+        try c.encodeIfPresent(swap, forKey: .swap)
+        try c.encode(afterSessionId, forKey: .afterSessionId)
     }
 }
 
@@ -395,9 +417,57 @@ public struct PartPatch: Encodable, Hashable, Sendable {
 /// today on the server when nil.
 public struct PartEquipDraft: Encodable, Hashable, Sendable {
     public var on: String?
+    /// Where in a track day the swap happened (migration 0030): after this
+    /// session of the event covering the date. `.unchanged` (the default) sends
+    /// no key and the server picks the point itself — after the event's last
+    /// session logged so far; `.set(nil)` is the event's start; a session id
+    /// must belong to the event covering the date, or it is a 400.
+    public var afterSessionId: Patch<Int>
 
-    public init(on: String? = nil) {
+    public enum CodingKeys: String, CodingKey {
+        case on
+        case afterSessionId = "after_session_id"
+    }
+
+    public init(on: String? = nil, afterSessionId: Patch<Int> = .unchanged) {
         self.on = on
+        self.afterSessionId = afterSessionId
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(on, forKey: .on)
+        try c.encode(afterSessionId, forKey: .afterSessionId)
+    }
+}
+
+/// `PUT /api/parts/:id/mount` (migration 0030) — when a part last went on the
+/// car, edited after the fact: its latest mount's start, and where in that day.
+/// Whatever came off the car at the old point moves with it, and a part fitted
+/// the day it was installed moves its install date too.
+public struct PartMountDraft: Encodable, Hashable, Sendable {
+    public var mountedOn: String?
+    /// Where in a track day the swap happened (migration 0030): after this
+    /// session of the event covering the date. `.unchanged` (the default) sends
+    /// no key and the server picks the point itself — after the event's last
+    /// session logged so far; `.set(nil)` is the event's start; a session id
+    /// must belong to the event covering the date, or it is a 400.
+    public var afterSessionId: Patch<Int>
+
+    public enum CodingKeys: String, CodingKey {
+        case mountedOn = "mounted_on"
+        case afterSessionId = "after_session_id"
+    }
+
+    public init(mountedOn: String? = nil, afterSessionId: Patch<Int> = .unchanged) {
+        self.mountedOn = mountedOn
+        self.afterSessionId = afterSessionId
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(mountedOn, forKey: .mountedOn)
+        try c.encode(afterSessionId, forKey: .afterSessionId)
     }
 }
 
@@ -415,22 +485,37 @@ public struct PartRefreshDraft: Encodable, Hashable, Sendable {
     public var costCents: Int?
     public var equipped: Bool?
     public var swap: Bool?
+    /// Where in the day the fresh set went on (migration 0030); see
+    /// `PartEquipDraft.afterSessionId`. `.unchanged` lets the server pick.
+    public var afterSessionId: Patch<Int>
 
     public enum CodingKeys: String, CodingKey {
         case name, equipped, swap
         case installedOn = "installed_on"
         case costCents = "cost_cents"
+        case afterSessionId = "after_session_id"
     }
 
     public init(
         installedOn: String? = nil, name: String? = nil, costCents: Int? = nil,
-        equipped: Bool? = nil, swap: Bool? = nil
+        equipped: Bool? = nil, swap: Bool? = nil, afterSessionId: Patch<Int> = .unchanged
     ) {
         self.installedOn = installedOn
         self.name = name
         self.costCents = costCents
         self.equipped = equipped
         self.swap = swap
+        self.afterSessionId = afterSessionId
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(installedOn, forKey: .installedOn)
+        try c.encodeIfPresent(name, forKey: .name)
+        try c.encodeIfPresent(costCents, forKey: .costCents)
+        try c.encodeIfPresent(equipped, forKey: .equipped)
+        try c.encodeIfPresent(swap, forKey: .swap)
+        try c.encode(afterSessionId, forKey: .afterSessionId)
     }
 }
 

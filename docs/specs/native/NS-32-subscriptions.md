@@ -60,7 +60,7 @@ turns lap times into analysis.
 | Channel graphs — the **speed, throttle and brake** traces, on the event page, the lap detail and the leaderboard lap | Free | — (revised 2026-09, [#264](https://github.com/Richie97/track-history/issues/264); see rule 4) |
 | The rest of the channel panel: steering, RPM, lateral G, yaw, the gear ribbon + shift points, limit marks (ABS / slip on the track map), the friction circle and balance, the Car tab; the lap delta chart, sector splits, the two-lap compare | **Pro** | Server: every channel beyond `FREE_CHANNELS` and every per-lap scalar stripped from `channels` (rule 4); client: `canViewChannels` for the delta, the sectors and the compare, which derive from the free speed trace |
 | Two-event lap overlay (web) | **Pro** | Client |
-| Garage **consumables**: parts, wear, measurements, refresh, ledger | **Pro** | Server: `requireEntitlement` on the parts/measurements routes and `GET /garage` |
+| Garage **consumables**: parts, wear, measurements, refresh, equip and when in a track day a swap happened, ledger | **Pro** | Server: `requireEntitlement` on the parts/measurements routes and `GET /garage` |
 | Setup notebook + setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes |
 | Session health strip (the Car tab, [#190](https://github.com/Richie97/track-history/issues/190)) and its tire-pressure loop (web) | **Pro** | Server: rides on `channels` (rule 4) and, for the loop, the setups routes; the vehicle's `target_hot_psi` itself is a free vehicle-list field |
 | Year in review (web) | **Pro** | Client |

@@ -320,6 +320,13 @@ public actor APIClient {
         try await send("POST", "/parts/\(id)/equip", body: draft, as: PartEquip.self)
     }
 
+    /// When the part last went on the car, edited after the fact (migration
+    /// 0030): moves its latest mount's start, and whatever came off the car at
+    /// the old point with it. Answers the ids that moved.
+    public func editPartMount(id: Int, _ draft: PartMountDraft) async throws -> PartMountEdit {
+        try await send("PUT", "/parts/\(id)/mount", body: draft, as: PartMountEdit.self)
+    }
+
     /// Takes a part off the car without retiring it — it goes to the shelf.
     public func unequipPart(id: Int, _ draft: PartEquipDraft = PartEquipDraft()) async throws {
         _ = try await send("POST", "/parts/\(id)/unequip", body: draft, as: OKResponse.self)

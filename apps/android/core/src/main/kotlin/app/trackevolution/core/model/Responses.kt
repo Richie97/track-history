@@ -46,6 +46,16 @@ public data class PartEquip(
     val unequipped: List<Int>,
 )
 
+/**
+ * `PUT /api/parts/:id/mount` — the ids of the parts that came off the car at
+ * the old point and moved with it (migration 0030).
+ */
+@Serializable
+public data class PartMountMove(
+    val ok: Boolean,
+    val moved: List<Int>,
+)
+
 /** The error body every failing endpoint returns. */
 @Serializable
 public data class ServerErrorBody(

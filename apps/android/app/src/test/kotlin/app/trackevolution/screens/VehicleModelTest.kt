@@ -1,6 +1,9 @@
 package app.trackevolution.screens
 
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.PartMountDraft
+import app.trackevolution.core.model.PartPatch
+import app.trackevolution.core.model.Patch
 import app.trackevolution.ui.LoadState
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -41,6 +44,10 @@ class VehicleModelTest {
                 path.endsWith("/garage") -> respond(garage, garageStatus, JSON)
                 path.endsWith("/vehicles") && request.method.value == "GET" -> respond(vehicles, HttpStatusCode.OK, JSON)
                 path.endsWith("/events") -> respond(EVENTS, HttpStatusCode.OK, JSON)
+                path.endsWith("/events/5") -> respond(EVENT_5, HttpStatusCode.OK, JSON)
+                path.endsWith("/refresh") -> respond("""{"retired_id":10,"id":14}""", HttpStatusCode.OK, JSON)
+                path.endsWith("/equip") -> respond("""{"ok":true,"unequipped":[]}""", HttpStatusCode.OK, JSON)
+                path.endsWith("/mount") -> respond("""{"ok":true,"moved":[]}""", HttpStatusCode.OK, JSON)
                 else -> respond("""{"ok":true}""", HttpStatusCode.OK, JSON)
             }
         }
@@ -79,14 +86,17 @@ class VehicleModelTest {
     }
 
     @Test
-    fun `the Equipped switch posts equip or unequip with its date`() {
+    fun `equipping sends nothing but the tap, and taking off sends its date`() {
+        // Migration 0030: equip is one tap — today, at the server's point.
         val model = loaded()
         sent.clear()
-        model.setEquipped(model.spareParts.single(), equipped = true, on = "2026-08-01")
-        assertEquals("2026-08-01", bodyOf(sentTo("/parts/13/equip"))["on"]!!.jsonPrimitive.content)
+        model.equip(model.spareParts.single())
+        assertTrue(bodyOf(sentTo("/parts/13/equip")).isEmpty())
 
-        model.setEquipped(model.activeParts.first(), equipped = false, on = "2026-08-02")
-        assertEquals("2026-08-02", bodyOf(sentTo("/parts/10/unequip"))["on"]!!.jsonPrimitive.content)
+        model.takeOff(model.activeParts.first(), on = "2026-08-02")
+        val off = bodyOf(sentTo("/parts/10/unequip"))
+        assertEquals("2026-08-02", off["on"]!!.jsonPrimitive.content)
+        assertTrue("after_session_id" !in off)
     }
 
     @Test
@@ -104,6 +114,50 @@ class VehicleModelTest {
         val shelf = bodyOf(sentTo("/parts/12/refresh"))
         assertEquals("false", shelf["equipped"]!!.jsonPrimitive.content)
         assertEquals("false", shelf["swap"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `the swap picker offers the covering event's sessions, and nothing on a day without one`() = runBlocking {
+        // Migration 0030: event 5 is car 1's two-day VIR weekend, so its second
+        // day is covered; the day after is not, and neither is a half-typed date.
+        val model = loaded()
+        assertEquals(
+            VehicleModel.SwapOptions(
+                listOf(
+                    app.trackevolution.core.Garage.SwapSessionChoice(null, "Start of the day"),
+                    app.trackevolution.core.Garage.SwapSessionChoice(51, "After Morning · 2 laps"),
+                    app.trackevolution.core.Garage.SwapSessionChoice(52, "After Session 2"),
+                ),
+                defaultId = 52,
+            ),
+            model.swapOptions("2026-04-12"),
+        )
+        assertEquals(null, model.swapOptions("2026-04-13"))
+        assertEquals(null, model.swapOptions("2026-04-1"))
+        // Event 7 covers the date but is the Miata's.
+        assertEquals(null, model.swapOptions("2026-06-01"))
+    }
+
+    @Test
+    fun `take-off names the point, refresh sends nothing, and an edit moves the mount`() {
+        val model = loaded()
+        sent.clear()
+        model.takeOff(model.activeParts.first(), on = "2026-04-12", afterSessionId = Patch.Set(null))
+        val off = bodyOf(sentTo("/parts/10/unequip"))
+        assertTrue(off["after_session_id"] is kotlinx.serialization.json.JsonNull)
+
+        sent.clear()
+        model.refreshPart(10)
+        assertTrue(bodyOf(sentTo("/parts/10/refresh")).isEmpty())
+
+        sent.clear()
+        model.editPart(11, PartPatch(name = Patch.Set("RE-71RS")), PartMountDraft("2026-04-12", Patch.Set(51)))
+        val mount = bodyOf(sentTo("/parts/11/mount"))
+        assertEquals("2026-04-12", mount["mounted_on"]!!.jsonPrimitive.content)
+        assertEquals("51", mount["after_session_id"]!!.jsonPrimitive.content)
+        // The part's own fields went first.
+        assertTrue(sent.indexOfFirst { it.method.value == "PUT" && it.url.encodedPath.endsWith("/parts/11") } <
+            sent.indexOfFirst { it.url.encodedPath.endsWith("/parts/11/mount") })
     }
 
     @Test
@@ -253,6 +307,18 @@ class VehicleModelTest {
               "vehicle_id":1,"updated_at":1,"lap_count":0,"session_count":0,"hours":2},
              {"id":7,"track_id":100,"track_name":"VIR","start_date":"2026-06-01","days":1,
               "vehicle_id":2,"updated_at":1,"lap_count":0,"session_count":0,"best_ms":139000,"hours":2}]
+        """
+
+        /** Event 5's detail: a labelled session with two laps, an unlabelled one with none. */
+        const val EVENT_5 = """
+            {"id":5,"track_id":100,"track_name":"VIR","start_date":"2026-04-11","days":2,
+             "vehicle_id":1,"updated_at":1,"lap_count":2,"session_count":2,"best_ms":125000,"hours":4,
+             "sessions":[
+               {"id":51,"label":"Morning","sort":0,"laps":[
+                 {"id":1,"session_id":51,"lap_num":1,"time_ms":126000},
+                 {"id":2,"session_id":51,"lap_num":2,"time_ms":125000}]},
+               {"id":52,"label":null,"sort":1,"laps":[]}],
+             "setups":[]}
         """
 
         /** Part 10 is due, 11 is healthy, 12 is retired, 13 is a nearly-done spare on the shelf. */

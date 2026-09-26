@@ -1230,7 +1230,9 @@ div.garage-alerts { display: flex; gap: 14px; align-items: flex-start; }
 .retired-refresh-row .equip-form { margin: 0; }
 .equip-form { margin-top: 12px; }
 .equip-form[hidden] { display: none; }
-.equip-form input { padding: 8px 12px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--surface-input); color: var(--text-strong); font: inherit; font-size: 14px; }
+select[name="session_id"][hidden] { display: none; } /* a field's select rule would beat the attribute */
+.field select[name="session_id"] { margin-top: 6px; }
+.equip-form input, .equip-form select, #part-add select[name="session_id"] { padding: 8px 12px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--surface-input); color: var(--text-strong); font: inherit; font-size: 14px; }
 .hint-inline { font-size: var(--fs-xs); color: var(--text-faint); }
 .tile .value .unit { font-size: 0.55em; color: var(--text-muted); margin-left: 3px; }
 

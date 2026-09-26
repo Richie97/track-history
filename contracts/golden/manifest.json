@@ -308,6 +308,15 @@
       "source": "src/routes/vehicles.ts"
     },
     {
+      "name": "part-mount-edit",
+      "file": "part-mount-edit.json",
+      "method": "PUT",
+      "path": "/parts/:id/mount",
+      "status": 200,
+      "description": "When a part went on the car, edited after the fact: moves its latest mount's start and whatever came off the car at the old point with it; `moved` lists those parts' ids (empty here: nothing came off).",
+      "source": "src/routes/vehicles.ts"
+    },
+    {
       "name": "part-unequip",
       "file": "part-unequip.json",
       "method": "POST",

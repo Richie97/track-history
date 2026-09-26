@@ -6,7 +6,7 @@
 // UTC) — the userTotals rule, and year in review's `eventYear`.
 
 import type { ComputedEvent } from "./stats";
-import { type HoursEvent, type Mount, eventHours, eventsInWindow } from "./wear";
+import { type HoursEvent, type Mount, eventShares, sharedHours } from "./wear";
 
 export const METRES_PER_MILE = 1609.344;
 
@@ -284,8 +284,9 @@ export type WrappedPro = {
 
 // The tire the season was driven on: for every tire part (a full set or a
 // front or rear pair), the year's events on its vehicle while it was on the
-// car — eventsInWindow, the rule the garage's wear already believes — summed
-// by days. Most days wins; ties go to
+// car — eventShares, the rule the garage's wear already believes — summed
+// by days (a day a set ran any session of counts whole; its hours are the
+// share it ran). Most days wins; ties go to
 // the most hours, then the part installed later (the fresher set). An event
 // counts toward a vehicle only through events.vehicle_id, so a day whose car
 // isn't in the garage counts toward no tire. The setup sheet's `tires_id` is
@@ -294,10 +295,10 @@ export function favouriteTire(parts: TirePart[], events: VehicleEvent[], year: n
   let best: WrappedPro["tire"] & { installed_on: string } | null = null;
   for (const p of parts) {
     const onCar = events.filter((e) => e.vehicle_id === p.vehicle_id && yearOf(e) === year);
-    const driven = eventsInWindow(p, onCar, today);
-    if (!driven.length) continue;
-    const days = driven.reduce((sum, e) => sum + (e.days ?? 0), 0);
-    const hours = round1(driven.reduce((sum, e) => sum + eventHours(e), 0));
+    const shares = eventShares(p, onCar, today);
+    if (!shares.length) continue;
+    const days = shares.reduce((sum, { event }) => sum + (event.days ?? 0), 0);
+    const hours = round1(sharedHours(shares));
     const beats =
       best == null ||
       days > best.track_days ||

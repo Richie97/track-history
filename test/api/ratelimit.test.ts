@@ -7,15 +7,30 @@ import { mcpClient, mcpTokenFor, signedInProUser } from "./helpers";
 // wrangler.jsonc: a limit is per key, so each test uses its own connection,
 // client or IP and can't be disturbed by another's traffic.
 
+// The bindings count in fixed windows aligned to the period, so a run that
+// straddles a window edge sees the count restart partway — on a slow CI runner
+// the 61st call then lands in a fresh window and is allowed. So call until the
+// first refusal: it must come after at least `limit` successes and within two
+// windows' worth, which a limit that never fires, or fires early, still fails.
+async function untilLimited<R extends { status: number }>(call: () => Promise<R>, okStatus: number, limit: number): Promise<R> {
+  for (let allowed = 0; allowed <= 2 * limit; allowed++) {
+    const res = await call();
+    if (res.status === 429) {
+      expect(allowed).toBeGreaterThanOrEqual(limit);
+      return res;
+    }
+    expect(res.status).toBe(okStatus);
+  }
+  throw new Error(`still allowed after ${2 * limit + 1} calls`);
+}
+
 describe("rate limits", () => {
   it("limits tool calls per connection, not per user", async () => {
     const user = await signedInProUser();
     const busy = await mcpTokenFor(user.id);
     const other = await mcpTokenFor(user.id);
     const mcp = mcpClient(busy.token);
-    for (let i = 0; i < 60; i++) expect((await mcp("ping")).status).toBe(200);
-    const limited = await mcp("ping");
-    expect(limited.status).toBe(429);
+    const limited = await untilLimited(() => mcp("ping"), 200, 60);
     expect(limited.headers.get("Retry-After")).toBe("60");
     expect((await mcpClient(other.token)("ping")).status).toBe(200);
   });
@@ -28,9 +43,7 @@ describe("rate limits", () => {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: "nope", client_id: clientId }),
       });
-    for (let i = 0; i < 10; i++) expect((await post()).status).toBe(400);
-    const limited = await post();
-    expect(limited.status).toBe(429);
+    const limited = await untilLimited(post, 400, 10);
     expect(((await limited.json()) as any).error).toBe("rate_limited");
   });
 
@@ -42,8 +55,7 @@ describe("rate limits", () => {
         headers: { "Content-Type": "application/json", "CF-Connecting-IP": ip },
         body: JSON.stringify({ redirect_uris: ["https://assistant.example/callback"] }),
       });
-    for (let i = 0; i < 60; i++) expect((await register()).status).toBe(201);
-    expect((await register()).status).toBe(429);
+    await untilLimited(register, 201, 60);
   });
 
   it("never limits without a binding or a key", async () => {
