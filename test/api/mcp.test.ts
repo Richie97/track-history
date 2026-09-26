@@ -1,5 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { Validator } from "@cfworker/json-schema";
 import { LATEST_PROTOCOL_VERSION, PRO_REQUIRED_MESSAGE } from "../../src/ai/mcp";
 import { TOOLS } from "../../src/ai/tools";
 import { apiClient, createEvent, mcpClient, mcpTokenFor, sessionFor, signedInProUser, signedInUser } from "./helpers";
@@ -97,6 +98,8 @@ describe("the protocol", () => {
     for (const t of res.body.result.tools) {
       expect(t.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
       expect(t.inputSchema.type).toBe("object");
+      expect(t.outputSchema).toEqual(TOOLS.find((tool) => tool.name === t.name)!.outputSchema);
+      expect(t.outputSchema.type).toBe("object");
     }
   });
 
@@ -106,9 +109,15 @@ describe("the protocol", () => {
     expect(res.body.result.isError).toBe(false);
     expect(res.body.result.structuredContent.units).toBe("imperial");
     expect(JSON.parse(res.body.result.content[0].text)).toEqual(res.body.result.structuredContent);
+    const listed = await mcp("tools/list");
+    const schema = listed.body.result.tools.find((t: any) => t.name === "get_profile").outputSchema;
+    expect(new Validator(schema, "2020-12").validate(res.body.result.structuredContent).valid).toBe(true);
+    expect(new Validator(schema, "2020-12").validate({ ...res.body.result.structuredContent, units: 123 }).valid).toBe(false);
     const old = await mcpClient(token, "2025-03-26")("tools/call", { name: "get_profile", arguments: {} });
     expect(old.body.result.structuredContent).toBeUndefined();
     expect(old.body.result.content[0].type).toBe("text");
+    const oldList = await mcpClient(token, "2025-03-26")("tools/list");
+    for (const tool of oldList.body.result.tools) expect(tool).not.toHaveProperty("outputSchema");
   });
 
   it("returns a tool's own failure as an isError result the model can read", async () => {
