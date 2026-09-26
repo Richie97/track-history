@@ -32,7 +32,9 @@ import {
   lapStats,
   lapTelemetry,
   lapsByChannelIndex,
+  racingLine,
   sessionInsights,
+  tracedLap,
 } from "./insights";
 
 export type ToolUser = { userId: number; entitledUntil: number | null };
@@ -420,6 +422,37 @@ export const TOOLS: Tool[] = [
         time_ms: side.lap.time_ms,
         time: time(side.lap.time_ms),
         ...lapTelemetry(side.entry, side.dStepM, channels, args.step_m ?? 40),
+      };
+    },
+  },
+  {
+    name: "get_racing_line",
+    outputSchema: OUTPUT_SCHEMAS.get_racing_line,
+    title: "Racing line",
+    description:
+      "The GPS racing line of a session's fastest lap — the path the app draws as the track map: x/y metres from the start/finish line (x east, y north), each point's distance along the lap, and the speed there (km/h) when the lap has telemetry. One line is stored per session, the fastest lap's; `lap` says which. With telemetry, distance_m is on the same axis as get_lap_telemetry and the corners' start_m/end_m from get_session_insights, so those locate a corner on the line. GPS-grade (a few metres), about 300 points: good for where a corner is and its shape, not for lateral line placement.",
+    inputSchema: {
+      type: "object",
+      properties: { session_id: id("The session (from get_event).") },
+      required: ["session_id"],
+      additionalProperties: false,
+    },
+    async handler(ctx, args) {
+      const { event, session } = await eventForSession(ctx, args.session_id);
+      const where = { session_id: session.id, event_id: event.id, track_id: event.track_id, track_name: event.track_name, start_date: event.start_date };
+      const traced = tracedLap(session);
+      if (!Array.isArray(session.trace) || session.trace.length < 2 || !traced)
+        return {
+          ...where,
+          available: false,
+          note: "This session has no racing line — its laps were typed in, or it was imported from a source without GPS.",
+        };
+      const { lap, entry } = traced;
+      return {
+        ...where,
+        available: true,
+        lap: { lap_id: lap.id, lap_num: lap.lap_num, time_ms: lap.time_ms, time: time(lap.time_ms), has_telemetry: entry != null },
+        ...racingLine(session.trace, entry, session.channels?.dStepM ?? null),
       };
     },
   },

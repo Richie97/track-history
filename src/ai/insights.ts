@@ -40,6 +40,9 @@ export type DetailSession = {
   ambient_c: number | null;
   elevation_m: number | null;
   channels: LapChannels | null;
+  // The session's racing line (sessions.trace): [x, y, v] local metres, the
+  // fastest lap only. See racingLine.
+  trace?: number[][] | null;
   laps: Lap[];
 };
 
@@ -331,5 +334,61 @@ export function lapTelemetry(entry: LapChannelEntry, dStepM: number, wanted: str
     distance_m: idx.map((k) => k * dStepM),
     channels: out,
     missing: names.filter((n) => !(n in series)),
+  };
+}
+
+// The lap a session's stored racing line was drawn from. Importers and the
+// recorder keep one line per session, the fastest lap's, so this is the
+// fastest lap — among the laps carrying telemetry when there are any, which
+// is the lap the event page's track map says it is (app.js, traceBestChIdx).
+export function tracedLap(session: DetailSession): { lap: Lap; entry: LapChannelEntry | null } | null {
+  let best: { lap: Lap; entry: LapChannelEntry | null } | null = null;
+  const matched = lapsByChannelIndex(session.laps, session.channels);
+  for (const [chIdx, lap] of matched) {
+    if (!best || lap.time_ms < best.lap.time_ms) best = { lap, entry: session.channels!.laps[chIdx] };
+  }
+  if (best) return best;
+  for (const lap of session.laps) if (!best || lap.time_ms < best.lap.time_ms) best = { lap, entry: null };
+  return best;
+}
+
+// The stored racing line re-expressed for a model. The origin moves to the
+// line's first point — the start/finish line, since the line is cut at the
+// lap's crossings — with x east and y north in metres. Each point gets its
+// distance along the lap: with telemetry, the chord-length fraction scaled to
+// the lap's gridded distance (the walk limitMarkers and traceIndexAtFraction
+// do), so it shares get_lap_telemetry's and the corners' axis; without, the
+// GPS path length. Speed is read from the lap's own speed channel at that
+// distance rather than from the trace's third value, whose unit depends on
+// the source (the map only ever paints it relatively).
+export function racingLine(trace: number[][], entry: LapChannelEntry | null, dStepM: number | null) {
+  const x0 = trace[0][0], y0 = trace[0][1];
+  const cum = [0];
+  for (let i = 1; i < trace.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(trace[i][0] - trace[i - 1][0], trace[i][1] - trace[i - 1][1]));
+  }
+  const pathM = cum[cum.length - 1];
+  const speed = entry && Array.isArray(entry.speed) && entry.speed.length > 1 && dStepM ? entry.speed : null;
+  const lapM = speed ? (speed.length - 1) * dStepM! : pathM;
+  const distance = cum.map((c) => (pathM > 0 ? (c / pathM) * lapM : 0));
+  const speedAt = (d: number) => {
+    if (!speed) return null;
+    const f = d / dStepM!;
+    const i = Math.min(speed.length - 2, Math.floor(f));
+    return speed[i] + (speed[i + 1] - speed[i]) * (f - i);
+  };
+  const xs = trace.map((p) => p[0] - x0);
+  const ys = trace.map((p) => p[1] - y0);
+  return {
+    distance_basis: speed ? ("telemetry" as const) : ("gps" as const),
+    length_m: round(lapM),
+    extent_m: {
+      x_min: round(Math.min(...xs), 1), x_max: round(Math.max(...xs), 1),
+      y_min: round(Math.min(...ys), 1), y_max: round(Math.max(...ys), 1),
+    },
+    distance_m: distance.map((d) => round(d)),
+    x_m: xs.map((v) => round(v, 1)),
+    y_m: ys.map((v) => round(v, 1)),
+    speed_kph: distance.map((d) => round(speedAt(d), 1)),
   };
 }

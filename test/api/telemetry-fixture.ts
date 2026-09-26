@@ -101,3 +101,16 @@ export function telemetrySession(times: number[], label = "Session 1") {
     },
   };
 }
+
+// A racing line for a session body's `trace` (sanitizeTrace's [x, y, v]):
+// `points` fixes round a circle of the given driven length, starting away from
+// the projection origin — as a real line does, since its origin is the
+// recording's first fix — so the tools' re-origin to the start/finish line
+// shows up.
+export function circleTrace(lengthM = 2980, points = 300) {
+  const r = lengthM / (2 * Math.PI);
+  return Array.from({ length: points }, (_, i) => {
+    const a = (2 * Math.PI * i) / (points - 1);
+    return [Math.round((250 + r * Math.sin(a)) * 10) / 10, Math.round((-80 + r - r * Math.cos(a)) * 10) / 10, 40];
+  });
+}

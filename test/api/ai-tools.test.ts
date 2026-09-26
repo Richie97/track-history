@@ -4,7 +4,7 @@ import { Validator } from "@cfworker/json-schema";
 import { TOOLS, ToolError, runTool, validateArgs } from "../../src/ai/tools";
 import { MAX_RESULT_CHARS } from "../../src/ai/mcp";
 import { createEvent, signedInProUser, signedInUser } from "./helpers";
-import { telemetrySession } from "./telemetry-fixture";
+import { circleTrace, telemetrySession } from "./telemetry-fixture";
 
 // The AI tool layer (#315), called directly — the MCP transport around it is
 // test/api/mcp.test.ts. These tools read through a private copy of the /api
@@ -206,6 +206,44 @@ describe("tools", () => {
     await expect(run(user, "get_lap_telemetry", { lap_id: lapId, channels: ["oilC"] })).rejects.toThrow(/allowed/);
   });
 
+  it("get_racing_line gives the fastest telemetry lap's line from the start/finish line, on the telemetry axis", async () => {
+    const { user, eventId } = await logbook();
+    const s = await user.api("POST", `/events/${eventId}/sessions`, { ...telemetrySession([105000, 103000, 104200], "Traced"), trace: circleTrace() });
+    expect(s.status).toBe(201);
+    const r = await run(user, "get_racing_line", { session_id: s.body.id });
+    expect(r.available).toBe(true);
+    expect(r.lap).toMatchObject({ lap_num: 2, time_ms: 103000, has_telemetry: true });
+    expect(r.distance_basis).toBe("telemetry");
+    expect(r.length_m).toBe(149 * 20);
+    expect(r.x_m).toHaveLength(300);
+    expect([r.x_m[0], r.y_m[0], r.distance_m[0]]).toEqual([0, 0, 0]);
+    expect(r.distance_m.at(-1)).toBe(2980);
+    // Halfway round the circle is the far side of it, halfway down the lap.
+    expect(r.distance_m[150]).toBeCloseTo(1495, -1);
+    expect(r.y_m[150]).toBeCloseTo(2980 / Math.PI, -1);
+    // Speed comes from the lap's own channel: the synthetic lap starts on a
+    // 190 km/h straight, and slows into its first corner at 30 × 20 m.
+    expect(r.speed_kph[0]).toBe(190);
+    const inCorner = r.distance_m.findIndex((d: number) => d > 36 * 20);
+    expect(r.speed_kph[inCorner]).toBeLessThan(120);
+  });
+
+  it("get_racing_line falls back to the GPS path without telemetry, and says when there is no line", async () => {
+    const { user, eventId, detail } = await logbook();
+    const s = await user.api("POST", `/events/${eventId}/sessions`, { label: "Recorded", laps: [101000, 100500], trace: circleTrace(3000) });
+    expect(s.status).toBe(201);
+    const r = await run(user, "get_racing_line", { session_id: s.body.id });
+    expect(r.lap).toMatchObject({ time_ms: 100500, has_telemetry: false });
+    expect(r.distance_basis).toBe("gps");
+    expect(r.length_m).toBeCloseTo(3000, -1);
+    expect(r.speed_kph.every((v: unknown) => v === null)).toBe(true);
+
+    const typed = await run(user, "get_racing_line", { session_id: detail.sessions[1].id });
+    expect(typed.available).toBe(false);
+    expect(typed.note).toMatch(/no racing line/);
+    expect(typed).not.toHaveProperty("x_m");
+  });
+
   it("get_track_history lists visits oldest first and the fastest laps with telemetry flags", async () => {
     const { user, detail } = await logbook();
     const trackId = detail.track_id;
@@ -281,6 +319,7 @@ describe("ownership", () => {
       ["get_session_insights", { session_id: sessionId }],
       ["compare_laps", { lap_a_id: lapId, lap_b_id: lapId }],
       ["get_lap_telemetry", { lap_id: lapId }],
+      ["get_racing_line", { session_id: sessionId }],
       ["get_track_history", { track_id: detail.track_id }],
       ["get_setup_vs_lap_times", { track_id: detail.track_id }],
       ["get_leaderboard", { track_id: detail.track_id }],

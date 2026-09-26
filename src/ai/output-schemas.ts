@@ -175,6 +175,24 @@ export const OUTPUT_SCHEMAS = {
     step_m: described(number, "Actual sample spacing in metres, rounded to a stored-grid multiple; may widen to bound the result."),
     step_note: string, distance_m: array(number), channels, missing: array(string),
   }, ["step_note"]),
+  get_racing_line: {
+    ...object({
+      session_id: integer, event_id: integer, ...trackIdentity, start_date: date,
+      available: boolean, note: string,
+      lap: object({ lap_id: integer, lap_num: integer, time_ms: ms, time: formattedTime, has_telemetry: boolean }),
+      distance_basis: described({ enum: ["telemetry", "gps"] }, "telemetry: distance_m shares get_lap_telemetry's axis; gps: the GPS path length."),
+      length_m: numberOrNull,
+      extent_m: object({ x_min: numberOrNull, x_max: numberOrNull, y_min: numberOrNull, y_max: numberOrNull }),
+      distance_m: array(numberOrNull),
+      x_m: described(array(numberOrNull), "Metres east of the start/finish line."),
+      y_m: described(array(numberOrNull), "Metres north of the start/finish line."),
+      speed_kph: described(array(numberOrNull), "Speed at each point from the lap's telemetry; null without telemetry."),
+    }, ["note", "lap", "distance_basis", "length_m", "extent_m", "distance_m", "x_m", "y_m", "speed_kph"]),
+    anyOf: [
+      { properties: { available: { const: false } }, required: ["note"] },
+      { properties: { available: { const: true } }, required: ["lap", "distance_basis", "length_m", "extent_m", "distance_m", "x_m", "y_m", "speed_kph"] },
+    ],
+  },
   get_track_history: object({
     track: object({ track_id: integer, name: string, best_ms: msOrNull, best: formattedTime, goal_ms: msOrNull, notes: textOrNull }),
     visits: array(eventRow),

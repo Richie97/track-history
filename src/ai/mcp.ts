@@ -27,7 +27,7 @@ Conventions:
 - An event's best is the lower of its fastest logged lap and a best the driver typed in.
 - A track's name includes its layout; different layouts are different tracks and are never compared.
 - Values are in stored units, named in each key: speed km/h, temperatures °C (except an event's typed temp_f), pressures kPa (setup sheets: psi), distances metres. Call get_profile first and present numbers in the driver's preferred unit system.
-- Telemetry is sampled on a driven-distance grid (usually 20 m) from the start/finish line. Laps with has_telemetry can be analysed with get_session_insights, compare_laps and get_lap_telemetry; typed-in laps cannot.
+- Telemetry is sampled on a driven-distance grid (usually 20 m) from the start/finish line. Laps with has_telemetry can be analysed with get_session_insights, compare_laps and get_lap_telemetry; typed-in laps cannot. get_racing_line gives the GPS line of a session's fastest lap only, on the same distance axis.
 - Corner numbers (T1, T2…) are the app's own, counted from the start/finish line by sustained lateral load — not the circuit's official turn numbers. Say so if you use them.
 - Understeer/oversteer readings are relative to the session's own typical steering response, so a car that understeers everywhere reads neutral everywhere.
 
