@@ -70,6 +70,7 @@ export function withComputed(e: EventRow): ComputedEvent {
     days: e.days,
     track_hours: e.track_hours,
     lap_ms_sum: e.lap_avg != null ? e.lap_avg * e.lap_count : null,
+    lap_count: e.lap_count,
   });
   const { lap_avg, lap_avg_sq, ...rest } = e;
   return {

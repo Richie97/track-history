@@ -44,10 +44,10 @@ describe("event ↔ vehicle link", () => {
 });
 
 describe("event track_hours and computed hours", () => {
-  it("defaults hours to 2h per day and accepts an override", async () => {
+  it("defaults hours to 1h15m per day and accepts an override", async () => {
     const { api } = await signedInProUser();
     const id = await createEvent(api, { start_date: PAST, days: 2 });
-    expect((await api("GET", `/events/${id}`)).body.hours).toBe(4);
+    expect((await api("GET", `/events/${id}`)).body.hours).toBe(2.5);
     await api("PUT", `/events/${id}`, { track_hours: 5.5 });
     expect((await api("GET", `/events/${id}`)).body.hours).toBe(5.5);
   });
@@ -148,10 +148,10 @@ describe("wear accrual & measurements", () => {
       expected_hours: 10,
     });
     const part = (await api("GET", "/garage")).body[0].parts[0];
-    expect(part.wear.hours).toBe(7); // 4 + 3
+    expect(part.wear.hours).toBe(5.5); // 2 days × 1.25 + 3
     expect(part.wear.events).toBe(2);
     expect(part.wear.source).toBe("expected");
-    expect(part.wear.remaining_hours).toBe(3);
+    expect(part.wear.remaining_hours).toBe(4.5);
   });
 
   it("switches to a measured projection with two measurements", async () => {
@@ -171,8 +171,8 @@ describe("wear accrual & measurements", () => {
     await api("POST", `/parts/${partId}/measurements`, { measured_on: "2026-04-20", value: 12, unit: "mm" });
     const part = (await api("GET", "/garage")).body[0].parts[0];
     expect(part.wear.source).toBe("measured");
-    expect(part.wear.wear_per_hour).toBeCloseTo(1); // 4mm over 4h
-    expect(part.wear.remaining_hours).toBeCloseTo(9); // (12-3)/1
+    expect(part.wear.wear_per_hour).toBeCloseTo(1.6); // 4mm over 2.5h
+    expect(part.wear.remaining_hours).toBe(5.6); // (12-3)/1.6, to 1dp
     expect(part.measurements).toHaveLength(2);
   });
 
@@ -184,7 +184,7 @@ describe("wear accrual & measurements", () => {
       kind: "pads_front",
       name: "DTC-60",
       installed_on: "2026-01-01",
-      retired_on: "2026-06-01", // lived through both events → 8h
+      retired_on: "2026-06-01", // lived through both events → 5h
     });
     await api("POST", `/vehicles/${vehicleId}/parts`, {
       kind: "pads_front",
@@ -193,7 +193,7 @@ describe("wear accrual & measurements", () => {
     });
     const parts = (await api("GET", "/garage")).body[0].parts;
     const fresh = parts.find((p: any) => p.name === "DTC-70");
-    expect(fresh.expected_hours).toBe(8);
+    expect(fresh.expected_hours).toBe(5);
   });
 
   it("validates and deletes measurements", async () => {
@@ -222,7 +222,7 @@ describe("part refresh", () => {
 
   it("retires the old part and installs a same-spec successor with hours reset", async () => {
     const { api, vehicleId } = await garageUser();
-    await createEvent(api, { start_date: "2026-02-14", days: 2, car: "Corvette Z06" }); // 4h
+    await createEvent(api, { start_date: "2026-02-14", days: 2, car: "Corvette Z06" }); // 2.5h
     await addPads(api, vehicleId);
     const oldId = (await api("GET", "/garage")).body[0].parts[0].id;
 
@@ -246,8 +246,8 @@ describe("part refresh", () => {
     });
     expect(fresh.wear.hours).toBe(0);
     expect(fresh.measurements).toHaveLength(0);
-    // Expected life self-calibrates from the just-retired lifecycle (4h).
-    expect(fresh.expected_hours).toBe(4);
+    // Expected life self-calibrates from the just-retired lifecycle (2.5h).
+    expect(fresh.expected_hours).toBe(2.5);
   });
 
   it("defaults the swap date to today and accepts a new cost", async () => {

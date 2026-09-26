@@ -1141,9 +1141,11 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
 
 - **Track hours** — every event computes on-track `hours`: an explicit
   per-event override (`events.track_hours`, "On-track hours" on the edit
-  form), else `max(days × 2h, total logged lap time)`. The 2h/day default is
-  `DEFAULT_HOURS_PER_DAY` in `src/lib/wear.ts`; lap time only ever pushes the
-  estimate *up*, because best-lap-only history badly underestimates seat time.
+  form), else — when the event has at least `MIN_TIMED_LAPS` (3) logged laps —
+  the total of its lap times, else `days × 1.25h` (`DEFAULT_HOURS_PER_DAY`, mirrored as `HOURS_PER_DAY` in `public/js/garage.js` and both ports, where it is also the "track day" the remaining-life wording counts in), all in
+  `eventHours` in `src/lib/wear.ts`. Logged sessions replace the estimate in
+  both directions; the 3-lap floor keeps a best-lap-only history (one or two
+  laps a day) from collapsing a day's seat time to a few minutes.
 - **Consumables** (`parts` + `part_measurements` tables) — part *instances*
   (pads, tires, rotors, brake fluid, oil…) with install/retire dates, cost,
   optional expected life and a replace-at value. **Usage is computed, never

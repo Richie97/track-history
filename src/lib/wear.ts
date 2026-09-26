@@ -5,24 +5,29 @@
 // install and retire dates, so wear tracking costs nothing beyond the events
 // the user already logs.
 
-export const DEFAULT_HOURS_PER_DAY = 2;
+export const DEFAULT_HOURS_PER_DAY = 1.25;
+
+// Laps an event needs before its logged lap time stands in for the day-count
+// estimate — the same 3+ bar consistency uses. Below it the logging is taken to
+// be sparse (a best-lap-only history) and says nothing about seat time.
+export const MIN_TIMED_LAPS = 3;
 
 export type HoursEvent = {
   start_date: string; // ISO yyyy-mm-dd
   days: number;
   track_hours: number | null; // per-event override
   lap_ms_sum: number | null; // total logged lap time, ms
+  lap_count: number | null; // logged laps across the event's sessions
 };
 
-// On-track hours for one event. The explicit override wins; otherwise the
-// larger of the day-count estimate (days × 2h) and the logged lap time.
-// Sparse logging (best-lap-only history) badly underestimates seat time, so
-// laps only ever push the estimate up, never down.
+// On-track hours for one event. The explicit override wins; otherwise an event
+// with at least MIN_TIMED_LAPS logged laps is the sum of its lap times — the
+// sessions are the record of the day, so they replace the estimate in both
+// directions — and anything sparser falls back to days × 1h15m (DEFAULT_HOURS_PER_DAY).
 export function eventHours(e: HoursEvent): number {
   if (e.track_hours != null && e.track_hours > 0) return e.track_hours;
-  const estimate = (e.days || 0) * DEFAULT_HOURS_PER_DAY;
-  const logged = (e.lap_ms_sum ?? 0) / 3_600_000;
-  return Math.max(estimate, logged);
+  if ((e.lap_count ?? 0) >= MIN_TIMED_LAPS) return (e.lap_ms_sum ?? 0) / 3_600_000;
+  return (e.days || 0) * DEFAULT_HOURS_PER_DAY;
 }
 
 // A stretch a part was actually on the car (migration 0029). Both ends are

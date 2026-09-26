@@ -345,6 +345,7 @@ describe("favorite tire (Pro)", () => {
     days: 1,
     track_hours: null,
     lap_ms_sum: null,
+    lap_count: null,
     ...o,
   });
 
@@ -363,7 +364,7 @@ describe("favorite tire (Pro)", () => {
       2026,
       TODAY
     );
-    expect(tire).toEqual({ part_id: 2, vehicle_id: 1, vehicle_name: "Corvette", name: "Continental ExtremeContact Force", track_days: 3, hours: 6 });
+    expect(tire).toEqual({ part_id: 2, vehicle_id: 1, vehicle_name: "Corvette", name: "Continental ExtremeContact Force", track_days: 3, hours: 3.8 }); // 3 × 1.25h, rounded
   });
 
   it("counts only the year's events, only on the tire's own car, and none still to come", () => {

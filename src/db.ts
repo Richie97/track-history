@@ -224,6 +224,7 @@ export type VehicleHoursEvent = EventCosts & {
   days: number;
   track_hours: number | null;
   lap_ms_sum: number | null;
+  lap_count: number | null;
 };
 
 // Past vehicle-linked events with the raw inputs for eventHours — the ledger
@@ -234,7 +235,8 @@ export function vehicleHoursEventsStmt(db: D1Database, userId: number) {
     .prepare(
       `SELECT e.id, e.vehicle_id, e.start_date, e.days, e.track_hours,
          e.cost_entry_cents, e.cost_fuel_cents, e.cost_travel_cents, e.cost_misc_cents,
-         (SELECT SUM(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_ms_sum
+         (SELECT SUM(l.time_ms) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_ms_sum,
+         (SELECT COUNT(*) FROM laps l JOIN sessions s ON l.session_id = s.id WHERE s.event_id = e.id) AS lap_count
        FROM events e
        WHERE e.user_id = ? AND e.vehicle_id IS NOT NULL AND e.start_date <= date('now')
        ORDER BY e.start_date ASC`

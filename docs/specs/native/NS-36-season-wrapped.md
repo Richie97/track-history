@@ -89,8 +89,8 @@ it.
 
 Counted laps are *logged* laps. A best-lap-only history undercounts, and the
 card does not correct for it — the numbers card is the driver's logbook, not
-an estimate of their life. (`eventHours` already makes the opposite call for
-hours, and says so; the two are different questions.)
+an estimate of their life. (`eventHours` only trusts logged laps once an
+event has three or more, and says so; the two are different questions.)
 
 ### Favorite tire
 

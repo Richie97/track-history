@@ -2456,8 +2456,8 @@ async function viewEventForm(eventId, presetTrack) {
           <input name="days" type="number" min="0.5" step="0.5" value="${existing?.days ?? 2}">
         </div>
         <div class="field"><label>On-track hours (optional)</label>
-          <input name="track_hours" type="number" min="0.5" max="200" step="0.5" value="${existing?.track_hours ?? ""}" placeholder="est. 2h per day">
-          <div class="hint">Seat time for consumable wear tracking — leave blank for the 2h-per-day estimate</div>
+          <input name="track_hours" type="number" min="0.5" max="200" step="0.5" value="${existing?.track_hours ?? ""}" placeholder="from laps, or 1h15m/day">
+          <div class="hint">Seat time for consumable wear tracking — leave blank to use your logged laps (with 3 or more), else 1h15m per day</div>
         </div>
         <div class="field"><label>Club / organizer</label>
           <input name="club" value="${esc(existing?.club ?? "")}" placeholder="VIR Club">
@@ -3313,7 +3313,7 @@ async function viewVehicle(vehicleId) {
     ${logbookLineHtml()}
     ${bestsHtml()}
     <h2>On the car</h2>
-    <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (2h per track day unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
+    <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (the logged lap time on days with 3+ laps, else 1h15m per track day, unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
     ${active.map(partCard).join("") || `<div class="empty">Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.</div>`}
     ${
       shelf.length

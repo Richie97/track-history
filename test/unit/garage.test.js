@@ -152,14 +152,16 @@ describe("partStatus / fmtRemaining", () => {
     expect(partStatus(wear(null))).toBeNull();
     expect(partStatus(wear(0))).toBe("due");
     expect(partStatus(wear(2, 1))).toBe("due"); // past 100% used
-    expect(partStatus(wear(3))).toBe("low"); // ≤ 2 track days
+    expect(partStatus(wear(2))).toBe("low"); // ≤ 2 track days (2.5 h)
+    expect(partStatus(wear(3))).toBe("ok");
     expect(partStatus(wear(10))).toBe("ok");
   });
 
   it("phrases remaining life in hours and track days", () => {
     expect(fmtRemaining(wear(0))).toBe("replace now");
-    expect(fmtRemaining(wear(2.7))).toBe("~2.7 h left (≈1.5 track days)");
-    expect(fmtRemaining(wear(8))).toBe("~8 h left (≈4 track days)");
+    expect(fmtRemaining(wear(1.9))).toBe("~1.9 h left (≈1.5 track days)");
+    expect(fmtRemaining(wear(2.7))).toBe("~2.7 h left (≈2 track days)");
+    expect(fmtRemaining(wear(8))).toBe("~8 h left (≈6 track days)");
     expect(fmtRemaining(wear(null))).toBeNull();
   });
 });

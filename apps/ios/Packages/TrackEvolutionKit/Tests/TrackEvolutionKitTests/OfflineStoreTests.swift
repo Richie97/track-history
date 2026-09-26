@@ -122,7 +122,7 @@ struct OfflineStoreTests {
         let detail = try await decode(EventDetail.self, store.cachedGet("/events/\(tempId)"))
         #expect(detail.event.days == 2)
         #expect(detail.sessions.isEmpty)
-        #expect(detail.event.hours == 4, "2 days × 2h with no laps")
+        #expect(detail.event.hours == 2.5, "2 days × 1.25h with no laps")
     }
 
     @Test func addsASessionWithLapsAndRecomputesAggregatesEverywhere() async throws {
@@ -163,7 +163,7 @@ struct OfflineStoreTests {
         var detail = try await decode(EventDetail.self, store.cachedGet("/events/7"))
         #expect(detail.event.club == "Chin Track Days")
         #expect(detail.event.days == 2)
-        #expect(detail.event.hours == 4, "hours follows the day count")
+        #expect(detail.event.hours == 2.5, "hours follows the day count")
         var list = try await decode([Event].self, store.cachedGet("/events"))
         #expect(list[0].club == "Chin Track Days")
 

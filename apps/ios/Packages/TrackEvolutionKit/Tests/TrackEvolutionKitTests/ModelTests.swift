@@ -41,9 +41,9 @@ struct ModelTests {
             #expect(event.hours > 0)
             if let override = event.trackHours {
                 #expect(event.hours == override)
-            } else {
-                // Else max(days × 2h, logged lap time) — at least the 2h/day floor.
-                #expect(event.hours >= event.days * 2)
+            } else if event.lapCount < 3 {
+                // Sparse logging: the 1.25h/day estimate, rounded to 1dp.
+                #expect(abs(event.hours - event.days * Garage.HOURS_PER_DAY) <= 0.051)
             }
         }
     }

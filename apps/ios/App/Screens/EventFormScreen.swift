@@ -117,9 +117,9 @@ struct EventFormScreen: View {
 
                     TEField(
                         label: "On-track hours (optional)",
-                        hint: "Seat time for consumable wear tracking — leave blank for the 2h-per-day estimate"
+                        hint: "Seat time for consumable wear tracking — leave blank to use your logged laps (with 3 or more), else 1h15m per day"
                     ) {
-                        TextField("est. 2h per day", text: $model.trackHours)
+                        TextField("from laps, or 1h15m/day", text: $model.trackHours)
                             .teInput()
                             .keyboardType(.decimalPad)
                     }

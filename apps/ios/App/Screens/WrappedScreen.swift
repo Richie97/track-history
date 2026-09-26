@@ -367,7 +367,7 @@ struct WrappedCardView: View {
             kicker("Hours behind the wheel")
             huge(WrappedStory.fmtHoursWord(t.hours), accent: true)
             line(["\(WrappedStory.plural(t.hours, "hour")) on track"])
-            foot("Two hours a track day, or the logged lap time when that's more.")
+            foot("The logged lap time on days with 3+ laps, an hour and a quarter a track day otherwise.")
         case .hottest:
             if let h = data.hottest {
                 kicker("Hottest day")

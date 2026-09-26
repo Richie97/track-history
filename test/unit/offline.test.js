@@ -75,6 +75,22 @@ describe("recomputeDetail", () => {
     expect(d.consistency).toBeCloseTo(8164.97 / 110000, 4);
   });
 
+  it("hours: the override, else 3+ laps' total time, else 1h15m per day (eventHours)", () => {
+    const laps = (n, ms) => Array.from({ length: n }, (_, i) => ({ id: i, session_id: 1, lap_num: i + 1, time_ms: ms }));
+    const d = detail({ days: 2, track_hours: null, sessions: [] });
+    recomputeDetail(d);
+    expect(d.hours).toBe(2.5);
+    d.sessions = [{ id: 1, laps: laps(2, 120_000) }];
+    recomputeDetail(d);
+    expect(d.hours).toBe(2.5); // sparse logging keeps the estimate
+    d.sessions[0].laps = laps(10, 120_000);
+    recomputeDetail(d);
+    expect(d.hours).toBe(0.3); // 20 minutes of laps pulls it down
+    d.track_hours = 1.5;
+    recomputeDetail(d);
+    expect(d.hours).toBe(1.5);
+  });
+
   it("totals the cost line items into cost_cents, null when none was entered (#147)", () => {
     const d = detail({ sessions: [] });
     recomputeDetail(d);

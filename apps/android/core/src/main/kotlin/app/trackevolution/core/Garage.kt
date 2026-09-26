@@ -38,7 +38,7 @@ public object Garage {
      * Rough conversion for the "how many more track days" phrasing — matches
      * `DEFAULT_HOURS_PER_DAY` in `src/lib/wear.ts`.
      */
-    public const val HOURS_PER_DAY: Double = 2.0
+    public const val HOURS_PER_DAY: Double = 1.25
 
     /**
      * Traffic-light status for a part's wear estimate. Null means there was no

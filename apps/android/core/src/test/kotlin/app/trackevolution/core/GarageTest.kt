@@ -286,8 +286,8 @@ class GarageTest {
 
     @Test
     fun `the low threshold is two track days inclusive`() {
-        assertEquals(Garage.PartStatus.LOW, Garage.partStatus(wear(remaining = 4.0)))
-        assertEquals(Garage.PartStatus.OK, Garage.partStatus(wear(remaining = 4.1)))
+        assertEquals(Garage.PartStatus.LOW, Garage.partStatus(wear(remaining = 2.5)))
+        assertEquals(Garage.PartStatus.OK, Garage.partStatus(wear(remaining = 2.6)))
     }
 
     // ---- Alerts -------------------------------------------------------------
@@ -311,7 +311,7 @@ class GarageTest {
     @Test
     fun `due parts sort ahead of low ones, and ties keep their order`() {
         val garage = listOf(
-            vehicle(id = 1, parts = listOf(part(id = 10, remaining = 3.0), part(id = 11, remaining = 0.0))),
+            vehicle(id = 1, parts = listOf(part(id = 10, remaining = 2.0), part(id = 11, remaining = 0.0))),
             vehicle(id = 2, parts = listOf(part(id = 20, remaining = 2.0))),
         )
         // 11 is due; 10 and 20 are low and stay in the order they arrived — a

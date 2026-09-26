@@ -120,7 +120,7 @@ public data class Event(
     @SerialName("best_ms") override val bestMs: Int? = null,
     /** Coefficient of variation of lap times; null below 3 laps. */
     val consistency: Double? = null,
-    /** On-track hours: the override, else `max(days × 2h, logged lap time)`. */
+    /** On-track hours: the override, else the logged lap time with 3+ laps, else `days × 1h15m`. */
     val hours: Double,
     /**
      * The sum of the entered cost line items; null — not zero — when none was

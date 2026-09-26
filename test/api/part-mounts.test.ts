@@ -51,13 +51,13 @@ describe("equip and unequip", () => {
     let p = await partOf(api, body.id);
     expect(p.equipped).toBe(true);
     expect(p.mounts).toEqual([{ mounted_on: "2026-03-01", removed_on: null }]);
-    expect(p.wear.hours).toBe(6);
+    expect(p.wear.hours).toBe(3.8); // 3 × 1.25, to 1dp
 
     // Off for April, back on for May.
     expect((await api("POST", `/parts/${body.id}/unequip`, { on: "2026-04-01" })).status).toBe(200);
     p = await partOf(api, body.id);
     expect(p.equipped).toBe(false);
-    expect(p.wear.hours).toBe(2);
+    expect(p.wear.hours).toBe(1.3); // 1.25, to 1dp
     expect((await api("POST", `/parts/${body.id}/equip`, { on: "2026-05-01" })).status).toBe(200);
     p = await partOf(api, body.id);
     expect(p.equipped).toBe(true);
@@ -65,7 +65,7 @@ describe("equip and unequip", () => {
       { mounted_on: "2026-03-01", removed_on: "2026-04-01" },
       { mounted_on: "2026-05-01", removed_on: null },
     ]);
-    expect(p.wear.hours).toBe(4);
+    expect(p.wear.hours).toBe(2.5);
     expect(p.wear.events).toBe(2);
   });
 

@@ -96,8 +96,8 @@ describe("GET /garage odometer (#192)", () => {
     expect(byId[pads.body.id].odometer).toEqual({ km: 800, from: "2026-03-10", to: "2026-04-20", readings: 3 });
     // One reading in the tires' window is not a distance.
     expect(byId[tires.body.id].odometer).toBeNull();
-    // The hours estimate is untouched by any of it: three linked days at 2 h,
+    // The hours estimate is untouched by any of it: three linked days at 1.25 h (3.75, shown to 1dp),
     // the borrowed-car day included — the odometer never feeds wear.ts.
-    expect(byId[pads.body.id].wear.hours).toBe(6);
+    expect(byId[pads.body.id].wear.hours).toBe(3.8);
   });
 });

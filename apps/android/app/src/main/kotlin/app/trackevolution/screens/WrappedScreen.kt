@@ -415,7 +415,7 @@ private fun WrappedCard(
                 Kicker("Hours behind the wheel")
                 Huge(WrappedStory.fmtHoursWord(t.hours), accent = true)
                 Line("${WrappedStory.plural(t.hours, "hour")} on track")
-                Foot("Two hours a track day, or the logged lap time when that's more.")
+                Foot("The logged lap time on days with 3+ laps, an hour and a quarter a track day otherwise.")
             }
             WrappedStory.Kind.HOTTEST -> data.hottest?.let { h ->
                 Kicker("Hottest day")

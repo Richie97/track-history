@@ -43,7 +43,7 @@ public enum OfflineMirrors {
     ///   neither.
     /// - `consistency` is the coefficient of variation, and **nil below 3 laps** —
     ///   not zero. Two laps say nothing about consistency.
-    /// - `hours` is the manual override when set, else `max(days × 2h, logged lap
+    /// - `hours` is the manual override when set, else (3+ laps) the logged lap time, else `days × 1h15m` —
     ///   time)`, rounded to 1dp. It is never nil.
     /// - `costCents` is the sum of the entered cost line items, and **nil when
     ///   none was entered** — not zero, so an uncosted day never reads as a free
@@ -66,14 +66,16 @@ public enum OfflineMirrors {
             detail.event.consistency = nil
         }
 
-        // `eventHours`: the override wins; otherwise the greater of the 2h-per-day
-        // estimate and the time actually spent on track.
+        // `eventHours`: the override wins; otherwise 3+ logged laps are the time
+        // actually spent on track, and anything sparser is the 1h15m-per-day estimate.
         let lapHours = laps.reduce(0.0) { $0 + Double($1) } / 3_600_000
         let hours: Double
         if let override = detail.event.trackHours, override > 0 {
             hours = override
+        } else if laps.count >= 3 {
+            hours = lapHours
         } else {
-            hours = max(detail.event.days * 2, lapHours)
+            hours = detail.event.days * Garage.HOURS_PER_DAY
         }
         detail.event.hours = JSMath.round(hours, 10)
 

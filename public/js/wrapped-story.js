@@ -88,7 +88,7 @@ function cardBody(card, data, ctx) {
         <div class="wr-kicker">Hours behind the wheel</div>
         <div class="wr-huge wr-num">${esc(fmtHoursWord(t.hours))}</div>
         <p class="wr-line">${plural(t.hours, "hour")} on track</p>
-        <p class="wr-foot">Two hours a track day, or the logged lap time when that's more.</p>`;
+        <p class="wr-foot">The logged lap time on days with 3+ laps, an hour and a quarter a track day otherwise.</p>`;
     case "hottest": {
       const h = data.hottest;
       return `
