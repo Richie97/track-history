@@ -1495,7 +1495,7 @@ Nothing to configure on deploy beyond applying migration `0028`.
 - **The tools** (`src/ai/tools.ts`, shared with the planned in-app coach):
   `get_profile`, `list_tracks`, `list_events`, `get_event`,
   `get_session_insights`, `compare_laps`, `get_lap_telemetry`,
-  `get_track_history`, `get_setup_vs_lap_times`, `get_garage`,
+  `get_racing_line`, `get_track_history`, `get_setup_vs_lap_times`, `get_garage`,
   `get_leaderboard`, `get_season_summary`. Each reads **through the API
   itself** — a private copy of the `/api` router (`apiApp` in `src/api.ts`)
   behind a middleware that takes the user from the tool's own `Request` — so a
@@ -1505,6 +1505,12 @@ Nothing to configure on deploy beyond applying migration `0028`.
   compare) runs the web app's own modules, **imported from `public/js/`**
   (`src/ai/insights.ts`, `allowJs` in `tsconfig.json`); results are summaries
   in stored units, never the raw channel blob, and bounded in size.
+  `get_racing_line` is the session's stored `trace` — the fastest lap's line,
+  one per session — moved to the start/finish line (x east, y north, metres),
+  with each point's distance along the lap put on the telemetry axis (the
+  chord-length walk `limitMarkers` uses) and its speed read from that lap's
+  own `speed` channel, since the trace's third value is in whatever unit the
+  source gave it.
   Every tool declares its successful result shape in `src/ai/output-schemas.ts`.
   `tools/list` publishes `outputSchema` from protocol 2025-06-18 onward, alongside
   `structuredContent` on successful calls; older clients keep the text-only

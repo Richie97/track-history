@@ -2865,6 +2865,262 @@
         "additionalProperties": false
       }
     },
+    "get_racing_line": {
+      "title": "Racing line",
+      "description": "The GPS racing line of a session's fastest lap — the path the app draws as the track map: x/y metres from the start/finish line (x east, y north), each point's distance along the lap, and the speed there (km/h) when the lap has telemetry. One line is stored per session, the fastest lap's; `lap` says which. With telemetry, distance_m is on the same axis as get_lap_telemetry and the corners' start_m/end_m from get_session_insights, so those locate a corner on the line. GPS-grade (a few metres), about 300 points: good for where a corner is and its shape, not for lateral line placement.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "integer",
+            "description": "The session (from get_event).",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Racing line",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads one driver-owned session's stored racing line and returns it re-expressed from the start/finish line; it does not modify the saved line or telemetry.",
+        "open_world_justification": "Accepts a driver-owned session identifier only; it cannot fetch arbitrary files or URLs. The line is stored in local metres, never as latitude/longitude, so no absolute location is returned.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "integer"
+          },
+          "event_id": {
+            "type": "integer"
+          },
+          "track_id": {
+            "type": "integer"
+          },
+          "track_name": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Calendar date, YYYY-MM-DD."
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          },
+          "lap": {
+            "type": "object",
+            "properties": {
+              "lap_id": {
+                "type": "integer"
+              },
+              "lap_num": {
+                "type": "integer"
+              },
+              "time_ms": {
+                "type": "integer",
+                "description": "Lap time in integer milliseconds; lower is faster."
+              },
+              "time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+              },
+              "has_telemetry": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "lap_id",
+              "lap_num",
+              "time_ms",
+              "time",
+              "has_telemetry"
+            ],
+            "additionalProperties": false
+          },
+          "distance_basis": {
+            "enum": [
+              "telemetry",
+              "gps"
+            ],
+            "description": "telemetry: distance_m shares get_lap_telemetry's axis; gps: the GPS path length."
+          },
+          "length_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extent_m": {
+            "type": "object",
+            "properties": {
+              "x_min": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "x_max": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "y_min": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "y_max": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "x_min",
+              "x_max",
+              "y_min",
+              "y_max"
+            ],
+            "additionalProperties": false
+          },
+          "distance_m": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "x_m": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Metres east of the start/finish line."
+          },
+          "y_m": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Metres north of the start/finish line."
+          },
+          "speed_kph": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Speed at each point from the lap's telemetry; null without telemetry."
+          }
+        },
+        "required": [
+          "session_id",
+          "event_id",
+          "track_id",
+          "track_name",
+          "start_date",
+          "available"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "note"
+            ]
+          },
+          {
+            "properties": {
+              "available": {
+                "const": true
+              }
+            },
+            "required": [
+              "lap",
+              "distance_basis",
+              "length_m",
+              "extent_m",
+              "distance_m",
+              "x_m",
+              "y_m",
+              "speed_kph"
+            ]
+          }
+        ]
+      }
+    },
     "get_track_history": {
       "title": "Track history",
       "description": "Everything at one track over time: each visit's best, lap count, car and conditions (oldest first), plus the fastest individual laps ever logged there with their lap ids and whether each has telemetry — the natural starting point for compare_laps.",
