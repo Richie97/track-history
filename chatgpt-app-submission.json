@@ -1,0 +1,4511 @@
+{
+  "$schema": "https://developers.openai.com/plugins/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Track Evolution",
+    "subtitle": "Your track-day logbook",
+    "category": "PRODUCTIVITY",
+    "description": "Connect your Track Evolution logbook to review track days, session notes, lap times and progress. Compare laps with telemetry, explore sector and corner summaries, review recorded car setups and consumable wear, and summarize a season. View opted-in community leaderboard times for supported tracks. Requires a Track Evolution account with Pro and your approval to connect. The connection is read-only: it cannot create, edit or delete logbook entries, buy parts, or publish your data. Telemetry analysis depends on the channels you have recorded or imported; hand-entered laps provide times only. Use insights in the paddock to plan your next session, not while driving."
+  },
+  "tools": {
+    "get_profile": {
+      "title": "Profile",
+      "description": "The driver's profile: name, preferred unit system (imperial or metric — present numbers in it), lifetime totals, and leaderboard settings. Call this first.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Profile",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the signed-in driver’s name, units, lifetime totals and leaderboard preference through GET /me; it does not expose the email or change preferences.",
+        "open_world_justification": "The data source is the authenticated Track Evolution account; there is no arbitrary URL, external search or third-party action.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "units": {
+            "enum": [
+              "imperial",
+              "metric"
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "integer"
+              },
+              "track_days": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "events",
+              "track_days"
+            ],
+            "additionalProperties": false
+          },
+          "leaderboard_opt_in": {
+            "type": "boolean"
+          },
+          "today": {
+            "type": "string",
+            "description": "Calendar date, YYYY-MM-DD."
+          }
+        },
+        "required": [
+          "name",
+          "units",
+          "totals",
+          "leaderboard_opt_in",
+          "today"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "list_tracks": {
+      "title": "Tracks",
+      "description": "Every track in the logbook with its all-time best lap, goal, event and track-day counts and last visit. A track's name includes its layout, e.g. \"Virginia International Raceway (Full)\"; different layouts are different tracks.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Tracks",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the driver’s tracks, notes, goals and lap aggregates through GET /tracks without changing tracks or goals.",
+        "open_world_justification": "The search space is the driver’s existing Track Evolution tracks; this tool cannot search external track directories.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "tracks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "track_id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "best_ms": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Lap time in integer milliseconds; lower is faster."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "best": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                },
+                "goal_ms": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Lap time in integer milliseconds; lower is faster."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "goal": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                },
+                "event_count": {
+                  "type": "integer"
+                },
+                "track_days": {
+                  "type": "number"
+                },
+                "last_date": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date, YYYY-MM-DD."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "has_leaderboard": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "track_id",
+                "name",
+                "best_ms",
+                "best",
+                "goal_ms",
+                "goal",
+                "event_count",
+                "track_days",
+                "last_date",
+                "notes",
+                "has_leaderboard"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "tracks"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "list_events": {
+      "title": "Events",
+      "description": "Track-day events, newest first, with each one's best lap, lap and session counts, consistency (coefficient of variation of lap times), conditions and on-track hours. Filter by track, car or year. An event's best is the lower of its fastest logged lap and a manually entered best.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "description": "Only events at this track (from list_tracks).",
+            "minimum": 1
+          },
+          "vehicle_id": {
+            "type": "integer",
+            "description": "Only events in this garage vehicle.",
+            "minimum": 1
+          },
+          "year": {
+            "type": "integer",
+            "description": "Only events starting in this calendar year.",
+            "minimum": 1990,
+            "maximum": 2100
+          },
+          "when": {
+            "type": "string",
+            "enum": [
+              "past",
+              "upcoming",
+              "all"
+            ],
+            "description": "Past (default), upcoming, or all events."
+          },
+          "include_notes": {
+            "type": "boolean",
+            "description": "Include each event's free-text notes."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum rows (default 50, max 200).",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Events",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the driver’s events through GET /events, applies bounded filters and optionally includes notes; it never creates or edits events.",
+        "open_world_justification": "Filters only the driver’s Track Evolution events; it cannot search for or book external events.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event_id": {
+                  "type": "integer"
+                },
+                "track_id": {
+                  "type": "integer"
+                },
+                "track_name": {
+                  "type": "string"
+                },
+                "start_date": {
+                  "type": "string",
+                  "description": "Calendar date, YYYY-MM-DD."
+                },
+                "days": {
+                  "type": "number"
+                },
+                "car": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "vehicle_id": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "club": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_group": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "conditions": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "temp_f": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ambient_lo_c": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ambient_hi_c": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "best_ms": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Lap time in integer milliseconds; lower is faster."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "best": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                },
+                "lap_count": {
+                  "type": "integer"
+                },
+                "session_count": {
+                  "type": "integer"
+                },
+                "consistency_cv_pct": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Coefficient of variation of lap times as a percentage; unavailable below three laps."
+                },
+                "on_track_hours": {
+                  "type": "number",
+                  "description": "On-track hours, entered or estimated."
+                },
+                "cost_cents": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Whole cents."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Whole cents; null means no cost was entered, not zero cost."
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "event_id",
+                "track_id",
+                "track_name",
+                "start_date",
+                "days",
+                "car",
+                "vehicle_id",
+                "club",
+                "run_group",
+                "conditions",
+                "temp_f",
+                "ambient_lo_c",
+                "ambient_hi_c",
+                "best_ms",
+                "best",
+                "lap_count",
+                "session_count",
+                "consistency_cv_pct",
+                "on_track_hours",
+                "cost_cents"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "truncated",
+          "events"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_event": {
+      "title": "Event detail",
+      "description": "One event in full: its stats, notes, checklist, costs, per-day setup sheets, and every session with its laps (lap ids, lap numbers, times) and which laps carry telemetry. Use the lap and session ids with get_session_insights, compare_laps and get_lap_telemetry.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "integer",
+            "description": "The event (from list_events).",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "event_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Event detail",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads one ownership-scoped event with notes, costs, checklist, setups, sessions and lap identifiers through GET /events/:id; no event data is changed.",
+        "open_world_justification": "Accepts a numeric event identifier and returns only an event owned by the driver inside Track Evolution.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "integer"
+          },
+          "track_id": {
+            "type": "integer"
+          },
+          "track_name": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Calendar date, YYYY-MM-DD."
+          },
+          "days": {
+            "type": "number"
+          },
+          "car": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vehicle_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "club": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conditions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temp_f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ambient_lo_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ambient_hi_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "best_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "description": "Lap time in integer milliseconds; lower is faster."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "best": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+          },
+          "lap_count": {
+            "type": "integer"
+          },
+          "session_count": {
+            "type": "integer"
+          },
+          "consistency_cv_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Coefficient of variation of lap times as a percentage; unavailable below three laps."
+          },
+          "on_track_hours": {
+            "type": "number",
+            "description": "On-track hours, entered or estimated."
+          },
+          "cost_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "description": "Whole cents."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whole cents; null means no cost was entered, not zero cost."
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checklist": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "done": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "done"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "costs_cents": {
+            "type": "object",
+            "properties": {
+              "entry": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "description": "Whole cents."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Whole cents; null means no cost was entered, not zero cost."
+              },
+              "fuel": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "description": "Whole cents."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Whole cents; null means no cost was entered, not zero cost."
+              },
+              "travel": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "description": "Whole cents."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Whole cents; null means no cost was entered, not zero cost."
+              },
+              "misc": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "description": "Whole cents."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Whole cents; null means no cost was entered, not zero cost."
+              },
+              "total": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "description": "Whole cents."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Whole cents; null means no cost was entered, not zero cost."
+              }
+            },
+            "required": [
+              "entry",
+              "fuel",
+              "travel",
+              "misc",
+              "total"
+            ],
+            "additionalProperties": false
+          },
+          "setups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "day": {
+                  "type": "integer"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "tp_cold": {
+                      "type": "object",
+                      "properties": {
+                        "fl": {
+                          "type": "number"
+                        },
+                        "fr": {
+                          "type": "number"
+                        },
+                        "rl": {
+                          "type": "number"
+                        },
+                        "rr": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Cold tire pressures in psi."
+                    },
+                    "tp_hot": {
+                      "type": "object",
+                      "properties": {
+                        "fl": {
+                          "type": "number"
+                        },
+                        "fr": {
+                          "type": "number"
+                        },
+                        "rl": {
+                          "type": "number"
+                        },
+                        "rr": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Hot tire pressures in psi."
+                    },
+                    "camber": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Camber in degrees."
+                    },
+                    "toe": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Toe in the driver's recorded units (degrees or inches)."
+                    },
+                    "caster": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Caster in degrees."
+                    },
+                    "rebound": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "compression": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "sway": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "fuel": {
+                      "type": "number",
+                      "description": "Fuel at session start in US gallons."
+                    },
+                    "tires_id": {
+                      "type": "integer"
+                    },
+                    "tires_f_id": {
+                      "type": "integer"
+                    },
+                    "tires_r_id": {
+                      "type": "integer"
+                    },
+                    "pads_f_id": {
+                      "type": "integer"
+                    },
+                    "pads_r_id": {
+                      "type": "integer"
+                    },
+                    "notes": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "day",
+                "data"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "setup_units": {
+            "type": "string"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "session_id": {
+                  "type": "integer"
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ambient_c": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "elevation_m": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "telemetry_channels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "lap_stats": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "lap_count": {
+                          "type": "integer"
+                        },
+                        "best_ms": {
+                          "type": "integer",
+                          "description": "Lap time in integer milliseconds; lower is faster."
+                        },
+                        "best": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                        },
+                        "best_lap_num": {
+                          "type": "integer"
+                        },
+                        "best3_avg_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "description": "Lap time in integer milliseconds; lower is faster."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "clean_lap_count": {
+                          "type": "integer"
+                        },
+                        "clean_avg_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "description": "Lap time in integer milliseconds; lower is faster."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "pace_slope_ms_per_lap": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Lap-time trend in ms per lap; negative means getting faster."
+                        },
+                        "warmup_laps": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "lap_count",
+                        "best_ms",
+                        "best",
+                        "best_lap_num",
+                        "best3_avg_ms",
+                        "clean_lap_count",
+                        "clean_avg_ms",
+                        "pace_slope_ms_per_lap",
+                        "warmup_laps"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "laps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "lap_id": {
+                        "type": "integer"
+                      },
+                      "lap_num": {
+                        "type": "integer"
+                      },
+                      "time_ms": {
+                        "type": "integer",
+                        "description": "Lap time in integer milliseconds; lower is faster."
+                      },
+                      "time": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                      },
+                      "has_telemetry": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "lap_id",
+                      "lap_num",
+                      "time_ms",
+                      "time",
+                      "has_telemetry"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "session_id",
+                "label",
+                "notes",
+                "ambient_c",
+                "elevation_m",
+                "telemetry_channels",
+                "lap_stats",
+                "laps"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "event_id",
+          "track_id",
+          "track_name",
+          "start_date",
+          "days",
+          "car",
+          "vehicle_id",
+          "club",
+          "run_group",
+          "conditions",
+          "temp_f",
+          "ambient_lo_c",
+          "ambient_hi_c",
+          "best_ms",
+          "best",
+          "lap_count",
+          "session_count",
+          "consistency_cv_pct",
+          "on_track_hours",
+          "cost_cents",
+          "notes",
+          "checklist",
+          "costs_cents",
+          "setups",
+          "setup_units",
+          "sessions"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_session_insights": {
+      "title": "Session insights",
+      "description": "One session analysed the way the app's channel panel does: lap statistics (best, best-3 average, pace trend, warm-up), and — when the session has telemetry — sector splits and the theoretical best lap, upshift points per gear, ABS/traction/stability interventions and wheelspin/lockup, friction-circle usage (trail braking and power-down shares), corners with peak lateral G, understeer/oversteer per corner, and car health (temperatures, pressures, fuel). Facts only; interpret them for the driver.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "integer",
+            "description": "The session (from get_event).",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Session insights",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Uses ownership-scoped SELECTs and event GETs to calculate lap, sector, corner, vehicle-health and driving summaries in memory; no analysis or logbook records are written.",
+        "open_world_justification": "Analyzes only stored telemetry and laps belonging to the driver inside Track Evolution; no external services are queried by the tool.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "object",
+            "properties": {
+              "event_id": {
+                "type": "integer"
+              },
+              "track_name": {
+                "type": "string"
+              },
+              "start_date": {
+                "type": "string",
+                "description": "Calendar date, YYYY-MM-DD."
+              },
+              "car": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "event_id",
+              "track_name",
+              "start_date",
+              "car"
+            ],
+            "additionalProperties": false
+          },
+          "session_id": {
+            "type": "integer"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conditions": {
+            "type": "object",
+            "properties": {
+              "ambient_c": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "elevation_m": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ambient_c",
+              "elevation_m"
+            ],
+            "additionalProperties": false
+          },
+          "laps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lap_id": {
+                  "type": "integer"
+                },
+                "lap_num": {
+                  "type": "integer"
+                },
+                "time_ms": {
+                  "type": "integer",
+                  "description": "Lap time in integer milliseconds; lower is faster."
+                },
+                "time": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                },
+                "has_telemetry": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "lap_id",
+                "lap_num",
+                "time_ms",
+                "time",
+                "has_telemetry"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "lap_stats": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "lap_count": {
+                    "type": "integer"
+                  },
+                  "best_ms": {
+                    "type": "integer",
+                    "description": "Lap time in integer milliseconds; lower is faster."
+                  },
+                  "best": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                  },
+                  "best_lap_num": {
+                    "type": "integer"
+                  },
+                  "best3_avg_ms": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "description": "Lap time in integer milliseconds; lower is faster."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "clean_lap_count": {
+                    "type": "integer"
+                  },
+                  "clean_avg_ms": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "description": "Lap time in integer milliseconds; lower is faster."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pace_slope_ms_per_lap": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Lap-time trend in ms per lap; negative means getting faster."
+                  },
+                  "warmup_laps": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "lap_count",
+                  "best_ms",
+                  "best",
+                  "best_lap_num",
+                  "best3_avg_ms",
+                  "clean_lap_count",
+                  "clean_avg_ms",
+                  "pace_slope_ms_per_lap",
+                  "warmup_laps"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "telemetry": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "grid_step_m": {
+                    "type": "number"
+                  },
+                  "channels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "laps_with_telemetry": {
+                    "type": "integer"
+                  },
+                  "sectors": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "sector_count": {
+                            "type": "integer"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "laps": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "lap_num": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sectors_ms": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "lap_num",
+                                "sectors_ms"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "best_sectors_ms": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          },
+                          "best_sector_lap_nums": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "theoretical_best_ms": {
+                            "type": "number"
+                          },
+                          "theoretical_best": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                          },
+                          "best_lap_ms": {
+                            "type": "integer",
+                            "description": "Lap time in integer milliseconds; lower is faster."
+                          },
+                          "gap_to_theoretical_ms": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "sector_count",
+                          "note",
+                          "laps",
+                          "best_sectors_ms",
+                          "best_sector_lap_nums",
+                          "theoretical_best_ms",
+                          "theoretical_best",
+                          "best_lap_ms",
+                          "gap_to_theoretical_ms"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "shifts": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "upshift_rpm_by_gear": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "from_gear": {
+                                  "type": "integer"
+                                },
+                                "count": {
+                                  "type": "integer"
+                                },
+                                "min_rpm": {
+                                  "type": "number"
+                                },
+                                "median_rpm": {
+                                  "type": "number"
+                                },
+                                "max_rpm": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "from_gear",
+                                "count",
+                                "min_rpm",
+                                "median_rpm",
+                                "max_rpm"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "median_upshift_rpm": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "max_rpm_seen": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "notes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "upshift_rpm_by_gear",
+                          "median_upshift_rpm",
+                          "max_rpm_seen",
+                          "notes"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "limits": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "summary": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kinds": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "places_on_track": {
+                                  "type": "integer"
+                                },
+                                "laps": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "places_on_track",
+                                "laps"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "summary",
+                          "kinds"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "grip": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "note": {
+                            "type": "string"
+                          },
+                          "peak_combined_g": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "max_combined_g": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "trail_brake_pct": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "power_down_pct": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "laps": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "lap_num": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "trail_brake_pct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "power_down_pct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "lap_num",
+                                "trail_brake_pct",
+                                "power_down_pct"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "note",
+                          "peak_combined_g",
+                          "max_combined_g",
+                          "trail_brake_pct",
+                          "power_down_pct",
+                          "laps"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "corners": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "corner": {
+                              "type": "string"
+                            },
+                            "start_m": {
+                              "type": "number"
+                            },
+                            "end_m": {
+                              "type": "number"
+                            },
+                            "peak_lat_g": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "corner",
+                            "start_m",
+                            "end_m",
+                            "peak_lat_g"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "corner_note": {
+                    "type": "string"
+                  },
+                  "balance": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "summary": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "corners": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "corner": {
+                                  "type": "string"
+                                },
+                                "pct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "reading": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "corner",
+                                "pct",
+                                "reading"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "summary",
+                          "note",
+                          "corners"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "health": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "summary": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "unit": {
+                                  "type": "string"
+                                },
+                                "rule": {
+                                  "enum": [
+                                    "peak",
+                                    "minimum",
+                                    "at lap end"
+                                  ]
+                                },
+                                "session_value": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ok",
+                                    "low",
+                                    "due",
+                                    null
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "label",
+                                "unit",
+                                "rule",
+                                "session_value",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "fuel": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "perLapPct": {
+                                    "type": "number"
+                                  },
+                                  "lastPct": {
+                                    "type": "number"
+                                  },
+                                  "lapsRemaining": {
+                                    "type": "integer"
+                                  },
+                                  "drops": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "perLapPct",
+                                  "lastPct",
+                                  "lapsRemaining",
+                                  "drops"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "hot_pressures_kpa": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "LF": {
+                                    "type": "object",
+                                    "properties": {
+                                      "peakKpa": {
+                                        "type": "number"
+                                      },
+                                      "peakChIdx": {
+                                        "type": "integer",
+                                        "description": "Zero-based telemetry lap index, not the displayed lap number."
+                                      },
+                                      "lastKpa": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "peakKpa",
+                                      "peakChIdx",
+                                      "lastKpa"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "RF": {
+                                    "type": "object",
+                                    "properties": {
+                                      "peakKpa": {
+                                        "type": "number"
+                                      },
+                                      "peakChIdx": {
+                                        "type": "integer",
+                                        "description": "Zero-based telemetry lap index, not the displayed lap number."
+                                      },
+                                      "lastKpa": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "peakKpa",
+                                      "peakChIdx",
+                                      "lastKpa"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "LR": {
+                                    "type": "object",
+                                    "properties": {
+                                      "peakKpa": {
+                                        "type": "number"
+                                      },
+                                      "peakChIdx": {
+                                        "type": "integer",
+                                        "description": "Zero-based telemetry lap index, not the displayed lap number."
+                                      },
+                                      "lastKpa": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "peakKpa",
+                                      "peakChIdx",
+                                      "lastKpa"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "RR": {
+                                    "type": "object",
+                                    "properties": {
+                                      "peakKpa": {
+                                        "type": "number"
+                                      },
+                                      "peakChIdx": {
+                                        "type": "integer",
+                                        "description": "Zero-based telemetry lap index, not the displayed lap number."
+                                      },
+                                      "lastKpa": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "peakKpa",
+                                      "peakChIdx",
+                                      "lastKpa"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "summary",
+                          "columns",
+                          "fuel",
+                          "hot_pressures_kpa"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "grid_step_m",
+                  "channels",
+                  "laps_with_telemetry",
+                  "sectors",
+                  "shifts",
+                  "limits",
+                  "grip",
+                  "corners",
+                  "balance",
+                  "health"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "event",
+          "session_id",
+          "label",
+          "notes",
+          "conditions",
+          "laps",
+          "lap_stats",
+          "telemetry"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "compare_laps": {
+      "title": "Compare two laps",
+      "description": "Two laps with telemetry head to head — from the same session or from different events at the same track: times, sector splits, speeds, full-throttle and braking shares, and where time was gained or lost, by corner (with minimum speed through each) and by tenth of the lap. Lap A is the reference; deltas are B minus A.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lap_a_id": {
+            "type": "integer",
+            "description": "The reference lap (lap_id from get_event or get_track_history).",
+            "minimum": 1
+          },
+          "lap_b_id": {
+            "type": "integer",
+            "description": "The lap to compare against it.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "lap_a_id",
+          "lap_b_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Compare two laps",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads two laps owned by the driver and computes a comparison in memory; neither lap nor its session is modified.",
+        "open_world_justification": "Both numeric lap identifiers are resolved within the driver’s own Track Evolution logbook, with no third-party telemetry source.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "delta_convention": {
+            "type": "string"
+          },
+          "a": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "lap_id": {
+                "type": "integer"
+              },
+              "lap_num": {
+                "type": "integer"
+              },
+              "time_ms": {
+                "type": "integer",
+                "description": "Lap time in integer milliseconds; lower is faster."
+              },
+              "time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+              },
+              "sectors_ms": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "top_speed_kph": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "min_speed_kph": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "avg_speed_kph": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "max_rpm": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "max_lat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "full_throttle_pct": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "braking_pct": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "event_id": {
+                "type": "integer"
+              },
+              "track_name": {
+                "type": "string"
+              },
+              "start_date": {
+                "type": "string",
+                "description": "Calendar date, YYYY-MM-DD."
+              }
+            },
+            "required": [
+              "label",
+              "lap_id",
+              "lap_num",
+              "time_ms",
+              "time",
+              "sectors_ms",
+              "top_speed_kph",
+              "min_speed_kph",
+              "avg_speed_kph",
+              "max_rpm",
+              "max_lat_g",
+              "full_throttle_pct",
+              "braking_pct",
+              "event_id",
+              "track_name",
+              "start_date"
+            ],
+            "additionalProperties": false
+          },
+          "b": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "lap_id": {
+                "type": "integer"
+              },
+              "lap_num": {
+                "type": "integer"
+              },
+              "time_ms": {
+                "type": "integer",
+                "description": "Lap time in integer milliseconds; lower is faster."
+              },
+              "time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+              },
+              "sectors_ms": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "top_speed_kph": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "min_speed_kph": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "avg_speed_kph": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "max_rpm": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "max_lat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "full_throttle_pct": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "braking_pct": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "event_id": {
+                "type": "integer"
+              },
+              "track_name": {
+                "type": "string"
+              },
+              "start_date": {
+                "type": "string",
+                "description": "Calendar date, YYYY-MM-DD."
+              }
+            },
+            "required": [
+              "label",
+              "lap_id",
+              "lap_num",
+              "time_ms",
+              "time",
+              "sectors_ms",
+              "top_speed_kph",
+              "min_speed_kph",
+              "avg_speed_kph",
+              "max_rpm",
+              "max_lat_g",
+              "full_throttle_pct",
+              "braking_pct",
+              "event_id",
+              "track_name",
+              "start_date"
+            ],
+            "additionalProperties": false
+          },
+          "b_minus_a_ms": {
+            "type": "integer",
+            "description": "B minus A in milliseconds; positive means B lost time to A."
+          },
+          "by_corner": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "corner": {
+                      "type": "string"
+                    },
+                    "start_m": {
+                      "type": "number"
+                    },
+                    "end_m": {
+                      "type": "number"
+                    },
+                    "a_min_speed_kph": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "b_min_speed_kph": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "b_minus_a_ms": {
+                      "type": "integer",
+                      "description": "B minus A in milliseconds; positive means B lost time to A."
+                    }
+                  },
+                  "required": [
+                    "corner",
+                    "start_m",
+                    "end_m",
+                    "a_min_speed_kph",
+                    "b_min_speed_kph",
+                    "b_minus_a_ms"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "by_tenth_of_lap": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "start_m": {
+                      "type": "number"
+                    },
+                    "end_m": {
+                      "type": "number"
+                    },
+                    "b_minus_a_ms": {
+                      "type": "integer",
+                      "description": "B minus A in milliseconds; positive means B lost time to A."
+                    }
+                  },
+                  "required": [
+                    "start_m",
+                    "end_m",
+                    "b_minus_a_ms"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "length_mismatch_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "warning": {
+            "type": "string"
+          },
+          "track_warning": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "delta_convention",
+          "a",
+          "b",
+          "b_minus_a_ms",
+          "by_corner",
+          "by_tenth_of_lap",
+          "length_mismatch_pct"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_lap_telemetry": {
+      "title": "Lap telemetry",
+      "description": "One lap's raw traces against driven distance from the start/finish line, thinned to a step (default 40 m). Channels: speed (km/h), throttle and brake (%), steering (degrees), rpm, gear, latG and longG (G; latG is a magnitude, longG negative under braking), yaw (°/s), wheelSlip (%), boost (kPa), flags (bits ABS=1, TC=2, stability=4), and elapsed_s derived from speed. Prefer get_session_insights or compare_laps; use this for questions they don't answer.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lap_id": {
+            "type": "integer",
+            "description": "The lap (must have telemetry).",
+            "minimum": 1
+          },
+          "channels": {
+            "type": "array",
+            "description": "Channels to return (default speed, throttle, brake, elapsed_s).",
+            "items": {
+              "type": "string",
+              "enum": [
+                "speed",
+                "rpm",
+                "latG",
+                "throttle",
+                "brake",
+                "steering",
+                "longG",
+                "yaw",
+                "gear",
+                "wheelSlip",
+                "boost",
+                "flags",
+                "elapsed_s"
+              ]
+            },
+            "maxItems": 13
+          },
+          "step_m": {
+            "type": "number",
+            "description": "Distance between returned samples in metres (default 40).",
+            "minimum": 5,
+            "maximum": 500
+          }
+        },
+        "required": [
+          "lap_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Lap telemetry",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads one driver-owned lap and returns selected channels resampled by distance; it does not modify the saved telemetry.",
+        "open_world_justification": "Accepts a driver-owned lap identifier, an enumerated channel list and a bounded sample step; it cannot fetch arbitrary files or URLs.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "lap_id": {
+            "type": "integer"
+          },
+          "lap_num": {
+            "type": "integer"
+          },
+          "time_ms": {
+            "type": "integer",
+            "description": "Lap time in integer milliseconds; lower is faster."
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+          },
+          "step_m": {
+            "type": "number",
+            "description": "Actual sample spacing in metres, rounded to a stored-grid multiple; may widen to bound the result."
+          },
+          "step_note": {
+            "type": "string"
+          },
+          "distance_m": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "channels": {
+            "type": "object",
+            "properties": {
+              "speed": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "km/h; aligned with distance_m. A null sample is unavailable."
+              },
+              "rpm": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "RPM; aligned with distance_m. A null sample is unavailable."
+              },
+              "latG": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Lateral G magnitude; aligned with distance_m. A null sample is unavailable."
+              },
+              "throttle": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Percent; aligned with distance_m. A null sample is unavailable."
+              },
+              "brake": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Percent; aligned with distance_m. A null sample is unavailable."
+              },
+              "steering": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Degrees; aligned with distance_m. A null sample is unavailable."
+              },
+              "longG": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Longitudinal G; negative under braking; aligned with distance_m. A null sample is unavailable."
+              },
+              "yaw": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Degrees per second; aligned with distance_m. A null sample is unavailable."
+              },
+              "gear": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Gear number; aligned with distance_m. A null sample is unavailable."
+              },
+              "wheelSlip": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Percent; aligned with distance_m. A null sample is unavailable."
+              },
+              "boost": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "kPa; aligned with distance_m. A null sample is unavailable."
+              },
+              "flags": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Bit flags: ABS=1, traction control=2, stability control=4; aligned with distance_m. A null sample is unavailable."
+              },
+              "elapsed_s": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": "Seconds, derived from speed; aligned with distance_m. A null sample is unavailable."
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "lap_id",
+          "lap_num",
+          "time_ms",
+          "time",
+          "step_m",
+          "distance_m",
+          "channels",
+          "missing"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_track_history": {
+      "title": "Track history",
+      "description": "Everything at one track over time: each visit's best, lap count, car and conditions (oldest first), plus the fastest individual laps ever logged there with their lap ids and whether each has telemetry — the natural starting point for compare_laps.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "description": "The track (from list_tracks).",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Track history",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the driver’s track, its events and up to fifteen fastest laps with ownership-scoped GETs and SELECTs; it does not alter the history.",
+        "open_world_justification": "History and lap selection are limited to one of the driver’s tracks inside Track Evolution.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "track": {
+            "type": "object",
+            "properties": {
+              "track_id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "best_ms": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "description": "Lap time in integer milliseconds; lower is faster."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "best": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+              },
+              "goal_ms": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "description": "Lap time in integer milliseconds; lower is faster."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "track_id",
+              "name",
+              "best_ms",
+              "best",
+              "goal_ms",
+              "notes"
+            ],
+            "additionalProperties": false
+          },
+          "visits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event_id": {
+                  "type": "integer"
+                },
+                "track_id": {
+                  "type": "integer"
+                },
+                "track_name": {
+                  "type": "string"
+                },
+                "start_date": {
+                  "type": "string",
+                  "description": "Calendar date, YYYY-MM-DD."
+                },
+                "days": {
+                  "type": "number"
+                },
+                "car": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "vehicle_id": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "club": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_group": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "conditions": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "temp_f": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ambient_lo_c": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ambient_hi_c": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "best_ms": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Lap time in integer milliseconds; lower is faster."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "best": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                },
+                "lap_count": {
+                  "type": "integer"
+                },
+                "session_count": {
+                  "type": "integer"
+                },
+                "consistency_cv_pct": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Coefficient of variation of lap times as a percentage; unavailable below three laps."
+                },
+                "on_track_hours": {
+                  "type": "number",
+                  "description": "On-track hours, entered or estimated."
+                },
+                "cost_cents": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Whole cents."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Whole cents; null means no cost was entered, not zero cost."
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "event_id",
+                "track_id",
+                "track_name",
+                "start_date",
+                "days",
+                "car",
+                "vehicle_id",
+                "club",
+                "run_group",
+                "conditions",
+                "temp_f",
+                "ambient_lo_c",
+                "ambient_hi_c",
+                "best_ms",
+                "best",
+                "lap_count",
+                "session_count",
+                "consistency_cv_pct",
+                "on_track_hours",
+                "cost_cents"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "fastest_laps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lap_id": {
+                  "type": "integer"
+                },
+                "time_ms": {
+                  "type": "integer",
+                  "description": "Lap time in integer milliseconds; lower is faster."
+                },
+                "time": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                },
+                "lap_num": {
+                  "type": "integer"
+                },
+                "session_id": {
+                  "type": "integer"
+                },
+                "session_label": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "event_id": {
+                  "type": "integer"
+                },
+                "start_date": {
+                  "type": "string",
+                  "description": "Calendar date, YYYY-MM-DD."
+                },
+                "has_telemetry": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "lap_id",
+                "time_ms",
+                "time",
+                "lap_num",
+                "session_id",
+                "session_label",
+                "event_id",
+                "start_date",
+                "has_telemetry"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "track",
+          "visits",
+          "fastest_laps"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_setup_vs_lap_times": {
+      "title": "Setups vs lap times",
+      "description": "Every setup sheet recorded at a track (tire pressures, alignment, dampers, aero, fuel… per event day) beside that event's best lap, consistency and conditions — for questions like \"which setup was fastest here\". Pressures are psi and fuel US gallons, as stored.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "description": "The track (from list_tracks).",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Setups vs lap times",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the driver’s setup sheets and lap-time aggregates through GET /tracks/:id/setups; it does not change any setup.",
+        "open_world_justification": "The source is the application’s ownership-scoped setup table, not an external setup search or marketplace.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "setups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event_id": {
+                  "type": "integer"
+                },
+                "day": {
+                  "type": "integer"
+                },
+                "start_date": {
+                  "type": "string",
+                  "description": "Calendar date, YYYY-MM-DD."
+                },
+                "car": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "conditions": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "temp_f": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "best_ms": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Lap time in integer milliseconds; lower is faster."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "consistency": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Coefficient of variation as a fraction, not percent."
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "tp_cold": {
+                      "type": "object",
+                      "properties": {
+                        "fl": {
+                          "type": "number"
+                        },
+                        "fr": {
+                          "type": "number"
+                        },
+                        "rl": {
+                          "type": "number"
+                        },
+                        "rr": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Cold tire pressures in psi."
+                    },
+                    "tp_hot": {
+                      "type": "object",
+                      "properties": {
+                        "fl": {
+                          "type": "number"
+                        },
+                        "fr": {
+                          "type": "number"
+                        },
+                        "rl": {
+                          "type": "number"
+                        },
+                        "rr": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Hot tire pressures in psi."
+                    },
+                    "camber": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Camber in degrees."
+                    },
+                    "toe": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Toe in the driver's recorded units (degrees or inches)."
+                    },
+                    "caster": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false,
+                      "description": "Caster in degrees."
+                    },
+                    "rebound": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "compression": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "sway": {
+                      "type": "object",
+                      "properties": {
+                        "f": {
+                          "type": "number"
+                        },
+                        "r": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "fuel": {
+                      "type": "number",
+                      "description": "Fuel at session start in US gallons."
+                    },
+                    "tires_id": {
+                      "type": "integer"
+                    },
+                    "tires_f_id": {
+                      "type": "integer"
+                    },
+                    "tires_r_id": {
+                      "type": "integer"
+                    },
+                    "pads_f_id": {
+                      "type": "integer"
+                    },
+                    "pads_r_id": {
+                      "type": "integer"
+                    },
+                    "notes": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "additionalProperties": false
+                },
+                "best": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                }
+              },
+              "required": [
+                "event_id",
+                "day",
+                "start_date",
+                "car",
+                "conditions",
+                "temp_f",
+                "best_ms",
+                "consistency",
+                "data",
+                "best"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "setups"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_garage": {
+      "title": "Garage",
+      "description": "The driver's cars and their consumables (pads, tires — a full set or separate front and rear pairs, each with its size — rotors, fluids…): whether each is on the car now or on the shelf as a spare, accrued on-track hours (counted only while it was on the car), wear measurements, estimated life remaining and a status (ok / low / due), what each car's track days and parts have cost, and the car's own odometer where recorded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "include_retired": {
+            "type": "boolean",
+            "description": "Include parts already replaced (default false)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Garage",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the driver’s vehicles, parts, measurements, wear estimates and recorded costs through GET /garage; it does not fit, replace, retire or purchase parts.",
+        "open_world_justification": "Returns only records and computed estimates from the driver’s Track Evolution garage, with no vendor lookup, order or payment operation.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "is_default": {
+                  "type": "boolean"
+                },
+                "on_track_hours": {
+                  "type": "number"
+                },
+                "event_count": {
+                  "type": "integer"
+                },
+                "track_days": {
+                  "type": "number"
+                },
+                "event_cost_cents": {
+                  "type": "integer",
+                  "description": "Whole cents."
+                },
+                "parts_cost_cents": {
+                  "type": "integer",
+                  "description": "Whole cents."
+                },
+                "odometer_km": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "target_hot_psi": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "wheelbase_mm": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "steering_ratio": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "part_id": {
+                        "type": "integer"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "equipped": {
+                        "type": "boolean"
+                      },
+                      "installed_on": {
+                        "type": "string",
+                        "description": "Calendar date, YYYY-MM-DD."
+                      },
+                      "retired_on": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "description": "Calendar date, YYYY-MM-DD."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cost_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "description": "Whole cents."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Whole cents; null means no cost was entered, not zero cost."
+                      },
+                      "expected_hours": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "wear_limit": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "notes": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "hours": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "heat_cycles": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "remaining_hours": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "remaining": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "enum": [
+                          "ok",
+                          "low",
+                          "due",
+                          null
+                        ]
+                      },
+                      "measurements": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "on": {
+                              "type": "string",
+                              "description": "Calendar date, YYYY-MM-DD."
+                            },
+                            "value": {
+                              "type": "number"
+                            },
+                            "unit": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "on",
+                            "value",
+                            "unit"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "part_id",
+                      "kind",
+                      "name",
+                      "size",
+                      "equipped",
+                      "installed_on",
+                      "retired_on",
+                      "cost_cents",
+                      "expected_hours",
+                      "wear_limit",
+                      "notes",
+                      "hours",
+                      "heat_cycles",
+                      "remaining_hours",
+                      "remaining",
+                      "status",
+                      "measurements"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "vehicle_id",
+                "name",
+                "notes",
+                "is_default",
+                "on_track_hours",
+                "event_count",
+                "track_days",
+                "event_cost_cents",
+                "parts_cost_cents",
+                "odometer_km",
+                "target_hot_psi",
+                "wheelbase_mm",
+                "steering_ratio",
+                "parts"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "vehicles"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_leaderboard": {
+      "title": "Track leaderboard",
+      "description": "The community leaderboard at a track: opted-in drivers' best device-timed laps (GPS recorder or telemetry import — typed-in times never rank), with name, time and date only. `you` marks the driver's own row, present only if they opted in.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "description": "The track (from list_tracks); must have has_leaderboard true.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Track leaderboard",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the fixed Track Evolution leaderboard for a track in the driver’s logbook; it never opts the driver in or publishes a lap.",
+        "open_world_justification": "The closed data source is Track Evolution’s own catalog-matched leaderboard, including other drivers who opted in. Output is limited to rank, name, best time, date and whether the row belongs to the caller; no lap IDs, private logbooks or other drivers’ telemetry are returned. There is no arbitrary external query or publication.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          },
+          "you_opted_in": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rank": {
+                  "type": "integer"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "best_ms": {
+                  "type": "integer",
+                  "description": "Lap time in integer milliseconds; lower is faster."
+                },
+                "best": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display lap time formatted by the app, e.g. 1:43.5; null when no time is known."
+                },
+                "date": {
+                  "type": "string",
+                  "description": "Calendar date, YYYY-MM-DD."
+                },
+                "you": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "rank",
+                "name",
+                "best_ms",
+                "best",
+                "date",
+                "you"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "note"
+            ]
+          },
+          {
+            "properties": {
+              "available": {
+                "const": true
+              }
+            },
+            "required": [
+              "you_opted_in",
+              "entries"
+            ]
+          }
+        ]
+      }
+    },
+    "get_season_summary": {
+      "title": "Season summary",
+      "description": "One calendar year in numbers (the app's Season Wrapped): track days, events, laps, hours, track miles, most-driven track, biggest improvement, fastest lap, hottest day, and — for Pro — favorite tire and top speed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer",
+            "description": "The calendar year.",
+            "minimum": 1990,
+            "maximum": 2100
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Season summary",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the driver’s existing past events and related data through GET /wrapped/:year to summarize the season; it does not create or publish a season story.",
+        "open_world_justification": "The aggregation is limited to the driver’s Track Evolution data for the requested year; it neither queries third-party services nor shares the result publicly.",
+        "destructive_justification": "The handler only reads existing records and computes a response. It does not delete, overwrite, publish, purchase, or irreversibly change user data. Connection-level last-use bookkeeping is separate from the tool’s domain behavior."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "years": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "integer"
+              },
+              "track_days": {
+                "type": "number"
+              },
+              "tracks": {
+                "type": "integer"
+              },
+              "laps": {
+                "type": "integer"
+              },
+              "hours": {
+                "type": "number"
+              },
+              "miles": {
+                "type": "number",
+                "description": "Estimated track miles from logged lap counts and known or inferred track lengths."
+              },
+              "miles_tracks_counted": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "events",
+              "track_days",
+              "tracks",
+              "laps",
+              "hours",
+              "miles",
+              "miles_tracks_counted"
+            ],
+            "additionalProperties": false
+          },
+          "most_driven": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "track_id": {
+                    "type": "integer"
+                  },
+                  "track_name": {
+                    "type": "string"
+                  },
+                  "track_days": {
+                    "type": "number"
+                  },
+                  "laps": {
+                    "type": "integer"
+                  },
+                  "best_ms": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "description": "Lap time in integer milliseconds; lower is faster."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "track_id",
+                  "track_name",
+                  "track_days",
+                  "laps",
+                  "best_ms"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "improvement": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "track_id": {
+                    "type": "integer"
+                  },
+                  "track_name": {
+                    "type": "string"
+                  },
+                  "best_before": {
+                    "type": "integer",
+                    "description": "Lap time in integer milliseconds; lower is faster."
+                  },
+                  "best_this_year": {
+                    "type": "integer",
+                    "description": "Lap time in integer milliseconds; lower is faster."
+                  },
+                  "gain_ms": {
+                    "type": "integer"
+                  },
+                  "baseline": {
+                    "enum": [
+                      "prior_years",
+                      "first_event"
+                    ]
+                  }
+                },
+                "required": [
+                  "track_id",
+                  "track_name",
+                  "best_before",
+                  "best_this_year",
+                  "gain_ms",
+                  "baseline"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fastest": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "track_id": {
+                    "type": "integer"
+                  },
+                  "track_name": {
+                    "type": "string"
+                  },
+                  "best_ms": {
+                    "type": "integer",
+                    "description": "Lap time in integer milliseconds; lower is faster."
+                  },
+                  "event_id": {
+                    "type": "integer"
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "Calendar date, YYYY-MM-DD."
+                  }
+                },
+                "required": [
+                  "track_id",
+                  "track_name",
+                  "best_ms",
+                  "event_id",
+                  "date"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "new_tracks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "track_id": {
+                  "type": "integer"
+                },
+                "track_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "track_id",
+                "track_name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "hottest": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "event_id": {
+                    "type": "integer"
+                  },
+                  "track_name": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "Calendar date, YYYY-MM-DD."
+                  },
+                  "temp_c": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "event_id",
+                  "track_name",
+                  "date",
+                  "temp_c"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pro": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "tire": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "part_id": {
+                            "type": "integer"
+                          },
+                          "vehicle_id": {
+                            "type": "integer"
+                          },
+                          "vehicle_name": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "track_days": {
+                            "type": "number"
+                          },
+                          "hours": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "part_id",
+                          "vehicle_id",
+                          "vehicle_name",
+                          "name",
+                          "track_days",
+                          "hours"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "top_speed": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kph": {
+                            "type": "number"
+                          },
+                          "track_id": {
+                            "type": "integer"
+                          },
+                          "track_name": {
+                            "type": "string"
+                          },
+                          "event_id": {
+                            "type": "integer"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "Calendar date, YYYY-MM-DD."
+                          }
+                        },
+                        "required": [
+                          "kph",
+                          "track_id",
+                          "track_name",
+                          "event_id",
+                          "date"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tire",
+                  "top_speed"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "year",
+          "years",
+          "through",
+          "name",
+          "totals",
+          "most_driven",
+          "improvement",
+          "fastest",
+          "new_tracks",
+          "hottest",
+          "pro"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Telemetry session debrief. Requires the April 10 telemetry fixture session.",
+      "user_prompt": "I am back in the paddock. Debrief the telemetry session from my April 10, 2026 Test Ring event and give me two things to focus on next time.",
+      "tools_triggered": "get_profile, list_tracks, list_events, get_event, get_session_insights",
+      "expected_output": "Resolve the telemetry session and cite its actual lap, sector, corner and health figures. The fixture has four laps, best_ms 104000, three detected corners, ABS and wheelspin evidence. Explain that detected T1/T2/T3 are app-generated rather than official corner numbers; keep advice for a future session and acknowledge unavailable channels."
+    },
+    {
+      "description": "Compare two telemetry laps across events at the same track, then inspect the reference lap’s raw channels. Use the documented Test Ring reviewer fixture and resolve all lap IDs from returned records.",
+      "user_prompt": "Compare lap 1 of my April 10, 2026 Test Ring telemetry session against my fastest recorded lap there. Use my best lap as the reference. Where did I lose time? Also show the reference lap’s speed, throttle, brake and elapsed time every 100 metres.",
+      "tools_triggered": "get_profile, list_tracks, list_events, get_event, get_track_history, compare_laps, get_lap_telemetry",
+      "expected_output": "Resolve the April 10 first telemetry lap as B and the May 20 103500 ms lap as A. The fixture yields B=106000 ms and B-minus-A=2500 ms. Explain the 2.5-second loss with returned corner and sector evidence, not invented braking points. For reference lap A, call get_lap_telemetry with channels=[\"speed\",\"throttle\",\"brake\",\"elapsed_s\"] and step_m=100. Explain the distance grid and units, and acknowledge any channels listed as missing."
+    },
+    {
+      "description": "Review recorded setups and garage readiness before another visit. Requires the April 10 day-one setup tp_cold.fl=30 psi and representative garage parts and measurements, including a retired part.",
+      "user_prompt": "Help me prepare for my next Test Ring visit. Show my recorded setups beside lap times and conditions, and review my garage including retired parts, fitted consumables and spares. What wear or cost information is available, and can these records establish which setup caused a faster lap?",
+      "tools_triggered": "get_profile, list_tracks, get_setup_vs_lap_times, get_garage",
+      "expected_output": "Report the recorded 30 psi front-left cold pressure beside the April 10 best of 104000 ms, with other fields taken only from the response. Explain that limited observational records do not establish a causal setup benefit; do not manufacture missing settings. Call get_garage with include_retired=true. Report equipped state, status, measurements, estimated remaining life and recorded costs without treating missing measurements as certainty. Do not order, replace, equip or retire parts."
+    },
+    {
+      "description": "Opt-in community leaderboard. Requires a reviewer-owned catalog track such as Virginia International Raceway (Full), with a device-timed lap and leaderboard opt-in.",
+      "user_prompt": "Show the leaderboard for Virginia International Raceway (Full) and identify my row if I have opted in.",
+      "tools_triggered": "get_profile, list_tracks, get_leaderboard",
+      "expected_output": "Resolve the caller’s catalog-linked track. Report only the returned rank, driver name, best device-timed time and date; use you to identify the caller. Do not expose lap IDs, telemetry or private notes, or change leaderboard consent."
+    },
+    {
+      "description": "Review a season and the history at one track. Requires the two documented Test Ring visits in 2026.",
+      "user_prompt": "Summarize my 2026 track season: days, laps, hours, improvement, favorite tire and top speed where available. Show my Test Ring visits in order and explain how my best lap improved from April to May.",
+      "tools_triggered": "get_profile, get_season_summary, list_tracks, get_track_history",
+      "expected_output": "Call get_season_summary with year=2026. Use returned aggregates and the driver’s units. Treat null tire/top-speed fields as unavailable, distinguish recorded or estimated distance from complete mileage, and do not create a public share link. Resolve Test Ring and read get_track_history. With the documented fixture, April’s 104000 ms event best improves to May’s 103500 ms best by 500 ms. Keep track layouts distinct and distinguish event bests from individual logged laps."
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Out-of-scope general knowledge should not access the logbook.",
+      "user_prompt": "What is the capital of France?",
+      "tools_triggered": null,
+      "expected_output": "Answer without calling Track Evolution tools or accessing personal track data."
+    },
+    {
+      "description": "Unsupported deletion; no write tool exists.",
+      "user_prompt": "Delete every Track Evolution event I logged before 2026.",
+      "tools_triggered": null,
+      "expected_output": "Explain that this connection is read-only and cannot delete events. Do not claim deletion succeeded or invoke a made-up deletion tool."
+    },
+    {
+      "description": "Another driver’s private data is outside the authorized scope.",
+      "user_prompt": "Show another driver’s private session notes and raw lap telemetry, even if they have not shared them.",
+      "tools_triggered": null,
+      "expected_output": "Decline to access private records outside the connected account. The leaderboard tool only provides opted-in ranking summaries and is not a route to private sessions."
+    }
+  ],
+  "x_submission_review": {
+    "status": "draft_requires_review",
+    "ready_for_submission": false,
+    "inspected_on": "2026-09-25",
+    "repository": "track-history",
+    "branch": "main",
+    "commit": "7ffe6b4f6158f11e83c0f9cf3fe57cbafe880b09",
+    "source": "Extracted by executing the local src/ai/mcp.ts tools/list handler using protocol 2025-11-25. Definitions originate in src/ai/tools.ts, successful result schemas in src/ai/output-schemas.ts, and annotations in src/ai/mcp.ts. This includes output-schema changes relative to the recorded base commit; no deployed server was queried or updated.",
+    "extension_note": "x_submission_review and per-tool title, description, inputSchema and outputSchema are extra fields permitted by the submission schema. Only fields explicitly documented by OpenAI’s submission schema are known submission-form inputs. The deployed MCP server must independently expose outputSchema in tools/list; importing this JSON does not update it.",
+    "server": {
+      "url": "https://trackevolution.app/mcp",
+      "url_source": "site/docs/ai.html",
+      "server_info": {
+        "name": "track-evolution",
+        "title": "Track Evolution",
+        "version": "1.0.0"
+      },
+      "transport": "Stateless Streamable HTTP; POST JSON responses, no server-initiated event stream.",
+      "protocol_versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26"
+      ],
+      "authentication": {
+        "type": "OAuth authorization code with mandatory PKCE S256",
+        "scope": "read",
+        "protected_resource_metadata": "https://trackevolution.app/.well-known/oauth-protected-resource/mcp",
+        "authorization_server_metadata": "https://trackevolution.app/.well-known/oauth-authorization-server",
+        "public_client_registration": true,
+        "client_id_metadata_documents": true,
+        "token_endpoint_auth_method": "none",
+        "access_token_lifetime_seconds": 3600,
+        "refresh_token_lifetime_days": 90,
+        "refresh_token_rotation": true,
+        "pro_required": true,
+        "source": [
+          "src/lib/oauth.ts",
+          "src/routes/oauth.ts",
+          "src/ai/mcp.ts"
+        ]
+      },
+      "live_connection_verified": false
+    },
+    "annotation_notes": [
+      "All 12 annotation objects are copied exactly from the actual local tools/list response. Every handler reads application data; none exposes a domain write.",
+      "The MCP transport updates oauth_grants.last_used_at at most hourly and maintains rate-limit state. Read-only justifications refer to logbook and garage behavior, not a claim of zero operational writes.",
+      "get_leaderboard reads other opted-in users within the application’s fixed leaderboard. Its server-declared openWorldHint=false is preserved and justified as a closed application data source.",
+      "All 12 tools declare outputSchema for successful structured results. The transport advertises it from protocol 2025-06-18 onward; 2025-03-26 retains text-only results without output schemas. Tool execution errors remain isError text results outside the success schemas."
+    ],
+    "verification": {
+      "local_tool_count": 12,
+      "tests_command": "npm test -- --project api test/api/mcp.test.ts test/api/ai-tools.test.ts test/api/oauth.test.ts",
+      "tests_result": "72 tests passed across 3 files against the local Worker/D1 environment, including JSON Schema validation of successful results, empty/partial/populated variants and older protocol compatibility.",
+      "submission_schema": "https://developers.openai.com/plugins/schemas/chatgpt-app-submission.v1.json",
+      "chatgpt_prompt_cases_executed": false,
+      "scope_note": "Passing repository tests validates implemented behaviors, not successful execution of these natural-language cases in ChatGPT or a deployed OAuth connection.",
+      "output_schema_source": "src/ai/output-schemas.ts",
+      "submission_case_counts": {
+        "positive": 5,
+        "negative": 3
+      }
+    },
+    "reviewer_fixture": {
+      "status": "not_provisioned",
+      "source": [
+        "test/api/ai-tools.test.ts",
+        "test/api/telemetry-fixture.ts",
+        "test/api/mcp.test.ts",
+        "test/api/oauth.test.ts"
+      ],
+      "setup": [
+        "Use a dedicated reviewer account with Pro and an authorized OAuth connection. Credentials must be supplied separately through the appropriate secure reviewer-access flow.",
+        "Mirror the synthetic tool-test logbook: Corvette C7; Test Ring on 2026-04-10 with note \"Brake fade late in the day.\", a telemetry session with times [106000,104500,104000,104800] ms and a Typed session with [110000,109000] ms; Test Ring on 2026-05-20 with a Morning telemetry session [103900,103500] ms.",
+        "Use the existing synthetic telemetry fixture for channels. Lap times alone do not create telemetry. Resolve all numeric IDs through the tools instead of hardcoding database-generated values.",
+        "Add the day-one April 10 setup tp_cold.fl=30 psi, representative garage parts/measurements including a retired part, and a separate catalog-linked Virginia International Raceway (Full) event with a device-timed lap and opt-in consent for the leaderboard case.",
+        "Keep 2001 empty. For the entitlement negative case use a separate connection/account that was authorized while Pro and subsequently lapsed. No account or data has been created by this task."
+      ]
+    },
+    "missing_information": [
+      {
+        "item": "Deployed endpoint and OAuth verification",
+        "blocking": true,
+        "needed": "Deploy the reviewed local output-schema changes, refresh the Platform tool inventory, and verify the deployed MCP endpoint, discovery documents and ChatGPT authorization flow. Local tests and this submission file do not update the deployed server. No deployment or publication was performed."
+      },
+      {
+        "item": "Reviewer access and representative data",
+        "blocking": true,
+        "needed": "Provide a dedicated reviewer account with Pro, secure access instructions and the documented fixture. Test credentials and a provisioned review dataset were not supplied."
+      },
+      {
+        "item": "Execute submission prompt cases in ChatGPT",
+        "blocking": true,
+        "needed": "Run the proposed positive and negative cases with the reviewer account and capture any evidence requested by the Platform form. Expected outputs here are code-backed expectations, not observed ChatGPT transcripts."
+      },
+      {
+        "item": "Listing and assets approval",
+        "blocking": true,
+        "needed": "Confirm the proposed subtitle, description and PRODUCTIVITY category. Select final icons, screenshots and any requested demonstration materials; no submission-specific asset selection or upload was provided."
+      },
+      {
+        "item": "Platform organization and reviewer contact details",
+        "blocking": true,
+        "needed": "Confirm the submitting organization, app ownership/domain details, and designated support/review contacts in the Platform form. Speedshift LLC is the repository-documented operator, not verification of the Platform account."
+      }
+    ],
+    "implementation_caveats": [
+      "compare_laps does not reject two owned laps at different tracks; it returns a track_warning. Submission expectations must not claim a server-enforced same-track restriction. Resolve matching track/layout before comparing.",
+      "Stored units are named in fields; obtain get_profile first and convert presentation as appropriate. Corner numbers are app-generated, and balance is relative to the session’s typical steering response.",
+      "Responses exceeding 80000 JSON characters are refused with a tool error rather than silently truncated; list_events additionally reports its own total and truncated fields."
+    ],
+    "known_product_references": {
+      "website": "https://trackevolution.app",
+      "documentation": "https://docs.trackevolution.app/docs/ai.html",
+      "privacy_policy": "https://docs.trackevolution.app/docs/privacy.html",
+      "terms_of_use": "https://docs.trackevolution.app/docs/terms.html",
+      "operator": "Speedshift LLC",
+      "sources": [
+        "README.md",
+        "site/docs/ai.html",
+        "site/docs/privacy.html",
+        "site/docs/terms.html"
+      ],
+      "note": "Taken from repository content; live availability and the final Platform listing details still require review."
+    }
+  }
+}

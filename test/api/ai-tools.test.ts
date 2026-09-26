@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { Validator } from "@cfworker/json-schema";
 import { TOOLS, ToolError, runTool, validateArgs } from "../../src/ai/tools";
 import { MAX_RESULT_CHARS } from "../../src/ai/mcp";
 import { createEvent, signedInProUser, signedInUser } from "./helpers";
@@ -14,7 +15,16 @@ import { telemetrySession } from "./telemetry-fixture";
 type User = Awaited<ReturnType<typeof signedInProUser>>;
 
 const asTool = (u: User) => ({ userId: u.id, entitledUntil: Number.MAX_SAFE_INTEGER });
-const run = (u: User, name: string, args: unknown = {}) => runTool(env, asTool(u), name, args) as Promise<any>;
+const outputValidators = new Map(TOOLS.map((t) => [t.name, new Validator(t.outputSchema, "2020-12", false)]));
+const run = async (u: User, name: string, args: unknown = {}): Promise<any> => {
+  const result = await runTool(env, asTool(u), name, args);
+  // Validate the wire representation, where optional undefined fields are
+  // omitted. A handler returning the wrong type or a missing field fails all
+  // the existing behavior tests, not just a hand-picked schema example.
+  const check = outputValidators.get(name as (typeof TOOLS)[number]["name"])!.validate(JSON.parse(JSON.stringify(result)));
+  expect(check.errors, `${name} outputSchema`).toEqual([]);
+  return result;
+};
 
 async function logbook() {
   const user = await signedInProUser();
@@ -293,5 +303,103 @@ describe("ownership", () => {
   it("answers a free account's garage as Pro-only, the API's own 402", async () => {
     const free = await signedInUser();
     await expect(runTool(env, { userId: free.id, entitledUntil: null }, "get_garage", {})).rejects.toThrow(/Pro/);
+  });
+});
+
+describe("output schema variants", () => {
+  it("accepts empty collections, an untimed event and a session with no laps", async () => {
+    const user = await signedInProUser();
+    expect((await run(user, "list_tracks")).tracks).toEqual([]);
+    expect((await run(user, "list_events")).events).toEqual([]);
+    expect((await run(user, "get_garage")).vehicles).toEqual([]);
+    const eventId = await createEvent(user.api, { track_name: "Empty Ring", start_date: "2026-04-10" });
+    const saved = await user.api("POST", `/events/${eventId}/sessions`, {});
+    expect(saved.status).toBe(201);
+    const detail = await run(user, "get_event", { event_id: eventId });
+    expect(detail.best_ms).toBeNull();
+    expect(detail.sessions[0].lap_stats).toBeNull();
+    const insight = await run(user, "get_session_insights", { session_id: saved.body.id });
+    expect(insight.telemetry).toBeNull();
+    expect(insight.lap_stats).toBeNull();
+    const season = await run(user, "get_season_summary", { year: 2026 });
+    expect(season.fastest).toBeNull();
+    expect(season.pro).toEqual({ tire: null, top_speed: null });
+  });
+
+  it("accepts partial telemetry, missing channels and comparison warnings", async () => {
+    const { user, detail } = await logbook();
+    const eventId = await createEvent(user.api, { track_name: "Different Ring", start_date: "2026-06-01" });
+    const saved = await user.api("POST", `/events/${eventId}/sessions`, {
+      laps: [120000],
+      channels: { v: 1, dStepM: 20, laps: [{
+        n: 1, timeMs: 120000,
+        speed: Array(800).fill(100), throttle: Array(800).fill(50), brake: Array(800).fill(0),
+      }] },
+    });
+    expect(saved.status).toBe(201);
+    const event = await run(user, "get_event", { event_id: eventId });
+    const lapId = event.sessions[0].laps[0].lap_id;
+    const insight = await run(user, "get_session_insights", { session_id: saved.body.id });
+    expect(insight.telemetry).toMatchObject({ shifts: null, grip: null, corners: null, balance: null, health: null });
+    const missing = await run(user, "get_lap_telemetry", { lap_id: lapId, channels: ["boost"] });
+    expect(missing.missing).toEqual(["boost"]);
+    expect(missing.channels).toEqual({});
+    const compared = await run(user, "compare_laps", { lap_a_id: detail.sessions[0].laps[0].id, lap_b_id: lapId });
+    expect(compared.warning).toMatch(/distances differ/);
+    expect(compared.track_warning).toMatch(/different tracks/);
+  });
+
+  it("accepts populated setup, checklist, garage measurements and Pro season cards", async () => {
+    const { user, eventId } = await logbook();
+    const [vehicle] = (await run(user, "get_garage")).vehicles;
+    const tire = await user.api("POST", `/vehicles/${vehicle.vehicle_id}/parts`, {
+      kind: "tires", name: "Test tires", installed_on: "2026-01-01", expected_hours: 20,
+      cost_cents: 100000, wear_limit: 2, size: "275/35R18",
+    });
+    expect(tire.status).toBe(201);
+    expect((await user.api("POST", `/parts/${tire.body.id}/measurements`, {
+      measured_on: "2026-04-10", value: 7, unit: "mm",
+    })).status).toBe(201);
+    const retired = await user.api("POST", `/vehicles/${vehicle.vehicle_id}/parts`, {
+      kind: "pads_front", name: "Old pads", installed_on: "2026-01-01", retired_on: "2026-02-01",
+    });
+    expect(retired.status).toBe(201);
+    expect((await user.api("PUT", `/events/${eventId}`, {
+      checklist: [{ text: "Check wheel torque", done: true }], cost_entry_cents: 25000,
+    })).status).toBe(200);
+    expect((await user.api("PUT", `/events/${eventId}/setups/1`, {
+      tp_hot: { fl: 35 }, camber: { f: -3 }, fuel: 10, tires_id: tire.body.id, notes: "Baseline",
+    })).status).toBe(200);
+    const event = await run(user, "get_event", { event_id: eventId });
+    expect(event.checklist).toHaveLength(1);
+    expect(event.costs_cents.total).toBe(25000);
+    expect(event.setups[0].data.tires_id).toBe(tire.body.id);
+    const garage = await run(user, "get_garage", { include_retired: true });
+    expect(garage.vehicles[0].parts).toHaveLength(2);
+    expect(garage.vehicles[0].parts.find((p: any) => p.part_id === tire.body.id).measurements).toHaveLength(1);
+    const season = await run(user, "get_season_summary", { year: 2026 });
+    expect(season.pro.tire.part_id).toBe(tire.body.id);
+    expect(season.pro.top_speed.kph).toBeGreaterThan(0);
+  });
+
+  it("describes widened raw telemetry when the sample budget is exceeded", async () => {
+    const user = await signedInProUser();
+    const eventId = await createEvent(user.api);
+    const body = telemetrySession([120000]);
+    // The storage limit is 800 points per channel. Many channels at that
+    // length exceed the tool's smaller 6000-value response budget.
+    for (const [key, values] of Object.entries(body.channels.laps[0])) {
+      if (Array.isArray(values)) Object.assign(body.channels.laps[0], {
+        [key]: Array.from({ length: 800 }, (_, i) => values[i % values.length]),
+      });
+    }
+    expect((await user.api("POST", `/events/${eventId}/sessions`, body)).status).toBe(201);
+    const event = await run(user, "get_event", { event_id: eventId });
+    const raw = await run(user, "get_lap_telemetry", {
+      lap_id: event.sessions[0].laps[0].lap_id, step_m: 5,
+      channels: ["speed", "rpm", "latG", "throttle", "brake", "steering", "longG", "yaw", "gear", "wheelSlip", "flags", "elapsed_s"],
+    });
+    expect(raw.step_note).toMatch(/Widened/);
+    expect(raw.step_m).toBeGreaterThan(20);
   });
 });

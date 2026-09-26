@@ -154,6 +154,9 @@ export async function handleMessage(
           title: t.title,
           description: t.description,
           inputSchema: t.inputSchema,
+          // Output schemas and structuredContent arrived together. Keep the
+          // older protocol's text-only result and discovery shape intact.
+          ...(supportsStructured(version) ? { outputSchema: t.outputSchema } : {}),
           annotations: { title: t.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
         })),
       });

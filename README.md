@@ -1505,6 +1505,14 @@ Nothing to configure on deploy beyond applying migration `0028`.
   compare) runs the web app's own modules, **imported from `public/js/`**
   (`src/ai/insights.ts`, `allowJs` in `tsconfig.json`); results are summaries
   in stored units, never the raw channel blob, and bounded in size.
+  Every tool declares its successful result shape in `src/ai/output-schemas.ts`.
+  `tools/list` publishes `outputSchema` from protocol 2025-06-18 onward, alongside
+  `structuredContent` on successful calls; older clients keep the text-only
+  contract. Schemas describe nested fields, stored units, missing values and
+  optional warnings. The API tests validate serialized results against them
+  using the test-only `@cfworker/json-schema` dependency. Update the schema and
+  its tests whenever a tool's result changes; tool errors remain `isError`
+  text results outside the success schema.
 - **Authorization** (`src/routes/oauth.ts`, pure rules in `src/lib/oauth.ts`,
   migration `0028_oauth.sql`): discovery at
   `/.well-known/oauth-protected-resource[/mcp]` and

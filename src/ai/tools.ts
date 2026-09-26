@@ -20,6 +20,7 @@
 import { createMiddleware } from "hono/factory";
 import { apiApp } from "../api";
 import type { AppContext, Env } from "../types";
+import { OUTPUT_SCHEMAS, type OutputSchema } from "./output-schemas";
 import { fmtMs } from "../../public/js/format.js";
 import { partKindLabel, partStatus, fmtRemaining } from "../../public/js/garage.js";
 import {
@@ -136,10 +137,11 @@ export function validateArgs(schema: InputSchema, raw: unknown): Record<string, 
 export type ToolContext = { env: Env; user: ToolUser; today: string };
 
 export type Tool = {
-  name: string;
+  name: keyof typeof OUTPUT_SCHEMAS;
   title: string;
   description: string;
   inputSchema: InputSchema;
+  outputSchema: OutputSchema;
   handler: (ctx: ToolContext, args: Record<string, any>) => Promise<Record<string, unknown>>;
 };
 
@@ -211,6 +213,7 @@ async function lapSide(ctx: ToolContext, lapId: number, label: string): Promise<
 export const TOOLS: Tool[] = [
   {
     name: "get_profile",
+    outputSchema: OUTPUT_SCHEMAS.get_profile,
     title: "Profile",
     description:
       "The driver's profile: name, preferred unit system (imperial or metric — present numbers in it), lifetime totals, and leaderboard settings. Call this first.",
@@ -228,6 +231,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_tracks",
+    outputSchema: OUTPUT_SCHEMAS.list_tracks,
     title: "Tracks",
     description:
       "Every track in the logbook with its all-time best lap, goal, event and track-day counts and last visit. A track's name includes its layout, e.g. \"Virginia International Raceway (Full)\"; different layouts are different tracks.",
@@ -253,6 +257,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_events",
+    outputSchema: OUTPUT_SCHEMAS.list_events,
     title: "Events",
     description:
       "Track-day events, newest first, with each one's best lap, lap and session counts, consistency (coefficient of variation of lap times), conditions and on-track hours. Filter by track, car or year. An event's best is the lower of its fastest logged lap and a manually entered best.",
@@ -286,6 +291,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_event",
+    outputSchema: OUTPUT_SCHEMAS.get_event,
     title: "Event detail",
     description:
       "One event in full: its stats, notes, checklist, costs, per-day setup sheets, and every session with its laps (lap ids, lap numbers, times) and which laps carry telemetry. Use the lap and session ids with get_session_insights, compare_laps and get_lap_telemetry.",
@@ -333,6 +339,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_session_insights",
+    outputSchema: OUTPUT_SCHEMAS.get_session_insights,
     title: "Session insights",
     description:
       "One session analysed the way the app's channel panel does: lap statistics (best, best-3 average, pace trend, warm-up), and — when the session has telemetry — sector splits and the theoretical best lap, upshift points per gear, ABS/traction/stability interventions and wheelspin/lockup, friction-circle usage (trail braking and power-down shares), corners with peak lateral G, understeer/oversteer per corner, and car health (temperatures, pressures, fuel). Facts only; interpret them for the driver.",
@@ -352,6 +359,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "compare_laps",
+    outputSchema: OUTPUT_SCHEMAS.compare_laps,
     title: "Compare two laps",
     description:
       "Two laps with telemetry head to head — from the same session or from different events at the same track: times, sector splits, speeds, full-throttle and braking shares, and where time was gained or lost, by corner (with minimum speed through each) and by tenth of the lap. Lap A is the reference; deltas are B minus A.",
@@ -381,6 +389,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_lap_telemetry",
+    outputSchema: OUTPUT_SCHEMAS.get_lap_telemetry,
     title: "Lap telemetry",
     description:
       "One lap's raw traces against driven distance from the start/finish line, thinned to a step (default 40 m). Channels: speed (km/h), throttle and brake (%), steering (degrees), rpm, gear, latG and longG (G; latG is a magnitude, longG negative under braking), yaw (°/s), wheelSlip (%), boost (kPa), flags (bits ABS=1, TC=2, stability=4), and elapsed_s derived from speed. Prefer get_session_insights or compare_laps; use this for questions they don't answer.",
@@ -416,6 +425,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_track_history",
+    outputSchema: OUTPUT_SCHEMAS.get_track_history,
     title: "Track history",
     description:
       "Everything at one track over time: each visit's best, lap count, car and conditions (oldest first), plus the fastest individual laps ever logged there with their lap ids and whether each has telemetry — the natural starting point for compare_laps.",
@@ -462,6 +472,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_setup_vs_lap_times",
+    outputSchema: OUTPUT_SCHEMAS.get_setup_vs_lap_times,
     title: "Setups vs lap times",
     description:
       "Every setup sheet recorded at a track (tire pressures, alignment, dampers, aero, fuel… per event day) beside that event's best lap, consistency and conditions — for questions like \"which setup was fastest here\". Pressures are psi and fuel US gallons, as stored.",
@@ -478,6 +489,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_garage",
+    outputSchema: OUTPUT_SCHEMAS.get_garage,
     title: "Garage",
     description:
       "The driver's cars and their consumables (pads, tires — a full set or separate front and rear pairs, each with its size — rotors, fluids…): whether each is on the car now or on the shelf as a spare, accrued on-track hours (counted only while it was on the car), wear measurements, estimated life remaining and a status (ok / low / due), what each car's track days and parts have cost, and the car's own odometer where recorded.",
@@ -531,6 +543,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_leaderboard",
+    outputSchema: OUTPUT_SCHEMAS.get_leaderboard,
     title: "Track leaderboard",
     description:
       "The community leaderboard at a track: opted-in drivers' best device-timed laps (GPS recorder or telemetry import — typed-in times never rank), with name, time and date only. `you` marks the driver's own row, present only if they opted in.",
@@ -560,6 +573,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_season_summary",
+    outputSchema: OUTPUT_SCHEMAS.get_season_summary,
     title: "Season summary",
     description:
       "One calendar year in numbers (the app's Season Wrapped): track days, events, laps, hours, track miles, most-driven track, biggest improvement, fastest lap, hottest day, and — for Pro — favorite tire and top speed.",
