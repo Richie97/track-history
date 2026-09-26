@@ -18,6 +18,15 @@ export type HoursEvent = {
   track_hours: number | null; // per-event override
   lap_ms_sum: number | null; // total logged lap time, ms
   lap_count: number | null; // logged laps across the event's sessions
+  // The event's sessions in running order (sort, then id), each with its
+  // logged lap time — what a mount that starts or ends at a session divides the
+  // event by (migration 0030). Absent or empty: the event is indivisible.
+  sessions?: HoursSession[];
+};
+
+export type HoursSession = {
+  id: number;
+  lap_ms_sum: number | null;
 };
 
 // On-track hours for one event. The explicit override wins; otherwise an event
@@ -32,9 +41,17 @@ export function eventHours(e: HoursEvent): number {
 
 // A stretch a part was actually on the car (migration 0029). Both ends are
 // inclusive; removed_on is null while it is still fitted.
+//
+// Either end can also name a session (migration 0030) — a swap made between
+// sessions. mounted_session_id is the first session the part ran; removed_session_id
+// is the first session it did *not* run (the one its replacement started), so a
+// mid-day swap writes the same session id on both parts' mounts and the day's
+// hours divide between them instead of counting twice.
 export type Mount = {
   mounted_on: string; // ISO yyyy-mm-dd
   removed_on: string | null;
+  mounted_session_id?: number | null;
+  removed_session_id?: number | null;
 };
 
 export type PartWindow = {
@@ -47,20 +64,34 @@ export type PartWindow = {
   mounts?: Mount[];
 };
 
+type Window = { from: string; to: string; fromSession: number | null; toSession: number | null };
+
 // The windows a part accrues over: each mount, clipped to the part's lifetime
-// (installed_on … retired_on) and to today.
-export function serviceWindows(part: PartWindow, today: string): { from: string; to: string }[] {
+// (installed_on … retired_on) and to today. A session boundary survives only
+// on an end the clipping left where it was.
+function mountWindows(part: PartWindow, today: string): Window[] {
   const lifeEnd = part.retired_on ?? today;
   const mounts = part.mounts ?? [{ mounted_on: part.installed_on, removed_on: part.retired_on }];
   return mounts
     .map((m) => {
-      const from = m.mounted_on > part.installed_on ? m.mounted_on : part.installed_on;
+      const clippedFrom = m.mounted_on < part.installed_on;
+      const from = clippedFrom ? part.installed_on : m.mounted_on;
       let to = m.removed_on ?? lifeEnd;
-      if (to > lifeEnd) to = lifeEnd;
-      if (to > today) to = today;
-      return { from, to };
+      let clippedTo = m.removed_on == null;
+      if (to > lifeEnd) (to = lifeEnd), (clippedTo = true);
+      if (to > today) (to = today), (clippedTo = true);
+      return {
+        from,
+        to,
+        fromSession: clippedFrom ? null : m.mounted_session_id ?? null,
+        toSession: clippedTo ? null : m.removed_session_id ?? null,
+      };
     })
     .filter((w) => w.from <= w.to);
+}
+
+export function serviceWindows(part: PartWindow, today: string): { from: string; to: string }[] {
+  return mountWindows(part, today).map(({ from, to }) => ({ from, to }));
 }
 
 // Whether a date falls inside any of the part's service windows.
@@ -68,17 +99,53 @@ export function onCarOn(part: PartWindow, date: string, today: string): boolean 
   return serviceWindows(part, today).some((w) => date >= w.from && date <= w.to);
 }
 
-// Events that count against a part: started while it was on the car and
-// already driven (an upcoming event isn't wear yet — same rule as userTotals).
-export function eventsInWindow<E extends HoursEvent>(
+// How much of one event a window covers, 0…1. Without a session boundary on
+// this event the answer is all or nothing by the event's start date — an event
+// counts against a part that was on the car the day it started, which is the
+// rule dates alone can give. A boundary that names one of the event's sessions
+// cuts it there: the part ran the sessions from its mounted session up to (not
+// including) its removed one, and gets that share of the event, weighted by
+// logged lap time — or by session count when no session logged a lap.
+function windowShare(w: Window, e: HoursEvent): number {
+  const sessions = e.sessions ?? [];
+  const at = (id: number | null) => (id == null ? -1 : sessions.findIndex((s) => s.id === id));
+  const startIdx = at(w.fromSession);
+  const endIdx = at(w.toSession);
+  if (startIdx < 0 && endIdx < 0) return e.start_date >= w.from && e.start_date <= w.to ? 1 : 0;
+  // A boundary on this event decides that end; the other end is the dates'.
+  const lo = startIdx >= 0 ? startIdx : e.start_date >= w.from ? 0 : sessions.length;
+  const hi = endIdx >= 0 ? endIdx : e.start_date <= w.to ? sessions.length : 0;
+  if (hi <= lo) return 0;
+  const byLaps = sessions.some((s) => (s.lap_ms_sum ?? 0) > 0);
+  const weight = (s: HoursSession) => (byLaps ? s.lap_ms_sum ?? 0 : 1);
+  const total = sessions.reduce((sum, s) => sum + weight(s), 0);
+  return sessions.slice(lo, hi).reduce((sum, s) => sum + weight(s), 0) / total;
+}
+
+// Every already-driven event (an upcoming one isn't wear yet — same rule as
+// userTotals) with the share of it the part was on the car for, dropping the
+// ones it missed. Two stretches on the same day can both claim an event — off
+// and back on without naming a session — so a share never exceeds the whole.
+export function eventShares<E extends HoursEvent>(
   part: PartWindow,
   events: E[],
   today: string
-): E[] {
-  const windows = serviceWindows(part, today);
-  return events.filter(
-    (e) => e.start_date <= today && windows.some((w) => e.start_date >= w.from && e.start_date <= w.to)
-  );
+): { event: E; share: number }[] {
+  const windows = mountWindows(part, today);
+  return events
+    .filter((e) => e.start_date <= today)
+    .map((event) => ({ event, share: Math.min(1, windows.reduce((sum, w) => sum + windowShare(w, event), 0)) }))
+    .filter((x) => x.share > 0);
+}
+
+// The events that count against a part at all, whole or in part.
+export function eventsInWindow<E extends HoursEvent>(part: PartWindow, events: E[], today: string): E[] {
+  return eventShares(part, events, today).map((x) => x.event);
+}
+
+// The on-track hours a part accrued over a set of shared events.
+export function sharedHours(shares: { event: HoursEvent; share: number }[]): number {
+  return shares.reduce((sum, { event, share }) => sum + eventHours(event) * share, 0);
 }
 
 // Which kinds share a place on the car with `kind`: equipping a part takes the
@@ -131,9 +198,7 @@ function fitWear(
   const pts = [...measurements]
     .sort((a, b) => a.measured_on.localeCompare(b.measured_on))
     .map((m) => ({
-      x: eventsInWindow(part, events, today)
-        .filter((e) => e.start_date <= m.measured_on)
-        .reduce((sum, e) => sum + eventHours(e), 0),
+      x: sharedHours(eventShares(part, events, today).filter((x) => x.event.start_date <= m.measured_on)),
       y: m.value,
     }));
   const n = pts.length;
@@ -162,16 +227,17 @@ export function wearEstimate(
   measurements: Measurement[],
   today: string
 ): WearEstimate {
-  const inWindow = eventsInWindow(part, events, today);
-  const hours = inWindow.reduce((sum, e) => sum + eventHours(e), 0);
-  const cycles = inWindow.reduce((sum, e) => sum + Math.max(1, Math.ceil(e.days || 1)), 0);
+  const shares = eventShares(part, events, today);
+  const hours = sharedHours(shares);
+  // Event-days ≈ heat cycles: a part that ran any of a day ran a cycle on it.
+  const cycles = shares.reduce((sum, { event, share }) => sum + Math.max(1, Math.ceil((event.days || 1) * share)), 0);
   const last = measurements.length
     ? [...measurements].sort((a, b) => a.measured_on.localeCompare(b.measured_on))[measurements.length - 1]
     : null;
 
   const base: WearEstimate = {
     hours: Math.round(hours * 10) / 10,
-    events: inWindow.length,
+    events: shares.length,
     cycles,
     expected_hours: part.expected_hours,
     remaining_hours: null,

@@ -4,6 +4,7 @@ import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.StaticToken
 import app.trackevolution.core.model.MeasurementDraft
 import app.trackevolution.core.model.PartDraft
+import app.trackevolution.core.model.PartEquipDraft
 import app.trackevolution.core.model.PartKind
 import app.trackevolution.core.model.PartPatch
 import app.trackevolution.core.model.PartRefreshDraft
@@ -185,12 +186,26 @@ class GarageApiTest {
         // Every part on the car has a span; the rear pair that has never been
         // fitted (migration 0029) has neither a span nor a mount.
         assertTrue(corvette.parts.filter { it.equipped == true }.all { it.odometer != null })
-        val spare = corvette.parts.single { it.equipped == false }
+        val spare = corvette.parts.single { it.equipped == false && it.mounts.isEmpty() }
         assertEquals(PartKind.TIRES_REAR, spare.kind)
         assertEquals("275/40R17", spare.size)
         assertTrue(spare.mounts.isEmpty())
         assertNull(spare.odometer)
         assertNull(garage.single { it.name == "Miata" }.odometer)
+    }
+
+    @Test
+    fun `carries the session a mid-day swap divided the day at`() = runTest {
+        // Migration 0030: the front pair came off before a session and its
+        // replacement went on before the same one, so both mounts name it.
+        val corvette = client { ok(Goldens.bodyText("garage")) }.garage().single { it.name == "Corvette C7" }
+        val on = corvette.parts.single { it.kind == PartKind.TIRES_FRONT && it.equipped == true }.mounts.single()
+        val off = corvette.parts.single { it.kind == PartKind.TIRES_FRONT && it.equipped == false }.mounts.single()
+        assertNotNull(on.mountedSessionId)
+        assertNull(on.removedSessionId)
+        assertEquals(on.mountedSessionId, off.removedSessionId)
+        assertNull(off.mountedSessionId)
+        assertEquals(on.mountedOn, off.removedOn)
     }
 
     // ---- Parts -------------------------------------------------------------
@@ -246,6 +261,29 @@ class GarageApiTest {
         val body = bodyOf(recorded.single())
         assertEquals("2026-08-02", body["installed_on"]!!.jsonPrimitive.content)
         assertEquals("42000", body["cost_cents"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `names the session a mid-day swap happened before, and omits it otherwise`() = runTest {
+        // Migration 0030: `session_id` divides the swap day's hours at that
+        // session. Null is the whole-day rule and must not reach the body.
+        val api = client { request ->
+            if (request.url.encodedPath.endsWith("/equip")) ok("""{"ok":true,"unequipped":[]}""")
+            else if (request.url.encodedPath.endsWith("/refresh")) ok("""{"retired_id":11,"id":12}""")
+            else if (request.url.encodedPath.endsWith("/parts")) ok("""{"id":13}""")
+            else ok("""{"ok":true}""")
+        }
+        api.equipPart(11, PartEquipDraft(on = "2026-05-02", sessionId = 21))
+        api.unequipPart(11, PartEquipDraft(on = "2026-05-02", sessionId = 22))
+        api.refreshPart(11, PartRefreshDraft(installedOn = "2026-05-02", sessionId = 23))
+        api.createPart(
+            3,
+            PartDraft(kind = PartKind.TIRES, installedOn = "2026-05-02", equipped = true, swap = true, sessionId = 24),
+        )
+        api.equipPart(11, PartEquipDraft(on = "2026-05-02"))
+
+        assertEquals(listOf("21", "22", "23", "24"), recorded.take(4).map { bodyOf(it)["session_id"]!!.jsonPrimitive.content })
+        assertFalse("session_id" in bodyOf(recorded[4]))
     }
 
     @Test

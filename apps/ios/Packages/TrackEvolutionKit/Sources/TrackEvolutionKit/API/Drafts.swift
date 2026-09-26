@@ -326,9 +326,14 @@ public struct PartDraft: Encodable, Hashable, Sendable {
     public var equipped: Bool?
     /// With `equipped`, also take off whatever shares its place, as equipping does.
     public var swap: Bool?
+    /// With `equipped`, the session the part first ran (migration 0030): the
+    /// swap happened before it, so a mid-day change divides that day's hours.
+    /// Must be a session of an event on this car covering `installedOn`.
+    public var sessionId: Int?
 
     public enum CodingKeys: String, CodingKey {
         case kind, name, size, notes, equipped, swap
+        case sessionId = "session_id"
         case installedOn = "installed_on"
         case costCents = "cost_cents"
         case expectedHours = "expected_hours"
@@ -395,9 +400,19 @@ public struct PartPatch: Encodable, Hashable, Sendable {
 /// today on the server when nil.
 public struct PartEquipDraft: Encodable, Hashable, Sendable {
     public var on: String?
+    /// The session the swap happened before (migration 0030) — the part going
+    /// on runs it, the part coming off doesn't. Nil is the whole-day rule. With
+    /// no `on`, the server dates the swap to that session's event.
+    public var sessionId: Int?
 
-    public init(on: String? = nil) {
+    public enum CodingKeys: String, CodingKey {
+        case on
+        case sessionId = "session_id"
+    }
+
+    public init(on: String? = nil, sessionId: Int? = nil) {
         self.on = on
+        self.sessionId = sessionId
     }
 }
 
@@ -415,22 +430,26 @@ public struct PartRefreshDraft: Encodable, Hashable, Sendable {
     public var costCents: Int?
     public var equipped: Bool?
     public var swap: Bool?
+    /// The session the fresh set first ran (migration 0030); see `PartEquipDraft`.
+    public var sessionId: Int?
 
     public enum CodingKeys: String, CodingKey {
         case name, equipped, swap
         case installedOn = "installed_on"
         case costCents = "cost_cents"
+        case sessionId = "session_id"
     }
 
     public init(
         installedOn: String? = nil, name: String? = nil, costCents: Int? = nil,
-        equipped: Bool? = nil, swap: Bool? = nil
+        equipped: Bool? = nil, swap: Bool? = nil, sessionId: Int? = nil
     ) {
         self.installedOn = installedOn
         self.name = name
         self.costCents = costCents
         self.equipped = equipped
         self.swap = swap
+        self.sessionId = sessionId
     }
 }
 

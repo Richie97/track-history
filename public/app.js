@@ -42,7 +42,7 @@ import {
   isTireKind, partTitle,
   matchCatalogCars, partOdometerLine, vehicleOdometerLine,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit,
-  vehicleLogbook, vehicleTileLine, wearLimitHint,
+  swapSessionChoices, swapSessionEvent, vehicleLogbook, vehicleTileLine, wearLimitHint,
 } from "./js/garage.js";
 import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtDist, fmtSpeedKph, speedUnit, tempInputSpec, tempToDisplay, tempToStored, tempUnit, usUnits } from "./js/units.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
@@ -3120,6 +3120,30 @@ async function viewVehicle(vehicleId) {
   // The Equipped switch and the small confirm row it opens: the date the swap
   // happened (today unless it was earlier) and, turning one on, what it takes
   // off — the server makes the same choice (equipSwapKinds).
+  // Between which sessions a swap happened (migration 0030): a select that
+  // fills itself with the sessions of this car's event on the chosen date and
+  // stays hidden when there is none. "Whole day" is the date rule.
+  const swapSelectHtml = () => `<select name="session_id" aria-label="When in the day" hidden></select>`;
+  const bindSwapSessions = (form, dateInput, active = () => true) => {
+    const select = form.session_id;
+    let token = 0;
+    const fill = async () => {
+      const mine = ++token;
+      const ev = active() ? swapSessionEvent(v.id, dateInput.value, events) : null;
+      const detail = ev ? await api(`/events/${ev.id}`).catch(() => null) : null;
+      if (mine !== token) return;
+      const choices = swapSessionChoices(detail?.sessions);
+      select.innerHTML = choices.length
+        ? `<option value="">Whole day</option>${choices.map((c) => `<option value="${c.id}">${esc(c.label)}</option>`).join("")}`
+        : "";
+      select.hidden = !choices.length;
+    };
+    dateInput.addEventListener("change", fill);
+    fill();
+    return fill;
+  };
+  const swapSessionId = (form) => (form.session_id?.value ? Number(form.session_id.value) : null);
+
   const equipSwitchHtml = (p) => `
     <label class="equip-switch"><input type="checkbox" role="switch" data-part-equip="${p.id}"${p.equipped ? " checked" : ""}
       aria-describedby="equip-note-${p.id}"> Equipped</label>`;
@@ -3138,10 +3162,22 @@ async function viewVehicle(vehicleId) {
     return `<form class="btn-row equip-form" data-equip-form="${p.id}" hidden>
       <span class="hint-inline" id="equip-note-${p.id}">${note}</span>
       <input name="on" type="date" required value="${today}" min="${esc(min)}" max="${today}" aria-label="Swap date">
+      ${swapSelectHtml()}
       <button class="btn small primary">${p.equipped ? "Take off" : "Equip"}</button>
       <button class="btn small" type="button" data-equip-cancel="${p.id}">Cancel</button>
     </form>`;
   };
+
+  // "Fresh set of the same part": retires this one as of the swap date and
+  // installs a same-spec successor with hours at zero (POST /parts/:id/refresh).
+  const refreshFormHtml = (p) => `
+    <form class="btn-row equip-form" data-refresh-form="${p.id}" hidden>
+      <span class="hint-inline">Fresh set of the same part — this one retires with its history, the new one starts at zero hours. Swapped</span>
+      <input name="on" type="date" required value="${today}" min="${esc(p.installed_on)}" max="${today}" aria-label="Swap date">
+      ${p.equipped === false ? "" : swapSelectHtml()}
+      <button class="btn small primary">Fit fresh set</button>
+      <button class="btn small" type="button" data-refresh-cancel="${p.id}">Cancel</button>
+    </form>`;
 
   const partCard = (p) => `
     <div class="panel part-card${p.equipped === false ? " spare" : ""}">
@@ -3152,7 +3188,7 @@ async function viewVehicle(vehicleId) {
         <span class="grow"></span>
         ${p.retired_on ? "" : equipSwitchHtml(p)}
         <button class="btn small" data-meas-toggle="${p.id}">Measure</button>
-        ${p.retired_on ? "" : `<button class="btn small" data-part-refresh="${p.id}">Refresh</button>
+        ${p.retired_on ? "" : `<button class="btn small" data-part-refresh="${p.id}" aria-expanded="false">Refresh</button>
         <button class="btn small" data-part-retire="${p.id}">Retire</button>`}
         <button class="btn small" data-part-edit="${p.id}">Edit</button>
       </div>
@@ -3163,6 +3199,7 @@ async function viewVehicle(vehicleId) {
       <div class="part-status">${wearStatusHtml(p)}</div>
       ${p.odometer ? `<div class="hint part-odometer">${esc(partOdometerLine(p.odometer, units))}</div>` : ""}
       ${p.retired_on ? "" : equipFormHtml(p)}
+      ${p.retired_on ? "" : refreshFormHtml(p)}
       ${measurementChips(p)}
       <form class="btn-row meas-form" data-meas-form="${p.id}" data-meas-kind="${esc(p.kind)}" hidden>
         <input name="value" type="number" step="0.1" min="0" required placeholder="Value" style="max-width:110px">
@@ -3190,6 +3227,7 @@ async function viewVehicle(vehicleId) {
     <form class="btn-row equip-form" data-retired-refresh-form="${p.id}">
       <span class="hint-inline">A new set of ${esc(partTitle(p))}, installed</span>
       <input name="on" type="date" required value="${today}" min="${esc(p.installed_on)}" aria-label="Install date">
+      ${swapSelectHtml()}
       <label class="equip-switch"><input type="checkbox" role="switch" name="equipped" checked> Equipped</label>
       <span class="hint-inline" data-retired-refresh-note>${retiredRefreshNote(p, true)}</span>
       <button class="btn small primary">Add new set</button>
@@ -3328,7 +3366,8 @@ async function viewVehicle(vehicleId) {
           <select name="kind">${PART_KINDS.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
         <div class="field"><label>Part / compound</label><input name="name" required placeholder="Hawk DTC-60, Hoosier A7…"></div>
         <div class="field"><label>Size (optional)</label><input name="size" maxlength="40" placeholder="285/30R18"></div>
-        <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${today}"></div>
+        <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${today}">
+          ${swapSelectHtml()}</div>
         <div class="field"><label>Cost ($, optional)</label><input name="cost" type="number" min="0" step="0.01" placeholder="389"></div>
         <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.5" placeholder="auto from history"></div>
         <div class="field"><label>Replace at (optional)</label><input name="wear_limit" type="number" min="0" step="0.5" placeholder="${wearLimitHint("pads_front", units)}"></div>
@@ -3501,7 +3540,11 @@ async function viewVehicle(vehicleId) {
     partAdd.size.placeholder = isTireKind(partAdd.kind.value) ? "285/30R18" : "";
     addSwapNote();
   };
-  partAdd.equipped.onchange = addSwapNote;
+  const refillAddSessions = bindSwapSessions(partAdd, partAdd.installed_on, () => partAdd.equipped.checked);
+  partAdd.equipped.onchange = () => {
+    addSwapNote();
+    refillAddSessions();
+  };
   addSwapNote();
   partAdd.onsubmit = async (evt) => {
     evt.preventDefault();
@@ -3516,6 +3559,7 @@ async function viewVehicle(vehicleId) {
           installed_on: f.installed_on.value,
           equipped: f.equipped.checked,
           swap: f.equipped.checked,
+          session_id: f.equipped.checked ? swapSessionId(f) : null,
           cost_cents: f.cost.value.trim() === "" ? null : Math.round(Number(f.cost.value) * 100),
           expected_hours: numOrNull(f.expected_hours.value),
           wear_limit: numOrNull(f.wear_limit.value),
@@ -3561,11 +3605,32 @@ async function viewVehicle(vehicleId) {
     };
   });
   view.querySelectorAll("[data-part-refresh]").forEach((btn) => {
-    btn.onclick = async () => {
-      if (!confirm("Fresh set of the same part? This retires the current one today (keeping its history) and installs a new one with the same details — hours reset to zero. Edit the new part afterwards if the cost or compound changed."))
-        return;
+    btn.onclick = () => {
+      const form = view.querySelector(`[data-refresh-form="${btn.dataset.partRefresh}"]`);
+      form.hidden = !form.hidden;
+      btn.setAttribute("aria-expanded", String(!form.hidden));
+      if (!form.hidden) form.querySelector("button.primary").focus();
+    };
+  });
+  view.querySelectorAll("[data-refresh-cancel]").forEach((btn) => {
+    btn.onclick = () => {
+      view.querySelector(`[data-refresh-form="${btn.dataset.refreshCancel}"]`).hidden = true;
+      const toggle = view.querySelector(`[data-part-refresh="${btn.dataset.refreshCancel}"]`);
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.focus();
+    };
+  });
+  view.querySelectorAll("[data-refresh-form]").forEach((form) => {
+    // A spare's fresh set is itself a spare: nothing comes off the car, so
+    // there is no session to swap at (the server refuses one).
+    if (form.session_id) bindSwapSessions(form, form.on);
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
       try {
-        await api(`/parts/${btn.dataset.partRefresh}/refresh`, { method: "POST", body: {} });
+        await api(`/parts/${form.dataset.refreshForm}/refresh`, {
+          method: "POST",
+          body: { installed_on: form.on.value, session_id: swapSessionId(form) },
+        });
         route();
       } catch (err) {
         partError(err);
@@ -3598,11 +3663,15 @@ async function viewVehicle(vehicleId) {
     };
   });
   view.querySelectorAll("[data-equip-form]").forEach((form) => {
+    bindSwapSessions(form, form.on);
     form.onsubmit = async (evt) => {
       evt.preventDefault();
       const part = v.parts.find((p) => String(p.id) === form.dataset.equipForm);
       try {
-        await api(`/parts/${part.id}/${part.equipped ? "unequip" : "equip"}`, { method: "POST", body: { on: form.on.value } });
+        await api(`/parts/${part.id}/${part.equipped ? "unequip" : "equip"}`, {
+          method: "POST",
+          body: { on: form.on.value, session_id: swapSessionId(form) },
+        });
         route();
       } catch (err) {
         partError(err);
@@ -3624,15 +3693,22 @@ async function viewVehicle(vehicleId) {
   });
   view.querySelectorAll("[data-retired-refresh-form]").forEach((form) => {
     const part = v.parts.find((p) => String(p.id) === form.dataset.retiredRefreshForm);
+    const refillSessions = bindSwapSessions(form, form.on, () => form.equipped.checked);
     form.equipped.onchange = () => {
       form.querySelector("[data-retired-refresh-note]").innerHTML = retiredRefreshNote(part, form.equipped.checked);
+      refillSessions();
     };
     form.onsubmit = async (evt) => {
       evt.preventDefault();
       try {
         await api(`/parts/${part.id}/refresh`, {
           method: "POST",
-          body: { installed_on: form.on.value, equipped: form.equipped.checked, swap: form.equipped.checked },
+          body: {
+            installed_on: form.on.value,
+            equipped: form.equipped.checked,
+            swap: form.equipped.checked,
+            session_id: form.equipped.checked ? swapSessionId(form) : null,
+          },
         });
         route();
       } catch (err) {

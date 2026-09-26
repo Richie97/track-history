@@ -41,6 +41,9 @@ class VehicleModelTest {
                 path.endsWith("/garage") -> respond(garage, garageStatus, JSON)
                 path.endsWith("/vehicles") && request.method.value == "GET" -> respond(vehicles, HttpStatusCode.OK, JSON)
                 path.endsWith("/events") -> respond(EVENTS, HttpStatusCode.OK, JSON)
+                path.endsWith("/events/5") -> respond(EVENT_5, HttpStatusCode.OK, JSON)
+                path.endsWith("/refresh") -> respond("""{"retired_id":10,"id":14}""", HttpStatusCode.OK, JSON)
+                path.endsWith("/equip") -> respond("""{"ok":true,"unequipped":[]}""", HttpStatusCode.OK, JSON)
                 else -> respond("""{"ok":true}""", HttpStatusCode.OK, JSON)
             }
         }
@@ -104,6 +107,47 @@ class VehicleModelTest {
         val shelf = bodyOf(sentTo("/parts/12/refresh"))
         assertEquals("false", shelf["equipped"]!!.jsonPrimitive.content)
         assertEquals("false", shelf["swap"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `the swap picker offers the covering event's sessions, and nothing on a day without one`() = runBlocking {
+        // Migration 0030: event 5 is car 1's two-day VIR weekend, so its second
+        // day is covered; the day after is not, and neither is a half-typed date.
+        val model = loaded()
+        assertEquals(
+            listOf(
+                app.trackevolution.core.Garage.SwapSessionChoice(51, "Before Morning · 2 laps"),
+                app.trackevolution.core.Garage.SwapSessionChoice(52, "Before Session 2"),
+            ),
+            model.swapSessionChoices("2026-04-12"),
+        )
+        assertEquals(emptyList<Any>(), model.swapSessionChoices("2026-04-13"))
+        assertEquals(emptyList<Any>(), model.swapSessionChoices("2026-04-1"))
+        // Event 7 covers the date but is the Miata's.
+        assertEquals(emptyList<Any>(), model.swapSessionChoices("2026-06-01"))
+    }
+
+    @Test
+    fun `a swap between sessions names the session, and a whole-day one does not`() {
+        val model = loaded()
+        sent.clear()
+        model.refreshPart(10, on = "2026-04-12", sessionId = 52)
+        val refresh = bodyOf(sentTo("/parts/10/refresh"))
+        assertEquals("2026-04-12", refresh["installed_on"]!!.jsonPrimitive.content)
+        assertEquals("52", refresh["session_id"]!!.jsonPrimitive.content)
+
+        sent.clear()
+        model.setEquipped(model.spareParts.single(), equipped = true, on = "2026-04-12", sessionId = 51)
+        assertEquals("51", bodyOf(sentTo("/parts/13/equip"))["session_id"]!!.jsonPrimitive.content)
+
+        sent.clear()
+        model.setEquipped(model.activeParts.first(), equipped = false, on = "2026-04-12")
+        assertTrue("session_id" !in bodyOf(sentTo("/parts/10/unequip")))
+
+        // A new set going to the shelf ran no session, whatever the picker held.
+        sent.clear()
+        model.refreshRetiredPart(12, on = "2026-04-12", equipped = false, sessionId = 51)
+        assertTrue("session_id" !in bodyOf(sentTo("/parts/12/refresh")))
     }
 
     @Test
@@ -253,6 +297,18 @@ class VehicleModelTest {
               "vehicle_id":1,"updated_at":1,"lap_count":0,"session_count":0,"hours":2},
              {"id":7,"track_id":100,"track_name":"VIR","start_date":"2026-06-01","days":1,
               "vehicle_id":2,"updated_at":1,"lap_count":0,"session_count":0,"best_ms":139000,"hours":2}]
+        """
+
+        /** Event 5's detail: a labelled session with two laps, an unlabelled one with none. */
+        const val EVENT_5 = """
+            {"id":5,"track_id":100,"track_name":"VIR","start_date":"2026-04-11","days":2,
+             "vehicle_id":1,"updated_at":1,"lap_count":2,"session_count":2,"best_ms":125000,"hours":4,
+             "sessions":[
+               {"id":51,"label":"Morning","sort":0,"laps":[
+                 {"id":1,"session_id":51,"lap_num":1,"time_ms":126000},
+                 {"id":2,"session_id":51,"lap_num":2,"time_ms":125000}]},
+               {"id":52,"label":null,"sort":1,"laps":[]}],
+             "setups":[]}
         """
 
         /** Part 10 is due, 11 is healthy, 12 is retired, 13 is a nearly-done spare on the shelf. */

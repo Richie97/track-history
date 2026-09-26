@@ -279,15 +279,25 @@ public struct PartMount: Codable, Hashable, Sendable {
     public var mountedOn: String
     /// Nil while it is still fitted.
     public var removedOn: String?
+    /// The first session the part ran on `mountedOn` (migration 0030); nil is
+    /// the whole-day rule. Optional so a payload cached before it decodes.
+    public var mountedSessionId: Int?
+    /// The first session it did *not* run on `removedOn` — the one its
+    /// replacement started. A mid-day swap writes the same id on both parts.
+    public var removedSessionId: Int?
 
-    public init(mountedOn: String, removedOn: String? = nil) {
+    public init(mountedOn: String, removedOn: String? = nil, mountedSessionId: Int? = nil, removedSessionId: Int? = nil) {
         self.mountedOn = mountedOn
         self.removedOn = removedOn
+        self.mountedSessionId = mountedSessionId
+        self.removedSessionId = removedSessionId
     }
 
     public enum CodingKeys: String, CodingKey {
         case mountedOn = "mounted_on"
         case removedOn = "removed_on"
+        case mountedSessionId = "mounted_session_id"
+        case removedSessionId = "removed_session_id"
     }
 }
 

@@ -200,6 +200,16 @@ public data class PartMount(
     @SerialName("mounted_on") val mountedOn: String,
     /** Null while it is still fitted. */
     @SerialName("removed_on") val removedOn: String? = null,
+    /**
+     * The first session the part ran on [mountedOn] (migration 0030), so a
+     * mid-day swap divides that day's hours; null means the whole day.
+     */
+    @SerialName("mounted_session_id") val mountedSessionId: Int? = null,
+    /**
+     * The first session on [removedOn] it did **not** run — the one its
+     * replacement started. A mid-day swap writes the same id on both parts.
+     */
+    @SerialName("removed_session_id") val removedSessionId: Int? = null,
 )
 
 /** A logged wear measurement (pad thickness, tread depth, …). */

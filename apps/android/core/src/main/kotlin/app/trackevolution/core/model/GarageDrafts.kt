@@ -110,6 +110,11 @@ public data class PartDraft(
     val equipped: Boolean? = null,
     /** With [equipped], also take off whatever shares its place, as equipping does. */
     val swap: Boolean? = null,
+    /**
+     * The session the part went on before (migration 0030), when it went on
+     * mid-day; only meaningful while [equipped]. Omitted when null.
+     */
+    @SerialName("session_id") val sessionId: Int? = null,
 )
 
 @Serializable(with = PartPatchSerializer::class)
@@ -165,6 +170,8 @@ public data class PartRefreshDraft(
     @SerialName("cost_cents") val costCents: Int? = null,
     val equipped: Boolean? = null,
     val swap: Boolean? = null,
+    /** The session the new set went on before (migration 0030); null is the whole day. */
+    @SerialName("session_id") val sessionId: Int? = null,
 )
 
 /**
@@ -174,6 +181,12 @@ public data class PartRefreshDraft(
 @Serializable
 public data class PartEquipDraft(
     val on: String? = null,
+    /**
+     * The session the swap happened before (migration 0030), so the day's
+     * hours divide at it; null is the date rule. With no [on], the server
+     * dates the swap to that session's event's first day.
+     */
+    @SerialName("session_id") val sessionId: Int? = null,
 )
 
 // ---- Measurements ---------------------------------------------------------

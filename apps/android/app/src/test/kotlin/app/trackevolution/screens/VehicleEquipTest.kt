@@ -6,7 +6,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onAllNodesWithTag
+import app.trackevolution.core.EventDates
 import app.trackevolution.core.api.ApiClient
+import io.ktor.http.content.TextContent
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +49,11 @@ class VehicleEquipTest {
 
     private val sent = java.util.concurrent.CopyOnWriteArrayList<HttpRequestData>()
 
+    private val today = EventDates.todayIso()
+
+    /** The cached `/events`; empty unless a test puts a track day on the car. */
+    private var events = "[]"
+
     private fun api(): ApiClient = ApiClient(
         MockEngine { request ->
             sent += request
@@ -54,7 +61,8 @@ class VehicleEquipTest {
             when {
                 path.endsWith("/garage") -> respond(GARAGE, HttpStatusCode.OK, JSON)
                 path.endsWith("/vehicles") -> respond(VEHICLES, HttpStatusCode.OK, JSON)
-                path.endsWith("/events") -> respond("[]", HttpStatusCode.OK, JSON)
+                path.endsWith("/events") -> respond(events, HttpStatusCode.OK, JSON)
+                path.endsWith("/events/5") -> respond(eventDetail(today), HttpStatusCode.OK, JSON)
                 path.endsWith("/equip") -> respond("""{"ok":true,"unequipped":[11]}""", HttpStatusCode.OK, JSON)
                 else -> respond("""{"ok":true}""", HttpStatusCode.OK, JSON)
             }
@@ -104,7 +112,44 @@ class VehicleEquipTest {
         assertTrue(sent.none { it.url.encodedPath.contains("/parts/") })
     }
 
+    @Test
+    fun `a swap on a track day can name the session it came before`() {
+        // Migration 0030: today is a track day on this car, so the confirm row
+        // offers "When in the day" — Whole day by default — and a picked
+        // session is what the equip posts.
+        events = """[{"id":5,"track_id":100,"track_name":"VIR","start_date":"$today","days":1,
+            "vehicle_id":1,"updated_at":1,"lap_count":1,"session_count":2,"hours":2}]"""
+        show()
+        compose.onNodeWithTag("equip-13").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("swapSession").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Whole day").assertIsDisplayed()
+
+        compose.onNodeWithTag("swapSession").performClick()
+        compose.onNodeWithText("Before Session 2").performClick()
+        compose.onNodeWithText("Equip").performClick()
+        compose.waitUntil(5_000) { sent.any { it.url.encodedPath.endsWith("/parts/13/equip") } }
+        val body = sent.first { it.url.encodedPath.endsWith("/parts/13/equip") }.body as TextContent
+        assertTrue(body.text, body.text.contains("\"session_id\":52"))
+    }
+
+    @Test
+    fun `a day with no track day offers no session picker`() {
+        show()
+        compose.onNodeWithTag("equip-13").performClick()
+        compose.waitForIdle()
+        assertTrue(compose.onAllNodesWithTag("swapSession").fetchSemanticsNodes().isEmpty())
+    }
+
     private companion object {
+        fun eventDetail(date: String) = """
+            {"id":5,"track_id":100,"track_name":"VIR","start_date":"$date","days":1,
+             "vehicle_id":1,"updated_at":1,"lap_count":1,"session_count":2,"hours":2,
+             "sessions":[
+               {"id":51,"label":"Morning","sort":0,"laps":[{"id":1,"session_id":51,"lap_num":1,"time_ms":126000}]},
+               {"id":52,"label":"","sort":1,"laps":[]}],
+             "setups":[]}
+        """
+
         val JSON = headersOf(HttpHeaders.ContentType, "application/json")
 
         const val VEHICLES = """[{"id":1,"name":"Corvette Z06","is_default":1}]"""

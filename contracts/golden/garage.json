@@ -22,6 +22,47 @@
       "parts": [
         {
           "cost_cents": null,
+          "equipped": true,
+          "expected_hours": null,
+          "id": 1,
+          "installed_on": "2026-04-10",
+          "kind": "tires_front",
+          "measurements": [],
+          "mounts": [
+            {
+              "mounted_on": "2026-04-10",
+              "mounted_session_id": 2,
+              "removed_on": null,
+              "removed_session_id": null
+            }
+          ],
+          "name": "Hoosier A7",
+          "notes": null,
+          "odometer": {
+            "from": "2026-04-10",
+            "km": 5,
+            "readings": 2,
+            "to": "2026-04-10"
+          },
+          "retired_on": null,
+          "size": "255/40R17",
+          "vehicle_id": 1,
+          "wear": {
+            "cycles": 1,
+            "events": 1,
+            "expected_hours": null,
+            "hours": 0.1,
+            "last_value": null,
+            "pct_used": null,
+            "remaining_hours": null,
+            "source": null,
+            "unit": null,
+            "wear_per_hour": null
+          },
+          "wear_limit": null
+        },
+        {
+          "cost_cents": null,
           "equipped": false,
           "expected_hours": null,
           "id": 1,
@@ -51,7 +92,7 @@
         },
         {
           "cost_cents": null,
-          "equipped": true,
+          "equipped": false,
           "expected_hours": null,
           "id": 1,
           "installed_on": "2026-03-15",
@@ -60,7 +101,9 @@
           "mounts": [
             {
               "mounted_on": "2026-03-15",
-              "removed_on": null
+              "mounted_session_id": null,
+              "removed_on": "2026-04-10",
+              "removed_session_id": 2
             }
           ],
           "name": "Falken RT660",
@@ -78,7 +121,7 @@
             "cycles": 2,
             "events": 1,
             "expected_hours": null,
-            "hours": 0.3,
+            "hours": 0.1,
             "last_value": null,
             "pct_used": null,
             "remaining_hours": null,
@@ -114,7 +157,9 @@
           "mounts": [
             {
               "mounted_on": "2026-03-01",
-              "removed_on": null
+              "mounted_session_id": null,
+              "removed_on": null,
+              "removed_session_id": null
             }
           ],
           "name": "Carbotech XP12",

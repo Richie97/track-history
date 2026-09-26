@@ -1,7 +1,15 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { requireEntitlement } from "../middleware";
-import { type VehicleHoursEvent, type VehicleOdometerReading, vehicleHoursEventsStmt, vehicleOdometerStmt } from "../db";
+import {
+  type VehicleHoursEvent,
+  type VehicleHoursSession,
+  type VehicleOdometerReading,
+  vehicleHoursEventsStmt,
+  vehicleHoursSessionsStmt,
+  vehicleOdometerStmt,
+  withHoursSessions,
+} from "../db";
 import { isValidDate, isValidPartKind, isValidSteeringRatio, isValidWheelbaseMm } from "../lib/validate";
 import { MAX_FIT_SESSIONS, steeringFit } from "../lib/steering";
 import { type Mount, equipSwapKinds, wearEstimate } from "../lib/wear";
@@ -275,7 +283,7 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
   const db = c.env.DB;
   const today = todayISO();
   // Six independent reads, one batched round trip.
-  const [vehicleRes, partRes, measurementRes, mountRes, hoursRes, odometerRes] = await db.batch([
+  const [vehicleRes, partRes, measurementRes, mountRes, hoursRes, sessionRes, odometerRes] = await db.batch([
     db
       .prepare(
         `SELECT ${VEHICLE_COLUMNS}, updated_at FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, name COLLATE NOCASE`
@@ -299,6 +307,7 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
       .bind(userId),
     partMountsStmt(db, userId),
     vehicleHoursEventsStmt(db, userId),
+    vehicleHoursSessionsStmt(db, userId),
     vehicleOdometerStmt(db, userId),
   ]);
   const vehicleRows = {
@@ -333,7 +342,7 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
   const measurementRows = {
     results: measurementRes.results as { id: number; part_id: number; measured_on: string; value: number; unit: string }[],
   };
-  const hoursEvents = hoursRes.results as VehicleHoursEvent[];
+  const hoursEvents = withHoursSessions(hoursRes.results as VehicleHoursEvent[], sessionRes.results as VehicleHoursSession[]);
   const odometerReadings = odometerRes.results as VehicleOdometerReading[];
 
   const garage = vehicleRows.results.map((v) => {
@@ -383,21 +392,22 @@ vehicles.get("/garage", requireEntitlement, async (c) => {
   return c.json(garage);
 });
 
-// Every mount of every one of the user's parts, oldest first (migration 0029).
+// Every mount of every one of the user's parts, oldest first (migration 0029),
+// with the sessions either end was set at, if any (0030).
 type MountRow = Mount & { part_id: number };
 const partMountsStmt = (db: D1Database, userId: number) =>
   db
     .prepare(
-      `SELECT m.part_id, m.mounted_on, m.removed_on
+      `SELECT m.part_id, m.mounted_on, m.removed_on, m.mounted_session_id, m.removed_session_id
        FROM part_mounts m JOIN parts p ON p.id = m.part_id JOIN vehicles v ON v.id = p.vehicle_id
        WHERE v.user_id = ? ORDER BY m.mounted_on ASC, m.id ASC`
     )
     .bind(userId);
 function groupMounts(rows: MountRow[]): Map<number, Mount[]> {
   const out = new Map<number, Mount[]>();
-  for (const { part_id, mounted_on, removed_on } of rows) {
+  for (const { part_id, mounted_on, removed_on, mounted_session_id, removed_session_id } of rows) {
     const list = out.get(part_id) ?? [];
-    list.push({ mounted_on, removed_on });
+    list.push({ mounted_on, removed_on, mounted_session_id: mounted_session_id ?? null, removed_session_id: removed_session_id ?? null });
     out.set(part_id, list);
   }
   return out;
@@ -414,13 +424,14 @@ async function retiredLifecycleAvg(
 ): Promise<number | null> {
   // Both reads in one round trip; the hours ledger is only a filter away
   // from being needed whenever there is any retired history.
-  const [priorRes, hoursRes, mountRes] = await db.batch([
+  const [priorRes, hoursRes, sessionRes, mountRes] = await db.batch([
     db
       .prepare(
         "SELECT id, installed_on, retired_on, expected_hours, wear_limit FROM parts WHERE vehicle_id = ? AND kind = ? AND retired_on IS NOT NULL"
       )
       .bind(vehicleId, kind),
     vehicleHoursEventsStmt(db, userId),
+    vehicleHoursSessionsStmt(db, userId),
     partMountsStmt(db, userId),
   ]);
   const prior = {
@@ -433,7 +444,10 @@ async function retiredLifecycleAvg(
     }[],
   };
   if (!prior.results.length) return null;
-  const events = (hoursRes.results as VehicleHoursEvent[]).filter((e) => e.vehicle_id === vehicleId);
+  const events = withHoursSessions(
+    hoursRes.results as VehicleHoursEvent[],
+    sessionRes.results as VehicleHoursSession[]
+  ).filter((e) => e.vehicle_id === vehicleId);
   const mountsByPart = groupMounts(mountRes.results as MountRow[]);
   const lives = prior.results
     .map((p) => wearEstimate({ ...p, mounts: mountsByPart.get(p.id) ?? [] }, events, [], todayISO()).hours)
@@ -501,6 +515,9 @@ vehicles.post("/vehicles/:id/parts", requireEntitlement, async (c) => {
   // additionally takes off what it replaces, as equipping does.
   if ("equipped" in body && typeof body.equipped !== "boolean") return c.json({ error: "invalid equipped" }, 400);
   const equipped = body.equipped !== false && v.retired_on == null;
+  const swap = await swapSession(c.env.DB, userId, owned.id, body, v.installed_on as string);
+  if ("error" in swap) return c.json({ error: swap.error }, 400);
+  if (swap.sessionId != null && !equipped) return c.json({ error: "invalid session_id" }, 400);
 
   // No expected life given? Default it from history.
   if (v.expected_hours == null)
@@ -508,7 +525,7 @@ vehicles.post("/vehicles/:id/parts", requireEntitlement, async (c) => {
 
   const db = c.env.DB;
   if (equipped && body.swap === true)
-    await swapOffStmt(db, owned.id, v.kind as string, null, v.installed_on as string).run();
+    await swapOffStmt(db, owned.id, v.kind as string, null, v.installed_on as string, swap.sessionId).run();
   // The insert trigger mounts the part from installed_on (migration 0029).
   const row = await db.prepare(
     `INSERT INTO parts (vehicle_id, kind, name, size, installed_on, retired_on, cost_cents, expected_hours, wear_limit, notes)
@@ -529,6 +546,8 @@ vehicles.post("/vehicles/:id/parts", requireEntitlement, async (c) => {
     .first<{ id: number }>();
   if (!equipped && v.retired_on == null)
     await db.prepare("DELETE FROM part_mounts WHERE part_id = ?").bind(row!.id).run();
+  else if (swap.sessionId != null)
+    await db.prepare("UPDATE part_mounts SET mounted_session_id = ? WHERE part_id = ?").bind(swap.sessionId, row!.id).run();
   return c.json({ id: row!.id }, 201);
 });
 
@@ -588,7 +607,9 @@ vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
   if (!old) return c.json({ error: "not found" }, 404);
   const body = await c.req.json<any>().catch(() => ({}));
   if ("equipped" in body && typeof body.equipped !== "boolean") return c.json({ error: "invalid equipped" }, 400);
-  const swapDate = body.installed_on ?? todayISO();
+  const swap = await swapSession(c.env.DB, userId, old.vehicle_id, body, body.installed_on);
+  if ("error" in swap) return c.json({ error: swap.error }, 400);
+  const swapDate = swap.on ?? todayISO();
   if (!isValidDate(swapDate) || swapDate < old.installed_on)
     return c.json({ error: "invalid installed_on" }, 400);
   let cost = old.cost_cents;
@@ -616,10 +637,20 @@ vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
   // shelf is itself a spare, so its mount goes again. A retired part has
   // nothing left to retire or inherit: the successor's place is the body's.
   const onCar = old.retired_on ? body.equipped !== false : Boolean(old.equipped);
-  if (!old.retired_on)
+  if (swap.sessionId != null && !onCar) return c.json({ error: "invalid session_id" }, 400);
+  if (!old.retired_on) {
     await c.env.DB.prepare("UPDATE parts SET retired_on = ? WHERE id = ?").bind(swapDate, old.id).run();
-  else if (onCar && body.swap === true)
-    await swapOffStmt(c.env.DB, old.vehicle_id, old.kind, null, swapDate).run();
+    // The retire trigger closed the mount on the swap date; a session says
+    // where in that day it came off.
+    if (swap.sessionId != null && old.equipped)
+      await c.env.DB.prepare(
+        `UPDATE part_mounts SET removed_session_id = ?1 WHERE id = (
+           SELECT id FROM part_mounts WHERE part_id = ?2 AND removed_on = ?3 ORDER BY mounted_on DESC, id DESC LIMIT 1)`
+      )
+        .bind(swap.sessionId, old.id, swapDate)
+        .run();
+  } else if (onCar && body.swap === true)
+    await swapOffStmt(c.env.DB, old.vehicle_id, old.kind, null, swapDate, swap.sessionId).run();
   const expected =
     (await retiredLifecycleAvg(c.env.DB, userId, old.vehicle_id, old.kind)) ?? old.expected_hours;
   const row = await c.env.DB.prepare(
@@ -629,24 +660,67 @@ vehicles.post("/parts/:id/refresh", requireEntitlement, async (c) => {
     .bind(old.vehicle_id, old.kind, name, size, swapDate, cost, expected, old.wear_limit, old.notes)
     .first<{ id: number }>();
   if (!onCar) await c.env.DB.prepare("DELETE FROM part_mounts WHERE part_id = ?").bind(row!.id).run();
+  else if (swap.sessionId != null)
+    await c.env.DB.prepare("UPDATE part_mounts SET mounted_session_id = ? WHERE part_id = ?")
+      .bind(swap.sessionId, row!.id)
+      .run();
   return c.json({ id: row!.id, retired_id: old.id }, 201);
 });
 
+// A swap made between sessions (migration 0030). `session_id` in a body names
+// the first session of the swap — the first one the part going on ran, and the
+// first one the part coming off didn't. It has to be a session of one of the
+// user's events on this car, and the swap date has to fall on that event's
+// days; with no date given, the swap is dated the event's first day. Answers
+// the session (null when the body names none) and the date to use.
+async function swapSession(
+  db: D1Database,
+  userId: number,
+  vehicleId: number,
+  body: any,
+  date: string | undefined
+): Promise<{ error: string } | { sessionId: number | null; on: string | undefined }> {
+  if (body.session_id == null) return { sessionId: null, on: date };
+  if (!Number.isInteger(body.session_id)) return { error: "invalid session_id" };
+  const row = await db
+    .prepare(
+      `SELECT s.id, e.start_date, e.days FROM sessions s JOIN events e ON e.id = s.event_id
+       WHERE s.id = ? AND e.user_id = ? AND e.vehicle_id = ?`
+    )
+    .bind(body.session_id, userId, vehicleId)
+    .first<{ id: number; start_date: string; days: number }>();
+  if (!row) return { error: "invalid session_id" };
+  const on = date ?? row.start_date;
+  const last = new Date(`${row.start_date}T00:00:00Z`);
+  last.setUTCDate(last.getUTCDate() + Math.max(1, Math.ceil(row.days || 1)) - 1);
+  if (!isValidDate(on) || on < row.start_date || on > last.toISOString().slice(0, 10))
+    return { error: "session_id is not on that date" };
+  return { sessionId: row.id, on };
+}
+
 // Close the open mount of every equipped, unretired part on the vehicle that
 // shares a place with `kind` (equipSwapKinds) — what equipping a part takes
-// off. Never before a mount began, so a back-dated equip can't invert one.
-const swapOffStmt = (db: D1Database, vehicleId: number, kind: string, exceptId: number | null, on: string) => {
+// off. Never before a mount began, so a back-dated equip can't invert one. A
+// session given is where they came off (migration 0030).
+const swapOffStmt = (
+  db: D1Database,
+  vehicleId: number,
+  kind: string,
+  exceptId: number | null,
+  on: string,
+  sessionId: number | null = null
+) => {
   const kinds = equipSwapKinds(kind);
   if (!kinds.length) return db.prepare("SELECT 1 WHERE 0");
   return db
     .prepare(
-      `UPDATE part_mounts SET removed_on = MAX(mounted_on, ?1)
+      `UPDATE part_mounts SET removed_on = MAX(mounted_on, ?1), removed_session_id = ?4
        WHERE removed_on IS NULL AND part_id IN (
          SELECT id FROM parts WHERE vehicle_id = ?2 AND retired_on IS NULL AND id IS NOT ?3
-           AND kind IN (${kinds.map((_, i) => `?${i + 4}`).join(", ")}))
+           AND kind IN (${kinds.map((_, i) => `?${i + 5}`).join(", ")}))
        RETURNING part_id`
     )
-    .bind(on, vehicleId, exceptId, ...kinds);
+    .bind(on, vehicleId, exceptId, sessionId, ...kinds);
 };
 
 // A part with its mounts, for the equip routes' checks.
@@ -685,13 +759,17 @@ vehicles.post("/parts/:id/equip", requireEntitlement, async (c) => {
   if (part.retired_on) return c.json({ error: "part is retired" }, 400);
   if (mounts.some((m) => m.removed_on == null)) return c.json({ error: "part is already equipped" }, 400);
   const body = await c.req.json<any>().catch(() => ({}));
-  const on = body.on ?? todayISO();
+  const swap = await swapSession(db, c.get("userId"), part.vehicle_id, body, body.on);
+  if ("error" in swap) return c.json({ error: swap.error }, 400);
+  const on = swap.on ?? todayISO();
   // Not before it was installed, and not back inside a stretch it was already on.
   const lastOff = mounts.reduce((max, m) => (m.removed_on! > max ? m.removed_on! : max), part.installed_on);
   if (!isValidDate(on) || on < lastOff) return c.json({ error: "invalid on" }, 400);
   const [swapped] = await db.batch([
-    swapOffStmt(db, part.vehicle_id, part.kind, part.id, on),
-    db.prepare("INSERT INTO part_mounts (part_id, mounted_on) VALUES (?, ?)").bind(part.id, on),
+    swapOffStmt(db, part.vehicle_id, part.kind, part.id, on, swap.sessionId),
+    db
+      .prepare("INSERT INTO part_mounts (part_id, mounted_on, mounted_session_id) VALUES (?, ?, ?)")
+      .bind(part.id, on, swap.sessionId),
   ]);
   const unequipped = (swapped.results as { part_id: number }[]).map((r) => r.part_id);
   return c.json({ ok: true, unequipped });
@@ -706,11 +784,13 @@ vehicles.post("/parts/:id/unequip", requireEntitlement, async (c) => {
   const open = found.mounts.find((m) => m.removed_on == null);
   if (found.part.retired_on || !open) return c.json({ error: "part is not equipped" }, 400);
   const body = await c.req.json<any>().catch(() => ({}));
-  const on = body.on ?? todayISO();
+  const swap = await swapSession(db, c.get("userId"), found.part.vehicle_id, body, body.on);
+  if ("error" in swap) return c.json({ error: swap.error }, 400);
+  const on = swap.on ?? todayISO();
   if (!isValidDate(on) || on < open.mounted_on) return c.json({ error: "invalid on" }, 400);
   await db
-    .prepare("UPDATE part_mounts SET removed_on = ? WHERE part_id = ? AND removed_on IS NULL")
-    .bind(on, found.part.id)
+    .prepare("UPDATE part_mounts SET removed_on = ?, removed_session_id = ? WHERE part_id = ? AND removed_on IS NULL")
+    .bind(on, swap.sessionId, found.part.id)
     .run();
   return c.json({ ok: true });
 });

@@ -22,6 +22,7 @@ import app.trackevolution.core.model.PartRefreshDraft
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.VehiclePatch
 import app.trackevolution.ui.LoadState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -274,8 +275,8 @@ class VehicleModel(
      * inserts a same-spec successor. The successor's id is the server's to
      * invent, which is one of the reasons this cannot be queued offline.
      */
-    fun refreshPart(id: Int, on: String = EventDates.todayIso()) =
-        write { api.refreshPart(id, PartRefreshDraft(installedOn = on)) }
+    fun refreshPart(id: Int, on: String = EventDates.todayIso(), sessionId: Int? = null) =
+        write { api.refreshPart(id, PartRefreshDraft(installedOn = on, sessionId = sessionId)) }
 
     /**
      * "Buy another set of those": a fresh copy of a *retired* part's spec,
@@ -283,17 +284,50 @@ class VehicleModel(
      * whatever shares its place (`swap`); `equipped = false` puts it on the
      * shelf instead.
      */
-    fun refreshRetiredPart(id: Int, on: String, equipped: Boolean) =
-        write { api.refreshPart(id, PartRefreshDraft(installedOn = on, equipped = equipped, swap = equipped)) }
+    fun refreshRetiredPart(id: Int, on: String, equipped: Boolean, sessionId: Int? = null) =
+        write {
+            api.refreshPart(
+                id,
+                PartRefreshDraft(
+                    installedOn = on,
+                    equipped = equipped,
+                    swap = equipped,
+                    // A set going to the shelf went on no session.
+                    sessionId = sessionId.takeIf { equipped },
+                ),
+            )
+        }
 
     /**
      * The Equipped switch (migration 0029), confirmed: on the car → the shelf,
      * or back on, taking off whatever shares its place as of the same day. The
      * server decides what that is; [Garage.equipNote] only said so first.
      */
-    fun setEquipped(part: Part, equipped: Boolean, on: String) = write {
-        val draft = PartEquipDraft(on = on)
+    fun setEquipped(part: Part, equipped: Boolean, on: String, sessionId: Int? = null) = write {
+        val draft = PartEquipDraft(on = on, sessionId = sessionId)
         if (equipped) api.equipPart(part.id, draft) else api.unequipPart(part.id, draft)
+    }
+
+    /**
+     * The "When in the day" picker's rows for a swap on [date] (migration 0030):
+     * the sessions of this car's event covering that date — found by
+     * [Garage.swapSessionEvent] over the cached events, read from that event's
+     * detail — worded by [Garage.swapSessionChoices]. Empty when no event covers
+     * the date, when it has no sessions, or when its detail can't be read; the
+     * picker is then hidden and the swap takes the whole-day rule, as the web
+     * page's `bindSwapSessions` does.
+     */
+    suspend fun swapSessionChoices(date: String): List<Garage.SwapSessionChoice> {
+        val day = date.trim().takeIf { it.length == 10 && EventDates.epochDay(it) != null } ?: return emptyList()
+        val event = Garage.swapSessionEvent(vehicleId, day, events) ?: return emptyList()
+        val detail = try {
+            api.event(event.id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return emptyList()
+        }
+        return Garage.swapSessionChoices(detail.sessions)
     }
 
     fun addMeasurement(partId: Int, draft: MeasurementDraft) =

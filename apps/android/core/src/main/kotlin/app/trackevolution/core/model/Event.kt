@@ -127,7 +127,7 @@ public data class Event(
      * entered (`eventCostCents` in `src/lib/costs.ts`).
      */
     @SerialName("cost_cents") val costCents: Int? = null,
-) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent, Garage.LogbookEvent
+) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent, Garage.LogbookEvent, Garage.SwapEvent
 
 /**
  * `GET /api/events/:id` — an event plus its sessions and per-day setup sheets.

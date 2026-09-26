@@ -150,6 +150,9 @@ import {
   vehicleLogbook,
   vehicleOdometerLine,
   vehicleTileLine,
+  swapSessionEvent,
+  swapSessionChoices,
+  eventLastDay,
   wearLimitHint,
 } from "../public/js/garage.js";
 import {
@@ -2350,6 +2353,58 @@ const logbookFixture = {
 };
 writeFileSync(path.join(OUT_DIR, "garage-logbook.json"), JSON.stringify(logbookFixture, null, 2) + "\n");
 
+// ---- swaps between sessions (migration 0030): the picker's pure half ---------
+//
+// swapSessionEvent over one event list for several (car, date) pairs, and
+// swapSessionChoices over a few session lists. The rows are chosen for the ways
+// a port goes wrong: a date on a weekend's second day (days cover the start
+// plus days − 1), a half day (rounds up to one), a fractional two-and-a-half
+// days (three), a date the day after an event ends, another car's event on the
+// same date, a null vehicle_id, and two events covering one date on the same
+// car (the later start wins, then the higher id); and for the choices, a blank
+// and a whitespace label (named by place), one lap (singular) and none.
+const swapEvents = [
+  { id: 1, vehicle_id: 10, start_date: "2026-05-02", days: 2 },
+  { id: 2, vehicle_id: 10, start_date: "2026-06-06", days: 0.5 },
+  { id: 3, vehicle_id: 10, start_date: "2026-07-10", days: 2.5 },
+  { id: 4, vehicle_id: 11, start_date: "2026-05-02", days: 1 },
+  { id: 5, vehicle_id: null, start_date: "2026-08-01", days: 1 },
+  { id: 6, vehicle_id: 10, start_date: "2026-09-12", days: 3 },
+  { id: 7, vehicle_id: 10, start_date: "2026-09-13", days: 1 },
+  { id: 8, vehicle_id: 10, start_date: "2026-09-13", days: 1 },
+];
+const swapEventCases = [
+  [10, "2026-05-02"], [10, "2026-05-03"], [10, "2026-05-04"], [11, "2026-05-02"], [11, "2026-05-03"],
+  [10, "2026-06-06"], [10, "2026-06-07"], [10, "2026-07-12"], [10, "2026-07-13"], [10, "2026-08-01"],
+  [10, "2026-09-12"], [10, "2026-09-13"], [10, "2026-09-14"], [10, ""],
+].map(([vehicle_id, date]) => ({
+  vehicle_id,
+  date,
+  event_id: swapSessionEvent(vehicle_id, date, swapEvents)?.id ?? null,
+}));
+const swapSessionLists = [
+  [
+    { id: 21, label: "Morning", laps: [{}, {}, {}, {}, {}] },
+    { id: 22, label: null, laps: [{}] },
+    { id: 23, label: "   ", laps: [] },
+    { id: 24, label: " Session 4 ", laps: [{}, {}] },
+  ],
+  [],
+];
+const swapFixture = {
+  description:
+    "The swap-between-sessions picker (migration 0030) captured from public/js/garage.js: " +
+    "swapSessionEvent finds the event on a car whose days cover a swap date (eventLastDay is its " +
+    "last day), and swapSessionChoices words that event's sessions as picker rows. Ports must match " +
+    "every field. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/garage.js",
+  events: swapEvents,
+  eventCases: swapEventCases,
+  lastDays: swapEvents.map((e) => ({ event_id: e.id, last_day: eventLastDay(e) })),
+  choiceCases: swapSessionLists.map((sessions) => ({ sessions, choices: swapSessionChoices(sessions) })),
+};
+writeFileSync(path.join(OUT_DIR, "garage-swap.json"), JSON.stringify(swapFixture, null, 2) + "\n");
+
 // ---- units: the unit-system conversions (public/js/units.js) -----------------
 //
 // Every display site on every client goes through these, and the inputs are
@@ -2442,6 +2497,7 @@ console.log(
 );
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
 console.log(`wrote contracts/logic/garage-logbook.json (${logbookCases.length} cars)`);
+console.log(`wrote contracts/logic/garage-swap.json (${swapEventCases.length} dates)`);
 console.log(`wrote contracts/logic/car-catalog-match.json (${catalogQueries.length} queries, ${prefillCases.length} pre-fill cases)`);
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);

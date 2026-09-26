@@ -1,0 +1,219 @@
+{
+  "description": "The swap-between-sessions picker (migration 0030) captured from public/js/garage.js: swapSessionEvent finds the event on a car whose days cover a swap date (eventLastDay is its last day), and swapSessionChoices words that event's sessions as picker rows. Ports must match every field. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/garage.js",
+  "events": [
+    {
+      "id": 1,
+      "vehicle_id": 10,
+      "start_date": "2026-05-02",
+      "days": 2
+    },
+    {
+      "id": 2,
+      "vehicle_id": 10,
+      "start_date": "2026-06-06",
+      "days": 0.5
+    },
+    {
+      "id": 3,
+      "vehicle_id": 10,
+      "start_date": "2026-07-10",
+      "days": 2.5
+    },
+    {
+      "id": 4,
+      "vehicle_id": 11,
+      "start_date": "2026-05-02",
+      "days": 1
+    },
+    {
+      "id": 5,
+      "vehicle_id": null,
+      "start_date": "2026-08-01",
+      "days": 1
+    },
+    {
+      "id": 6,
+      "vehicle_id": 10,
+      "start_date": "2026-09-12",
+      "days": 3
+    },
+    {
+      "id": 7,
+      "vehicle_id": 10,
+      "start_date": "2026-09-13",
+      "days": 1
+    },
+    {
+      "id": 8,
+      "vehicle_id": 10,
+      "start_date": "2026-09-13",
+      "days": 1
+    }
+  ],
+  "eventCases": [
+    {
+      "vehicle_id": 10,
+      "date": "2026-05-02",
+      "event_id": 1
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-05-03",
+      "event_id": 1
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-05-04",
+      "event_id": null
+    },
+    {
+      "vehicle_id": 11,
+      "date": "2026-05-02",
+      "event_id": 4
+    },
+    {
+      "vehicle_id": 11,
+      "date": "2026-05-03",
+      "event_id": null
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-06-06",
+      "event_id": 2
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-06-07",
+      "event_id": null
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-07-12",
+      "event_id": 3
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-07-13",
+      "event_id": null
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-08-01",
+      "event_id": null
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-09-12",
+      "event_id": 6
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-09-13",
+      "event_id": 8
+    },
+    {
+      "vehicle_id": 10,
+      "date": "2026-09-14",
+      "event_id": 6
+    },
+    {
+      "vehicle_id": 10,
+      "date": "",
+      "event_id": null
+    }
+  ],
+  "lastDays": [
+    {
+      "event_id": 1,
+      "last_day": "2026-05-03"
+    },
+    {
+      "event_id": 2,
+      "last_day": "2026-06-06"
+    },
+    {
+      "event_id": 3,
+      "last_day": "2026-07-12"
+    },
+    {
+      "event_id": 4,
+      "last_day": "2026-05-02"
+    },
+    {
+      "event_id": 5,
+      "last_day": "2026-08-01"
+    },
+    {
+      "event_id": 6,
+      "last_day": "2026-09-14"
+    },
+    {
+      "event_id": 7,
+      "last_day": "2026-09-13"
+    },
+    {
+      "event_id": 8,
+      "last_day": "2026-09-13"
+    }
+  ],
+  "choiceCases": [
+    {
+      "sessions": [
+        {
+          "id": 21,
+          "label": "Morning",
+          "laps": [
+            {},
+            {},
+            {},
+            {},
+            {}
+          ]
+        },
+        {
+          "id": 22,
+          "label": null,
+          "laps": [
+            {}
+          ]
+        },
+        {
+          "id": 23,
+          "label": "   ",
+          "laps": []
+        },
+        {
+          "id": 24,
+          "label": " Session 4 ",
+          "laps": [
+            {},
+            {}
+          ]
+        }
+      ],
+      "choices": [
+        {
+          "id": 21,
+          "label": "Before Morning · 5 laps"
+        },
+        {
+          "id": 22,
+          "label": "Before Session 2 · 1 lap"
+        },
+        {
+          "id": 23,
+          "label": "Before Session 3"
+        },
+        {
+          "id": 24,
+          "label": "Before Session 4 · 2 laps"
+        }
+      ]
+    },
+    {
+      "sessions": [],
+      "choices": []
+    }
+  ]
+}

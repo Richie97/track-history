@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_HOURS_PER_DAY, equipSwapKinds, eventHours, eventsInWindow, serviceWindows, wearEstimate, type HoursEvent } from "../../src/lib/wear";
+import {
+  DEFAULT_HOURS_PER_DAY,
+  equipSwapKinds,
+  eventHours,
+  eventShares,
+  eventsInWindow,
+  serviceWindows,
+  sharedHours,
+  wearEstimate,
+  type HoursEvent,
+} from "../../src/lib/wear";
 
 const TODAY = "2026-07-19";
 
@@ -188,5 +198,100 @@ describe("wearEstimate", () => {
     );
     expect(w.source).toBeNull();
     expect(w.last_value).toBe(9.5);
+  });
+});
+
+describe("swaps between sessions (migration 0030)", () => {
+  // A one-day event with four 20-minute sessions: 80 minutes of laps, 1h20m.
+  const min = 60_000;
+  const day = (start_date: string, lapMs: (number | null)[], extra: Partial<HoursEvent> = {}): HoursEvent => {
+    const sessions = lapMs.map((ms, i) => ({ id: 100 + i, lap_ms_sum: ms }));
+    return ev(start_date, 1, {
+      sessions,
+      lap_ms_sum: lapMs.reduce<number>((a, b) => a + (b ?? 0), 0),
+      lap_count: 40,
+      ...extra,
+    });
+  };
+  const outgoing = (removed_session_id: number | null, removed_on = "2026-05-02") => ({
+    installed_on: "2026-03-01",
+    retired_on: null,
+    mounts: [{ mounted_on: "2026-03-01", removed_on, removed_session_id }],
+  });
+  const incoming = (mounted_session_id: number | null, mounted_on = "2026-05-02") => ({
+    installed_on: mounted_on,
+    retired_on: null,
+    mounts: [{ mounted_on, removed_on: null, mounted_session_id }],
+  });
+
+  it("divides a mid-day swap's hours between the two parts instead of counting them twice", () => {
+    const events = [day("2026-05-02", [20 * min, 20 * min, 20 * min, 20 * min])];
+    const old = eventShares(outgoing(102), events, TODAY);
+    const fresh = eventShares(incoming(102), events, TODAY);
+    expect(old.map((x) => x.share)).toEqual([0.5]);
+    expect(fresh.map((x) => x.share)).toEqual([0.5]);
+    expect(sharedHours(old) + sharedHours(fresh)).toBeCloseTo(eventHours(events[0]));
+  });
+
+  it("without a session both parts still get the whole day, as dates alone always gave", () => {
+    const events = [day("2026-05-02", [20 * min, 20 * min, 20 * min, 20 * min])];
+    expect(eventShares(outgoing(null), events, TODAY).map((x) => x.share)).toEqual([1]);
+    expect(eventShares(incoming(null), events, TODAY).map((x) => x.share)).toEqual([1]);
+  });
+
+  it("weights the split by each session's logged lap time", () => {
+    const events = [day("2026-05-02", [10 * min, 20 * min, 30 * min, 40 * min])];
+    expect(eventShares(outgoing(102), events, TODAY)[0].share).toBeCloseTo(0.3);
+    expect(eventShares(incoming(102), events, TODAY)[0].share).toBeCloseTo(0.7);
+  });
+
+  it("splits by session count when no session logged a lap", () => {
+    const events = [day("2026-05-02", [null, null, null, null], { lap_count: 0, lap_ms_sum: null })];
+    expect(eventShares(outgoing(101), events, TODAY)[0].share).toBeCloseTo(0.25);
+    expect(eventShares(incoming(101), events, TODAY)[0].share).toBeCloseTo(0.75);
+  });
+
+  it("credits a set swapped on a weekend's second day with the sessions it ran", () => {
+    // Started Saturday; the new set went on Sunday at the third session.
+    const weekend = { ...day("2026-05-02", [20 * min, 20 * min, 20 * min, 20 * min]), days: 2 };
+    expect(eventShares(incoming(102, "2026-05-03"), [weekend], TODAY)[0].share).toBe(0.5);
+    expect(eventShares(outgoing(102, "2026-05-03"), [weekend], TODAY)[0].share).toBe(0.5);
+    // Dates alone: the event started before the new set went on, so it gets none.
+    expect(eventShares(incoming(null, "2026-05-03"), [weekend], TODAY)).toEqual([]);
+  });
+
+  it("a session that isn't the event's leaves the date rule in charge", () => {
+    const events = [day("2026-05-02", [20 * min, 20 * min])];
+    expect(eventShares(incoming(999), events, TODAY)[0].share).toBe(1);
+  });
+
+  it("a part off and back on the same day, without sessions, never gets more than the whole", () => {
+    const events = [day("2026-05-02", [20 * min, 20 * min])];
+    const part = {
+      installed_on: "2026-03-01",
+      retired_on: null,
+      mounts: [
+        { mounted_on: "2026-03-01", removed_on: "2026-05-02" },
+        { mounted_on: "2026-05-02", removed_on: null },
+      ],
+    };
+    expect(eventShares(part, events, TODAY)[0].share).toBe(1);
+  });
+
+  it("carries the share into the wear estimate's hours and heat cycles", () => {
+    const events = [ev("2026-04-01", 1, { track_hours: 2 }), day("2026-05-02", [20 * min, 20 * min, 20 * min, 20 * min])];
+    const w = wearEstimate({ ...outgoing(102), expected_hours: 10, wear_limit: null }, events, [], TODAY);
+    expect(w.hours).toBeCloseTo(2 + (80 / 60) * 0.5, 1);
+    expect(w.events).toBe(2);
+    expect(w.cycles).toBe(2);
+    expect(eventsInWindow(outgoing(102), events, TODAY)).toHaveLength(2);
+  });
+
+  it("drops a session end the clipping moved: a mount clipped to retirement ends on the date", () => {
+    const events = [day("2026-05-02", [20 * min, 20 * min])];
+    // Retired the day before the recorded session boundary: the session no longer applies.
+    const part = { installed_on: "2026-03-01", retired_on: "2026-05-02", mounts: [{ mounted_on: "2026-03-01", removed_on: "2026-06-01", removed_session_id: 101 }] };
+    expect(eventShares(part, events, TODAY)[0].share).toBe(1);
+    expect(serviceWindows(part, TODAY)).toEqual([{ from: "2026-03-01", to: "2026-05-02" }]);
   });
 });

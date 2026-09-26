@@ -246,7 +246,7 @@ async function build(api) {
 
   // 2 laps: below the 3-lap threshold. Captured so a client can see that a
   // session can exist without enough data to compute consistency.
-  await api("POST", `/events/${rich.body.id}/sessions`, {
+  const s2 = await api("POST", `/events/${rich.body.id}/sessions`, {
     label: "Session 2",
     laps: [122_900, 121_500],
   });
@@ -368,6 +368,17 @@ async function build(api) {
     name: "Falken RT660",
     size: "255/40R17",
     installed_on: "2026-03-15",
+  });
+  // …swapped for a fresh pair between the rich event's two timed sessions
+  // (migration 0030), so both mounts carry a session end: the old pair's
+  // removed_session_id and the new pair's mounted_session_id are the same id…
+  await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
+    kind: "tires_front",
+    name: "Hoosier A7",
+    size: "255/40R17",
+    installed_on: FIXTURE.richEvent.start_date,
+    swap: true,
+    session_id: s2.body.id,
   });
   // …and a rear pair that has never been fitted: `equipped: false` with an
   // empty `mounts`, the spare-on-the-shelf branch.

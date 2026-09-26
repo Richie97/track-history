@@ -6,6 +6,7 @@ import {
   catalogPrefill,
   defaultMeasurementUnit,
   diffSetups,
+  eventLastDay,
   equipSwapKinds,
   equipSwapsOff,
   isTireKind,
@@ -24,6 +25,8 @@ import {
   setupToDisplay,
   setupToStored,
   setupUnit,
+  swapSessionChoices,
+  swapSessionEvent,
   vehicleLogbook,
   vehicleOdometerLine,
   vehicleTileLine,
@@ -374,5 +377,50 @@ describe("odometer lines (#192)", () => {
       "Odometer: 1,180 km between its first and last recorded sessions"
     );
     expect(partOdometerLine(null, "imperial")).toBeNull();
+  });
+});
+
+describe("swaps between sessions (migration 0030)", () => {
+  const events = [
+    { id: 1, vehicle_id: 10, start_date: "2026-05-02", days: 2 },
+    { id: 2, vehicle_id: 10, start_date: "2026-06-06", days: 0.5 },
+    { id: 3, vehicle_id: 11, start_date: "2026-05-02", days: 1 },
+    { id: 4, vehicle_id: null, start_date: "2026-08-01", days: 1 },
+    { id: 5, vehicle_id: 10, start_date: "2026-09-12", days: 3 },
+    { id: 6, vehicle_id: 10, start_date: "2026-09-13", days: 1 },
+  ];
+
+  it("counts a part day whole and ends an event on its last day", () => {
+    expect(eventLastDay({ start_date: "2026-05-02", days: 2 })).toBe("2026-05-03");
+    expect(eventLastDay({ start_date: "2026-06-06", days: 0.5 })).toBe("2026-06-06");
+    expect(eventLastDay({ start_date: "2026-12-31", days: 2 })).toBe("2027-01-01");
+  });
+
+  it("finds this car's event covering the date, and nothing else's", () => {
+    expect(swapSessionEvent(10, "2026-05-03", events)?.id).toBe(1);
+    expect(swapSessionEvent(10, "2026-05-04", events)).toBeNull();
+    expect(swapSessionEvent(11, "2026-05-02", events)?.id).toBe(3);
+    expect(swapSessionEvent(10, "2026-08-01", events)).toBeNull(); // no vehicle_id: never matched
+    expect(swapSessionEvent(10, "", events)).toBeNull();
+  });
+
+  it("gives two covering events to the one that started later", () => {
+    expect(swapSessionEvent(10, "2026-09-13", events)?.id).toBe(6);
+    expect(swapSessionEvent(10, "2026-09-14", events)?.id).toBe(5);
+  });
+
+  it("words the sessions as the moment before each one", () => {
+    expect(
+      swapSessionChoices([
+        { id: 21, label: "Morning", laps: [{}, {}, {}] },
+        { id: 22, label: null, laps: [{}] },
+        { id: 23, label: "  ", laps: [] },
+      ])
+    ).toEqual([
+      { id: 21, label: "Before Morning · 3 laps" },
+      { id: 22, label: "Before Session 2 · 1 lap" },
+      { id: 23, label: "Before Session 3" },
+    ]);
+    expect(swapSessionChoices(undefined)).toEqual([]);
   });
 });
