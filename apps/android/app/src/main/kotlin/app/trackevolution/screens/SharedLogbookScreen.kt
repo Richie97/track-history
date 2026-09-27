@@ -67,7 +67,14 @@ class SharedLogbookModel(
                 data = api.sharedLogbook(slug)
                 state = LoadState.Ready
             } catch (e: ApiException) {
-                state = LoadState.Failed(e.message ?: "That shared logbook isn't available.")
+                state = if (e.status == 404) {
+                    LoadState.Failed(
+                        "There's no shared logbook at /share/$slug — the link may have been disabled.",
+                        retryable = false,
+                    )
+                } else {
+                    LoadState.Failed(e.message ?: "That shared logbook isn't available.")
+                }
             }
         }
     }
@@ -108,7 +115,7 @@ fun SharedLogbookScreen(model: SharedLogbookModel, modifier: Modifier = Modifier
 
             item("tracks-header") { TESectionHeader("Tracks") }
             if (data.tracks.isEmpty()) {
-                item("tracks-empty") { TEEmpty("Nothing logged here yet.") }
+                item("tracks-empty") { TEEmpty("No events shared yet.") }
             } else {
                 items(data.tracks, key = { "tr-${it.id}" }) { track ->
                     TrackCard(Modifier.fillMaxWidth()) {
@@ -132,25 +139,29 @@ fun SharedLogbookScreen(model: SharedLogbookModel, modifier: Modifier = Modifier
                 }
             }
 
-            item("events-header") { TESectionHeader("Events") }
-            items(data.events, key = { "ev-${it.id}" }) { event ->
-                TrackCard(Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(event.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-                            TEMeta(
-                                listOf(
-                                    EventDates.fmtDate(event.startDate),
-                                    event.club,
-                                    event.runGroup,
-                                    event.conditions?.rawValue,
-                                ),
-                            )
+            // Like the web page, the section is absent rather than empty: the
+            // tracks section above already says nothing has been shared.
+            if (data.events.isNotEmpty()) {
+                item("events-header") { TESectionHeader("Events") }
+                items(data.events, key = { "ev-${it.id}" }) { event ->
+                    TrackCard(Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(event.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+                                TEMeta(
+                                    listOf(
+                                        EventDates.fmtDate(event.startDate),
+                                        event.club,
+                                        event.runGroup,
+                                        event.conditions?.rawValue,
+                                    ),
+                                )
+                            }
+                            Text(LapTime.fmtMs(event.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
                         }
-                        Text(LapTime.fmtMs(event.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
                     }
                 }
             }

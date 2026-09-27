@@ -256,7 +256,7 @@ final class LeaderboardModel {
             async let board = api.trackLeaderboard(id: trackId)
             let loaded = try await (tracks: tracks, events: events, board: board)
             guard let found = loaded.tracks.first(where: { $0.id == trackId }) else {
-                state = .failed("That track isn't in your logbook any more.")
+                state = .failed("That track isn't in your logbook any more.", retryable: false)
                 return
             }
             trackName = found.name

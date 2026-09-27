@@ -37,17 +37,17 @@ sealed interface LoadState {
     data object Loading : LoadState
     data object Ready : LoadState
 
-    /** Carries the server's own message — the API contract is `{ error }`. */
-    data class Failed(val message: String) : LoadState
-
     /**
-     * The 402 (NS-32 rule 5). Its own case rather than a [Failed] carrying
-     * "pro required": a Pro-gated *read* has to look like an offer, not like a
-     * server error, which is the same reason `ApiException.PaymentRequired` is
-     * distinct from `Server`. The screen supplies the words, since only it
-     * knows which feature the reader was reaching for.
+     * Carries the server's own message — the API contract is `{ error }`.
+     * [retryable] is false when the answer is final (the thing is gone, or
+     * was never there), so the screen doesn't offer a Retry that can only
+     * fail the same way.
+     *
+     * There is no paywall case: a 402 locks a *section* in place
+     * ([TEProLocked]) rather than the whole screen, since NS-37 made every
+     * page's free half readable by every account.
      */
-    data class Paywall(val title: String, val blurb: String) : LoadState
+    data class Failed(val message: String, val retryable: Boolean = true) : LoadState
 }
 
 /**
@@ -61,7 +61,6 @@ fun TELoadable(
     state: LoadState,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    onSubscribe: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     when (state) {
@@ -80,35 +79,10 @@ fun TELoadable(
                 color = TrackTheme.colors.textMuted,
                 textAlign = TextAlign.Center,
             )
-            TextButton(onClick = onRetry) {
-                Text("Retry", style = TrackTheme.typography.bodyStrong, color = TrackTheme.colors.accentInk)
-            }
-        }
-
-        is LoadState.Paywall -> Column(
-            modifier = modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                state.title,
-                style = TrackTheme.typography.h3,
-                color = TrackTheme.colors.textStrong,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                state.blurb,
-                style = TrackTheme.typography.sm,
-                color = TrackTheme.colors.textMuted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            TextButton(onClick = onSubscribe) {
-                Text(
-                    "See Track Evolution Pro",
-                    style = TrackTheme.typography.bodyStrong,
-                    color = TrackTheme.colors.accentInk,
-                )
+            if (state.retryable) {
+                TextButton(onClick = onRetry) {
+                    Text("Retry", style = TrackTheme.typography.bodyStrong, color = TrackTheme.colors.accentInk)
+                }
             }
         }
 
@@ -288,9 +262,9 @@ fun fmtCount(count: Int, noun: String): String = "$count $noun${if (count == 1) 
 
 /**
  * A Pro section, **locked in place** (NS-37) — the card a free account sees
- * where the section's content would be, never the section simply missing. The
- * inline counterpart of [LoadState.Paywall], which is the whole-screen one and
- * is now reserved for screens that have nothing free to show.
+ * where the section's content would be, never the section simply missing.
+ * Since NS-37 every screen has a free half, so this is the only form a 402
+ * takes — there is no whole-screen paywall state.
  */
 @Composable
 fun TEProLocked(

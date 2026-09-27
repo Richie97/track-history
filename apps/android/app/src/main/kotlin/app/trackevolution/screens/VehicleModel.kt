@@ -124,7 +124,7 @@ class VehicleModel(
                 events = eventList.await()
                 val pro = garageList.await()
                 if (found == null) {
-                    state = LoadState.Failed("That car isn't in your garage any more.")
+                    state = LoadState.Failed("That car isn't in your garage any more.", retryable = false)
                     return@launch
                 }
                 vehicle = found

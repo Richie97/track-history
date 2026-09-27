@@ -135,6 +135,13 @@ const PRO_CHANNELS_NOTE =
   "the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits with a theoretical best, " +
   "the car-health strip, and lap-vs-lap delta charts.";
 
+// What a free account gets from an import — said the same way wherever the
+// importer is offered, because the event page and the new-event form used to
+// disagree about which traces were free.
+const IMPORT_FREE_NOTE =
+  "Importing is free — you get the lap times, the racing line, top speed, RPM and lateral G, and the " +
+  "per-lap speed, throttle and brake traces. " + PRO_CHANNELS_NOTE;
+
 // ---------- garage & setup-sheet renderers -----------------------------------
 
 // Every part in the garage payload, across vehicles — resolves the part ids
@@ -2010,10 +2017,7 @@ async function viewEvent(eventId) {
     ${
       canViewChannels(state.entitlement)
         ? ""
-        : proNoteHtml(
-            "Importing is free — you get the lap times, the racing line, top speed, RPM and lateral G, and the " +
-              "per-lap speed, throttle and brake traces. " + PRO_CHANNELS_NOTE
-          )
+        : proNoteHtml(IMPORT_FREE_NOTE)
     }
     <div id="pdr-review"></div>
     <form class="panel" id="add-session">
@@ -2317,7 +2321,9 @@ async function viewEvent(eventId) {
 // `opts.search(query)` replaces the default substring filter with a ranked
 // list of labels (the catalog picker's matchCatalogCars), and `opts.onPick`
 // hears which label was chosen — by tap or Enter — for fields where a pick
-// means more than the text it leaves in the input.
+// means more than the text it leaves in the input. `opts.emptyText` is said
+// in the list when a query matches nothing, rather than the list quietly
+// closing — which reads as the field having stopped working.
 function bindCombo(input, list, options, opts = {}) {
   let matches = [];
   let active = -1;
@@ -2343,6 +2349,13 @@ function bindCombo(input, list, options, opts = {}) {
   const open = () => {
     const q = input.value.trim().toLowerCase();
     matches = opts.search ? opts.search(q) : q ? options.filter((n) => n.toLowerCase().includes(q)) : options;
+    if (!matches.length && q && opts.emptyText) {
+      list.innerHTML = `<div class="combo-empty" role="option" aria-disabled="true">${esc(opts.emptyText)}</div>`;
+      list.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      active = -1;
+      return;
+    }
     if (!matches.length || (matches.length === 1 && matches[0].toLowerCase() === q)) return close();
     list.innerHTML = matches.map((n, i) => `<div class="combo-item" role="option" data-i="${i}">${esc(n)}</div>`).join("");
     list.hidden = false;
@@ -2356,6 +2369,10 @@ function bindCombo(input, list, options, opts = {}) {
   input.addEventListener("keydown", (e) => {
     if (list.hidden) {
       if (e.key === "ArrowDown") { open(); e.preventDefault(); }
+      return;
+    }
+    if (!matches.length) {
+      if (e.key === "Escape") close();
       return;
     }
     if (e.key === "ArrowDown") { setActive(Math.min(active + 1, matches.length - 1)); e.preventDefault(); }
@@ -2396,11 +2413,12 @@ function catalogFieldHtml(id, pick, { hint = true } = {}) {
 // Wire a catalog field. `onPick(row)` fires for a chosen row and `onClear()`
 // when the field is emptied; typing over a pick without choosing another puts
 // the pick's label back on blur, so the field always shows what is picked.
-function bindCatalogPicker(input, list, rows, { onPick, onClear, initial = null }) {
+function bindCatalogPicker(input, list, rows, { onPick, onClear, initial = null, emptyText }) {
   let pick = initial;
   const byLabel = new Map(rows.map((r) => [catalogCarLabel(r), r]));
   bindCombo(input, list, [], {
     search: (q) => matchCatalogCars(q, rows).slice(0, 12).map(catalogCarLabel),
+    emptyText,
     onPick: (label) => {
       pick = byLabel.get(label) ?? null;
       if (pick) onPick(pick);
@@ -2519,11 +2537,7 @@ async function viewEventForm(eventId, presetTrack) {
     ${
       canViewChannels(state.entitlement)
         ? ""
-        : proNoteHtml(
-            "Importing is free — you get the lap times, the racing line and top speed, RPM and lateral G. " +
-              "The per-lap speed, throttle, brake and steering traces in the same file, with sector splits and " +
-              "lap-vs-lap deltas, need a subscription."
-          )
+        : proNoteHtml(IMPORT_FREE_NOTE)
     }
     <div id="pdr-review"></div>
     <div class="staged-sessions" id="staged-sessions" hidden></div>
@@ -2595,7 +2609,9 @@ async function viewEventForm(eventId, presetTrack) {
     });
   }
 
-  bindCombo(view.querySelector('[name="track"]'), view.querySelector("#track-combo-list"), trackOpts);
+  bindCombo(view.querySelector('[name="track"]'), view.querySelector("#track-combo-list"), trackOpts, {
+    emptyText: "No match — it's saved as a new track.",
+  });
   bindCombo(view.querySelector('[name="car"]'), view.querySelector("#car-combo-list"), vehicles.map((v) => v.name));
 
   view.querySelector("#event-form").onsubmit = async (evt) => {
@@ -3019,6 +3035,7 @@ async function viewGarage() {
   };
   let addPick = null;
   bindCatalogPicker(vehAdd.catalog, view.querySelector("#veh-add-catalog-list"), carCatalog, {
+    emptyText: "No car in the catalog matches that — add it by name, and set its wheelbase and steering ratio on its page.",
     onPick: (row) => {
       addPick = row;
       if (vehAdd.name.value.trim() === "") vehAdd.name.value = catalogCarName(row);
@@ -3480,6 +3497,7 @@ async function viewVehicle(vehicleId) {
   });
   bindCatalogPicker(vehForm.catalog, view.querySelector("#veh-catalog-list"), carCatalog, {
     initial: initialPick,
+    emptyText: "No car in the catalog matches that — type the wheelbase and steering ratio in below.",
     onPick: (row) => {
       const plan = catalogPrefill(
         row,

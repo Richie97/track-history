@@ -57,7 +57,7 @@ class LeaderboardModel(
                 val events = eventsJob.await()
                 val board = boardJob.await()
                 if (found == null) {
-                    state = LoadState.Failed("That track isn't in your logbook any more.")
+                    state = LoadState.Failed("That track isn't in your logbook any more.", retryable = false)
                     return@launch
                 }
                 trackName = found.name

@@ -111,7 +111,7 @@ struct AnalysisColumn: View {
                 .foregroundStyle(Color(.textStrong))
             Text(
                 hasAnyChannels
-                    ? "Choose a session's channel graphs to see them here."
+                    ? "Tap a session's Compare laps to see its channels here."
                     : "Import a video or record laps on the phone, and the channels land here."
             )
             .teStyle(.sm)
