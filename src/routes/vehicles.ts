@@ -470,7 +470,9 @@ async function retiredLifecycleAvg(
 }
 
 // Validate part fields off `body`; returns normalized values or an error.
-// `creating` requires kind/name/installed_on to be present.
+// `creating` requires kind/name to be present; installed_on is optional on a
+// create and defaults to today — on the car from today when equipped, and for
+// a spare (`equipped: false`) the day it was added to the shelf.
 function validatePart(body: any, creating: boolean): { error: string } | { values: Record<string, unknown> } {
   const values: Record<string, unknown> = {};
   if ("kind" in body || creating) {
@@ -488,7 +490,9 @@ function validatePart(body: any, creating: boolean): { error: string } | { value
     if (size.length > 40) return { error: "invalid size" };
     values.size = size || null;
   }
-  if ("installed_on" in body || creating) {
+  if (creating && (body.installed_on == null || body.installed_on === "")) {
+    values.installed_on = todayISO();
+  } else if ("installed_on" in body) {
     if (!isValidDate(body.installed_on)) return { error: "invalid installed_on" };
     values.installed_on = body.installed_on;
   }

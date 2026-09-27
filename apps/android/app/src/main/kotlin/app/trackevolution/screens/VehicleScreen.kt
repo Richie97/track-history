@@ -648,9 +648,12 @@ private fun PartCard(
             }
         }
         val lastOff = Garage.lastOff(part)
+        // A spare that has never been on the car wasn't installed: its date is
+        // the day it went on the shelf (today, when it was added with no date).
+        val neverFitted = Garage.isSpare(part) && part.mounts.isEmpty()
         TEMeta(
             listOf(
-                "Installed ${EventDates.fmtDate(part.installedOn)}",
+                "${if (neverFitted) "Added" else "Installed"} ${EventDates.fmtDate(part.installedOn)}",
                 when {
                     !Garage.isSpare(part) -> null
                     lastOff != null -> "off the car since ${EventDates.fmtDate(lastOff)}"
@@ -937,8 +940,10 @@ private fun PartForm(
     var name by rememberSaveable(key) { mutableStateOf(existing?.name.orEmpty()) }
     var size by rememberSaveable(key) { mutableStateOf(existing?.size.orEmpty()) }
     var equipped by rememberSaveable(key) { mutableStateOf(true) }
+    // Adding, the date is optional: blank is today when the part is equipped,
+    // and a spare that hasn't been on the car when it isn't.
     var installedOn by rememberSaveable(key) {
-        mutableStateOf(existing?.installedOn ?: EventDates.todayIso())
+        mutableStateOf(existing?.installedOn.orEmpty())
     }
     var cost by rememberSaveable(key) {
         mutableStateOf(existing?.costCents?.let { (it / 100.0).toString() }.orEmpty())
@@ -1002,10 +1007,18 @@ private fun PartForm(
                 modifier = Modifier.fillMaxWidth().testTag("partSize"),
             )
         }
-        TEField("Installed") {
+        TEField(
+            if (addingTo != null) "Installed (optional)" else "Installed",
+            hint = when {
+                addingTo == null || installedOn.isNotBlank() -> null
+                equipped -> "Blank means today"
+                else -> "Blank for a spare that hasn't been on the car yet"
+            },
+        ) {
             OutlinedTextField(
                 value = installedOn,
                 onValueChange = { installedOn = it },
+                placeholder = { Text("yyyy-mm-dd", style = TrackTheme.typography.sm) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("partInstalled"),
             )
@@ -1479,7 +1492,8 @@ private fun PartPatch.toDraft(): PartDraft = PartDraft(
     kind = (kind as? Patch.Set)?.value ?: PartKind.OTHER,
     name = (name as? Patch.Set)?.value,
     size = (size as? Patch.Set)?.value,
-    installedOn = (installedOn as? Patch.Set)?.value ?: EventDates.todayIso(),
+    // Left blank: today — for a spare, the day it went on the shelf.
+    installedOn = (installedOn as? Patch.Set)?.value?.takeIf { it.isNotBlank() } ?: EventDates.todayIso(),
     costCents = (costCents as? Patch.Set)?.value,
     expectedHours = (expectedHours as? Patch.Set)?.value,
     wearLimit = (wearLimit as? Patch.Set)?.value,

@@ -1179,7 +1179,11 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   the same kind, and a full set against either pair; `other` swaps nothing),
   answering `{ ok, unequipped: [ids] }`; `POST /api/parts/:id/unequip` takes
   one off. Creating a part accepts `equipped: false` (a spare straight to the
-  shelf) and `swap: true` (take off what it replaces). The mounts are kept in
+  shelf) and `swap: true` (take off what it replaces); its `installed_on` is
+  optional and defaults to today, so a part added with no date and not equipped
+  is a spare that hasn't been on the car — every client's add form leaves the
+  date blank by default and words such a part's date as *Added* rather than
+  *Installed*. The mounts are kept in
   step with `installed_on` / `retired_on` by triggers, so a part inserted by
   the seed or a support script is on the car from its install date, and
   retiring or un-retiring one through a plain `PUT` closes or reopens its
