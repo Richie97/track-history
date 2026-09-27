@@ -90,6 +90,31 @@ describe("equip and unequip", () => {
     expect(p.wear.events).toBe(2);
   });
 
+  it("takes a part with no install date as today: on the car when equipped, a spare when not", async () => {
+    const { api, vehicleId } = await garageUser();
+    const today = new Date().toISOString().slice(0, 10);
+    const post = (extra = {}) => api("POST", `/vehicles/${vehicleId}/parts`, { kind: "tires", name: "Set", ...extra });
+    const onCar = (await post()).body.id as number;
+    const blank = (await post({ installed_on: "", equipped: false })).body.id as number;
+    const spare = (await post({ installed_on: null, equipped: false, swap: true })).body.id as number;
+
+    const fitted = await partOf(api, onCar);
+    expect(fitted.installed_on).toBe(today);
+    expect(fitted.equipped).toBe(true);
+    expect(fitted.mounts).toEqual([{ mounted_on: today, removed_on: null }]);
+    for (const id of [blank, spare]) {
+      const p = await partOf(api, id);
+      expect(p.installed_on).toBe(today);
+      expect(p.equipped).toBe(false);
+      expect(p.mounts).toEqual([]);
+    }
+    // A spare's `swap` takes nothing off: it isn't going on.
+    expect((await partOf(api, onCar)).equipped).toBe(true);
+    // An edit still needs a real date.
+    expect((await api("PUT", `/parts/${onCar}`, { installed_on: null })).status).toBe(400);
+    expect((await api("PUT", `/parts/${onCar}`, { installed_on: "" })).status).toBe(400);
+  });
+
   it("equipping takes off what shares the part's place, and only that", async () => {
     const { api, vehicleId } = await garageUser();
     const post = async (kind: string, name: string, extra = {}) =>

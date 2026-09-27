@@ -484,7 +484,7 @@ struct VehicleScreen: View {
 
                 TEMeta([
                     part.size.flatMap { $0.isEmpty ? nil : $0 },
-                    "Installed \(EventDates.fmtDate(part.installedOn))",
+                    "\(Self.neverFitted(part) ? "Added" : "Installed") \(EventDates.fmtDate(part.installedOn))",
                     Self.shelfLine(part),
                     Garage.fmtCost(part.costCents),
                     part.notes
@@ -548,6 +548,12 @@ struct VehicleScreen: View {
 
     /// A spare's place in its history: when it last came off the car, or that
     /// it hasn't been on yet. Nil for a part on the car.
+    /// A spare that has never been on the car wasn't installed: its date is the
+    /// day it went on the shelf (today, when it was added with no date).
+    private static func neverFitted(_ part: Part) -> Bool {
+        Garage.isSpare(part) && (part.mounts ?? []).isEmpty
+    }
+
     private static func shelfLine(_ part: Part) -> String? {
         guard Garage.isSpare(part) else { return nil }
         if let off = Garage.lastOff(part) { return "off the car since \(EventDates.fmtDate(off))" }
@@ -760,6 +766,9 @@ struct PartFormSheet: View {
     /// Adding only: on the car now, or straight to the shelf (migration 0029).
     @State private var equipped = true
     @State private var installedOn = Date()
+    /// Adding only: whether an install date was picked. None is today when the
+    /// part is equipped, and a spare that hasn't been on the car when it isn't.
+    @State private var hasInstallDate = false
     /// Editing, when the part last went on the car — its latest mount's start
     /// (migration 0030) — for a part not fitted the day it was installed.
     @State private var mountedOn = Date()
@@ -848,10 +857,39 @@ struct PartFormSheet: View {
                         }
 
                         VStack(alignment: .leading, spacing: 0) {
-                            TEField(label: "Installed") {
-                                DatePicker("Installed", selection: $installedOn, displayedComponents: .date)
-                                    .labelsHidden()
-                                    .datePickerStyle(.compact)
+                            if isEditing {
+                                TEField(label: "Installed") {
+                                    DatePicker("Installed", selection: $installedOn, displayedComponents: .date)
+                                        .labelsHidden()
+                                        .datePickerStyle(.compact)
+                                }
+                            } else {
+                                TEField(
+                                    label: "Installed (optional)",
+                                    hint: hasInstallDate
+                                        ? nil
+                                        : (equipped ? "Blank means today" : "Blank for a spare that hasn't been on the car yet")
+                                ) {
+                                    if hasInstallDate {
+                                        HStack(spacing: 12) {
+                                            DatePicker("Installed", selection: $installedOn, in: ...Date(), displayedComponents: .date)
+                                                .labelsHidden()
+                                                .datePickerStyle(.compact)
+                                            Button("Clear") { hasInstallDate = false }
+                                                .teStyle(.sm)
+                                                .accessibilityLabel("Clear install date")
+                                                .accessibilityIdentifier("clearInstallDate")
+                                        }
+                                    } else {
+                                        Button("Set a date") {
+                                            installedOn = Date()
+                                            hasInstallDate = true
+                                        }
+                                        .teStyle(.sm)
+                                        .accessibilityLabel("Set install date")
+                                        .accessibilityIdentifier("setInstallDate")
+                                    }
+                                }
                             }
                             if fittedAtInstall, let swapPoint, let m = latestMount {
                                 SwapSessionPicker(
@@ -1011,8 +1049,9 @@ struct PartFormSheet: View {
         let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
         let trimmedSize = size.trimmingCharacters(in: .whitespaces)
 
+        // No date: today, which for a spare is the day it went on the shelf.
         var draft = PartDraft(
-            kind: kind, name: trimmedName, installedOn: EventDates.isoString(from: installedOn)
+            kind: kind, name: trimmedName, installedOn: EventDates.isoString(from: hasInstallDate ? installedOn : Date())
         )
         draft.costCents = centsValue
         draft.expectedHours = expected

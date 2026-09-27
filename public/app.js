@@ -3130,6 +3130,9 @@ async function viewVehicle(vehicleId) {
   // When a part came off the car last, for a spare's meta line.
   const lastOff = (p) =>
     (p.mounts ?? []).reduce((max, m) => (m.removed_on && m.removed_on > max ? m.removed_on : max), "");
+  // A spare that has never been on the car wasn't installed: its date is the
+  // day it was added to the shelf (today, when it was added with no date).
+  const neverFitted = (p) => p.equipped === false && !(p.mounts ?? []).length;
 
   // The Equipped switch and the small confirm row it opens: the date the swap
   // happened (today unless it was earlier) and, turning one on, what it takes
@@ -3212,7 +3215,7 @@ async function viewVehicle(vehicleId) {
         <button class="btn small" data-part-retire="${p.id}">Retire</button>`}
         <button class="btn small" data-part-edit="${p.id}">Edit</button>
       </div>
-      <div class="part-meta">Installed ${fmtDate(p.installed_on)}${
+      <div class="part-meta">${neverFitted(p) ? "Added" : "Installed"} ${fmtDate(p.installed_on)}${
         p.equipped === false && lastOff(p) ? ` · off the car since ${fmtDate(lastOff(p))}` : p.equipped === false ? " · not fitted yet" : ""
       }${p.retired_on ? ` — retired ${fmtDate(p.retired_on)}` : ""}${p.cost_cents != null ? ` · ${fmtCost(p.cost_cents)}` : ""}${p.notes ? ` · ${esc(p.notes)}` : ""}</div>
       ${wearBarHtml(p.wear)}
@@ -3384,7 +3387,8 @@ async function viewVehicle(vehicleId) {
           <select name="kind">${PART_KINDS.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
         <div class="field"><label>Part / compound</label><input name="name" required placeholder="Hawk DTC-60, Hoosier A7…"></div>
         <div class="field"><label>Size (optional)</label><input name="size" maxlength="40" placeholder="285/30R18"></div>
-        <div class="field"><label>Installed</label><input name="installed_on" type="date" required value="${today}"></div>
+        <div class="field"><label for="part-add-installed">Installed (optional)</label><input id="part-add-installed" name="installed_on" type="date" aria-describedby="part-add-installed-hint">
+          <div class="hint" id="part-add-installed-hint"></div></div>
         <div class="field"><label>Cost ($, optional)</label><input name="cost" type="number" min="0" step="0.01" placeholder="389"></div>
         <div class="field"><label>Expected life (track hours)</label><input name="expected_hours" type="number" min="0" step="0.1" placeholder="auto from history"></div>
         <div class="field"><label>Replace at (optional)</label><input name="wear_limit" type="number" min="0" step="0.5" placeholder="${wearLimitHint("pads_front", units)}"></div>
@@ -3547,6 +3551,11 @@ async function viewVehicle(vehicleId) {
   const partAdd = view.querySelector("#part-add");
   // What adding this part equipped will take off, said before it happens.
   const addSwapNote = () => {
+    // No date is fine: equipped, it went on today; not, it's a spare that
+    // hasn't been on the car.
+    partAdd.querySelector("#part-add-installed-hint").textContent = partAdd.equipped.checked
+      ? "Blank means today."
+      : "Blank for a spare that hasn't been on the car yet.";
     const swaps = partAdd.equipped.checked ? equipSwapsOff({ id: null, kind: partAdd.kind.value }, v.parts) : [];
     partAdd.querySelector("#part-add-swap").textContent = swaps.length
       ? `Takes off ${swaps.map(partTitle).join(" and ")} — ${swaps.length === 1 ? "it moves" : "they move"} to Spares.`
@@ -3569,7 +3578,8 @@ async function viewVehicle(vehicleId) {
           kind: f.kind.value,
           name: f.name.value.trim(),
           size: f.size.value.trim() || null,
-          installed_on: f.installed_on.value,
+          // Blank: the server takes today.
+          installed_on: f.installed_on.value || null,
           equipped: f.equipped.checked,
           swap: f.equipped.checked,
           cost_cents: f.cost.value.trim() === "" ? null : Math.round(Number(f.cost.value) * 100),
