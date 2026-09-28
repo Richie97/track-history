@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { userTotalsStmt } from "../db";
 import { DEFAULT_UNITS, isValidUnits, sanitizeChecklistTemplate } from "../lib/validate";
-import { entitlementResponse, type SubscriptionRow } from "../lib/entitlement";
+import { entitlementResponse, isEntitled, type SubscriptionRow } from "../lib/entitlement";
+import { parseProfile, sanitizeProfile } from "../lib/profile";
 import { subscriptionsForUserStmt } from "../lib/billing/store";
 
 export const me = new Hono<AppContext>();
@@ -108,6 +109,40 @@ me.put("/me/units", async (c) => {
   if (!isValidUnits(units)) return c.json({ error: "units must be \"metric\" or \"imperial\"" }, 400);
   await c.env.DB.prepare("UPDATE users SET units = ? WHERE id = ?").bind(units, userId).run();
   return c.json({ ok: true });
+});
+
+// The driver profile (NS-38): what a driver tells their instructor about
+// themselves. The owner reads and writes it here; a coach reads the same route
+// through /api/students/:id/me/profile, where userId is the student — which is
+// why it carries the name and picture a coach's screen heads the profile with,
+// and `pro`, the tier the coach's client opens the channel panel by. Never on
+// the public share page, the leaderboards or the MCP tools.
+me.get("/me/profile", async (c) => {
+  const row = await c.env.DB.prepare("SELECT id, name, picture, profile FROM users WHERE id = ?")
+    .bind(c.get("userId"))
+    .first<{ id: number; name: string | null; picture: string | null; profile: string | null }>();
+  if (!row) return c.json({ error: "not found" }, 404);
+  const today = new Date().toISOString().slice(0, 10);
+  return c.json({
+    id: row.id,
+    name: row.name,
+    picture: row.picture,
+    pro: isEntitled(c.get("entitledUntil"), Date.now()),
+    profile: parseProfile(row.profile, today),
+  });
+});
+
+// Replace the profile. `{ profile: null }` — or one with every field empty —
+// clears it. Free: it is a driver's own details, not analysis.
+me.put("/me/profile", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== "object" || !("profile" in body)) return c.json({ error: "profile required" }, 400);
+  const result = sanitizeProfile((body as Record<string, unknown>).profile, new Date().toISOString().slice(0, 10));
+  if ("error" in result) return c.json({ error: result.error }, 400);
+  await c.env.DB.prepare("UPDATE users SET profile = ? WHERE id = ?")
+    .bind(result.profile ? JSON.stringify(result.profile) : null, c.get("userId"))
+    .run();
+  return c.json({ ok: true, profile: result.profile });
 });
 
 // Connected apps (#316): the AI tools this user approved on the MCP consent

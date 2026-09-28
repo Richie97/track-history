@@ -1,0 +1,27 @@
+{
+  "method": "PUT",
+  "path": "/me/profile",
+  "status": 200,
+  "body": {
+    "ok": true,
+    "profile": {
+      "date_of_birth": "1985-06-15",
+      "emergency_name": "Jamie Doe",
+      "emergency_phone": "+1 555 0100",
+      "experience": "Autocross since 2015",
+      "first_track_year": 2019,
+      "for_instructor": "Old left-wrist injury",
+      "gear_notes": "Wears glasses",
+      "gloves": true,
+      "goals": "Trail braking into T1",
+      "head_neck": "hans",
+      "helmet": "Bell GP3",
+      "helmet_rating": "SA2020",
+      "instruction": "Two schools",
+      "license": "NASA HPDE4",
+      "occupation": "Engineer",
+      "shoes": true,
+      "suit": "Single-layer SFI 3.2A/1"
+    }
+  }
+}

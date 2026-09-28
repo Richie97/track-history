@@ -1,6 +1,6 @@
 # NS-38 — Share with a coach
 
-**Phase:** post-rewrite · **Platform:** Shared (server, web, iOS, Android) · **Depends on:** NS-32 (tier), NS-34 (large screens), NS-37 (the Garage tab), the share page, the MCP read path (`apiApp(auth)`, #314) · **Estimate:** 4–5 weeks across four PRs — server, web, iOS, Android, in that order
+**Phase:** post-rewrite · **Platform:** Shared (server, web, iOS, Android) · **Depends on:** NS-32 (tier), NS-34 (large screens), NS-37 (the Garage tab), the share page, the MCP read path (`apiApp(auth)`, #314) · **Estimate:** 4–5 weeks across four PRs — server, web, iOS, Android, in that order · **Issue:** [#338](https://github.com/Richie97/track-history/issues/338)
 
 ## Goal
 
@@ -74,7 +74,7 @@ CREATE TABLE coach_invites (
   expires_at INTEGER NOT NULL           -- 7 days
 );
 
-ALTER TABLE users ADD COLUMN profile TEXT;  -- JSON, sanitizeProfile
+ALTER TABLE users ADD COLUMN profile TEXT;  -- JSON, sanitizeProfile (lib/profile.ts)
 ```
 
 Account deletion is already a `DELETE FROM users` cascade, so grants,
@@ -86,12 +86,12 @@ invites and the profile go with either account.
 |---|---|
 | `POST /coaching/invites` | **Pro** (`requireEntitlement`). Returns `{ id, url, expires_at }`, where `url` is `https://<host>/coach/<token>` and the 32-byte token is stored hashed. At most 10 open invites and 10 coaches per student. |
 | `DELETE /coaching/invites/:id` | Withdraw an unused invite. |
-| `GET /coaching` | `{ coaches: [{ id, name, picture, since, last_viewed_at }], students: [{ id, name, picture, since, track_days, last_event }], invites: [{ id, expires_at }] }`, both directions in one call. |
-| `GET /coaching/invites/:token` | Preview for the accept screen: `{ student: { name, picture } }`. 404 if unknown, used or expired. |
-| `POST /coaching/invites/:token/accept` | Creates the grant and burns the invite. 400 for your own invite, 409 if already a coach of this student. Rate-limited per user through `withinLimit`. |
+| `GET /coaching` | `{ coaches: [{ id, name, picture, since, last_viewed_at }], students: [{ id, name, picture, since, event_count, last_event_date }], invites: [{ id, created_at, expires_at }] }`, both directions in one call. `event_count` and `last_event_date` count past events only, on the totals' rule. An invite's link is not listed: only its hash is stored, so it is shown once, at creation. |
+| `GET /coaching/invites/:token` | Preview for the accept screen: `{ student: { id, name, picture }, expires_at, own, already_coach }`. 404 if unknown, used or expired. |
+| `POST /coaching/invites/:token/accept` | 201 `{ student: { id, name, picture } }`. Creates the grant and burns the invite — the burn is a `DELETE … RETURNING`, so of two people accepting at once exactly one gets the grant. 400 for your own invite, 409 if already a coach of this student or the student has 10; none of the three burns the link. Not rate-limited: a token is 256 random bits, so guessing is not the threat. |
 | `DELETE /coaching/coaches/:coachId` | The student revokes. |
 | `DELETE /coaching/students/:studentId` | The coach leaves. |
-| `GET` / `PUT /me/profile` | The owner's profile. |
+| `GET` / `PUT /me/profile` | The owner's profile. `GET` answers `{ id, name, picture, pro, profile }` — the same shape a coach reads under the mount, which is why it carries the name and the tier. `PUT` takes `{ profile }` (null clears) and answers `{ ok, profile }` with the stored, trimmed profile, or a 400 naming the rule that failed. Free. |
 
 `POST /coaching/invites` is a **stated exception** to "no write route checks
 entitlement", on the setups rule: an invite is not a recording, and a dropped
@@ -107,28 +107,30 @@ registered **before** `/api` the way `/api/share` is. Its middleware,
 1. Resolves the caller's session (cookie or bearer, as `requireSession` does),
    joins `coach_grants` on `(student_id, coach_id)` and the student's `users`
    row **in one statement**, and answers 404 when there is no grant.
-2. Refuses anything that isn't a `GET`, and any path not on `COACH_PATHS`, with
-   a 404.
+2. Refuses anything that isn't a `GET`, and any path not on `COACH_ROUTES`,
+   with a 404.
 3. Sets `userId` to the **student** and `entitledUntil` to the **student's**,
    then calls `next()`. Every route runs unchanged: the ownership scoping,
    `withComputed` and `stripProFields` are the ones the student gets.
-4. Passes the JSON response through `coachView(path, body)`
-   (`src/lib/coaching.ts`, pure and unit-tested), then touches
-   `last_viewed_at` through `waitUntil`, at most once an hour.
+4. Touches `last_viewed_at` through `waitUntil` (at most once an hour), and
+   passes a 200 JSON response through the path's view on the way out.
 
-`COACH_PATHS`: `/me/profile`, `/tracks`, `/events`, `/events/:id`, `/vehicles`,
+`COACH_ROUTES` in `src/lib/coaching.ts` (pure and unit-tested) is **one table
+of path and view**, so a route cannot be reachable without a view deciding its
+fields: `/me/profile`, `/tracks`, `/events`, `/events/:id`, `/vehicles`,
 `/vehicles/:id/steering-fit`, `/catalog`, `/car-catalog`.
 
-`coachView` **copies allowed fields rather than deleting forbidden ones** (the
+Each view **copies allowed fields rather than deleting forbidden ones** (the
 rule `publicLapChannels` follows), so a column added to `events` later stays
-private until someone adds it to the allowlist. Fields left out of the copy
-are sent as `null` rather than dropped, so the native models, which already
-treat `notes`, `checklist` and the cost columns as optional, decode a coach
-response with no second model. `/me/profile` under the mount gains `name` and
-`pro` (the student's tier as a boolean): the coach's client needs that tier to
-open the channel panel, see *Clients*.
+private until someone adds it to the allowlist. The hidden fields that have a
+place in the shape — notes, the checklist, the cost line items and the setup
+sheets — are sent empty (`null`, or `[]` for `setups`) rather than dropped, so
+the native models, which already treat them as optional, decode a coach
+response with no second model; any other field is dropped. `/me/profile`
+carries `pro` (under the mount, the student's tier): the coach's client needs
+that tier to open the channel panel, see *Clients*.
 
-### Profile: `sanitizeProfile` in `src/lib/validate.ts`
+### Profile: `sanitizeProfile` in `src/lib/profile.ts`
 
 Validated JSON, the `sanitizeSetup` pattern, every field optional:
 
@@ -189,7 +191,10 @@ viewing a Pro student sees the Grip tab unlocked.
   on iOS; on Android either `zxing:core` (one small, dependency-free jar) or a
   share-sheet-only v1, decided in the ticket.
 - `/coach/<token>` joins the AASA components (`wellKnown.ts`), Android's
-  App Links intent filter and both `DeepLink` tables. A link opened signed-out
+  App Links intent filter and both `DeepLink` tables — **in the client
+  tickets, not the server one**: Apple's CDN caches the association file, and
+  an installed app that claims `/coach/*` before it can handle it would
+  swallow every invite link into a screen that drops it. A link opened signed-out
   is parked until sign-in, the way billing holds a purchase.
 - A **`LogbookOwner`** (`.me` / `.student(id, name, pro)`) threads through the
   API client (path prefix) and the dashboard, event, lap, session-compare,
@@ -229,7 +234,7 @@ viewing a Pro student sees the Grip tab unlocked.
   `entitledUntil`).
 - `docs/specs/native/README.md`: the index row and the split note (all three).
 - `AGENTS.md`: `routes/coaching.ts`, the third `apiApp` mount and
-  `requireCoachGrant`, `coachView`, `sanitizeProfile`, migration 0031, the new
+  `requireCoachGrant`, `COACH_ROUTES`, `sanitizeProfile`, migration 0031, the new
   web routes, `coaching.js` / `profile.js`, `LogbookOwner` on both phones,
   the new goldens and fixture.
 - `README.md`; `site/docs/index.html` (sharing gains *Share with a coach*);
@@ -239,8 +244,9 @@ viewing a Pro student sees the Grip tab unlocked.
 ## Tickets
 
 1. **Server**: migration, `coaching.ts`, the coach mount, `coachView`,
-   `sanitizeProfile`, tests, goldens (`coaching`, `coaching-invite`,
-   `profile`, `coach-event-detail`, `coach-vehicles`). **3–4 days.**
+   `sanitizeProfile`, tests, and the goldens with their native decode models
+   (`Coaching.swift` / `Coaching.kt`), since both golden suites fail on a
+   capture no model maps. **3–4 days.**
 2. **Web + shared logic**: Settings sections, profile form, the accept page,
    the student logbook, `coaching.js` / `profile.js`, the fixture, the docs.
    **6–8 days.** The owner-context refactor of `app.js`'s views is the risky
@@ -253,7 +259,7 @@ viewing a Pro student sees the Grip tab unlocked.
 
 - [ ] A Pro student creates an invite on any client; a free account sees the control locked; the link opens the accept screen on all three (signed out included) and accepting shows the student under *Students*.
 - [ ] A coach reads the student's events, sessions, laps and **full** channel panel while the student is Pro, and the free half once the student lapses, on all three.
-- [ ] Every coach response lacks email, notes, checklist, costs, parts, setups, leaderboard and billing data. A test walks every `COACH_PATHS` route against a fully populated logbook and fails on any key outside the allowlist.
+- [ ] Every coach response lacks email, notes, checklist, costs, parts, setups, leaderboard and billing data. A test walks every `COACH_ROUTES` route against a fully populated logbook and fails on any key outside the allowlist.
 - [ ] A non-GET, a path off the allowlist, a revoked grant, or no grant: 404, and the next request after a revoke is refused.
 - [ ] The coach's client purges a student's cache on that 404; no write under the prefix is ever queued.
 - [ ] The profile saves and validates on all three, under-13 is refused, and it shows on the coach's view of the student and nowhere public.

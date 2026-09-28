@@ -1,0 +1,350 @@
+{
+  "method": "GET",
+  "path": "/students/:studentId/events/:id",
+  "status": 200,
+  "body": {
+    "ambient_hi_c": 21.4,
+    "ambient_lo_c": 21.4,
+    "best_ms": 121500,
+    "best_time_ms": 121500,
+    "car": "Corvette C7",
+    "checklist": null,
+    "club": "Chin Track Days",
+    "conditions": "dry",
+    "consistency": 0.006203985105559858,
+    "cost_cents": null,
+    "cost_entry_cents": null,
+    "cost_fuel_cents": null,
+    "cost_misc_cents": null,
+    "cost_travel_cents": null,
+    "days": 2,
+    "elevation_m": 38,
+    "hours": 0.1,
+    "id": 1,
+    "lap_best_ms": 121500,
+    "lap_count": 4,
+    "notes": null,
+    "run_group": "Advanced",
+    "session_count": 3,
+    "sessions": [
+      {
+        "ambient_c": null,
+        "channels": null,
+        "elevation_m": null,
+        "id": 1,
+        "label": "Session 2",
+        "laps": [
+          {
+            "id": 1,
+            "lap_num": 1,
+            "session_id": 1,
+            "time_ms": 122900
+          },
+          {
+            "id": 1,
+            "lap_num": 2,
+            "session_id": 1,
+            "time_ms": 121500
+          }
+        ],
+        "notes": null,
+        "sort": 2,
+        "trace": null
+      },
+      {
+        "ambient_c": 21.4,
+        "channels": {
+          "dStepM": 20,
+          "laps": [
+            {
+              "brake": [
+                60,
+                54,
+                48,
+                42,
+                36,
+                30,
+                24,
+                18,
+                12,
+                6,
+                0,
+                0
+              ],
+              "latG": [
+                0,
+                0.4,
+                0.8,
+                1.2,
+                0,
+                0.4,
+                0.8,
+                1.2,
+                0,
+                0.4,
+                0.8,
+                1.2
+              ],
+              "n": 1,
+              "rpm": [
+                3000,
+                3150,
+                3300,
+                3450,
+                3600,
+                3750,
+                3900,
+                4050,
+                4200,
+                4350,
+                4500,
+                4650
+              ],
+              "speed": [
+                30,
+                32,
+                34,
+                36,
+                38,
+                40,
+                42,
+                44,
+                46,
+                48,
+                50,
+                52
+              ],
+              "steering": [
+                -51,
+                -42.5,
+                -34,
+                -25.5,
+                -17,
+                -8.5,
+                0,
+                8.5,
+                17,
+                25.5,
+                34,
+                42.5
+              ],
+              "throttle": [
+                0,
+                9.1,
+                18.2,
+                27.3,
+                36.4,
+                45.5,
+                54.5,
+                63.6,
+                72.7,
+                81.8,
+                90.9,
+                100
+              ],
+              "timeMs": 121900
+            }
+          ],
+          "meta": {
+            "ambientC": 21.4,
+            "elevationM": 38,
+            "intakeC": 44,
+            "odometerKm": 71087
+          },
+          "v": 1
+        },
+        "elevation_m": 38,
+        "id": 1,
+        "label": "Session 3",
+        "laps": [
+          {
+            "id": 1,
+            "lap_num": 1,
+            "session_id": 1,
+            "time_ms": 121900
+          }
+        ],
+        "notes": null,
+        "sort": 3,
+        "trace": [
+          [
+            400,
+            0,
+            30
+          ],
+          [
+            346.4,
+            200,
+            32
+          ],
+          [
+            200,
+            346.4,
+            34
+          ],
+          [
+            0,
+            400,
+            36
+          ],
+          [
+            -200,
+            346.4,
+            38
+          ],
+          [
+            -346.4,
+            200,
+            40
+          ],
+          [
+            -400,
+            0,
+            42
+          ],
+          [
+            -346.4,
+            -200,
+            44
+          ],
+          [
+            -200,
+            -346.4,
+            46
+          ],
+          [
+            0,
+            -400,
+            48
+          ],
+          [
+            200,
+            -346.4,
+            50
+          ],
+          [
+            346.4,
+            -200,
+            52
+          ]
+        ]
+      },
+      {
+        "ambient_c": null,
+        "channels": {
+          "dStepM": 20,
+          "laps": [
+            {
+              "n": 1,
+              "speed": [
+                60,
+                65,
+                70,
+                75,
+                80,
+                85,
+                90,
+                95,
+                100,
+                105,
+                110,
+                115,
+                120,
+                125,
+                130,
+                135,
+                140,
+                145,
+                150,
+                155,
+                160,
+                165,
+                170,
+                175
+              ],
+              "steering": [
+                15,
+                -25,
+                35,
+                -45,
+                55,
+                -15,
+                25,
+                -35,
+                45,
+                -55,
+                15,
+                -25,
+                35,
+                -45,
+                55,
+                -15,
+                25,
+                -35,
+                45,
+                -55,
+                15,
+                -25,
+                35,
+                -45
+              ],
+              "timeMs": 123400,
+              "yaw": [
+                4.1,
+                -7,
+                10.1,
+                -13.2,
+                16.4,
+                -4.5,
+                7.6,
+                -10.6,
+                13.6,
+                -16.6,
+                4.5,
+                -7.5,
+                10.4,
+                -13.2,
+                16,
+                -4.3,
+                7.1,
+                -9.8,
+                12.4,
+                -15,
+                4,
+                -6.6,
+                9.1,
+                -11.5
+              ]
+            }
+          ],
+          "meta": {
+            "odometerKm": 71092
+          },
+          "v": 1
+        },
+        "elevation_m": null,
+        "id": 1,
+        "label": "Session 4",
+        "laps": [
+          {
+            "id": 1,
+            "lap_num": 1,
+            "session_id": 1,
+            "time_ms": 123400
+          }
+        ],
+        "notes": null,
+        "sort": 4,
+        "trace": null
+      }
+    ],
+    "setups": [],
+    "start_date": "2026-04-10",
+    "temp_f": 62,
+    "track_hours": null,
+    "track_id": 1,
+    "track_name": "Virginia International Raceway (Full)",
+    "updated_at": 0,
+    "vehicle_id": 1
+  }
+}

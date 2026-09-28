@@ -1,0 +1,12 @@
+{
+  "method": "POST",
+  "path": "/coaching/invites/:token/accept",
+  "status": 201,
+  "body": {
+    "student": {
+      "id": 1,
+      "name": "Dev User",
+      "picture": null
+    }
+  }
+}

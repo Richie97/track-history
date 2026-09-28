@@ -4,17 +4,23 @@ import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.BillingResponse
 import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.CatalogTrack
+import app.trackevolution.core.model.CoachInvite
+import app.trackevolution.core.model.Coaching
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.CreatedTrack
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.GarageVehicle
+import app.trackevolution.core.model.InviteAccepted
+import app.trackevolution.core.model.InvitePreview
 import app.trackevolution.core.model.SteeringFits
 import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
 import app.trackevolution.core.model.PartEquip
 import app.trackevolution.core.model.PartRefresh
+import app.trackevolution.core.model.ProfileResponse
+import app.trackevolution.core.model.ProfileSaved
 import app.trackevolution.core.model.ServerErrorBody
 import app.trackevolution.core.model.SetupPrefill
 import app.trackevolution.core.model.ShareData
@@ -94,6 +100,19 @@ class GoldenContractTest {
             "vehicle-steering-fit" -> roundTrip(entry.name, SteeringFits.serializer())
             "share-public" -> roundTrip(entry.name, ShareData.serializer())
             "wrapped", "share-wrapped" -> roundTrip(entry.name, Wrapped.serializer())
+            // Share with a coach (NS-38). A coach's reads of a student's logbook
+            // decode into the ordinary models — that is the point of the server
+            // sending hidden fields as null rather than a second shape.
+            "student-events" -> roundTrip(entry.name, ListSerializer(Event.serializer()))
+            "student-event-detail" -> roundTrip(entry.name, EventDetail.serializer())
+            "student-tracks" -> roundTrip(entry.name, ListSerializer(Track.serializer()))
+            "student-vehicles" -> roundTrip(entry.name, ListSerializer(Vehicle.serializer()))
+            "me-profile", "student-profile" -> roundTrip(entry.name, ProfileResponse.serializer())
+            "me-profile-set" -> roundTrip(entry.name, ProfileSaved.serializer())
+            "coaching", "coaching-as-coach" -> roundTrip(entry.name, Coaching.serializer())
+            "coaching-invite" -> roundTrip(entry.name, CoachInvite.serializer())
+            "coaching-invite-preview" -> roundTrip(entry.name, InvitePreview.serializer())
+            "coaching-accept" -> roundTrip(entry.name, InviteAccepted.serializer())
             "track-create" -> roundTrip(entry.name, CreatedTrack.serializer())
             "vehicle-create" -> roundTrip(entry.name, Vehicle.serializer())
             "part-refresh" -> roundTrip(entry.name, PartRefresh.serializer())
@@ -106,6 +125,7 @@ class GoldenContractTest {
             "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
             "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
+            "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(

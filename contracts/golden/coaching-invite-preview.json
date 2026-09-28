@@ -1,0 +1,15 @@
+{
+  "method": "GET",
+  "path": "/coaching/invites/:token",
+  "status": 200,
+  "body": {
+    "already_coach": false,
+    "expires_at": 0,
+    "own": false,
+    "student": {
+      "id": 1,
+      "name": "Dev User",
+      "picture": null
+    }
+  }
+}

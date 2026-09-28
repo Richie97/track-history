@@ -1,0 +1,86 @@
+{
+  "method": "GET",
+  "path": "/students/:studentId/tracks",
+  "status": 200,
+  "body": [
+    {
+      "best_ms": null,
+      "catalog_id": 1,
+      "event_count": 0,
+      "goal_ms": null,
+      "id": 1,
+      "last_date": null,
+      "name": "Road Atlanta",
+      "notes": null,
+      "series": [],
+      "track_days": 0,
+      "updated_at": 0
+    },
+    {
+      "best_ms": null,
+      "catalog_id": null,
+      "event_count": 0,
+      "goal_ms": null,
+      "id": 1,
+      "last_date": null,
+      "name": "Summit Point",
+      "notes": null,
+      "series": [],
+      "track_days": 0,
+      "updated_at": 0
+    },
+    {
+      "best_ms": 121500,
+      "catalog_id": 1,
+      "event_count": 1,
+      "goal_ms": 120000,
+      "id": 1,
+      "last_date": "2026-04-10",
+      "name": "Virginia International Raceway (Full)",
+      "notes": null,
+      "series": [
+        {
+          "best_ms": 121500,
+          "date": "2026-04-10"
+        }
+      ],
+      "track_days": 2,
+      "updated_at": 0
+    },
+    {
+      "best_ms": 76900,
+      "catalog_id": null,
+      "event_count": 2,
+      "goal_ms": null,
+      "id": 1,
+      "last_date": "2026-05-20",
+      "name": "Virginia International Raceway (Patriot)",
+      "notes": null,
+      "series": [
+        {
+          "best_ms": 77400,
+          "date": "2026-05-01"
+        },
+        {
+          "best_ms": 76900,
+          "date": "2026-05-20"
+        }
+      ],
+      "track_days": 2,
+      "updated_at": 0
+    },
+    {
+      "best_ms": null,
+      "catalog_id": null,
+      "event_count": 1,
+      "goal_ms": null,
+      "id": 1,
+      "last_date": "2026-07-04",
+      "name": "Watkins Glen",
+      "notes": null,
+      "series": [],
+      "track_days": 1,
+      "updated_at": 0
+    }
+  ]
+}

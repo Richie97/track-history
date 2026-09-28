@@ -39,6 +39,19 @@ struct GoldenContractTests {
         case "vehicle-steering-fit": try roundTrip(SteeringFits.self, entry.name)
         case "share-public": try roundTrip(ShareData.self, entry.name)
         case "wrapped", "share-wrapped": try roundTrip(Wrapped.self, entry.name)
+        // Share with a coach (NS-38). A coach's reads of a student's logbook
+        // decode into the ordinary models — that is the point of the server
+        // sending hidden fields as null rather than a second shape.
+        case "student-events": try roundTrip([Event].self, entry.name)
+        case "student-event-detail": try roundTrip(EventDetail.self, entry.name)
+        case "student-tracks": try roundTrip([Track].self, entry.name)
+        case "student-vehicles": try roundTrip([Vehicle].self, entry.name)
+        case "me-profile", "student-profile": try roundTrip(ProfileResponse.self, entry.name)
+        case "me-profile-set": try roundTrip(ProfileSaved.self, entry.name)
+        case "coaching", "coaching-as-coach": try roundTrip(Coaching.self, entry.name)
+        case "coaching-invite": try roundTrip(CoachInvite.self, entry.name)
+        case "coaching-invite-preview": try roundTrip(InvitePreview.self, entry.name)
+        case "coaching-accept": try roundTrip(InviteAccepted.self, entry.name)
         case "track-create": try roundTrip(CreatedTrack.self, entry.name)
         case "vehicle-create": try roundTrip(Vehicle.self, entry.name)
         case "part-refresh": try roundTrip(PartRefresh.self, entry.name)
@@ -50,7 +63,8 @@ struct GoldenContractTests {
         case "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
              "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
              "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
-             "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip":
+             "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
+             "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete":
             try roundTrip(OKResponse.self, entry.name)
         default:
             Issue.record("""

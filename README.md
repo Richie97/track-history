@@ -1508,6 +1508,31 @@ Wrapped, which is free.
   confirm the lap exists. `channels` remains the one Pro field, stripped for a
   free account exactly as it is on the event detail — the racing line and the
   times are free.
+- **Share with a coach** (`docs/specs/native/NS-38-coach-sharing.md`, #338;
+  **server only so far** — the web, iOS and Android screens are the next three
+  PRs) gives an instructor or coach **read-only access to the whole logbook**:
+  events, sessions, laps and the full channel panel, the cars and their
+  modifications (`/vehicles`), and the driver profile. A Pro driver mints a
+  single-use, seven-day invite link (`POST /api/coaching/invites`, shown once —
+  only its hash is stored); the coach, on any account, free included, accepts
+  it, and then reads through **`/api/students/:id/*`** — the ordinary `/api`
+  routes run *as the student* by a third `apiApp` instance behind
+  `requireCoachGrant` (`src/routes/coaching.ts`). That is what makes the coach
+  see exactly what the student sees, with **the student's tier** deciding
+  `channels`; it answers `GET` only, on the path + view table `COACH_ROUTES`
+  in `src/lib/coaching.ts`, whose views copy permitted fields and send notes,
+  the prep checklist, costs and setup sheets as null. The garage's parts and
+  costs, the setup notebook, the leaderboards, Wrapped, `/me` and every write
+  are unreachable, and everything refused is a 404. Revoking
+  (`DELETE /api/coaching/coaches/:id`) takes effect on the coach's next
+  request, and deleting either account ends the grant.
+- **The driver profile** (`GET` / `PUT /api/me/profile`, `users.profile`,
+  migration `0031`, validated by `sanitizeProfile` in `src/lib/profile.ts`) is
+  what a driver tells their coach: birth date, occupation, emergency contact,
+  track experience, licence, safety gear, goals, and anything the instructor
+  should know. Seen by its owner and their coaches only — never the share page,
+  the leaderboards or the MCP tools — and a birth date under 13 is refused,
+  since the privacy policy says the app isn't for children.
 
 ## AI assistants (MCP)
 
