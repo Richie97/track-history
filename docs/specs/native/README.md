@@ -527,14 +527,19 @@ Features added after the rewrite shipped, and where they landed:
   are a follow-up, not a gap in the feature. The in-app coach (#318–#320) is
   the part that will need native work.
 - **Share with a coach** (2026-09, [NS-38](NS-38-coach-sharing.md)) — **all
-  three**, both halves: a Pro driver invites a coach and a coach (any tier)
-  reads the student's logbook read-only, through `/api/students/<id>`. Web
-  first (#348), then iOS: the Coaching page from Settings, the profile form,
+  three, both halves** (granting and viewing), server first. On Android
+  (ticket 4) the ports are `:core`'s `Coaching` and `Profile`, pinned by
+  `contracts/logic/coaching.json`; a student's logbook reuses the owner's
+  screens through `LogbookOwner` rather than copying them, and the invite QR
+  code is zxing's encoder (`com.google.zxing:core`) drawn on a Compose canvas
+  rather than a share-sheet-only v1 — a pure-Java jar with no reflection, so
+  R8 needs no keep rules. It is not a third tab: a student opens as a pushed
+  destination on the Events tab.
+  iOS (ticket 3): the Coaching page from Settings, the profile form,
   the `/coach/<token>` Universal Link's accept screen and a QR code for the
   invite, with the owner's event, track, lap, compare and vehicle screens
-  reused under `LogbookOwner.student` rather than copied. Android is the
-  last ticket. The channel panel's gates read **the student's** tier on
-  every client.
+  reused under `LogbookOwner.student` rather than copied. The channel
+  panel's gates read **the student's** tier on every client.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
   server-owned.** The $1 up-front purchase becomes Track Evolution Pro at
   $1.99/month or $19.99/year, sold through StoreKit 2 and Play Billing and

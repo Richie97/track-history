@@ -12,7 +12,12 @@
 
     Excluding it costs the user one sign-in after a restore, which is what
     happens anyway: a token that cannot be decrypted is not a session.
+
+    `coaching.xml` holds at most one parked coaching-invite token (NS-38,
+    PendingInvite): a single-use secret for the minutes between opening a link
+    signed out and signing in. It has no business in a backup.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="auth.xml" />
+    <exclude domain="sharedpref" path="coaching.xml" />
 </full-backup-content>

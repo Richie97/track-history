@@ -35,6 +35,16 @@ import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.offline.OfflineStore
 import app.trackevolution.recording.RecordScreen
 import app.trackevolution.recording.RecorderState
+import app.trackevolution.screens.CoachInviteModel
+import app.trackevolution.screens.CoachInviteScreen
+import app.trackevolution.screens.CoachingModel
+import app.trackevolution.screens.CoachingScreen
+import app.trackevolution.screens.LogbookOwnerScope
+import app.trackevolution.screens.ProfileFormModel
+import app.trackevolution.screens.ProfileFormScreen
+import app.trackevolution.screens.StudentHomeModel
+import app.trackevolution.screens.StudentHomeScreen
+import app.trackevolution.screens.rememberStudentProfile
 import app.trackevolution.screens.CompareLapsModel
 import app.trackevolution.screens.CompareLapsScreen
 import app.trackevolution.screens.DetailPlaceholder
@@ -156,6 +166,16 @@ fun AppNavHost(
 
     FollowTempIds(nav, api)
 
+    // Share with a coach (NS-38): the two ways out of a student's logbook every
+    // page of it shares — the banner, to their dashboard, and a revoked grant, to
+    // Coaching. The dashboard is popped back to when it is already underneath,
+    // so tapping the banner five pages deep does not stack a second copy.
+    val root = api
+    val openStudentHome: (Int) -> Unit = { id ->
+        if (!nav.popBackStack(Route.Student(id), inclusive = false)) nav.navigate(Route.Student(id))
+    }
+    val onStudentGone: () -> Unit = { nav.show(Route.Coaching) }
+
     // Two tabs, two nested graphs (NS-37). Every logbook destination — and
     // Settings, which belongs to no tab and is reached from the dashboard — is
     // in the Events graph; the car and the garage list are in the Garage graph.
@@ -182,12 +202,13 @@ fun AppNavHost(
 
             pageComposable<Route.Event> { entry ->
                 val route = entry.toRoute<Route.Event>()
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.id) }
                 EventScreen(
                     model = model,
                     checklistTemplate = checklistTemplate,
                     onEdit = { nav.navigate(Route.EventForm(editId = it)) },
-                    onOpenTrack = { nav.navigate(Route.Track(it)) },
+                    onOpenTrack = { nav.navigate(Route.Track(it, student = route.student)) },
                     onRecord = { nav.navigate(Route.Record(eventId = it)) },
                     // Not gated: importing is free (NS-32). What a free account
                     // gets out of a clip is the lap times, the racing line and the
@@ -202,17 +223,26 @@ fun AppNavHost(
                     // The Pro half of the channel panel (#264): the server already
                     // stripped what a free account may not see, and this decides
                     // whether the panel draws its derived views and its upsell.
-                    canViewChannels = Entitlement.canViewChannels(entitlement),
+                    // In a student's logbook (NS-38) the **student's** tier, not the
+                    // viewer's: a free coach of a Pro student reads the full panel.
+                    canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
                     onSubscribe = onRequirePro,
                     // Every lap is a door (#268), and the session's overlay is a
                     // destination of its own below expanded width.
-                    onOpenLap = { sessionId, lapId -> nav.navigate(Route.Lap(route.id, sessionId, lapId)) },
-                    onCompareLaps = { sessionId -> nav.navigate(Route.SessionCompare(route.id, sessionId)) },
+                    onOpenLap = { sessionId, lapId ->
+                        nav.navigate(Route.Lap(route.id, sessionId, lapId, student = route.student))
+                    },
+                    onCompareLaps = { sessionId ->
+                        nav.navigate(Route.SessionCompare(route.id, sessionId, student = route.student))
+                    },
+                    readOnly = owner.readOnly,
                 )
+                }
             }
 
             pageComposable<Route.Lap> { entry ->
                 val route = entry.toRoute<Route.Lap>()
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 // Its own model over the same event: the read comes through the
                 // offline cache the page already warmed, so this costs no request.
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
@@ -220,22 +250,27 @@ fun AppNavHost(
                     model = model,
                     sessionId = route.sessionId,
                     lapId = route.lapId,
-                    canViewChannels = Entitlement.canViewChannels(entitlement),
-                    onCompare = { nav.navigate(Route.SessionCompare(route.eventId, route.sessionId, route.lapId)) },
+                    canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
+                    onCompare = {
+                        nav.navigate(Route.SessionCompare(route.eventId, route.sessionId, route.lapId, route.student))
+                    },
                     onSubscribe = onRequirePro,
                 )
+                }
             }
 
             pageComposable<Route.SessionCompare> { entry ->
                 val route = entry.toRoute<Route.SessionCompare>()
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
                 SessionCompareScreen(
                     model = model,
                     sessionId = route.sessionId,
                     lapId = route.lapId,
-                    canViewChannels = Entitlement.canViewChannels(entitlement),
+                    canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
                     onSubscribe = onRequirePro,
                 )
+                }
             }
 
             pageComposable<Route.EventForm> { entry ->
@@ -288,6 +323,7 @@ fun AppNavHost(
 
             pageComposable<Route.Track> { entry ->
                 val route = entry.toRoute<Route.Track>()
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 val model = rememberScreenModel { scope, _ -> TrackModel(scope, api, route.id) }
                 // At expanded width the two-lap compare opens **beside** the page
                 // rather than as its own destination (NS-34 ticket 3). Same
@@ -313,10 +349,10 @@ fun AppNavHost(
                 val page = @Composable {
                     TrackScreen(
                         model = model,
-                        onOpenEvent = { nav.navigate(Route.Event(it)) },
+                        onOpenEvent = { nav.navigate(Route.Event(it, student = route.student)) },
                         onAddEvent = { name -> nav.navigate(Route.EventForm(presetTrack = name)) },
                         onCompareLaps = {
-                            if (sideBySide) comparing = true else nav.navigate(Route.CompareLaps(route.id))
+                            if (sideBySide) comparing = true else nav.navigate(Route.CompareLaps(route.id, route.student))
                         },
                         // A destination rather than a column, at every width: other
                         // drivers' laps are a place you go and come back from, not a
@@ -324,6 +360,7 @@ fun AppNavHost(
                         onLeaderboard = { nav.navigate(Route.Leaderboard(route.id)) },
                         onShare = share,
                         serverUrl = serverUrl,
+                        readOnly = owner.readOnly,
                     )
                 }
                 if (compareWidth != null && comparing) {
@@ -342,12 +379,15 @@ fun AppNavHost(
                 } else {
                     page()
                 }
+                }
             }
 
             pageComposable<Route.CompareLaps> { entry ->
                 val route = entry.toRoute<Route.CompareLaps>()
-                val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
-                CompareLapsScreen(model = model)
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { _, api ->
+                    val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
+                    CompareLapsScreen(model = model)
+                }
             }
 
             pageComposable<Route.Leaderboard> { entry ->
@@ -386,7 +426,73 @@ fun AppNavHost(
                     onSignOut = onSignOut,
                     entitlement = entitlement ?: Entitlement.FREE,
                     onSubscribe = onRequirePro,
+                    onOpenCoaching = { nav.navigate(Route.Coaching) },
                 )
+            }
+
+            // ---- Share with a coach (NS-38) -----------------------------------
+
+            pageComposable<Route.Coaching> {
+                val model = rememberScreenModel { scope, _ -> CoachingModel(scope, api) }
+                CoachingScreen(
+                    model = model,
+                    entitlement = entitlement,
+                    onOpenStudent = { nav.navigate(Route.Student(it)) },
+                    onEditProfile = { nav.navigate(Route.Profile) },
+                    onShare = share,
+                    onRequirePro = onRequirePro,
+                )
+            }
+
+            pageComposable<Route.Profile> {
+                val model = rememberScreenModel { scope, handle -> ProfileFormModel(scope, api, handle) }
+                ProfileFormScreen(model = model, onSaved = { nav.popBackStack() })
+            }
+
+            pageComposable<Route.CoachInvite> { entry ->
+                val route = entry.toRoute<Route.CoachInvite>()
+                val self = entry.destination.id
+                val model = rememberScreenModel { scope, _ -> CoachInviteModel(scope, api, route.token) }
+                // Leaving takes the invite off the stack with it: going back into a
+                // burned (or declined) link is an invitation to try it twice.
+                val leaveFor: (Route) -> Unit = { next ->
+                    nav.navigate(next) { popUpTo(self) { inclusive = true } }
+                }
+                CoachInviteScreen(
+                    model = model,
+                    onAccepted = { leaveFor(Route.Student(it)) },
+                    onOpenStudent = { leaveFor(Route.Student(it)) },
+                    onDone = { if (!nav.popBackStack()) nav.show(Route.Dashboard) },
+                )
+            }
+
+            // A student's logbook, read by their coach: a pushed destination on
+            // the Events tab, never a third tab. The pages under it are the
+            // owner's own, above, reached with `student` set.
+            pageComposable<Route.Student> { entry ->
+                val route = entry.toRoute<Route.Student>()
+                LogbookOwnerScope(api, route.id, openStudentHome, onStudentGone) { _, api ->
+                    val model = rememberScreenModel { scope, _ -> StudentHomeModel(scope, api) }
+                    StudentHomeScreen(
+                        model = model,
+                        profile = rememberStudentProfile(root, route.id),
+                        onOpenEvent = { nav.navigate(Route.Event(it, student = route.id)) },
+                        onOpenTrack = { nav.navigate(Route.Track(it, student = route.id)) },
+                        onOpenVehicle = { nav.navigate(Route.StudentVehicle(route.id, it)) },
+                    )
+                }
+            }
+
+            pageComposable<Route.StudentVehicle> { entry ->
+                val route = entry.toRoute<Route.StudentVehicle>()
+                LogbookOwnerScope(api, route.studentId, openStudentHome, onStudentGone) { _, api ->
+                    val model = rememberScreenModel { scope, _ -> VehicleModel(scope, api, route.vehicleId) }
+                    VehicleScreen(
+                        model = model,
+                        onOpenEvent = { nav.navigate(Route.Event(it, student = route.studentId)) },
+                        onOpenTrack = { nav.navigate(Route.Track(it, student = route.studentId)) },
+                    )
+                }
             }
 
             // Plain `composable`, not `pageComposable`: the story is full-window at

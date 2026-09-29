@@ -90,4 +90,17 @@ class DeepLinkTest {
     fun `a share link with no slug is not a share link`() {
         assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/share/"))
     }
+
+    @Test
+    fun `a coaching invite link carries its token (NS-38)`() {
+        assertEquals(
+            DeepLink.CoachInvite("abc123_-XYZ"),
+            DeepLink.parse("https://trackevolution.app/coach/abc123_-XYZ"),
+        )
+        // Only exactly /coach/<token>: anything else is not an invite link.
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/coach/"))
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/coach/abc/accept"))
+        // The web app's own hash route is the page, never the token.
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/#/coach"))
+    }
 }

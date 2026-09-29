@@ -118,4 +118,33 @@ class RoutesTest {
         router.clear()
         assertNull(router.pending.value)
     }
+
+    // ---- share with a coach (NS-38) -----------------------------------------
+
+    @Test
+    fun `an invite link lands on the accept screen`() {
+        assertEquals(Route.CoachInvite("tok"), routeFor(DeepLink.CoachInvite("tok")))
+    }
+
+    @Test
+    fun `a student's pages say whose logbook they are, and stay in the Events tab`() {
+        assertEquals(7, Route.Student(7).studentId)
+        assertEquals(7, Route.Event(5, student = 7).studentId)
+        assertEquals(7, Route.Track(3, student = 7).studentId)
+        assertEquals(7, Route.CompareLaps(3, student = 7).studentId)
+        assertEquals(7, Route.Lap(5, 11, 21, student = 7).studentId)
+        assertEquals(7, Route.SessionCompare(5, 11, student = 7).studentId)
+        assertEquals(7, Route.StudentVehicle(7, 1).studentId)
+        assertNull(Route.Event(5).studentId)
+        // A student's car is read from the logbook, not the coach's own Garage.
+        assertEquals(AppTab.Events, Route.StudentVehicle(7, 1).tab)
+        assertEquals(AppTab.Events, Route.Student(7).tab)
+        assertEquals(AppTab.Events, Route.Coaching.tab)
+    }
+
+    @Test
+    fun `remapping a temp id keeps the student a route belongs to`() {
+        assertEquals(Route.Lap(42, 11, 21, student = 7), Route.Lap(-1, 11, 21, student = 7).remapTempId(-1, 42))
+        assertEquals(Route.Event(42, student = 7), Route.Event(-1, student = 7).remapTempId(-1, 42))
+    }
 }

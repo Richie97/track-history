@@ -103,6 +103,9 @@ fun VehicleScreen(
     /** The car is gone; leave its page. */
     onDeleted: () -> Unit = {},
 ) {
+    // A student's car (NS-38) is `model.readOnly`: the logbook half, the
+    // modifications and the geometry — no *Edit car*, no delete, and no Pro
+    // half at all, since `/garage` is not on the coach mount.
     val colors = TrackTheme.colors
     // Which part has a confirmation open, by **id** rather than by `Part`.
     //
@@ -175,8 +178,10 @@ fun VehicleScreen(
                         }
                         // The car itself — name, mods, the pressure the health
                         // strip aims at, whether new events start on it.
-                        TextButton(onClick = { editingCar = !editingCar }) {
-                            Text("Edit car", style = TrackTheme.typography.sm, color = colors.accentInk)
+                        if (!model.readOnly) {
+                            TextButton(onClick = { editingCar = !editingCar }) {
+                                Text("Edit car", style = TrackTheme.typography.sm, color = colors.accentInk)
+                            }
                         }
                     }
                     vehicle.notes?.takeIf { it.isNotBlank() }?.let {
@@ -256,6 +261,10 @@ fun VehicleScreen(
             }
 
             item("logbook-line") { LogbookLine(logbook, onOpenEvent) }
+
+            if (model.readOnly) {
+                item("specs") { StudentCarSpecs(vehicle, model) }
+            }
 
             if (logbook.bests.isNotEmpty()) {
                 item("bests-header") { TESectionHeader("Best in this car") }
@@ -370,7 +379,7 @@ fun VehicleScreen(
                 }
             }
 
-            item("delete-car") {
+            if (!model.readOnly) item("delete-car") {
                 TextButton(
                     onClick = { confirmDeleteCarId = vehicle.id },
                     modifier = Modifier.testTag("deleteCar"),
@@ -437,6 +446,36 @@ fun VehicleScreen(
             onConfirm = { confirmDeleteCarId = null; model.deleteVehicle() },
             onDismiss = { confirmDeleteCarId = null },
         )
+    }
+}
+
+/**
+ * What a coach reads about a student's car beyond its name and modifications
+ * (NS-38): the catalog pick and the geometry — `viewStudentVehicle`'s *Specs*.
+ * Nothing when none of it is set.
+ */
+@Composable
+private fun StudentCarSpecs(vehicle: Vehicle, model: VehicleModel) {
+    val colors = TrackTheme.colors
+    LaunchedEffect(vehicle.catalogId) { if (vehicle.catalogId != null) model.loadCatalog() }
+    val pick = vehicle.catalogId?.let { id -> model.catalog?.firstOrNull { it.id == id } }
+    val specs = listOfNotNull(
+        pick?.let { "Model" to Garage.catalogCarLabel(it) },
+        vehicle.wheelbaseMm?.let { "Wheelbase" to "$it mm" },
+        vehicle.steeringRatio?.let { "Steering ratio" to "${fmtRatio(it)}:1" },
+        vehicle.targetHotPsi?.let { "Target hot pressure" to "${fmtRatio(it)} psi" },
+    )
+    if (specs.isEmpty()) return
+    Column {
+        TESectionHeader("Specs")
+        TrackCard(Modifier.fillMaxWidth().testTag("studentCarSpecs")) {
+            specs.forEach { (label, value) ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Text(label, style = TrackTheme.typography.sm, color = colors.textMuted, modifier = Modifier.weight(1f))
+                    Text(value, style = TrackTheme.typography.sm, color = colors.textStrong)
+                }
+            }
+        }
     }
 }
 

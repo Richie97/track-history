@@ -60,23 +60,25 @@ public fun NavHostController.showDeepLink(route: Route) = show(route)
  * iOS calls this `remapTempIds`.
  */
 public fun Route.remapTempId(from: Int, to: Int): Route = when (this) {
-    is Route.Event -> if (id == from) Route.Event(to) else this
+    is Route.Event -> if (id == from) copy(id = to) else this
     is Route.EventForm -> if (editId == from) copy(editId = to) else this
     is Route.Record -> if (eventId == from) copy(eventId = to) else this
     is Route.Import -> if (eventId == from) copy(eventId = to) else this
     // Three ids, any of which can be temp: an event, a session and a lap can
     // each be created offline. Each follows its own row.
-    is Route.Lap -> Route.Lap(
+    is Route.Lap -> copy(
         eventId = if (eventId == from) to else eventId,
         sessionId = if (sessionId == from) to else sessionId,
         lapId = if (lapId == from) to else lapId,
     )
-    is Route.SessionCompare -> Route.SessionCompare(
+    is Route.SessionCompare -> copy(
         eventId = if (eventId == from) to else eventId,
         sessionId = if (sessionId == from) to else sessionId,
         lapId = lapId?.let { if (it == from) to else it },
     )
     // Tracks are never created offline — an event's track is found-or-created
-    // server-side by name — and slugs and settings carry no id at all.
+    // server-side by name — and slugs and settings carry no id at all. Nor is
+    // anything in a student's logbook (NS-38): a coach cannot write there, so
+    // no id under one is ever temp, and the `copy`s above carry `student`.
     else -> this
 }

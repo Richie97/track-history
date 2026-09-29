@@ -113,6 +113,9 @@ class TrackModel(
                 if (track == null) state = LoadState.Failed(e.message ?: "Couldn't load this track.")
                 return@launch
             }
+            // A student's track (NS-38) has no share slug to offer: `/me` is
+            // not on the coach mount, and the link would be theirs anyway.
+            if (api.owner.readOnly) return@launch
             shareSlug = runCatching { api.me() }.getOrNull()?.user?.shareSlug
         }
     }

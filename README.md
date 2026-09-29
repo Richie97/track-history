@@ -1509,8 +1509,8 @@ Wrapped, which is free.
   free account exactly as it is on the event detail — the racing line and the
   times are free.
 - **Share with a coach** (`docs/specs/native/NS-38-coach-sharing.md`, #338;
-  **server and web so far** — the iOS and Android screens are the next two
-  PRs) gives an instructor or coach **read-only access to the whole logbook**:
+  **server, web and Android so far** — the iOS screens are the next PR)
+  gives an instructor or coach **read-only access to the whole logbook**:
   events, sessions, laps and the full channel panel, the cars and their
   modifications (`/vehicles`), and the driver profile. A Pro driver mints a
   single-use, seven-day invite link (`POST /api/coaching/invites`, shown once —
@@ -1562,7 +1562,26 @@ Wrapped, which is free.
   sign-in. A student's pages are the ordinary screens under a
   `LogbookOwner.student`: the API client prefixes `/students/<id>` and refuses
   writes before they are sent, and the channel panel reads the student's tier.
-  Android is the next ticket.
+- **On Android** the same Coaching page is `Route.Coaching`, one row in
+  Settings: your students with *Stop coaching*, *Create an invite link*
+  (Pro; a free account sees it locked in place) showing the new link once with
+  Copy, the share sheet and a **QR code** drawn from zxing's encoder
+  (`com.google.zxing:core`, `:app` only), the open invites with *Withdraw*,
+  your coaches with when each last looked and *Remove*, and the driver-profile
+  card; `Route.Profile` is the form, built from `:core`'s `Profile` (the port of
+  `profile.js`). `https://<host>/coach/<token>` is claimed by the manifest's
+  App Links filter and parsed by `:core`'s `DeepLink`; a link opened signed out
+  is parked in `PendingInvite` (a small SharedPreferences file, excluded from
+  backups) until sign-in, then opens `Route.CoachInvite`. A student's logbook is
+  `Route.Student(id)` on the Events tab, and under it the owner's own event,
+  lap, session-compare, track and two-lap compare destinations with
+  `student` set, plus `Route.StudentVehicle`: `LogbookOwnerScope` resolves the
+  student from their `/me/profile` under the mount and hands each screen
+  `ApiClient.forOwner(LogbookOwner.Student(…))` — every path prefixed, every
+  write refused before it is sent — plus the read-only flag and **the
+  student's** tier for the channel panel. A 404 there purges the student's
+  cached responses (`ApiClient.forgetStudent`) and says the logbook is no
+  longer shared.
 
 ## AI assistants (MCP)
 

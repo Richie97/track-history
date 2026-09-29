@@ -188,6 +188,19 @@ public class OfflineStore(private val db: OfflinePersistence) {
     public suspend fun cachedKeys(): List<String> = db.transaction { it.responsePaths() }
 
     /**
+     * Drop every cached response under a path prefix, in one transaction — a
+     * student's `/students/<id>/…` once their coach has lost access (NS-38).
+     * The port of `removeCachedPrefix` in `offline.js`.
+     */
+    public suspend fun removeCachedPrefix(prefix: String) {
+        db.transaction { txn ->
+            for (path in txn.responsePaths()) {
+                if (path.startsWith(prefix)) txn.responseDelete(path)
+            }
+        }
+    }
+
+    /**
      * A cached response, with one derivation: a track-filtered events list is
      * computed from the cached full list, so a track page works offline even if it
      * was never visited.
@@ -196,8 +209,11 @@ public class OfflineStore(private val db: OfflinePersistence) {
 
     private suspend fun cachedGet(path: String, txn: OfflineTransaction): String? {
         txn.responseGet(path)?.let { return it }
-        val trackId = trackFilter(path) ?: return null
-        val all = txn.responseGet("/events") ?: return null
+        // A student's logbook (NS-38) derives from *their* cached list, under the
+        // same prefix, so a coach's cache never answers with the coach's events.
+        val owner = STUDENT_PREFIX.find(path)?.value.orEmpty()
+        val trackId = trackFilter(path.removePrefix(owner)) ?: return null
+        val all = txn.responseGet("$owner/events") ?: return null
         val events = runCatching { OfflineJson.decode.decodeFromString(eventListSerializer, all) }
             .getOrNull() ?: return null
         return runCatching {
@@ -446,6 +462,9 @@ public class OfflineStore(private val db: OfflinePersistence) {
             if (value.isEmpty() || value.contains("&")) return null
             return runCatching { java.net.URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
         }
+
+        /** `/students/5` at the front of a coach-mount path (NS-38). */
+        private val STUDENT_PREFIX = Regex("^/students/\\d+(?=/)")
 
         /** 5xx retries before a write is given up on and reported as failed. */
         private const val MAX_ATTEMPTS = 5

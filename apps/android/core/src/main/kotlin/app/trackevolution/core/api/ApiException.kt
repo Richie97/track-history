@@ -43,6 +43,14 @@ public sealed class ApiException(
     public class Transport(message: String, cause: Throwable? = null) :
         ApiException(null, message, cause)
 
+    /**
+     * A write asked of a student's logbook (NS-38), refused **before it is
+     * sent** — the coach mount answers only GET, and a write under the prefix
+     * must never reach the offline queue either. The screens hide every write
+     * control there, so this is the belt to their braces. The web's words.
+     */
+    public class ReadOnly(message: String = "This logbook is read-only.") : ApiException(null, message)
+
     /** A 2xx body that didn't match its model: contract drift, or a bug here. */
     public class Decoding(message: String, cause: Throwable? = null) :
         ApiException(null, message, cause)
@@ -50,6 +58,9 @@ public sealed class ApiException(
     public val isUnauthorized: Boolean get() = this is Unauthorized
 
     public val isPaymentRequired: Boolean get() = this is PaymentRequired
+
+    /** A 404 — for the coach mount, "this logbook is not shared with you (any more)". */
+    public val isNotFound: Boolean get() = status == 404
 
     public companion object {
         /**

@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 
 // Share with a coach (NS-38, docs/specs/native/NS-38-coach-sharing.md).
 //
-// Decoded here ahead of the Android screens (ticket 4) so the golden contract
-// pins them from the server PR on; nothing reads them yet. A coach's view of a
+// Pinned by the golden contract since the server PR, and read by the Android
+// Coaching, profile and accept screens (ticket 4). A coach's view of a
 // student's logbook — `GET /api/students/:id/events`, `/events/:id`, `/tracks`,
 // `/vehicles` — decodes into the ordinary [Event], [EventDetail], [Track] and
 // [Vehicle]: the server sends the fields a coach may not see as null (or an

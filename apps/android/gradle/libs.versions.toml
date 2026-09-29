@@ -85,6 +85,12 @@ androidxTestCore = "1.6.1"
 # back a QueryProductDetailsResult (fetched + unfetched lists), which
 # BillingController speaks.
 playBilling = "8.3.0"
+# The coaching invite's QR code (NS-38) — `:app` only. zxing's `core` is the
+# encoder alone: pure Java, no Android dependency, no reflection (so R8 needs no
+# keep rules), and the Compose canvas draws the matrix it hands back. The
+# `zxing-android-embedded` scanner half is deliberately not used — the app
+# shows a code, it never reads one.
+zxing = "3.5.3"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
@@ -156,6 +162,7 @@ androidx-car-app-testing = { module = "androidx.car.app:app-testing", version.re
 # acknowledgePurchase) over the callback API; the flow itself is
 # billing/BillingController in :app.
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBilling" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -4,6 +4,13 @@ import app.trackevolution.core.model.BillingResponse
 import app.trackevolution.core.model.Wrapped
 import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.CatalogTrack
+import app.trackevolution.core.model.CoachInvite
+import app.trackevolution.core.model.Coaching
+import app.trackevolution.core.model.DriverProfile
+import app.trackevolution.core.model.InviteAccepted
+import app.trackevolution.core.model.InvitePreview
+import app.trackevolution.core.model.ProfileResponse
+import app.trackevolution.core.model.ProfileSaved
 import app.trackevolution.core.model.CreatedId
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
@@ -76,38 +83,84 @@ import kotlinx.serialization.json.buildJsonObject
  *
  * Deliberately not in scope: obtaining a token (NS-09 — this layer only asks
  * [TokenProvider] for one).
+ *
+ * ## Whose logbook: [owner] (NS-38)
+ *
+ * A client reads the signed-in account's logbook ([LogbookOwner.Me]) unless it
+ * was made by [forOwner] for a student, in which case every `/api` path goes
+ * through the coach mount (`/students/<id>/…`) and **every write is refused
+ * before it is sent** — never sent, never queued. The prefix is part of the
+ * path, so the student's cached responses are keyed apart from the coach's own
+ * and none of them can match the offline whitelist, whose patterns are anchored
+ * at the owner's paths. A student client shares this one's transport, token and
+ * offline store; there is still exactly one of each.
  */
-public class ApiClient(
-    engine: HttpClientEngine,
-    baseUrl: String = DEFAULT_BASE_URL,
-    private val tokens: TokenProvider = NoToken,
-    /**
-     * The offline cache and write queue (NS-22). Null talks straight to the
-     * server, which is what the contract tests want.
-     */
-    private val offline: OfflineStore? = null,
-    /**
-     * Sent on **every** request, `/api` and `/auth` alike. How `:app` adds
-     * `X-TE-Client: android/<versionCode>` — the transitional build's
-     * identification for the legacy claim (NS-32 requirement 6) — without
-     * `:core` learning about `BuildConfig`.
-     */
-    private val defaultHeaders: Map<String, String> = emptyMap(),
+public class ApiClient private constructor(
+    private val shared: Shared,
+    /** Whose logbook this client reads. */
+    public val owner: LogbookOwner,
 ) {
-    private val client = HttpClient(engine) {
-        // Non-2xx is mapped by hand below, into the server's own message.
-        expectSuccess = false
-    }
+    public constructor(
+        engine: HttpClientEngine,
+        baseUrl: String = DEFAULT_BASE_URL,
+        tokens: TokenProvider = NoToken,
+        /**
+         * The offline cache and write queue (NS-22). Null talks straight to the
+         * server, which is what the contract tests want.
+         */
+        offline: OfflineStore? = null,
+        /**
+         * Sent on **every** request, `/api` and `/auth` alike. How `:app` adds
+         * `X-TE-Client: android/<versionCode>` — the transitional build's
+         * identification for the legacy claim (NS-32 requirement 6) — without
+         * `:core` learning about `BuildConfig`.
+         */
+        defaultHeaders: Map<String, String> = emptyMap(),
+    ) : this(
+        Shared(
+            client = HttpClient(engine) {
+                // Non-2xx is mapped by hand below, into the server's own message.
+                expectSuccess = false
+            },
+            tokens = tokens,
+            offline = offline,
+            defaultHeaders = defaultHeaders,
+            serverUrl = normalize(baseUrl),
+        ),
+        LogbookOwner.Me,
+    )
+
+    /** What every owner's view of this client shares: one transport, one store. */
+    private class Shared(
+        val client: HttpClient,
+        val tokens: TokenProvider,
+        val offline: OfflineStore?,
+        val defaultHeaders: Map<String, String>,
+        @Volatile var serverUrl: String,
+    )
+
+    private val client: HttpClient get() = shared.client
+    private val tokens: TokenProvider get() = shared.tokens
+    private val offline: OfflineStore? get() = shared.offline
+    private val defaultHeaders: Map<String, String> get() = shared.defaultHeaders
+
+    /**
+     * The same client reading [owner]'s logbook (NS-38) — this one for
+     * [LogbookOwner.Me], a view over the same transport for a student. Cheap:
+     * nothing is opened, so a screen can ask for one on every composition.
+     */
+    public fun forOwner(owner: LogbookOwner): ApiClient =
+        if (owner == this.owner) this else ApiClient(shared, owner)
 
     /**
      * The instance this client talks to. Mutable so a dev build can be pointed
      * at `wrangler dev` on the LAN from a settings screen, the way the Capacitor
-     * shell's server panel could.
+     * shell's server panel could. Shared by every owner's view.
      */
-    @Volatile
-    public var serverUrl: String = normalize(baseUrl)
+    public var serverUrl: String
+        get() = shared.serverUrl
         set(value) {
-            field = normalize(value)
+            shared.serverUrl = normalize(value)
         }
 
     /**
@@ -169,6 +222,9 @@ public class ApiClient(
      * request. Failures are ignored: this is a warm-up, not a load.
      */
     public suspend fun warmCache(events: List<Event>) {
+        // A student's logbook is never warmed (NS-38): the coach reads what they
+        // open, and a grant that ends should leave as little behind as possible.
+        if (owner != LogbookOwner.Me) return
         val store = offline ?: return
         for (row in events) {
             if (OfflineStore.isTemp(row.id)) continue
@@ -189,6 +245,17 @@ public class ApiClient(
             val numeric = id.toIntOrNull() ?: continue
             if (!OfflineStore.isTemp(numeric) && id !in live) store.removeCached(key)
         }
+    }
+
+    /**
+     * Drop everything cached from a student's logbook (NS-38) — the answer to a
+     * 404 from their `/me/profile`, which is how a revoked grant, or one the
+     * coach left, first shows. A coach who has lost access must not go on
+     * reading the logbook out of this device's cache when the network is gone.
+     * Nothing under the prefix is ever queued, so there is no queue to cancel.
+     */
+    public suspend fun forgetStudent(studentId: Int) {
+        offline?.removeCachedPrefix(LogbookOwner.studentPrefix(studentId) + "/")
     }
 
     // ---- Account ----------------------------------------------------------
@@ -247,6 +314,79 @@ public class ApiClient(
         }
         send("PUT", "/me/leaderboard", body = body, deserializer = OkResponse.serializer())
     }
+
+    // ---- Driver profile and coaching (NS-38) --------------------------------
+    //
+    // Every write here is **live, never queued**: an invite link is shown once
+    // and must come from the server, and accepting, revoking or leaving a grant
+    // is not something to replay silently later. None of these paths is on the
+    // offline whitelist, and `OfflineStoreTest` pins that.
+
+    /**
+     * The driver profile, headed by its owner's name, picture and tier. On a
+     * student client this is the **student's** — the one read that says their
+     * tier to their coach, and the first read that 404s once the grant is gone.
+     */
+    public suspend fun profile(): ProfileResponse = get("/me/profile", ProfileResponse.serializer())
+
+    /**
+     * Replaces the driver profile; null clears it. Answers the profile as
+     * stored — trimmed, unknown keys dropped — or a 400 naming the rule that
+     * failed, whose message is what the form shows.
+     */
+    public suspend fun updateProfile(profile: DriverProfile?): ProfileSaved {
+        val body = buildJsonObject {
+            // Always written: `{ profile: null }` is how a profile is cleared.
+            put("profile", profile?.let { encode(DriverProfile.serializer(), it) } ?: JsonNull)
+        }
+        return send("PUT", "/me/profile", body, ProfileSaved.serializer())
+    }
+
+    /** Both directions of every grant, and the open invites. */
+    public suspend fun coaching(): Coaching = get("/coaching", Coaching.serializer())
+
+    /**
+     * Mints a single-use, 7-day invite link (Pro — a free account gets
+     * [ApiException.PaymentRequired]). The link is in this answer and nowhere
+     * else: only its hash is stored, so it cannot be shown again.
+     */
+    public suspend fun createCoachInvite(): CoachInvite =
+        send("POST", "/coaching/invites", buildJsonObject { }, CoachInvite.serializer())
+
+    /** Withdraws an unused invite. */
+    public suspend fun withdrawCoachInvite(id: Int) {
+        send("DELETE", "/coaching/invites/$id", null, OkResponse.serializer())
+    }
+
+    /** The student ends a coach's access. */
+    public suspend fun removeCoach(coachId: Int) {
+        send("DELETE", "/coaching/coaches/$coachId", null, OkResponse.serializer())
+    }
+
+    /** The coach stops coaching a student. The caller also [forgetStudent]s them. */
+    public suspend fun leaveStudent(studentId: Int) {
+        send("DELETE", "/coaching/students/$studentId", null, OkResponse.serializer())
+    }
+
+    /**
+     * The accept screen's preview of an invite: whose, until when, and whether
+     * it is the caller's own or a student they already coach. 404 when unknown,
+     * used or expired. **Read past the offline cache**, as the web does: the
+     * path carries the token, and a stale answer about a single-use link would
+     * be wrong anyway.
+     */
+    public suspend fun coachInvite(token: String): InvitePreview =
+        send("GET", "/coaching/invites/${token.urlEncoded()}", null, InvitePreview.serializer(), cached = false)
+
+    /**
+     * Accepts an invite: this account becomes a read-only coach of the student,
+     * and the link is burned. 400 for your own link, 409 when you already coach
+     * them or they have no room — none of which burns it.
+     */
+    public suspend fun acceptCoachInvite(token: String): InviteAccepted = send(
+        "POST", "/coaching/invites/${token.urlEncoded()}/accept", buildJsonObject { },
+        InviteAccepted.serializer(), cached = false,
+    )
 
     // ---- Events -----------------------------------------------------------
 
@@ -585,8 +725,10 @@ public class ApiClient(
         query: List<Pair<String, String>> = emptyList(),
         authenticated: Boolean = true,
         prefix: String = API_PREFIX,
+        /** False goes straight to the server: no cache fallback, never queued. */
+        cached: Boolean = true,
     ): T {
-        val text = route(method, path, body?.toString(), query, authenticated, prefix)
+        val text = route(method, scoped(method, path, prefix), body?.toString(), query, authenticated, prefix, cached)
         return try {
             responseJson.decodeFromString(deserializer, text)
         } catch (e: SerializationException) {
@@ -595,6 +737,19 @@ public class ApiClient(
             // Custom serializers (TracePoint, EventDetail) fault this way.
             throw ApiException.Decoding("$path: ${e.message}", e)
         }
+    }
+
+    /**
+     * The path as [owner] reads it (NS-38): unchanged for the account's own
+     * logbook; under the coach mount for a student's, where anything but a GET
+     * is refused here — before the offline layer could queue it and before the
+     * network could carry it. `/auth` is never scoped: signing in is the
+     * viewer's business, not the student's.
+     */
+    private fun scoped(method: String, path: String, prefix: String): String {
+        if (owner == LogbookOwner.Me || prefix != API_PREFIX) return path
+        if (method != "GET") throw ApiException.ReadOnly()
+        return owner.pathPrefix + path
     }
 
     /**
@@ -608,11 +763,12 @@ public class ApiClient(
         query: List<Pair<String, String>>,
         authenticated: Boolean,
         prefix: String,
+        cached: Boolean = true,
     ): String {
         // Sign-in never touches the cache: it has no offline meaning, and a token
         // exchange replayed later would be a burned code.
         val store = offline
-        if (store == null || prefix != API_PREFIX) {
+        if (store == null || prefix != API_PREFIX || !cached) {
             val (status, text) = rawSend(method, path, body, query, authenticated, prefix)
             if (status !in 200..299) throw ApiException.from(status, text)
             return text
