@@ -1038,6 +1038,30 @@ button.ch-chip.on { background: var(--surface-raised); }
 .sync-banner .btn { margin-left: auto; }
 .sync-banner[hidden] { display: none; }
 
+/* ---------- Coaching (NS-38) ---------- */
+/* Whose logbook this is, on every page of a student's read-only view. */
+.student-banner {
+  background: var(--surface-raised); color: var(--text-body);
+  border: 1px solid var(--border-hairline); border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 8px 14px; margin: 14px 0 0; font-size: var(--fs-sm);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.student-banner a:last-child { margin-left: auto; }
+.profile-card { display: grid; gap: 14px; }
+.profile-group h3, #profile-form h3 { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--text-muted); font-weight: var(--weight-semibold); }
+#profile-form h3 { margin-top: 12px; }
+#profile-form h3:first-child { margin-top: 0; }
+.profile-card dl { display: grid; grid-template-columns: minmax(120px, max-content) 1fr; gap: 4px 16px; margin: 0; }
+.profile-card dt { color: var(--text-muted); font-size: var(--fs-sm); }
+.profile-card dd { margin: 0; color: var(--text-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .profile-card dl { grid-template-columns: 1fr; gap: 0; }
+  .profile-card dd { margin-bottom: 8px; }
+}
+.invite-link { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.invite-link input { flex: 1 1 260px; min-width: 0; font-family: var(--font-mono, monospace); font-size: var(--fs-sm); }
+
 /* ---------- Share ---------- */
 .share-badge {
   font-size: var(--fs-xs); color: var(--text-muted);

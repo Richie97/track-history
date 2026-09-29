@@ -126,7 +126,11 @@ private until someone adds it to the allowlist. The hidden fields that have a
 place in the shape — notes, the checklist, the cost line items and the setup
 sheets — are sent empty (`null`, or `[]` for `setups`) rather than dropped, so
 the native models, which already treat them as optional, decode a coach
-response with no second model; any other field is dropped. `/me/profile`
+response with no second model; any other field is dropped. A session's
+`channels` is rebuilt by allow-list too: the per-lap entries whole, `meta`
+cut to `ambientC` and `elevationM`, because `meta.odometerKm` is the car's
+lifetime odometer — garage data this spec keeps out of reach, which the
+security review found passing through in the first server PR. `/me/profile`
 carries `pro` (under the mount, the student's tier): the coach's client needs
 that tier to open the channel panel, see *Clients*.
 
@@ -154,10 +158,15 @@ A body carrying either has it dropped like any unknown key.
 
 ### Shared pure logic (web first, then ported)
 
-`public/js/coaching.js`: `profileSections(profile)` (the coach card's grouped,
-non-empty lines) and `coachingSummary` (a student row's line). Ported as
-`Coaching` to the Kit and `:core` under the same names and pinned by
-`contracts/logic/coaching.json`.
+`public/js/profile.js`: `PROFILE_GROUPS` (the form's field spec — labels,
+kinds, caps, the select options), `profileSections(profile)` (the coach
+card's grouped, non-empty lines) and `profileBody(values)` (form values to a
+request body; each yes/no is a three-way select, so an unanswered one stays
+null rather than reading "No"). `public/js/coaching.js`: `studentLine`,
+`lastViewedText` and `inviteExpiryText`, the grant's wording, each taking the
+client's own date formatter where it says a date. Ported as `Coaching` to the
+Kit and `:core` under the same names and pinned by
+`contracts/logic/coaching.json` (committed with the web ticket).
 
 ### Tier gates read the student's tier
 
@@ -170,22 +179,33 @@ viewing a Pro student sees the Grip tab unlocked.
 
 ### Web
 
-- **Settings → Coaching**: *Your coaches* (last viewed, Revoke), *Invite a
-  coach* (the link, a copy button and the system share sheet; shown locked for
-  free accounts), open invites with Withdraw, and *Students* when there are
-  any. **Settings → Driver profile**: the form from `profile.js`, with a line
-  saying who can see it.
-- `/coach/<token>`: the accept page. Signed out, the token is parked in
-  `sessionStorage` across sign-in (`isSafeNext` stays oauth-only).
-- `#/student/:id`, plus `/event/:eid`, `/track/:tid`, `/track/:tid/lap-compare`
-  and `/vehicle/:vid` under it: the existing views, given a
-  `{ base: "/students/:id", readOnly: true, entitlement }` context. `api.js`
-  prefixes the path. Read-only hides every edit, import, delete and checklist
-  control; a banner says *"Alex's logbook · read-only"*; the student's profile
-  is a card at the top of their dashboard.
-- Offline: the prefix keeps the cache keys apart from the coach's own, nothing
-  under it is in `QUEUEABLE`, `prefetch.js` skips it, and a 404 under a prefix
-  purges that student's cached responses.
+As built (ticket 2):
+
+- **A Coaching page, `#/coaching`**, rather than sections of Settings — it
+  has three lists and a form behind it. It is reached from the account menu
+  and from one row in Settings, and carries *Your students* (when there are
+  any, each with *Stop coaching*), *Share your logbook with a coach* (create
+  an invite link — shown once, with Copy and the system share sheet — and the
+  open invites with Withdraw; a Pro panel for a free account), the coaches
+  with when each last looked and *Remove*, and the driver profile as its card.
+  **`#/profile`** is the form, built from `PROFILE_GROUPS`.
+- **`/coach/<token>`** is answered by the SPA shell; the boot code moves the
+  token into `sessionStorage` and replaces the URL with `/#/coach` before
+  anything runs, so it survives sign-in (`isSafeNext` stays oauth-only) and
+  never sits in history. The accept page previews the student, and handles
+  an expired, used, own or already-accepted link in words.
+- **`#/student/:id`** is a dedicated dashboard (profile card, tiles, upcoming,
+  latest events, tracks, cars), and under it `/event/:eid`, `/track/:tid`,
+  `/track/:tid/compare`, `/track/:tid/lap-compare` are **the owner's own
+  pages** and `/vehicle/:vid` a small car page. The reuse goes through three
+  seams in `app.js` rather than a context argument: `viewing` (which makes
+  `api()` prefix reads with `/students/:id` and refuse writes), `L()` for
+  every link, and `ent()` for every tier decision. A banner says whose
+  logbook it is on every page.
+- **Offline**: the prefix keeps the cache keys apart from the coach's own,
+  nothing under it is in `QUEUEABLE`, `prefetch.js` never warms it, and a 404
+  from the student's `/me/profile` clears their responses from the offline
+  cache and the service worker's.
 
 ### iOS and Android
 

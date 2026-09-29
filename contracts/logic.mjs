@@ -32,6 +32,8 @@ import { CHANNEL_NAMES, attachLapChannels } from "../public/js/import/channels.j
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import { traceIndexAtFraction } from "../public/js/trackmap.js";
+import { PROFILE_GROUPS, profileBody, profileSections } from "../public/js/profile.js";
+import { inviteExpiryText, lastViewedText, studentLine } from "../public/js/coaching.js";
 import {
   activeLimitLabels,
   limitMarkers,
@@ -2354,6 +2356,56 @@ const logbookFixture = {
 };
 writeFileSync(path.join(OUT_DIR, "garage-logbook.json"), JSON.stringify(logbookFixture, null, 2) + "\n");
 
+// ---- share with a coach (NS-38): the profile and the grant's wording ----------
+//
+// The form's field spec (so a port renders the same labels, kinds and caps),
+// profileSections over profiles chosen for the ways a port goes wrong — a
+// whitespace-only field (dropped), a `false` yes/no (said, as "No"), an unknown
+// select value (said as written), a group with nothing left (dropped) — plus
+// profileBody over raw form values, and the three wording functions around
+// their boundaries. studentLine's dates pass through an identity formatter, so
+// the fixture pins the sentence and each port supplies its own dates.
+const COACH_NOW = Date.UTC(2026, 8, 29, 12);
+const H = 3_600_000;
+const D = 24 * H;
+const coachProfiles = [
+  null,
+  {},
+  { occupation: "   ", goals: "Trail braking into T1" },
+  { helmet_rating: "SA2020", head_neck: "hans", gloves: false, shoes: true },
+  { helmet_rating: "SA2010", first_track_year: 2019, experience: "Karting\nAutocross" },
+  {
+    occupation: "Engineer", first_track_year: 2019, experience: "Autocross since 2015", license: "NASA HPDE4",
+    instruction: "Two schools", helmet: "Bell GP3", helmet_rating: "FIA8859", head_neck: "hybrid",
+    suit: "SFI 3.2A/5", gloves: true, shoes: true, gear_notes: "Glasses", goals: "Consistency", for_instructor: "Left wrist",
+  },
+];
+const coachFormValues = [
+  {},
+  { occupation: "  Pilot ", first_track_year: "2019", helmet_rating: "", gloves: "yes", shoes: "no", goals: "" },
+  { first_track_year: " ", gloves: "", shoes: true, head_neck: "other" },
+];
+const coachingFixture = {
+  generatedFrom: ["public/js/profile.js", "public/js/coaching.js"],
+  now: COACH_NOW,
+  groups: PROFILE_GROUPS,
+  sections: coachProfiles.map((profile) => ({ profile, sections: profileSections(profile) })),
+  bodies: coachFormValues.map((values) => ({ values, body: profileBody(values) })),
+  studentLines: [
+    { event_count: 0, last_event_date: null },
+    { event_count: 1, last_event_date: "2026-04-10" },
+    { event_count: 12, last_event_date: "2026-09-27" },
+    { event_count: 3, last_event_date: null },
+  ].map((student) => ({ student, line: studentLine(student, (d) => d) })),
+  lastViewed: [null, COACH_NOW + 5_000, COACH_NOW - 59 * 60_000, COACH_NOW - H, COACH_NOW - 23.9 * H, COACH_NOW - D,
+    COACH_NOW - 13.9 * D, COACH_NOW - 14 * D, COACH_NOW - 59.9 * D, COACH_NOW - 60 * D]
+    .map((at) => ({ last_viewed_at: at, text: lastViewedText(at, COACH_NOW) })),
+  inviteExpiry: [COACH_NOW + 7 * D - 1_000, COACH_NOW + 36 * H, COACH_NOW + 25 * H, COACH_NOW + 24 * H,
+    COACH_NOW + 23.5 * H, COACH_NOW + H, COACH_NOW + 59 * 60_000, COACH_NOW, COACH_NOW - D]
+    .map((at) => ({ expires_at: at, text: inviteExpiryText(at, COACH_NOW) })),
+};
+writeFileSync(path.join(OUT_DIR, "coaching.json"), JSON.stringify(coachingFixture, null, 2) + "\n");
+
 // ---- swaps between sessions (migration 0030): the picker's pure half ---------
 //
 // swapSessionEvent over one event list for several (car, date) pairs, and
@@ -2503,6 +2555,7 @@ console.log(
 );
 console.log(`wrote contracts/logic/garage-status.json (${garageFixture.cases.length} wear cases)`);
 console.log(`wrote contracts/logic/garage-logbook.json (${logbookCases.length} cars)`);
+console.log(`wrote contracts/logic/coaching.json (${coachingFixture.sections.length} profiles)`);
 console.log(`wrote contracts/logic/garage-swap.json (${swapEventCases.length} dates)`);
 console.log(`wrote contracts/logic/car-catalog-match.json (${catalogQueries.length} queries, ${prefillCases.length} pre-fill cases)`);
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);

@@ -1509,7 +1509,7 @@ Wrapped, which is free.
   free account exactly as it is on the event detail — the racing line and the
   times are free.
 - **Share with a coach** (`docs/specs/native/NS-38-coach-sharing.md`, #338;
-  **server only so far** — the web, iOS and Android screens are the next three
+  **server and web so far** — the iOS and Android screens are the next two
   PRs) gives an instructor or coach **read-only access to the whole logbook**:
   events, sessions, laps and the full channel panel, the cars and their
   modifications (`/vehicles`), and the driver profile. A Pro driver mints a
@@ -1521,7 +1521,9 @@ Wrapped, which is free.
   see exactly what the student sees, with **the student's tier** deciding
   `channels`; it answers `GET` only, on the path + view table `COACH_ROUTES`
   in `src/lib/coaching.ts`, whose views copy permitted fields and send notes,
-  the prep checklist, costs and setup sheets as null. The garage's parts and
+  the prep checklist, costs and setup sheets as null — and rebuild each
+  recording's `channels` the same way, keeping the per-lap traces and
+  scalars but only the weather from its `meta` (never the car's odometer). The garage's parts and
   costs, the setup notebook, the leaderboards, Wrapped, `/me` and every write
   are unreachable, and everything refused is a 404. Revoking
   (`DELETE /api/coaching/coaches/:id`) takes effect on the coach's next
@@ -1534,6 +1536,23 @@ Wrapped, which is free.
   MCP tools. It deliberately holds no birth date or emergency contact: an
   instructor asks for those at the track, and a logbook that never stores them
   never has to protect them.
+- **On the web** the Coaching page (`#/coaching`, from the account menu and
+  Settings) creates, lists and withdraws invites, lists and removes coaches,
+  and lists the drivers you coach; `#/profile` is the profile form, built from
+  the field spec in `public/js/profile.js` (which a unit test pins to
+  `sanitizeProfile`). An invite link, `/coach/<token>`, is served the SPA
+  shell like any other path; `app.js` moves the token into `sessionStorage`
+  and replaces the URL with `/#/coach` before anything else runs, so it
+  survives a sign-in round trip without landing in history, and `sw.js`
+  caches neither `/coach/*` nor `/api/coaching/invites/*`. A student's
+  logbook is `#/student/<id>` and, under it, the ordinary event, track, two
+  compare and a small car page: `app.js` holds the student in `viewing`,
+  which prefixes every read with `/students/<id>`, refuses writes before they
+  are sent, keeps links inside the student's logbook (`L()`), hides every
+  write control, and gates the channel panel on the student's tier (`ent()`).
+  When the server answers 404 there the coach has lost access, and the
+  student's responses are cleared from the offline cache and the service
+  worker's (`forgetStudent`).
 
 ## AI assistants (MCP)
 
