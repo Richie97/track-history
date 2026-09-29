@@ -1,0 +1,37 @@
+{
+  "method": "GET",
+  "path": "/students/:studentId/vehicles",
+  "status": 200,
+  "body": [
+    {
+      "catalog_id": null,
+      "id": 1,
+      "is_default": 0,
+      "name": "BRZ",
+      "notes": null,
+      "steering_ratio": null,
+      "target_hot_psi": null,
+      "wheelbase_mm": null
+    },
+    {
+      "catalog_id": null,
+      "id": 1,
+      "is_default": 0,
+      "name": "Corvette C7",
+      "notes": null,
+      "steering_ratio": null,
+      "target_hot_psi": null,
+      "wheelbase_mm": null
+    },
+    {
+      "catalog_id": null,
+      "id": 1,
+      "is_default": 0,
+      "name": "Miata",
+      "notes": null,
+      "steering_ratio": null,
+      "target_hot_psi": null,
+      "wheelbase_mm": null
+    }
+  ]
+}

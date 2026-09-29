@@ -50,8 +50,14 @@ const VOLATILE = {
   catalog_id: 1,
   user_id: 1,
   lap_id: 1,
+  student_id: 1,
   created_at: 0,
   updated_at: 0,
+  // Coaching (NS-38): an invite's expiry is minted from the clock, and a
+  // grant's times from when the harness ran.
+  expires_at: 0,
+  since: 0,
+  last_viewed_at: 0,
 };
 
 function normalize(value, key) {
@@ -69,6 +75,10 @@ function normalize(value, key) {
   // every client models it as optional, and the null branch is the route
   // tests' to pin.
   if (key === "through") return "2026-01-01";
+  // A coach invite link carries a fresh random token and the harness's port.
+  if (key === "url" && typeof value === "string" && value.includes("/coach/")) {
+    return "https://trackevolution.app/coach/0000000000000000000000000000000000000000000000000000000000000000";
+  }
   return value;
 }
 
@@ -76,16 +86,23 @@ function normalize(value, key) {
 // worker harness
 // ---------------------------------------------------------------------------
 
-async function startWorker() {
-  rmSync(PERSIST, { recursive: true, force: true });
-  mkdirSync(PERSIST, { recursive: true });
+// `email` is the account the DEV_MODE bypass signs in as. The coaching
+// captures need a second account, so the harness restarts the Worker as a
+// coach over the *same* scratch D1 (`fresh: false`) — the first account's
+// session cookie is a row in that database, so it keeps working across the
+// restart and both accounts can be driven side by side.
+async function startWorker({ email = DEV_EMAIL, name = "Dev User", fresh = true } = {}) {
+  if (fresh) {
+    rmSync(PERSIST, { recursive: true, force: true });
+    mkdirSync(PERSIST, { recursive: true });
+  }
 
   // Apply migrations/ to the scratch D1 before the Worker starts. Wrangler owns
   // migration ordering, so shell out rather than reimplement it — to the
   // installed wrangler's entry point directly, via this Node, rather than
   // through `npx`: on Windows that is npx.cmd, which can't be spawned without a
   // shell, and a shell would need every path quoted.
-  execFileSync(
+  if (fresh) execFileSync(
     process.execPath,
     [
       path.join(ROOT, "node_modules", "wrangler", "bin", "wrangler.js"),
@@ -98,8 +115,8 @@ async function startWorker() {
   // which is exactly where this runs. The values are inert placeholders.
   const env = {
     DEV_MODE: "1",
-    DEV_USER_EMAIL: DEV_EMAIL,
-    DEV_USER_NAME: "Dev User",
+    DEV_USER_EMAIL: email,
+    DEV_USER_NAME: name,
     GOOGLE_CLIENT_ID: "contract-harness",
     GOOGLE_CLIENT_SECRET: "contract-harness",
   };
@@ -128,7 +145,7 @@ async function signIn(base) {
 }
 
 function apiClient(base, token) {
-  return async (method, apiPath, body, headers = {}) => {
+  const client = async (method, apiPath, body, headers = {}) => {
     const res = await fetch(new URL(`/api${apiPath}`, base), {
       method,
       headers: {
@@ -140,6 +157,9 @@ function apiClient(base, token) {
     });
     return { status: res.status, body: await res.json().catch(() => null) };
   };
+  // The same account against a restarted Worker (see captureCoaching).
+  client.rebase = (newBase) => apiClient(newBase, token);
+  return client;
 }
 
 // ---------------------------------------------------------------------------
@@ -675,6 +695,104 @@ async function captureAll(api, anon, f) {
 }
 
 // ---------------------------------------------------------------------------
+// coaching (NS-38)
+// ---------------------------------------------------------------------------
+
+// Share with a coach needs two accounts, so it runs after everything else:
+// the fixture's account (Pro, with the rich event) is the student, and the
+// Worker is restarted as a second, free account that becomes their coach.
+// Returns the restarted worker so main() disposes the live one.
+async function captureCoaching(worker, api, f) {
+  const PROFILE = {
+    occupation: "Engineer",
+    first_track_year: 2019,
+    experience: "Autocross since 2015",
+    license: "NASA HPDE4",
+    instruction: "Two schools",
+    helmet: "Bell GP3",
+    helmet_rating: "SA2020",
+    head_neck: "hans",
+    suit: "Single-layer SFI 3.2A/1",
+    gloves: true,
+    shoes: true,
+    gear_notes: "Wears glasses",
+    goals: "Trail braking into T1",
+    for_instructor: "Old left-wrist injury",
+  };
+  record("me-profile-set", "PUT", "/me/profile",
+    "Replace the driver profile (NS-38). Answers with the stored profile, trimmed and " +
+    "with unknown keys dropped; null clears it.",
+    "src/routes/me.ts", await api("PUT", "/me/profile", { profile: PROFILE }));
+  record("me-profile", "GET", "/me/profile",
+    "The driver profile, headed by the owner's name, picture and tier — the same route a " +
+    "coach reads under /students/:studentId.",
+    "src/routes/me.ts", await api("GET", "/me/profile"));
+
+  const invite = record("coaching-invite", "POST", "/coaching/invites",
+    "Mint a single-use invite link for a coach (Pro). The token is in `url` and is shown " +
+    "only here; only its hash is stored.",
+    "src/routes/coaching.ts", await api("POST", "/coaching/invites"));
+  const token = invite.body.url.split("/coach/")[1];
+  const second = await api("POST", "/coaching/invites");
+  const studentId = (await api("GET", "/me")).body.user.id;
+
+  await worker.dispose();
+  worker = await startWorker({ email: "coach@example.com", name: "Coach User", fresh: false });
+  const base = String(await worker.url);
+  const coach = apiClient(base, await signIn(base));
+  const student = api.rebase(base);
+  const as = (p) => coach("GET", `/students/${studentId}${p}`);
+
+  record("coaching-invite-preview", "GET", "/coaching/invites/:token",
+    "What opening an invite link shows: whose logbook, and whether accepting would work.",
+    "src/routes/coaching.ts", await coach("GET", `/coaching/invites/${token}`));
+  record("coaching-accept", "POST", "/coaching/invites/:token/accept",
+    "Accept an invite: the caller becomes a read-only coach of the student. Burns the link.",
+    "src/routes/coaching.ts", await coach("POST", `/coaching/invites/${token}/accept`));
+  record("coaching-as-coach", "GET", "/coaching",
+    "Coaching from the coach's side: the students whose logbooks they can read.",
+    "src/routes/coaching.ts", await coach("GET", "/coaching"));
+
+  record("student-events", "GET", "/students/:studentId/events",
+    "A coach's view of a student's events: the event list with notes, checklist and costs " +
+    "sent as null.",
+    "src/lib/coaching.ts", await as("/events"));
+  record("student-event-detail", "GET", "/students/:studentId/events/:id",
+    "A coach's view of one event: sessions, laps, trace and channels (stripped to the " +
+    "student's tier, here Pro) — notes null, setups empty.",
+    "src/lib/coaching.ts", await as(`/events/${f.rich.body.id}`));
+  record("student-tracks", "GET", "/students/:studentId/tracks",
+    "A coach's view of a student's tracks, with the course notes sent as null.",
+    "src/lib/coaching.ts", await as("/tracks"));
+  record("student-vehicles", "GET", "/students/:studentId/vehicles",
+    "A coach's view of a student's cars: the whole vehicle row, modifications included.",
+    "src/lib/coaching.ts", await as("/vehicles"));
+  record("student-profile", "GET", "/students/:studentId/me/profile",
+    "A coach's view of the student's driver profile; `pro` is the student's tier, which " +
+    "the coach's client opens the channel panel by.",
+    "src/routes/me.ts", await as("/me/profile"));
+
+  record("coaching", "GET", "/coaching",
+    "Coaching from the student's side: their coaches (with when each last looked) and " +
+    "their unused invites.",
+    "src/routes/coaching.ts", await student("GET", "/coaching"));
+  record("coaching-invite-delete", "DELETE", "/coaching/invites/:id",
+    "Withdraw an unused invite.",
+    "src/routes/coaching.ts", await student("DELETE", `/coaching/invites/${second.body.id}`));
+  record("coaching-student-delete", "DELETE", "/coaching/students/:studentId",
+    "A coach stops coaching a student.",
+    "src/routes/coaching.ts", await coach("DELETE", `/coaching/students/${studentId}`));
+  // Coach again, so the student can revoke.
+  const again = await student("POST", "/coaching/invites");
+  await coach("POST", `/coaching/invites/${again.body.url.split("/coach/")[1]}/accept`);
+  const coachId = (await coach("GET", "/me")).body.user.id;
+  record("coaching-coach-delete", "DELETE", "/coaching/coaches/:coachId",
+    "A student revokes a coach; that coach's next read under /students/:studentId is a 404.",
+    "src/routes/coaching.ts", await student("DELETE", `/coaching/coaches/${coachId}`));
+  return worker;
+}
+
+// ---------------------------------------------------------------------------
 // coverage check
 // ---------------------------------------------------------------------------
 
@@ -697,6 +815,14 @@ const EXPECTED_ROUTES = [
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug", "GET /share/:slug/wrapped/:year",
   "GET /wrapped/:year",
+  // Share with a coach (NS-38).
+  "GET /me/profile", "PUT /me/profile",
+  "GET /coaching", "POST /coaching/invites", "DELETE /coaching/invites/:id",
+  "GET /coaching/invites/:token", "POST /coaching/invites/:token/accept",
+  "DELETE /coaching/coaches/:coachId", "DELETE /coaching/students/:studentId",
+  "GET /students/:studentId/events", "GET /students/:studentId/events/:id",
+  "GET /students/:studentId/tracks", "GET /students/:studentId/vehicles",
+  "GET /students/:studentId/me/profile",
   // Billing (NS-32). The three store routes — POST /billing/apple,
   // /billing/apple/legacy and /billing/google — need payloads signed by the
   // stores (or a Play API answer) that this harness cannot mint against the
@@ -724,7 +850,7 @@ function checkCoverage() {
 // main
 // ---------------------------------------------------------------------------
 
-const worker = await startWorker();
+let worker = await startWorker();
 try {
   const base = String(await worker.url);
   const token = await signIn(base);
@@ -733,6 +859,7 @@ try {
 
   const fixture = await build(api);
   await captureAll(api, anon, fixture);
+  worker = await captureCoaching(worker, api, fixture);
   checkCoverage();
 
   rmSync(GOLDEN_DIR, { recursive: true, force: true });

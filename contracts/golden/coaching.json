@@ -1,0 +1,24 @@
+{
+  "method": "GET",
+  "path": "/coaching",
+  "status": 200,
+  "body": {
+    "coaches": [
+      {
+        "id": 1,
+        "last_viewed_at": 0,
+        "name": "Coach User",
+        "picture": null,
+        "since": 0
+      }
+    ],
+    "invites": [
+      {
+        "created_at": 0,
+        "expires_at": 0,
+        "id": 1
+      }
+    ],
+    "students": []
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "method": "POST",
+  "path": "/coaching/invites",
+  "status": 201,
+  "body": {
+    "expires_at": 0,
+    "id": 1,
+    "url": "https://trackevolution.app/coach/0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

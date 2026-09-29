@@ -1,0 +1,8 @@
+{
+  "method": "DELETE",
+  "path": "/coaching/students/:studentId",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}
