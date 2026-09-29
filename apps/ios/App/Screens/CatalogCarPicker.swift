@@ -15,7 +15,14 @@ import TrackEvolutionKit
 /// 2014–2019" seven times over does not fit in a strip, and the generation and
 /// years are exactly what the driver picks by.
 struct CatalogCarPicker: View {
+    /// What a search that finds nothing says, which depends on the form the
+    /// picker opened from: the vehicle form has the two number fields to fall
+    /// back on, the add-car sheet has only a name.
+    static let noMatchTypeIn = "No car in the catalog matches that — close this and type the wheelbase and steering ratio in yourself."
+    static let noMatchByName = "No car in the catalog matches that — close this and add it by name; its wheelbase and steering ratio can go in on its page."
+
     let api: APIClient
+    var noMatch: String = CatalogCarPicker.noMatchTypeIn
     let onPick: (CatalogCar) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -46,7 +53,7 @@ struct CatalogCarPicker: View {
                 } else if let rows {
                     let matches = Garage.matchCatalogCars(query, rows)
                     if matches.isEmpty {
-                        TEEmpty("No car in the catalog matches that — close this and type the numbers in yourself.")
+                        TEEmpty(noMatch)
                             .padding(.horizontal, 16)
                     } else {
                         List(matches) { car in

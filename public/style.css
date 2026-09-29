@@ -555,6 +555,7 @@ form.panel, .panel {
 }
 .combo-item.active { background: var(--surface-hover); color: var(--text-strong); }
 @media (hover: hover) { .combo-item:hover { background: var(--surface-hover); color: var(--text-strong); } }
+.combo-empty { padding: 10px 12px; font-size: var(--fs-sm); color: var(--text-muted); }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; }
 
 /* Settings: the vehicle garage */

@@ -30,6 +30,14 @@ import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 
 /**
+ * What a search that finds nothing says, which depends on the form the picker
+ * opened from: the vehicle form has the two number fields to fall back on, the
+ * add-car form has only a name.
+ */
+const val CATALOG_NO_MATCH_TYPE_IN = "No car in the catalog matches that — close this and type the wheelbase and steering ratio in yourself."
+const val CATALOG_NO_MATCH_BY_NAME = "No car in the catalog matches that — close this and add it by name; its wheelbase and steering ratio can go in on its page."
+
+/**
  * The car-catalog picker (#222): one searchable list over `GET /api/car-catalog`,
  * opened from the two vehicle forms. One field rather than year → make → model
  * dropdowns, because a driver can type "c7" in two keystrokes and a dealer-site
@@ -49,6 +57,7 @@ fun CatalogCarPicker(
     error: String?,
     onPick: (CatalogCar) -> Unit,
     onDismiss: () -> Unit,
+    noMatch: String = CATALOG_NO_MATCH_TYPE_IN,
 ) {
     val colors = TrackTheme.colors
     val type = TrackTheme.typography
@@ -78,7 +87,7 @@ fun CatalogCarPicker(
                     else -> {
                         val matches = Garage.matchCatalogCars(query, rows)
                         if (matches.isEmpty()) {
-                            TEEmpty("No car in the catalog matches that — close this and type the numbers in yourself.")
+                            TEEmpty(noMatch)
                         } else {
                             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                                 items(matches, key = { it.id }) { car ->

@@ -251,7 +251,7 @@ struct AddCarSheet: View {
                         .buttonStyle(TEButtonStyle(kind: .quiet))
                         .accessibilityIdentifier("pickCatalogCar")
                         .sheet(isPresented: $showingPicker) {
-                            CatalogCarPicker(api: api) { row in
+                            CatalogCarPicker(api: api, noMatch: CatalogCarPicker.noMatchByName) { row in
                                 pick = row
                                 if name.trimmingCharacters(in: .whitespaces).isEmpty {
                                     name = Garage.catalogCarName(row)

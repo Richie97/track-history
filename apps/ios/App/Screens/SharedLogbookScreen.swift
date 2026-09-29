@@ -52,7 +52,7 @@ struct SharedLogbookScreen: View {
 
             TESectionHeader("Tracks")
             if data.tracks.isEmpty {
-                TEEmpty("No tracks on this page yet.")
+                TEEmpty("No events shared yet.")
             } else {
                 ForEach(data.tracks) { track in
                     TECard(padding: 14) {
@@ -74,27 +74,31 @@ struct SharedLogbookScreen: View {
                 }
             }
 
-            TESectionHeader("Events")
-            ForEach(data.events) { event in
-                TECard(padding: 14) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(event.trackName)
-                                .teStyle(.bodyStrong)
-                                .foregroundStyle(Color(.textStrong))
-                            TEMeta([
-                                EventDates.fmtDate(event.startDate),
-                                event.club,
-                                event.runGroup,
-                                event.conditions?.label
-                            ])
-                        }
-                        Spacer(minLength: 8)
-                        VStack(alignment: .trailing, spacing: 2) {
-                            TETime(ms: event.bestMs)
-                            Text(LapTime.fmtConsistency(event.consistency))
-                                .teStyle(.xxs)
-                                .foregroundStyle(Color(.textFaint))
+            // Like the web page, the section is absent rather than empty: the
+            // tracks section above already says nothing has been shared.
+            if !data.events.isEmpty {
+                TESectionHeader("Events")
+                ForEach(data.events) { event in
+                    TECard(padding: 14) {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(event.trackName)
+                                    .teStyle(.bodyStrong)
+                                    .foregroundStyle(Color(.textStrong))
+                                TEMeta([
+                                    EventDates.fmtDate(event.startDate),
+                                    event.club,
+                                    event.runGroup,
+                                    event.conditions?.label
+                                ])
+                            }
+                            Spacer(minLength: 8)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                TETime(ms: event.bestMs)
+                                Text(LapTime.fmtConsistency(event.consistency))
+                                    .teStyle(.xxs)
+                                    .foregroundStyle(Color(.textFaint))
+                            }
                         }
                     }
                 }
@@ -108,7 +112,10 @@ struct SharedLogbookScreen: View {
             data = try await auth.api.sharedLogbook(slug: slug)
             state = .ready
         } catch let error as APIError where error.status == 404 {
-            state = .failed("There's no shared logbook at /share/\(slug) — the link may have been disabled.")
+            state = .failed(
+                "There's no shared logbook at /share/\(slug) — the link may have been disabled.",
+                retryable: false
+            )
         } catch let error as APIError {
             state = .failed(error.message)
         } catch {

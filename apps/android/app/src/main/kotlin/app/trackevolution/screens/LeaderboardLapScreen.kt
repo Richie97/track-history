@@ -87,7 +87,7 @@ fun LeaderboardLapScreen(
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
-    TELoadable(state = model.state, onRetry = model::load, onSubscribe = onSubscribe, modifier = modifier) {
+    TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val lap = model.lap ?: return@TELoadable
         val panel = model.panel
         LazyColumn(

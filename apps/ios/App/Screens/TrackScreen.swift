@@ -351,7 +351,7 @@ final class TrackModel {
             async let events = api.events(trackId: trackId)
             let loaded = try await (tracks: tracks, events: events)
             guard let found = loaded.tracks.first(where: { $0.id == trackId }) else {
-                state = .failed("That track isn't in your logbook any more.")
+                state = .failed("That track isn't in your logbook any more.", retryable: false)
                 return
             }
             track = found

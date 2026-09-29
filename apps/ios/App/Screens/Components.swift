@@ -9,15 +9,17 @@ import TrackEvolutionKit
 /// cases are handled once rather than reinvented per screen — and "failed"
 /// always carries the server's own message.
 ///
-/// `paywall` is the 402 (NS-32 rule 5): a Pro-gated *read* has to look like an
-/// offer, not like a server error, so it is its own case rather than a `failed`
-/// carrying "pro required" — the same reason `APIError.proRequired` is distinct
-/// from the rest.
+/// `retryable` is false when the answer is final — the thing is gone, or was
+/// never there — so the card doesn't offer a Try again that can only fail the
+/// same way.
+///
+/// There is no paywall case: a 402 locks a *section* in place (`ProUpsellCard`)
+/// rather than the whole screen, since NS-37 made every page's free half
+/// readable by every account.
 enum LoadState: Equatable {
     case loading
     case ready
-    case failed(String)
-    case paywall
+    case failed(String, retryable: Bool = true)
 }
 
 /// A page of cards on the app background.
@@ -127,31 +129,22 @@ struct TELoadable<Content: View>: View {
                 Color(.bgPage).ignoresSafeArea()
                 ProgressView()
             }
-        case .failed(let message):
+        case .failed(let message, let retryable):
             TEPage {
                 TECard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Couldn't load this")
+                        Text(retryable ? "Couldn't load this" : "Not found")
                             .teStyle(.h3)
                             .foregroundStyle(Color(.textStrong))
                         Text(message)
                             .teStyle(.sm)
                             .foregroundStyle(Color(.textMuted))
-                        Button("Try again") { Task { await retry() } }
-                            .buttonStyle(TEButtonStyle(kind: .quiet))
+                        if retryable {
+                            Button("Try again") { Task { await retry() } }
+                                .buttonStyle(TEButtonStyle(kind: .quiet))
+                        }
                     }
                 }
-            }
-        case .paywall:
-            TEPage {
-                ProUpsellCard(
-                    title: "Garage wear tracking is Pro",
-                    blurb: """
-                        Pads, tires, rotors and fluid, each with the hours it has actually done — \
-                        accrued from your own track days — and what's left of them before the next \
-                        event. Your cars themselves stay free.
-                        """
-                )
             }
         case .ready:
             content()

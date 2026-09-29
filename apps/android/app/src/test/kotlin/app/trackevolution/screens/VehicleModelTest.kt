@@ -184,8 +184,9 @@ class VehicleModelTest {
     @Test
     fun `a missing car says so rather than showing an empty page`() {
         // The free list decides whether there is a car at all (NS-37), not /garage.
+        // A final answer: retrying can only fail the same way, so none is offered.
         val model = loaded(api(vehicles = "[]"))
-        assertEquals(LoadState.Failed("That car isn't in your garage any more."), model.state)
+        assertEquals(LoadState.Failed("That car isn't in your garage any more.", retryable = false), model.state)
     }
 
     @Test

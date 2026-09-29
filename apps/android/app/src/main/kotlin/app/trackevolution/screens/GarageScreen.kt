@@ -38,6 +38,7 @@ import app.trackevolution.core.label
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.navigation.Route
 import app.trackevolution.ui.CARD_GRID_MINIMUM
+import app.trackevolution.ui.CATALOG_NO_MATCH_BY_NAME
 import app.trackevolution.ui.CatalogCarPicker
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
@@ -303,6 +304,7 @@ private fun AddCarForm(
                 picking = false
             },
             onDismiss = { picking = false },
+            noMatch = CATALOG_NO_MATCH_BY_NAME,
         )
     }
 
