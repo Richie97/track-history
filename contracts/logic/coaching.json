@@ -1,0 +1,550 @@
+{
+  "generatedFrom": [
+    "public/js/profile.js",
+    "public/js/coaching.js"
+  ],
+  "now": 1790683200000,
+  "groups": [
+    {
+      "title": "About you",
+      "fields": [
+        {
+          "key": "occupation",
+          "label": "Occupation",
+          "kind": "text",
+          "max": 200,
+          "placeholder": "Engineer, nurse, pilot…"
+        }
+      ]
+    },
+    {
+      "title": "Experience",
+      "fields": [
+        {
+          "key": "first_track_year",
+          "label": "First track day (year)",
+          "kind": "year",
+          "placeholder": "2019"
+        },
+        {
+          "key": "experience",
+          "label": "Other driving",
+          "kind": "long",
+          "max": 1000,
+          "placeholder": "Karting since 2012, autocross, sim racing…"
+        },
+        {
+          "key": "license",
+          "label": "Competition licence",
+          "kind": "text",
+          "max": 200,
+          "placeholder": "NASA HPDE4, SCCA novice…"
+        },
+        {
+          "key": "instruction",
+          "label": "Instruction so far",
+          "kind": "long",
+          "max": 1000,
+          "placeholder": "Two schools, signed off to solo in 2024…"
+        }
+      ]
+    },
+    {
+      "title": "Safety gear",
+      "fields": [
+        {
+          "key": "helmet",
+          "label": "Helmet",
+          "kind": "text",
+          "max": 200,
+          "placeholder": "Make and model"
+        },
+        {
+          "key": "helmet_rating",
+          "label": "Helmet rating",
+          "kind": "select",
+          "options": [
+            [
+              "SA2020",
+              "Snell SA2020"
+            ],
+            [
+              "SA2025",
+              "Snell SA2025"
+            ],
+            [
+              "SAH2020",
+              "Snell SAH2020"
+            ],
+            [
+              "FIA8859",
+              "FIA 8859"
+            ],
+            [
+              "M",
+              "Snell M (motorcycle)"
+            ],
+            [
+              "other",
+              "Other"
+            ]
+          ]
+        },
+        {
+          "key": "head_neck",
+          "label": "Head & neck restraint",
+          "kind": "select",
+          "options": [
+            [
+              "none",
+              "None"
+            ],
+            [
+              "hans",
+              "HANS"
+            ],
+            [
+              "hybrid",
+              "Hybrid-style"
+            ],
+            [
+              "other",
+              "Other"
+            ]
+          ]
+        },
+        {
+          "key": "suit",
+          "label": "Suit",
+          "kind": "text",
+          "max": 200,
+          "placeholder": "Single-layer SFI 3.2A/1…"
+        },
+        {
+          "key": "gloves",
+          "label": "Driving gloves",
+          "kind": "bool"
+        },
+        {
+          "key": "shoes",
+          "label": "Driving shoes",
+          "kind": "bool"
+        },
+        {
+          "key": "gear_notes",
+          "label": "Anything else about your gear",
+          "kind": "long",
+          "max": 1000,
+          "placeholder": "Wears glasses, arm restraints…"
+        }
+      ]
+    },
+    {
+      "title": "Coaching",
+      "fields": [
+        {
+          "key": "goals",
+          "label": "What I want to work on",
+          "kind": "long",
+          "max": 1000,
+          "placeholder": "Trail braking into T1, carrying speed through the esses…"
+        },
+        {
+          "key": "for_instructor",
+          "label": "Anything your instructor should know",
+          "kind": "long",
+          "max": 1000,
+          "placeholder": "An old injury, nerves in traffic, first time in this car…"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "profile": null,
+      "sections": []
+    },
+    {
+      "profile": {},
+      "sections": []
+    },
+    {
+      "profile": {
+        "occupation": "   ",
+        "goals": "Trail braking into T1"
+      },
+      "sections": [
+        {
+          "title": "Coaching",
+          "rows": [
+            {
+              "key": "goals",
+              "label": "What I want to work on",
+              "value": "Trail braking into T1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "profile": {
+        "helmet_rating": "SA2020",
+        "head_neck": "hans",
+        "gloves": false,
+        "shoes": true
+      },
+      "sections": [
+        {
+          "title": "Safety gear",
+          "rows": [
+            {
+              "key": "helmet_rating",
+              "label": "Helmet rating",
+              "value": "Snell SA2020"
+            },
+            {
+              "key": "head_neck",
+              "label": "Head & neck restraint",
+              "value": "HANS"
+            },
+            {
+              "key": "gloves",
+              "label": "Driving gloves",
+              "value": "No"
+            },
+            {
+              "key": "shoes",
+              "label": "Driving shoes",
+              "value": "Yes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "profile": {
+        "helmet_rating": "SA2010",
+        "first_track_year": 2019,
+        "experience": "Karting\nAutocross"
+      },
+      "sections": [
+        {
+          "title": "Experience",
+          "rows": [
+            {
+              "key": "first_track_year",
+              "label": "First track day (year)",
+              "value": "2019"
+            },
+            {
+              "key": "experience",
+              "label": "Other driving",
+              "value": "Karting\nAutocross"
+            }
+          ]
+        },
+        {
+          "title": "Safety gear",
+          "rows": [
+            {
+              "key": "helmet_rating",
+              "label": "Helmet rating",
+              "value": "SA2010"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "profile": {
+        "occupation": "Engineer",
+        "first_track_year": 2019,
+        "experience": "Autocross since 2015",
+        "license": "NASA HPDE4",
+        "instruction": "Two schools",
+        "helmet": "Bell GP3",
+        "helmet_rating": "FIA8859",
+        "head_neck": "hybrid",
+        "suit": "SFI 3.2A/5",
+        "gloves": true,
+        "shoes": true,
+        "gear_notes": "Glasses",
+        "goals": "Consistency",
+        "for_instructor": "Left wrist"
+      },
+      "sections": [
+        {
+          "title": "About you",
+          "rows": [
+            {
+              "key": "occupation",
+              "label": "Occupation",
+              "value": "Engineer"
+            }
+          ]
+        },
+        {
+          "title": "Experience",
+          "rows": [
+            {
+              "key": "first_track_year",
+              "label": "First track day (year)",
+              "value": "2019"
+            },
+            {
+              "key": "experience",
+              "label": "Other driving",
+              "value": "Autocross since 2015"
+            },
+            {
+              "key": "license",
+              "label": "Competition licence",
+              "value": "NASA HPDE4"
+            },
+            {
+              "key": "instruction",
+              "label": "Instruction so far",
+              "value": "Two schools"
+            }
+          ]
+        },
+        {
+          "title": "Safety gear",
+          "rows": [
+            {
+              "key": "helmet",
+              "label": "Helmet",
+              "value": "Bell GP3"
+            },
+            {
+              "key": "helmet_rating",
+              "label": "Helmet rating",
+              "value": "FIA 8859"
+            },
+            {
+              "key": "head_neck",
+              "label": "Head & neck restraint",
+              "value": "Hybrid-style"
+            },
+            {
+              "key": "suit",
+              "label": "Suit",
+              "value": "SFI 3.2A/5"
+            },
+            {
+              "key": "gloves",
+              "label": "Driving gloves",
+              "value": "Yes"
+            },
+            {
+              "key": "shoes",
+              "label": "Driving shoes",
+              "value": "Yes"
+            },
+            {
+              "key": "gear_notes",
+              "label": "Anything else about your gear",
+              "value": "Glasses"
+            }
+          ]
+        },
+        {
+          "title": "Coaching",
+          "rows": [
+            {
+              "key": "goals",
+              "label": "What I want to work on",
+              "value": "Consistency"
+            },
+            {
+              "key": "for_instructor",
+              "label": "Anything your instructor should know",
+              "value": "Left wrist"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bodies": [
+    {
+      "values": {},
+      "body": {
+        "occupation": null,
+        "first_track_year": null,
+        "experience": null,
+        "license": null,
+        "instruction": null,
+        "helmet": null,
+        "helmet_rating": null,
+        "head_neck": null,
+        "suit": null,
+        "gloves": null,
+        "shoes": null,
+        "gear_notes": null,
+        "goals": null,
+        "for_instructor": null
+      }
+    },
+    {
+      "values": {
+        "occupation": "  Pilot ",
+        "first_track_year": "2019",
+        "helmet_rating": "",
+        "gloves": "yes",
+        "shoes": "no",
+        "goals": ""
+      },
+      "body": {
+        "occupation": "Pilot",
+        "first_track_year": 2019,
+        "experience": null,
+        "license": null,
+        "instruction": null,
+        "helmet": null,
+        "helmet_rating": null,
+        "head_neck": null,
+        "suit": null,
+        "gloves": true,
+        "shoes": false,
+        "gear_notes": null,
+        "goals": null,
+        "for_instructor": null
+      }
+    },
+    {
+      "values": {
+        "first_track_year": " ",
+        "gloves": "",
+        "shoes": true,
+        "head_neck": "other"
+      },
+      "body": {
+        "occupation": null,
+        "first_track_year": null,
+        "experience": null,
+        "license": null,
+        "instruction": null,
+        "helmet": null,
+        "helmet_rating": null,
+        "head_neck": "other",
+        "suit": null,
+        "gloves": null,
+        "shoes": true,
+        "gear_notes": null,
+        "goals": null,
+        "for_instructor": null
+      }
+    }
+  ],
+  "studentLines": [
+    {
+      "student": {
+        "event_count": 0,
+        "last_event_date": null
+      },
+      "line": "No track days yet"
+    },
+    {
+      "student": {
+        "event_count": 1,
+        "last_event_date": "2026-04-10"
+      },
+      "line": "1 event · last out 2026-04-10"
+    },
+    {
+      "student": {
+        "event_count": 12,
+        "last_event_date": "2026-09-27"
+      },
+      "line": "12 events · last out 2026-09-27"
+    },
+    {
+      "student": {
+        "event_count": 3,
+        "last_event_date": null
+      },
+      "line": "3 events"
+    }
+  ],
+  "lastViewed": [
+    {
+      "last_viewed_at": null,
+      "text": "hasn't looked yet"
+    },
+    {
+      "last_viewed_at": 1790683205000,
+      "text": "viewed in the last hour"
+    },
+    {
+      "last_viewed_at": 1790679660000,
+      "text": "viewed in the last hour"
+    },
+    {
+      "last_viewed_at": 1790679600000,
+      "text": "viewed 1 hour ago"
+    },
+    {
+      "last_viewed_at": 1790597160000,
+      "text": "viewed 23 hours ago"
+    },
+    {
+      "last_viewed_at": 1790596800000,
+      "text": "viewed 1 day ago"
+    },
+    {
+      "last_viewed_at": 1789482240000,
+      "text": "viewed 13 days ago"
+    },
+    {
+      "last_viewed_at": 1789473600000,
+      "text": "viewed 2 weeks ago"
+    },
+    {
+      "last_viewed_at": 1785507840000,
+      "text": "viewed 8 weeks ago"
+    },
+    {
+      "last_viewed_at": 1785499200000,
+      "text": "not viewed for over two months"
+    }
+  ],
+  "inviteExpiry": [
+    {
+      "expires_at": 1791287999000,
+      "text": "expires in 7 days"
+    },
+    {
+      "expires_at": 1790812800000,
+      "text": "expires in 2 days"
+    },
+    {
+      "expires_at": 1790773200000,
+      "text": "expires in 1 day"
+    },
+    {
+      "expires_at": 1790769600000,
+      "text": "expires in 1 day"
+    },
+    {
+      "expires_at": 1790767800000,
+      "text": "expires in 23 hours"
+    },
+    {
+      "expires_at": 1790686800000,
+      "text": "expires in 1 hour"
+    },
+    {
+      "expires_at": 1790686740000,
+      "text": "expires within the hour"
+    },
+    {
+      "expires_at": 1790683200000,
+      "text": "expired"
+    },
+    {
+      "expires_at": 1790596800000,
+      "text": "expired"
+    }
+  ]
+}

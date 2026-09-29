@@ -235,6 +235,15 @@ export async function cachedKeys() {
   return backend.respKeys();
 }
 
+// Drop every cached response under a path prefix — a student's logbook under
+// /students/<id> once the coach has lost access to it (NS-38), so what a
+// revoked grant used to show doesn't go on answering from this device.
+export async function removeCachedPrefix(prefix) {
+  await ready();
+  const keys = await backend.respKeys();
+  await Promise.all(keys.filter((k) => k.startsWith(prefix)).map((k) => backend.respDel(k)));
+}
+
 // Cache read, with one derivation: a track-filtered events list can be
 // computed from the cached full list, so track pages work offline without
 // ever having been visited.

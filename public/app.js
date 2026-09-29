@@ -27,7 +27,7 @@ import { bindWrappedStory, wrappedStoryHtml } from "./js/wrapped-story.js";
 import { downloadBlob, posterBlob, posterFileName, sharePosterBlob } from "./js/wrapped-image.js";
 import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
 import { api as apiFetch, ApiError } from "./js/api.js";
-import { clearFailed, clearOffline, onSyncChange, pendingCount, resolveId, syncStatus } from "./js/offline.js";
+import { clearFailed, clearOffline, onSyncChange, pendingCount, removeCachedPrefix, resolveId, syncStatus } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { DEFAULT_CHECKLIST } from "./js/checklist.js";
@@ -46,6 +46,8 @@ import {
 } from "./js/garage.js";
 import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtDist, fmtSpeedKph, speedUnit, tempInputSpec, tempToDisplay, tempToStored, tempUnit, usUnits } from "./js/units.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
+import { PROFILE_GROUPS, profileBody, profileSections } from "./js/profile.js";
+import { inviteExpiryText, lastViewedText, studentLine } from "./js/coaching.js";
 import {
   canCompareEvents, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
@@ -56,8 +58,37 @@ const $app = document.getElementById("app");
 // Host shown in share URLs.
 const serverHost = () => location.host;
 
+// ---------- a coach reading a student's logbook (NS-38) ----------------------
+//
+// Under #/student/<id>/… the event, track and lap-compare pages render a
+// driver's logbook for their coach, read-only. `viewing` is that driver —
+// { id, name, picture, pro, profile }, from their /me/profile under the coach
+// mount — and null everywhere else; route() resets it on every navigation.
+// Three things follow from it, and the reused pages go through them rather
+// than knowing about coaching:
+//   - api() reads through /api/students/<id>, which the server answers as the
+//     student, GET only; a write is refused here before it is sent.
+//   - L() keeps a link inside the student's logbook.
+//   - ent() is the entitlement the channel panel opens by: the student's tier,
+//     not the coach's, because the student is the one who paid for it.
+let viewing = null;
+const readOnly = () => viewing != null;
+const L = (hash) => (viewing ? `#/student/${viewing.id}${hash.slice(1)}` : hash);
+const ent = () => (viewing ? { tier: viewing.pro ? "pro" : "free" } : state.entitlement);
+
+// What a coach is told where the student's channels stop at the free half —
+// in place of the paywall, which is the student's to answer, not theirs.
+const studentFreeNote = () =>
+  `${esc(viewing?.name || "This driver")} is on the free plan, so you see their lap times, racing lines and the ` +
+  "speed, throttle and brake traces. Steering, RPM, lateral G, sector splits, the friction circle and the rest " +
+  "of the analysis show here once they have Pro.";
+
 // API wrapper: a 401 anywhere means the session is gone — show the login view.
 async function api(path, opts) {
+  if (viewing) {
+    if ((opts?.method || "GET").toUpperCase() !== "GET") throw new Error("This logbook is read-only.");
+    path = `/students/${viewing.id}${path}`;
+  }
   try {
     return await apiFetch(path, opts);
   } catch (err) {
@@ -92,7 +123,7 @@ const fmtConditions = (e) =>
 // GET /api/me last said — read, never recomputed from the clock, so the cached
 // answer stands offline: a driver who was Pro at the last sync keeps their
 // analysis in a paddock with no signal.
-const pro = () => isPro(state.entitlement);
+const pro = () => isPro(ent());
 
 const PRO_PRICE = "$1.99/month or $19.99/year";
 
@@ -584,6 +615,7 @@ function renderLogin() {
         <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Track Evolution</h1>
         <p>Lap times, sessions and notes — per track, over time.</p>
+        ${pendingInvite() ? `<p class="hint">Sign in — or create a free account — to accept the coaching invite you were sent.</p>` : ""}
         <div class="login-buttons">
           <a class="btn primary" href="/auth/login">Sign in with Google</a>
         </div>
@@ -619,7 +651,7 @@ function renderUnreachable(err) {
 function navSection() {
   const first = (location.hash || "#/").slice(2).split(/[/?]/)[0];
   if (first === "garage" || first === "vehicle") return "garage";
-  if (first === "settings") return null;
+  if (["settings", "coaching", "profile", "coach", "student"].includes(first)) return null;
   return "events";
 }
 
@@ -688,6 +720,7 @@ function shell(content) {
               ${themeToggleHtml()}
             </div>
             <div class="menu-sep"></div>
+            <a class="menu-item" href="#/coaching">Coaching</a>
             <a class="menu-item" href="#/settings">Settings</a>
             <button class="menu-item" id="logout">Sign out</button>
           </div>
@@ -696,6 +729,14 @@ function shell(content) {
     </header>
     <div class="shell">
       <div id="sync-banner" class="sync-banner" hidden></div>
+      ${
+        viewing
+          ? `<div class="student-banner" role="note">
+              <span>You're viewing <a href="${L("#/")}"><strong>${esc(viewing.name || "a driver")}</strong>'s logbook</a> · read-only</span>
+              <a href="#/coaching">All students</a>
+            </div>`
+          : ""
+      }
       <div id="view">${content}</div>
       ${footerHtml()}
     </div>`;
@@ -997,7 +1038,7 @@ async function viewTrack(trackId, params) {
     y: e.best_ms,
     xlabel: fmtDate(e.start_date),
     tip: `${fmtDate(e.start_date)}${e.club ? " · " + e.club : ""}${fmtConditions(e) ? " · " + fmtConditions(e) : ""}`,
-    href: `#/event/${e.id}`,
+    href: L(`#/event/${e.id}`),
   }));
   // Conditions band (#191): a wash behind the line, one cell per event,
   // deepening with the air temperature — so a run of slower times in August
@@ -1016,16 +1057,18 @@ async function viewTrack(trackId, params) {
   // dry-only filter or no filter — a rain weekend still cost the entry fee.
   // Upcoming events aren't spent yet, on the same rule as the totals.
   // A roll-up across events, so Pro (NS-37); each event's own total stays free.
-  const spend = canViewSpend(state.entitlement) ? spendSummary(allEvents.filter((e) => !isUpcoming(e))) : null;
+  const spend = canViewSpend(ent()) ? spendSummary(allEvents.filter((e) => !isUpcoming(e))) : null;
   const spentText = spend
     ? ` · ${fmtSpend(spend.total_cents)} spent${
         spend.costed_events < spend.events ? ` (${spend.costed_events} of ${spend.events} events costed)` : ""
       }`
     : "";
 
+  // A coach's view has no notes column: notes aren't shared (NS-38).
+  const ro = readOnly();
   const rows = events
     .map(
-      (e) => `<tr class="rowlink" data-href="#/event/${e.id}">
+      (e) => `<tr class="rowlink" data-href="${L(`#/event/${e.id}`)}">
         <td class="date">${fmtDate(e.start_date)}</td>
         <td>${e.days}</td>
         <td>${esc(e.club ?? "")}</td>
@@ -1033,7 +1076,7 @@ async function viewTrack(trackId, params) {
         <td>${fmtConditions(e)}</td>
         <td class="num">${fmtMs(e.best_ms)}</td>
         <td class="num">${fmtConsistency(e.consistency)}</td>
-        <td>${esc(e.notes ?? "")}</td>
+        ${ro ? "" : `<td>${esc(e.notes ?? "")}</td>`}
       </tr>`
     )
     .join("");
@@ -1053,7 +1096,11 @@ async function viewTrack(trackId, params) {
     ? `<label class="dry-toggle"><input type="checkbox" id="dry-only" ${dryOnly ? "checked" : ""}> Dry only</label>`
     : "";
 
-  const goalControl = `<div class="goal-control">
+  const goalControl = ro
+    ? goal != null
+      ? `<div class="goal-control"><span class="goal-label">Goal lap ${esc(fmtMs(goal))}</span>${goalStatus}</div>`
+      : ""
+    : `<div class="goal-control">
     <span class="goal-label">Goal lap</span>
     <input id="goal-input" type="text" placeholder="e.g. 1:59.0" value="${goal != null ? esc(fmtMs(goal)) : ""}">
     <button class="btn small" id="goal-save">Save</button>
@@ -1067,8 +1114,8 @@ async function viewTrack(trackId, params) {
   // lap has channel data). Selection lives on the compare screens themselves.
   const comparable = allEvents.filter((e) => e.lap_count > 0);
   const compareBtns = [
-    comparable.length >= 2 ? `<a class="btn small" href="#/track/${trackId}/compare">Compare two events</a>` : "",
-    comparable.length >= 1 ? `<a class="btn small" href="#/track/${trackId}/lap-compare">Compare two laps</a>` : "",
+    comparable.length >= 2 ? `<a class="btn small" href="${L(`#/track/${trackId}/compare`)}">Compare two events</a>` : "",
+    comparable.length >= 1 ? `<a class="btn small" href="${L(`#/track/${trackId}/lap-compare`)}">Compare two laps</a>` : "",
   ].join("");
   const compareControl = compareBtns.trim()
     ? `<div class="btn-row" style="margin-top:10px">${compareBtns}</div>`
@@ -1088,7 +1135,10 @@ async function viewTrack(trackId, params) {
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}${spentText}</p>
     ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
-    <div class="btn-row">
+    ${
+      ro
+        ? ""
+        : `<div class="btn-row">
       <a class="btn primary" href="#/new?track=${encodeURIComponent(track.name)}">+ Add event at ${esc(track.name)}</a>
       ${leaderboardBtn}
       ${shareBtn}
@@ -1103,12 +1153,15 @@ async function viewTrack(trackId, params) {
         <button class="btn small primary" id="track-save">Save</button>
         <span id="track-notes-msg" class="goal-msg"></span>
       </div>
-    </div>
+    </div>`
+    }
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Notes</th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th>${ro ? "" : "<th>Notes</th>"}</tr></thead>
     <tbody>${rows}</tbody></table></div>
     ${
-      canUseSetups(state.entitlement)
+      ro
+        ? ""
+        : canUseSetups(state.entitlement)
         ? setupHistoryHtml(trackSetups, garagePartsById(garage))
         : proPanelHtml(
             "Setup vs. lap times",
@@ -1122,8 +1175,13 @@ async function viewTrack(trackId, params) {
   const dryBox = view.querySelector("#dry-only");
   if (dryBox)
     dryBox.onchange = () => {
-      location.hash = dryBox.checked ? `#/track/${trackId}?dry=1` : `#/track/${trackId}`;
+      location.hash = L(dryBox.checked ? `#/track/${trackId}?dry=1` : `#/track/${trackId}`);
     };
+
+  if (ro) {
+    wireRowLinks(view);
+    return;
+  }
 
   const goalInput = view.querySelector("#goal-input");
   const goalMsg = view.querySelector("#goal-msg");
@@ -1180,16 +1238,16 @@ async function viewTrack(trackId, params) {
 // that explains itself, not on "not found".
 function viewProGate(trackId, heading, what) {
   shell(`
-    <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← Back to track</a></p>
+    <p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← Back to track</a></p>
     <h1>${esc(heading)}</h1>
-    ${proPanelHtml(heading, what, { underHeading: true })}
+    ${readOnly() ? `<div class="panel"><p class="hint" style="margin:0">${studentFreeNote()}</p></div>` : proPanelHtml(heading, what, { underHeading: true })}
   `);
 }
 
 // --- lap overlay: two events at one track, lap-by-lap ---
 
 async function viewCompare(trackId, params) {
-  if (!canCompareEvents(state.entitlement)) return viewProGate(trackId, "Lap overlay",
+  if (!canCompareEvents(ent())) return viewProGate(trackId, "Lap overlay",
     "Put two track days at the same circuit on one chart, lap by lap, and see where the " +
       "second one actually gained.");
   const allEvents = await api(`/events?track_id=${trackId}`);
@@ -1197,7 +1255,7 @@ async function viewCompare(trackId, params) {
   const comparable = allEvents.filter((e) => e.lap_count > 0);
   if (comparable.length < 2) {
     shell(`
-      <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← Back to track</a></p>
+      <p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← Back to track</a></p>
       <h1>Lap overlay</h1>
       <div class="empty">Comparing needs two events with recorded laps at this track.</div>
     `);
@@ -1235,7 +1293,7 @@ async function viewCompare(trackId, params) {
       .join("");
 
   const view = shell(`
-    <p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(ea.track_name)}</a></p>
+    <p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← ${esc(ea.track_name)}</a></p>
     <h1>Lap overlay</h1>
     <p class="sub">
       <span class="swatch" style="background:var(--chart-line)"></span> <select id="cmp-a">${pickerOpts(idA)}</select>
@@ -1252,14 +1310,14 @@ async function viewCompare(trackId, params) {
       ${statRow("Consistency", fmtConsistency, (s) => s.e.consistency, ppDelta)}
     </tbody></table></div>
     <div class="btn-row" style="margin-top:10px">
-      <a class="btn small" href="#/track/${trackId}/lap-compare">Compare two laps' telemetry</a>
+      <a class="btn small" href="${L(`#/track/${trackId}/lap-compare`)}">Compare two laps' telemetry</a>
     </div>
   `);
   if (chart.svg) chart.bind(view.querySelector("#chart"));
 
   const [selA, selB] = [view.querySelector("#cmp-a"), view.querySelector("#cmp-b")];
   const go = () => {
-    location.hash = `#/track/${trackId}/compare?a=${selA.value}&b=${selB.value}`;
+    location.hash = L(`#/track/${trackId}/compare?a=${selA.value}&b=${selB.value}`);
   };
   // Picking the same event on both sides swaps instead of comparing it to itself.
   selA.onchange = () => {
@@ -1329,7 +1387,7 @@ function bindPairTooltip(container, aligned, { sideColors, sideLabels, delta = n
 }
 
 async function viewLapCompare(trackId, params) {
-  if (!canViewChannels(state.entitlement)) return viewProGate(trackId, "Compare two laps",
+  if (!canViewChannels(ent())) return viewProGate(trackId, "Compare two laps",
     "Any two laps at this track, head to head: the time delta as it builds through the lap, " +
       "speed, throttle, brake and steering side by side, and sector splits.");
   const allEvents = await api(`/events?track_id=${trackId}`);
@@ -1339,7 +1397,7 @@ async function viewLapCompare(trackId, params) {
     allEvents.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`))
   );
   const rows = comparableLaps(details);
-  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="#/track/${trackId}">← ${esc(details[0]?.track_name ?? "Back to track")}</a></p>`;
+  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← ${esc(details[0]?.track_name ?? "Back to track")}</a></p>`;
   if (rows.length < 2) {
     shell(`${backHtml}
       <h1>Compare two laps</h1>
@@ -1447,7 +1505,7 @@ async function viewLapCompare(trackId, params) {
 
   const [selA, selB] = [view.querySelector("#lap-a"), view.querySelector("#lap-b")];
   const go = () => {
-    location.hash = `#/track/${trackId}/lap-compare?a=${encodeURIComponent(selA.value)}&b=${encodeURIComponent(selB.value)}`;
+    location.hash = L(`#/track/${trackId}/lap-compare?a=${encodeURIComponent(selA.value)}&b=${encodeURIComponent(selB.value)}`);
   };
   // Picking the same lap on both sides swaps instead of comparing it to itself.
   selA.onchange = () => {
@@ -1753,11 +1811,16 @@ async function viewEvent(eventId) {
     api("/garage").catch(() => []),
   ]);
   const track = tracks.find((t) => t.id === e.track_id);
+  // Read-only is a coach reading a student's event (NS-38): no writes, no
+  // setup notebook or checklist (neither is shared), and no personal-best
+  // celebration, which is the driver's moment and would also cross the two
+  // logbooks' best-lap watches.
+  const ro = readOnly();
   const pb =
-    pbWatch && track && pbWatch.trackId === track.id
+    !ro && pbWatch && track && pbWatch.trackId === track.id
       ? detectPB(pbWatch.best, track?.best_ms, track?.goal_ms)
       : null;
-  if (track) pbWatch = { trackId: track.id, best: track.best_ms };
+  if (track && !ro) pbWatch = { trackId: track.id, best: track.best_ms };
 
   const sessionsHtml = e.sessions
     .map((s) => {
@@ -1815,15 +1878,19 @@ async function viewEvent(eventId) {
           <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "no laps"}</span>
           ${conditionsChipHtml(s, usUnits())}
           <span class="grow"></span>
-          <button class="btn small danger" data-del-session="${s.id}">Delete</button>
+          ${ro ? "" : `<button class="btn small danger" data-del-session="${s.id}">Delete</button>`}
         </div>
         ${stats.length ? `<div class="s-stats">${stats.join(" · ")}</div>` : ""}
         ${s.notes ? `<div class="notes-block">${esc(s.notes)}</div>` : ""}
         ${lapsHtml}
-        <div class="btn-row" style="margin-top:16px">
+        ${
+          ro
+            ? ""
+            : `<div class="btn-row" style="margin-top:16px">
           <input class="add-laps-input" data-add-laps-input="${s.id}" placeholder="Add laps: 2:01.24, 2:03.1 …">
           <button class="btn small" data-add-laps="${s.id}">Add</button>
-        </div>
+        </div>`
+        }
       </div>`;
     })
     .join("");
@@ -1902,7 +1969,7 @@ async function viewEvent(eventId) {
     </div>`;
   };
   const sheetCount = e.setups?.length ?? 0;
-  const setupsAllowed = canUseSetups(state.entitlement);
+  const setupsAllowed = !ro && canUseSetups(state.entitlement);
   const setupNotebookHtml = `
     <details class="setup-notebook" id="setup-notebook"${setupNotebookOpen.has(e.id) ? " open" : ""}>
       <summary>
@@ -1937,7 +2004,7 @@ async function viewEvent(eventId) {
 
   const upcoming = isUpcoming(e);
   const checklist = e.checklist;
-  const showChecklist = upcoming || checklist != null;
+  const showChecklist = !ro && (upcoming || checklist != null);
   const checklistHtml = !showChecklist
     ? ""
     : `<h2>Prep checklist</h2>
@@ -1973,7 +2040,7 @@ async function viewEvent(eventId) {
 
   const carHtml = e.car
     ? e.vehicle_id
-      ? `<a href="#/vehicle/${e.vehicle_id}">${esc(e.car)}</a>`
+      ? `<a href="${L(`#/vehicle/${e.vehicle_id}`)}">${esc(e.car)}</a>`
       : esc(e.car)
     : "";
   const view = shell(`
@@ -1982,7 +2049,7 @@ async function viewEvent(eventId) {
       .filter(Boolean)
       .join(" · ")}</p>
     ${pbBanner}
-    ${upcoming ? `<div class="panel countdown-banner"><strong>${fmtCountdown(e.start_date)}</strong> — log sessions here once you're back from the track.</div>` : ""}
+    ${upcoming ? `<div class="panel countdown-banner"><strong>${fmtCountdown(e.start_date)}</strong> — ${ro ? "sessions show up here once they're logged." : "log sessions here once you're back from the track."}</div>` : ""}
     <div class="tiles">
       <div class="tile"><div class="label">Best time</div><div class="value">${fmtMs(e.best_ms)}</div></div>
       <div class="tile"><div class="label">Days</div><div class="value">${e.days}</div></div>
@@ -1992,16 +2059,20 @@ async function viewEvent(eventId) {
     </div>
     ${costBreakdownHtml(e)}
     ${e.notes ? `<div class="panel notes-block">${esc(e.notes)}</div>` : ""}
-    <div class="btn-row">
+    ${
+      ro
+        ? ""
+        : `<div class="btn-row">
       <a class="btn" href="#/event/${e.id}/edit">Edit event</a>
       <button class="btn danger" id="del-event">Delete event</button>
     </div>
-    ${setupNotebookHtml}
+    ${setupNotebookHtml}`
+    }
     ${checklistHtml}
     ${traceHtml}
     <h2>Sessions</h2>
     ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
-    <h2>Add a session</h2>
+    ${ro ? "" : `<h2>Add a session</h2>
     <div class="hint" style="margin:-4px 0 10px">Pull the laps out of a video or logger file, or type them in by hand.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,.mp4,.vbo,.csv" multiple hidden>
@@ -2031,7 +2102,7 @@ async function viewEvent(eventId) {
       </div>
       <div class="field"><label>Session notes</label><input name="notes" placeholder="Traffic, tire pressures, line changes…"></div>
       <button class="btn primary">Add session</button>
-    </form>
+    </form>`}
   `);
 
   const trackMap = traceSession
@@ -2047,11 +2118,13 @@ async function viewEvent(eventId) {
     confettiBurst(r.left + r.width / 2, r.top + 40);
   }
 
-  view.querySelector("#del-event").onclick = async () => {
-    if (!confirm("Delete this event and all its sessions/laps?")) return;
-    await api(`/events/${e.id}`, { method: "DELETE" });
-    location.hash = "#/";
-  };
+  const delEvent = view.querySelector("#del-event");
+  if (delEvent)
+    delEvent.onclick = async () => {
+      if (!confirm("Delete this event and all its sessions/laps?")) return;
+      await api(`/events/${e.id}`, { method: "DELETE" });
+      location.hash = "#/";
+    };
 
   if (showChecklist) {
     const items = checklist ?? [];
@@ -2085,7 +2158,7 @@ async function viewEvent(eventId) {
       useDefault.onclick = () => saveChecklist(checklistTemplate().map((text) => ({ text, done: false })));
   }
   const notebook = view.querySelector("#setup-notebook");
-  notebook.addEventListener("toggle", () => {
+  notebook?.addEventListener("toggle", () => {
     if (notebook.open) setupNotebookOpen.add(e.id);
     else setupNotebookOpen.delete(e.id);
   });
@@ -2141,7 +2214,8 @@ async function viewEvent(eventId) {
     };
   });
 
-  view.querySelector("#add-session").onsubmit = async (evt) => {
+  const addSession = view.querySelector("#add-session");
+  if (addSession) addSession.onsubmit = async (evt) => {
     evt.preventDefault();
     const f = evt.target;
     const laps = parseLapList(f.laps.value);
@@ -2211,9 +2285,10 @@ async function viewEvent(eventId) {
       memory: channelPanelMemory.get(s.id),
       // A free account's channels arrive as speed, throttle and brake only
       // (#264); the panel skips the delta chart and the extras above, and
-      // says what the rest of the file would show.
+      // says what the rest of the file would show — to a coach, in words
+      // about the student's plan rather than an offer to subscribe.
       pro: pro(),
-      lockedHtml: pro() ? "" : proNoteHtml(PRO_CHANNELS_NOTE),
+      lockedHtml: pro() ? "" : ro ? `<p class="hint">${studentFreeNote()}</p>` : proNoteHtml(PRO_CHANNELS_NOTE),
     });
     // The loop's actions, delegated from the panel container because the
     // Car tab re-renders with every chip toggle. Saves go through route() —
@@ -2309,7 +2384,7 @@ async function viewEvent(eventId) {
     };
   });
 
-  bindTelemetryImport(view, e, route);
+  if (!ro) bindTelemetryImport(view, e, route);
 }
 
 // --- event form (new / edit) ---
@@ -2748,6 +2823,11 @@ async function viewSettings() {
     <div class="panel">
       <div class="hint" style="margin:0 0 10px">Your cars live in the Garage now — add one there, set the default for new events, and open it to see what it has done.</div>
       <a class="btn small" href="#/garage">Open the Garage →</a>
+    </div>
+    <h2>Coaching</h2>
+    <div class="panel">
+      <div class="hint" style="margin:0 0 10px">Share your logbook read-only with an instructor or coach, fill in the driver profile they see, and open the logbooks of drivers you coach.</div>
+      <a class="btn small" href="#/coaching">Open Coaching →</a>
     </div>
     <h2>Prep checklist</h2>
     <div class="hint" style="margin:0 0 4px">The list an upcoming event starts from. Edit it here and every checklist you start from now on uses your version — checklists already on an event keep whatever is on them.</div>
@@ -4046,6 +4126,508 @@ function wireWrappedPoster(root, data, { share, publicUrl }) {
   });
 }
 
+// ---------- share with a coach (NS-38) ----------------------------------------
+//
+// #/coaching is both halves of a grant: the students whose logbooks this
+// account can read, and — for a Pro driver — the invite links and coaches
+// reading theirs, with the driver profile they see. #/profile is the profile
+// form, #/coach the page an invite link lands on, and #/student/<id>/… the
+// student's logbook, read-only (see `viewing` at the top of this file).
+
+const dateOfMs = (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10));
+
+// What a coach reads, as the Coaching page promises it before an invite is
+// made — keep it in step with COACH_ROUTES in src/lib/coaching.ts.
+const COACH_SHARES =
+  "your events, sessions and laps with the full channel panel (as far as your plan includes it), your " +
+  "racing lines, the conditions, your cars and their modifications, and your driver profile. Never your " +
+  "notes, prep checklists, costs, setup sheets, parts or email — and they can't change anything.";
+
+// The driver profile as a card of labelled lines; empty when nothing is filled in.
+function profileCardHtml(profile, { empty = "" } = {}) {
+  const sections = profileSections(profile);
+  if (!sections.length) return empty;
+  return `<div class="panel profile-card">${sections
+    .map(
+      (g) => `<div class="profile-group">
+        <h3>${esc(g.title)}</h3>
+        <dl>${g.rows.map((r) => `<dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd>`).join("")}</dl>
+      </div>`
+    )
+    .join("")}</div>`;
+}
+
+// A coach who has lost access — revoked, or left — shouldn't go on reading the
+// student's logbook out of this device's caches: the offline layer's and the
+// service worker's both answer when the network doesn't.
+async function forgetStudent(studentId) {
+  const prefix = `/students/${studentId}/`;
+  await removeCachedPrefix(prefix).catch(() => {});
+  if (!("caches" in window)) return;
+  try {
+    for (const name of (await caches.keys()).filter((k) => k.startsWith("th-data"))) {
+      const cache = await caches.open(name);
+      for (const req of await cache.keys()) {
+        if (new URL(req.url).pathname.startsWith(`/api${prefix}`)) await cache.delete(req);
+      }
+    }
+  } catch {
+    // Cache Storage unavailable (private mode) — nothing was cached there.
+  }
+}
+
+async function viewCoaching() {
+  const [coaching, me] = await Promise.all([api("/coaching"), api("/me/profile")]);
+  const now = Date.now();
+  const canInvite = isPro(state.entitlement);
+
+  const studentsHtml = coaching.students.length
+    ? `<h2>Your students</h2>
+      <div class="panel" id="students-panel">${coaching.students
+        .map(
+          (st) => `<div class="check-item">
+            <span><a href="#/student/${st.id}">${esc(st.name || "A driver")}</a>
+              <span class="hint-inline">${esc(studentLine(st, fmtDate))}</span></span>
+            <button type="button" class="btn small" data-leave-student="${st.id}" data-name="${esc(st.name || "this driver")}">Stop coaching</button>
+          </div>`
+        )
+        .join("")}</div>`
+    : "";
+
+  const coachesHtml = coaching.coaches.length
+    ? coaching.coaches
+        .map(
+          (c) => `<div class="check-item">
+            <span>${esc(c.name || "A coach")} <span class="hint-inline">since ${dateOfMs(c.since)} · ${esc(lastViewedText(c.last_viewed_at, now))}</span></span>
+            <button type="button" class="btn small danger" data-revoke-coach="${c.id}" data-name="${esc(c.name || "this coach")}">Remove</button>
+          </div>`
+        )
+        .join("")
+    : `<div class="hint" style="margin:0">Nobody can see your logbook yet.</div>`;
+
+  const invitesHtml = coaching.invites
+    .map(
+      (i) => `<div class="check-item">
+        <span>Unused invite link <span class="hint-inline">${esc(inviteExpiryText(i.expires_at, now))}</span></span>
+        <button type="button" class="btn small" data-withdraw-invite="${i.id}">Withdraw</button>
+      </div>`
+    )
+    .join("");
+
+  const view = shell(`
+    <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
+    <h1>Coaching</h1>
+    ${studentsHtml}
+    <h2>Share your logbook with a coach</h2>
+    <div class="hint" style="margin:0 0 4px">Give an instructor or coach read-only access to your whole logbook. They see ${esc(COACH_SHARES)}</div>
+    ${
+      canInvite
+        ? `<div class="panel">
+            <div class="btn-row">
+              <button class="btn small primary" id="invite-create">Create an invite link</button>
+            </div>
+            <div id="invite-out"></div>
+            ${invitesHtml ? `<div style="margin-top:12px">${invitesHtml}</div>` : ""}
+          </div>`
+        : proPanelHtml(
+            "Share with a coach",
+            "Send an instructor or coach a link that gives them read-only access to your logbook — every " +
+              "session, the channel graphs and your racing lines — so they can prepare before the next track day."
+          )
+    }
+    <h3 style="margin:18px 0 6px">Coaches who can see your logbook</h3>
+    <div class="panel" id="coaches-panel">${coachesHtml}</div>
+    <h2>Driver profile</h2>
+    <div class="hint" style="margin:0 0 4px">What your coaches see about you — your experience, your gear and what you want to work on. Only you and the coaches you've invited can see it.</div>
+    ${profileCardHtml(me.profile, { empty: `<div class="panel"><div class="hint" style="margin:0">Not filled in yet.</div></div>` })}
+    <div class="btn-row"><a class="btn small" href="#/profile">${me.profile ? "Edit profile" : "Fill in your profile"}</a></div>
+    <div id="coaching-error"></div>
+  `);
+
+  const showError = (err) => {
+    view.querySelector("#coaching-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+  };
+
+  // The link exists only in this response — the server keeps its hash — so it
+  // is shown here once, with the two ways to send it.
+  const create = view.querySelector("#invite-create");
+  if (create)
+    create.onclick = async () => {
+      create.disabled = true;
+      try {
+        const inv = await api("/coaching/invites", { method: "POST" });
+        const out = view.querySelector("#invite-out");
+        out.innerHTML = `<div class="invite-link">
+            <input id="invite-url" readonly value="${esc(inv.url)}" aria-label="Invite link">
+            <button class="btn small" id="invite-copy">Copy</button>
+            ${navigator.share ? `<button class="btn small" id="invite-share">Share…</button>` : ""}
+          </div>
+          <div class="hint" style="margin:6px 0 0">Send this to your coach. It works once, ${esc(inviteExpiryText(inv.expires_at, Date.now()))}, and can't be shown again — make a new one if it gets lost.</div>
+          <div id="invite-msg" class="hint"></div>`;
+        const url = inv.url;
+        out.querySelector("#invite-url").onfocus = (evt) => evt.target.select();
+        out.querySelector("#invite-copy").onclick = async () => {
+          await navigator.clipboard.writeText(url);
+          out.querySelector("#invite-msg").textContent = "Link copied.";
+        };
+        const shareBtn = out.querySelector("#invite-share");
+        if (shareBtn)
+          shareBtn.onclick = () =>
+            navigator.share({ title: "Track Evolution", text: "Here's read-only access to my Track Evolution logbook", url }).catch(() => {});
+      } catch (err) {
+        create.disabled = false;
+        showError(err);
+      }
+    };
+
+  view.querySelectorAll("[data-withdraw-invite]").forEach((btn) => {
+    btn.onclick = async () => {
+      try {
+        await api(`/coaching/invites/${btn.dataset.withdrawInvite}`, { method: "DELETE" });
+        route();
+      } catch (err) {
+        showError(err);
+      }
+    };
+  });
+  view.querySelectorAll("[data-revoke-coach]").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm(`Stop sharing your logbook with ${btn.dataset.name}? They lose access straight away.`)) return;
+      try {
+        await api(`/coaching/coaches/${btn.dataset.revokeCoach}`, { method: "DELETE" });
+        route();
+      } catch (err) {
+        showError(err);
+      }
+    };
+  });
+  view.querySelectorAll("[data-leave-student]").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm(`Stop coaching ${btn.dataset.name}? You'll need a new invite to see their logbook again.`)) return;
+      try {
+        await api(`/coaching/students/${btn.dataset.leaveStudent}`, { method: "DELETE" });
+        await forgetStudent(btn.dataset.leaveStudent);
+        route();
+      } catch (err) {
+        showError(err);
+      }
+    };
+  });
+}
+
+// The profile form. Every field is optional, and the server validates; a
+// select stands in for each yes/no, because an unticked box would answer a
+// question the driver never did.
+async function viewProfile() {
+  const me = await api("/me/profile");
+  const p = me.profile ?? {};
+  const year = new Date().getFullYear();
+  const fieldHtml = (f) => {
+    const id = `pf-${f.key}`;
+    const v = p[f.key];
+    switch (f.kind) {
+      case "long":
+        return `<div class="field"><label for="${id}">${esc(f.label)}</label>
+          <textarea id="${id}" name="${f.key}" rows="3" maxlength="${f.max}" placeholder="${esc(f.placeholder ?? "")}">${esc(v ?? "")}</textarea></div>`;
+      case "year":
+        return `<div class="field"><label for="${id}">${esc(f.label)}</label>
+          <input id="${id}" name="${f.key}" type="number" min="1900" max="${year}" step="1" value="${v ?? ""}" placeholder="${esc(f.placeholder ?? "")}"></div>`;
+      case "select":
+        return `<div class="field"><label for="${id}">${esc(f.label)}</label>
+          <select id="${id}" name="${f.key}"><option value="">—</option>${f.options
+            .map(([val, label]) => `<option value="${val}"${v === val ? " selected" : ""}>${esc(label)}</option>`)
+            .join("")}</select></div>`;
+      case "bool":
+        return `<div class="field"><label for="${id}">${esc(f.label)}</label>
+          <select id="${id}" name="${f.key}">
+            <option value=""${v == null ? " selected" : ""}>—</option>
+            <option value="yes"${v === true ? " selected" : ""}>Yes</option>
+            <option value="no"${v === false ? " selected" : ""}>No</option>
+          </select></div>`;
+      default:
+        return `<div class="field"><label for="${id}">${esc(f.label)}</label>
+          <input id="${id}" name="${f.key}" maxlength="${f.max}" value="${esc(v ?? "")}" placeholder="${esc(f.placeholder ?? "")}"></div>`;
+    }
+  };
+  const view = shell(`
+    <p style="margin:22px 0 0"><a class="backlink" href="#/coaching">← Coaching</a></p>
+    <h1>Driver profile</h1>
+    <p class="sub">What the coaches you've invited see about you. Only you and them — it's never on your share page or the leaderboards. There's no birth date or emergency contact here on purpose: tell your instructor those at the track.</p>
+    <form class="panel" id="profile-form">
+      ${PROFILE_GROUPS.map(
+        (g) => `<h3>${esc(g.title)}</h3>
+          <div class="form-grid">${g.fields.filter((f) => f.kind !== "long").map(fieldHtml).join("")}</div>
+          ${g.fields.filter((f) => f.kind === "long").map(fieldHtml).join("")}`
+      ).join("")}
+      <div id="profile-msg"></div>
+      <div class="btn-row">
+        <button class="btn primary">Save profile</button>
+        ${me.profile ? `<button type="button" class="btn small danger" id="profile-clear">Clear profile</button>` : ""}
+      </div>
+    </form>
+  `);
+  const form = view.querySelector("#profile-form");
+  const msg = view.querySelector("#profile-msg");
+  const save = async (profile) => {
+    try {
+      await api("/me/profile", { method: "PUT", body: { profile } });
+      location.hash = "#/coaching";
+    } catch (err) {
+      msg.innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+    }
+  };
+  form.onsubmit = (evt) => {
+    evt.preventDefault();
+    const values = Object.fromEntries(new FormData(form).entries());
+    save(profileBody(values));
+  };
+  const clear = view.querySelector("#profile-clear");
+  if (clear)
+    clear.onclick = () => {
+      if (confirm("Clear your whole driver profile?")) save(null);
+    };
+}
+
+// --- accepting an invite ---
+
+// An invite link is /coach/<token>. The token is moved into sessionStorage and
+// out of the address bar the moment the page loads (see the bottom of this
+// file) — it outlives a sign-in round trip that way, and never lands in
+// history, a bookmark or a referrer.
+const COACH_INVITE_KEY = "te.coachInvite";
+const pendingInvite = () => {
+  try {
+    return sessionStorage.getItem(COACH_INVITE_KEY);
+  } catch {
+    return null;
+  }
+};
+const clearPendingInvite = () => {
+  try {
+    sessionStorage.removeItem(COACH_INVITE_KEY);
+  } catch {
+    // Storage unavailable — nothing was kept.
+  }
+};
+
+async function viewAcceptInvite() {
+  const token = pendingInvite();
+  if (!token) {
+    shell(`<h1>Coaching invite</h1>
+      <div class="empty">There's no invite to accept here. Invite links look like ${esc(serverHost())}/coach/…
+        <br><a href="#/coaching">Go to Coaching</a></div>`);
+    return;
+  }
+  // Read past the offline cache on purpose: the preview's path carries the
+  // token, and a stale answer about a single-use link would be wrong anyway.
+  const res = await fetch(`/api/coaching/invites/${encodeURIComponent(token)}`);
+  if (res.status === 401) return renderLogin();
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    clearPendingInvite();
+    shell(`<h1>Coaching invite</h1><div class="panel"><p>${esc(body.error || "This invite link doesn't work any more.")}</p>
+      <a class="btn small" href="#/">Back to your logbook</a></div>`);
+    return;
+  }
+  const name = body.student.name || "A driver";
+  if (body.own || body.already_coach) {
+    clearPendingInvite();
+    shell(`<h1>Coaching invite</h1><div class="panel">${
+      body.own
+        ? `<p>This is your own invite link. Send it to your coach — whoever opens it gets read-only access to your logbook.</p>
+           <a class="btn small" href="#/coaching">Back to Coaching</a>`
+        : `<p>You already coach ${esc(name)}.</p><a class="btn small primary" href="#/student/${body.student.id}">Open ${esc(name)}'s logbook</a>`
+    }</div>`);
+    return;
+  }
+  const view = shell(`
+    <h1>Coaching invite</h1>
+    <div class="panel">
+      <p><strong>${esc(name)}</strong> wants to share their Track Evolution logbook with you, read-only.</p>
+      <p class="hint">You'll see their events, sessions and laps with the channel graphs, their racing lines, their cars and modifications, and their driver profile — not their notes, costs, setup sheets or email. Either of you can end it at any time from the Coaching page.</p>
+      <div class="btn-row">
+        <button class="btn primary" id="invite-accept">Accept</button>
+        <button class="btn" id="invite-decline">Not now</button>
+      </div>
+      <div id="invite-error"></div>
+    </div>
+  `);
+  view.querySelector("#invite-decline").onclick = () => {
+    clearPendingInvite();
+    location.hash = "#/";
+  };
+  view.querySelector("#invite-accept").onclick = async (evt) => {
+    evt.target.disabled = true;
+    try {
+      const done = await api(`/coaching/invites/${encodeURIComponent(token)}/accept`, { method: "POST" });
+      clearPendingInvite();
+      location.hash = `#/student/${done.student.id}`;
+    } catch (err) {
+      evt.target.disabled = false;
+      view.querySelector("#invite-error").innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+    }
+  };
+}
+
+// --- a student's logbook (read-only) ---
+
+async function routeStudent(studentId, rest, params) {
+  // Who, and whether this account may still read them: the grant is checked
+  // on every request, so a revoked one answers 404 here first.
+  let student;
+  try {
+    student = await api(`/students/${encodeURIComponent(studentId)}/me/profile`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      await forgetStudent(studentId);
+      shell(`<h1>Not shared with you</h1>
+        <div class="panel"><p>This logbook isn't shared with you — the driver may have stopped sharing it, or you left.
+          Anything this device had kept of it has been cleared.</p>
+          <a class="btn small" href="#/coaching">Go to Coaching</a></div>`);
+      return;
+    }
+    throw err;
+  }
+  viewing = { id: student.id, name: student.name, picture: student.picture, pro: !!student.pro, profile: student.profile };
+  if (rest.length === 0) return viewStudentHome();
+  if (rest[0] === "event" && rest[1]) return viewEvent(rest[1]);
+  if (rest[0] === "track" && rest[1] && rest[2] === "compare") return viewCompare(rest[1], params);
+  if (rest[0] === "track" && rest[1] && rest[2] === "lap-compare") return viewLapCompare(rest[1], params);
+  if (rest[0] === "track" && rest[1] && !rest[2]) return viewTrack(rest[1], params);
+  if (rest[0] === "vehicle" && rest[1]) return viewStudentVehicle(rest[1]);
+  viewNotFound();
+}
+
+async function viewStudentHome() {
+  const [tracks, events, vehicles] = await Promise.all([api("/tracks"), api("/events"), api("/vehicles").catch(() => [])]);
+  const who = viewing.name || "This driver";
+  const today = todayISO();
+  const past = events.filter((e) => !isUpcoming(e));
+  const trackDays = past.reduce((n, e) => n + (e.days || 0), 0);
+  const withData = tracks.filter((t) => t.event_count > 0).sort((a, b) => (b.last_date || "").localeCompare(a.last_date || ""));
+  const upcoming = events.filter(isUpcoming).sort((a, b) => a.start_date.localeCompare(b.start_date));
+
+  const trackCards = withData
+    .map(
+      (t) => `<a class="card" href="${L(`#/track/${t.id}`)}">
+        <div class="name">${esc(t.name)}</div>
+        <div class="best">${fmtMs(t.best_ms)}</div>
+        <div class="meta">${t.event_count} event${t.event_count === 1 ? "" : "s"} · ${t.track_days} day${t.track_days === 1 ? "" : "s"} · ${fmtDate(t.last_date)}</div>
+      </a>`
+    )
+    .join("");
+  const upcomingCards = upcoming
+    .map(
+      (e) => `<a class="card" href="${L(`#/event/${e.id}`)}">
+        <div class="name">${esc(e.track_name)}</div>
+        <div class="countdown">${fmtCountdown(e.start_date)}</div>
+        <div class="meta">${fmtDate(e.start_date)}${e.club ? " · " + esc(e.club) : ""}${e.run_group ? " · " + esc(e.run_group) : ""}</div>
+      </a>`
+    )
+    .join("");
+  // The latest days out: where a coach usually starts, since it's what they
+  // are being asked about.
+  const recentRows = past
+    .slice(0, 8)
+    .map(
+      (e) => `<tr class="rowlink" data-href="${L(`#/event/${e.id}`)}">
+        <td class="date">${fmtDate(e.start_date)}</td>
+        <td>${esc(e.track_name)}</td>
+        <td>${esc(e.run_group ?? "")}</td>
+        <td>${esc(e.car ?? "")}</td>
+        <td class="num">${fmtMs(e.best_ms)}</td>
+        <td class="num">${e.lap_count}</td>
+      </tr>`
+    )
+    .join("");
+  const carCards = vehicles
+    .map(
+      (v) => `<a class="card" href="${L(`#/vehicle/${v.id}`)}">
+        <div class="name">${esc(v.name)}</div>
+        <div class="meta">${esc(vehicleTileLine(vehicleLogbook(v.id, events, today)))}</div>
+      </a>`
+    )
+    .join("");
+
+  const view = shell(`
+    <h1>${esc(who)}</h1>
+    <p class="sub">${viewing.pro ? "" : `${studentFreeNote()}`}</p>
+    <div class="tiles">
+      <div class="tile"><div class="label">Events</div><div class="value">${past.length}</div></div>
+      <div class="tile"><div class="label">Track days</div><div class="value">${trackDays}</div></div>
+      <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
+    </div>
+    <h2>Driver profile</h2>
+    ${profileCardHtml(viewing.profile, { empty: `<div class="empty">${esc(who)} hasn't filled in a driver profile yet.</div>` })}
+    ${upcomingCards ? `<h2>Upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
+    <h2>Latest events</h2>
+    ${
+      recentRows
+        ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Laps</th></tr></thead><tbody>${recentRows}</tbody></table></div>`
+        : `<div class="empty">No track days logged yet.</div>`
+    }
+    <h2>Tracks</h2>
+    ${trackCards ? `<div class="cards">${trackCards}</div>` : `<div class="empty">No tracks yet.</div>`}
+    ${carCards ? `<h2>Cars</h2><div class="cards">${carCards}</div>` : ""}
+  `);
+  wireRowLinks(view);
+}
+
+async function viewStudentVehicle(vehicleId) {
+  const [vehicles, events, carCatalog] = await Promise.all([
+    api("/vehicles"),
+    api("/events"),
+    api("/car-catalog").catch(() => []),
+  ]);
+  const v = vehicles.find((x) => String(x.id) === String(vehicleId));
+  if (!v) return viewNotFound();
+  const logbook = vehicleLogbook(v.id, events, todayISO());
+  const pick = v.catalog_id == null ? null : carCatalog.find((r) => r.id === v.catalog_id) ?? null;
+  const specs = [
+    pick ? ["Model", catalogCarLabel(pick)] : null,
+    v.wheelbase_mm != null ? ["Wheelbase", `${v.wheelbase_mm} mm`] : null,
+    v.steering_ratio != null ? ["Steering ratio", `${v.steering_ratio}:1`] : null,
+    v.target_hot_psi != null ? ["Target hot pressure", `${v.target_hot_psi} psi`] : null,
+  ].filter(Boolean);
+  const { last_event: last, next_event: next } = logbook;
+  const line = [
+    last ? `Last out at <a href="${L(`#/event/${last.id}`)}">${esc(last.track_name)}</a> on ${fmtDate(last.start_date)}` : "",
+    next ? `next: <a href="${L(`#/event/${next.id}`)}">${esc(next.track_name)}</a> on ${fmtDate(next.start_date)}` : "",
+  ].filter(Boolean);
+  const bestRows = logbook.bests
+    .map(
+      (b) => `<tr>
+        <td><a href="${L(`#/track/${b.track_id}`)}">${esc(b.track_name)}</a></td>
+        <td class="num">${fmtMs(b.best_ms)}</td>
+        <td class="date"><a href="${L(`#/event/${b.event_id}`)}">${fmtDate(b.start_date)}</a></td>
+      </tr>`
+    )
+    .join("");
+  shell(`
+    <p style="margin:22px 0 0"><a class="backlink" href="${L("#/")}">← ${esc(viewing.name || "Logbook")}</a></p>
+    <h1>${esc(v.name)}</h1>
+    ${line.length ? `<p class="sub">${line.join(" · ")}</p>` : ""}
+    <div class="tiles">
+      <div class="tile"><div class="label">Track days</div><div class="value">${logbook.track_days}</div></div>
+      <div class="tile"><div class="label">Events</div><div class="value">${logbook.events}</div></div>
+    </div>
+    <h2>Modifications &amp; notes</h2>
+    ${v.notes ? `<div class="panel notes-block">${esc(v.notes)}</div>` : `<div class="empty">None listed.</div>`}
+    ${
+      specs.length
+        ? `<h2>Specs</h2><div class="panel profile-card"><dl>${specs
+            .map(([k, val]) => `<dt>${esc(k)}</dt><dd>${esc(val)}</dd>`)
+            .join("")}</dl></div>`
+        : ""
+    }
+    ${
+      bestRows
+        ? `<h2>Best in this car</h2><div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best</th><th>Set on</th></tr></thead><tbody>${bestRows}</tbody></table></div>`
+        : ""
+    }
+  `);
+}
+
 function viewNotFound() {
   shell(`<div class="empty">Not found. <a href="#/">Back to dashboard</a></div>`);
 }
@@ -4268,6 +4850,9 @@ function showSkeleton() {
 
 async function route() {
   const hash = location.hash || "#/";
+  // Every navigation starts as the signed-in driver; only a #/student/<id>
+  // route turns the read-only view back on (routeStudent).
+  viewing = null;
   try {
     await ensureMe();
   } catch (err) {
@@ -4280,8 +4865,18 @@ async function route() {
   const [path, query] = hash.slice(1).split("?");
   const params = new URLSearchParams(query || "");
   const parts = path.split("/").filter(Boolean);
+  // An invite link opened while signed out comes back here after sign-in with
+  // the token still waiting; send it to the page that accepts it.
+  if (pendingInvite() && parts[0] !== "coach") {
+    location.hash = "#/coach";
+    return;
+  }
   try {
     if (parts.length === 0) return await viewDashboard();
+    if (parts[0] === "student" && parts[1]) return await routeStudent(parts[1], parts.slice(2), params);
+    if (parts[0] === "coaching") return await viewCoaching();
+    if (parts[0] === "profile") return await viewProfile();
+    if (parts[0] === "coach") return await viewAcceptInvite();
     if (parts[0] === "track" && parts[1] && parts[2] === "compare") return await viewCompare(parts[1], params);
     if (parts[0] === "track" && parts[1] && parts[2] === "lap-compare") return await viewLapCompare(parts[1], params);
     if (parts[0] === "track" && parts[1] && parts[2] === "leaderboard" && parts[3])
@@ -4301,6 +4896,20 @@ async function route() {
     if (err.message !== "unauthorized") {
       shell(`<div class="error-banner">${esc(err.message)}</div><a href="#/">Back to dashboard</a>`);
     }
+  }
+}
+
+// A coach invite link (/coach/<token>, NS-38): keep the token for the accept
+// page and take it out of the address bar before anything else runs.
+{
+  const invite = location.pathname.match(/^\/coach\/([0-9a-f]{64})\/?$/);
+  if (invite) {
+    try {
+      sessionStorage.setItem(COACH_INVITE_KEY, invite[1]);
+    } catch {
+      // Storage unavailable — the accept page will say there's nothing to accept.
+    }
+    history.replaceState(null, "", "/#/coach");
   }
 }
 

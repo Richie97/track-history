@@ -8,6 +8,7 @@ import {
   isTempPath,
   recomputeDetail,
   reapplyQueue,
+  removeCachedPrefix,
   resetOfflineForTests,
   resolveId,
   syncStatus,
@@ -49,6 +50,23 @@ describe("response cache", () => {
     await cachePut("/me", { user: { id: 1 } });
     expect(await cachedGet("/me")).toEqual({ user: { id: 1 } });
     expect(await cachedGet("/nope")).toBeUndefined();
+  });
+
+  it("drops a student's cached logbook by prefix, and nothing else (NS-38)", async () => {
+    await cachePut("/students/5/events", [{ id: 1 }]);
+    await cachePut("/students/5/events/1", { id: 1 });
+    await cachePut("/students/55/events", [{ id: 2 }]);
+    await cachePut("/events", [{ id: 3 }]);
+    await removeCachedPrefix("/students/5/");
+    expect(await cachedGet("/students/5/events")).toBeUndefined();
+    expect(await cachedGet("/students/5/events/1")).toBeUndefined();
+    expect(await cachedGet("/students/55/events")).toEqual([{ id: 2 }]);
+    expect(await cachedGet("/events")).toEqual([{ id: 3 }]);
+  });
+
+  it("never queues a write under a student's logbook", () => {
+    expect(isQueueable("PUT", "/students/5/events/1")).toBe(false);
+    expect(isQueueable("POST", "/students/5/events/1/sessions")).toBe(false);
   });
 
   it("derives a track-filtered events list from the cached full list", async () => {
