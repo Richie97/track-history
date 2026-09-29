@@ -8,6 +8,7 @@ import { share } from "../../src/routes/share";
 import { tracks } from "../../src/routes/tracks";
 import { vehicles } from "../../src/routes/vehicles";
 import { billing } from "../../src/routes/billing";
+import { coaching } from "../../src/routes/coaching";
 import { LEGACY_ENTITLED_UNTIL_MS } from "../../src/lib/entitlement";
 import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
@@ -19,7 +20,7 @@ import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
 // Every router mounted under /api (src/index.ts). Kept explicit so a new
 // router has to be added here, at which point its gates are enumerated too.
-const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing };
+const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching };
 
 const guardedRoutes = () =>
   Object.values(API_ROUTERS)
@@ -50,6 +51,9 @@ const EXPECTED_GATES = [
   "DELETE /events/:id/setups/:day",
   "GET /events/:id/setups/prefill",
   "GET /tracks/:id/setups",
+  // Inviting a coach (NS-38): what it shares is the analysis Pro pays for.
+  // Accepting, listing and revoking stay free.
+  "POST /coaching/invites",
 ].sort();
 
 // A recording is the one irreplaceable thing in the system, and the offline
@@ -119,6 +123,7 @@ describe("a free account meeting the gates", () => {
       ["DELETE", `/events/${eventId}/setups/1`],
       ["GET", `/events/${eventId}/setups/prefill?day=1`],
       ["GET", `/tracks/${trackId}/setups`],
+      ["POST", "/coaching/invites"],
     ];
     for (const [method, path, body] of calls) {
       const res = await api(method, path, body);
@@ -160,6 +165,7 @@ describe("a Pro account meeting the same routes", () => {
     expect((await api("GET", `/events/${eventId}/setups/prefill?day=1`)).status).toBe(200);
     expect((await api("PUT", `/events/${eventId}/setups/1`, { tp_hot: { fl: 34, fr: 34 } })).status).toBe(200);
     expect((await api("DELETE", `/events/${eventId}/setups/1`)).status).toBe(200);
+    expect((await api("POST", "/coaching/invites")).status).toBe(201);
 
     const vehicle = await api("POST", "/vehicles", { name: "Pro Car" });
     expect((await api("GET", `/vehicles/${vehicle.body.id}/steering-fit`)).status).toBe(200);

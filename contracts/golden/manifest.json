@@ -495,6 +495,141 @@
       "status": 200,
       "description": "A shared Season Wrapped (unauthenticated): the same shape as GET /wrapped/:year with no `pro` key — the free card set only.",
       "source": "src/routes/share.ts"
+    },
+    {
+      "name": "me-profile-set",
+      "file": "me-profile-set.json",
+      "method": "PUT",
+      "path": "/me/profile",
+      "status": 200,
+      "description": "Replace the driver profile (NS-38). Answers with the stored profile, trimmed and with unknown keys dropped; null clears it.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "me-profile",
+      "file": "me-profile.json",
+      "method": "GET",
+      "path": "/me/profile",
+      "status": 200,
+      "description": "The driver profile, headed by the owner's name, picture and tier — the same route a coach reads under /students/:studentId.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "coaching-invite",
+      "file": "coaching-invite.json",
+      "method": "POST",
+      "path": "/coaching/invites",
+      "status": 201,
+      "description": "Mint a single-use invite link for a coach (Pro). The token is in `url` and is shown only here; only its hash is stored.",
+      "source": "src/routes/coaching.ts"
+    },
+    {
+      "name": "coaching-invite-preview",
+      "file": "coaching-invite-preview.json",
+      "method": "GET",
+      "path": "/coaching/invites/:token",
+      "status": 200,
+      "description": "What opening an invite link shows: whose logbook, and whether accepting would work.",
+      "source": "src/routes/coaching.ts"
+    },
+    {
+      "name": "coaching-accept",
+      "file": "coaching-accept.json",
+      "method": "POST",
+      "path": "/coaching/invites/:token/accept",
+      "status": 201,
+      "description": "Accept an invite: the caller becomes a read-only coach of the student. Burns the link.",
+      "source": "src/routes/coaching.ts"
+    },
+    {
+      "name": "coaching-as-coach",
+      "file": "coaching-as-coach.json",
+      "method": "GET",
+      "path": "/coaching",
+      "status": 200,
+      "description": "Coaching from the coach's side: the students whose logbooks they can read.",
+      "source": "src/routes/coaching.ts"
+    },
+    {
+      "name": "student-events",
+      "file": "student-events.json",
+      "method": "GET",
+      "path": "/students/:studentId/events",
+      "status": 200,
+      "description": "A coach's view of a student's events: the event list with notes, checklist and costs sent as null.",
+      "source": "src/lib/coaching.ts"
+    },
+    {
+      "name": "student-event-detail",
+      "file": "student-event-detail.json",
+      "method": "GET",
+      "path": "/students/:studentId/events/:id",
+      "status": 200,
+      "description": "A coach's view of one event: sessions, laps, trace and channels (stripped to the student's tier, here Pro) — notes null, setups empty.",
+      "source": "src/lib/coaching.ts"
+    },
+    {
+      "name": "student-tracks",
+      "file": "student-tracks.json",
+      "method": "GET",
+      "path": "/students/:studentId/tracks",
+      "status": 200,
+      "description": "A coach's view of a student's tracks, with the course notes sent as null.",
+      "source": "src/lib/coaching.ts"
+    },
+    {
+      "name": "student-vehicles",
+      "file": "student-vehicles.json",
+      "method": "GET",
+      "path": "/students/:studentId/vehicles",
+      "status": 200,
+      "description": "A coach's view of a student's cars: the whole vehicle row, modifications included.",
+      "source": "src/lib/coaching.ts"
+    },
+    {
+      "name": "student-profile",
+      "file": "student-profile.json",
+      "method": "GET",
+      "path": "/students/:studentId/me/profile",
+      "status": 200,
+      "description": "A coach's view of the student's driver profile; `pro` is the student's tier, which the coach's client opens the channel panel by.",
+      "source": "src/routes/me.ts"
+    },
+    {
+      "name": "coaching",
+      "file": "coaching.json",
+      "method": "GET",
+      "path": "/coaching",
+      "status": 200,
+      "description": "Coaching from the student's side: their coaches (with when each last looked) and their unused invites.",
+      "source": "src/routes/coaching.ts"
+    },
+    {
+      "name": "coaching-invite-delete",
+      "file": "coaching-invite-delete.json",
+      "method": "DELETE",
+      "path": "/coaching/invites/:id",
+      "status": 200,
+      "description": "Withdraw an unused invite.",
+      "source": "src/routes/coaching.ts"
+    },
+    {
+      "name": "coaching-student-delete",
+      "file": "coaching-student-delete.json",
+      "method": "DELETE",
+      "path": "/coaching/students/:studentId",
+      "status": 200,
+      "description": "A coach stops coaching a student.",
+      "source": "src/routes/coaching.ts"
+    },
+    {
+      "name": "coaching-coach-delete",
+      "file": "coaching-coach-delete.json",
+      "method": "DELETE",
+      "path": "/coaching/coaches/:coachId",
+      "status": 200,
+      "description": "A student revokes a coach; that coach's next read under /students/:studentId is a 404.",
+      "source": "src/routes/coaching.ts"
     }
   ]
 }

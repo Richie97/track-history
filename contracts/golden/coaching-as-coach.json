@@ -1,0 +1,19 @@
+{
+  "method": "GET",
+  "path": "/coaching",
+  "status": 200,
+  "body": {
+    "coaches": [],
+    "invites": [],
+    "students": [
+      {
+        "event_count": 4,
+        "id": 1,
+        "last_event_date": "2026-07-04",
+        "name": "Dev User",
+        "picture": null,
+        "since": 0
+      }
+    ]
+  }
+}
