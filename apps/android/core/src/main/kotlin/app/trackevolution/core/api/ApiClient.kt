@@ -47,6 +47,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.http.takeFrom
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.DeserializationStrategy
@@ -109,6 +110,12 @@ public class ApiClient(
             field = normalize(value)
         }
 
+    /**
+     * Ends the client for good: every later request fails. The app's client is
+     * process-wide (`AppServices`) and never closed — an activity closing it on
+     * `onDestroy` left every screen model that outlived the rotation holding a
+     * dead client.
+     */
     public fun close(): Unit = client.close()
 
     // ---- The offline layer (NS-22) ----------------------------------------
@@ -713,6 +720,11 @@ public class ApiClient(
             // subclasses; anything that isn't an ApiException already is one of
             // those, and none of them are the server's fault.
             if (e is ApiException) throw e
+            // Cancellation is not a network failure. Wrapped as one it would be
+            // shown to the user as an error, and a queueable write would be
+            // queued as though the device were offline — which is how a closed
+            // client's "Parent job is Completed" reached the garage.
+            if (e is CancellationException) throw e
             throw ApiException.Transport(e.message ?: "Network unavailable", e)
         }
         return response.status.value to response.bodyAsText()
