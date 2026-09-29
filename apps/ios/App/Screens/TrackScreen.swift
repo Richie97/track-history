@@ -16,6 +16,10 @@ struct TrackScreen: View {
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
     @Environment(\.layout) private var layout
+    /// A student's track, read-only, when a coach opens it (NS-38): the goal,
+    /// the course notes, the add-event door, the leaderboard and the share link
+    /// are all the owner's, and hide.
+    @Environment(\.logbookOwner) private var owner
 
     @State private var model: TrackModel?
     @State private var showingCompareLaps = false
@@ -59,7 +63,7 @@ struct TrackScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = TrackModel(api: auth.api, trackId: trackId)
+                let model = TrackModel(api: auth.api.scoped(to: owner), trackId: trackId)
                 self.model = model
                 await model.load()
             }
@@ -130,7 +134,9 @@ struct TrackScreen: View {
             }
 
             chartCard(model, track)
-            goalCard(model, track)
+            if !owner.isReadOnly {
+                goalCard(model, track)
+            }
 
             // Web parity: offered whenever any event here has laps — the screen
             // explains itself when none of them stored telemetry channels.
@@ -146,7 +152,9 @@ struct TrackScreen: View {
             // track — before the driver is on it, and before they have been here
             // at all. A push, not a sheet: it is a place you go, and the lap it
             // opens is the sheet.
-            if track.catalogId != nil {
+            // Never in a student's logbook: the drivers on a board consented to be
+            // seen by drivers at the track, not by someone's coach (NS-38).
+            if track.catalogId != nil, !owner.isReadOnly {
                 Button("Leaderboard") { router.push(.leaderboard(trackId: trackId)) }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityHint("Best device-timed laps by other drivers at this track — opt-in only")
@@ -155,41 +163,20 @@ struct TrackScreen: View {
 
             // The page title already says which track, so the button doesn't repeat
             // it — a circuit name with a layout suffix wraps to three lines.
-            Button("+ Add event here") {
-                router.push(.eventForm(.new(presetTrack: track.name)))
+            if !owner.isReadOnly {
+                Button("+ Add event here") {
+                    router.push(.eventForm(.new(presetTrack: track.name)))
+                }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .accessibilityLabel("Add event at \(track.name)")
             }
-            .buttonStyle(TEButtonStyle(kind: .accent))
-            .accessibilityLabel("Add event at \(track.name)")
 
             if let error = model.writeError {
                 TEErrorBanner(message: error)
             }
 
-            TESectionHeader("Course notes")
-            TECard {
-                VStack(alignment: .leading, spacing: 10) {
-                    TEField(label: "Notes to reread the night before") {
-                        TextField(
-                            "T1: brake at the 300 board, 4th gear\nT5a: patience — late apex, track out over the curb…",
-                            text: $model.notes,
-                            axis: .vertical
-                        )
-                        .teInput()
-                        .lineLimit(5...12)
-                    }
-                    HStack(spacing: 12) {
-                        Button(model.isSavingNotes ? "Saving…" : "Save notes") {
-                            Task { await model.saveNotes() }
-                        }
-                        .buttonStyle(TEButtonStyle(kind: .quiet))
-                        .disabled(model.isSavingNotes || !model.notesChanged)
-                        if model.notesSaved {
-                            Text("Saved.")
-                                .teStyle(.xs)
-                                .foregroundStyle(Color(.textMuted))
-                        }
-                    }
-                }
+            if !owner.isReadOnly {
+                courseNotes(model)
             }
 
             TESectionHeader("Events", detail: model.dryOnly ? "dry only" : nil)
@@ -236,7 +223,7 @@ struct TrackScreen: View {
             CompareLapsScreen(trackId: trackId)
         }
         .toolbar {
-            if let url = model.shareURL(serverURL: auth.server.url) {
+            if !owner.isReadOnly, let url = model.shareURL(serverURL: auth.server.url) {
                 ToolbarItem(placement: .topBarTrailing) {
                     // A real share sheet, not the web app's copy-to-clipboard
                     // fallback: sending a run-group organizer your times is the
@@ -246,6 +233,40 @@ struct TrackScreen: View {
                     }
                 }
             }
+        }
+    }
+
+    /// What the driver wants to reread the night before — theirs alone.
+    private func courseNotes(_ model: TrackModel) -> some View {
+        @Bindable var model = model
+        return VStack(alignment: .leading, spacing: TESpacing.gridGap) {
+            TESectionHeader("Course notes")
+            TECard {
+                VStack(alignment: .leading, spacing: 10) {
+                    TEField(label: "Notes to reread the night before") {
+                        TextField(
+                            "T1: brake at the 300 board, 4th gear\nT5a: patience — late apex, track out over the curb…",
+                            text: $model.notes,
+                            axis: .vertical
+                        )
+                        .teInput()
+                        .lineLimit(5...12)
+                    }
+                    HStack(spacing: 12) {
+                        Button(model.isSavingNotes ? "Saving…" : "Save notes") {
+                            Task { await model.saveNotes() }
+                        }
+                        .buttonStyle(TEButtonStyle(kind: .quiet))
+                        .disabled(model.isSavingNotes || !model.notesChanged)
+                        if model.notesSaved {
+                            Text("Saved.")
+                                .teStyle(.xs)
+                                .foregroundStyle(Color(.textMuted))
+                        }
+                    }
+                }
+            }
+
         }
     }
 
@@ -360,7 +381,11 @@ final class TrackModel {
             savedNotes = found.notes ?? ""
             notes = savedNotes
             state = .ready
-            shareSlug = (try? await api.me())?.user.shareSlug
+            // The share link is the owner's: a coach's client has no `/me` for
+            // the student to ask (NS-38).
+            if api.studentId == nil {
+                shareSlug = (try? await api.me())?.user.shareSlug
+            }
         } catch let error as APIError {
             state = .failed(error.message)
         } catch {

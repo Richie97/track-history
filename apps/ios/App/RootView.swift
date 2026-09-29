@@ -141,6 +141,16 @@ struct RootView: View {
         .task { router.applyPending() }
         #if DEBUG
         .task {
+            // -openLink <url>: hand the app a link as if the OS had, for the UI
+            // tests of a Universal Link (`CoachingUITests`) — a localhost dev
+            // server has no association file for the simulator to honour.
+            let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-openLink"), index + 1 < arguments.count,
+               let url = URL(string: arguments[index + 1]) {
+                router.open(url, signedIn: true)
+            }
+        }
+        .task {
             // -importFixture <clip>: open NS-30's import on a committed fixture,
             // skipping only the system picker. See `DebugImportFixture`.
             if let url = DebugImportFixture.pendingURL {
@@ -329,6 +339,14 @@ struct RootView: View {
             LapDetailScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
         case .wrapped(let year):
             WrappedScreen(year: year)
+        case .coaching:
+            CoachingScreen()
+        case .profile:
+            ProfileFormScreen()
+        case .coachInvite(let token):
+            CoachInviteScreen(token: token)
+        case .student(let id, let page):
+            StudentLogbook(studentId: id, page: page)
         }
     }
 
@@ -363,7 +381,8 @@ struct RootView: View {
         // next one on its next pass, which is soon enough.
         case .lap(let eventId, let sessionId, let lapId):
             [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
-        case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped: nil
+        case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
+             .coaching, .profile, .coachInvite, .student: nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }
         return id

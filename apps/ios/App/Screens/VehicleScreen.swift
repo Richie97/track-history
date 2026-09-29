@@ -30,6 +30,10 @@ struct VehicleScreen: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.layout) private var layout
     @Environment(\.unitSystem) private var units
+    /// A student's car, read-only, when a coach opens it (NS-38): the car, its
+    /// modifications, its geometry and its logbook — never the Pro garage
+    /// (`/garage` is not under the coach mount), and no write.
+    @Environment(\.logbookOwner) private var owner
 
     @State private var model: VehicleModel?
     /// Sheet and dialog presentation state, held here rather than in the model:
@@ -96,7 +100,9 @@ struct VehicleScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = VehicleModel(api: auth.api, vehicleId: vehicleId) { [router] in
+                let model = VehicleModel(
+                    api: auth.api.scoped(to: owner), vehicleId: vehicleId, includeGarage: !owner.isReadOnly
+                ) { [router] in
                     router.garageRevision += 1
                 }
                 self.model = model
@@ -142,14 +148,16 @@ struct VehicleScreen: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // The car itself — name, mods, the pressure the health strip aims
-                // at, whether new events start on it. This used to live only in
-                // Settings, a screen away from the garage it describes, and on
-                // iOS not even there.
-                Button("Edit") { sheet = .car }
-                    .accessibilityLabel("Edit car")
-                    .accessibilityIdentifier("editVehicle")
+            if !owner.isReadOnly {
+                ToolbarItem(placement: .topBarTrailing) {
+                    // The car itself — name, mods, the pressure the health strip aims
+                    // at, whether new events start on it. This used to live only in
+                    // Settings, a screen away from the garage it describes, and on
+                    // iOS not even there.
+                    Button("Edit") { sheet = .car }
+                        .accessibilityLabel("Edit car")
+                        .accessibilityIdentifier("editVehicle")
+                }
             }
         }
         // The one dialog on this view — `.sheet` is the one sheet. No date and no
@@ -282,7 +290,9 @@ struct VehicleScreen: View {
 
             logbookSection(model)
 
-            if model.garageVehicle != nil {
+            if owner.isReadOnly {
+                studentSpecs(model, vehicle)
+            } else if model.garageVehicle != nil {
                 proSection(model)
             } else if model.proLocked {
                 ProUpsellCard(
@@ -303,20 +313,22 @@ struct VehicleScreen: View {
             // destructive choice deserves the middle of the screen. On the button
             // rather than the screen, which already carries the refresh dialog —
             // one presentation per view is the rule documented above.
-            Button("Delete car") { confirmingDelete = true }
-                .buttonStyle(TEButtonStyle(kind: .danger))
-                .accessibilityIdentifier("deleteVehicle")
-                .alert("Delete \(vehicle.name)?", isPresented: $confirmingDelete) {
-                    Button("Delete this car", role: .destructive) {
-                        Task {
-                            if await model.deleteVehicle() { router.popToRoot() }
+            if !owner.isReadOnly {
+                Button("Delete car") { confirmingDelete = true }
+                    .buttonStyle(TEButtonStyle(kind: .danger))
+                    .accessibilityIdentifier("deleteVehicle")
+                    .alert("Delete \(vehicle.name)?", isPresented: $confirmingDelete) {
+                        Button("Delete this car", role: .destructive) {
+                            Task {
+                                if await model.deleteVehicle() { router.popToRoot() }
+                            }
                         }
+                        Button("Keep it", role: .cancel) {}
+                    } message: {
+                        Text("Events keep their car name and simply stop being linked"
+                            + (model.garageVehicle != nil ? "; its consumables, measurements and wear history go with it." : "."))
                     }
-                    Button("Keep it", role: .cancel) {}
-                } message: {
-                    Text("Events keep their car name and simply stop being linked"
-                        + (model.garageVehicle != nil ? "; its consumables, measurements and wear history go with it." : "."))
-                }
+            }
         }
         .refreshable { await model.load() }
     }
@@ -332,7 +344,9 @@ struct VehicleScreen: View {
     private func logbookSection(_ model: VehicleModel) -> some View {
         let logbook = model.logbook
         if logbook.lastEvent == nil, logbook.nextEvent == nil {
-            Text("No track days in this car yet — pick it on an event and they'll show up here.")
+            Text(owner.isReadOnly
+                ? "No track days in this car yet."
+                : "No track days in this car yet — pick it on an event and they'll show up here.")
                 .teStyle(.sm)
                 .foregroundStyle(Color(.textMuted))
         } else {
@@ -366,9 +380,50 @@ struct VehicleScreen: View {
         }
     }
 
+    /// The car's geometry and catalog model, for a coach (NS-38) — what the
+    /// owner reads in the car's form, which a coach has no door to. `viewStudentVehicle`
+    /// in `public/app.js`.
+    @ViewBuilder
+    private func studentSpecs(_ model: VehicleModel, _ vehicle: Vehicle) -> some View {
+        let specs: [(String, String)] = [
+            model.catalogCar.map { ("Model", Garage.catalogCarLabel($0)) },
+            vehicle.wheelbaseMm.map { ("Wheelbase", "\($0) mm") },
+            vehicle.steeringRatio.map { ("Steering ratio", "\(Self.fmtNumber($0)):1") },
+            vehicle.targetHotPsi.map { ("Target hot pressure", "\(Self.fmtNumber($0)) psi") }
+        ].compactMap { $0 }
+        if vehicle.notes?.isEmpty ?? true {
+            TESectionHeader("Modifications & notes")
+            TEEmpty("None listed.")
+        }
+        if !specs.isEmpty {
+            TESectionHeader("Specs")
+            TECard {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(specs, id: \.0) { label, value in
+                        HStack {
+                            Text(label)
+                                .teStyle(.sm)
+                                .foregroundStyle(Color(.textMuted))
+                            Spacer(minLength: 8)
+                            Text(value)
+                                .teStyle(.sm)
+                                .foregroundStyle(Color(.textStrong))
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+    }
+
+    /// `15.8`, never `15.80` or `32.0`.
+    private static func fmtNumber(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(value)
+    }
+
     private func eventLink(_ label: String, _ ref: Garage.EventRef) -> some View {
         Button {
-            router.push(.event(ref.id))
+            router.push(owner.link(.event(ref.id)))
         } label: {
             HStack(spacing: 6) {
                 Text(label)
@@ -1354,14 +1409,28 @@ final class VehicleModel {
     /// Told after every write that landed, so the Garage list can re-read.
     private let onWrite: @MainActor () -> Void
 
-    init(api: APIClient, vehicleId: Int, onWrite: @escaping @MainActor () -> Void = {}) {
+    /// Whether to read the Pro half at all. False in a student's logbook
+    /// (NS-38): `/garage` is not under the coach mount, and a coach is never
+    /// shown a student's consumables, wear, hours or odometer.
+    private let includeGarage: Bool
+    /// The car's catalog generation, for a coach's specs line — read only when
+    /// the garage is not, since the owner's form fetches its own.
+    private(set) var catalogCar: CatalogCar?
+
+    init(
+        api: APIClient, vehicleId: Int, includeGarage: Bool = true,
+        onWrite: @escaping @MainActor () -> Void = {}
+    ) {
         self.api = api
         self.vehicleId = vehicleId
+        self.includeGarage = includeGarage
         self.onWrite = onWrite
     }
 
     func load() async {
-        async let garageList: Result<[GarageVehicle], Error> = {
+        let includeGarage = self.includeGarage
+        async let garageList: Result<[GarageVehicle], Error>? = {
+            guard includeGarage else { return nil }
             do { return .success(try await api.garage()) } catch { return .failure(error) }
         }()
         do {
@@ -1378,7 +1447,13 @@ final class VehicleModel {
             state = .failed(error.localizedDescription)
         }
         garageError = nil
-        switch await garageList {
+        guard let garageResult = await garageList else {
+            if let catalogId = vehicle?.catalogId {
+                catalogCar = (try? await api.carCatalog())?.first { $0.id == catalogId }
+            }
+            return
+        }
+        switch garageResult {
         case .success(let rows):
             garageVehicle = rows.first { $0.id == vehicleId }
             // The garage row is the fresher copy when both answered.

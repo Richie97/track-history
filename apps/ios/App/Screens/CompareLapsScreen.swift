@@ -13,6 +13,9 @@ struct CompareLapsScreen: View {
     let trackId: Int
 
     @Environment(AuthController.self) private var auth
+    /// Whose logbook: the student's in a coach's view (NS-38), which decides both
+    /// where the reads go and whose tier the channel panel opens by.
+    @Environment(\.logbookOwner) private var owner
     @State private var model: CompareLapsModel?
 
     var body: some View {
@@ -24,7 +27,7 @@ struct CompareLapsScreen: View {
         .background(Color(.bgPage))
         .task {
             if model == nil {
-                let model = CompareLapsModel(api: auth.api, trackId: trackId)
+                let model = CompareLapsModel(api: auth.api.scoped(to: owner), trackId: trackId)
                 self.model = model
                 await model.load()
             }

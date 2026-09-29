@@ -1553,6 +1553,15 @@ Wrapped, which is free.
   When the server answers 404 there the coach has lost access, and the
   student's responses are cleared from the offline cache and the service
   worker's (`forgetStudent`).
+- **On iOS** the same pages are native (Settings → Coaching, the profile form,
+  and an accept screen), the invite also shows as a QR code, and
+  `https://<host>/coach/<token>` is a Universal Link: `/coach/*` is in the
+  association file (`src/routes/wellKnown.ts`) — deploy that only once the iOS
+  build that handles it is live, since Apple's CDN caches the file and an
+  older build would swallow the link. A link opened signed out is held until
+  sign-in. A student's pages are the ordinary screens under a
+  `LogbookOwner.student`: the API client prefixes `/students/<id>` and refuses
+  writes before they are sent, and the channel panel reads the student's tier.
 - **On Android** the same Coaching page is `Route.Coaching`, one row in
   Settings: your students with *Stop coaching*, *Create an invite link*
   (Pro; a free account sees it locked in place) showing the new link once with

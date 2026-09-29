@@ -3,7 +3,11 @@ import type { AppContext } from "../types";
 
 export const wellKnown = new Hono<AppContext>();
 
-// iOS Universal Links: lets https://<host>/share/* links open the native app.
+// iOS Universal Links: lets https://<host>/share/* links, and coaching invites
+// at https://<host>/coach/* (NS-38), open the native app. /coach/* is claimed
+// only once the app can handle it — an installed build that claimed it first
+// would swallow every invite into a screen that drops it, and Apple's CDN
+// caches this file, so the path ships with the iOS client that parses it.
 // Served by the Worker (not static assets) because the file is extensionless
 // and Apple requires Content-Type: application/json. The app ID is
 // <TeamID>.<bundle id>; set IOS_APP_ID in wrangler.jsonc vars once the Apple
@@ -14,7 +18,7 @@ wellKnown.get("/apple-app-site-association", (c) => {
   const appId = c.env.IOS_APP_ID || "TEAMID.app.trackevolution";
   return c.json({
     applinks: {
-      details: [{ appIDs: [appId], components: [{ "/": "/share/*" }] }],
+      details: [{ appIDs: [appId], components: [{ "/": "/share/*" }, { "/": "/coach/*" }] }],
     },
   });
 });

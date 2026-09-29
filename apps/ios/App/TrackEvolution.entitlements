@@ -10,7 +10,7 @@
 	     is wrong. -->
 	<key>com.apple.developer.carplay-driving-task</key>
 	<true/>
-	<!-- Universal Links for /share/* — the association file is served by
+	<!-- Universal Links for /share/* and /coach/* (NS-38) — the association file is served by
 	     src/routes/wellKnown.ts. Deliberately absent:
 	     com.apple.developer.applesignin (added with Sign in with Apple, NS-08). -->
 	<key>com.apple.developer.associated-domains</key>

@@ -27,6 +27,9 @@ struct LapDetailScreen: View {
     let lapId: Int
 
     @Environment(AuthController.self) private var auth
+    /// Whose logbook: the student's in a coach's view (NS-38), which decides both
+    /// where the reads go and whose tier the channel panel opens by.
+    @Environment(\.logbookOwner) private var owner
     @State private var model: EventModel?
 
     var body: some View {
@@ -48,7 +51,7 @@ struct LapDetailScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = EventModel(api: auth.api, eventId: eventId)
+                let model = EventModel(api: auth.api.scoped(to: owner), eventId: eventId)
                 self.model = model
                 await model.load()
             }
@@ -165,7 +168,7 @@ struct LapDetailScreen: View {
                         channels: channels,
                         laps: [view.lap],
                         preselect: [0],
-                        pro: Entitlement.canViewChannels(auth.entitlement)
+                        pro: owner.canViewChannels(viewer: auth.entitlement)
                     )
                 } else if view.trace == nil {
                     TEEmpty("No telemetry for this lap. Record with the app or import a video, and its racing line and traces land here.")
@@ -236,6 +239,9 @@ private struct CompareLapsButton: View {
     let preselect: [Int]?
 
     @Environment(AuthController.self) private var auth
+    /// Whose logbook: the student's in a coach's view (NS-38), which decides both
+    /// where the reads go and whose tier the channel panel opens by.
+    @Environment(\.logbookOwner) private var owner
     @State private var comparing = false
 
     var body: some View {
@@ -252,7 +258,7 @@ private struct CompareLapsButton: View {
                     channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []),
                     laps: session.laps,
                     preselect: preselect,
-                    pro: Entitlement.canViewChannels(auth.entitlement)
+                    pro: owner.canViewChannels(viewer: auth.entitlement)
                 )
                 .navigationTitle(session.label ?? "Compare laps")
                 .navigationBarTitleDisplayMode(.inline)

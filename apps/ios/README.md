@@ -543,6 +543,15 @@ TEST_RUNNER_TE_DEV_SERVER=http://localhost:8788 xcodebuild test …
 Passing it as a trailing `KEY=VALUE` argument does nothing — xcodebuild reads that
 as a build-setting override, and the tests quietly keep using the default.
 
+**`CoachingUITests` needs a second account for its coach half.** The `DEV_MODE`
+bypass only ever signs in as `DEV_USER_EMAIL`, so the coach's session comes from
+`TEST_RUNNER_TE_COACH_TOKEN` in xcodebuild's environment, and that test skips
+without it; the header of `UITests/CoachingUITests.swift` has the two statements
+that mint one in the local D1. The driver's half needs nothing extra. Run the
+suite with `-parallel-testing-enabled NO` if the runner fails to launch with
+"Application failed preflight checks" — that is a simulator clone failing to
+boot, not the test.
+
 **Don't pass `CODE_SIGNING_ALLOWED=NO` when running UI tests.** It's right for the CI
 *build* (no signing secret is a prerequisite for green), but an unsigned build has no
 keychain-access-group entitlement, so every Keychain call fails with `-34018`

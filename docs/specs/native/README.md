@@ -535,6 +535,11 @@ Features added after the rewrite shipped, and where they landed:
   rather than a share-sheet-only v1 — a pure-Java jar with no reflection, so
   R8 needs no keep rules. It is not a third tab: a student opens as a pushed
   destination on the Events tab.
+  iOS (ticket 3): the Coaching page from Settings, the profile form,
+  the `/coach/<token>` Universal Link's accept screen and a QR code for the
+  invite, with the owner's event, track, lap, compare and vehicle screens
+  reused under `LogbookOwner.student` rather than copied. The channel
+  panel's gates read **the student's** tier on every client.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
   server-owned.** The $1 up-front purchase becomes Track Evolution Pro at
   $1.99/month or $19.99/year, sold through StoreKit 2 and Play Billing and
