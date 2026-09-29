@@ -20,13 +20,18 @@ public enum APIError: Error, Hashable, Sendable {
     case transport(String)
     /// A 2xx body that didn't match its model: contract drift, or a bug here.
     case decoding(String)
+    /// A write refused **before it was sent**, because the logbook is someone
+    /// else's (NS-38): a coach reads a student's through `/api/students/<id>`,
+    /// which the server answers for `GET` only. Never a status — nothing was
+    /// asked of the server.
+    case readOnly
 
     public var status: Int? {
         switch self {
         case .unauthorized: 401
         case .proRequired: 402
         case .server(let status, _): status
-        case .transport, .decoding: nil
+        case .transport, .decoding, .readOnly: nil
         }
     }
 
@@ -39,6 +44,8 @@ public enum APIError: Error, Hashable, Sendable {
              .transport(let message),
              .decoding(let message):
             message
+        case .readOnly:
+            "This logbook is read-only."
         }
     }
 

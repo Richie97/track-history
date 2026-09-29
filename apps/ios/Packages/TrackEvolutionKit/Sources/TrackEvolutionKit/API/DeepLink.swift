@@ -4,9 +4,9 @@ import Foundation
 ///
 /// Two sources, and only two:
 ///
-/// - **Universal Links** for `https://<host>/share/*`, which is the only pattern
-///   the association file advertises (`src/routes/wellKnown.ts`). Those URLs may
-///   carry the web app's own hash route (`/share/eric#/track/7`).
+/// - **Universal Links** for `https://<host>/share/*` and `https://<host>/coach/*`,
+///   the two patterns the association file advertises (`src/routes/wellKnown.ts`).
+///   Share URLs may carry the web app's own hash route (`/share/eric#/track/7`).
 /// - The `trackevolution://` custom scheme. `trackevolution://auth?code=…` is
 ///   **not** a route: it is the OAuth redirect, consumed by
 ///   `ASWebAuthenticationSession` before it ever reaches the app's URL handler.
@@ -26,6 +26,10 @@ public enum DeepLink: Hashable, Sendable {
     case settings
     /// Someone's public logbook — including your own, when you tap your own link.
     case shared(slug: String)
+    /// A coaching invite (NS-38): `https://<host>/coach/<token>`, the link a
+    /// driver sends their coach. The accept screen previews it; nothing is
+    /// accepted by opening it.
+    case coachInvite(token: String)
 
     /// The scheme's reserved host: the sign-in redirect, never a destination.
     private static let authHost = "auth"
@@ -49,6 +53,13 @@ public enum DeepLink: Hashable, Sendable {
         // fragment, not the path) resolving to the logbook's root.
         if segments.first == "share", segments.count >= 2, !segments[1].isEmpty {
             return .shared(slug: segments[1])
+        }
+        // /coach/<token>: exactly one segment after it. Anything else under
+        // /coach is not an invite, and guessing at one would send a mangled
+        // token to a single-use endpoint.
+        if segments.first == "coach" {
+            guard segments.count == 2, !segments[1].isEmpty else { return .dashboard }
+            return .coachInvite(token: segments[1])
         }
         // The app's own web URLs: https://host/#/event/5.
         return hashRoute(components.fragment) ?? .dashboard

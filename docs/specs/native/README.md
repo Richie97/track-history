@@ -526,6 +526,15 @@ Features added after the rewrite shipped, and where they landed:
   disconnects in the assistant itself or on the web; the native Settings rows
   are a follow-up, not a gap in the feature. The in-app coach (#318–#320) is
   the part that will need native work.
+- **Share with a coach** (2026-09, [NS-38](NS-38-coach-sharing.md)) — **all
+  three**, both halves: a Pro driver invites a coach and a coach (any tier)
+  reads the student's logbook read-only, through `/api/students/<id>`. Web
+  first (#348), then iOS: the Coaching page from Settings, the profile form,
+  the `/coach/<token>` Universal Link's accept screen and a QR code for the
+  invite, with the owner's event, track, lap, compare and vehicle screens
+  reused under `LogbookOwner.student` rather than copied. Android is the
+  last ticket. The channel panel's gates read **the student's** tier on
+  every client.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
   server-owned.** The $1 up-front purchase becomes Track Evolution Pro at
   $1.99/month or $19.99/year, sold through StoreKit 2 and Play Billing and

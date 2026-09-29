@@ -19,6 +19,18 @@ struct DeepLinkTests {
     }
 
     @Test
+    func coachInvitesResolveToTheirToken() {
+        // NS-38: the link a driver sends their coach, advertised in the
+        // association file beside /share/*.
+        #expect(parse("https://trackevolution.app/coach/Ab_9-xY") == .coachInvite(token: "Ab_9-xY"))
+        #expect(parse("https://trackevolution.app/coach/Ab_9-xY/") == .coachInvite(token: "Ab_9-xY"))
+        // Nothing to accept, or something deeper than a token: not an invite, and
+        // a mangled token must never reach a single-use endpoint.
+        #expect(parse("https://trackevolution.app/coach") == .dashboard)
+        #expect(parse("https://trackevolution.app/coach/a/b") == .dashboard)
+    }
+
+    @Test
     func appHashRoutesResolve() {
         #expect(parse("https://trackevolution.app/#/event/5") == .event(5))
         #expect(parse("https://trackevolution.app/#/event/5/edit") == .editEvent(5))

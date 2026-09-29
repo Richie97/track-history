@@ -22,6 +22,12 @@ public actor APIClient {
     /// is what the contract tests want.
     private let offline: OfflineStore?
 
+    /// A student's logbook (NS-38), when this client is a coach's read-only view
+    /// of one: every request is sent by `parent` under `/students/<id>`, and a
+    /// write is refused before it is sent. Nil for the ordinary client.
+    public nonisolated let studentId: Int?
+    private let parent: APIClient?
+
     public init(
         baseURL: URL = TrackEvolutionKit.defaultBaseURL,
         tokens: any TokenProviding = NoToken(),
@@ -32,6 +38,43 @@ public actor APIClient {
         self.tokens = tokens
         self.session = session
         self.offline = offline
+        self.studentId = nil
+        self.parent = nil
+    }
+
+    private init(parent: APIClient, studentId: Int) {
+        // Never used to send: a scoped client hands every request to `parent`,
+        // which owns the server URL, the token and the offline store.
+        self.baseURL = TrackEvolutionKit.defaultBaseURL
+        self.tokens = NoToken()
+        self.session = .shared
+        self.offline = nil
+        self.studentId = studentId
+        self.parent = parent
+    }
+
+    /// The same client, reading a student's logbook instead of your own (NS-38):
+    /// the web's `api()` under `viewing`. Every method answers exactly what it
+    /// does for the student, because the server runs the ordinary routes as the
+    /// student under `/api/students/<id>` — so a screen needs nothing but this
+    /// client to show someone else's logbook read-only.
+    ///
+    /// Three things follow, each of which the tests pin:
+    /// - reads go to `/students/<id>/…`, cached under that key, so a coach's copy
+    ///   of a student's logbook never mixes with their own offline;
+    /// - **any write throws `APIError.readOnly` before a request is built** — it is
+    ///   never sent and never queued, whatever the offline layer would have done
+    ///   with the same path unprefixed;
+    /// - nothing it does flushes the queue or warms the cache: those are the
+    ///   owner's.
+    public nonisolated func scoped(toStudent id: Int) -> APIClient {
+        APIClient(parent: parent ?? self, studentId: id)
+    }
+
+    /// ``scoped(toStudent:)`` for a student, this client for your own logbook.
+    public nonisolated func scoped(to owner: LogbookOwner) -> APIClient {
+        guard let id = owner.studentId else { return parent ?? self }
+        return scoped(toStudent: id)
     }
 
     /// Replay anything queued. Safe to call often — it no-ops on an empty queue.
@@ -386,17 +429,103 @@ public actor APIClient {
         var slug: String
     }
 
+    // MARK: - Coaching (NS-38)
+
+    /// Both directions of the grant in one read: the coaches reading your
+    /// logbook, the students whose logbooks you read, and your open invites.
+    public func coaching() async throws -> Coaching {
+        try await get("/coaching", as: Coaching.self)
+    }
+
+    /// Mint a single-use, 7-day invite link (Pro — a 402 for a free account).
+    /// The link is in this answer and nowhere else: the server keeps its hash.
+    public func createCoachInvite() async throws -> CoachInvite {
+        try await send("POST", "/coaching/invites", body: NoBody?.none, as: CoachInvite.self)
+    }
+
+    public func withdrawCoachInvite(id: Int) async throws {
+        _ = try await send("DELETE", "/coaching/invites/\(id)", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    /// The accept screen's preview. **Never cached**: the path carries the
+    /// token, and a stale answer about a single-use link would be wrong anyway —
+    /// the web reads past its offline layer for the same reason.
+    public func coachInvitePreview(token: String) async throws -> InvitePreview {
+        try await get("/coaching/invites/\(Self.pathSegment(token))", cached: false, as: InvitePreview.self)
+    }
+
+    public func acceptCoachInvite(token: String) async throws -> InviteAccepted {
+        try await send(
+            "POST", "/coaching/invites/\(Self.pathSegment(token))/accept",
+            body: NoBody?.none, as: InviteAccepted.self
+        )
+    }
+
+    /// The student stops sharing with a coach.
+    public func removeCoach(id: Int) async throws {
+        _ = try await send("DELETE", "/coaching/coaches/\(id)", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    /// The coach stops coaching a student — and forgets what this device kept of
+    /// their logbook, which the grant no longer covers.
+    public func leaveStudent(id: Int) async throws {
+        _ = try await send("DELETE", "/coaching/students/\(id)", body: NoBody?.none, as: OKResponse.self)
+        await forgetStudent(id)
+    }
+
+    /// Drop every cached response of a student's logbook — `forgetStudent` in
+    /// `public/app.js`. Called when the grant is gone (a 404 from their profile
+    /// under the mount) or when the coach leaves.
+    public func forgetStudent(_ id: Int) async {
+        if let parent { return await parent.forgetStudent(id) }
+        try? await offline?.removeCachedPrefix(LogbookOwner.studentPrefix(id) + "/")
+    }
+
+    /// Your driver profile — or, on a client scoped to a student, theirs, with
+    /// their tier in `pro`. A 404 there means the grant is gone.
+    public func profile() async throws -> ProfileResponse {
+        try await get("/me/profile", as: ProfileResponse.self)
+    }
+
+    /// Save the driver profile; nil clears it. Answers the profile as stored,
+    /// trimmed, or a 400 naming the rule that failed. A live write, never
+    /// queued — like the other `/me` preferences.
+    @discardableResult
+    public func saveProfile(_ profile: DriverProfile?) async throws -> DriverProfile? {
+        try await send("PUT", "/me/profile", body: ProfileBody(profile: profile), as: ProfileSaved.self).profile
+    }
+
+    /// Encodes `profile` even when nil, since null is how the server hears "clear".
+    private struct ProfileBody: Encodable {
+        var profile: DriverProfile?
+
+        func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(profile, forKey: .profile)
+        }
+
+        enum CodingKeys: String, CodingKey { case profile }
+    }
+
+    /// One path segment, percent-encoded — an invite token is opaque.
+    private static func pathSegment(_ raw: String) -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        return raw.addingPercentEncoding(withAllowedCharacters: allowed) ?? raw
+    }
+
     // MARK: - Plumbing
 
     private func get<Response: Decodable>(
         _ path: String,
         query: [URLQueryItem]? = nil,
         authenticated: Bool = true,
+        cached: Bool = true,
         as type: Response.Type
     ) async throws -> Response {
         try await send(
             "GET", path, query: query, body: NoBody?.none,
-            authenticated: authenticated, as: type
+            authenticated: authenticated, cached: cached, as: type
         )
     }
 
@@ -421,12 +550,13 @@ public actor APIClient {
         body: Body?,
         authenticated: Bool = true,
         prefix: String = "/api",
+        cached: Bool = true,
         as type: Response.Type
     ) async throws -> Response {
         let encodedBody = try body.map { try encoder.encode($0) }
         let data = try await route(
             method, path, query: query, body: encodedBody,
-            authenticated: authenticated, prefix: prefix
+            authenticated: authenticated, prefix: prefix, cached: cached
         )
         do {
             return try decoder.decode(Response.self, from: data)
@@ -443,10 +573,22 @@ public actor APIClient {
         query: [URLQueryItem]?,
         body: Data?,
         authenticated: Bool,
-        prefix: String
+        prefix: String,
+        cached: Bool = true
     ) async throws -> Data {
-        // Auth and the public share endpoint never touch the cache.
-        guard let offline, prefix == "/api" else {
+        // A student's logbook: reads only, sent by the owner's client under the
+        // student's prefix. A write stops here — before a request exists — so
+        // it can neither reach the server nor sit in the queue.
+        if let parent, let studentId {
+            guard method == "GET", prefix == "/api" else { throw APIError.readOnly }
+            return try await parent.route(
+                method, LogbookOwner.studentPrefix(studentId) + path, query: query, body: nil,
+                authenticated: authenticated, prefix: prefix, cached: cached
+            )
+        }
+        // Auth and the public share endpoint never touch the cache, and nor does
+        // a read the caller asked to keep out of it.
+        guard let offline, prefix == "/api", cached else {
             let response = try await rawSend(
                 method, path, query: query, body: body, authenticated: authenticated, prefix: prefix
             )

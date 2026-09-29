@@ -96,6 +96,9 @@ struct LapChannelPanel: View {
 
     /// The account's unit system — the speed axis and the distance ticks follow it.
     @Environment(\.unitSystem) private var units
+    /// Whose session this is — a coach reading a student's says so in place of
+    /// the upsell (NS-38).
+    @Environment(\.logbookOwner) private var owner
 
     /// Channel-lap indexes in slot order — oldest first, so the eviction in
     /// `ChannelGraphs.toggle` drops the one you selected longest ago.
@@ -181,7 +184,18 @@ struct LapChannelPanel: View {
                     tabContent(tabKey)
                 }
             }
-            if !pro {
+            if !pro, owner.isReadOnly {
+                // A coach reading a free student's session (NS-38): the paywall is
+                // the student's to answer, not theirs, so the panel says what is
+                // missing and why instead of offering to sell it.
+                TECard {
+                    Text(owner.studentFreeNote)
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityIdentifier("studentFreeNote")
+            } else if !pro {
                 // Under every tab rather than on one of them: what Pro adds is
                 // spread across all four.
                 ProUpsellCard(

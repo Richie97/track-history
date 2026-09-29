@@ -1,7 +1,7 @@
 import SwiftUI
 import TrackEvolutionKit
 
-/// Account, theme, the public share link, and the legal pages.
+/// Account, theme, the public share link, coaching's door, and the legal pages.
 ///
 /// `viewSettings` in `public/app.js` is the reference. Two structural differences:
 ///
@@ -106,6 +106,20 @@ struct SettingsScreen: View {
 
             TESectionHeader("Prep checklist")
             checklistTemplateCard(model)
+
+            TESectionHeader("Coaching")
+            TECard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Share your logbook with an instructor or coach, read-only — or read the logbooks of the drivers you coach. Your driver profile is there too.")
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                    Button("Open Coaching") {
+                        router.push(.coaching)
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("openCoaching")
+                }
+            }
 
             TESectionHeader("Cars")
             TECard {

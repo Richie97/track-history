@@ -383,17 +383,24 @@ struct TENavCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
     @Environment(AppRouter.self) private var router
     @Environment(\.layout) private var layout
+    /// In a student's logbook (NS-38) a card links inside it — `L()` on the web —
+    /// and is always a push: their pages are pushed onto the Events stack, so a
+    /// list-pane "replace the detail" would throw the coach out of the logbook.
+    @Environment(\.logbookOwner) private var owner
+
+    private var target: Route { owner.link(route) }
+    private var inListPane: Bool { listPane && !owner.isReadOnly }
 
     /// Only ever true beside a visible detail pane: at compact and medium width
     /// the detail *is* the screen you just left, and highlighting a row you can no
     /// longer see would be describing something off-screen.
     private var isSelected: Bool {
-        listPane && layout.layoutClass == .expanded && router.selection == route
+        inListPane && layout.layoutClass == .expanded && router.selection == target
     }
 
     var body: some View {
         Button {
-            if listPane { router.open(route) } else { router.push(route) }
+            if inListPane { router.open(target) } else { router.push(target) }
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) { content() }

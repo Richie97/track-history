@@ -147,12 +147,12 @@ describe("logout with a bearer token", () => {
 });
 
 describe("deep-link association files", () => {
-  it("serves apple-app-site-association as JSON with the share path", async () => {
+  it("serves apple-app-site-association as JSON with the share and coach-invite paths", async () => {
     const res = await SELF.fetch("https://example.com/.well-known/apple-app-site-association");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toMatch(/application\/json/);
     const body = (await res.json()) as any;
-    expect(body.applinks.details[0].components).toEqual([{ "/": "/share/*" }]);
+    expect(body.applinks.details[0].components).toEqual([{ "/": "/share/*" }, { "/": "/coach/*" }]);
   });
 
   it("serves the OpenAI Apps challenge token as plain text", async () => {

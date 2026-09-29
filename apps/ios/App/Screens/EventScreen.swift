@@ -23,6 +23,10 @@ struct EventScreen: View {
     @Environment(RecordingController.self) private var recorder
     @Environment(\.dismiss) private var dismiss
     @Environment(\.layout) private var layout
+    /// A student's event, read-only, when a coach opens it (NS-38): every write
+    /// control below — the menus, the swipes, the checklist, the lap entry, the
+    /// "Add a session" card and the drop target — hides under it.
+    @Environment(\.logbookOwner) private var owner
 
     @State private var model: EventModel?
     @State private var editingSession: Session?
@@ -94,7 +98,7 @@ struct EventScreen: View {
             acceptDroppedClip(providers)
         }
         .overlay {
-            if isDropTargeted {
+            if isDropTargeted && !owner.isReadOnly {
                 RoundedRectangle(cornerRadius: TERadius.md)
                     .strokeBorder(Color(.accent), lineWidth: 2)
                     .padding(4)
@@ -105,7 +109,7 @@ struct EventScreen: View {
         .navigationTitle(model?.event?.trackName ?? "Event")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let model, model.detail != nil {
+            if let model, model.detail != nil, !owner.isReadOnly {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
@@ -128,7 +132,7 @@ struct EventScreen: View {
         }
         .task {
             if model == nil {
-                let model = EventModel(api: auth.api, eventId: eventId)
+                let model = EventModel(api: auth.api.scoped(to: owner), eventId: eventId)
                 self.model = model
                 await model.load()
             }
@@ -156,7 +160,8 @@ struct EventScreen: View {
                 LapChannelChart(
                     channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []),
                     laps: session.laps,
-                    pro: Entitlement.canViewChannels(auth.entitlement)
+                    // The student's tier in a student's logbook (NS-38).
+                    pro: owner.canViewChannels(viewer: auth.entitlement)
                 )
                 .navigationTitle(session.label ?? "Channel graphs")
                     .navigationBarTitleDisplayMode(.inline)
@@ -237,7 +242,11 @@ struct EventScreen: View {
             if let error = model.writeError {
                 row { TEErrorBanner(message: error) }
             }
-            checklistSection(model, detail.event)
+            // The prep checklist is never shared with a coach (NS-38) — the
+            // server sends it as null — and the rest of it is a write.
+            if !owner.isReadOnly {
+                checklistSection(model, detail.event)
+            }
             // At expanded width the trace moves to the analysis column, so the map
             // and the charts of the session you are reading are in one eyeline —
             // which is the whole point of the column.
@@ -251,7 +260,9 @@ struct EventScreen: View {
             if detail.sessions.isEmpty {
                 row { TEEmpty("No sessions recorded yet.") }
             }
-            addSessionSection(model, detail.event)
+            if !owner.isReadOnly {
+                addSessionSection(model, detail.event)
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -520,7 +531,7 @@ struct EventScreen: View {
                     // the way into the compare. A push, not a sheet — it is a
                     // place you go and come back from.
                     Button {
-                        router.push(.lap(eventId: model.eventId, sessionId: session.id, lapId: lap.id))
+                        router.push(owner.link(.lap(eventId: model.eventId, sessionId: session.id, lapId: lap.id)))
                     } label: {
                         HStack {
                             // `String(...)` for the same reason as the copyright year in
@@ -552,14 +563,25 @@ struct EventScreen: View {
                 .swipeActions {
                     // There is no lap-edit endpoint, so a mistyped lap is deleted and
                     // retyped — which is also what the web app offers.
-                    Button(role: .destructive) {
-                        Task { await model.deleteLap(id: lap.id) }
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+                    if !owner.isReadOnly {
+                        Button(role: .destructive) {
+                            Task { await model.deleteLap(id: lap.id) }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
                 }
             }
 
+            if !owner.isReadOnly {
+                appendLapsRow(model, session)
+            }
+        } header: {
+            sessionHeader(model, session)
+        }
+    }
+
+    private func appendLapsRow(_ model: EventModel, _ session: Session) -> some View {
             row {
                 HStack(spacing: 8) {
                     TextField(
@@ -577,7 +599,9 @@ struct EventScreen: View {
                         .disabled(router.heldText(route, Self.appendKey(session.id)).isEmpty)
                 }
             }
-        } header: {
+    }
+
+    private func sessionHeader(_ model: EventModel, _ session: Session) -> some View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(session.label ?? "Session")
                     .teStyle(.h2)
@@ -606,23 +630,25 @@ struct EventScreen: View {
                         .accessibilityLabel("Ambient \(SessionConditions.tempText(ambientC, SessionConditions.Units(auth.units)))")
                 }
                 Spacer()
-                Menu {
-                    Button {
-                        editingSession = session
+                if !owner.isReadOnly {
+                    Menu {
+                        Button {
+                            editingSession = session
+                        } label: {
+                            Label("Edit label & notes", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            Task { await model.deleteSession(id: session.id) }
+                        } label: {
+                            Label("Delete session", systemImage: "trash")
+                        }
                     } label: {
-                        Label("Edit label & notes", systemImage: "pencil")
+                        Image(systemName: "ellipsis")
+                            .foregroundStyle(Color(.textMuted))
+                            .padding(.leading, 6)
                     }
-                    Button(role: .destructive) {
-                        Task { await model.deleteSession(id: session.id) }
-                    } label: {
-                        Label("Delete session", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .foregroundStyle(Color(.textMuted))
-                        .padding(.leading, 6)
+                    .accessibilityLabel("Session actions")
                 }
-                .accessibilityLabel("Session actions")
             }
             .textCase(nil)
             .padding(.top, 12)
@@ -631,7 +657,6 @@ struct EventScreen: View {
             // Same reason as `header(_:)`: pinned headers need an opaque background.
             .background(Color(.bgPage))
             .listRowInsets(EdgeInsets())
-        }
     }
 
     /// The way into the lap overlay, for sessions that carry per-lap channel data —
@@ -835,7 +860,9 @@ struct EventScreen: View {
     /// The page's own drop handler: a clip lands, and the importer opens on this
     /// event.
     private func acceptDroppedClip(_ providers: [NSItemProvider]) -> Bool {
-        Self.droppedClip(from: providers) { url in
+        // A student's event takes no import: it is read-only (NS-38).
+        guard !owner.isReadOnly else { return false }
+        return Self.droppedClip(from: providers) { url in
             router.push(.importVideo(eventId: eventId, incoming: url), at: layout.layoutClass)
         }
     }

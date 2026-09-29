@@ -207,6 +207,19 @@ public actor OfflineStore {
         }
     }
 
+    /// Drop every cached response under a path prefix — `removeCachedPrefix` in
+    /// `public/js/offline.js`. What a coach's client does with a student's
+    /// `/students/<id>/…` responses once the grant is gone (NS-38). A prefix
+    /// compare rather than `LIKE`, so an `_` or `%` in a path is not a wildcard.
+    public func removeCachedPrefix(_ prefix: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM cached_response WHERE substr(path, 1, length(?)) = ?",
+                arguments: [prefix, prefix]
+            )
+        }
+    }
+
     public func cachedKeys() throws -> [String] {
         try dbQueue.read { try String.fetchAll($0, sql: "SELECT path FROM cached_response ORDER BY path") }
     }

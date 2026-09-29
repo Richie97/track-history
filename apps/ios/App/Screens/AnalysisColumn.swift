@@ -19,6 +19,9 @@ struct AnalysisColumn: View {
     @Binding var selectedSessionId: Int?
 
     @Environment(AuthController.self) private var auth
+    /// Whose logbook: the student's in a coach's view (NS-38), which decides both
+    /// where the reads go and whose tier the channel panel opens by.
+    @Environment(\.logbookOwner) private var owner
 
     /// Where the panel is pointing, if anywhere — the friction circle's tapped
     /// sample. Held here rather than in the panel because the *map* is what
@@ -87,7 +90,7 @@ struct AnalysisColumn: View {
                 LapChannelChart(
                     channels: channels,
                     laps: session.laps,
-                    pro: Entitlement.canViewChannels(auth.entitlement),
+                    pro: owner.canViewChannels(viewer: auth.entitlement),
                     onHit: { hit = $0 }
                 )
                     // Keyed by session: `lit` holds *channel-lap indexes*, which

@@ -39,6 +39,57 @@ enum Route: Hashable {
     /// the dashboard's November banner. Not a `DeepLink` — the web's
     /// `#/wrapped/:year` is a web route, and the app's door is the banner.
     case wrapped(year: Int)
+    /// Share with a coach (NS-38): your students, your coaches, your invites and
+    /// your driver profile. Reached from Settings, like Settings itself from
+    /// either tab.
+    case coaching
+    /// The driver-profile form, from the Coaching page.
+    case profile
+    /// Where a `https://<host>/coach/<token>` Universal Link lands: the invite's
+    /// preview, and Accept. Parked across a sign-in like any other link.
+    case coachInvite(token: String)
+    /// A student's logbook, read-only (NS-38) — the owner's own screens under a
+    /// `LogbookOwner.student`, which `StudentLogbook` resolves from the
+    /// student's profile under the coach mount each time a page opens. One case
+    /// with a page rather than a student flavour of every route, so the ones
+    /// that write — the form, the recorder, the importer, the leaderboard — have
+    /// no student counterpart to reach by accident.
+    case student(id: Int, page: StudentPage)
+}
+
+/// The pages of a student's logbook a coach can open (NS-38) — the web's
+/// `#/student/:id/…` routes, less the two-lap compare, which opens from the
+/// track page here as it does in your own logbook.
+enum StudentPage: Hashable {
+    /// Their dashboard: profile, tiles, upcoming, latest events, tracks, cars.
+    case home
+    case event(Int)
+    case track(Int)
+    case lap(eventId: Int, sessionId: Int, lapId: Int)
+    case vehicle(Int)
+}
+
+extension LogbookOwner {
+    /// A route as this logbook's pages link it — the web's `L()`. Your own
+    /// logbook's routes are themselves; in a student's, a page they have is
+    /// kept inside their logbook, and anything else (a form, the recorder, the
+    /// leaderboard) lands on their dashboard rather than on the coach's own
+    /// logbook. Those doors are hidden in a student's pages anyway; this is the
+    /// net under them.
+    func link(_ route: Route) -> Route {
+        guard case .student(let id, _, _) = self else { return route }
+        return switch route {
+        case .event(let eventId): .student(id: id, page: .event(eventId))
+        case .track(let trackId): .student(id: id, page: .track(trackId))
+        case .vehicle(let vehicleId): .student(id: id, page: .vehicle(vehicleId))
+        case .lap(let eventId, let sessionId, let lapId):
+            .student(id: id, page: .lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
+        case .student: route
+        case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .wrapped,
+             .coaching, .profile, .coachInvite:
+            .student(id: id, page: .home)
+        }
+    }
 }
 
 extension Route {
@@ -59,7 +110,8 @@ extension Route {
     var ownsTheWindow: Bool {
         switch self {
         case .record, .importVideo, .wrapped: true
-        case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .lap: false
+        case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .lap,
+             .coaching, .profile, .coachInvite, .student: false
         }
     }
 }
@@ -101,8 +153,12 @@ extension Route {
     var tab: AppTab? {
         switch self {
         case .vehicle: .garage
-        case .settings: nil
-        case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .lap, .wrapped: .events
+        case .settings, .coaching, .profile: nil
+        // A student's logbook is a pushed destination on the Events tab, never a
+        // third tab (NS-38) — their car included, which is theirs, not your
+        // garage's.
+        case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .lap, .wrapped,
+             .coachInvite, .student: .events
         }
     }
 }
@@ -271,6 +327,33 @@ final class AppRouter {
         path.removeAll()
     }
 
+    /// Open a student's logbook from the Coaching page (NS-38): a push onto the
+    /// **Events** stack, whichever tab Settings was opened from — a student is
+    /// a logbook, and the spec keeps them off the Garage tab and out of a tab
+    /// of their own. From the Events tab it is an ordinary push, so Back returns
+    /// to Coaching.
+    func openStudent(_ studentId: Int) {
+        let route = Route.student(id: studentId, page: .home)
+        if tab == .events {
+            eventsPath.append(route)
+        } else {
+            tab = .events
+            eventsPath = [route]
+        }
+    }
+
+    /// Leave a student's logbook whose grant has gone (NS-38): every page of
+    /// theirs comes off the stack, so nothing is left parked on a logbook this
+    /// account can no longer read.
+    func dropStudent(_ studentId: Int) {
+        let keep: (Route) -> Bool = { route in
+            if case .student(let id, _) = route { return id != studentId }
+            return true
+        }
+        if !eventsPath.allSatisfy(keep) { eventsPath = Array(eventsPath.prefix { keep($0) }) }
+        if !garagePath.allSatisfy(keep) { garagePath = Array(garagePath.prefix { keep($0) }) }
+    }
+
     /// Replace the stack with a single destination — what a deep link should do,
     /// rather than burying the dashboard under an arbitrary history. On the tab
     /// the route belongs to (NS-37), so a link to a car lands in the Garage.
@@ -397,6 +480,7 @@ final class AppRouter {
         case .vehicle(let id): .vehicle(id)
         case .settings: .settings
         case .shared(let slug): .shared(slug: slug)
+        case .coachInvite(let token): .coachInvite(token: token)
         }
     }
 
@@ -447,7 +531,10 @@ final class AppRouter {
                 )
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.
-            case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped:
+            // A student's ids are never temp either: a coach cannot write to the
+            // logbook, so every row in it came from the server.
+            case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
+                 .coaching, .profile, .coachInvite, .student:
                 return route
             }
         }
