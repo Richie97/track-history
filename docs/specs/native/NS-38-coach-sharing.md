@@ -8,8 +8,8 @@ A driver with Pro can give an **instructor or coach** read-only access to their
 logbook: every event, session and lap, **the full channel panel** (the
 analysis, not just the times), and the high-level garage — the car, its
 modifications, and its geometry. The driver also fills out a **driver
-profile** (date of birth, occupation, experience, safety gear, goals,
-anything the instructor should know) that their coaches see beside the data.
+profile** (occupation, experience, safety gear, goals, anything the
+instructor should know) that their coaches see beside the data.
 
 The coach signs in with their own account — free is enough — opens a
 *Students* list, and reads the student's logbook through the same screens the
@@ -136,25 +136,28 @@ Validated JSON, the `sanitizeSetup` pattern, every field optional:
 
 | Group | Fields |
 |---|---|
-| About | `date_of_birth` (YYYY-MM-DD, not in the future; **under 13 is refused**, see Privacy), `occupation` |
-| Emergency | `emergency_name`, `emergency_phone` |
+| About | `occupation` |
 | Experience | `first_track_year`, `experience` (karting, autocross, sim… free text), `license` (competition licence, free text), `instruction` (schools and coaching so far) |
 | Safety gear | `helmet` (make/model), `helmet_rating` (`SA2020` / `SA2025` / `SAH2020` / `FIA8859` / `M` / `other`), `head_neck` (`none` / `hans` / `hybrid` / `other`), `suit`, `gloves`, `shoes` (booleans), `gear_notes` |
 | Coaching | `goals` ("What I want to work on"), `for_instructor` ("Anything your instructor should know — glasses, an old injury…") |
 
 Strings are capped (200 chars; 1,000 for the free-text boxes).
 `public/js/profile.js` holds the field spec the three forms render, mirroring
-`sanitizeProfile` the way `garage.js` mirrors the setup sheet. Age is not
-stored: `ageOn(dob, today)` computes it.
+`sanitizeProfile` the way `garage.js` mirrors the setup sheet.
+
+**No birth date and no emergency contact**, by decision (2026-09): an
+instructor asks for both at the track, and a logbook that never holds them
+never has to protect them — nor, without a birth date, learn a driver's age.
+A body carrying either has it dropped like any unknown key.
 
 ## Clients
 
 ### Shared pure logic (web first, then ported)
 
-`public/js/coaching.js`: `ageOn`, `profileSections(profile)` (the coach card's
-grouped, non-empty lines) and `coachingSummary` (a student row's line). Ported
-as `Coaching` to the Kit and `:core` under the same names and pinned by
-`contracts/logic/coaching.json`, with a leap-day birthday among the rows.
+`public/js/coaching.js`: `profileSections(profile)` (the coach card's grouped,
+non-empty lines) and `coachingSummary` (a student row's line). Ported as
+`Coaching` to the Kit and `:core` under the same names and pinned by
+`contracts/logic/coaching.json`.
 
 ### Tier gates read the student's tier
 
@@ -209,21 +212,16 @@ viewing a Pro student sees the Grip tab unlocked.
 
 ## Privacy and legal
 
-- **Privacy policy** (bump the effective date): the profile's categories (date
-  of birth, occupation, emergency contact, optional free text a driver may use
+- **Privacy policy** (bump the effective date): the profile's categories
+  (occupation, experience, safety gear, optional free text a driver may use
   for health information), that a driver can share their logbook and profile
   with coaches they invite, **that a coach may keep what they have already
   seen**, and that revoking stops further access.
-- **Under-13**: the policy says the app isn't directed at children under 13.
-  An entered DOB is *actual knowledge*, so the form refuses one under 13
-  rather than storing it. Whether terms need an adult minimum for coaching
-  (HPDE clubs commonly require 16 or 18) is a product and legal call made
-  before this ships, not in code.
 - **Health data**: the *for your instructor* box invites it without asking for
   it. It is stored like any other text; say so in the policy.
 - **Store disclosures — no build can enforce these**: App Store Connect's
-  privacy details and Play's Data safety form gain the new data types (date of
-  birth, contact info, other user content) and the sharing with other users.
+  privacy details and Play's Data safety form gain the new data types (other
+  user content — the profile's text) and the sharing with other users.
   Tick them before the native releases go out.
 
 ## Docs owed (in the same PRs)
@@ -262,7 +260,7 @@ viewing a Pro student sees the Grip tab unlocked.
 - [ ] Every coach response lacks email, notes, checklist, costs, parts, setups, leaderboard and billing data. A test walks every `COACH_ROUTES` route against a fully populated logbook and fails on any key outside the allowlist.
 - [ ] A non-GET, a path off the allowlist, a revoked grant, or no grant: 404, and the next request after a revoke is refused.
 - [ ] The coach's client purges a student's cache on that 404; no write under the prefix is ever queued.
-- [ ] The profile saves and validates on all three, under-13 is refused, and it shows on the coach's view of the student and nowhere public.
+- [ ] The profile saves and validates on all three, holds no birth date or emergency contact, and it shows on the coach's view of the student and nowhere public.
 - [ ] Deleting either account removes the grant.
 - [ ] `npm test`, `npm run typecheck`, `npm run contracts:check`, `swift test`, `:core:check`, `:app:testDebugUnitTest` pass.
 

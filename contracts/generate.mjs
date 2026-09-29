@@ -704,10 +704,7 @@ async function captureAll(api, anon, f) {
 // Returns the restarted worker so main() disposes the live one.
 async function captureCoaching(worker, api, f) {
   const PROFILE = {
-    date_of_birth: "1985-06-15",
     occupation: "Engineer",
-    emergency_name: "Jamie Doe",
-    emergency_phone: "+1 555 0100",
     first_track_year: 2019,
     experience: "Autocross since 2015",
     license: "NASA HPDE4",

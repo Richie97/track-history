@@ -15,14 +15,11 @@ import kotlinx.serialization.Serializable
 /**
  * The driver profile: what a driver tells their instructor about themselves.
  * Every field optional; validated by `sanitizeProfile` in `src/lib/profile.ts`.
- * The birth date is ISO `YYYY-MM-DD`; age is derived, never stored.
+ * Deliberately no birth date or emergency contact.
  */
 @Serializable
 public data class DriverProfile(
-    @SerialName("date_of_birth") val dateOfBirth: String? = null,
     @SerialName("occupation") val occupation: String? = null,
-    @SerialName("emergency_name") val emergencyName: String? = null,
-    @SerialName("emergency_phone") val emergencyPhone: String? = null,
     @SerialName("first_track_year") val firstTrackYear: Int? = null,
     @SerialName("experience") val experience: String? = null,
     @SerialName("license") val license: String? = null,

@@ -11,13 +11,9 @@ import Foundation
 
 /// The driver profile: what a driver tells their instructor about themselves.
 /// Every field optional; validated by `sanitizeProfile` in
-/// `src/lib/profile.ts`. The birth date is ISO `YYYY-MM-DD`; age is derived,
-/// never stored.
+/// `src/lib/profile.ts`. Deliberately no birth date or emergency contact.
 public struct DriverProfile: Codable, Hashable, Sendable {
-    public var dateOfBirth: String?
     public var occupation: String?
-    public var emergencyName: String?
-    public var emergencyPhone: String?
     public var firstTrackYear: Int?
     public var experience: String?
     public var license: String?
@@ -36,9 +32,6 @@ public struct DriverProfile: Codable, Hashable, Sendable {
 
     public enum CodingKeys: String, CodingKey {
         case occupation, experience, license, instruction, helmet, suit, gloves, shoes, goals
-        case dateOfBirth = "date_of_birth"
-        case emergencyName = "emergency_name"
-        case emergencyPhone = "emergency_phone"
         case firstTrackYear = "first_track_year"
         case helmetRating = "helmet_rating"
         case headNeck = "head_neck"

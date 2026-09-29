@@ -1528,11 +1528,12 @@ Wrapped, which is free.
   request, and deleting either account ends the grant.
 - **The driver profile** (`GET` / `PUT /api/me/profile`, `users.profile`,
   migration `0031`, validated by `sanitizeProfile` in `src/lib/profile.ts`) is
-  what a driver tells their coach: birth date, occupation, emergency contact,
-  track experience, licence, safety gear, goals, and anything the instructor
-  should know. Seen by its owner and their coaches only — never the share page,
-  the leaderboards or the MCP tools — and a birth date under 13 is refused,
-  since the privacy policy says the app isn't for children.
+  what a driver tells their coach: occupation, track experience, licence,
+  safety gear, goals, and anything the instructor should know. Seen by its
+  owner and their coaches only — never the share page, the leaderboards or the
+  MCP tools. It deliberately holds no birth date or emergency contact: an
+  instructor asks for those at the track, and a logbook that never stores them
+  never has to protect them.
 
 ## AI assistants (MCP)
 

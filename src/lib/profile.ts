@@ -1,14 +1,16 @@
 // The driver profile (NS-38): what a driver tells their instructor or coach
-// about themselves — age, occupation, who to call, how much they have driven,
-// what they wear, and what they want to work on. Stored as JSON in
+// about themselves — occupation, how much they have driven, what they wear,
+// and what they want to work on. Deliberately no birth date or emergency
+// contact: an instructor asks for those at the track, and a logbook that
+// never holds them never has to protect them. Stored as JSON in
 // `users.profile` (migration 0031), seen by its owner and the owner's coaches
 // only.
 //
 // Every field is optional, and a profile with none set is stored as NULL.
 // Validation is the `sanitizeSetup` shape: unknown keys are dropped, a present
 // field that fails its rule rejects the whole body — but unlike a setup sheet
-// the answer carries *which* rule, because a birth date refused for being
-// under 13 needs to say so rather than "invalid profile".
+// the answer carries *which* rule, so a form can say what to fix rather than
+// "invalid profile".
 //
 // public/js/profile.js is the client-side field spec the three forms render;
 // keep the two in step.
@@ -20,10 +22,7 @@ export const HEAD_NECK = ["none", "hans", "hybrid", "other"] as const;
 export type HeadNeck = (typeof HEAD_NECK)[number];
 
 export type DriverProfile = {
-  date_of_birth?: string;
   occupation?: string;
-  emergency_name?: string;
-  emergency_phone?: string;
   first_track_year?: number;
   experience?: string;
   license?: string;
@@ -39,34 +38,14 @@ export type DriverProfile = {
   for_instructor?: string;
 };
 
-// Short fields are a name, a phone number or a helmet model; long ones are the
-// free-text boxes.
+// Short fields are an occupation, a licence or a helmet model; long ones are
+// the free-text boxes.
 export const SHORT_TEXT_MAX = 200;
 export const LONG_TEXT_MAX = 1000;
 
-const SHORT_TEXT = ["occupation", "emergency_name", "emergency_phone", "license", "helmet", "suit"] as const;
+const SHORT_TEXT = ["occupation", "license", "helmet", "suit"] as const;
 const LONG_TEXT = ["experience", "instruction", "gear_notes", "goals", "for_instructor"] as const;
 const BOOLEANS = ["gloves", "shoes"] as const;
-
-// The privacy policy says the app is not directed at children under 13, and a
-// typed birth date is actual knowledge of age — so one under 13 is refused
-// rather than stored. Whether *coaching* needs an older minimum is a terms
-// decision, not this one.
-export const MIN_PROFILE_AGE = 13;
-export const MAX_PROFILE_AGE = 120;
-
-const isIsoDate = (v: unknown): v is string =>
-  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) &&
-  new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
-
-// Whole years between a yyyy-mm-dd birth date and `today` (also yyyy-mm-dd).
-// Compared as strings so no time zone is involved: a birthday has happened
-// when today's month-day has reached it. A 29 February birthday therefore
-// comes round on 1 March in a common year.
-export function ageOn(dob: string, today: string): number {
-  const years = Number(today.slice(0, 4)) - Number(dob.slice(0, 4));
-  return today.slice(5) >= dob.slice(5) ? years : years - 1;
-}
 
 export type ProfileResult = { profile: DriverProfile | null } | { error: string };
 
@@ -91,16 +70,6 @@ export function sanitizeProfile(v: unknown, today: string): ProfileResult {
       if (typeof r === "object") return r;
       if (r !== undefined) out[key] = r;
     }
-  }
-
-  if (o.date_of_birth != null && o.date_of_birth !== "") {
-    const dob = o.date_of_birth;
-    if (!isIsoDate(dob)) return { error: "date_of_birth must be a yyyy-mm-dd date" };
-    if (dob > today) return { error: "date_of_birth can't be in the future" };
-    const age = ageOn(dob, today);
-    if (age < MIN_PROFILE_AGE) return { error: `Track Evolution isn't for anyone under ${MIN_PROFILE_AGE}` };
-    if (age > MAX_PROFILE_AGE) return { error: "date_of_birth is too far in the past" };
-    out.date_of_birth = dob;
   }
 
   if (o.first_track_year != null && o.first_track_year !== "") {

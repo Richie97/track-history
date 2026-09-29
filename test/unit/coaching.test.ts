@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COACH_ROUTES, coachRoute } from "../../src/lib/coaching";
-import { ageOn, parseProfile, sanitizeProfile } from "../../src/lib/profile";
+import { parseProfile, sanitizeProfile } from "../../src/lib/profile";
 
 describe("coachRoute", () => {
   it("allows exactly the read routes on the table, GET only", () => {
@@ -50,37 +50,18 @@ describe("coachRoute", () => {
   });
 });
 
-describe("ageOn", () => {
-  it("counts a birthday once it has happened", () => {
-    expect(ageOn("1990-06-15", "2026-06-14")).toBe(35);
-    expect(ageOn("1990-06-15", "2026-06-15")).toBe(36);
-  });
-
-  it("brings a leap-day birthday round on 1 March in a common year", () => {
-    expect(ageOn("2012-02-29", "2025-02-28")).toBe(12);
-    expect(ageOn("2012-02-29", "2025-03-01")).toBe(13);
-    expect(ageOn("2012-02-29", "2024-02-29")).toBe(12);
-  });
-});
-
 describe("sanitizeProfile", () => {
   const today = "2026-09-28";
 
   it("clears on null or an all-empty profile", () => {
     expect(sanitizeProfile(null, today)).toEqual({ profile: null });
-    expect(sanitizeProfile({ occupation: " ", date_of_birth: "", gloves: null }, today)).toEqual({ profile: null });
+    expect(sanitizeProfile({ occupation: " ", helmet_rating: "", gloves: null }, today)).toEqual({ profile: null });
   });
 
-  it("allows a 13th birthday and refuses the day before", () => {
-    expect(sanitizeProfile({ date_of_birth: "2013-09-28" }, today)).toEqual({ profile: { date_of_birth: "2013-09-28" } });
-    const r = sanitizeProfile({ date_of_birth: "2013-09-29" }, today);
-    expect("error" in r && r.error).toContain("under 13");
-  });
-
-  it("refuses impossible dates, not just badly formatted ones", () => {
-    for (const d of ["1990-02-30", "1990-13-01", "90-01-01", "2027-01-01", "1890-01-01"]) {
-      expect("error" in sanitizeProfile({ date_of_birth: d }, today), d).toBe(true);
-    }
+  it("drops keys it doesn't hold — a birth date or an emergency contact included", () => {
+    expect(sanitizeProfile({ date_of_birth: "1985-06-15", emergency_phone: "555", goals: "Brake later" }, today)).toEqual({
+      profile: { goals: "Brake later" },
+    });
   });
 
   it("bounds the first track year by this one", () => {

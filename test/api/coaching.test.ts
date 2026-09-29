@@ -344,10 +344,7 @@ describe("without a grant", () => {
 
 describe("the driver profile", () => {
   const full = {
-    date_of_birth: "1985-06-15",
     occupation: "  Surgeon ",
-    emergency_name: "Jamie",
-    emergency_phone: "+1 555 0100",
     first_track_year: 2019,
     experience: "Autocross since 2015",
     license: "NASA HPDE4",
@@ -379,17 +376,24 @@ describe("the driver profile", () => {
     expect((await api("GET", "/me/profile")).body.profile).toBeNull();
   });
 
-  it("refuses a birth date under 13, in the future, or malformed — saying which", async () => {
+  it("refuses a bad field, saying which", async () => {
     const { api } = await signedInUser();
     const year = new Date().getUTCFullYear();
-    const young = await api("PUT", "/me/profile", { profile: { date_of_birth: `${year - 10}-01-01` } });
-    expect(young.status).toBe(400);
-    expect(young.body.error).toContain("under 13");
-    expect((await api("PUT", "/me/profile", { profile: { date_of_birth: `${year + 1}-01-01` } })).status).toBe(400);
-    expect((await api("PUT", "/me/profile", { profile: { date_of_birth: "1985-02-30" } })).status).toBe(400);
+    const future = await api("PUT", "/me/profile", { profile: { first_track_year: year + 1 } });
+    expect(future.status).toBe(400);
+    expect(future.body.error).toContain("first_track_year");
     expect((await api("PUT", "/me/profile", { profile: { helmet_rating: "SA2010" } })).status).toBe(400);
     expect((await api("PUT", "/me/profile", { profile: { gloves: "yes" } })).status).toBe(400);
+    expect((await api("PUT", "/me/profile", { profile: { goals: "x".repeat(1001) } })).status).toBe(400);
     expect((await api("PUT", "/me/profile", {})).status).toBe(400);
+  });
+
+  it("keeps no birth date or emergency contact, even when sent one", async () => {
+    const { api } = await signedInUser();
+    const res = await api("PUT", "/me/profile", {
+      profile: { date_of_birth: "1985-06-15", emergency_name: "Jamie", emergency_phone: "+1 555 0100", goals: "Trail braking" },
+    });
+    expect(res.body.profile).toEqual({ goals: "Trail braking" });
   });
 
   it("is what a coach sees at /me/profile, with the student's tier", async () => {
