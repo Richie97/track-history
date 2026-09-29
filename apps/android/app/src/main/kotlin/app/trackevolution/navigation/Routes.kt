@@ -17,8 +17,14 @@ public sealed interface Route {
     @Serializable
     public data object Dashboard : Route
 
+    /**
+     * [student] set is that driver's event, read by their coach (NS-38) — the
+     * same destination and screen, read-only, through the coach mount. The
+     * same optional field rides on every logbook route a coach can reach, so
+     * the owner's pages are reused rather than copied.
+     */
     @Serializable
-    public data class Event(val id: Int) : Route
+    public data class Event(val id: Int, val student: Int? = null) : Route
 
     /**
      * One route for both "new" and "edit", as iOS does with `EventFormTarget`.
@@ -29,11 +35,11 @@ public sealed interface Route {
     public data class EventForm(val editId: Int? = null, val presetTrack: String? = null) : Route
 
     @Serializable
-    public data class Track(val id: Int) : Route
+    public data class Track(val id: Int, val student: Int? = null) : Route
 
     /** Compare any two laps with telemetry at one track (#165). */
     @Serializable
-    public data class CompareLaps(val trackId: Int) : Route
+    public data class CompareLaps(val trackId: Int, val student: Int? = null) : Route
 
     /**
      * A track's leaderboard, behind the track page's button. Keyed by the
@@ -99,7 +105,7 @@ public sealed interface Route {
      * `DeepLink` case: a lap id means nothing away from the page it came from.
      */
     @Serializable
-    public data class Lap(val eventId: Int, val sessionId: Int, val lapId: Int) : Route
+    public data class Lap(val eventId: Int, val sessionId: Int, val lapId: Int, val student: Int? = null) : Route
 
     /**
      * A session's multi-lap channel overlay as a destination of its own (#268)
@@ -107,7 +113,12 @@ public sealed interface Route {
      * first, beside the session's best; null lights the best alone.
      */
     @Serializable
-    public data class SessionCompare(val eventId: Int, val sessionId: Int, val lapId: Int? = null) : Route
+    public data class SessionCompare(
+        val eventId: Int,
+        val sessionId: Int,
+        val lapId: Int? = null,
+        val student: Int? = null,
+    ) : Route
 
     /**
      * Season Wrapped (NS-36): one calendar year as a story of cards, opened from
@@ -118,7 +129,59 @@ public sealed interface Route {
      */
     @Serializable
     public data class Wrapped(val year: Int) : Route
+
+    /**
+     * Share with a coach (NS-38): your students, your coaches, invite links and
+     * the driver profile card. Reached from Settings; in the Events graph, as
+     * Settings is.
+     */
+    @Serializable
+    public data object Coaching : Route
+
+    /** The driver-profile form (NS-38), built from `Profile.PROFILE_GROUPS`. */
+    @Serializable
+    public data object Profile : Route
+
+    /**
+     * The screen an invite link lands on (NS-38). The token is the link's
+     * single-use secret; it rides the back stack's saved state, never a URL.
+     */
+    @Serializable
+    public data class CoachInvite(val token: String) : Route
+
+    /**
+     * A student's logbook, read by their coach (NS-38): their dashboard — a
+     * pushed destination on the Events tab, **not** a third tab. Everything
+     * under it is an owner route carrying `student`.
+     */
+    @Serializable
+    public data class Student(val id: Int) : Route
+
+    /**
+     * A student's car (NS-38). Its own route rather than [Vehicle] with a
+     * student, because [Vehicle] lives in the Garage graph and a coach reading a
+     * student's car is still in the Events tab — the coach's own Garage is not
+     * where the student's cars are.
+     */
+    @Serializable
+    public data class StudentVehicle(val studentId: Int, val vehicleId: Int) : Route
 }
+
+/**
+ * The student whose logbook a route shows (NS-38), or null for the account's
+ * own. The one place that knows which routes can carry one.
+ */
+public val Route.studentId: Int?
+    get() = when (this) {
+        is Route.Student -> id
+        is Route.StudentVehicle -> studentId
+        is Route.Event -> student
+        is Route.Track -> student
+        is Route.CompareLaps -> student
+        is Route.Lap -> student
+        is Route.SessionCompare -> student
+        else -> null
+    }
 
 /**
  * Where a parsed deep link lands.
@@ -140,6 +203,9 @@ public fun routeFor(link: DeepLink): Route? = when (link) {
     is DeepLink.Settings -> Route.Settings
     is DeepLink.Shared -> Route.Shared(link.slug)
     is DeepLink.Vehicle -> Route.Vehicle(link.id)
+    // Parked until sign-in by `PendingInvite` before it ever gets here; mapped
+    // anyway so the table has no hole.
+    is DeepLink.CoachInvite -> Route.CoachInvite(link.token)
 }
 
 /**

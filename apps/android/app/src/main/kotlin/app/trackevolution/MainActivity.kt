@@ -45,6 +45,7 @@ import app.trackevolution.auth.SignInScreen
 import app.trackevolution.core.DeepLink
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.data.AppServices
+import app.trackevolution.navigation.PendingInvite
 import app.trackevolution.navigation.Router
 import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
@@ -81,6 +82,12 @@ class MainActivity : ComponentActivity() {
      * it would make a tapped share link open a blank app.
      */
     private val router = Router()
+
+    /**
+     * A coaching invite link (NS-38), held until there is a session — persisted,
+     * because the sign-in it waits for leaves the process for a browser.
+     */
+    private lateinit var pendingInvite: PendingInvite
 
 
     /**
@@ -153,6 +160,7 @@ class MainActivity : ComponentActivity() {
         // A recording a previous launch never finished is offered back rather
         // than left on disk unmentioned.
         Recorder.recoverPending(this)
+        pendingInvite = PendingInvite(this)
         // Cold start: the launching intent is delivered here, not to onNewIntent.
         handleIntent(intent)
 
@@ -204,6 +212,7 @@ class MainActivity : ComponentActivity() {
                                     authState = state,
                                     billing = services.billing,
                                     router = router,
+                                    pendingInvite = pendingInvite,
                                     flow = recordingFlow,
                                     serverUrl = server,
                                     themeChoice = choice,
@@ -217,6 +226,7 @@ class MainActivity : ComponentActivity() {
                                         // A deep link parked for a session that no longer
                                         // exists must not fire under the next one.
                                         router.clear()
+                                        pendingInvite.clear()
                                         incomingImport = null
                                         auth.signOut()
                                     },
@@ -296,7 +306,14 @@ class MainActivity : ComponentActivity() {
         if (auth.handleRedirect(uri)) return
         // Parked rather than navigated to: the nav graph consumes it once it
         // exists, which on a cold start is several frames after this.
-        DeepLink.parse(uri.toString())?.let(router::offer)
+        when (val link = DeepLink.parse(uri.toString())) {
+            null -> Unit
+            // A coaching invite (NS-38) waits for a session in storage rather
+            // than in the router: signing in to accept it is a trip to the
+            // browser, and the process may not be here when it comes back.
+            is DeepLink.CoachInvite -> pendingInvite.park(link.token)
+            else -> router.offer(link)
+        }
     }
 }
 

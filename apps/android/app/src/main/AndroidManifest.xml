@@ -93,10 +93,12 @@
                 <data android:mimeType="application/csv" />
             </intent-filter>
 
-            <!-- App Links: open share pages in the app, verified against
+            <!-- App Links: open share pages and coaching invites (NS-38) in the
+                 app, verified against
                  https://trackevolution.app/.well-known/assetlinks.json. The
                  fingerprint there is the Play app-signing key, so verification
-                 only succeeds for a Play-signed build. -->
+                 only succeeds for a Play-signed build. assetlinks.json is per
+                 app, not per path, so claiming /coach/ is this filter alone. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -105,6 +107,7 @@
                     android:scheme="https"
                     android:host="trackevolution.app"
                     android:pathPrefix="/share/" />
+                <data android:pathPrefix="/coach/" />
             </intent-filter>
         </activity>
 

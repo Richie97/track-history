@@ -123,6 +123,37 @@ class OfflineStoreTest {
         assertFalse(OfflineStore.isQueueable("POST", "/parts/1/refresh"))
         // A day has to be a number — `/setups/latest` is not a setup sheet.
         assertFalse(OfflineStore.isQueueable("PUT", "/events/12/setups/latest"))
+        // Share with a coach (NS-38): the profile, invites and grants are live.
+        assertFalse(OfflineStore.isQueueable("PUT", "/me/profile"))
+        assertFalse(OfflineStore.isQueueable("POST", "/coaching/invites"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/coaching/invites/3"))
+        assertFalse(OfflineStore.isQueueable("POST", "/coaching/invites/abc/accept"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/coaching/coaches/3"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/coaching/students/3"))
+        // …and nothing under a student's prefix can match the owner's patterns.
+        assertFalse(OfflineStore.isQueueable("POST", "/students/3/events"))
+        assertFalse(OfflineStore.isQueueable("PUT", "/students/3/events/12"))
+        assertFalse(OfflineStore.isQueueable("POST", "/students/3/sessions/4/laps"))
+    }
+
+    @Test
+    fun `purges a student's cached responses and nothing else`() = runTest {
+        val store = store()
+        store.cachePut("/students/3/events", "[]")
+        store.cachePut("/students/3/events/9", "{}")
+        store.cachePut("/students/31/events", "[]")
+        store.cachePut("/events", "[]")
+        store.removeCachedPrefix("/students/3/")
+        assertEquals(listOf("/events", "/students/31/events"), store.cachedKeys().sorted())
+    }
+
+    @Test
+    fun `derives a student's track-filtered events from their own list, not the coach's`() = runTest {
+        val store = store()
+        store.cachePut("/events", Goldens.bodyText("events-list"))
+        store.cachePut("/students/3/events", "[]")
+        assertEquals("[]", store.cachedGet("/students/3/events?track_id=1"))
+        assertNull(store.cachedGet("/students/4/events?track_id=1"))
     }
 
     @Test

@@ -81,6 +81,8 @@ fun SettingsScreen(
     entitlement: Entitlement = Entitlement.FREE,
     /** Opens the paywall sheet. */
     onSubscribe: () -> Unit = {},
+    /** Share with a coach (NS-38): its own page, one row here. */
+    onOpenCoaching: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -133,6 +135,9 @@ fun SettingsScreen(
 
             item("cars-header") { TESectionHeader("Cars") }
             item("cars") { CarsCard(onOpenGarage) }
+
+            item("coaching-header") { TESectionHeader("Coaching") }
+            item("coaching") { CoachingCard(onOpenCoaching) }
 
             item("legal-header") { TESectionHeader("About & legal") }
             item("legal") { LegalCard(onOpenLink) }
@@ -605,6 +610,40 @@ private fun CarsCard(onOpenGarage: () -> Unit) {
         ) {
             Text(
                 "Cars are in the Garage",
+                style = TrackTheme.typography.bodyStrong,
+                color = colors.accentInk,
+                modifier = Modifier.weight(1f),
+            )
+            Text("›", style = TrackTheme.typography.body, color = colors.textFaint)
+        }
+    }
+}
+
+/**
+ * Share with a coach (NS-38) — its own page, since it has three lists and a
+ * form behind it; the web's Settings carries the same one row.
+ */
+@Composable
+private fun CoachingCard(onOpenCoaching: () -> Unit) {
+    val colors = TrackTheme.colors
+    TrackCard(Modifier.fillMaxWidth()) {
+        Text(
+            "Share your logbook read-only with an instructor or coach, fill in the driver profile they " +
+                "see, and open the logbooks of drivers you coach.",
+            style = TrackTheme.typography.sm,
+            color = colors.textMuted,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenCoaching)
+                .padding(vertical = 8.dp)
+                .testTag("openCoaching"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Open Coaching",
                 style = TrackTheme.typography.bodyStrong,
                 color = colors.accentInk,
                 modifier = Modifier.weight(1f),

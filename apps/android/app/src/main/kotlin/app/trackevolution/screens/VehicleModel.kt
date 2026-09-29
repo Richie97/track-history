@@ -48,6 +48,9 @@ class VehicleModel(
     private val api: ApiClient,
     val vehicleId: Int,
 ) {
+    /** A student's car, read by their coach (NS-38): the free half only, and no writes. */
+    val readOnly: Boolean get() = api.owner.readOnly
+
     var state by mutableStateOf<LoadState>(LoadState.Loading)
         private set
 
@@ -113,6 +116,10 @@ class VehicleModel(
                 val vehicleList = async { api.vehicles() }
                 val eventList = async { api.events() }
                 val garageList = async {
+                    // A student's car (NS-38) has no Pro half to read: `/garage` is
+                    // consumables, wear and spend, none of which a coach is shown,
+                    // and the coach mount answers it 404.
+                    if (readOnly) return@async null
                     try {
                         api.garage()
                     } catch (e: ApiException) {
@@ -124,7 +131,10 @@ class VehicleModel(
                 events = eventList.await()
                 val pro = garageList.await()
                 if (found == null) {
-                    state = LoadState.Failed("That car isn't in your garage any more.", retryable = false)
+                    state = LoadState.Failed(
+                        if (readOnly) "That car isn't in this logbook any more." else "That car isn't in your garage any more.",
+                        retryable = false,
+                    )
                     return@launch
                 }
                 vehicle = found

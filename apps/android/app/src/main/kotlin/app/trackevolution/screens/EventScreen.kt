@@ -96,6 +96,12 @@ fun EventScreen(
     onOpenLap: (Int, Int) -> Unit = { _, _ -> },
     /** A session's *Compare laps* below expanded width — the overlay as a destination. */
     onCompareLaps: (Int) -> Unit = {},
+    /**
+     * A student's event, read by their coach (NS-38): no write control, no
+     * recorder or import door, no checklist (it is not shared). The page is
+     * otherwise the owner's own, which is the point of reusing it.
+     */
+    readOnly: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -154,7 +160,11 @@ fun EventScreen(
                     )
                     if (EventDates.isUpcoming(event.startDate)) {
                         Text(
-                            "${EventDates.fmtCountdown(event.startDate)} — log sessions here once you're back from the track.",
+                            "${EventDates.fmtCountdown(event.startDate)} — " + if (readOnly) {
+                                "sessions show up here once they're logged."
+                            } else {
+                                "log sessions here once you're back from the track."
+                            },
                             style = TrackTheme.typography.sm,
                             color = colors.accentInk,
                             modifier = Modifier.padding(top = 6.dp),
@@ -193,7 +203,7 @@ fun EventScreen(
                 }
             }
 
-            item("actions") {
+            if (!readOnly) item("actions") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { onEdit(model.eventId) }) {
                         Text("Edit event", style = TrackTheme.typography.sm, color = colors.accentInk)
@@ -206,7 +216,7 @@ fun EventScreen(
 
             // The checklist is for prep, so it appears while there is still prep
             // to do — or once one exists, however far past the event is.
-            if (EventDates.isUpcoming(event.startDate) || !event.checklist.isNullOrEmpty()) {
+            if (!readOnly && (EventDates.isUpcoming(event.startDate) || !event.checklist.isNullOrEmpty())) {
                 item("checklist") {
                     ChecklistCard(
                         items = event.checklist.orEmpty(),
@@ -257,12 +267,13 @@ fun EventScreen(
                             onSubscribe = onSubscribe,
                             onOpenLap = { lapId -> onOpenLap(session.id, lapId) },
                             onCompare = { onCompareLaps(session.id) },
+                            readOnly = readOnly,
                         )
                     }
                 }
             }
 
-            item("add-session") {
+            if (!readOnly) item("add-session") {
                 AddSessionCard(
                     recorderAvailable = recorderAvailable,
                     onRecord = { onRecord(model.eventId) },
@@ -464,6 +475,7 @@ private fun SessionCard(
     onSubscribe: () -> Unit = {},
     onOpenLap: (Int) -> Unit = {},
     onCompare: () -> Unit = {},
+    readOnly: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
@@ -516,8 +528,10 @@ private fun SessionCard(
                         .semantics { contentDescription = "Ambient $text" },
                 )
             }
-            TextButton(onClick = onDelete) {
-                Text("Delete", style = TrackTheme.typography.xs, color = colors.danger)
+            if (!readOnly) {
+                TextButton(onClick = onDelete) {
+                    Text("Delete", style = TrackTheme.typography.xs, color = colors.danger)
+                }
             }
         }
 
@@ -549,7 +563,7 @@ private fun SessionCard(
                 lap = lap,
                 isBest = best != null && lap.timeMs == best,
                 onOpen = { onOpenLap(lap.id) },
-                onDelete = { onDeleteLap(lap.id) },
+                onDelete = if (readOnly) null else ({ onDeleteLap(lap.id) }),
             )
         }
         val channels = session.channels
@@ -569,7 +583,7 @@ private fun SessionCard(
             }
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+        if (!readOnly) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
             OutlinedTextField(
                 value = lapDraft,
                 onValueChange = { lapDraft = it },
@@ -592,7 +606,7 @@ private fun SessionCard(
 
 /** A lap as a row: number, time, ★ for the session's best, and a way in (#268). */
 @Composable
-private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: (() -> Unit)?) {
     val colors = TrackTheme.colors
     val label = "Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}" + if (isBest) " ★" else ""
     Row(
@@ -612,8 +626,10 @@ private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: () -
             modifier = Modifier.weight(1f),
         )
         Text("›", style = TrackTheme.typography.sm, color = colors.textFaint)
-        TextButton(onClick = onDelete) {
-            Text("✕", style = TrackTheme.typography.xs, color = colors.textFaint)
+        if (onDelete != null) {
+            TextButton(onClick = onDelete) {
+                Text("✕", style = TrackTheme.typography.xs, color = colors.textFaint)
+            }
         }
     }
 }

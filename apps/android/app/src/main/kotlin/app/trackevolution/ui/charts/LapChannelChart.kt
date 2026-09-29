@@ -53,6 +53,9 @@ import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
+import app.trackevolution.core.api.LogbookOwner
+import app.trackevolution.ui.LocalLogbookOwner
+import app.trackevolution.ui.studentFreeNote
 import app.trackevolution.ui.LocalUnitSystem
 import kotlin.math.abs
 import kotlin.math.max
@@ -279,10 +282,22 @@ fun LapChannelChart(
     }
 }
 
-/** What the rest of a recording would show, and the way to it (#264). */
+/**
+ * What the rest of a recording would show, and the way to it (#264). In a
+ * student's logbook (NS-38) it is a note instead: the upgrade is the student's
+ * to make, so their coach is told what the free half leaves out and offered
+ * nothing to buy.
+ */
 @Composable
 private fun ChannelProCard(onSubscribe: () -> Unit) {
     val colors = TrackTheme.colors
+    val owner = LocalLogbookOwner.current
+    if (owner is LogbookOwner.Student) {
+        TrackCard(Modifier.fillMaxWidth().semantics { testTag = "channelStudentFreeNote" }) {
+            Text(studentFreeNote(owner.name), style = TrackTheme.typography.sm, color = colors.textMuted)
+        }
+        return
+    }
     TrackCard(Modifier.fillMaxWidth().semantics { testTag = "channelProCard" }) {
         Text("The rest of the recording is Pro", style = TrackTheme.typography.h3, color = colors.textStrong)
         Text(

@@ -61,6 +61,13 @@ fun TrackScreen(
     onShare: (String) -> Unit,
     serverUrl: String,
     modifier: Modifier = Modifier,
+    /**
+     * A student's track, read by their coach (NS-38): the chart, the goal as
+     * text, the compare and the events — no add, share, leaderboard (other
+     * drivers consented to drivers, not to coaches) or course notes, which are
+     * not shared.
+     */
+    readOnly: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -104,7 +111,27 @@ fun TrackScreen(
                 item("chart") { ChartCard(model, goalMs = track.goalMs) }
             }
 
-            item("goal") { GoalCard(model, hasGoal = track.goalMs != null) }
+            if (!readOnly) {
+                item("goal") { GoalCard(model, hasGoal = track.goalMs != null) }
+            } else if (track.goalMs != null) {
+                item("goal") {
+                    TrackCard(Modifier.fillMaxWidth()) {
+                        Text(
+                            "Goal lap ${LapTime.fmtMs(track.goalMs)}",
+                            style = TrackTheme.typography.bodyStrong,
+                            color = colors.textStrong,
+                        )
+                        model.goalStatus?.let { status ->
+                            Text(
+                                status.text,
+                                style = TrackTheme.typography.sm,
+                                color = if (status.met) colors.positive else colors.textMuted,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
 
             item("actions") {
                 // Wraps rather than clips: four controls will not fit one phone
@@ -113,7 +140,7 @@ fun TrackScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Button(
+                    if (!readOnly) Button(
                         onClick = { onAddEvent(track.name) },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = colors.accent,
@@ -143,7 +170,7 @@ fun TrackScreen(
                     // may not care about was costing it a screen of space. Offered
                     // for every catalog track — before the driver is on it, and
                     // before they have been here at all.
-                    if (track.catalogId != null) {
+                    if (track.catalogId != null && !readOnly) {
                         TextButton(
                             onClick = onLeaderboard,
                             modifier = Modifier.semantics {
@@ -154,7 +181,7 @@ fun TrackScreen(
                             Text("Leaderboard", style = TrackTheme.typography.sm, color = colors.accentInk)
                         }
                     }
-                    model.shareUrl(serverUrl)?.let { url ->
+                    model.shareUrl(serverUrl)?.takeIf { !readOnly }?.let { url ->
                         TextButton(onClick = { onShare(url) }) {
                             Text("Share", style = TrackTheme.typography.sm, color = colors.accentInk)
                         }
@@ -173,7 +200,7 @@ fun TrackScreen(
                 }
             }
 
-            item("notes") { NotesCard(model) }
+            if (!readOnly) item("notes") { NotesCard(model) }
 
             item("events-header") {
                 TESectionHeader("Events", detail = if (model.dryOnly) "dry only" else null)

@@ -187,6 +187,10 @@ dependencies {
     // fails the build if the store SDK leaks across. See billing/BillingController.
     implementation(libs.play.billing.ktx)
 
+    // The coaching invite's QR code (NS-38), for handing a link over in the
+    // paddock. The encoder only; the matrix is drawn on a Compose Canvas.
+    implementation(libs.zxing.core)
+
     // The engine :core's ApiClient is constructed with. Choosing it here rather
     // than there is what keeps :core a plain JVM module.
     implementation(libs.ktor.client.okhttp)
