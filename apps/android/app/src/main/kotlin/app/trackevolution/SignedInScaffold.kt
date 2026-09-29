@@ -48,7 +48,10 @@ import app.trackevolution.navigation.selectTab
 import app.trackevolution.navigation.show
 import app.trackevolution.navigation.DashboardPane
 import app.trackevolution.navigation.Route
+import app.trackevolution.navigation.PendingInvite
 import app.trackevolution.navigation.Router
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.flow.MutableStateFlow
 import app.trackevolution.navigation.selectionRoute
 import app.trackevolution.navigation.showDeepLink
 import app.trackevolution.ui.LayoutClass
@@ -94,6 +97,8 @@ fun SignedInScaffold(
     /** The purchase terminal behind the paywall sheet (NS-32 phase C). */
     billing: BillingController,
     router: Router,
+    /** A coaching invite link opened before sign-in (NS-38), held until now. */
+    pendingInvite: PendingInvite? = null,
     flow: RecordingFlow,
     serverUrl: String,
     themeChoice: ThemeChoice,
@@ -115,6 +120,7 @@ fun SignedInScaffold(
     val saved by flow.saved.collectAsState()
     val stagedImports by flow.staged.collectAsState()
     val parkedLink by router.pending.collectAsState()
+    val parkedInvite by (pendingInvite?.token ?: remember { MutableStateFlow<String?>(null) }).collectAsState()
     val entry by nav.currentBackStackEntryAsState()
 
     // Saveable: the system killing the app mid-review must not lose the fact
@@ -172,6 +178,15 @@ fun SignedInScaffold(
     LaunchedEffect(parkedLink) {
         val route = router.consume() ?: return@LaunchedEffect
         nav.showDeepLink(route)
+    }
+
+    // A coaching invite that arrived signed out (NS-38) — or while signed in —
+    // opens the accept screen now there is a session to accept it with. Taken,
+    // not read: the route carries the token from here, and a parked token must
+    // fire exactly once.
+    LaunchedEffect(parkedInvite) {
+        val token = pendingInvite?.take() ?: return@LaunchedEffect
+        nav.show(Route.CoachInvite(token))
     }
 
     // Tapping the recording notification must land on the recording, not the

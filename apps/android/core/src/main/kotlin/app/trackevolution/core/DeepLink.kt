@@ -8,9 +8,10 @@ import java.net.URLDecoder
  *
  * Two sources, and only two:
  *
- *  - **App Links** for `https://<host>/share/<slug>`, which is the only pattern
- *    `public/.well-known/assetlinks.json` and the manifest advertise. Those URLs
- *    may carry the web app's own hash route (`/share/eric#/track/7`).
+ *  - **App Links** for `https://<host>/share/<slug>` and `https://<host>/coach/<token>`
+ *    (NS-38), the two patterns the manifest's verified intent filter claims
+ *    (`assetlinks.json` is per-app, not per-path). Share URLs may carry the web
+ *    app's own hash route (`/share/eric#/track/7`).
  *  - The `trackevolution://` custom scheme. `trackevolution://auth?code=…` is
  *    **not** a route: it is the OAuth redirect, consumed by the sign-in flow.
  *    Parsing it as navigation would race that flow for a code that is burned on
@@ -38,6 +39,13 @@ public sealed interface DeepLink {
     /** Someone's public logbook — including your own, when you tap your own link. */
     public data class Shared(val slug: String) : DeepLink
 
+    /**
+     * A coaching invite (NS-38): `https://<host>/coach/<token>`. The token is a
+     * single-use secret, so the app parks it until there is a session to
+     * accept it with rather than dropping it on a signed-out arrival.
+     */
+    public data class CoachInvite(val token: String) : DeepLink
+
     public companion object {
         /** The app's custom scheme, registered in the manifest. */
         public const val CALLBACK_SCHEME: String = "trackevolution"
@@ -63,6 +71,11 @@ public sealed interface DeepLink {
             // in the fragment, not the path) resolving to the logbook's root.
             if (segments.firstOrNull() == "share" && segments.size >= 2 && segments[1].isNotEmpty()) {
                 return Shared(segments[1])
+            }
+            // /coach/<token>: exactly one segment after it — anything else is not
+            // an invite link, and guessing at one would mean accepting a stranger's.
+            if (segments.firstOrNull() == "coach" && segments.size == 2 && segments[1].isNotEmpty()) {
+                return CoachInvite(segments[1])
             }
             // The app's own web URLs: https://host/#/event/5.
             return hashRoute(uri.rawFragment) ?: Dashboard
