@@ -168,6 +168,21 @@ class ApiClientTest {
         assertEquals("Unable to resolve host", error.message)
     }
 
+    /**
+     * A closed client fails every request with a `CancellationException`
+     * ("Parent job is Completed"). Mapped to [ApiException.Transport] it read
+     * as an offline device: reads fell back to the cache and a garage write
+     * showed the message as its error, which is how the activity closing the
+     * process-wide client on a rotation surfaced.
+     */
+    @Test
+    fun `a cancellation is not reported as a transport failure`() = runTest {
+        val api = client { throw kotlinx.coroutines.CancellationException("Parent job is Completed") }
+        val error = assertThrows<Exception> { api.me() }
+        assertFalse(error is ApiException)
+        assertTrue(error is kotlinx.coroutines.CancellationException)
+    }
+
     @Test
     fun `a body that does not match its model is a decoding failure`() = runTest {
         val api = client { respondJson("""{"user":{"id":"one"}}""") }

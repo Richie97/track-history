@@ -251,11 +251,6 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        api.close()
-    }
-
     /**
      * Ask, then record. Asking here rather than at launch is the point: a
      * permission prompt makes sense the moment someone taps "record", and makes
