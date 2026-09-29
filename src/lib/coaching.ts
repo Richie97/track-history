@@ -69,10 +69,30 @@ export const COACH_VEHICLE_FIELDS = [
   "id", "name", "notes", "is_default", "target_hot_psi", "catalog_id", "wheelbase_mm", "steering_ratio",
 ] as const;
 
+// A session's channel blob, rebuilt by allow-list like everything else here.
+// The per-lap entries are the lap data a coach is invited to read — every
+// trace and the per-lap scalars behind the Car tab, already cut to the
+// student's tier by stripProFields — so they are copied whole. The recording's
+// `meta` is not: `odometerKm` is the car's lifetime odometer, which the spec
+// keeps out of a coach's reach with the rest of the garage (the leaderboard
+// drops it for the same reason, in publicLapChannels), and `intakeC` is the
+// car's condition, which nothing in a coach's view reads. What stays is the
+// weather the conditions tag shows.
+export const COACH_CHANNEL_FIELDS = ["v", "dStepM", "laps"] as const;
+export const COACH_META_FIELDS = ["ambientC", "elevationM"] as const;
+function coachChannels(channels: unknown): unknown {
+  if (!channels || typeof channels !== "object") return channels ?? null;
+  const out = pick(channels, COACH_CHANNEL_FIELDS);
+  const meta = pick((channels as Json).meta, COACH_META_FIELDS);
+  if (Object.keys(meta).length) out.meta = meta;
+  return out;
+}
+
 const coachEvent = (row: unknown) => pick(row, COACH_EVENT_FIELDS, EVENT_HIDDEN);
 const coachLap = (row: unknown) => pick(row, COACH_LAP_FIELDS);
 const coachSession = (row: unknown) => {
   const out = pick(row, COACH_SESSION_FIELDS, { notes: null });
+  if (Object.hasOwn(out, "channels")) out.channels = coachChannels(out.channels);
   const laps = (row as Json | null)?.laps;
   out.laps = Array.isArray(laps) ? laps.map(coachLap) : [];
   return out;
@@ -86,18 +106,29 @@ const coachEventDetail: CoachView = (body) => {
 };
 const coachTrack = (row: unknown) => pick(row, COACH_TRACK_FIELDS, { notes: null });
 const coachVehicle = (row: unknown) => pick(row, COACH_VEHICLE_FIELDS);
+// The driver profile under the mount: the student's name, picture and tier
+// beside the profile, which parseProfile has already rebuilt from its own
+// field list.
+export const COACH_PROFILE_FIELDS = ["id", "name", "picture", "pro", "profile"] as const;
+const coachProfile: CoachView = (body) => pick(body, COACH_PROFILE_FIELDS);
+export const COACH_FIT_FIELDS = ["session_id", "event_id", "start_date", "gain0", "K", "samples", "r2"] as const;
+const coachFits: CoachView = (body) => {
+  const fits = (body as Json | null)?.fits;
+  return { fits: Array.isArray(fits) ? fits.map((f) => pick(f, COACH_FIT_FIELDS)) : [] };
+};
 
 // Paths are relative to the mount — what the route itself is registered as.
 // GET only; the mount refuses every other method before looking here.
 export const COACH_ROUTES: readonly { path: RegExp; view: CoachView }[] = [
-  { path: /^\/me\/profile$/, view: pass },
+  { path: /^\/me\/profile$/, view: coachProfile },
   { path: /^\/events$/, view: list(coachEvent) },
   { path: /^\/events\/\d+$/, view: coachEventDetail },
   { path: /^\/tracks$/, view: list(coachTrack) },
   { path: /^\/vehicles$/, view: list(coachVehicle) },
   // Per-session fits (ids, dates and two numbers) — Pro, so under the
   // student's tier it is the 402 the student would get.
-  { path: /^\/vehicles\/\d+\/steering-fit$/, view: pass },
+  { path: /^\/vehicles\/\d+\/steering-fit$/, view: coachFits },
+  // The two seeded catalogs: shared reference data, nothing of the student's.
   { path: /^\/catalog$/, view: pass },
   { path: /^\/car-catalog$/, view: pass },
 ];

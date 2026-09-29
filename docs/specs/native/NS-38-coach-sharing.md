@@ -126,7 +126,11 @@ private until someone adds it to the allowlist. The hidden fields that have a
 place in the shape — notes, the checklist, the cost line items and the setup
 sheets — are sent empty (`null`, or `[]` for `setups`) rather than dropped, so
 the native models, which already treat them as optional, decode a coach
-response with no second model; any other field is dropped. `/me/profile`
+response with no second model; any other field is dropped. A session's
+`channels` is rebuilt by allow-list too: the per-lap entries whole, `meta`
+cut to `ambientC` and `elevationM`, because `meta.odometerKm` is the car's
+lifetime odometer — garage data this spec keeps out of reach, which the
+security review found passing through in the first server PR. `/me/profile`
 carries `pro` (under the mount, the student's tier): the coach's client needs
 that tier to open the channel panel, see *Clients*.
 

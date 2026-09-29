@@ -138,15 +138,35 @@ coaching.post("/coaching/invites/:token/accept", async (c) => {
   if (invite.already) return c.json({ error: "you're already a coach of this driver" }, 409);
   if (invite.coaches >= MAX_COACHES) return c.json({ error: "this driver already has the most coaches allowed" }, 409);
 
-  // Burn the link first: of two people accepting at once, exactly one deletes
-  // the row, and only they get the grant.
-  const burned = await c.env.DB.prepare("DELETE FROM coach_invites WHERE id = ? RETURNING id").bind(invite.id).first();
-  if (!burned) return c.json({ error: GONE }, 404);
-  await c.env.DB.prepare(
-    "INSERT OR IGNORE INTO coach_grants (student_id, coach_id, created_at) VALUES (?, ?, ?)"
-  )
-    .bind(invite.student_id, userId, Date.now())
-    .run();
+  // The grant and the burn are one transaction (a D1 batch), and every check
+  // that matters is re-made inside it rather than trusted from the lookup
+  // above: the invite still exists and hasn't expired, and the student still
+  // has room for a coach. D1 runs one write transaction at a time, so of two
+  // people accepting one link exactly one finds the invite, and several
+  // coaches accepting different links at once can't take a student past the
+  // cap. The link is burned only when the grant landed, so a refusal leaves it
+  // for someone else.
+  const now = Date.now();
+  const [granted] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT OR IGNORE INTO coach_grants (student_id, coach_id, created_at)
+       SELECT i.student_id, ?1, ?2 FROM coach_invites i
+        WHERE i.id = ?3 AND i.expires_at > ?2
+          AND (SELECT COUNT(*) FROM coach_grants g WHERE g.student_id = i.student_id) < ?4
+       RETURNING id`
+    ).bind(userId, now, invite.id, MAX_COACHES),
+    c.env.DB.prepare(
+      `DELETE FROM coach_invites WHERE id = ?1
+         AND EXISTS (SELECT 1 FROM coach_grants g WHERE g.student_id = ?2 AND g.coach_id = ?3)`
+    ).bind(invite.id, invite.student_id, userId),
+  ]);
+  if (!granted.results.length) {
+    // Lost a race: say which one.
+    const still = await lookupInvite(c.env.DB, c.req.param("token"), userId);
+    if (!still) return c.json({ error: GONE }, 404);
+    if (still.already) return c.json({ error: "you're already a coach of this driver" }, 409);
+    return c.json({ error: "this driver already has the most coaches allowed" }, 409);
+  }
   return c.json({ student: { id: invite.student_id, name: invite.name, picture: invite.picture } }, 201);
 });
 

@@ -1521,7 +1521,9 @@ Wrapped, which is free.
   see exactly what the student sees, with **the student's tier** deciding
   `channels`; it answers `GET` only, on the path + view table `COACH_ROUTES`
   in `src/lib/coaching.ts`, whose views copy permitted fields and send notes,
-  the prep checklist, costs and setup sheets as null. The garage's parts and
+  the prep checklist, costs and setup sheets as null — and rebuild each
+  recording's `channels` the same way, keeping the per-lap traces and
+  scalars but only the weather from its `meta` (never the car's odometer). The garage's parts and
   costs, the setup notebook, the leaderboards, Wrapped, `/me` and every write
   are unreachable, and everything refused is a 404. Revoking
   (`DELETE /api/coaching/coaches/:id`) takes effect on the coach's next

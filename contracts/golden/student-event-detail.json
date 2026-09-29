@@ -147,9 +147,7 @@
           ],
           "meta": {
             "ambientC": 21.4,
-            "elevationM": 38,
-            "intakeC": 44,
-            "odometerKm": 71087
+            "elevationM": 38
           },
           "v": 1
         },
@@ -317,9 +315,6 @@
               ]
             }
           ],
-          "meta": {
-            "odometerKm": 71092
-          },
           "v": 1
         },
         "elevation_m": null,

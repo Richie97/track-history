@@ -2,7 +2,11 @@ import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { sweepCoachInvites } from "../../src/routes/coaching";
 import {
+  COACH_CHANNEL_FIELDS,
   COACH_EVENT_FIELDS,
+  COACH_FIT_FIELDS,
+  COACH_META_FIELDS,
+  COACH_PROFILE_FIELDS,
   COACH_LAP_FIELDS,
   COACH_SESSION_FIELDS,
   COACH_TRACK_FIELDS,
@@ -53,7 +57,7 @@ async function richLogbook(api: Api) {
     trace: Array.from({ length: N }, (_, i) => [i * 10, i * 5, 30 + i]),
     channels: {
       dStepM: 20,
-      meta: { ambientC: 21 },
+      meta: { ambientC: 21, intakeC: 30, elevationM: 12, odometerKm: 48123 },
       laps: [{ n: 1, timeMs: 95_000, speed: arr(30), throttle: arr(50), brake: arr(0), rpm: arr(4000), latG: flat(0.8), oilC: 105 }],
     },
   });
@@ -159,6 +163,44 @@ describe("invites", () => {
     expect((await other.api("POST", `/coaching/invites/${inv.token}/accept`)).status).toBe(404);
   });
 
+  it("go to exactly one of two people accepting the same link at once", async () => {
+    const student = await signedInProUser();
+    const a = await signedInUser();
+    const b = await signedInUser();
+    const { token } = await invite(student.api);
+    const results = await Promise.all([
+      a.api("POST", `/coaching/invites/${token}/accept`),
+      b.api("POST", `/coaching/invites/${token}/accept`),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 404]);
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM coach_grants WHERE student_id = ?")
+      .bind(student.id)
+      .first<{ n: number }>();
+    expect(n!.n).toBe(1);
+  });
+
+  it("can't take a student past ten coaches, even accepted at once, and a refusal doesn't burn the link", async () => {
+    const student = await signedInProUser();
+    for (let i = 0; i < 9; i++) {
+      const coach = await signedInUser();
+      const { token } = await invite(student.api);
+      expect((await coach.api("POST", `/coaching/invites/${token}/accept`)).status).toBe(201);
+    }
+    const [x, y] = [await signedInUser(), await signedInUser()];
+    const [ix, iy] = [await invite(student.api), await invite(student.api)];
+    const results = await Promise.all([
+      x.api("POST", `/coaching/invites/${ix.token}/accept`),
+      y.api("POST", `/coaching/invites/${iy.token}/accept`),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM coach_grants WHERE student_id = ?")
+      .bind(student.id)
+      .first<{ n: number }>();
+    expect(n!.n).toBe(10);
+    // The refused link is still there for when a place frees up.
+    expect((await student.api("GET", "/coaching")).body.invites).toHaveLength(1);
+  });
+
   it("are capped at ten open at once", async () => {
     const { api } = await signedInProUser();
     for (let i = 0; i < 10; i++) await invite(api);
@@ -232,6 +274,9 @@ describe("a coach reading a student's logbook", () => {
     for (const s of detail.body.sessions) {
       expect(keysOk(s, COACH_SESSION_FIELDS, ["notes", "laps"])).toEqual([]);
       expect(s.notes).toBeNull();
+      // The recording's meta is the weather only — never the car's odometer.
+      expect(keysOk(s.channels, COACH_CHANNEL_FIELDS, ["meta"])).toEqual([]);
+      expect(s.channels.meta).toEqual({ ambientC: 21, elevationM: 12 });
       for (const l of s.laps) expect(keysOk(l, COACH_LAP_FIELDS, [])).toEqual([]);
     }
     for (const t of tracks.body) {
@@ -239,6 +284,13 @@ describe("a coach reading a student's logbook", () => {
       expect(t.notes).toBeNull();
     }
     for (const v of vehicles.body) expect(keysOk(v, COACH_VEHICLE_FIELDS, [])).toEqual([]);
+    expect(keysOk(profile.body, COACH_PROFILE_FIELDS, [])).toEqual([]);
+    expect(everything).not.toContain("48123");
+    expect(COACH_META_FIELDS).not.toContain("odometerKm");
+    const fits = await as(`/vehicles/${vehicles.body[0].id}/steering-fit`);
+    expect(fits.status).toBe(200);
+    expect(Object.keys(fits.body)).toEqual(["fits"]);
+    for (const f of fits.body.fits) expect(keysOk(f, COACH_FIT_FIELDS, [])).toEqual([]);
   });
 
   it("drops to the free half of the panel when the student lapses", async () => {

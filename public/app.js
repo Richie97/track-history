@@ -4392,9 +4392,15 @@ async function viewProfile() {
 
 // An invite link is /coach/<token>. The token is moved into sessionStorage and
 // out of the address bar the moment the page loads (see the bottom of this
-// file) — it outlives a sign-in round trip that way, and never lands in
-// history, a bookmark or a referrer.
+// file) — it outlives a sign-in round trip that way, and can't be bookmarked,
+// shared from the address bar or sent as a referrer. The browser's own history
+// still records the address it was opened at; the token is single-use and
+// expires in a week, which is what bounds that.
 const COACH_INVITE_KEY = "te.coachInvite";
+// route() sends a signed-in page to the accept page once per load while an
+// invite is waiting — once, so a preview that can't load (offline) never
+// traps every other page behind it.
+let inviteRedirectDone = false;
 const pendingInvite = () => {
   try {
     return sessionStorage.getItem(COACH_INVITE_KEY);
@@ -4420,7 +4426,21 @@ async function viewAcceptInvite() {
   }
   // Read past the offline cache on purpose: the preview's path carries the
   // token, and a stale answer about a single-use link would be wrong anyway.
-  const res = await fetch(`/api/coaching/invites/${encodeURIComponent(token)}`);
+  let res;
+  try {
+    res = await fetch(`/api/coaching/invites/${encodeURIComponent(token)}`);
+  } catch {
+    const view = shell(`<h1>Coaching invite</h1><div class="panel">
+      <p>Can't reach the server to check this invite. It's kept on this tab — try again once you're back online.</p>
+      <div class="btn-row"><button class="btn small primary" id="invite-retry">Try again</button>
+        <button class="btn small" id="invite-decline">Not now</button></div></div>`);
+    view.querySelector("#invite-retry").onclick = () => route();
+    view.querySelector("#invite-decline").onclick = () => {
+      clearPendingInvite();
+      location.hash = "#/";
+    };
+    return;
+  }
   if (res.status === 401) return renderLogin();
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -4445,6 +4465,7 @@ async function viewAcceptInvite() {
     <div class="panel">
       <p><strong>${esc(name)}</strong> wants to share their Track Evolution logbook with you, read-only.</p>
       <p class="hint">You'll see their events, sessions and laps with the channel graphs, their racing lines, their cars and modifications, and their driver profile — not their notes, costs, setup sheets or email. Either of you can end it at any time from the Coaching page.</p>
+      <p class="hint">Accepting shows ${esc(name)} your name and profile picture, and when you last looked at their logbook.</p>
       <div class="btn-row">
         <button class="btn primary" id="invite-accept">Accept</button>
         <button class="btn" id="invite-decline">Not now</button>
@@ -4867,7 +4888,8 @@ async function route() {
   const parts = path.split("/").filter(Boolean);
   // An invite link opened while signed out comes back here after sign-in with
   // the token still waiting; send it to the page that accepts it.
-  if (pendingInvite() && parts[0] !== "coach") {
+  if (pendingInvite() && parts[0] !== "coach" && !inviteRedirectDone) {
+    inviteRedirectDone = true;
     location.hash = "#/coach";
     return;
   }
@@ -4900,7 +4922,8 @@ async function route() {
 }
 
 // A coach invite link (/coach/<token>, NS-38): keep the token for the accept
-// page and take it out of the address bar before anything else runs.
+// page and take it out of the address bar before anything else runs (see
+// COACH_INVITE_KEY for what that does and doesn't keep it out of).
 {
   const invite = location.pathname.match(/^\/coach\/([0-9a-f]{64})\/?$/);
   if (invite) {
