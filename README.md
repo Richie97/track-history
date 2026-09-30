@@ -1669,6 +1669,25 @@ and point it at `http://localhost:8787/mcp` — the consent page signs in throug
 the `DEV_MODE` bypass. The account needs Pro; `POST /auth/dev/entitlement`
 with `{ "pro": true }` grants it on a dev host.
 
+## Promo video
+
+[`promo/`](promo/) builds an 84-second promotional film from the real app: a
+fictional demo logbook — with simulated telemetry around the Circuit of the
+Americas — is seeded through the API on a scratch database, the web app is
+filmed in Chromium, and the screens are cut into a motion-graphics piece with a
+synthesised score.
+
+```sh
+cd promo && npm install
+node capture.mjs         # demo logbook + filming
+node audio/score.mjs     # the score
+node render.mjs          # → promo/out/track-evolution-promo.mp4 (needs ffmpeg with libx264/aac)
+```
+
+The storyboard, how each step works and the rules that keep its claims in step
+with the site are in [`promo/README.md`](promo/README.md). The MP4 is a build
+product under `promo/out/` and isn't committed.
+
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE).
