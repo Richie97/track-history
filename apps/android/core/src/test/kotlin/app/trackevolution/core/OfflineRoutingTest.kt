@@ -105,7 +105,9 @@ class OfflineRoutingTest {
     fun `a read with no cache and no network still fails`() = runTest {
         online = false
         val api = client { respondJson("{}") }
-        assertThrows<ApiException.Transport> { api.events() }
+        // …and says so in the words every client uses, not the engine's.
+        val error = assertThrows<ApiException.Transport> { api.events() }
+        assertEquals(ApiException.OFFLINE_UNCACHED, error.message)
     }
 
     @Test

@@ -64,6 +64,16 @@ public sealed class ApiException(
 
     public companion object {
         /**
+         * What a read says when the network is gone and nothing was cached for
+         * it — `OFFLINE_UNCACHED` in `public/js/api.js`, and `APIError.OFFLINE_UNCACHED`
+         * on iOS, word for word. The engine's own words for a dropped connection
+         * sat under a sync banner already saying the device is offline, and told
+         * the driver nothing they could act on.
+         */
+        public const val OFFLINE_UNCACHED: String =
+            "This page hasn't been saved for offline yet — open it once with a connection and it'll be here next time."
+
+        /**
          * Maps a non-2xx response to an exception, preferring the server's own
          * message and falling back to `Request failed (<status>)` exactly like
          * the web client does when the body isn't the expected shape.
