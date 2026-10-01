@@ -25,6 +25,9 @@ struct TrackEvolutionApp: App {
         // paywall on screen, and a transaction nobody is listening for is a
         // transaction that waits until the next launch to reach the server.
         AppServices.store.start()
+        // Google Analytics: screen views by shape, release builds only. See
+        // `AppAnalytics` for what is and is not sent.
+        AppAnalytics.start()
     }
 
     var body: some Scene {

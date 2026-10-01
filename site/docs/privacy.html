@@ -68,9 +68,9 @@
 
     <div class="callout">
       The short version: your logbook is private to your account, there are no
-      ads, and your data is never sold. The website counts visits with Google
-      Analytics, which never sees what's in your logbook; the iPhone and
-      Android apps have no analytics at all. Video and
+      ads, and your data is never sold. The website and the iPhone and Android
+      apps count visits and screen views with Google Analytics, which never
+      sees what's in your logbook. Video and
       telemetry files are parsed in your browser and <strong>never
       uploaded</strong>. We never see your payment details. The only thing ever
       made public is a share page you explicitly turn on, nothing reaches an AI
@@ -119,8 +119,9 @@
         sign-in flow itself. The iPhone and Android apps use a sign-in token
         held in the operating system's encrypted storage instead. On the
         website, Google Analytics also sets its own cookies to count visits, if
-        you allow it — see <a href="#analytics">analytics</a> below. There are
-        no advertising cookies.</li>
+        you allow it, and in the apps it keeps a random identifier for the
+        installation — see <a href="#analytics">analytics</a> below. There are
+        no advertising cookies or advertising identifiers.</li>
       <li><strong>Subscription state.</strong> If you subscribe to Track
         Evolution Pro, the App Store or Google Play tells us that a purchase
         was made and we store the store's own transaction identifier for it,
@@ -173,7 +174,7 @@
       time in your phone's settings.
     </p>
 
-    <h2 id="analytics">Analytics on the website</h2>
+    <h2 id="analytics">Analytics</h2>
     <p>
       The web app at trackevolution.app and this documentation site use
       <strong>Google Analytics</strong> to count visits, so we can see which
@@ -206,13 +207,22 @@
         name or slug of a share page, or anything you have entered. Your
         logbook, email address, name and account are never sent to Google
         Analytics.</li>
-      <li>The iPhone and Android apps contain no analytics.</li>
+      <li>The iPhone and Android apps use <strong>Google Analytics for
+        Firebase</strong> the same way: they report which kind of screen you
+        open — "an event page", "the lap recorder" — and never the record it
+        shows, a share page's name, or anything you have entered. Google also
+        receives your device model, operating system and app version, your
+        approximate location (derived from your IP address by Google), and a
+        random identifier for the installation, which resets if you reinstall
+        the app. The apps do not collect your phone's advertising identifier,
+        do not track you across other companies' apps or websites, and send no
+        data to Google Analytics for advertising.</li>
       <li>Google handles this data under
         <a href="https://policies.google.com/privacy">Google's privacy
         policy</a>; see
         <a href="https://policies.google.com/technologies/partner-sites">how
         Google uses information from sites that use its services</a>.</li>
-      <li>Besides declining, Google's
+      <li>On the website, besides declining, Google's
         <a href="https://tools.google.com/dlpage/gaoptout">Analytics opt-out
         browser add-on</a>, blocking cookies for these sites, or a content
         blocker all work too — the app works exactly the same without
@@ -221,13 +231,13 @@
 
     <h2 id="not">What we don't do</h2>
     <ul>
-      <li>No advertising, no advertising trackers, and no analytics in the
-        iPhone and Android apps. The website's one third-party script is
+      <li>No advertising and no advertising trackers. The one third-party
+        analytics service, on the website and in the apps, is
         <a href="#analytics">Google Analytics</a>.</li>
       <li>We never sell or rent your data.</li>
       <li>We don't share your data with anyone, except the cloud hosting
         provider that stores it so the service can run, Google for the
-        website's <a href="#analytics">visit counts</a>, an
+        website's and the apps' <a href="#analytics">visit counts</a>, an
         <a href="#ai">AI assistant you connect yourself</a>, or if the law
         requires it.</li>
       <li>We never see, handle or store payment details — Apple and Google

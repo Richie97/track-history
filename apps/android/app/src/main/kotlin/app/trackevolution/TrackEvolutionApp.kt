@@ -1,6 +1,7 @@
 package app.trackevolution
 
 import android.app.Application
+import app.trackevolution.analytics.AppAnalytics
 import app.trackevolution.data.AppServices
 
 /**
@@ -28,5 +29,8 @@ class TrackEvolutionApp : Application() {
         // reason as the scheduler: the purchase → server → acknowledge chain
         // must not depend on the logbook ever being shown.
         services.billing.start()
+        // Google Analytics: screen views by shape, release builds only. See
+        // AppAnalytics for what is and is not sent.
+        AppAnalytics.start(this)
     }
 }

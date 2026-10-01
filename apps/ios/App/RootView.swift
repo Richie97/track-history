@@ -59,6 +59,7 @@ struct RootView: View {
             }
         case .signedOut, .signingIn:
             SignInScreen()
+                .onAppear { AppAnalytics.screen(Route.signInAnalyticsPath) }
                 // A link that arrived while signed out is held, not dropped: tapping a
                 // share link, signing in, and landing on that logbook is one flow.
                 .onOpenURL { router.open($0, signedIn: false) }
@@ -135,6 +136,10 @@ struct RootView: View {
                 return
             }
             router.open(url, signedIn: true)
+        }
+        // Google Analytics: the screen now showing, by its shape (`AppAnalytics`).
+        .onChange(of: router.analyticsPath, initial: true) { _, path in
+            AppAnalytics.screen(path)
         }
         // Cold start with a pending link, and the moment after signing in: both land
         // here, so the destination survives the auth detour either way.

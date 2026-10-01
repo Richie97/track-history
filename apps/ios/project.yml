@@ -25,6 +25,12 @@ packages:
   # package so `swift test` can run the suite without booting a simulator.
   TrackEvolutionKit:
     path: Packages/TrackEvolutionKit
+  # Google Analytics for Firebase — screen views by route shape, release builds
+  # only (App/AppAnalytics.swift). Only the FirebaseAnalytics product is linked,
+  # and AdSupport is not, so there is no IDFA and no tracking prompt.
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 12.19.2
 
 settings:
   base:
@@ -53,8 +59,13 @@ targets:
     dependencies:
       - package: TrackEvolutionKit
         product: TrackEvolutionKit
+      - package: Firebase
+        product: FirebaseAnalytics
     settings:
       base:
+        # Firebase Analytics is Objective-C with categories; without -ObjC the
+        # linker drops them and Analytics fails at run time, not at build time.
+        OTHER_LDFLAGS: "$(inherited) -ObjC"
         # Identical to the Capacitor app's id, deliberately: it makes the native
         # build an in-place App Store update that keeps ratings, install base
         # and the Universal Links association. Do not change.

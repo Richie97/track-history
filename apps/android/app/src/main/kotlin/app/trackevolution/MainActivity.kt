@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,11 +42,13 @@ import app.trackevolution.auth.AuthState
 import app.trackevolution.auth.units
 import app.trackevolution.auth.ServerPreference
 import app.trackevolution.auth.ServerOverride
+import app.trackevolution.analytics.AppAnalytics
 import app.trackevolution.auth.SignInScreen
 import app.trackevolution.core.DeepLink
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.data.AppServices
 import app.trackevolution.navigation.PendingInvite
+import app.trackevolution.navigation.SIGN_IN_ANALYTICS_PATH
 import app.trackevolution.navigation.Router
 import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
@@ -234,17 +237,20 @@ class MainActivity : ComponentActivity() {
                                     onConsumedIncomingImport = { incomingImport = null },
                                 )
                                 AuthState.Loading -> LoadingScreen()
-                                else -> SignInScreen(
-                                    state = state,
-                                    onSignIn = { auth.signIn(it, this@MainActivity) },
-                                    // Debug only: pointing the app at `wrangler dev` is a
-                                    // development affordance, not a user-facing setting.
-                                    serverOverride = if (BuildConfig.DEBUG) {
-                                        ServerOverride(current = server, onChange = auth::setServer)
-                                    } else {
-                                        null
-                                    },
-                                )
+                                else -> {
+                                    LaunchedEffect(Unit) { AppAnalytics.screen(SIGN_IN_ANALYTICS_PATH) }
+                                    SignInScreen(
+                                        state = state,
+                                        onSignIn = { auth.signIn(it, this@MainActivity) },
+                                        // Debug only: pointing the app at `wrangler dev` is a
+                                        // development affordance, not a user-facing setting.
+                                        serverOverride = if (BuildConfig.DEBUG) {
+                                            ServerOverride(current = server, onChange = auth::setServer)
+                                        } else {
+                                            null
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
