@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.trackevolution.analytics.AppAnalytics
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthState
 import app.trackevolution.auth.CustomTabs
@@ -38,6 +39,8 @@ import app.trackevolution.billing.PaywallSheet
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.navigation.AppNavHost
+import app.trackevolution.navigation.analyticsPath
+import app.trackevolution.navigation.analyticsRoute
 import app.trackevolution.navigation.AppNavigationSuite
 import app.trackevolution.navigation.AppTab
 import app.trackevolution.navigation.GarageBadge
@@ -134,6 +137,13 @@ fun SignedInScaffold(
     // which offline is the cached `/api/me`.
     var paywall by rememberSaveable { mutableStateOf(false) }
     val entitlement = authState.entitlement
+
+    // Google Analytics: the screen now showing, by its shape (AppAnalytics).
+    // Keyed on the entry rather than the destination, so the same kind of page
+    // opened twice in a row still counts twice only if it is a new entry.
+    LaunchedEffect(entry?.id) {
+        entry?.analyticsRoute()?.let { AppAnalytics.screen(it.analyticsPath) }
+    }
 
     val onRecordScreen = entry?.destination?.hasRoute(Route.Record::class) == true
     val atRoot = entry?.destination?.hasRoute(Route.Dashboard::class) == true
