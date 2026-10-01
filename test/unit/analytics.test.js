@@ -98,6 +98,13 @@ describe("initAnalytics / trackPageView / setAnalyticsConsent", () => {
     };
     return { win, appended, banners, store };
   }
+  // gtag() calls (arguments objects) and plain dataLayer events, apart.
+  const gtagCalls = (win) => win.dataLayer.filter((e) => !("event" in e)).map((a) => [...a]);
+  const events = (win) => win.dataLayer.filter((e) => "event" in e);
+  const SCRIPTS = [
+    "https://www.googletagmanager.com/gtag/js?id=G-JXM9CX77RQ",
+    "https://www.googletagmanager.com/gtm.js?id=GTM-MQD633J7",
+  ];
   // Fresh module state per test.
   const load = () => {
     vi.resetModules();
@@ -119,8 +126,15 @@ describe("initAnalytics / trackPageView / setAnalyticsConsent", () => {
     const { win, appended, banners } = fakeWindow();
     initAnalytics(win);
     expect(banners).toEqual([]);
-    expect(appended[0].src).toBe("https://www.googletagmanager.com/gtag/js?id=G-JXM9CX77RQ");
-    const calls = () => win.dataLayer.map((a) => [...a]);
+    expect(appended.map((s) => s.src)).toEqual(SCRIPTS);
+    expect(appended.every((s) => s.async)).toBe(true);
+    // Tag Manager starts after the consent defaults, so its tags inherit them.
+    const gtmAt = win.dataLayer.findIndex((e) => e.event === "gtm.js");
+    const lastDefault = win.dataLayer.findLastIndex((e) => !("event" in e) && e[0] === "consent");
+    expect(lastDefault).toBeGreaterThanOrEqual(0);
+    expect(gtmAt).toBeGreaterThan(lastDefault);
+    expect(win.dataLayer[gtmAt]["gtm.start"]).toEqual(expect.any(Number));
+    const calls = () => gtagCalls(win);
     const defaults = calls().filter((a) => a[0] === "consent");
     expect(defaults[0][2]).toMatchObject({ analytics_storage: "granted", ad_storage: "denied" });
     expect(defaults[1][2]).toMatchObject({ analytics_storage: "denied", region: expect.arrayContaining(["GB", "DE"]) });
@@ -130,6 +144,13 @@ describe("initAnalytics / trackPageView / setAnalyticsConsent", () => {
     trackPageView(win);
     expect(calls().at(-2)).toEqual(["set", expect.objectContaining({ page_path: "/track/:id" })]);
     expect(calls().at(-1)).toEqual(["event", "page_view", expect.objectContaining({ page_location: "https://trackevolution.app/track/:id" })]);
+    // …and the same shaped fields as a plain event for the container's triggers.
+    expect(events(win).at(-1)).toEqual({
+      event: "te_page_view",
+      page_location: "https://trackevolution.app/track/:id",
+      page_path: "/track/:id",
+      page_title: "Track Evolution",
+    });
   });
 
   it("in Europe, loads nothing until the visitor accepts", async () => {
@@ -143,8 +164,8 @@ describe("initAnalytics / trackPageView / setAnalyticsConsent", () => {
     setAnalyticsConsent("granted", win);
     expect(store.get("te-analytics-consent")).toBe("granted");
     expect(banners).toEqual([]);
-    expect(appended).toHaveLength(1);
-    const calls = win.dataLayer.map((a) => [...a]);
+    expect(appended.map((s) => s.src)).toEqual(SCRIPTS);
+    const calls = gtagCalls(win);
     // An explicit yes carries no regional "denied" default.
     expect(calls.filter((a) => a[0] === "consent")).toHaveLength(1);
     expect(calls.at(-1)).toEqual(["event", "page_view", expect.objectContaining({ page_path: "/event/:id" })]);
@@ -164,6 +185,7 @@ describe("initAnalytics / trackPageView / setAnalyticsConsent", () => {
     const before = win.dataLayer.length;
     second.trackPageView(win);
     expect(win.dataLayer.length).toBe(before);
-    expect([...win.dataLayer.at(-1)]).toEqual(["consent", "update", { analytics_storage: "denied" }]);
+    expect(gtagCalls(win).at(-1)).toEqual(["consent", "update", { analytics_storage: "denied" }]);
   });
 });
+
