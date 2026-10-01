@@ -1,0 +1,15 @@
+{
+  "name": "track-evolution-promo",
+  "private": true,
+  "type": "module",
+  "description": "The Track Evolution promo video: a demo logbook filmed in the real app, cut into a motion-graphics piece and rendered to MP4.",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "score": "node audio/score.mjs",
+    "render": "node render.mjs",
+    "build": "node capture.mjs && node audio/score.mjs && node render.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

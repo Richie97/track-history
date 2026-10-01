@@ -1,0 +1,6 @@
+# Everything the pipeline writes: the scratch database, the downloaded
+# circuit, the screenshots, the score and the film itself.
+node_modules/
+.state/
+.cache/
+out/
