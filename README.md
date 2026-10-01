@@ -1017,7 +1017,8 @@ doesn't retain the previous user's logbook.
 
 The web app and the docs site report page views to Google Analytics 4
 (measurement id `G-JXM9CX77RQ`), behind a consent banner for the UK and the
-EU; the iOS and Android apps report screen views to the same property through
+EU, and load the Google Tag Manager container `GTM-MQD633J7` alongside it;
+the iOS and Android apps report screen views to the same property through
 Google Analytics for Firebase (project `track-evolution-app`).
 
 - **Consent.** A choice the visitor made is final either way, stored in
@@ -1050,6 +1051,23 @@ Google Analytics for Firebase (project `track-evolution-app`).
   events carry them too. It runs only on `trackevolution.app` (and `www.`), so
   local dev, the test suites and the promo capture send nothing; the banner
   can still be opened from the footer or Settings in dev to look at it.
+- **Google Tag Manager** is not pasted into any page's `<head>` or `<body>`
+  the way Google's install snippet suggests. It loads from the same function
+  as the GA tag (`loadTag` in `public/js/analytics.js`, `load` in
+  `site/analytics.js`), so it is subject to the same host check and the same
+  consent decision, and the `gtm.js` event is pushed only after the consent
+  defaults are in the `dataLayer`, so consent-aware tags in the container
+  start from them. The `<noscript>` iframe is deliberately omitted: it would
+  fire for a visitor with JavaScript off, who can't be shown the banner. In the
+  web app, every page view is also pushed as a plain `te_page_view` dataLayer
+  event carrying the shaped `page_location` / `page_path` / `page_title`; a
+  container tag on the app should trigger on that event and read those
+  dataLayer variables, never GTM's built-in *History Change* trigger or *Page
+  URL* / *Page Title* variables, which see the raw address (record ids, share
+  slugs) and a share page's title (the driver's name). Don't add a GA4 page-view
+  tag for `G-JXM9CX77RQ` in the container either — the page already reports
+  one, and it would count every view twice. Anything the container loads
+  beyond Google's measurement tags owes the privacy policy an update.
 - In the GA data stream's *Enhanced measurement* settings, turn **off** "Page
   changes based on browser history events": the app reports its own page
   views, and that option would add a second, unshaped one per navigation.

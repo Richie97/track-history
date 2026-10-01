@@ -7,9 +7,13 @@
 // anyone else gets the tag, with Google's consent mode defaulting
 // analytics_storage to denied for the EEA, the UK and Switzerland (by IP) as
 // the backstop. The choice lives in this browser's localStorage, and the
-// footer's "Cookies" link reopens the banner to change it.
+// footer's "Cookies" link reopens the banner to change it. Google Tag Manager
+// loads with the GA tag, under the same decision and after the consent
+// defaults; its <noscript> iframe is left out because a visitor without
+// JavaScript can't be shown the banner.
 (function () {
   var ID = "G-JXM9CX77RQ";
+  var GTM = "GTM-MQD633J7";
   var KEY = "te-analytics-consent";
   var HOSTS = ["docs.trackevolution.app", "richie97.github.io"];
   var REGIONS = [
@@ -55,10 +59,16 @@
     if (!explicit) gtag("consent", "default", Object.assign({ analytics_storage: "denied", region: REGIONS }, noAds));
     gtag("js", new Date());
     gtag("config", ID);
-    var s = document.createElement("script");
-    s.async = true;
-    s.src = "https://www.googletagmanager.com/gtag/js?id=" + ID;
-    document.head.appendChild(s);
+    dataLayer.push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+    [
+      "https://www.googletagmanager.com/gtag/js?id=" + ID,
+      "https://www.googletagmanager.com/gtm.js?id=" + GTM,
+    ].forEach(function (src) {
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = src;
+      document.head.appendChild(s);
+    });
   }
 
   function clearCookies() {

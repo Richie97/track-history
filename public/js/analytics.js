@@ -22,10 +22,21 @@
 // or Settings, both of which reopen the banner. site/analytics.js is the docs
 // site's copy of the same rules; keep the two in step.
 //
+// Google Tag Manager (GTM_CONTAINER_ID) loads in the same place and under
+// the same decision as the GA tag: never from index.html, never before the
+// consent defaults are in the dataLayer, and not at all where the visitor
+// hasn't been asked or said no. GTM's <noscript> iframe is deliberately left
+// out — it would load for a visitor with JavaScript off, who can't be shown
+// the banner, and the app doesn't run without JavaScript anyway. Each page
+// view is also pushed as a plain "te_page_view" dataLayer event carrying the
+// shaped page fields, which is what a container's triggers and variables
+// should read rather than GTM's built-in Page URL / Page Title.
+//
 // It runs on the production hosts only, so local dev, the test suites and
 // the promo capture never send anything.
 
 export const GA_MEASUREMENT_ID = "G-JXM9CX77RQ";
+export const GTM_CONTAINER_ID = "GTM-MQD633J7";
 export const ANALYTICS_HOSTS = new Set(["trackevolution.app", "www.trackevolution.app"]);
 export const CONSENT_KEY = "te-analytics-consent";
 export const PRIVACY_URL = "https://docs.trackevolution.app/docs/privacy.html#analytics";
@@ -135,10 +146,17 @@ function loadTag(win, explicit) {
   if (!explicit) gtagFn("consent", "default", { ...noAds, analytics_storage: "denied", region: CONSENT_REGIONS });
   gtagFn("js", new Date());
   gtagFn("config", GA_MEASUREMENT_ID, { ...pageFields(win), send_page_view: false });
-  const s = win.document.createElement("script");
-  s.async = true;
-  s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
-  win.document.head.appendChild(s);
+  // Tag Manager after the consent defaults, so its tags start from them.
+  win.dataLayer.push({ "gtm.start": Date.now(), event: "gtm.js" });
+  for (const src of [
+    `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`,
+    `https://www.googletagmanager.com/gtm.js?id=${GTM_CONTAINER_ID}`,
+  ]) {
+    const s = win.document.createElement("script");
+    s.async = true;
+    s.src = src;
+    win.document.head.appendChild(s);
+  }
 }
 
 // GA's own cookies (_ga, _ga_<id>), on the bare host and the parent domain.
@@ -211,4 +229,5 @@ export function trackPageView(win = window) {
   const fields = pageFields(win);
   gtagFn("set", fields);
   gtagFn("event", "page_view", fields);
+  win.dataLayer.push({ event: "te_page_view", ...fields });
 }
