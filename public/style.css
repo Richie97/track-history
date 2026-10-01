@@ -863,6 +863,28 @@ button.ch-chip.on { background: var(--surface-raised); }
   white-space: nowrap;
 }
 @media (hover: hover) { .footer-link:hover, .contribute-link:hover { color: var(--text-strong); opacity: 1; } }
+button.footer-link { background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; }
+
+/* ---------- Cookie consent (js/analytics.js) ---------- */
+/* One quiet card at the bottom: the two choices carry equal weight, and it
+   sits above the page (and the pull-refresh pill) but under a Wrapped story. */
+.consent-banner {
+  position: fixed; z-index: 45;
+  left: 50%; transform: translateX(-50%);
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(calc(100% - 32px), 500px);
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 10px 10px 16px;
+  background: var(--surface-raised); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-pop);
+  font-size: var(--fs-sm); line-height: 1.45; color: var(--text-body);
+}
+.consent-banner p { margin: 0; flex: 1; }
+.consent-actions { display: flex; gap: 8px; flex-shrink: 0; }
+@media (max-width: 480px) {
+  .consent-banner { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; }
+  .consent-actions .btn { flex: 1; }
+}
 .contribute-link { position: relative; }
 /* Hover-only tooltip: even at opacity 0 its nowrap box widens the page on
    narrow screens, so it only exists on devices that can hover. */

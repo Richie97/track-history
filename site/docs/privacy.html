@@ -17,6 +17,8 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
 </head>
 <body>
 
@@ -61,12 +63,14 @@
       personal track-day logbook operated by Speedshift LLC — free to use, with
       an optional Track Evolution Pro subscription. This policy explains, in
       plain language, what data the app collects and what happens to it.
-      <em>Effective September 29, 2026.</em>
+      <em>Effective October 1, 2026.</em>
     </p>
 
     <div class="callout">
       The short version: your logbook is private to your account, there are no
-      ads, no third-party analytics, and your data is never sold. Video and
+      ads, and your data is never sold. The website counts visits with Google
+      Analytics, which never sees what's in your logbook; the iPhone and
+      Android apps have no analytics at all. Video and
       telemetry files are parsed in your browser and <strong>never
       uploaded</strong>. We never see your payment details. The only thing ever
       made public is a share page you explicitly turn on, nothing reaches an AI
@@ -113,8 +117,10 @@
       <li><strong>Cookies, or a sign-in token.</strong> On the web, a session
         cookie keeps you signed in and a short-lived cookie protects the
         sign-in flow itself. The iPhone and Android apps use a sign-in token
-        held in the operating system's encrypted storage instead. There are no
-        advertising or analytics cookies.</li>
+        held in the operating system's encrypted storage instead. On the
+        website, Google Analytics also sets its own cookies to count visits, if
+        you allow it — see <a href="#analytics">analytics</a> below. There are
+        no advertising cookies.</li>
       <li><strong>Subscription state.</strong> If you subscribe to Track
         Evolution Pro, the App Store or Google Play tells us that a purchase
         was made and we store the store's own transaction identifier for it,
@@ -167,12 +173,57 @@
       time in your phone's settings.
     </p>
 
+    <h2 id="analytics">Analytics on the website</h2>
+    <p>
+      The web app at trackevolution.app and this documentation site use
+      <strong>Google Analytics</strong> to count visits, so we can see which
+      pages people use and where they came from. Google receives what any
+      website's visit counter does: which page was viewed, the referring site,
+      your browser, device type and screen size, your approximate location
+      (derived from your IP address by Google), and a random identifier kept in
+      Google Analytics cookies so repeat visits can be counted.
+    </p>
+    <ul>
+      <li><strong>You choose.</strong> In the UK and the EU — recognised by
+        your device's time zone being a European one — the website asks first,
+        and Google Analytics does not load at all unless you accept. If you are
+        in the EEA, the UK or Switzerland but your device's clock says
+        otherwise, Google is told not to store analytics cookies for you; it
+        may still receive an anonymous page view, with no cookie and no
+        identifier. Everywhere else, Google Analytics runs unless you
+        decline.</li>
+      <li>Change your mind at any time with <strong>Cookies</strong> in the
+        footer, or <strong>Settings → Cookie settings</strong> in the web app.
+        Declining stops Google Analytics and deletes its cookies. Your choice
+        is remembered in your browser — separately for the web app and this
+        documentation site — and nowhere else.</li>
+      <li>In the web app, a page is reported only by its kind — "an event
+        page", "a track's leaderboard" — never with the record it shows, the
+        name or slug of a share page, or anything you have entered. Your
+        logbook, email address, name and account are never sent to Google
+        Analytics.</li>
+      <li>The iPhone and Android apps contain no analytics.</li>
+      <li>Google handles this data under
+        <a href="https://policies.google.com/privacy">Google's privacy
+        policy</a>; see
+        <a href="https://policies.google.com/technologies/partner-sites">how
+        Google uses information from sites that use its services</a>.</li>
+      <li>Besides declining, Google's
+        <a href="https://tools.google.com/dlpage/gaoptout">Analytics opt-out
+        browser add-on</a>, blocking cookies for these sites, or a content
+        blocker all work too — the app works exactly the same without
+        it.</li>
+    </ul>
+
     <h2 id="not">What we don't do</h2>
     <ul>
-      <li>No advertising, and no third-party analytics or tracking scripts.</li>
+      <li>No advertising, no advertising trackers, and no analytics in the
+        iPhone and Android apps. The website's one third-party script is
+        <a href="#analytics">Google Analytics</a>.</li>
       <li>We never sell or rent your data.</li>
       <li>We don't share your data with anyone, except the cloud hosting
-        provider that stores it so the service can run, an
+        provider that stores it so the service can run, Google for the
+        website's <a href="#analytics">visit counts</a>, an
         <a href="#ai">AI assistant you connect yourself</a>, or if the law
         requires it.</li>
       <li>We never see, handle or store payment details — Apple and Google
@@ -311,7 +362,8 @@
       <a href="./">Docs</a> ·
       <a href="./privacy.html">Privacy</a> ·
       <a href="./terms.html">Terms</a> ·
-      <a href="https://github.com/richie97/track-history">GitHub</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
     </span>
   </div>
 </footer>
