@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { analyticsEnabled, analyticsPath } from "../../public/js/analytics.js";
+import { describe, expect, it, vi } from "vitest";
+import { analyticsEnabled, analyticsPath, analyticsPlan, consentBannerHtml, consentTimeZone } from "../../public/js/analytics.js";
 
 describe("analyticsEnabled", () => {
   it("reports from the production hosts only", () => {
@@ -45,36 +45,125 @@ describe("analyticsPath", () => {
   });
 });
 
-describe("initAnalytics / trackPageView", () => {
-  function fakeWindow(hostname, pathname, hash) {
+describe("consentTimeZone", () => {
+  it("asks in Europe, its Atlantic islands and Cyprus", () => {
+    for (const tz of ["Europe/London", "Europe/Berlin", "Europe/Dublin", "Atlantic/Canary", "Atlantic/Madeira", "Atlantic/Reykjavik", "Asia/Nicosia", "Arctic/Longyearbyen"]) {
+      expect(consentTimeZone(tz)).toBe(true);
+    }
+  });
+
+  it("doesn't ask elsewhere, or when the zone is unknown", () => {
+    for (const tz of ["America/New_York", "America/Los_Angeles", "Asia/Tokyo", "Atlantic/Bermuda", "UTC", "Etc/UTC", "", undefined]) {
+      expect(consentTimeZone(tz)).toBe(false);
+    }
+  });
+});
+
+describe("analyticsPlan", () => {
+  it("honours a choice anywhere", () => {
+    expect(analyticsPlan("granted", "Europe/Paris")).toEqual({ load: true, banner: false });
+    expect(analyticsPlan("denied", "America/Chicago")).toEqual({ load: false, banner: false });
+  });
+
+  it("asks before loading in Europe, and loads elsewhere", () => {
+    expect(analyticsPlan(null, "Europe/London")).toEqual({ load: false, banner: true });
+    expect(analyticsPlan(null, "America/Chicago")).toEqual({ load: true, banner: false });
+  });
+});
+
+describe("consentBannerHtml", () => {
+  it("offers both choices, decline first, and links the policy", () => {
+    const html = consentBannerHtml();
+    expect(html.indexOf('data-consent="denied"')).toBeLessThan(html.indexOf('data-consent="granted"'));
+    expect(html).toContain("privacy.html#analytics");
+  });
+});
+
+describe("initAnalytics / trackPageView / setAnalyticsConsent", () => {
+  function fakeWindow({ hostname = "trackevolution.app", hash = "#/event/4", tz = "America/Chicago", stored = null } = {}) {
+    const store = new Map(stored ? [["te-analytics-consent", stored]] : []);
     const appended = [];
-    return {
-      location: { hostname, pathname, hash, origin: `https://${hostname}` },
-      document: { createElement: () => ({}), head: { appendChild: (el) => appended.push(el) } },
-      appended,
+    const banners = [];
+    const win = {
+      location: { hostname, pathname: "/", hash, origin: `https://${hostname}` },
+      Intl: { DateTimeFormat: () => ({ resolvedOptions: () => ({ timeZone: tz }) }) },
+      localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
+      document: {
+        cookie: "",
+        createElement: () => ({ setAttribute() {}, addEventListener() {}, remove() { banners.length = 0; } }),
+        head: { appendChild: (el) => appended.push(el) },
+        body: { appendChild: (el) => banners.push(el) },
+        getElementById: () => banners[0] ?? null,
+      },
     };
+    return { win, appended, banners, store };
   }
+  // Fresh module state per test.
+  const load = () => {
+    vi.resetModules();
+    return import("../../public/js/analytics.js");
+  };
 
   it("does nothing off the production hosts", async () => {
-    const { initAnalytics, trackPageView } = await import("../../public/js/analytics.js?off");
-    const win = fakeWindow("localhost", "/", "#/event/4");
+    const { initAnalytics, trackPageView } = await load();
+    const { win, appended, banners } = fakeWindow({ hostname: "localhost", tz: "Europe/London" });
     initAnalytics(win);
     trackPageView(win);
     expect(win.dataLayer).toBeUndefined();
-    expect(win.appended).toEqual([]);
+    expect(appended).toEqual([]);
+    expect(banners).toEqual([]);
   });
 
-  it("loads the tag without a page view, then reports each page by its shape", async () => {
-    const { initAnalytics, trackPageView } = await import("../../public/js/analytics.js?on");
-    const win = fakeWindow("trackevolution.app", "/", "#/event/4");
+  it("outside Europe, loads the tag with the regional default and reports each page by its shape", async () => {
+    const { initAnalytics, trackPageView } = await load();
+    const { win, appended, banners } = fakeWindow();
     initAnalytics(win);
-    expect(win.appended[0].src).toBe("https://www.googletagmanager.com/gtag/js?id=G-JXM9CX77RQ");
-    const config = [...win.dataLayer.find((a) => a[0] === "config")];
+    expect(banners).toEqual([]);
+    expect(appended[0].src).toBe("https://www.googletagmanager.com/gtag/js?id=G-JXM9CX77RQ");
+    const calls = () => win.dataLayer.map((a) => [...a]);
+    const defaults = calls().filter((a) => a[0] === "consent");
+    expect(defaults[0][2]).toMatchObject({ analytics_storage: "granted", ad_storage: "denied" });
+    expect(defaults[1][2]).toMatchObject({ analytics_storage: "denied", region: expect.arrayContaining(["GB", "DE"]) });
+    const config = calls().find((a) => a[0] === "config");
     expect(config[2]).toMatchObject({ send_page_view: false, page_location: "https://trackevolution.app/event/:id" });
     win.location.hash = "#/track/9";
     trackPageView(win);
+    expect(calls().at(-2)).toEqual(["set", expect.objectContaining({ page_path: "/track/:id" })]);
+    expect(calls().at(-1)).toEqual(["event", "page_view", expect.objectContaining({ page_location: "https://trackevolution.app/track/:id" })]);
+  });
+
+  it("in Europe, loads nothing until the visitor accepts", async () => {
+    const { initAnalytics, trackPageView, setAnalyticsConsent } = await load();
+    const { win, appended, banners, store } = fakeWindow({ tz: "Europe/London" });
+    initAnalytics(win);
+    trackPageView(win);
+    expect(win.dataLayer).toBeUndefined();
+    expect(appended).toEqual([]);
+    expect(banners).toHaveLength(1);
+    setAnalyticsConsent("granted", win);
+    expect(store.get("te-analytics-consent")).toBe("granted");
+    expect(banners).toEqual([]);
+    expect(appended).toHaveLength(1);
     const calls = win.dataLayer.map((a) => [...a]);
-    expect(calls.at(-2)).toEqual(["set", expect.objectContaining({ page_path: "/track/:id" })]);
-    expect(calls.at(-1)).toEqual(["event", "page_view", expect.objectContaining({ page_location: "https://trackevolution.app/track/:id" })]);
+    // An explicit yes carries no regional "denied" default.
+    expect(calls.filter((a) => a[0] === "consent")).toHaveLength(1);
+    expect(calls.at(-1)).toEqual(["event", "page_view", expect.objectContaining({ page_path: "/event/:id" })]);
+  });
+
+  it("a stored decline loads nothing, and a later decline stops page views", async () => {
+    const first = await load();
+    const declined = fakeWindow({ tz: "Europe/London", stored: "denied" });
+    first.initAnalytics(declined.win);
+    expect(declined.appended).toEqual([]);
+    expect(declined.banners).toEqual([]);
+
+    const second = await load();
+    const { win } = fakeWindow({ stored: "granted" });
+    second.initAnalytics(win);
+    second.setAnalyticsConsent("denied", win);
+    const before = win.dataLayer.length;
+    second.trackPageView(win);
+    expect(win.dataLayer.length).toBe(before);
+    expect([...win.dataLayer.at(-1)]).toEqual(["consent", "update", { analytics_storage: "denied" }]);
   });
 });

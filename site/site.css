@@ -439,3 +439,33 @@ section.alt { background: var(--bg-subtle); border-block: 1px solid var(--border
   .site-nav { gap: 14px; }
   .hero { padding: 56px 0 40px; }
 }
+
+/* ---------- Cookie consent (analytics.js) ---------- */
+.footer-cookies {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: var(--text-muted);
+}
+.footer-cookies:hover { color: var(--text-strong); }
+/* One quiet card at the bottom; the two choices carry equal weight. */
+.consent-banner {
+  position: fixed; z-index: 50;
+  left: 50%; transform: translateX(-50%);
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(calc(100% - 32px), 500px);
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 10px 10px 16px;
+  background: var(--surface-raised); border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.45);
+  font-size: 13.5px; line-height: 1.45; color: var(--text-body);
+}
+.consent-banner p { margin: 0; flex: 1; }
+.consent-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.consent-actions .btn {
+  background: none; font: inherit; font-weight: 500; font-size: 13.5px;
+  padding: 6px 14px; cursor: pointer;
+}
+@media (max-width: 480px) {
+  .consent-banner { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; }
+  .consent-actions .btn { flex: 1; }
+}

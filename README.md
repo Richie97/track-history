@@ -1014,12 +1014,27 @@ doesn't retain the previous user's logbook.
 ## Analytics (Google Analytics)
 
 The web app and the docs site report page views to Google Analytics 4
-(measurement id `G-JXM9CX77RQ`); the iOS and Android apps report screen views
-to the same property through Google Analytics for Firebase (project
-`track-evolution-app`).
+(measurement id `G-JXM9CX77RQ`), behind a consent banner for the UK and the
+EU; the iOS and Android apps report screen views to the same property through
+Google Analytics for Firebase (project `track-evolution-app`).
 
-- **The docs site** (`site/`) has Google's stock gtag.js snippet in every
-  page's `<head>` — a new docs page owes it the same snippet.
+- **Consent.** A choice the visitor made is final either way, stored in
+  `localStorage` under `te-analytics-consent` (per origin, so the app and the
+  docs site each ask once). With no choice, a visitor whose IANA time zone is
+  European (`consentTimeZone`: every `Europe/*` zone plus the EU's Atlantic
+  islands and Cyprus) gets the banner and **no tag loads at all** until they
+  accept; anyone else gets the tag, with Google consent mode defaulting
+  `analytics_storage` to denied for the EEA, the UK and Switzerland
+  (`CONSENT_REGIONS`, decided by Google from the IP) as the backstop for a
+  European whose clock isn't — cookieless pings only there. Ads storage is
+  always denied. Declining later sets `ga-disable-<id>`, updates consent to
+  denied and deletes the `_ga*` cookies. The banner reopens from the footer's
+  *Cookies* link (the web footer's legal links, and every docs page) and from
+  Settings' *Cookie settings*.
+- **The docs site** (`site/`) loads `site/analytics.js` (a classic `defer`
+  script) from every page's `<head>` — a new docs page owes it the same tag and
+  the footer's *Cookies* button. It is a copy of the app's consent rules, since
+  the site has no build step and is deployed separately; keep the two in step.
 - **The web app** loads the tag from `public/js/analytics.js`, called by
   `app.js` at boot, and never from `index.html`: a coach invite link carries
   its single-use token in the path (`/coach/<token>`), which `app.js` moves into
@@ -1031,7 +1046,8 @@ to the same property through Google Analytics for Firebase (project
   `/share/:slug/wrapped/2025` — so no record id, query string, share slug or
   driver's name reaches Google; the same fields are `set` so GA's automatic
   events carry them too. It runs only on `trackevolution.app` (and `www.`), so
-  local dev, the test suites and the promo capture send nothing.
+  local dev, the test suites and the promo capture send nothing; the banner
+  can still be opened from the footer or Settings in dev to look at it.
 - In the GA data stream's *Enhanced measurement* settings, turn **off** "Page
   changes based on browser history events": the app reports its own page
   views, and that option would add a second, unshaped one per navigation.
@@ -1055,8 +1071,8 @@ to the same property through Google Analytics for Firebase (project
   Console is still good practice.
 
 The privacy policy (`site/docs/privacy.html#analytics`) describes this; keep
-it in step if what is sent changes, and with it the App Store privacy label
-and Play's Data safety form.
+it in step if what is sent, or when, changes, and with it the App Store
+privacy label and Play's Data safety form.
 
 ## Notes on the data model
 
