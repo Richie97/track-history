@@ -5,7 +5,7 @@
 //
 // GETs are network-first: a successful response refreshes the offline cache;
 // a network failure falls back to it (an ApiError — the server answered —
-// never does). Mutations the offline layer knows how to mirror are queued
+// never does), and with nothing cached throws OfflineError. Mutations the offline layer knows how to mirror are queued
 // when the network is down (or when earlier writes are already queued, to
 // keep them ordered) and replayed once the server is reachable.
 
@@ -15,6 +15,22 @@ export class ApiError extends Error {
   constructor(message, status) {
     super(message);
     this.status = status;
+  }
+}
+
+// What a read says when the network is gone and nothing was cached for it —
+// word for word APIError.OFFLINE_UNCACHED on iOS and ApiException.OFFLINE_UNCACHED
+// on Android. The browser's own words ("Failed to fetch") sat under a banner
+// already saying the device is offline, and told the driver nothing to do.
+export const OFFLINE_UNCACHED =
+  "This page hasn't been saved for offline yet — open it once with a connection and it'll be here next time.";
+
+// A read that failed on the network with no cached copy to fall back to. Its
+// own class, not an ApiError, because the server never answered.
+export class OfflineError extends Error {
+  constructor() {
+    super(OFFLINE_UNCACHED);
+    this.name = "OfflineError";
   }
 }
 
@@ -44,11 +60,11 @@ export async function api(path, opts = {}) {
     let r;
     try {
       r = await send(method, path);
-    } catch (err) {
+    } catch {
       offline.noteOffline();
       const cached = await offline.cachedGet(path);
       if (cached !== undefined) return cached;
-      throw err;
+      throw new OfflineError();
     }
     offline.noteOnline();
     if (!r.ok) throw toError(r);

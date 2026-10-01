@@ -49,6 +49,14 @@ public enum APIError: Error, Hashable, Sendable {
         }
     }
 
+    /// What a read says when the network is gone and nothing was cached for it —
+    /// `OFFLINE_UNCACHED` in `public/js/api.js`, and `ApiException.OFFLINE_UNCACHED`
+    /// on Android, word for word. The system's own words for a dropped connection
+    /// sat under a sync banner already saying the device is offline, and told the
+    /// driver nothing they could act on.
+    public static let OFFLINE_UNCACHED =
+        "This page hasn't been saved for offline yet — open it once with a connection and it'll be here next time."
+
     public var isUnauthorized: Bool {
         if case .unauthorized = self { return true }
         return false

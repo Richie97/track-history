@@ -816,7 +816,9 @@ public class ApiClient private constructor(
             // Network gone: a cached copy is better than an error. A *status* from
             // the server is not a network failure and must not fall back.
             store.noteOffline()
-            return store.cachedGet(cacheKey) ?: throw e
+            // Nothing saved for this read either: say so, in the words every
+            // client uses, rather than the engine's for a dropped connection.
+            return store.cachedGet(cacheKey) ?: throw ApiException.Transport(ApiException.OFFLINE_UNCACHED, e)
         }
         store.noteOnline()
         if (status !in 200..299) throw ApiException.from(status, text)

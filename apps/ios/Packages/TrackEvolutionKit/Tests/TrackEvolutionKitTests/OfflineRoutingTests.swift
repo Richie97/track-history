@@ -60,11 +60,9 @@ struct OfflineRoutingTests {
     @Test func aReadWithNoCacheAndNoNetworkStillFails() async throws {
         let store = try OfflineStore()
         let api = client(offline: store) { _ in throw Offline() }
-        do {
+        // …and says so in the words every client uses, not the system's.
+        await #expect(throws: APIError.transport(APIError.OFFLINE_UNCACHED)) {
             _ = try await api.events()
-            Issue.record("expected a transport failure")
-        } catch let error as APIError {
-            if case .transport = error {} else { Issue.record("expected .transport, got \(error)") }
         }
     }
 

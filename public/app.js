@@ -26,7 +26,7 @@ import { posterLines, wrappedSeason } from "./js/wrapped.js";
 import { bindWrappedStory, wrappedStoryHtml } from "./js/wrapped-story.js";
 import { downloadBlob, posterBlob, posterFileName, sharePosterBlob } from "./js/wrapped-image.js";
 import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
-import { api as apiFetch, ApiError } from "./js/api.js";
+import { api as apiFetch, ApiError, OfflineError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, removeCachedPrefix, resolveId, syncStatus } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
@@ -4915,7 +4915,17 @@ async function route() {
     if (parts[0] === "settings") return await viewSettings();
     viewNotFound();
   } catch (err) {
-    if (err.message !== "unauthorized") {
+    if (err instanceof OfflineError) {
+      // The page was never opened online, so the offline cache has nothing for
+      // it. The sync banner already says the device is offline; this says what
+      // that means here, and the way back.
+      const view = shell(`<div class="panel offline-uncached">
+        <p>${esc(err.message)}</p>
+        <div class="btn-row"><button class="btn small primary" type="button" id="offline-retry">Try again</button>
+          <a class="btn small" href="#/">Back to dashboard</a></div>
+      </div>`);
+      view.querySelector("#offline-retry").onclick = () => route();
+    } else if (err.message !== "unauthorized") {
       shell(`<div class="error-banner">${esc(err.message)}</div><a href="#/">Back to dashboard</a>`);
     }
   }
