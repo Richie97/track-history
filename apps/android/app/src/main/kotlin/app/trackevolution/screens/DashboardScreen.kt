@@ -45,6 +45,7 @@ import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.cardGridItems
 import app.trackevolution.ui.TEEmpty
+import app.trackevolution.ui.TEEmptyAction
 import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.TEMeta
@@ -197,7 +198,13 @@ fun DashboardScreen(
 
                 item("tracks-header") { TESectionHeader("Tracks") }
                 if (model.tracksWithData.isEmpty()) {
-                    item("tracks-empty") { TEEmpty("No events yet — add your first track day.") }
+                    item("tracks-empty") {
+                        TEEmpty(
+                            "Add a track day and its laps, bests and progress start here.",
+                            title = "No events yet",
+                            action = TEEmptyAction("Add your first event", onNewEvent),
+                        )
+                    }
                 } else {
                     // One card per row on a phone, filling the width above it —
                     // the web's `.cards` grid (NS-34).

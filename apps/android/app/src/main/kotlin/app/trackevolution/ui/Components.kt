@@ -1,16 +1,24 @@
 package app.trackevolution.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,7 +48,7 @@ sealed interface LoadState {
     /**
      * Carries the server's own message — the API contract is `{ error }`.
      * [retryable] is false when the answer is final (the thing is gone, or
-     * was never there), so the screen doesn't offer a Retry that can only
+     * was never there), so the screen doesn't offer a Try again that can only
      * fail the same way.
      *
      * There is no paywall case: a 402 locks a *section* in place
@@ -53,7 +61,7 @@ sealed interface LoadState {
 /**
  * Loading, failed-with-retry, or content.
  *
- * A failure shows the server's message and a Retry rather than an empty screen:
+ * A failure shows the server's message and a Try again rather than an empty screen:
  * offline is the expected case here, not the exceptional one.
  */
 @Composable
@@ -80,9 +88,8 @@ fun TELoadable(
                 textAlign = TextAlign.Center,
             )
             if (state.retryable) {
-                TextButton(onClick = onRetry) {
-                    Text("Retry", style = TrackTheme.typography.bodyStrong, color = TrackTheme.colors.accentInk)
-                }
+                Spacer(Modifier.height(12.dp))
+                TERetryButton(onClick = onRetry)
             }
         }
 
@@ -104,15 +111,105 @@ fun TESectionHeader(title: String, detail: String? = null, modifier: Modifier = 
     }
 }
 
-/** What a list says when it has nothing in it — never a blank space. */
+/** The next step an empty state offers: a label and what it does. */
+data class TEEmptyAction(val label: String, val onClick: () -> Unit)
+
+/**
+ * What a list says when it has nothing in it — never a blank space — and,
+ * where the next step isn't already on screen, the button that takes it
+ * (#342). The web's `emptyHtml` and iOS's `TEEmpty` take the same three parts.
+ */
 @Composable
-fun TEEmpty(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        style = TrackTheme.typography.sm,
-        color = TrackTheme.colors.textMuted,
-        modifier = modifier.padding(vertical = 8.dp),
-    )
+fun TEEmpty(
+    text: String,
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    action: TEEmptyAction? = null,
+) {
+    Column(modifier = modifier.padding(vertical = 8.dp)) {
+        if (title != null) {
+            Text(title, style = TrackTheme.typography.bodyStrong, color = TrackTheme.colors.textStrong)
+            Spacer(Modifier.height(4.dp))
+        }
+        Text(text, style = TrackTheme.typography.sm, color = TrackTheme.colors.textMuted)
+        if (action != null) {
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = action.onClick,
+                modifier = Modifier.semantics { testTag = "emptyAction" },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TrackTheme.colors.accent,
+                    contentColor = TrackTheme.colors.accentContrast,
+                ),
+            ) {
+                Text(action.label, style = TrackTheme.typography.bodyStrong)
+            }
+        }
+    }
+}
+
+/**
+ * The one way a failed load is retried (#342): "Try again", outlined — the
+ * dashboard's secondary style. A retry is never the loudest thing on the page;
+ * the message above it is the news.
+ */
+@Composable
+fun TERetryButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = TrackTheme.colors
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.semantics { testTag = "retry" },
+        border = BorderStroke(1.dp, colors.borderHairline),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = colors.surfaceCard,
+            contentColor = colors.textStrong,
+        ),
+    ) {
+        Text("Try again", style = TrackTheme.typography.bodyStrong)
+    }
+}
+
+/**
+ * The detail pane with nothing selected, at expanded width — "Pick an event",
+ * "Pick a car" (NS-34, #342). One layout for both tabs: a quiet mark, the
+ * heading, a line under it, and whatever the pane offers beneath.
+ */
+@Composable
+fun TEPanePlaceholder(
+    title: String,
+    tag: String,
+    mark: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    eyebrow: String? = null,
+    text: String? = null,
+    extra: @Composable ColumnScope.() -> Unit = {},
+) {
+    val colors = TrackTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(colors.bgPage)
+            .padding(24.dp)
+            .semantics { testTag = tag },
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        mark()
+        if (eyebrow != null) {
+            Text(eyebrow, style = TrackTheme.typography.xs, color = colors.textFaint)
+        }
+        Text(title, style = TrackTheme.typography.h2, color = colors.textStrong, textAlign = TextAlign.Center)
+        if (text != null) {
+            Text(
+                text,
+                style = TrackTheme.typography.sm,
+                color = colors.textMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 320.dp),
+            )
+        }
+        extra()
+    }
 }
 
 /** One headline number with its label. */

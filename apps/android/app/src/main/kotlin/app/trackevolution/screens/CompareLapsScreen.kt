@@ -37,7 +37,11 @@ import app.trackevolution.core.LapTime
 import app.trackevolution.core.Units
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
+import app.trackevolution.core.EventDates
+import app.trackevolution.core.model.Event
+import app.trackevolution.navigation.Route
 import app.trackevolution.ui.TEEmpty
+import app.trackevolution.ui.TEEmptyAction
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.charts.LapChannelChart
 import app.trackevolution.ui.theme.TrackCard
@@ -62,6 +66,11 @@ fun CompareLapsScreen(
      * back gesture, a column has nothing. Null when this *is* a destination.
      */
     onClose: (() -> Unit)? = null,
+    /**
+     * Leaves for another screen — the empty state's next step (#342). The host
+     * closes a column first. Null hides the action, as for a coach.
+     */
+    onNavigate: ((Route) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
 
@@ -103,7 +112,8 @@ fun CompareLapsScreen(
                 item("empty") {
                     TEEmpty(
                         "Comparing laps needs two laps with telemetry at this track — " +
-                            "import a session (or record laps) first.",
+                            "import a session, or record laps with the app.",
+                        action = onNavigate?.let { noTelemetryAction(model.events, it) },
                     )
                 }
                 return@LazyColumn
@@ -272,3 +282,17 @@ private fun StatRow(label: String, a: String, b: String, delta: String, last: Bo
 /** The sign is the message, so it is always shown. */
 private fun signed(value: Double, magnitude: String): String =
     if (value < 0) "−$magnitude" else "+$magnitude"
+
+/**
+ * The next step when a lap view has no telemetry to show (#342): import into the
+ * event that day belongs to, or — nothing at the track has happened yet — add
+ * one there. The web's `noTelemetryAction`.
+ */
+internal fun noTelemetryAction(events: List<Event>, go: (Route) -> Unit): TEEmptyAction {
+    val target = EventDates.importTargetEvent(events, EventDates.todayIso()) { it.startDate }
+    return if (target != null) {
+        TEEmptyAction("Import a session") { go(Route.Import(eventId = target.id)) }
+    } else {
+        TEEmptyAction("Add an event") { go(Route.EventForm(presetTrack = events.firstOrNull()?.trackName)) }
+    }
+}

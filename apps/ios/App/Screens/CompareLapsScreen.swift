@@ -11,6 +11,11 @@ import TrackEvolutionKit
 /// graphs and for the same reason: the stacked charts want the full height.
 struct CompareLapsScreen: View {
     let trackId: Int
+    /// The track's name, for "Add an event" here when it has nothing to compare.
+    var trackName: String?
+    /// Leaves for another screen — the container closes itself first, since this
+    /// is a sheet or a column. nil hides the empty state's action.
+    var onNavigate: ((Route) -> Void)?
 
     @Environment(AuthController.self) private var auth
     /// Whose logbook: the student's in a coach's view (NS-38), which decides both
@@ -67,9 +72,22 @@ struct CompareLapsScreen: View {
                 Text("Compare two laps")
                     .teStyle(.h1)
                     .foregroundStyle(Color(.textStrong))
-                TEEmpty("Comparing laps needs two laps with telemetry at this track — import a session (or record laps) first.")
+                TEEmpty(
+                    "Comparing laps needs two laps with telemetry at this track — import a session, or record laps with the app.",
+                    action: owner.isReadOnly ? nil : noTelemetryAction(model)
+                )
             }
         }
+    }
+
+    /// The next step when there is nothing to compare (#342): import into the
+    /// event that day belongs to, or — nothing here has happened yet — add one.
+    private func noTelemetryAction(_ model: CompareLapsModel) -> TEEmpty.Action? {
+        guard let onNavigate else { return nil }
+        if let target = EventDates.importTargetEvent(model.events, today: EventDates.todayISO(), startDate: \.startDate) {
+            return TEEmpty.Action("Import a session") { onNavigate(.importVideo(eventId: target.id, incoming: nil)) }
+        }
+        return TEEmpty.Action("Add an event") { onNavigate(.eventForm(.new(presetTrack: trackName))) }
     }
 
     // MARK: - Lap pickers
@@ -218,6 +236,8 @@ final class CompareLapsModel {
 
     private(set) var state: LoadState = .loading
     private(set) var rows: [CompareLaps.Row] = []
+    /// The track's events, for the empty state's next step.
+    private(set) var events: [Event] = []
     /// `sessions.channels` by session id, so a picked row finds its entry.
     private var channelsBySession: [Int: SessionChannels] = [:]
 
@@ -233,6 +253,7 @@ final class CompareLapsModel {
     func load() async {
         do {
             let events = try await api.events(trackId: trackId)
+            self.events = events
             var details: [EventDetail] = []
             for event in events where event.lapCount > 0 {
                 details.append(try await api.event(id: event.id))

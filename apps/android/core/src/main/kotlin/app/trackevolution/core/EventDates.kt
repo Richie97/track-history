@@ -33,6 +33,18 @@ public object EventDates {
     public fun isUpcoming(startDate: String, today: LocalDate = LocalDate.now()): Boolean =
         parse(startDate)?.isAfter(today) ?: false
 
+    /**
+     * The event an "Import a session" action opens when a lap view has no
+     * telemetry to show (#342): the most recent one at the track that has
+     * started — where a recording or logger file from that day belongs. Null
+     * when everything there is still upcoming, or there is nothing, and the
+     * caller offers "Add an event" instead. The port of `importTargetEvent` in
+     * `public/js/empty.js`, carrying its test cases; compared as ISO strings,
+     * as the JS does.
+     */
+    public fun <E> importTargetEvent(events: List<E>, today: String, startDate: (E) -> String): E? =
+        events.filter { startDate(it) <= today }.maxByOrNull(startDate)
+
     /** Whole days from today to [startDate]; negative once it is past. */
     public fun daysUntil(startDate: String, today: LocalDate = LocalDate.now()): Int? {
         val date = parse(startDate) ?: return null

@@ -830,7 +830,13 @@ button.ch-chip.on { background: var(--surface-raised); }
 .consent-form .login-buttons { margin-top: 18px; }
 .consent-card .consent-fine { font-size: var(--fs-sm); color: var(--text-faint); margin: 18px 0 0; }
 
+/* The empty state (#342, `emptyHtml` in js/empty.js): an optional title, the
+   sentence, and an optional next step. Compact is the same thing inside a
+   panel, where the panel already supplies the padding. */
 .empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
+.empty-title { color: var(--text-strong); font-weight: 600; margin: 0 0 4px; }
+.empty-action { margin-top: 12px; }
+.empty.empty-compact { padding: 0; text-align: left; font-size: var(--fs-sm); }
 
 /* ---------- Footer ---------- */
 .site-footer {

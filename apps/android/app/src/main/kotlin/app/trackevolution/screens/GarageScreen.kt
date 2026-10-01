@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -28,16 +30,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.trackevolution.R
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.navigation.Route
 import app.trackevolution.ui.CARD_GRID_MINIMUM
+import app.trackevolution.ui.TEPanePlaceholder
 import app.trackevolution.ui.CATALOG_NO_MATCH_BY_NAME
 import app.trackevolution.ui.CatalogCarPicker
 import app.trackevolution.ui.LoadState
@@ -436,16 +441,18 @@ private fun MaintenanceStrip(alerts: List<Garage.Alert>, onOpenVehicle: (Int) ->
  */
 @Composable
 fun GarageDetailPlaceholder(modifier: Modifier = Modifier) {
-    val colors = TrackTheme.colors
-    Box(modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Pick a car", style = TrackTheme.typography.h3, color = colors.textStrong)
-            Box(Modifier.height(6.dp))
-            Text(
-                "Its logbook, best laps and — for Pro — its consumables open here.",
-                style = TrackTheme.typography.sm,
-                color = colors.textMuted,
+    TEPanePlaceholder(
+        title = "Pick a car",
+        tag = "garagePlaceholder",
+        mark = {
+            Icon(
+                painterResource(R.drawable.ic_tab_garage),
+                contentDescription = null,
+                tint = TrackTheme.colors.textFaint,
+                modifier = Modifier.size(40.dp),
             )
-        }
-    }
+        },
+        text = "Its logbook, best laps and — for Pro — its consumables open here.",
+        modifier = modifier,
+    )
 }

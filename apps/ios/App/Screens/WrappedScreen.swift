@@ -28,10 +28,9 @@ struct WrappedScreen: View {
                 case .failed(let message):
                     TEPage {
                         TEErrorBanner(message: message)
-                        Button("Try again") { Task { await model.load(model.year) } }
-                            .buttonStyle(TEButtonStyle(kind: .quiet))
+                        TERetryButton { await model.load(model.year) }
                     }
-                case .empty:
+                case .empty(let years):
                     TEPage {
                         Text("No track days in \(String(model.year)) — yet")
                             .teStyle(.h1)
@@ -39,6 +38,22 @@ struct WrappedScreen: View {
                         Text("Wrapped tells the story of a season once there's a track day in it.")
                             .teStyle(.body)
                             .foregroundStyle(Color(.textMuted))
+                        // The way out the web offers (#342): every year that has
+                        // a story, or the one there is.
+                        if years.count > 1 {
+                            HStack(spacing: 8) {
+                                ForEach(years, id: \.self) { y in
+                                    Button(String(y)) { Task { await model.load(y) } }
+                                        .buttonStyle(YearChipStyle(selected: y == model.year))
+                                        .disabled(y == model.year)
+                                }
+                            }
+                            .accessibilityIdentifier("wrappedYears")
+                        } else if let only = years.first, only != model.year {
+                            Button("See \(String(only))") { Task { await model.load(only) } }
+                                .buttonStyle(TEButtonStyle(kind: .quiet))
+                                .accessibilityIdentifier("wrappedSeeYear")
+                        }
                     }
                 case .ready(let data):
                     WrappedStoryView(
@@ -97,8 +112,9 @@ final class WrappedModel {
     enum Phase {
         case loading
         case ready(Wrapped)
-        /// A 404: the year has no track days. A page, not an error.
-        case empty
+        /// A 404: the year has no track days. A page, not an error — carrying
+        /// the years that do have one, so the page can offer them.
+        case empty(years: [Int])
         case failed(String)
     }
 
@@ -117,12 +133,24 @@ final class WrappedModel {
         do {
             phase = .ready(try await api.wrapped(year: year))
         } catch let error as APIError where error.status == 404 {
-            phase = .empty
+            phase = .empty(years: await pastYears())
         } catch let error as APIError {
             phase = .failed(error.message)
         } catch {
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// The years with a track day behind them, newest first — the web's
+    /// `yearsAvailable` over past events. Read through the offline layer, so it
+    /// is normally a cache read; a failure offers no years rather than failing
+    /// a page that has already said what it needs to.
+    private func pastYears() async -> [Int] {
+        guard let events = try? await api.events() else { return [] }
+        let years = events
+            .filter { !EventDates.isUpcoming($0.startDate) }
+            .compactMap { Int($0.startDate.prefix(4)) }
+        return Array(Set(years)).sorted(by: >)
     }
 }
 

@@ -29,10 +29,15 @@ public sealed interface Route {
     /**
      * One route for both "new" and "edit", as iOS does with `EventFormTarget`.
      * [editId] null means a new event; [presetTrack] is the track page's
-     * "+ Add event at <track>" carrying its name across.
+     * "+ Add event at <track>" carrying its name across, and [presetCar] a car
+     * page's "Add an event" (#342) carrying the car's.
      */
     @Serializable
-    public data class EventForm(val editId: Int? = null, val presetTrack: String? = null) : Route
+    public data class EventForm(
+        val editId: Int? = null,
+        val presetTrack: String? = null,
+        val presetCar: String? = null,
+    ) : Route
 
     @Serializable
     public data class Track(val id: Int, val student: Int? = null) : Route

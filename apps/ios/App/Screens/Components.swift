@@ -140,8 +140,7 @@ struct TELoadable<Content: View>: View {
                             .teStyle(.sm)
                             .foregroundStyle(Color(.textMuted))
                         if retryable {
-                            Button("Try again") { Task { await retry() } }
-                                .buttonStyle(TEButtonStyle(kind: .quiet))
+                            TERetryButton(retry: retry)
                         }
                     }
                 }
@@ -286,22 +285,127 @@ struct TESectionHeader: View {
     }
 }
 
-/// Nothing here yet, said without alarm.
+/// Nothing here yet, said without alarm — and, where the next step isn't
+/// already on screen, the button that takes it (#342). The web's `emptyHtml`
+/// and Android's `TEEmpty` take the same three parts.
 struct TEEmpty: View {
+    /// The next step: a label and what it does.
+    struct Action {
+        let label: String
+        let perform: () -> Void
+
+        init(_ label: String, perform: @escaping () -> Void) {
+            self.label = label
+            self.perform = perform
+        }
+    }
+
+    let title: String?
     let text: String
+    let action: Action?
 
     init(_ text: String) {
+        self.init(title: nil, text, action: nil)
+    }
+
+    init(title: String? = nil, _ text: String, action: Action? = nil) {
+        self.title = title
         self.text = text
+        self.action = action
     }
 
     var body: some View {
-        Text(text)
-            .teStyle(.sm)
-            .foregroundStyle(Color(.textMuted))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 18)
-            .padding(.horizontal, 16)
-            .background(Color(.bgSubtle), in: .rect(cornerRadius: TERadius.md))
+        VStack(alignment: .leading, spacing: 6) {
+            if let title {
+                Text(title)
+                    .teStyle(.bodyStrong)
+                    .foregroundStyle(Color(.textStrong))
+            }
+            Text(text)
+                .teStyle(.sm)
+                .foregroundStyle(Color(.textMuted))
+            if let action {
+                Button(action.label, action: action.perform)
+                    .buttonStyle(TEButtonStyle(kind: .accent))
+                    .padding(.top, 6)
+                    .accessibilityIdentifier("emptyAction")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 18)
+        .padding(.horizontal, 16)
+        .background(Color(.bgSubtle), in: .rect(cornerRadius: TERadius.md))
+    }
+}
+
+/// The one way a failed load is retried (#342): "Try again", quiet. A retry is
+/// never the loudest thing on the page — the message above it is the news.
+struct TERetryButton: View {
+    let retry: () async -> Void
+
+    var body: some View {
+        Button("Try again") { Task { await retry() } }
+            .buttonStyle(TEButtonStyle(kind: .quiet))
+    }
+}
+
+/// The detail pane with nothing selected, at expanded width — "Pick an event",
+/// "Pick a car" (NS-34, #342). One layout for both tabs: a quiet mark, the
+/// heading, a line under it, and whatever the pane offers beneath.
+struct PanePlaceholder<Extra: View>: View {
+    enum Mark {
+        case brand
+        case symbol(String)
+    }
+
+    let mark: Mark
+    var eyebrow: String?
+    let title: String
+    var text: String?
+    let identifier: String
+    @ViewBuilder var extra: () -> Extra
+
+    var body: some View {
+        VStack(spacing: 14) {
+            switch mark {
+            case .brand:
+                BrandMark()
+                    .frame(width: 44, height: 44)
+                    .opacity(0.5)
+            case .symbol(let name):
+                Image(systemName: name)
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color(.textFaint))
+                    .frame(height: 44)
+            }
+            if let eyebrow {
+                Text(eyebrow)
+                    .teStyle(.eyebrow)
+                    .foregroundStyle(Color(.textFaint))
+            }
+            Text(title)
+                .teStyle(.h2)
+                .foregroundStyle(Color(.textStrong))
+                .multilineTextAlignment(.center)
+            if let text {
+                Text(text)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                    .multilineTextAlignment(.center)
+            }
+            extra()
+        }
+        .padding(TESpacing.cardPadding)
+        .frame(maxWidth: 380)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.bgPage))
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+extension PanePlaceholder where Extra == EmptyView {
+    init(mark: Mark, eyebrow: String? = nil, title: String, text: String? = nil, identifier: String) {
+        self.init(mark: mark, eyebrow: eyebrow, title: title, text: text, identifier: identifier) { EmptyView() }
     }
 }
 

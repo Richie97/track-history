@@ -4,11 +4,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import app.trackevolution.core.EventDates
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Wrapped
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
  * Season Wrapped (NS-36): one season's numbers, fetched from
@@ -16,6 +19,17 @@ import kotlinx.coroutines.launch
  * this model only loads, and remembers which card is in view so a rotation or
  * a fold lands back on it.
  */
+/**
+ * The years with a track day behind them, newest first — the web's
+ * `yearsAvailable` over past events (#342).
+ */
+internal fun pastYears(events: List<Event>, today: LocalDate = LocalDate.now()): List<Int> =
+    events
+        .filter { !EventDates.isUpcoming(it.startDate, today) }
+        .mapNotNull { it.startDate.take(4).toIntOrNull() }
+        .distinct()
+        .sortedDescending()
+
 public class WrappedModel(
     private val scope: CoroutineScope,
     private val api: ApiClient,
@@ -24,8 +38,11 @@ public class WrappedModel(
     public sealed interface Phase {
         public data object Loading : Phase
         public data class Ready(val data: Wrapped) : Phase
-        /** A 404: the year has no track days. A page, not an error. */
-        public data object Empty : Phase
+        /**
+         * A 404: the year has no track days. A page, not an error — carrying
+         * the years that do have one, newest first, so the page can offer them.
+         */
+        public data class Empty(val years: List<Int>) : Phase
         public data class Failed(val message: String) : Phase
     }
 
@@ -37,6 +54,17 @@ public class WrappedModel(
     /** The card in view. Here rather than in the composable so it outlives a configuration change. */
     public var index: Int by mutableIntStateOf(0)
 
+    /**
+     * Read through the offline layer, so normally a cache read; a failure offers
+     * no years rather than failing a page that has already said what it needs to.
+     */
+    private suspend fun loadPastYears(): List<Int> =
+        try {
+            pastYears(api.events())
+        } catch (e: ApiException) {
+            emptyList()
+        }
+
     public fun load(year: Int = this.year) {
         if (year != this.year) index = 0
         this.year = year
@@ -45,7 +73,7 @@ public class WrappedModel(
             phase = try {
                 Phase.Ready(api.wrapped(year))
             } catch (e: ApiException) {
-                if (e.status == 404) Phase.Empty else Phase.Failed(e.message ?: "Couldn't load your season.")
+                if (e.status == 404) Phase.Empty(loadPastYears()) else Phase.Failed(e.message ?: "Couldn't load your season.")
             }
         }
     }

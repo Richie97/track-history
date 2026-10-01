@@ -180,7 +180,11 @@ struct DashboardScreen: View {
 
             TESectionHeader("Tracks")
             if model.tracksWithData.isEmpty {
-                TEEmpty("No events yet — add your first track day.")
+                TEEmpty(
+                    title: "No events yet",
+                    "Add a track day and its laps, bests and progress start here.",
+                    action: TEEmpty.Action("Add your first event") { openFromList(.eventForm(.new(presetTrack: nil))) }
+                )
             } else {
                 // One card per row on a phone, filling the width above it — the
                 // web's `.cards` grid (NS-34).

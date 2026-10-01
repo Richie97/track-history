@@ -344,11 +344,17 @@ struct VehicleScreen: View {
     private func logbookSection(_ model: VehicleModel) -> some View {
         let logbook = model.logbook
         if logbook.lastEvent == nil, logbook.nextEvent == nil {
-            Text(owner.isReadOnly
-                ? "No track days in this car yet."
-                : "No track days in this car yet — pick it on an event and they'll show up here.")
-                .teStyle(.sm)
-                .foregroundStyle(Color(.textMuted))
+            if owner.isReadOnly {
+                TEEmpty("No track days in this car yet.")
+            } else {
+                // The next step (#342): a new event already in this car.
+                TEEmpty(
+                    "No track days in this car yet — pick it on an event and they'll show up here.",
+                    action: TEEmpty.Action("Add an event") {
+                        router.push(.eventForm(.new(presetTrack: nil, presetCar: model.vehicle?.name)))
+                    }
+                )
+            }
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 if let last = logbook.lastEvent {

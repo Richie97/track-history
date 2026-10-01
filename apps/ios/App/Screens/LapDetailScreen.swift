@@ -27,6 +27,8 @@ struct LapDetailScreen: View {
     let lapId: Int
 
     @Environment(AuthController.self) private var auth
+    @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
     /// Whose logbook: the student's in a coach's view (NS-38), which decides both
     /// where the reads go and whose tier the channel panel opens by.
     @Environment(\.logbookOwner) private var owner
@@ -171,7 +173,14 @@ struct LapDetailScreen: View {
                         pro: owner.canViewChannels(viewer: auth.entitlement)
                     )
                 } else if view.trace == nil {
-                    TEEmpty("No telemetry for this lap. Record with the app or import a video, and its racing line and traces land here.")
+                    TEEmpty(
+                        "No telemetry for this lap. Import a session, or record laps with the app, and its racing line and traces land here.",
+                        // The importer for this lap's own event (#342) — the
+                        // step that puts telemetry here. Not for a coach.
+                        action: owner.isReadOnly ? nil : TEEmpty.Action("Import a session") {
+                            router.push(.importVideo(eventId: eventId, incoming: nil), at: layout.layoutClass)
+                        }
+                    )
                 }
             }
             .padding(TESpacing.pageGutter)

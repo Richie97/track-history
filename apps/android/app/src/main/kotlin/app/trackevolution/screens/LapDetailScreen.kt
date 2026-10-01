@@ -35,6 +35,7 @@ import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEEmpty
+import app.trackevolution.ui.TEEmptyAction
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.charts.LapChannelChart
 import app.trackevolution.ui.charts.LimitLegend
@@ -152,6 +153,8 @@ fun LapDetailScreen(
     onCompare: () -> Unit,
     modifier: Modifier = Modifier,
     onSubscribe: () -> Unit = {},
+    /** The empty state's next step (#342): the importer for this lap's event. Null hides it. */
+    onImport: (() -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -231,8 +234,9 @@ fun LapDetailScreen(
             } else if (trace == null) {
                 item("empty") {
                     TEEmpty(
-                        "No telemetry for this lap. Record with the app or import a video, " +
+                        "No telemetry for this lap. Import a session, or record laps with the app, " +
                             "and its racing line and traces land here.",
+                        action = onImport?.let { TEEmptyAction("Import a session", it) },
                     )
                 }
             }

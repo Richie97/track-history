@@ -2,6 +2,7 @@
 // they can be unit-tested; this module owns the DOM and app state.
 
 import { esc, fmtMs, parseTime, parseLapList, fmtDate, fmtConsistency, fmtDelta } from "./js/format.js";
+import { emptyHtml, importTargetEvent } from "./js/empty.js";
 import { lineChart, multiLineChart } from "./js/chart.js";
 import { bindChannelGraphs, channelDefs, deltaChartSvg, deltaSeries, channelChartSvg, matchLapsToChannels, showDistanceMark } from "./js/channel-graphs.js";
 import {
@@ -906,7 +907,11 @@ async function viewDashboard() {
     </div>
     ${upcomingCards ? `<h2>Also upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
     <h2>Tracks</h2>
-    ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events yet — add your first track day.</div>`}
+    ${cards ? `<div class="cards">${cards}</div>` : emptyHtml({
+          title: "No events yet",
+          body: "Add a track day and its laps, bests and progress start here.",
+          action: { label: "Add your first event", href: "#/new" },
+        })}
     <h2>Share your history</h2>
     <div class="panel share-panel">
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
@@ -970,7 +975,7 @@ async function viewDashboard() {
 // logbook best at the track (manual bests included), is what explains a row
 // that's slower than the track page's own headline, or a missing row.
 function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
-  if (lb.catalog_id == null) return `<div class="empty">This track isn't in the catalog, so it has no leaderboard.</div>`;
+  if (lb.catalog_id == null) return emptyHtml({ body: "This track isn't in the catalog, so it has no leaderboard." });
   const you = lb.entries.find((en) => en.you);
   let yourNote = "";
   if (lb.opted_in && !you && viewerBestMs != null)
@@ -1010,7 +1015,7 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
     ${
       rows
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
-        : `<div class="empty">No opted-in drivers here yet${lb.opted_in ? "" : " — be the first"}.</div>`
+        : emptyHtml({ body: `No opted-in drivers here yet${lb.opted_in ? "" : " — be the first"}.` })
     }
     ${anyOpenable ? `<div class="hint" style="margin:6px 0 0">Times in blue open the lap — its racing line and telemetry, next to your own best here.</div>` : ""}
     ${yourNote ? `<div class="hint" style="margin:8px 0 0">${yourNote}</div>` : ""}
@@ -1261,7 +1266,7 @@ async function viewCompare(trackId, params) {
     shell(`
       <p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← Back to track</a></p>
       <h1>Lap overlay</h1>
-      <div class="empty">Comparing needs two events with recorded laps at this track.</div>
+      ${emptyHtml({ body: "Comparing needs two events with recorded laps at this track." })}
     `);
     return;
   }
@@ -1304,7 +1309,7 @@ async function viewCompare(trackId, params) {
       &nbsp;vs&nbsp;
       <span class="swatch" style="background:var(--chart-line-b)"></span> <select id="cmp-b">${pickerOpts(idB)}</select>
     </p>
-    ${chart.svg ? `<div class="chart-card"><div class="chart-title">All laps in running order — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : `<div class="empty">One of these events has no recorded laps.</div>`}
+    ${chart.svg ? `<div class="chart-card"><div class="chart-title">All laps in running order — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div></div>` : emptyHtml({ body: "One of these events has no recorded laps." })}
     <h2>Head to head</h2>
     <div class="table-wrap"><table><thead><tr><th></th><th class="num">${fmtDate(A.e.start_date)}</th><th class="num">${fmtDate(B.e.start_date)}</th><th class="num">Δ</th></tr></thead>
     <tbody>
@@ -1390,6 +1395,15 @@ function bindPairTooltip(container, aligned, { sideColors, sideLabels, delta = n
   });
 }
 
+// The next step when a lap view has no telemetry to show (#342): import a
+// session into the event that day belongs to, or — when nothing at the track
+// has happened yet — add one there.
+function noTelemetryAction(events, trackName) {
+  const target = importTargetEvent(events, todayISO());
+  if (target) return { label: "Import a session", href: `#/event/${target.id}` };
+  return { label: "Add an event", href: trackName ? `#/new?track=${encodeURIComponent(trackName)}` : "#/new" };
+}
+
 async function viewLapCompare(trackId, params) {
   if (!canViewChannels(ent())) return viewProGate(trackId, "Compare two laps",
     "Any two laps at this track, head to head: the time delta as it builds through the lap, " +
@@ -1405,7 +1419,10 @@ async function viewLapCompare(trackId, params) {
   if (rows.length < 2) {
     shell(`${backHtml}
       <h1>Compare two laps</h1>
-      <div class="empty">Comparing laps needs two laps with telemetry at this track — import a session (or record laps in the app) first.</div>`);
+      ${emptyHtml({
+        body: "Comparing laps needs two laps with telemetry at this track — import a session, or record laps with the Track Evolution app.",
+        action: readOnly() ? null : noTelemetryAction(allEvents, details[0]?.track_name),
+      })}`);
     return;
   }
 
@@ -1553,7 +1570,7 @@ async function viewLeaderboard(trackId) {
     ${
       leaderboard
         ? leaderboardHtml(leaderboard, viewerBest, track.id)
-        : `<div class="empty">Couldn't load the leaderboard — it needs a connection.</div>`
+        : emptyHtml({ body: "Couldn't load the leaderboard — it needs a connection." })
     }
   `);
 
@@ -1636,7 +1653,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   const proOk = canViewChannels(state.entitlement);
   if (!lap.channels?.laps?.length) {
     const view = shell(`${headHtml}${mapHtml}
-      <div class="empty">This lap's telemetry isn't available.</div>`);
+      ${emptyHtml({ body: "This lap's telemetry isn't available." })}`);
     if (lap.trace) renderTrackMap(view.querySelector("#lb-trackmap"), lap.trace);
     return;
   }
@@ -1650,8 +1667,9 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   // mostly cache reads and works offline. A failure here costs the comparison,
   // never the page: their lap still renders.
   let mine = [];
+  let myEvents = [];
   try {
-    const allEvents = await api(`/events?track_id=${trackId}`);
+    const allEvents = (myEvents = await api(`/events?track_id=${trackId}`));
     const details = await Promise.all(
       allEvents.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`))
     );
@@ -1742,7 +1760,11 @@ async function viewLeaderboardLap(trackId, lapId, params) {
 
   const noneHtml = pick
     ? ""
-    : `<div class="hint" style="margin:8px 0">You have no lap with telemetry at this track yet, so there's nothing to overlay. Record with the app or import a session and this page will put the two side by side.</div>`;
+    : emptyHtml({
+        body: "You have no lap with telemetry at this track yet, so there's nothing to overlay. Import a session, or record laps with the Track Evolution app, and this page will put the two side by side.",
+        action: noTelemetryAction(myEvents, track?.name),
+        compact: true,
+      });
 
   const view = shell(`${headHtml}
     ${pickerHtml}
@@ -1968,7 +1990,7 @@ async function viewEvent(eventId) {
       <div data-setup-body="${day}">${
         sheet
           ? setupSheetHtml(sheet, prevSheetFor(day), partsById)
-          : `<div class="hint">No setup sheet yet — pressures, alignment, dampers and which consumables were on the car.</div>`
+          : emptyHtml({ body: "No setup sheet yet — pressures, alignment, dampers and which consumables were on the car.", compact: true })
       }</div>
     </div>`;
   };
@@ -2075,7 +2097,7 @@ async function viewEvent(eventId) {
     ${checklistHtml}
     ${traceHtml}
     <h2>Sessions</h2>
-    ${sessionsHtml || `<div class="empty">No sessions recorded yet.</div>`}
+    ${sessionsHtml || emptyHtml({ body: "No sessions recorded yet." })}
     ${ro ? "" : `<h2>Add a session</h2>
     <div class="hint" style="margin:-4px 0 10px">Pull the laps out of a video or logger file, or type them in by hand.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
@@ -2517,7 +2539,7 @@ function bindCatalogPicker(input, list, rows, { onPick, onClear, initial = null,
 const GEOMETRY_LABELS = { wheelbase_mm: "wheelbase", steering_ratio: "steering ratio" };
 const fmtGeometry = (field, v) => (field === "wheelbase_mm" ? `${v} mm` : `${v}:1`);
 
-async function viewEventForm(eventId, presetTrack) {
+async function viewEventForm(eventId, presetTrack, presetCar) {
   const [tracks, catalog, vehicles] = await Promise.all([
     api("/tracks"),
     api("/catalog"),
@@ -2531,7 +2553,8 @@ async function viewEventForm(eventId, presetTrack) {
   const seen = new Set(ownNames.map((n) => n.toLowerCase()));
   const trackOpts = [...ownNames, ...catalog.map((t) => t.name).filter((n) => !seen.has(n.toLowerCase()))];
   // New events start with the garage's default vehicle in the car field.
-  const defaultCar = vehicles.find((v) => v.is_default)?.name ?? "";
+  // A car page's "Add an event" (#342) names its car instead.
+  const defaultCar = presetCar || (vehicles.find((v) => v.is_default)?.name ?? "");
 
   const view = shell(`
     <h1>${existing ? "Edit event" : "New event"}</h1>
@@ -2976,7 +2999,7 @@ async function viewSettings() {
             </div>`
           )
           .join("") + `<div id="conn-error"></div>`
-      : `<div class="hint" style="margin:0">No assistants connected.</div>`;
+      : emptyHtml({ body: "No assistants connected.", compact: true });
     connPanel.querySelectorAll("[data-conn-del]").forEach((btn) => {
       btn.onclick = async () => {
         btn.disabled = true;
@@ -3431,7 +3454,12 @@ async function viewVehicle(vehicleId) {
     const { last_event: last, next_event: next } = logbook;
     if (last) bits.push(`Last out at <a href="#/event/${last.id}">${esc(last.track_name)}</a> on ${fmtDate(last.start_date)}`);
     if (next) bits.push(`next: <a href="#/event/${next.id}">${esc(next.track_name)}</a> on ${fmtDate(next.start_date)}`);
-    if (!bits.length) return `<p class="sub">No track days in this car yet — pick it on an event and they'll show up here.</p>`;
+    if (!bits.length) {
+      return emptyHtml({
+        body: "No track days in this car yet — pick it on an event and they'll show up here.",
+        action: { label: "Add an event", href: `#/new?car=${encodeURIComponent(v.name)}` },
+      });
+    }
     return `<p class="sub">${bits.join(" · ")}</p>`;
   }
 
@@ -3475,7 +3503,7 @@ async function viewVehicle(vehicleId) {
     ${bestsHtml()}
     <h2>On the car</h2>
     <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (the logged lap time on days with 3+ laps, else 1h15m per track day, unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
-    ${active.map(partCard).join("") || `<div class="empty">Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.</div>`}
+    ${active.map(partCard).join("") || emptyHtml({ body: "Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due." })}
     ${
       shelf.length
         ? `<h2>Spares</h2>
@@ -3902,7 +3930,13 @@ async function viewVehicle(vehicleId) {
 function yearReviewHtml(events, year, hashBase, wrapped = null) {
   const past = events.filter((e) => !isUpcoming(e));
   const years = yearsAvailable(past);
-  if (!years.length) return `<div class="empty">No events yet — nothing to review.</div>`;
+  if (!years.length) {
+    return emptyHtml({
+      title: "Nothing to review yet",
+      body: "Year in review adds up your seasons once there's an event in one.",
+      action: { label: "Add an event", href: "#/new" },
+    });
+  }
   const y = years.includes(year) ? year : years[0];
   const r = yearReview(past, y);
 
@@ -3961,7 +3995,7 @@ function yearReviewHtml(events, year, hashBase, wrapped = null) {
     ${r.new_tracks.length ? `<p class="sub">First time at ${r.new_tracks.map((t) => `<strong>${esc(t.track_name)}</strong>`).join(", ")} 🎉</p>` : ""}
     ${gainRows ? `<h2>Lap time progress</h2>
     <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best before ${y}</th><th class="num">Best in ${y}</th><th></th>${costed ? `<th class="num">Spent</th><th class="num">$/s found</th>` : ""}</tr></thead>
-    <tbody>${gainRows}</tbody></table></div>` : `<div class="empty">No timed events in ${y}.</div>`}
+    <tbody>${gainRows}</tbody></table></div>` : emptyHtml({ body: `No timed events in ${y}.` })}
   `;
 }
 
@@ -4208,7 +4242,7 @@ async function viewCoaching() {
           </div>`
         )
         .join("")
-    : `<div class="hint" style="margin:0">Nobody can see your logbook yet.</div>`;
+    : emptyHtml({ body: "Nobody can see your logbook yet.", compact: true });
 
   const invitesHtml = coaching.invites
     .map(
@@ -4244,7 +4278,7 @@ async function viewCoaching() {
     <div class="panel" id="coaches-panel">${coachesHtml}</div>
     <h2>Driver profile</h2>
     <div class="hint" style="margin:0 0 4px">What your coaches see about you — your experience, your gear and what you want to work on. Only you and the coaches you've invited can see it.</div>
-    ${profileCardHtml(me.profile, { empty: `<div class="panel"><div class="hint" style="margin:0">Not filled in yet.</div></div>` })}
+    ${profileCardHtml(me.profile, { empty: `<div class="panel">${emptyHtml({ body: "Not filled in yet.", compact: true })}</div>` })}
     <div class="btn-row"><a class="btn small" href="#/profile">${me.profile ? "Edit profile" : "Fill in your profile"}</a></div>
     <div id="coaching-error"></div>
   `);
@@ -4425,8 +4459,10 @@ async function viewAcceptInvite() {
   const token = pendingInvite();
   if (!token) {
     shell(`<h1>Coaching invite</h1>
-      <div class="empty">There's no invite to accept here. Invite links look like ${esc(serverHost())}/coach/…
-        <br><a href="#/coaching">Go to Coaching</a></div>`);
+      ${emptyHtml({
+        body: `There's no invite to accept here. Invite links look like ${esc(serverHost())}/coach/…`,
+        action: { label: "Go to Coaching", href: "#/coaching" },
+      })}`);
     return;
   }
   // Read past the offline cache on purpose: the preview's path carries the
@@ -4584,16 +4620,16 @@ async function viewStudentHome() {
       <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
     </div>
     <h2>Driver profile</h2>
-    ${profileCardHtml(viewing.profile, { empty: `<div class="empty">${esc(who)} hasn't filled in a driver profile yet.</div>` })}
+    ${profileCardHtml(viewing.profile, { empty: emptyHtml({ body: `${esc(who)} hasn't filled in a driver profile yet.` }) })}
     ${upcomingCards ? `<h2>Upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
     <h2>Latest events</h2>
     ${
       recentRows
         ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Laps</th></tr></thead><tbody>${recentRows}</tbody></table></div>`
-        : `<div class="empty">No track days logged yet.</div>`
+        : emptyHtml({ body: "No track days logged yet." })
     }
     <h2>Tracks</h2>
-    ${trackCards ? `<div class="cards">${trackCards}</div>` : `<div class="empty">No tracks yet.</div>`}
+    ${trackCards ? `<div class="cards">${trackCards}</div>` : emptyHtml({ body: "No tracks yet." })}
     ${carCards ? `<h2>Cars</h2><div class="cards">${carCards}</div>` : ""}
   `);
   wireRowLinks(view);
@@ -4638,7 +4674,7 @@ async function viewStudentVehicle(vehicleId) {
       <div class="tile"><div class="label">Events</div><div class="value">${logbook.events}</div></div>
     </div>
     <h2>Modifications &amp; notes</h2>
-    ${v.notes ? `<div class="panel notes-block">${esc(v.notes)}</div>` : `<div class="empty">None listed.</div>`}
+    ${v.notes ? `<div class="panel notes-block">${esc(v.notes)}</div>` : emptyHtml({ body: "None listed." })}
     ${
       specs.length
         ? `<h2>Specs</h2><div class="panel profile-card"><dl>${specs
@@ -4655,7 +4691,7 @@ async function viewStudentVehicle(vehicleId) {
 }
 
 function viewNotFound() {
-  shell(`<div class="empty">Not found. <a href="#/">Back to dashboard</a></div>`);
+  shell(emptyHtml({ title: "Not found", body: `<a href="#/">Back to dashboard</a>` }));
 }
 
 function wireRowLinks(view) {
@@ -4738,7 +4774,7 @@ function shareDashboard() {
     </div>
     <div class="btn-row"><a class="btn small" href="#/year">Year in review</a></div>
     <h2>Tracks</h2>
-    ${cards ? `<div class="cards">${cards}</div>` : `<div class="empty">No events shared yet.</div>`}
+    ${cards ? `<div class="cards">${cards}</div>` : emptyHtml({ body: "No events shared yet." })}
     ${events.length ? `<h2>All events</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
     <tbody>${shareEventRows(events, { withTrack: true })}</tbody></table></div>` : ""}
@@ -4760,7 +4796,7 @@ function shareYear(params) {
 function shareTrack(trackId) {
   const track = shareData.tracks.find((t) => String(t.id) === String(trackId));
   if (!track) {
-    shareShell(`<div class="empty">Not found. <a href="#/">Back</a></div>`);
+    shareShell(emptyHtml({ title: "Not found", body: `<a href="#/">Back</a>` }));
     return;
   }
   const events = shareData.events.filter((e) => String(e.track_id) === String(trackId));
@@ -4914,7 +4950,7 @@ async function route() {
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
     if (parts[0] === "garage") return await viewGarage();
     if (parts[0] === "vehicle" && parts[1]) return await viewVehicle(parts[1]);
-    if (parts[0] === "new") return await viewEventForm(null, params.get("track"));
+    if (parts[0] === "new") return await viewEventForm(null, params.get("track"), params.get("car"));
     if (parts[0] === "year") return await viewYear(params);
     if (parts[0] === "wrapped") return await viewWrapped(parts[1]);
     if (parts[0] === "settings") return await viewSettings();

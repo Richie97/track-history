@@ -127,6 +127,20 @@ public enum EventDates {
         "Charge camera / lap timer"
     ]
 
+    /// The event an "Import a session" action opens when a lap view has no
+    /// telemetry to show (#342): the most recent one at the track that has
+    /// started — where a recording or logger file from that day belongs. nil
+    /// when everything there is still upcoming, or there is nothing, and the
+    /// caller offers "Add an event" instead. The port of `importTargetEvent` in
+    /// `public/js/empty.js`, carrying its test cases.
+    public static func importTargetEvent<E>(_ events: [E], today: String, startDate: KeyPath<E, String>) -> E? {
+        var best: E?
+        for event in events where event[keyPath: startDate] <= today {
+            if best == nil || event[keyPath: startDate] > best![keyPath: startDate] { best = event }
+        }
+        return best
+    }
+
     // MARK: - Parsing
 
     /// `yyyy-mm-dd` → components. Rejects anything else, including a date with a
