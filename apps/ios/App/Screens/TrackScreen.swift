@@ -75,6 +75,12 @@ struct TrackScreen: View {
     /// "Where there is room" is `compareWidth`, the same value the column is
     /// drawn from, so the two can never both be showing the same compare — which
     /// is what a width check there and a class check here would eventually allow.
+    /// Out of the compare to another screen (#342): close it, then go.
+    private func leaveCompare(_ route: Route) {
+        showingCompareLaps = false
+        router.push(route, at: layout.layoutClass)
+    }
+
     private var compareSheet: Binding<Bool> {
         .init(
             get: { showingCompareLaps && compareWidth == nil },
@@ -88,7 +94,7 @@ struct TrackScreen: View {
         // The screen already titles itself, so the column adds only the way out
         // — overlaid rather than stacked above, which would push its heading down
         // and put two headings in a row.
-        CompareLapsScreen(trackId: trackId)
+        CompareLapsScreen(trackId: trackId, trackName: model?.track?.name, onNavigate: leaveCompare)
             .overlay(alignment: .topTrailing) {
                 Button {
                     showingCompareLaps = false
@@ -220,7 +226,7 @@ struct TrackScreen: View {
         // it has always been: there is nowhere to put one, and a half-width lap
         // comparison is a worse comparison rather than a smaller one.
         .sheet(isPresented: compareSheet) {
-            CompareLapsScreen(trackId: trackId)
+            CompareLapsScreen(trackId: trackId, trackName: track.name, onNavigate: leaveCompare)
         }
         .toolbar {
             if !owner.isReadOnly, let url = model.shareURL(serverURL: auth.server.url) {

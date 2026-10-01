@@ -52,6 +52,8 @@ class EventFormModel(
     /** Null for a new event. */
     val editId: Int? = null,
     presetTrack: String? = null,
+    /** A car page's "Add an event" (#342): the car the new event starts in. */
+    presetCar: String? = null,
     /**
      * The system the temperature is typed in. The draft holds the typed number;
      * `events.temp_f` stays whole °F, so [temp] is converted on the way in
@@ -75,7 +77,7 @@ class EventFormModel(
     var trackHours by SavedState(saved, "trackHours", "")
     var club by SavedState(saved, "club", "")
     var runGroup by SavedState(saved, "runGroup", "")
-    var car by SavedState(saved, "car", "")
+    var car by SavedState(saved, "car", presetCar.orEmpty())
     /** The temperature as typed, in [units] — not the stored °F. */
     var temp by SavedState(saved, "temp", "")
     var bestTime by SavedState(saved, "bestTime", "")

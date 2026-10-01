@@ -23,49 +23,32 @@ struct DetailPlaceholder: View {
     @State private var answered = false
 
     var body: some View {
-        VStack(spacing: 14) {
-            BrandMark()
-                .frame(width: 44, height: 44)
-                .opacity(0.5)
-
+        Group {
             if let next {
-                Text("Next up")
-                    .teStyle(.eyebrow)
-                    .foregroundStyle(Color(.textFaint))
-                Text(next.trackName)
-                    .teStyle(.h2)
-                    .foregroundStyle(Color(.textStrong))
-                    .multilineTextAlignment(.center)
-                if let countdown = EventDates.fmtCountdown(next.startDate) {
-                    Text(countdown)
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.accentInk))
+                PanePlaceholder(mark: .brand, eyebrow: "Next up", title: next.trackName, identifier: "detailPlaceholder") {
+                    if let countdown = EventDates.fmtCountdown(next.startDate) {
+                        Text(countdown)
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.accentInk))
+                    }
+                    // No `.fixedSize()`: `TEButtonStyle` already sets a width on its
+                    // label, and pairing the two is the hazard documented on
+                    // `VehicleScreen` — it takes the app down with a watchdog
+                    // "lost connection" rather than a stack trace.
+                    Button("Open this event") { router.open(.event(next.id)) }
+                        .buttonStyle(TEButtonStyle(kind: .quiet))
                 }
-                // No `.fixedSize()`: `TEButtonStyle` already sets a width on its
-                // label, and pairing the two is the hazard documented on
-                // `VehicleScreen` — it takes the app down with a watchdog
-                // "lost connection" rather than a stack trace.
-                Button("Open this event") { router.open(.event(next.id)) }
-                    .buttonStyle(TEButtonStyle(kind: .quiet))
             } else {
-                Text("Pick an event")
-                    .teStyle(.h2)
-                    .foregroundStyle(Color(.textStrong))
-                Text(
-                    !loaded ? ""
+                PanePlaceholder(
+                    mark: .brand,
+                    title: "Pick an event",
+                    text: !loaded ? ""
                         : answered ? "Nothing coming up — choose a track day from the list."
-                        : "Choose a track day from the list."
+                        : "Choose a track day from the list.",
+                    identifier: "detailPlaceholder"
                 )
-                    .teStyle(.sm)
-                    .foregroundStyle(Color(.textMuted))
-                    .multilineTextAlignment(.center)
             }
         }
-        .padding(TESpacing.cardPadding)
-        .frame(maxWidth: 380)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.bgPage))
-        .accessibilityIdentifier("detailPlaceholder")
         // The dashboard beside this has already fetched — and warmed — the same
         // list, so through the offline layer this is normally a cache read rather
         // than a request. A failure is still not shown as an error — that would be

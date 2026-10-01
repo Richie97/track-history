@@ -49,8 +49,7 @@ struct CoachInviteScreen: View {
                 Text("Can't reach the server to check this invite. Try again once you're back online.")
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textBody))
-                Button("Try again") { Task { phase = .loading; await load() } }
-                    .buttonStyle(TEButtonStyle(kind: .accent))
+                TERetryButton { phase = .loading; await load() }
                 Button("Not now") { router.show(.coaching) }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
             }

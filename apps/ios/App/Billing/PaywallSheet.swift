@@ -155,8 +155,7 @@ struct PaywallSheet: View {
                     }
                 case .failed(let message):
                     TEErrorBanner(message: message)
-                    Button("Try again") { Task { await store.loadProducts() } }
-                        .buttonStyle(TEButtonStyle(kind: .quiet))
+                    TERetryButton { await store.loadProducts() }
                 case .loaded:
                     ForEach(store.products, id: \.id) { product in
                         productRow(product)

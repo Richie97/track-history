@@ -40,6 +40,7 @@
 		48E955F21551B6D82C3AB62C /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 380D4BFFDADBA70827336888 /* RecordingController.swift */; };
 		499E0DD4FB9A41DF0B97A880 /* BrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E3F0A72B7C7860B19B1ED6 /* BrandMark.swift */; };
 		49A0B66026E0F7DC363FFBA6 /* VehicleScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE140B76E79AB433F9FA1E96 /* VehicleScreen.swift */; };
+		4A1E5D3C7B2F90E8C6D1A402 /* EmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3B7E1F5C0A2648E1F3B579 /* EmptyStateTests.swift */; };
 		4D5846D926BDEF1D48B78043 /* LinePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA73ABB4BB40CF826F60AF4 /* LinePickerView.swift */; };
 		4DD2D18B1AB33C8FD5A382E1 /* DroppedClip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071246A4C72D0F6070A346B9 /* DroppedClip.swift */; };
 		4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A61B2645926992E00FFAD3 /* Shape.swift */; };
@@ -194,6 +195,7 @@
 		93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageUITests.swift; sourceTree = "<group>"; };
 		9717B63A2B268C68C01FC9BC /* DroppedClipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroppedClipTests.swift; sourceTree = "<group>"; };
 		989C8DDBBF66B13CA2A81920 /* CatalogCarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogCarPicker.swift; sourceTree = "<group>"; };
+		9D3B7E1F5C0A2648E1F3B579 /* EmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateTests.swift; sourceTree = "<group>"; };
 		A32AEB077B38B164C34ECD9E /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		A9CE6FCEF23CA4222C13FF34 /* TrackEvolution.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrackEvolution.entitlements; sourceTree = "<group>"; };
 		AA2B499FC28F49DDA82A2334 /* FoldPosture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldPosture.swift; sourceTree = "<group>"; };
@@ -362,6 +364,7 @@
 				3527336F7D5432ACB912FD63 /* AnalyticsPathTests.swift */,
 				DA978A264D14BAB2CBE1D837 /* CoachingRoutesTests.swift */,
 				9717B63A2B268C68C01FC9BC /* DroppedClipTests.swift */,
+				9D3B7E1F5C0A2648E1F3B579 /* EmptyStateTests.swift */,
 				8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */,
 				5BF84F10C31053C93F89BAFB /* FoldsTests.swift */,
 				F06DF26F461D56CF24E50A58 /* LapChannelPanelTests.swift */,
@@ -713,6 +716,7 @@
 				42B03C0F1FED64CD39B3CCF6 /* AnalyticsPathTests.swift in Sources */,
 				C509C29CBCCDFCAD0911F20F /* CoachingRoutesTests.swift in Sources */,
 				C79E68610F3F0CC012D94722 /* DroppedClipTests.swift in Sources */,
+				4A1E5D3C7B2F90E8C6D1A402 /* EmptyStateTests.swift in Sources */,
 				59C8927C18AEAFDA0A97F1DE /* EventFormDraftTests.swift in Sources */,
 				075C42EC5206B481B395638E /* FoldsTests.swift in Sources */,
 				BFACEC004A16805D3D2645B8 /* LapChannelPanelTests.swift in Sources */,

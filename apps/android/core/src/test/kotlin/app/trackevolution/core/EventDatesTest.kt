@@ -104,6 +104,27 @@ class EventDatesTest {
         assertNull(EventDates.epochDay("nonsense"))
     }
 
+    // ---- importTargetEvent, with test/unit/empty.test.js's cases (#342) ----
+
+    private data class Row(val id: Int, val startDate: String)
+
+    @Test
+    fun `the import target is the most recent started event in any order`() {
+        val rows = listOf(Row(1, "2026-04-02"), Row(3, "2026-11-20"), Row(2, "2026-09-12"))
+        assertEquals(2, EventDates.importTargetEvent(rows, "2026-10-01") { it.startDate }?.id)
+    }
+
+    @Test
+    fun `an event starting today counts as started for the import target`() {
+        assertEquals(7, EventDates.importTargetEvent(listOf(Row(7, "2026-10-01")), "2026-10-01") { it.startDate }?.id)
+    }
+
+    @Test
+    fun `there is no import target when everything is upcoming or there is nothing`() {
+        assertNull(EventDates.importTargetEvent(listOf(Row(1, "2026-12-01")), "2026-10-01") { it.startDate })
+        assertNull(EventDates.importTargetEvent(emptyList<Row>(), "2026-10-01") { it.startDate })
+    }
+
     // ---- the checklist contract -------------------------------------------
 
     @Test

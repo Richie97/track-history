@@ -254,6 +254,8 @@ fun AppNavHost(
                     onCompare = {
                         nav.navigate(Route.SessionCompare(route.eventId, route.sessionId, route.lapId, route.student))
                     },
+                    // The importer for this lap's own event (#342) — not for a coach.
+                    onImport = if (owner.readOnly) null else { { nav.navigate(Route.Import(eventId = route.eventId)) } },
                     onSubscribe = onRequirePro,
                 )
                 }
@@ -289,6 +291,7 @@ fun AppNavHost(
                         api = api,
                         editId = route.editId,
                         presetTrack = route.presetTrack,
+                        presetCar = route.presetCar,
                         units = units,
                         saved = handle,
                     )
@@ -373,7 +376,18 @@ fun AppNavHost(
                             }
                             // A destination has a back gesture and a column has
                             // nothing, so the column needs a way out of its own.
-                            CompareLapsScreen(model = compare, onClose = { comparing = false })
+                            CompareLapsScreen(
+                                model = compare,
+                                onClose = { comparing = false },
+                                onNavigate = if (owner.readOnly) {
+                                    null
+                                } else {
+                                    { next: Route ->
+                                        comparing = false
+                                        nav.navigate(next)
+                                    }
+                                },
+                            )
                         }
                     }
                 } else {
@@ -384,9 +398,12 @@ fun AppNavHost(
 
             pageComposable<Route.CompareLaps> { entry ->
                 val route = entry.toRoute<Route.CompareLaps>()
-                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { _, api ->
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                     val model = rememberScreenModel { scope, _ -> CompareLapsModel(scope, api, route.trackId) }
-                    CompareLapsScreen(model = model)
+                    CompareLapsScreen(
+                        model = model,
+                        onNavigate = if (owner.readOnly) null else { { next: Route -> nav.navigate(next) } },
+                    )
                 }
             }
 
@@ -592,6 +609,8 @@ fun AppNavHost(
                     // The logbook's rows live in the Events tab: an arrival there.
                     onOpenEvent = { nav.go(Route.Event(it)) },
                     onOpenTrack = { nav.go(Route.Track(it)) },
+                    // A new event lives in the Events tab too.
+                    onAddEvent = { car -> nav.go(Route.EventForm(presetCar = car)) },
                     onDeleted = { nav.popBackStack(Route.Garage, inclusive = false) },
                 )
             }

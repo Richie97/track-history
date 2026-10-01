@@ -70,6 +70,7 @@ import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.CatalogCarPicker
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
+import app.trackevolution.ui.TEEmptyAction
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.TEField
 import app.trackevolution.ui.TELoadable
@@ -100,6 +101,8 @@ fun VehicleScreen(
     onRequirePro: () -> Unit = {},
     onOpenEvent: (Int) -> Unit = {},
     onOpenTrack: (Int) -> Unit = {},
+    /** A new event in this car (#342) — the next step when it has none. */
+    onAddEvent: ((String) -> Unit)? = null,
     /** The car is gone; leave its page. */
     onDeleted: () -> Unit = {},
 ) {
@@ -260,7 +263,10 @@ fun VehicleScreen(
                 }
             }
 
-            item("logbook-line") { LogbookLine(logbook, onOpenEvent) }
+            item("logbook-line") {
+                val addEvent = onAddEvent?.takeIf { !model.readOnly }
+                LogbookLine(logbook, onOpenEvent, addEvent?.let { add -> { add(vehicle.name) } })
+            }
 
             if (model.readOnly) {
                 item("specs") { StudentCarSpecs(vehicle, model) }
@@ -488,16 +494,25 @@ private fun fmtDays(days: Double): String =
  * car's tile words, for both tiers.
  */
 @Composable
-private fun LogbookLine(logbook: Garage.VehicleLogbook, onOpenEvent: (Int) -> Unit) {
+private fun LogbookLine(
+    logbook: Garage.VehicleLogbook,
+    onOpenEvent: (Int) -> Unit,
+    /** Null for a coach, who adds nothing to a student's logbook. */
+    onAddEvent: (() -> Unit)? = null,
+) {
     val colors = TrackTheme.colors
     val last = logbook.lastEvent
     val next = logbook.nextEvent
     if (last == null && next == null) {
-        Text(
-            "No track days in this car yet — pick it on an event and they'll show up here.",
-            style = TrackTheme.typography.sm,
-            color = colors.textMuted,
-        )
+        if (onAddEvent == null) {
+            TEEmpty("No track days in this car yet.")
+        } else {
+            // The next step (#342): a new event already in this car.
+            TEEmpty(
+                "No track days in this car yet — pick it on an event and they'll show up here.",
+                action = TEEmptyAction("Add an event", onAddEvent),
+            )
+        }
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

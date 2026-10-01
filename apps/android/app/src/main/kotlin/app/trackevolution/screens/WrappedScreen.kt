@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.trackevolution.ui.TERetryButton
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.Units
@@ -121,9 +122,9 @@ fun WrappedScreen(
             is WrappedModel.Phase.Failed -> Column(Modifier.padding(24.dp).align(Alignment.Center)) {
                 Text(phase.message, style = TrackTheme.typography.body, color = colors.textStrong)
                 Spacer(Modifier.height(12.dp))
-                OutlinedButton(onClick = { model.load() }) { Text("Try again") }
+                TERetryButton(onClick = { model.load() })
             }
-            WrappedModel.Phase.Empty -> Column(Modifier.padding(24.dp).align(Alignment.Center)) {
+            is WrappedModel.Phase.Empty -> Column(Modifier.padding(24.dp).align(Alignment.Center)) {
                 Text(
                     "No track days in ${model.year} — yet",
                     style = TrackTheme.typography.h1,
@@ -135,6 +136,25 @@ fun WrappedScreen(
                     style = TrackTheme.typography.body,
                     color = colors.textMuted,
                 )
+                // The way out the web offers (#342): every year that has a
+                // story, or the one there is.
+                val years = phase.years
+                val only = years.singleOrNull()
+                if (years.size > 1) {
+                    YearChips(
+                        years,
+                        model.year,
+                        { model.load(it) },
+                        Modifier.padding(top = 16.dp).semantics { testTag = "wrappedYears" },
+                    )
+                } else if (only != null && only != model.year) {
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = { model.load(only) },
+                        border = BorderStroke(1.dp, colors.borderHairline),
+                        modifier = Modifier.semantics { testTag = "wrappedSeeYear" },
+                    ) { Text("See $only", color = colors.textBody) }
+                }
             }
             // Centred and capped at the web's 520–560: a story is a phone-shaped
             // thing, and on a tablet it stays one down the middle.
@@ -317,23 +337,7 @@ private fun WrappedCard(
                 Lede("Your season on track, handed back to you.")
                 data.through?.let { Foot("So far — through ${wrappedDay(it)}.") }
                 if (data.years.size > 1) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 26.dp),
-                    ) {
-                        data.years.forEach { y ->
-                            val selected = y == data.year
-                            Button(
-                                onClick = { if (!selected) onYear(y) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selected) colors.accent else colors.surfaceCard,
-                                    contentColor = if (selected) colors.accentContrast else colors.textBody,
-                                ),
-                                border = if (selected) null else BorderStroke(1.dp, colors.borderHairline),
-                                modifier = Modifier.semantics { this.selected = selected },
-                            ) { Text(y.toString(), style = TrackTheme.typography.sm) }
-                        }
-                    }
+                    YearChips(data.years, data.year, onYear, Modifier.padding(top = 26.dp))
                 }
             }
             WrappedStory.Kind.NUMBERS -> {
@@ -596,6 +600,29 @@ private fun PosterCard(data: Wrapped, units: UnitSystem) {
                 color = colors.textFaint,
                 modifier = Modifier.padding(top = 8.dp),
             )
+        }
+    }
+}
+
+/** One chip per year with a story, the one in view marked — the web's `wrappedYearPicker`. */
+@Composable
+private fun YearChips(years: List<Int>, current: Int, onYear: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val colors = TrackTheme.colors
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier,
+    ) {
+        years.forEach { y ->
+            val selected = y == current
+            Button(
+                onClick = { if (!selected) onYear(y) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (selected) colors.accent else colors.surfaceCard,
+                    contentColor = if (selected) colors.accentContrast else colors.textBody,
+                ),
+                border = if (selected) null else BorderStroke(1.dp, colors.borderHairline),
+                modifier = Modifier.semantics { this.selected = selected },
+            ) { Text(y.toString(), style = TrackTheme.typography.sm) }
         }
     }
 }

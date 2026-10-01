@@ -8,6 +8,7 @@ import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.LoadState
@@ -32,6 +33,10 @@ class CompareLapsModel(
     var rows by mutableStateOf<List<CompareLaps.Row>>(emptyList())
         private set
 
+    /** The track's events, for the empty state's next step (#342). */
+    var events by mutableStateOf<List<Event>>(emptyList())
+        private set
+
     /** `sessions.channels` by session id, so a picked row finds its entry. */
     private var channelsBySession: Map<Int, SessionChannels> = emptyMap()
 
@@ -47,6 +52,7 @@ class CompareLapsModel(
                 // Channel data lives on event details; the reads go through the
                 // offline cache, so a comparison viewed once works in the paddock.
                 val events = api.events(trackId = trackId)
+                this@CompareLapsModel.events = events
                 val details = events.filter { it.lapCount > 0 }.map { api.event(it.id) }
                 rows = CompareLaps.comparableLaps(details.map { CompareLaps.EventLaps(it) })
                 channelsBySession = details

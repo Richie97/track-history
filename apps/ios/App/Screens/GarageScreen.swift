@@ -197,18 +197,12 @@ struct DefaultBadge: View {
 /// the list a second time).
 struct GarageDetailPlaceholder: View {
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "car")
-                .font(.system(size: 36))
-                .foregroundStyle(Color(.textFaint))
-            Text("Pick a car")
-                .teStyle(.h2)
-                .foregroundStyle(Color(.textStrong))
-        }
-        .padding(TESpacing.cardPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.bgPage))
-        .accessibilityIdentifier("garagePlaceholder")
+        PanePlaceholder(
+            mark: .symbol("car"),
+            title: "Pick a car",
+            text: "Its logbook, best laps and — for Pro — its consumables open here.",
+            identifier: "garagePlaceholder"
+        )
     }
 }
 

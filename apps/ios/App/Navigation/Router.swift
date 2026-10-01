@@ -173,8 +173,8 @@ extension Route: Identifiable {
 /// New or existing, in one value so the form has a single input.
 enum EventFormTarget: Hashable {
     /// A new event, optionally starting at a known track (the track page's
-    /// "+ Add event at …").
-    case new(presetTrack: String?)
+    /// "+ Add event at …") or in a known car (a car page's "Add an event", #342).
+    case new(presetTrack: String?, presetCar: String? = nil)
     case edit(Int)
 }
 

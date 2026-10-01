@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import app.trackevolution.ui.TERetryButton
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.InvitePreview
@@ -125,7 +126,7 @@ fun CoachInviteScreen(
                 is CoachInviteModel.Status.Offline -> {
                     Body("Can't reach the server to check this invite. Try again once you're back online.")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Primary("Try again", onClick = model::load)
+                        TERetryButton(onClick = model::load)
                         TextButton(onClick = onDone) { Text("Not now", color = colors.textMuted) }
                     }
                 }

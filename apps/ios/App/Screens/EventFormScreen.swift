@@ -510,9 +510,9 @@ final class EventFormModel {
             // for, let alone written over it. See `hydrated`.
             if !hydrated {
                 switch target {
-                case .new(let presetTrack):
+                case .new(let presetTrack, let presetCar):
                     trackName = presetTrack ?? ""
-                    car = loaded.vehicles.first(where: \.isDefault)?.name ?? ""
+                    car = presetCar ?? loaded.vehicles.first(where: \.isDefault)?.name ?? ""
                 case .edit(let id):
                     let detail = try await api.event(id: id)
                     fill(from: detail.event)

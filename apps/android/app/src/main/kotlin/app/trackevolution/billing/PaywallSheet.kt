@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import app.trackevolution.ui.TERetryButton
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -110,9 +111,7 @@ fun PaywallSheet(
                         style = type.sm,
                         color = colors.textMuted,
                     )
-                    TextButton(onClick = billing::refreshProducts) {
-                        Text("Try again", style = type.bodyStrong, color = colors.accentInk)
-                    }
+                    TERetryButton(onClick = billing::refreshProducts)
                 }
 
                 // The row as tall as its tallest card, and every card that tall: the

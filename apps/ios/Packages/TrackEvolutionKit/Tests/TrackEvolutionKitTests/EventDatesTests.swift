@@ -101,3 +101,26 @@ struct EventDatesTests {
         #expect(EventDates.daysUntil("") == nil)
     }
 }
+
+/// `importTargetEvent`, with `test/unit/empty.test.js`'s cases (#342).
+struct ImportTargetEventTests {
+    private struct Row { let id: Int; let startDate: String }
+    private let today = "2026-10-01"
+
+    @Test
+    func picksTheMostRecentStartedEventInAnyOrder() {
+        let rows = [Row(id: 1, startDate: "2026-04-02"), Row(id: 3, startDate: "2026-11-20"), Row(id: 2, startDate: "2026-09-12")]
+        #expect(EventDates.importTargetEvent(rows, today: today, startDate: \.startDate)?.id == 2)
+    }
+
+    @Test
+    func countsAnEventStartingTodayAsStarted() {
+        #expect(EventDates.importTargetEvent([Row(id: 7, startDate: today)], today: today, startDate: \.startDate)?.id == 7)
+    }
+
+    @Test
+    func isNilWhenEverythingIsUpcomingOrThereIsNothing() {
+        #expect(EventDates.importTargetEvent([Row(id: 1, startDate: "2026-12-01")], today: today, startDate: \.startDate) == nil)
+        #expect(EventDates.importTargetEvent([Row](), today: today, startDate: \.startDate) == nil)
+    }
+}
