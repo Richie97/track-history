@@ -46,7 +46,7 @@ import {
 } from "./js/garage.js";
 import { UNIT_SYSTEMS, cacheUnits, clearUnitsCache, currentUnits, fmtDist, fmtSpeedKph, speedUnit, tempInputSpec, tempToDisplay, tempToStored, tempUnit, usUnits } from "./js/units.js";
 import { initPullRefresh } from "./js/pull-refresh.js";
-import { initAnalytics, trackPageView } from "./js/analytics.js";
+import { initAnalytics, openConsentBanner, trackPageView } from "./js/analytics.js";
 import { PROFILE_GROUPS, profileBody, profileSections } from "./js/profile.js";
 import { inviteExpiryText, lastViewedText, studentLine } from "./js/coaching.js";
 import {
@@ -555,7 +555,8 @@ function footerHtml({ legal = false } = {}) {
       ${
         legal
           ? `<a class="footer-link" href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy</a>
-      <a class="footer-link" href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms</a>`
+      <a class="footer-link" href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms</a>
+      <button type="button" class="footer-link" data-consent-open>Cookies</button>`
           : ""
       }
       <a class="contribute-link" href="${REPO_URL}" target="_blank" rel="noopener"
@@ -820,6 +821,8 @@ function closeUserMenu() {
 }
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".user-menu")) closeUserMenu();
+  // The footer's "Cookies" link and Settings' "Cookie settings" (js/analytics.js).
+  if (e.target.closest("[data-consent-open]")) openConsentBanner();
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeUserMenu();
@@ -2878,6 +2881,7 @@ async function viewSettings() {
         <a class="btn small" href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy policy ↗</a>
         <a class="btn small" href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms of use ↗</a>
         <a class="btn small" href="${DOCS_URL}" target="_blank" rel="noopener">Documentation ↗</a>
+        <button type="button" class="btn small" data-consent-open>Cookie settings</button>
       </div>
       <div class="hint" style="margin:10px 0 0">© ${new Date().getFullYear()} Speedshift LLC</div>
     </div>
