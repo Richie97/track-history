@@ -8,6 +8,14 @@ design tokens. When the UI changes, re-running the pipeline re-films it; nothing
 in the video is a mock-up of a screen except the one screen the web can't show
 (the native lap recorder, drawn from `RecordingScreen.swift`'s layout).
 
+Published at <https://youtu.be/UBnjPYRr8wU>, and played in the hero of the
+docs site's landing page (`site/index.html`, poster `site/promo-poster.jpg`).
+Upload a re-cut, and the video id and the poster frame there change with it:
+
+```sh
+ffmpeg -ss 5.45 -i out/track-evolution-promo.mp4 -frames:v 1 -vf scale=1280:-2 -q:v 3 ../site/promo-poster.jpg
+```
+
 ## Build it
 
 ```sh

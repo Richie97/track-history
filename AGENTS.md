@@ -92,7 +92,14 @@ not a follow-up:**
    `.github/workflows/pages.yml` (on pushes to `main` touching `site/**`).
    - `site/index.html` — landing page. Update the features grid, telemetry
      sources, or getting-started steps if those change; don't let it advertise
-     features that don't exist or miss ones that do.
+     features that don't exist or miss ones that do. Its hero is the promo
+     video (`promo/`), published at https://youtu.be/UBnjPYRr8wU, as a
+     click-to-play poster (`site/promo-poster.jpg`, a frame of the render): the
+     inline script swaps in the `youtube-nocookie.com` player only on a click,
+     so nothing loads from YouTube until a visitor asks for it, and without
+     JavaScript the poster is a plain link. A re-cut that gets a new upload
+     owes the video id there and in `site/docs/index.html`'s intro, and a new
+     poster frame.
    - `site/docs/index.html` — getting started *using the hosted app* (sign-in,
      first event, telemetry import, PWA install, sharing).
    - **The site points users at the hosted app, https://trackevolution.app, and
@@ -218,7 +225,7 @@ The iOS and Android **shells that used to live in `mobile/`** — the web app wr
 
 **Marketing/docs site** (`site/`): see the Documentation section above for the page inventory and the keep-in-sync policy.
 
-**Promo video** (`promo/`): an 84-second film cut from the **real web app**, not mock-ups — `capture.mjs` seeds a fictional demo logbook through the API on its own scratch D1 (`promo/.state`, never the dev database), with COTA telemetry from a lap simulation (`demo/sim.mjs`) cut by the importer's own `buildLapChannels`, films each screen with Playwright, and exports the facts the motion graphics draw to `out/data.json`; `video/promo.js` is the cut on a seekable timeline (`video/timeline.js`) that `render.mjs` steps frame by frame; `audio/score.mjs` synthesises the score on the same two-second bars. Everything under `promo/out/` is a build product and gitignored. It follows the site's rules — hosted app and both stores, no hosting details — and it **states features and tiers** (the Free / Pro tags in `video/promo.js` follow the NS-32 tier table), so a change to a feature, a tier or a screen it shows owes it the edit and a re-render, like the site. The one drawn screen is the native recorder, which the web can't show; it mirrors `RecordingScreen.swift`.
+**Promo video** (`promo/`): an 84-second film cut from the **real web app**, not mock-ups — `capture.mjs` seeds a fictional demo logbook through the API on its own scratch D1 (`promo/.state`, never the dev database), with COTA telemetry from a lap simulation (`demo/sim.mjs`) cut by the importer's own `buildLapChannels`, films each screen with Playwright, and exports the facts the motion graphics draw to `out/data.json`; `video/promo.js` is the cut on a seekable timeline (`video/timeline.js`) that `render.mjs` steps frame by frame; `audio/score.mjs` synthesises the score on the same two-second bars. Everything under `promo/out/` is a build product and gitignored. It follows the site's rules — hosted app and both stores, no hosting details — and it **states features and tiers** (the Free / Pro tags in `video/promo.js` follow the NS-32 tier table), so a change to a feature, a tier or a screen it shows owes it the edit and a re-render, like the site. The one drawn screen is the native recorder, which the web can't show; it mirrors `RecordingScreen.swift`. The published cut is on YouTube (https://youtu.be/UBnjPYRr8wU) and is the landing page's hero — see the `site/index.html` bullet under Documentation.
 
 **Tests** (`test/`, Vitest with two projects — see `vitest.config.mts`):
 - `test/unit/` — pure-function tests running in Node: `src/lib/*` plus the frontend modules (`public/js/format.js`, `chart.js`) and `pdr.js` internals.

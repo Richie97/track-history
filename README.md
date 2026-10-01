@@ -1684,6 +1684,10 @@ node audio/score.mjs     # the score
 node render.mjs          # → promo/out/track-evolution-promo.mp4 (needs ffmpeg with libx264/aac)
 ```
 
+The published cut is on YouTube at <https://youtu.be/UBnjPYRr8wU>, and the docs
+site's landing page plays it in the hero (a poster frame that loads YouTube's
+privacy-enhanced player only when clicked).
+
 The storyboard, how each step works and the rules that keep its claims in step
 with the site are in [`promo/README.md`](promo/README.md). The MP4 is a build
 product under `promo/out/` and isn't committed.
