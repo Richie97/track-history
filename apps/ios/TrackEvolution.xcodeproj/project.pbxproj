@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D7B1A8DB9CBF1809D5496F79 /* AppAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E49FA6241442E2B0B3917250 /* AppAnalytics.swift */; };
+		761DDB192DC684BBF4C30026 /* AnalyticsPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80A83D3BE8D2BFA3EFB9773 /* AnalyticsPath.swift */; };
+		39729B3DD07D2241D23F1729 /* AnalyticsPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3DD0018A086D6EE5E8BE1A0 /* AnalyticsPathTests.swift */; };
+		CDB2FE4363DEDA7050FEB795 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A9E83F8C678FAC4F9D76EC1A /* GoogleService-Info.plist */; };
+		4B1199112069AB829ECC6FBE /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64BCD2F5919D23BA342BD3E0 /* FirebaseAnalytics */; };
 		0390889F0A928F8F8BF1C2A0 /* LimitLegend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8625F0FCAC350699C111D37A /* LimitLegend.swift */; };
 		05E3AA3580CA0FCFBB1886CD /* GarageUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */; };
 		06FA7C499CE4618F1B680CD6 /* RecordingBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48AE0050A975A2D2C847DDB /* RecordingBanner.swift */; };
@@ -122,6 +127,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		E49FA6241442E2B0B3917250 /* AppAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAnalytics.swift; sourceTree = "<group>"; };
+		F80A83D3BE8D2BFA3EFB9773 /* AnalyticsPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsPath.swift; sourceTree = "<group>"; };
+		F3DD0018A086D6EE5E8BE1A0 /* AnalyticsPathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsPathTests.swift; sourceTree = "<group>"; };
+		A9E83F8C678FAC4F9D76EC1A /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		00C463A61C87EA12BC0DD175 /* TrackEvolutionKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TrackEvolutionKit; path = Packages/TrackEvolutionKit; sourceTree = SOURCE_ROOT; };
 		03589AF363C111DDE858D9B7 /* GarageScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScreen.swift; sourceTree = "<group>"; };
 		03E3F0A72B7C7860B19B1ED6 /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
@@ -231,6 +240,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5F8BC0ED3060AC991BAB71F8 /* TrackEvolutionKit in Frameworks */,
+				4B1199112069AB829ECC6FBE /* FirebaseAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -335,7 +345,9 @@
 				578A399D6F6E60A4A894C8B8 /* Offline */,
 				05F08C89A2F106188B1AC56B /* Recording */,
 				665A300ABA9EBC0413EB48F9 /* Screens */,
+				E49FA6241442E2B0B3917250 /* AppAnalytics.swift */,
 				D10939598E67F796CA22FCE3 /* Assets.xcassets */,
+				A9E83F8C678FAC4F9D76EC1A /* GoogleService-Info.plist */,
 				7FAD7F0F8459AFBE55AE39CB /* Info.plist */,
 				1D6588990892F4B703C72631 /* RootView.swift */,
 				A9CE6FCEF23CA4222C13FF34 /* TrackEvolution.entitlements */,
@@ -347,6 +359,7 @@
 		97D326450B9D5BC6C9C213F7 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				F3DD0018A086D6EE5E8BE1A0 /* AnalyticsPathTests.swift */,
 				DA978A264D14BAB2CBE1D837 /* CoachingRoutesTests.swift */,
 				9717B63A2B268C68C01FC9BC /* DroppedClipTests.swift */,
 				8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */,
@@ -363,6 +376,7 @@
 		ACA50735DEE1C5D3D51426EA /* Navigation */ = {
 			isa = PBXGroup;
 			children = (
+				F80A83D3BE8D2BFA3EFB9773 /* AnalyticsPath.swift */,
 				F780198483293642090CD24D /* DetailPlaceholder.swift */,
 				CF43C9F27E545AD049BEA61F /* Router.swift */,
 			);
@@ -526,6 +540,7 @@
 			name = TrackEvolution;
 			packageProductDependencies = (
 				4E5F2EDF1C9FC56FC64FA6AD /* TrackEvolutionKit */,
+				64BCD2F5919D23BA342BD3E0 /* FirebaseAnalytics */,
 			);
 			productName = TrackEvolution;
 			productReference = 4F2186F17C307D76064E1F95 /* TrackEvolution.app */;
@@ -564,6 +579,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				0628D3026A0F2D1F373880E6 /* XCLocalSwiftPackageReference "Packages/TrackEvolutionKit" */,
+				91FEF44F125BEC0FE504C395 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E1619804A1ABA704C06014FE /* Products */;
@@ -583,6 +599,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F903D5D339EABBC96E51A877 /* Assets.xcassets in Resources */,
+				CDB2FE4363DEDA7050FEB795 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -613,6 +630,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7B1A8DB9CBF1809D5496F79 /* AppAnalytics.swift in Sources */,
 				B962D4EA9A0300EEDC05153C /* AnalysisColumn.swift in Sources */,
 				2D35025A70FD15F566175D84 /* AppServices.swift in Sources */,
 				DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */,
@@ -627,6 +645,7 @@
 				8942CFCB809A0BD25305A821 /* Components.swift in Sources */,
 				AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */,
 				7D8383BD1872AF68D53716DD /* DebugImportFixture.swift in Sources */,
+				761DDB192DC684BBF4C30026 /* AnalyticsPath.swift in Sources */,
 				F02E20EBBCF801FA435B857C /* DetailPlaceholder.swift in Sources */,
 				4DD2D18B1AB33C8FD5A382E1 /* DroppedClip.swift in Sources */,
 				D6C3C7BA8C69F7A9AEB93473 /* EventFormDraft.swift in Sources */,
@@ -691,6 +710,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				39729B3DD07D2241D23F1729 /* AnalyticsPathTests.swift in Sources */,
 				C509C29CBCCDFCAD0911F20F /* CoachingRoutesTests.swift in Sources */,
 				C79E68610F3F0CC012D94722 /* DroppedClipTests.swift in Sources */,
 				59C8927C18AEAFDA0A97F1DE /* EventFormDraftTests.swift in Sources */,
@@ -801,6 +821,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.trackevolution;
 				PRODUCT_NAME = TrackEvolution;
@@ -922,6 +946,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.trackevolution;
 				PRODUCT_NAME = TrackEvolution;
 				SDKROOT = iphoneos;
@@ -1014,7 +1042,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		91FEF44F125BEC0FE504C395 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.19.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		64BCD2F5919D23BA342BD3E0 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 91FEF44F125BEC0FE504C395 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
 		4E5F2EDF1C9FC56FC64FA6AD /* TrackEvolutionKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TrackEvolutionKit;

@@ -69,6 +69,25 @@
 	</dict>
 	<!-- The app only uses standard HTTPS (exempt encryption), so App Store
 	     Connect skips the export-compliance prompt on every upload. -->
+	<!-- Google Analytics for Firebase (AppAnalytics.swift). Collection starts
+	     OFF and AppAnalytics switches it on at launch in release builds only, so
+	     a debug run, the simulator and the UI tests never send anything. Screens
+	     are reported by route shape from AppRouter, so the automatic report —
+	     which could only name SwiftUI's hosting controllers — is off. No IDFV and
+	     no ad signals: the app has no ads, and AdSupport is not linked, so there
+	     is no IDFA and no tracking prompt. -->
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<false/>
+	<key>FirebaseAutomaticScreenReportingEnabled</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_IDFV_COLLECTION_ENABLED</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_STORAGE</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_USER_DATA</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
+	<false/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<!-- Live lap recorder: GPS keeps recording with the phone locked/stowed

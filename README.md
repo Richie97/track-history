@@ -1014,7 +1014,9 @@ doesn't retain the previous user's logbook.
 ## Analytics (Google Analytics)
 
 The web app and the docs site report page views to Google Analytics 4
-(measurement id `G-JXM9CX77RQ`). The native apps carry none.
+(measurement id `G-JXM9CX77RQ`); the iOS and Android apps report screen views
+to the same property through Google Analytics for Firebase (project
+`track-evolution-app`).
 
 - **The docs site** (`site/`) has Google's stock gtag.js snippet in every
   page's `<head>` — a new docs page owes it the same snippet.
@@ -1034,8 +1036,27 @@ The web app and the docs site report page views to Google Analytics 4
   changes based on browser history events": the app reports its own page
   views, and that option would add a second, unshaped one per navigation.
 
+- **The native apps** report one `screen_view` per screen, named by
+  `Route.analyticsPath` — the web's own path shapes (`/event/:id`,
+  `/track/:id/leaderboard`), so a screen is one row across all three clients,
+  plus `/record`, `/import`, `/event/:id/lap/:id` and `/signin` for the screens
+  the web lacks. No user id, user property or custom event is set. Collection is
+  off by default and switched on only in **release** builds, so development and
+  the test suites send nothing; to watch events in GA's DebugView, build Android
+  with `./gradlew :app:installDebug -Pte.analytics=true` and run
+  `adb shell setprop debug.firebase.analytics.app app.trackevolution`, or launch
+  the iOS app from Xcode with `-FIRDebugEnabled` in the scheme's arguments. The
+  automatic screen report, advertising ids (IDFA/AD_ID — iOS doesn't link
+  AdSupport, Android removes the permission), IDFV/SSAID and every ad signal
+  are off. The Firebase config files are committed
+  (`apps/android/app/google-services.json`,
+  `apps/ios/App/GoogleService-Info.plist`); they identify the apps and grant
+  nothing, though restricting their API keys to the apps in Google Cloud
+  Console is still good practice.
+
 The privacy policy (`site/docs/privacy.html#analytics`) describes this; keep
-it in step if what is sent changes.
+it in step if what is sent changes, and with it the App Store privacy label
+and Play's Data safety form.
 
 ## Notes on the data model
 

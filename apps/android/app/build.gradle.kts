@@ -14,6 +14,9 @@ plugins {
     // Navigation's type-safe routes are @Serializable classes, so :app needs the
     // same plugin :core has.
     alias(libs.plugins.kotlin.serialization)
+    // Reads google-services.json (committed beside this file — it identifies the
+    // Firebase app, it grants nothing) into the resources Firebase starts from.
+    alias(libs.plugins.google.services)
 }
 
 // Read through Gradle's provider API rather than System.getenv, so a value is a
@@ -69,6 +72,13 @@ android {
         versionName = env("TE_VERSION_NAME") ?: "1.16"
     }
 
+    // Whether this build sends Google Analytics (AppAnalytics). Collection is
+    // off in the manifest and switched on at launch only where this is true:
+    // every release build, and a debug build only when asked for with
+    // `-Pte.analytics=true` (for DebugView), so development, the emulator and
+    // the Robolectric suite never count as users.
+    val analyticsInDebug = providers.gradleProperty("te.analytics").orNull == "true"
+
     signingConfigs {
         // The release build must be signed with the *existing* upload key, or
         // Play rejects the update as a different app (NS-27). So the key lives
@@ -87,7 +97,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "ANALYTICS", analyticsInDebug.toString())
+        }
         release {
+            buildConfigField("boolean", "ANALYTICS", "true")
             // R8 on: shrink, optimize and obfuscate. Not optional — Google Play
             // scores every app's "app optimization" (obfuscation, code and
             // resource shrinking) and warns that a category under 25% "may
@@ -190,6 +204,12 @@ dependencies {
     // The coaching invite's QR code (NS-38), for handing a link over in the
     // paddock. The encoder only; the matrix is drawn on a Compose Canvas.
     implementation(libs.zxing.core)
+
+    // Google Analytics for Firebase: screen views by route shape, nothing else
+    // (analytics/AppAnalytics.kt). The manifest switches off advertising ids,
+    // ad signals and automatic screen reporting.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
 
     // The engine :core's ApiClient is constructed with. Choosing it here rather
     // than there is what keeps :core a plain JVM module.

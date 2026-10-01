@@ -91,6 +91,12 @@ playBilling = "8.3.0"
 # `zxing-android-embedded` scanner half is deliberately not used — the app
 # shows a code, it never reads one.
 zxing = "3.5.3"
+# Google Analytics for Firebase — `:app` only, screen views by route *shape*
+# (analytics/AppAnalytics.kt). The BoM pins every Firebase artifact together;
+# from 34.0 there are no -ktx artifacts, the Kotlin APIs are in the main ones.
+firebaseBom = "34.19.0"
+# Turns app/google-services.json into the resources Firebase initialises from.
+googleServices = "4.4.4"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
@@ -163,6 +169,8 @@ androidx-car-app-testing = { module = "androidx.car.app:app-testing", version.re
 # billing/BillingController in :app.
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBilling" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -171,3 +179,4 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
