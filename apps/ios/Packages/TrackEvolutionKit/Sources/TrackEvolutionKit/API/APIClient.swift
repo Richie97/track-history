@@ -615,6 +615,11 @@ public actor APIClient {
                 // from the server is not a network failure and must not fall back.
                 await offline.noteOffline()
                 if let cached = try? await offline.cachedGet(cacheKey) { return cached }
+                // Nothing saved for this read either: say so, in the words every
+                // client uses, rather than the system's for a dropped connection.
+                if let apiError = error as? APIError, case .transport = apiError {
+                    throw APIError.transport(APIError.OFFLINE_UNCACHED)
+                }
                 throw error
             }
             await offline.noteOnline()

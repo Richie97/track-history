@@ -17,6 +17,10 @@ struct DetailPlaceholder: View {
 
     @State private var next: Event?
     @State private var loaded = false
+    /// Whether the events list actually came back. "Nothing coming up" is a claim
+    /// about the logbook, so it is made only on an answer — offline with nothing
+    /// cached, the pane says no more than Android's does.
+    @State private var answered = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -47,7 +51,11 @@ struct DetailPlaceholder: View {
                 Text("Pick an event")
                     .teStyle(.h2)
                     .foregroundStyle(Color(.textStrong))
-                Text(loaded ? "Nothing coming up — choose a track day from the list." : "")
+                Text(
+                    !loaded ? ""
+                        : answered ? "Nothing coming up — choose a track day from the list."
+                        : "Choose a track day from the list."
+                )
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textMuted))
                     .multilineTextAlignment(.center)
@@ -60,14 +68,19 @@ struct DetailPlaceholder: View {
         .accessibilityIdentifier("detailPlaceholder")
         // The dashboard beside this has already fetched — and warmed — the same
         // list, so through the offline layer this is normally a cache read rather
-        // than a request. A failure is swallowed on purpose: an empty pane that
-        // says "Pick an event" is a fine outcome, and an error here would be about
-        // the one thing on screen that nobody asked for.
+        // than a request. A failure is still not shown as an error — that would be
+        // about the one thing on screen nobody asked for — but nor is it read as
+        // "nothing coming up", which it does not know.
         .task {
             guard !loaded else { return }
-            next = try? await auth.api.events()
-                .filter { EventDates.isUpcoming($0.startDate) }
-                .min { $0.startDate < $1.startDate }
+            do {
+                next = try await auth.api.events()
+                    .filter { EventDates.isUpcoming($0.startDate) }
+                    .min { $0.startDate < $1.startDate }
+                answered = true
+            } catch {
+                answered = false
+            }
             loaded = true
         }
     }

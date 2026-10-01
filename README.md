@@ -984,7 +984,9 @@ story for the native apps, which don't run the service worker):
   (`public/js/prefetch.js`) prefetches every event detail — re-fetching only
   rows whose `updated_at` changed — so the whole logbook is browsable with no
   connection. On the web, the service worker additionally serves the app shell
-  itself offline.
+  itself offline. A page whose data was never fetched online says so on every
+  client — "This page hasn't been saved for offline yet" with *Try again* —
+  rather than showing the system's own error for a dropped connection.
 - **Writes** — mutations the app can mirror locally (events, sessions, laps,
   setup sheets, track notes/goals) are queued in IndexedDB when the network is
   down. Queued
