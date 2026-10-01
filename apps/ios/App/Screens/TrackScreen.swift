@@ -226,7 +226,7 @@ struct TrackScreen: View {
         // it has always been: there is nowhere to put one, and a half-width lap
         // comparison is a worse comparison rather than a smaller one.
         .sheet(isPresented: compareSheet) {
-            CompareLapsScreen(trackId: trackId, trackName: model?.track?.name, onNavigate: leaveCompare)
+            CompareLapsScreen(trackId: trackId, trackName: track.name, onNavigate: leaveCompare)
         }
         .toolbar {
             if !owner.isReadOnly, let url = model.shareURL(serverURL: auth.server.url) {
