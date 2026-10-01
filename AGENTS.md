@@ -68,6 +68,16 @@ npm run contracts:logic                                # refresh contracts/logic
 npm run contracts:check                                # regenerate both and fail if the tree is dirty
 ```
 
+The promo video (`promo/`, its own npm project — see `promo/README.md`):
+
+```sh
+cd promo && npm install                                # Playwright
+node capture.mjs                                       # demo logbook on a scratch D1 (promo/.state), filmed → promo/out/screens
+node audio/score.mjs                                   # the synthesised score → promo/out/score.wav
+node render.mjs                                        # → promo/out/track-evolution-promo.mp4 (ffmpeg with libx264/aac, or $FFMPEG)
+node render.mjs --stills 12,40.5                       # single frames, for checking a change
+```
+
 ## Documentation — update it as you go
 
 Documentation is hand-maintained in three places. **When a change alters
@@ -82,7 +92,14 @@ not a follow-up:**
    `.github/workflows/pages.yml` (on pushes to `main` touching `site/**`).
    - `site/index.html` — landing page. Update the features grid, telemetry
      sources, or getting-started steps if those change; don't let it advertise
-     features that don't exist or miss ones that do.
+     features that don't exist or miss ones that do. Its hero is the promo
+     video (`promo/`), published at https://youtu.be/UBnjPYRr8wU, as a
+     click-to-play poster (`site/promo-poster.jpg`, a frame of the render): the
+     inline script swaps in the `youtube-nocookie.com` player only on a click,
+     so nothing loads from YouTube until a visitor asks for it, and without
+     JavaScript the poster is a plain link. A re-cut that gets a new upload
+     owes the video id there and in `site/docs/index.html`'s intro, and a new
+     poster frame.
    - `site/docs/index.html` — getting started *using the hosted app* (sign-in,
      first event, telemetry import, PWA install, sharing).
    - **The site points users at the hosted app, https://trackevolution.app, and
@@ -207,6 +224,8 @@ The iOS and Android **shells that used to live in `mobile/`** — the web app wr
 **CI / release workflows** (`.github/workflows/`): `ci.yml` (web + backend, `paths-ignore` so a new top-level directory still runs it), `ios.yml` and `android.yml` (the native clients, path-filtered), `pages.yml` (the docs site), and `android-release.yml` — **Play Store test track**, the only workflow that ships anything to a store. It fires on every merge to `main` touching the Android client (same path filter as `android.yml`), uploading to the **internal** track, and via `workflow_dispatch`, which offers `internal`/`alpha`/`beta` — deliberately *not* production — plus optional `versionCode` / `versionName` overrides and a dry run. The `versionCode` is derived from the ref's commit count (monotonic on `main`; a version code is burned on upload even if the release is discarded, so automatic uploads must never reuse one), with the dispatch input as the override; the value checked into `build.gradle.kts` is only what local builds get. It runs `:app:checkReleaseHasNoCarApp` before anything else — a car declaration back under `src/main` must not reach a review — then the tests, then `:app:bundleRelease`, then verifies the bundle is actually signed **and minified** — the release build type runs R8 (`isMinifyEnabled` + `isShrinkResources`), because Play scores obfuscation and shrinking per app and an unminified bundle drew a "below 25%, may impact visibility and publishing" notice — before uploading with `r0adkll/upload-google-play`, passing `build/outputs/mapping/release/mapping.txt` so the Console deobfuscates crashes. Play's other per-bundle warning — "contains native code, and you've not uploaded debug symbols" — is not actionable and stays: the only `.so` files are AndroidX's, shipped already stripped, so `ndk.debugSymbolLevel` extracts nothing (don't add it; the release build type says why). An upload failure reading "a change was made to the application outside of this Edit" is a Console session saving concurrently, not a build problem; the edit is discarded and the job can simply be re-run. Keep rules live in `apps/android/app/proguard-rules.pro` and should stay near-empty: everything reached by reflection (Room, WorkManager, kotlinx.serialization's `serializer()` lookups, Tink) is covered by the libraries' own consumer rules, and a blanket `-keep class app.trackevolution.**` would hand back the obfuscation score. Release signing is read from `TE_UPLOAD_KEYSTORE*` in the environment by `apps/android/app/build.gradle.kts`, which also honours `TE_VERSION_CODE` / `TE_VERSION_NAME`; with none of them set the release variant builds **unsigned** rather than falling back to the debug key, so only CI (with the real upload key from repository secrets) can produce a shippable artifact. The five secrets are listed in README. Two NS-27 preconditions no build can enforce: Android Auto must be opted out in the Play Console, and the recorder must survive a real track day before the rollout passes 10%. iOS has no counterpart — those builds go through Xcode Cloud.
 
 **Marketing/docs site** (`site/`): see the Documentation section above for the page inventory and the keep-in-sync policy.
+
+**Promo video** (`promo/`): an 84-second film cut from the **real web app**, not mock-ups — `capture.mjs` seeds a fictional demo logbook through the API on its own scratch D1 (`promo/.state`, never the dev database), with COTA telemetry from a lap simulation (`demo/sim.mjs`) cut by the importer's own `buildLapChannels`, films each screen with Playwright, and exports the facts the motion graphics draw to `out/data.json`; `video/promo.js` is the cut on a seekable timeline (`video/timeline.js`) that `render.mjs` steps frame by frame; `audio/score.mjs` synthesises the score on the same two-second bars. Everything under `promo/out/` is a build product and gitignored. It follows the site's rules — hosted app and both stores, no hosting details — and it **states features and tiers** (the Free / Pro tags in `video/promo.js` follow the NS-32 tier table), so a change to a feature, a tier or a screen it shows owes it the edit and a re-render, like the site. The one drawn screen is the native recorder, which the web can't show; it mirrors `RecordingScreen.swift`. The published cut is on YouTube (https://youtu.be/UBnjPYRr8wU) and is the landing page's hero — see the `site/index.html` bullet under Documentation.
 
 **Tests** (`test/`, Vitest with two projects — see `vitest.config.mts`):
 - `test/unit/` — pure-function tests running in Node: `src/lib/*` plus the frontend modules (`public/js/format.js`, `chart.js`) and `pdr.js` internals.

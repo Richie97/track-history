@@ -58,43 +58,17 @@
       </div>
       <p class="cta-note">On the App Store for iPhone, iPad and Apple silicon Macs, and on Google Play for Android — or use it in any browser today, no install needed.</p>
 
-      <figure class="hero-chart" aria-label="Example lap-time progress chart">
-        <svg viewBox="0 0 680 240" role="img" aria-hidden="true">
-          <!-- grid -->
-          <g stroke="var(--chart-grid)" stroke-width="1">
-            <line x1="48" y1="30"  x2="660" y2="30"/>
-            <line x1="48" y1="75"  x2="660" y2="75"/>
-            <line x1="48" y1="120" x2="660" y2="120"/>
-            <line x1="48" y1="165" x2="660" y2="165"/>
-            <line x1="48" y1="210" x2="660" y2="210"/>
-          </g>
-          <!-- y labels: lower on the chart = faster lap -->
-          <g fill="var(--text-faint)" font-family="var(--font-mono)" font-size="11" text-anchor="end">
-            <text x="42" y="34">2:24</text>
-            <text x="42" y="79">2:18</text>
-            <text x="42" y="124">2:12</text>
-            <text x="42" y="169">2:06</text>
-            <text x="42" y="214">2:00</text>
-          </g>
-          <!-- best-lap trend, improving downward -->
-          <polyline
-            points="60,52 130,74 200,64 270,105 340,96 410,138 480,131 550,168 640,186"
-            fill="none" stroke="var(--chart-line)" stroke-width="2.5"
-            stroke-linejoin="round" stroke-linecap="round"/>
-          <g fill="var(--chart-line)">
-            <circle cx="60"  cy="52"  r="3.5"/>
-            <circle cx="130" cy="74"  r="3.5"/>
-            <circle cx="200" cy="64"  r="3.5"/>
-            <circle cx="270" cy="105" r="3.5"/>
-            <circle cx="340" cy="96"  r="3.5"/>
-            <circle cx="410" cy="138" r="3.5"/>
-            <circle cx="480" cy="131" r="3.5"/>
-            <circle cx="550" cy="168" r="3.5"/>
-            <circle cx="640" cy="186" r="4.5"/>
-          </g>
-          <text x="640" y="172" fill="var(--accent-ink)" font-family="var(--font-mono)" font-size="12" text-anchor="end">2:03.118 ★</text>
-        </svg>
-        <figcaption>Best lap per event — lower is faster, so improvement trends downward.</figcaption>
+      <figure class="hero-video">
+        <!-- Click-to-play: nothing loads from YouTube until the visitor asks
+             for the video. Without JavaScript the link opens it on YouTube. -->
+        <a class="video-facade" href="https://youtu.be/UBnjPYRr8wU" data-youtube="UBnjPYRr8wU"
+           aria-label="Play the 84-second Track Evolution video">
+          <img src="./promo-poster.jpg" width="1280" height="720" alt="" loading="eager">
+          <span class="play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>
+          </span>
+        </a>
+        <figcaption>Track Evolution in 84 seconds, filmed in the real app on a fictional driver's logbook. Plays from YouTube.</figcaption>
       </figure>
     </div>
   </div>
@@ -382,6 +356,25 @@
     </span>
   </div>
 </footer>
+
+<script>
+  // Swap the poster for YouTube's privacy-enhanced player on a plain click;
+  // a modified click (new tab, new window) falls through to the link.
+  for (const link of document.querySelectorAll("[data-youtube]")) {
+    link.addEventListener("click", (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const frame = document.createElement("iframe");
+      frame.src = `https://www.youtube-nocookie.com/embed/${link.dataset.youtube}?autoplay=1&rel=0`;
+      frame.title = "Track Evolution in 84 seconds";
+      frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
+      link.replaceWith(frame);
+      frame.focus();
+    });
+  }
+</script>
 
 </body>
 </html>
