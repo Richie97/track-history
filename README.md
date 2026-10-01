@@ -1011,6 +1011,32 @@ story for the native apps, which don't run the service worker):
 Signing out clears the offline cache and the write queue, so a shared device
 doesn't retain the previous user's logbook.
 
+## Analytics (Google Analytics)
+
+The web app and the docs site report page views to Google Analytics 4
+(measurement id `G-JXM9CX77RQ`). The native apps carry none.
+
+- **The docs site** (`site/`) has Google's stock gtag.js snippet in every
+  page's `<head>` — a new docs page owes it the same snippet.
+- **The web app** loads the tag from `public/js/analytics.js`, called by
+  `app.js` at boot, and never from `index.html`: a coach invite link carries
+  its single-use token in the path (`/coach/<token>`), which `app.js` moves into
+  `sessionStorage` before anything else runs, and a tag in `<head>` would run
+  first and could report it. The tag is configured with `send_page_view: false`
+  and `app.js` reports a page view on load and on every `hashchange` (not per
+  `route()`, which also re-runs after edits and on pull-to-refresh), with the
+  address reduced by `analyticsPath` to the route's shape — `/event/:id`,
+  `/share/:slug/wrapped/2025` — so no record id, query string, share slug or
+  driver's name reaches Google; the same fields are `set` so GA's automatic
+  events carry them too. It runs only on `trackevolution.app` (and `www.`), so
+  local dev, the test suites and the promo capture send nothing.
+- In the GA data stream's *Enhanced measurement* settings, turn **off** "Page
+  changes based on browser history events": the app reports its own page
+  views, and that option would add a second, unshaped one per navigation.
+
+The privacy policy (`site/docs/privacy.html#analytics`) describes this; keep
+it in step if what is sent changes.
+
 ## Notes on the data model
 
 - An event's **best time** is `MIN(best logged lap, manual best)` — the manual
