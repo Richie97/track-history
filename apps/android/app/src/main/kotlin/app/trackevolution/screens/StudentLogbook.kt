@@ -342,7 +342,7 @@ fun StudentHomeScreen(
             }
             item("latest-header") { TESectionHeader("Latest events") }
             if (past.isEmpty()) {
-                item("latest-empty") { TEEmpty("No track days logged yet.") }
+                item("latest-empty") { TEEmpty("No events logged yet.") }
             } else {
                 items(past.take(8), key = { "ev-${it.id}" }) { event ->
                     TENavCard(onClick = { onOpenEvent(event.id) }) {

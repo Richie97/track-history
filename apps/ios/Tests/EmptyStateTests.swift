@@ -18,7 +18,7 @@ final class EmptyStateTests: XCTestCase {
         var ran = 0
         let empty = TEEmpty(
             title: "No events yet",
-            "Add a track day and its laps, bests and progress start here.",
+            "Add an event and its laps, bests and progress start here.",
             action: TEEmpty.Action("Add your first event") { ran += 1 }
         )
         XCTAssertEqual(empty.title, "No events yet")

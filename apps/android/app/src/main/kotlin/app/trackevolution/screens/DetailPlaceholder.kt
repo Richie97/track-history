@@ -39,6 +39,10 @@ fun DetailPlaceholder(
 ) {
     val colors = TrackTheme.colors
     var next by remember { mutableStateOf<Event?>(null) }
+    // Whether the events list actually came back: "Nothing coming up" is a
+    // claim about the logbook, so it is made only on an answer (#343) — iOS's
+    // `answered`.
+    var answered by remember { mutableStateOf(false) }
 
     // The dashboard beside this has already fetched — and warmed — the same list,
     // so through the offline layer this is normally a cache read rather than a
@@ -46,9 +50,10 @@ fun DetailPlaceholder(
     // a fine outcome, and an error here would be about the one thing on screen
     // nobody asked for.
     LaunchedEffect(Unit) {
-        next = runCatching {
-            api.events().filter { EventDates.isUpcoming(it.startDate) }.minByOrNull { it.startDate }
-        }.getOrNull()
+        runCatching { api.events() }.onSuccess { events ->
+            next = events.filter { EventDates.isUpcoming(it.startDate) }.minByOrNull { it.startDate }
+            answered = true
+        }
     }
 
     val upcoming = next
@@ -57,7 +62,7 @@ fun DetailPlaceholder(
             title = "Pick an event",
             tag = "detailPlaceholder",
             mark = { BrandMark(size = 40.dp) },
-            text = "Choose a track day from the list.",
+            text = if (answered) "Nothing coming up — choose an event from the list." else "Choose an event from the list.",
             modifier = modifier,
         )
     } else {

@@ -37,6 +37,7 @@ import app.trackevolution.core.telemetry.Telemetry
 import app.trackevolution.ui.FormColumn
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.TEErrorBanner
+import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -175,8 +176,8 @@ fun ReviewScreen(
                         Text("SAVE ONTO", style = type.eyebrow, color = colors.textFaint)
                         if (state.events.isEmpty()) {
                             Text(
-                                "No events yet. Create one first, then come back — " +
-                                    if (state.isImport) "the videos aren't going anywhere." else "the recording keeps until you do.",
+                                "No events yet. Add one, then come back to save this — " +
+                                    if (state.isImport) "the files aren't going anywhere." else "the recording keeps until you do.",
                                 style = type.sm,
                                 color = colors.textMuted,
                                 modifier = Modifier.padding(top = 6.dp),
@@ -346,7 +347,7 @@ private fun ItemCard(
         if (item.hasLaps) {
             val bestIndex = item.laps.indices.minByOrNull { item.laps[it].timeMs }
             Text(
-                "${item.laps.size} laps".uppercase(),
+                fmtCount(item.laps.size, "lap").uppercase(),
                 style = type.eyebrow,
                 color = colors.textFaint,
                 modifier = Modifier.padding(top = if (state.isImport) 8.dp else 0.dp),

@@ -182,7 +182,7 @@ struct DashboardScreen: View {
             if model.tracksWithData.isEmpty {
                 TEEmpty(
                     title: "No events yet",
-                    "Add a track day and its laps, bests and progress start here.",
+                    "Add an event and its laps, bests and progress start here.",
                     action: TEEmpty.Action("Add your first event") { openFromList(.eventForm(.new(presetTrack: nil))) }
                 )
             } else {

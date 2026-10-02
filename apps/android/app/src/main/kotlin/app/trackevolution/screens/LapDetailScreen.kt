@@ -229,6 +229,7 @@ fun LapDetailScreen(
                         initialSelection = listOf(0),
                         pro = canViewChannels,
                         onSubscribe = onSubscribe,
+                        emptyText = "No channel data for this lap.",
                     )
                 }
             } else if (trace == null) {

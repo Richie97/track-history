@@ -52,6 +52,7 @@ import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.PaneWidth
+import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
@@ -501,9 +502,9 @@ private fun SessionCard(
                 )
                 Text(
                     if (session.laps.isEmpty()) {
-                        "no laps"
+                        "No laps"
                     } else {
-                        "best ${LapTime.fmtMs(best)} · ${session.laps.size} laps"
+                        "best ${LapTime.fmtMs(best)} · ${fmtCount(session.laps.size, "lap")}"
                     },
                     style = TrackTheme.typography.xs,
                     color = colors.textMuted,

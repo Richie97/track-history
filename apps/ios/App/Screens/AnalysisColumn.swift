@@ -115,7 +115,7 @@ struct AnalysisColumn: View {
             Text(
                 hasAnyChannels
                     ? "Tap a session's Compare laps to see its channels here."
-                    : "Import a video or record laps on the phone, and the channels land here."
+                    : "Import a session, or record laps with the app, and the channels land here."
             )
             .teStyle(.sm)
             .foregroundStyle(Color(.textMuted))

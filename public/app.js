@@ -909,7 +909,7 @@ async function viewDashboard() {
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : emptyHtml({
           title: "No events yet",
-          body: "Add a track day and its laps, bests and progress start here.",
+          body: "Add an event and its laps, bests and progress start here.",
           action: { label: "Add your first event", href: "#/new" },
         })}
     <h2>Share your history</h2>
@@ -979,7 +979,7 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   const you = lb.entries.find((en) => en.you);
   let yourNote = "";
   if (lb.opted_in && !you && viewerBestMs != null)
-    yourNote = "None of your laps here were timed by a device, so you aren't ranked yet. Record with the app or import telemetry to appear.";
+    yourNote = "None of your laps here were timed by a device, so you aren't ranked yet. Record with the Track Evolution app or import telemetry to appear.";
   else if (you && viewerBestMs != null && viewerBestMs < you.best_ms)
     yourNote = `Your best here (${fmtMs(viewerBestMs)}) was entered by hand and isn't ranked.`;
   // A row is openable when its owner published the lap itself (NS-35) — the
@@ -1011,7 +1011,7 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   const optControl = lb.opted_in
     ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
     : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
-  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the app or imported from telemetry count; hand-entered times don't.</div>
+  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the Track Evolution app or imported from telemetry count; hand-entered times don't.</div>
     ${
       rows
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -1901,7 +1901,7 @@ async function viewEvent(eventId) {
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
-          <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "no laps"}</span>
+          <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "No laps"}</span>
           ${conditionsChipHtml(s, usUnits())}
           <span class="grow"></span>
           ${ro ? "" : `<button class="btn small danger" data-del-session="${s.id}">Delete</button>`}
@@ -2885,7 +2885,7 @@ async function viewSettings() {
         <input type="checkbox" id="lb-opt" ${state.me?.leaderboard_opt_in ? "checked" : ""}>
         Appear on per-track leaderboards
       </label>
-      <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap (with its date). Only laps recorded with the app or imported from telemetry are ranked — hand-entered times stay in your logbook. Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
+      <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap (with its date). Only laps recorded with the Track Evolution app or imported from telemetry are ranked — hand-entered times stay in your logbook. Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
       <label class="dry-toggle" style="display:block;margin-top:12px">
         <input type="checkbox" id="lb-share" ${state.me?.leaderboard_share_laps ? "checked" : ""} ${state.me?.leaderboard_opt_in ? "" : "disabled"}>
         Let other drivers open my ranked laps
@@ -3083,7 +3083,7 @@ async function viewGarage() {
             ? `● ${alerts.length} item${alerts.length === 1 ? "" : "s"} due soon`
             : active.length
               ? "● consumables OK"
-              : "no consumables tracked yet"
+              : "No consumables tracked yet"
         }</div>`;
     }
     return `<a class="card car-card" href="#/vehicle/${v.id}">
@@ -4626,7 +4626,7 @@ async function viewStudentHome() {
     ${
       recentRows
         ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Laps</th></tr></thead><tbody>${recentRows}</tbody></table></div>`
-        : emptyHtml({ body: "No track days logged yet." })
+        : emptyHtml({ body: "No events logged yet." })
     }
     <h2>Tracks</h2>
     ${trackCards ? `<div class="cards">${trackCards}</div>` : emptyHtml({ body: "No tracks yet." })}
