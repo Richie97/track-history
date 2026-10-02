@@ -228,7 +228,7 @@ struct StudentHomeScreen: View {
             // what they are being asked about.
             TESectionHeader("Latest events")
             if past.isEmpty {
-                TEEmpty("No track days logged yet.")
+                TEEmpty("No events logged yet.")
             } else {
                 ForEach(past.prefix(8)) { event in
                     TENavCard(route: .event(event.id), identifier: "studentEvent") {

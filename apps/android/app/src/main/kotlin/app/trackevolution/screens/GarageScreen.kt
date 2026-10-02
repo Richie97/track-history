@@ -229,7 +229,7 @@ private fun CarTile(vehicle: Vehicle, model: GarageModel, selected: Boolean, onC
                 when {
                     alerts.isNotEmpty() -> "● ${fmtCount(alerts.size, "item")} due soon"
                     active > 0 -> "● consumables OK"
-                    else -> "no consumables tracked yet"
+                    else -> "No consumables tracked yet"
                 },
                 style = TrackTheme.typography.xs,
                 color = when (worst) {

@@ -611,7 +611,7 @@ struct EventScreen: View {
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
                 } else {
-                    Text("no laps")
+                    Text("No laps")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                 }

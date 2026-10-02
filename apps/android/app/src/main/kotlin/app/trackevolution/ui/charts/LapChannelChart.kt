@@ -125,6 +125,8 @@ fun LapChannelChart(
      */
     pro: Boolean = true,
     onSubscribe: () -> Unit = {},
+    /** What an empty panel says — "this session" by default, "this lap" on the lap page (#343). */
+    emptyText: String = "No channel data for this session.",
 ) {
     val colors = TrackTheme.colors
     val matches = remember(channels, laps) { ChannelGraphs.matchLapsToChannels(laps, channels.laps) }
@@ -149,7 +151,7 @@ fun LapChannelChart(
         // A session imported without channel data is normal — a hand-entered
         // one has none — so this says so rather than rendering empty axes.
         Text(
-            "No channel data for this session.",
+            emptyText,
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
             modifier = modifier.padding(vertical = 8.dp),

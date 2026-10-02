@@ -273,7 +273,8 @@ struct ReviewScreen: View {
                 } else if model.events.isEmpty {
                     Text(
                         model.loadFailure
-                            ?? "No events yet — create one in the app, then come back to save this."
+                            ?? "No events yet. Add one, then come back to save this — "
+                            + (isRecording ? "the recording keeps until you do." : "the files aren't going anywhere.")
                     )
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textMuted))

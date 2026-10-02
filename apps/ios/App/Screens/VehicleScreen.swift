@@ -93,7 +93,11 @@ struct VehicleScreen: View {
             if let model, let vehicle = model.vehicle {
                 page(model, vehicle)
             } else {
-                TEPage { TEEmpty("That vehicle isn't in your garage.") }
+                TEPage {
+                    TEEmpty(owner.isReadOnly
+                        ? "That car isn't in this logbook any more."
+                        : "That car isn't in your garage any more.")
+                }
             }
         }
         .navigationTitle(model?.vehicle?.name ?? "Garage")
@@ -460,7 +464,7 @@ struct VehicleScreen: View {
                 .foregroundStyle(Color(.textFaint))
 
             if model.activeParts.isEmpty {
-                TEEmpty("Nothing tracked yet — add pads, tires or fluid and the app will tell you when they're due.")
+                TEEmpty("Nothing tracked yet — add pads, tires or fluid and Track Evolution will tell you when they're due.")
             } else {
                 ForEach(model.activeParts) { part in
                     partCard(model, part)

@@ -43,8 +43,8 @@ struct DetailPlaceholder: View {
                     mark: .brand,
                     title: "Pick an event",
                     text: !loaded ? ""
-                        : answered ? "Nothing coming up — choose a track day from the list."
-                        : "Choose a track day from the list.",
+                        : answered ? "Nothing coming up — choose an event from the list."
+                        : "Choose an event from the list.",
                     identifier: "detailPlaceholder"
                 )
             }

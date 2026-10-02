@@ -200,7 +200,7 @@ fun DashboardScreen(
                 if (model.tracksWithData.isEmpty()) {
                     item("tracks-empty") {
                         TEEmpty(
-                            "Add a track day and its laps, bests and progress start here.",
+                            "Add an event and its laps, bests and progress start here.",
                             title = "No events yet",
                             action = TEEmptyAction("Add your first event", onNewEvent),
                         )

@@ -139,7 +139,7 @@ private fun Empty(anyChannels: Boolean) {
             if (anyChannels) {
                 "Tap a session's Compare laps to see its channels here."
             } else {
-                "Import a video or record laps on the phone, and the channels land here."
+                "Import a session, or record laps with the app, and the channels land here."
             },
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
