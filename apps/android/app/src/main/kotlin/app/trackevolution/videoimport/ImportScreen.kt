@@ -129,7 +129,7 @@ fun ImportScreen(
                     Text("Lap times from video", style = type.h3, color = colors.textStrong)
                     Text(
                         "Corvette PDR and GoPro clips carry telemetry alongside the picture. Pick one and the " +
-                            "laps come out of it here — the video never leaves this phone and is never copied; " +
+                            "laps come out of it here — the video never leaves this device and is never copied; " +
                             "only its telemetry track is read.",
                         style = type.sm,
                         color = colors.textMuted,

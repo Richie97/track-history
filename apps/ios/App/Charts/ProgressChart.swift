@@ -47,11 +47,9 @@ struct ProgressChart: View {
     @State private var selected: Point?
 
     var body: some View {
-        if points.isEmpty {
-            Text("No lap times here yet.")
-                .teStyle(.sm)
-                .foregroundStyle(Color(.textMuted))
-        } else {
+        // Every caller decides what to say with too few points (the track page
+        // says when its chart starts), so an empty chart draws nothing.
+        if !points.isEmpty {
             chart
         }
     }

@@ -51,6 +51,7 @@ import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import app.trackevolution.core.api.LogbookOwner
@@ -150,12 +151,7 @@ fun LapChannelChart(
     if (present.isEmpty()) {
         // A session imported without channel data is normal — a hand-entered
         // one has none — so this says so rather than rendering empty axes.
-        Text(
-            emptyText,
-            style = TrackTheme.typography.sm,
-            color = colors.textMuted,
-            modifier = modifier.padding(vertical = 8.dp),
-        )
+        TEEmpty(emptyText, modifier = modifier)
         return
     }
 

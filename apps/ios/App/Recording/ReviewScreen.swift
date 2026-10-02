@@ -44,6 +44,9 @@ struct ReviewScreen: View {
     /// (#344). This screen stays underneath it, so backing out of the form
     /// comes back to the review with nothing lost.
     @State private var creatingEvent = false
+    /// The dates the sessions handed to that form carry, so the event it
+    /// creates is dated from them rather than from today (`NewEventDates`).
+    @State private var newEventSpan: NewEventDates.Span?
 
     private var isRecording: Bool {
         if case .recording = source { return true }
@@ -89,7 +92,7 @@ struct ReviewScreen: View {
             Text("The GPS trace is deleted from this device and can't be recovered.")
         }
         .navigationDestination(isPresented: $creatingEvent) {
-            EventFormScreen(target: .new(presetTrack: nil)) { id, posted in
+            EventFormScreen(target: .new(presetTrack: nil), presetSpan: newEventSpan) { id, posted in
                 finishNewEvent(id, posted: posted)
             }
         }
@@ -106,6 +109,7 @@ struct ReviewScreen: View {
     private func saveToNewEvent(_ model: ReviewModel) {
         guard let router else { return }
         router.stagedSessions = model.stagedDrafts()
+        newEventSpan = NewEventDates.span(model.stagedDates())
         creatingEvent = true
     }
 
@@ -658,6 +662,16 @@ final class ReviewModel {
         items.compactMap { item in
             guard item.include, let parsed = item.parsed, !parsed.laps.isEmpty else { return nil }
             return sessionDraft(for: item, parsed)
+        }
+    }
+
+    /// The local date each of `stagedDrafts()` was recorded on, as its card
+    /// shows it — nil where the source carried none. What *Save to a new
+    /// event* dates the form from.
+    func stagedDates() -> [String?] {
+        items.compactMap { item in
+            guard item.include, let parsed = item.parsed, !parsed.laps.isEmpty else { return nil }
+            return .some(parsed.date)
         }
     }
 

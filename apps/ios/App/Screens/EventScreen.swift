@@ -297,9 +297,17 @@ struct EventScreen: View {
         if EventDates.isUpcoming(event.startDate), let countdown = EventDates.fmtCountdown(event.startDate) {
             row {
                 TECard(padding: 14) {
-                    Text("**\(countdown)** — log sessions here once you're back from the track.")
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.textBody))
+                    // A coach can't log anything here; the sessions are the
+                    // driver's to add (NS-38).
+                    Group {
+                        if owner.isReadOnly {
+                            Text("**\(countdown)** — sessions show up here once they're logged.")
+                        } else {
+                            Text("**\(countdown)** — log sessions here once you're back from the track.")
+                        }
+                    }
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textBody))
                 }
             }
         }
@@ -957,7 +965,7 @@ struct EventScreen: View {
             Text("Import a video")
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
-            Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
+            Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this device.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Button("Import video") {

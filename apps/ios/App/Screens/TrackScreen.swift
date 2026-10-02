@@ -63,7 +63,7 @@ struct TrackScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = TrackModel(api: auth.api.scoped(to: owner), trackId: trackId)
+                let model = TrackModel(api: auth.api.scoped(to: owner), trackId: trackId, readOnly: owner.isReadOnly)
                 self.model = model
                 await model.load()
             }
@@ -280,25 +280,34 @@ struct TrackScreen: View {
 
     private func chartCard(_ model: TrackModel, _ track: Track) -> some View {
         @Bindable var model = model
+        let points = model.chartPoints
         return TECard {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Best lap per event — down is faster")
-                        .teStyle(.xs)
-                        .foregroundStyle(Color(.textFaint))
-                    Spacer()
-                }
-                ProgressChart(
-                    points: model.chartPoints,
-                    goalMs: track.goalMs,
-                    band: model.conditionsBand,
-                    xLabel: { EventDates.fmtDate(EventDates.isoString(from: Date(timeIntervalSince1970: $0))) },
-                    unit: "events"
-                )
-                // The wash's key: pale is the coolest event in view, deep the
-                // hottest. Absent when the band is, which is most young logbooks.
-                if let band = model.conditionsBand {
-                    ConditionsKey(band: band)
+                if points.count < 2 {
+                    // One point is a dot, not a trend: the card stays, saying
+                    // when the chart begins, and so does the Dry only toggle
+                    // below — which may be what took the points away.
+                    TEEmpty(title: nil, "The chart starts once two events here have a lap time.", compact: true)
+                        .accessibilityIdentifier("trackChartWaits")
+                } else {
+                    HStack {
+                        Text("Best lap per event — down is faster")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                        Spacer()
+                    }
+                    ProgressChart(
+                        points: points,
+                        goalMs: track.goalMs,
+                        band: model.conditionsBand,
+                        xLabel: { EventDates.fmtDate(EventDates.isoString(from: Date(timeIntervalSince1970: $0))) },
+                        unit: "events"
+                    )
+                    // The wash's key: pale is the coolest event in view, deep the
+                    // hottest. Absent when the band is, which is most young logbooks.
+                    if let band = model.conditionsBand {
+                        ConditionsKey(band: band)
+                    }
                 }
                 // Only offered once something here was logged as damp/wet/mixed:
                 // "Dry only" keeps a rain weekend from reading as regression, and it
@@ -367,9 +376,14 @@ final class TrackModel {
     private(set) var isSavingNotes = false
     private(set) var notesSaved = false
 
-    init(api: APIClient, trackId: Int) {
+    /// A coach's view of a student's track (NS-38), which words a missing
+    /// track as the student's logbook rather than "your".
+    let readOnly: Bool
+
+    init(api: APIClient, trackId: Int, readOnly: Bool = false) {
         self.api = api
         self.trackId = trackId
+        self.readOnly = readOnly
     }
 
     func load() async {
@@ -378,7 +392,10 @@ final class TrackModel {
             async let events = api.events(trackId: trackId)
             let loaded = try await (tracks: tracks, events: events)
             guard let found = loaded.tracks.first(where: { $0.id == trackId }) else {
-                state = .failed("That track isn't in your logbook any more.", retryable: false)
+                state = .failed(
+                    readOnly ? "That track isn't in this logbook any more." : "That track isn't in your logbook any more.",
+                    retryable: false
+                )
                 return
             }
             track = found

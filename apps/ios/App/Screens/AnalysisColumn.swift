@@ -104,25 +104,15 @@ struct AnalysisColumn: View {
         }
     }
 
+    /// The shared empty state (#342), with no action: the page beside the
+    /// column already carries the *Add a session* card.
     private var empty: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "chart.xyaxis.line")
-                .teStyle(.h1)
-                .foregroundStyle(Color(.textFaint))
-            Text(hasAnyChannels ? "Pick a session" : "No channel data yet")
-                .teStyle(.h3)
-                .foregroundStyle(Color(.textStrong))
-            Text(
-                hasAnyChannels
-                    ? "Tap a session's Compare laps to see its channels here."
-                    : "Import a session, or record laps with the app, and the channels land here."
-            )
-            .teStyle(.sm)
-            .foregroundStyle(Color(.textMuted))
-            .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 60)
+        TEEmpty(
+            title: hasAnyChannels ? "Pick a session" : "No channel data yet",
+            hasAnyChannels
+                ? "Tap a session's Compare laps to see its channels here."
+                : "Import a session, or record laps with the app, and the channels land here."
+        )
     }
 
     /// Where to ring the map for the current hit, or nil for "don't".

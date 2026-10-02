@@ -19,6 +19,12 @@ struct WrappedScreen: View {
     @Environment(AuthController.self) private var auth
     @State private var model: WrappedModel?
 
+    /// A season that is over has had its chance; only this year and later can
+    /// still get a track day — the web's `wrappedEmptyTitle`.
+    static func emptyTitle(_ year: Int, currentYear: Int = Calendar.current.component(.year, from: Date())) -> String {
+        year < currentYear ? "No track days in \(String(year))" : "No track days in \(String(year)) — yet"
+    }
+
     var body: some View {
         Group {
             if let model {
@@ -32,12 +38,10 @@ struct WrappedScreen: View {
                     }
                 case .empty(let years):
                     TEPage {
-                        Text("No track days in \(String(model.year)) — yet")
-                            .teStyle(.h1)
-                            .foregroundStyle(Color(.textStrong))
-                        Text("Wrapped tells the story of a season once there's a track day in it.")
-                            .teStyle(.body)
-                            .foregroundStyle(Color(.textMuted))
+                        TEEmpty(
+                            title: Self.emptyTitle(model.year),
+                            "Wrapped tells the story of a season once there's a track day in it."
+                        )
                         // The way out the web offers (#342): every year that has
                         // a story, or the one there is.
                         if years.count > 1 {

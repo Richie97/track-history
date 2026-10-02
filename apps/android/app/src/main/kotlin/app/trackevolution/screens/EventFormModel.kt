@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.EventFormSessions
+import app.trackevolution.core.NewEventDates
 import app.trackevolution.navigation.SavedState
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Units
@@ -107,8 +108,18 @@ class EventFormModel(
     var createdId by SavedState<Int?>(saved, "createdId", null)
         private set
 
-    fun stage(drafts: List<SessionDraft>) {
+    /**
+     * [span] is the sessions' own dates, handed over by a review's *Save to a
+     * new event* (#344): the event is dated from what was driven rather than
+     * from today. Null — the form's own "Add laps" import — leaves the dates
+     * as they are, since the driver may already have typed them.
+     */
+    fun stage(drafts: List<SessionDraft>, span: NewEventDates.Span? = null) {
         stagedSessions = stagedSessions + drafts
+        if (span != null && editId == null) {
+            startDate = span.startDate
+            days = span.days.toString()
+        }
     }
 
     fun removeStaged(index: Int) {

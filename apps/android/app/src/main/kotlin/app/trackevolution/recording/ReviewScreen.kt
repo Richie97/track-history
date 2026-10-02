@@ -36,7 +36,9 @@ import app.trackevolution.core.telemetry.ParsedTelemetry
 import app.trackevolution.core.telemetry.Telemetry
 import app.trackevolution.ui.FormColumn
 import app.trackevolution.ui.LocalLayoutMetrics
+import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
+import app.trackevolution.ui.TERetryButton
 import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackCard
@@ -68,6 +70,8 @@ fun ReviewScreen(
      * there is no event to save onto. Null hides it.
      */
     onSaveToNewEvent: (() -> Unit)? = null,
+    /** Try again, after the events to save onto failed to load. */
+    onRetryEvents: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -151,6 +155,22 @@ fun ReviewScreen(
                     }
                 }
 
+                if (state.items.isEmpty()) {
+                    // Nothing came out of it at all — said, rather than a page
+                    // with only a disabled Save on it. iOS's card, word for word.
+                    TrackCard(Modifier.fillMaxWidth()) {
+                        TEEmpty(
+                            if (state.isImport) {
+                                "None of the files you picked carried telemetry."
+                            } else {
+                                "This recording is too short to derive laps from — it needs " +
+                                    "at least 30 fixes over a minute of driving."
+                            },
+                            title = if (state.isImport) "Nothing to import" else "Not enough to time",
+                        )
+                    }
+                }
+
                 state.items.forEachIndexed { index, item ->
                     ItemCard(
                         item = item,
@@ -165,7 +185,7 @@ fun ReviewScreen(
                     // Started from the New Event form: the event is the one being
                     // typed, so there is nothing to pick.
                     TrackCard {
-                        Text("SAVE ONTO", style = type.eyebrow, color = colors.textFaint)
+                        Text("Save to".uppercase(), style = type.eyebrow, color = colors.textFaint)
                         Text(
                             "The event you're creating. These sessions are added to it when you tap Create event.",
                             style = type.sm,
@@ -178,8 +198,17 @@ fun ReviewScreen(
                     // one — Android Auto starts them before the event exists — so the
                     // choice lives here, at save time, rather than at start.
                     TrackCard {
-                        Text("SAVE ONTO", style = type.eyebrow, color = colors.textFaint)
-                        if (state.offersNewEvent) {
+                        Text("Save to".uppercase(), style = type.eyebrow, color = colors.textFaint)
+                        val eventsError = state.eventsError
+                        if (eventsError != null && state.events.isEmpty()) {
+                            Text(
+                                eventsError,
+                                style = type.sm,
+                                color = colors.textMuted,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                            TERetryButton(onClick = onRetryEvents, modifier = Modifier.padding(top = 8.dp))
+                        } else if (state.offersNewEvent) {
                             Text(
                                 "No events yet. Make one for this and the " +
                                     (if (state.isImport) "sessions are" else "recording is") + " saved with it.",
@@ -223,7 +252,7 @@ fun ReviewScreen(
                         Text(it, style = type.sm, color = colors.dangerInk)
                         Text(
                             if (state.isImport) {
-                                "Nothing was lost — the videos are still on this phone."
+                                "Nothing was lost — the videos are still on this device."
                             } else {
                                 "The recording is still here — nothing was lost."
                             },

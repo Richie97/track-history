@@ -28,7 +28,7 @@ struct SyncBanner: View {
                             .teStyle(.xs)
                             .foregroundStyle(Color(.accentInk))
                     } else if status.pending > 0 {
-                        Button("Retry") { Task { await flush() } }
+                        Button("Try again") { Task { await flush() } }
                             .teStyle(.xs)
                             .foregroundStyle(Color(.accentInk))
                     }

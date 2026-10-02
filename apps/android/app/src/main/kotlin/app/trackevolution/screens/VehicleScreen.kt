@@ -187,8 +187,12 @@ fun VehicleScreen(
                             }
                         }
                     }
-                    vehicle.notes?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, style = TrackTheme.typography.sm, color = colors.textMuted)
+                    // A coach reads them under their own heading instead, with
+                    // "None listed." when there are none (StudentCarSpecs).
+                    if (!model.readOnly) {
+                        vehicle.notes?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = TrackTheme.typography.sm, color = colors.textMuted)
+                        }
                     }
                 }
             }
@@ -456,9 +460,11 @@ fun VehicleScreen(
 }
 
 /**
- * What a coach reads about a student's car beyond its name and modifications
- * (NS-38): the catalog pick and the geometry — `viewStudentVehicle`'s *Specs*.
- * Nothing when none of it is set.
+ * What a coach reads about a student's car beyond its name (NS-38): its
+ * modifications — "None listed." when there are none, since a coach has no
+ * form to find that out from — then the catalog pick and the geometry, the
+ * `viewStudentVehicle` *Modifications & notes* and *Specs*. Specs draw nothing
+ * when none of it is set.
  */
 @Composable
 private fun StudentCarSpecs(vehicle: Vehicle, model: VehicleModel) {
@@ -471,8 +477,19 @@ private fun StudentCarSpecs(vehicle: Vehicle, model: VehicleModel) {
         vehicle.steeringRatio?.let { "Steering ratio" to "${fmtRatio(it)}:1" },
         vehicle.targetHotPsi?.let { "Target hot pressure" to "${fmtRatio(it)} psi" },
     )
-    if (specs.isEmpty()) return
     Column {
+        TESectionHeader("Modifications & notes")
+        val notes = vehicle.notes?.takeIf { it.isNotBlank() }
+        if (notes != null) {
+            TrackCard(Modifier.fillMaxWidth().testTag("studentCarNotes")) {
+                Text(notes, style = TrackTheme.typography.sm, color = colors.textBody)
+            }
+        } else {
+            TEEmpty("None listed.")
+        }
+    }
+    if (specs.isEmpty()) return
+    Column(Modifier.padding(top = 12.dp)) {
         TESectionHeader("Specs")
         TrackCard(Modifier.fillMaxWidth().testTag("studentCarSpecs")) {
             specs.forEach { (label, value) ->

@@ -142,16 +142,15 @@ struct DashboardScreen: View {
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textMuted))
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: TESpacing.gridGap) {
-                    Button("Add your first event") { openFromList(.eventForm(.new(presetTrack: nil))) }
-                        .buttonStyle(TEButtonStyle(kind: .accent))
-                        .accessibilityIdentifier("welcomeAddEvent")
-                    if Platform.dashboardOffersRecorder(runsOnMac: Platform.runsOnMac, recorderIdle: recorder.phase == .idle) {
-                        Button("Record laps") { openFromList(.record(eventId: nil)) }
-                            .buttonStyle(TEButtonStyle(kind: .quiet))
-                            .accessibilityIdentifier("welcomeRecord")
-                            .accessibilityLabel(Self.recordLabel(nil))
-                    }
+                // Side by side where both fit on one line each, else stacked at
+                // full width: in the iPad sidebar the row is a phone's width and
+                // "Add your first event" would otherwise wrap onto two lines. An
+                // `HStack` can't be the first candidate — its ideal width is the
+                // two labels' sum, and it then splits the row evenly, so a row
+                // that "fits" still wraps the longer label in its half.
+                ViewThatFits(in: .horizontal) {
+                    EqualWidthRow(spacing: TESpacing.gridGap) { welcomeButtons }
+                    VStack(spacing: 10) { welcomeButtons }
                 }
                 .padding(.top, 4)
             }
@@ -159,9 +158,22 @@ struct DashboardScreen: View {
         .accessibilityIdentifier("welcomeCard")
     }
 
+    @ViewBuilder
+    private var welcomeButtons: some View {
+        Button("Add your first event") { openFromList(.eventForm(.new(presetTrack: nil))) }
+            .buttonStyle(TEButtonStyle(kind: .accent))
+            .accessibilityIdentifier("welcomeAddEvent")
+        if Platform.dashboardOffersRecorder(runsOnMac: Platform.runsOnMac, recorderIdle: recorder.phase == .idle) {
+            Button("Record laps") { openFromList(.record(eventId: nil)) }
+                .buttonStyle(TEButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("welcomeRecord")
+                .accessibilityLabel(Self.recordLabel(nil))
+        }
+    }
+
     /// The Mac has no recorder (epic #230), so it points at the phone instead.
     static func welcomeText(runsOnMac: Bool) -> String {
-        let record = runsOnMac ? "record them with the app on your iPhone" : "record them with this phone"
+        let record = runsOnMac ? "record them with the app on your iPhone" : "record them on track"
         return "Your logbook starts with an event: the track, the date and the car. Then add its sessions — \(record), import a video or a logger file, or type your lap times in — and your bests and progress build from there."
     }
 
@@ -657,6 +669,36 @@ struct TrackCard: View {
                     EventDates.fmtDate(track.lastDate)
                 ])
             }
+        }
+    }
+}
+
+/// Children side by side in equal columns. Its ideal width is the *widest*
+/// child's times the count, so as `ViewThatFits`'s first candidate it is chosen
+/// only when every child fits its column on one line.
+private struct EqualWidthRow: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+        let gaps = spacing * CGFloat(subviews.count - 1)
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+        let width = proposal.width ?? (ideal.map(\.width).max() ?? 0) * CGFloat(subviews.count) + gaps
+        let column = (width - gaps) / CGFloat(subviews.count)
+        let height = subviews.map { $0.sizeThatFits(ProposedViewSize(width: column, height: nil)).height }.max() ?? 0
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard !subviews.isEmpty else { return }
+        let gaps = spacing * CGFloat(subviews.count - 1)
+        let column = (bounds.width - gaps) / CGFloat(subviews.count)
+        for (i, subview) in subviews.enumerated() {
+            subview.place(
+                at: CGPoint(x: bounds.minX + CGFloat(i) * (column + spacing), y: bounds.minY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: column, height: nil)
+            )
         }
     }
 }

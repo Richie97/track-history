@@ -107,9 +107,10 @@ fun TrackScreen(
                 }
             }
 
-            if (model.chartPoints.isNotEmpty()) {
-                item("chart") { ChartCard(model, goalMs = track.goalMs) }
-            }
+            // Always the slot, even before there is a line to draw: the card
+            // says when the chart starts, and carries the dry-only switch that
+            // may be the reason it is empty.
+            item("chart") { ChartCard(model, goalMs = track.goalMs) }
 
             if (!readOnly) {
                 item("goal") { GoalCard(model, hasGoal = track.goalMs != null) }
@@ -228,13 +229,18 @@ fun TrackScreen(
 private fun ChartCard(model: TrackModel, goalMs: Int?) {
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
-        Text(
-            "Best lap per event — down is faster",
-            style = TrackTheme.typography.xs,
-            color = colors.textFaint,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-        ProgressChart(points = model.chartPoints, goalMs = goalMs)
+        if (model.chartPoints.size < 2) {
+            // One point is a dot, not progress — say when the line starts.
+            TEEmpty("The chart starts once two events here have a lap time.")
+        } else {
+            Text(
+                "Best lap per event — down is faster",
+                style = TrackTheme.typography.xs,
+                color = colors.textFaint,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            ProgressChart(points = model.chartPoints, goalMs = goalMs)
+        }
         if (model.hasWetData) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

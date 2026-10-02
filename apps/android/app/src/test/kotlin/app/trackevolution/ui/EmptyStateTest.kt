@@ -61,6 +61,7 @@ class EmptyStateTest {
                 TELoadable(state = LoadState.Failed("No connection."), onRetry = { retried++ }) {}
             }
         }
+        compose.onNodeWithText("Couldn't load this").assertIsDisplayed()
         compose.onNodeWithText("No connection.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsDisplayed()
         assertTrue(compose.onAllNodesWithText("Retry").fetchSemanticsNodes().isEmpty())
@@ -75,7 +76,27 @@ class EmptyStateTest {
                 TELoadable(state = LoadState.Failed("That event isn't in your logbook.", retryable = false), onRetry = {}) {}
             }
         }
+        compose.onNodeWithText("Not found").assertIsDisplayed()
+        compose.onNodeWithText("That event isn't in your logbook.").assertIsDisplayed()
         assertTrue(compose.onAllNodesWithTag("retry").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun `a screen's own heading replaces the default one`() {
+        compose.setContent {
+            TrackTheme {
+                TELoadable(
+                    state = LoadState.Failed(
+                        "This share link doesn't exist or has been disabled.",
+                        retryable = false,
+                        title = "Link not found",
+                    ),
+                    onRetry = {},
+                ) {}
+            }
+        }
+        compose.onNodeWithText("Link not found").assertIsDisplayed()
+        assertTrue(compose.onAllNodesWithText("Not found").fetchSemanticsNodes().isEmpty())
     }
 
     @Test

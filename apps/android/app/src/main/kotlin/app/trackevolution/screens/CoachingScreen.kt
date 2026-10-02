@@ -270,7 +270,7 @@ fun CoachingScreen(
             item("coaches") {
                 TrackCard(Modifier.fillMaxWidth()) {
                     if (coaching.coaches.isEmpty()) {
-                        Text("Nobody can see your logbook yet.", style = TrackTheme.typography.sm, color = colors.textMuted)
+                        TEEmpty("Nobody can see your logbook yet.")
                     }
                     coaching.coaches.forEachIndexed { index, coach ->
                         if (index > 0) HorizontalDivider(color = colors.borderHairline)
@@ -399,8 +399,6 @@ private fun InviteCard(model: CoachingModel, coaching: CoachingData, at: Long, o
                     }
                 }
             }
-        } else if (model.newInvite == null) {
-            TEEmpty("No open invites.")
         }
     }
 }
