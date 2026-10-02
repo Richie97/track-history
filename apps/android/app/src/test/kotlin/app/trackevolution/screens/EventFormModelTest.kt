@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import app.trackevolution.core.NewEventDates
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.model.SessionDraft
 import io.ktor.client.engine.mock.MockEngine
@@ -184,6 +185,25 @@ class EventFormModelTest {
         assertEquals(42, model.savedId)
         assertNull(model.error)
         assertEquals(emptyList<SessionDraft>(), model.stagedSessions)
+    }
+
+    /**
+     * *Save to a new event* (#344) dates the event from the sessions it hands
+     * over; the form's own import hands no dates and leaves the typed ones.
+     */
+    @Test
+    fun `drafts handed over with their dates move the start date and length`() {
+        val model = EventFormModel(CoroutineScope(Dispatchers.Default), api())
+        model.startDate = "2026-10-02"
+        model.days = "2"
+        model.stage(listOf(SessionDraft(label = "PDR 09:15:00", laps = listOf(121240))), NewEventDates.Span("2026-06-20", 1))
+        assertEquals("2026-06-20", model.startDate)
+        assertEquals("1", model.days)
+
+        model.startDate = "2026-07-04"
+        model.stage(listOf(SessionDraft(label = "GoPro 10:30:00", laps = listOf(119900))))
+        assertEquals("an import with no dates leaves the typed date alone", "2026-07-04", model.startDate)
+        assertEquals("1", model.days)
     }
 
     /** No laps typed and nothing staged: exactly the request the form has always sent. */

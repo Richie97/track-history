@@ -60,6 +60,10 @@ const $app = document.getElementById("app");
 // Host shown in share URLs.
 const serverHost = () => location.host;
 
+// What a track's progress chart says in its place until there are two timed
+// events to draw a line between — the same words on all three clients.
+const CHART_WAITS = "The chart starts once two events here have a lap time.";
+
 // ---------- a coach reading a student's logbook (NS-38) ----------------------
 //
 // Under #/student/<id>/… the event, track and lap-compare pages render a
@@ -639,7 +643,11 @@ function renderUnreachable(err) {
       <div class="login-card">
         <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Can't reach the server</h1>
-        <p>${esc(serverHost())} didn't answer${err?.message ? ` (${esc(err.message)})` : ""}. Check your connection and try again.</p>
+        <p>${esc(serverHost())} didn't answer${
+          // The offline layer's own sentence is about a page, not the server;
+          // inside these brackets it reads as nonsense.
+          err?.message && !(err instanceof OfflineError) ? ` (${esc(err.message)})` : ""
+        }. Check your connection and try again.</p>
         <button class="btn primary" id="retry-connect">Try again</button>
         ${footerHtml({ legal: true })}
       </div>
@@ -899,7 +907,7 @@ async function viewDashboard() {
       <div class="panel welcome">
         ${emptyHtml({
           title: "Welcome to Track Evolution",
-          body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
+          body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a video or a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
           action: { label: "Add your first event", href: "#/new" },
         })}
       </div>
@@ -1071,7 +1079,8 @@ async function viewTrack(trackId, params) {
   // deepening with the air temperature — so a run of slower times in August
   // reads as August. The numbers are on the tooltip and in the key below.
   const band = conditionsBand(chrono);
-  const chart = points.length
+  // One timed event is a dot, not a trend — the chart waits for a second.
+  const chart = points.length >= 2
     ? lineChart(points, {
         goal: track.goal_ms,
         bands: band ? { cells: band.cells, label: bandLabel(band, usUnits()) } : null,
@@ -1161,7 +1170,7 @@ async function viewTrack(trackId, params) {
   const view = shell(`
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}${spentText}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${emptyHtml({ body: CHART_WAITS, compact: true })}${goalControl}${compareControl}</div>`}
     ${
       ro
         ? ""
@@ -1183,8 +1192,12 @@ async function viewTrack(trackId, params) {
     </div>`
     }
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th>${ro ? "" : "<th>Notes</th>"}</tr></thead>
-    <tbody>${rows}</tbody></table></div>
+    ${
+      events.length
+        ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th>${ro ? "" : "<th>Notes</th>"}</tr></thead>
+    <tbody>${rows}</tbody></table></div>`
+        : emptyHtml({ body: dryOnly ? "No dry events logged here." : "No events at this track yet." })
+    }
     ${
       ro
         ? ""
@@ -1275,7 +1288,7 @@ function viewProGate(trackId, heading, what) {
 
 async function viewCompare(trackId, params) {
   if (!canCompareEvents(ent())) return viewProGate(trackId, "Lap overlay",
-    "Put two track days at the same circuit on one chart, lap by lap, and see where the " +
+    "Put two events at the same circuit on one chart, lap by lap, and see where the " +
       "second one actually gained.");
   const allEvents = await api(`/events?track_id=${trackId}`);
   // Only events with recorded laps can be overlaid; list is most recent first.
@@ -1284,7 +1297,10 @@ async function viewCompare(trackId, params) {
     shell(`
       <p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← Back to track</a></p>
       <h1>Lap overlay</h1>
-      ${emptyHtml({ body: "Comparing needs two events with recorded laps at this track." })}
+      ${emptyHtml({
+        body: "Comparing needs two events with recorded laps at this track.",
+        action: readOnly() ? null : noLapsAction(allEvents),
+      })}
     `);
     return;
   }
@@ -1416,6 +1432,15 @@ function bindPairTooltip(container, aligned, { sideColors, sideLabels, delta = n
 // The next step when a lap view has no telemetry to show (#342): import a
 // session into the event that day belongs to, or — when nothing at the track
 // has happened yet — add one there.
+// The lap overlay's next step: laps for the latest started event here that
+// has none, else another event at the track.
+function noLapsAction(events) {
+  const target = importTargetEvent(events.filter((e) => !(e.lap_count > 0)), todayISO());
+  if (target) return { label: "Add a session", href: `#/event/${target.id}` };
+  const name = events[0]?.track_name;
+  return { label: "Add an event", href: name ? `#/new?track=${encodeURIComponent(name)}` : "#/new" };
+}
+
 function noTelemetryAction(events, trackName) {
   const target = importTargetEvent(events, todayISO());
   if (target) return { label: "Import a session", href: `#/event/${target.id}` };
@@ -1433,13 +1458,14 @@ async function viewLapCompare(trackId, params) {
     allEvents.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`))
   );
   const rows = comparableLaps(details);
-  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← ${esc(details[0]?.track_name ?? "Back to track")}</a></p>`;
+  const trackName = allEvents[0]?.track_name;
+  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← ${esc(trackName ?? "Back to track")}</a></p>`;
   if (rows.length < 2) {
     shell(`${backHtml}
       <h1>Compare two laps</h1>
       ${emptyHtml({
         body: "Comparing laps needs two laps with telemetry at this track — import a session, or record laps with the Track Evolution app.",
-        action: readOnly() ? null : noTelemetryAction(allEvents, details[0]?.track_name),
+        action: readOnly() ? null : noTelemetryAction(allEvents, trackName),
       })}`);
     return;
   }
@@ -1588,9 +1614,14 @@ async function viewLeaderboard(trackId) {
     ${
       leaderboard
         ? leaderboardHtml(leaderboard, viewerBest, track.id)
-        : emptyHtml({ body: "Couldn't load the leaderboard — it needs a connection." })
+        : emptyHtml({
+            body: "Couldn't load the leaderboard — it needs a connection.",
+            action: { label: "Try again", id: "lb-retry" },
+          })
     }
   `);
+  const lbRetry = view.querySelector("#lb-retry");
+  if (lbRetry) lbRetry.onclick = () => route();
 
   // Leaderboard opt-in/out — a live server write on purpose (not queueable):
   // publishing your name is not something to replay silently later.
@@ -3945,15 +3976,21 @@ async function viewVehicle(vehicleId) {
 // Shared renderer: works for both the authed view and the public share page.
 // `wrapped` links the season to its Season Wrapped story (NS-36): the href for
 // a year, and whose season it is, for the button's words.
-function yearReviewHtml(events, year, hashBase, wrapped = null) {
+function yearReviewHtml(events, year, hashBase, wrapped = null, { shared = false } = {}) {
   const past = events.filter((e) => !isUpcoming(e));
   const years = yearsAvailable(past);
   if (!years.length) {
-    return emptyHtml({
-      title: "Nothing to review yet",
-      body: "Year in review adds up your seasons once there's an event in one.",
-      action: { label: "Add an event", href: "#/new" },
-    });
+    // On a share page the reader isn't the driver: no "your", and nothing to add.
+    return shared
+      ? emptyHtml({
+          title: "Nothing to review yet",
+          body: "Year in review adds up the seasons once there's an event in one.",
+        })
+      : emptyHtml({
+          title: "Nothing to review yet",
+          body: "Year in review adds up your seasons once there's an event in one.",
+          action: { label: "Add an event", href: "#/new" },
+        });
   }
   const y = years.includes(year) ? year : years[0];
   const r = yearReview(past, y);
@@ -4093,6 +4130,12 @@ const wrappedLockedHtml = () => `<div class="btn-row">
   </div>
   <p class="hint">Track Evolution Pro is ${PRO_PRICE}. Wrapped itself is free.</p>`;
 
+// A finished season with no track days won't get one; only the running year
+// (or a later one) is "— yet". The same rule on all three clients.
+function wrappedEmptyTitle(year) {
+  return Number(year) < new Date().getFullYear() ? `No track days in ${year}` : `No track days in ${year} — yet`;
+}
+
 async function viewWrapped(yearParam) {
   let year = /^\d{4}$/.test(yearParam ?? "") ? Number(yearParam) : null;
   let years = null;
@@ -4110,7 +4153,7 @@ async function viewWrapped(yearParam) {
     years ??= await pastYears();
     shell(`
       <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
-      <h1>No track days in ${year} — yet</h1>
+      <h1>${esc(wrappedEmptyTitle(year))}</h1>
       <p class="sub">Wrapped tells the story of a season once there's a track day in it.</p>
       ${wrappedYearPicker(years, year, (y) => `#/wrapped/${y}`) || (years.length ? `<div class="btn-row"><a class="btn small" href="#/wrapped/${years[0]}">See ${years[0]}</a></div>` : "")}
     `);
@@ -4632,22 +4675,32 @@ async function viewStudentHome() {
   const view = shell(`
     <h1>${esc(who)}</h1>
     <p class="sub">${viewing.pro ? "" : `${studentFreeNote()}`}</p>
-    <div class="tiles">
+    ${
+      // An empty logbook is one sentence, not three zeros and two "nothing
+      // yet"s — the coach's reading of the owner's first run (#344).
+      events.length === 0
+        ? emptyHtml({ body: `${esc(who)} hasn't logged an event yet.` })
+        : `<div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${past.length}</div></div>
       <div class="tile"><div class="label">Track days</div><div class="value">${trackDays}</div></div>
       <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
-    </div>
+    </div>`
+    }
     <h2>Driver profile</h2>
     ${profileCardHtml(viewing.profile, { empty: emptyHtml({ body: `${esc(who)} hasn't filled in a driver profile yet.` }) })}
     ${upcomingCards ? `<h2>Upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
-    <h2>Latest events</h2>
+    ${
+      events.length === 0
+        ? ""
+        : `<h2>Latest events</h2>
     ${
       recentRows
         ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Laps</th></tr></thead><tbody>${recentRows}</tbody></table></div>`
         : emptyHtml({ body: "No events logged yet." })
     }
     <h2>Tracks</h2>
-    ${trackCards ? `<div class="cards">${trackCards}</div>` : emptyHtml({ body: "No tracks yet." })}
+    ${trackCards ? `<div class="cards">${trackCards}</div>` : emptyHtml({ body: "No tracks yet." })}`
+    }
     ${carCards ? `<h2>Cars</h2><div class="cards">${carCards}</div>` : ""}
   `);
   wireRowLinks(view);
@@ -4691,6 +4744,7 @@ async function viewStudentVehicle(vehicleId) {
       <div class="tile"><div class="label">Track days</div><div class="value">${logbook.track_days}</div></div>
       <div class="tile"><div class="label">Events</div><div class="value">${logbook.events}</div></div>
     </div>
+    ${logbook.events === 0 ? emptyHtml({ body: "No track days in this car yet." }) : ""}
     <h2>Modifications &amp; notes</h2>
     ${v.notes ? `<div class="panel notes-block">${esc(v.notes)}</div>` : emptyHtml({ body: "None listed." })}
     ${
@@ -4709,7 +4763,8 @@ async function viewStudentVehicle(vehicleId) {
 }
 
 function viewNotFound() {
-  shell(emptyHtml({ title: "Not found", body: `<a href="#/">Back to dashboard</a>` }));
+  // L(): inside a student's logbook the way back is their dashboard.
+  shell(emptyHtml({ title: "Not found", body: `<a href="${L("#/")}">Back to dashboard</a>` }));
 }
 
 function wireRowLinks(view) {
@@ -4790,7 +4845,10 @@ function shareDashboard() {
       <div class="tile"><div class="label">Track days</div><div class="value">${totals.track_days}</div></div>
       <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
     </div>
-    <div class="btn-row"><a class="btn small" href="#/year">Year in review</a></div>
+    ${
+      // Year in review counts past events only, as on the owner's dashboard.
+      events.some((e) => !isUpcoming(e)) ? `<div class="btn-row"><a class="btn small" href="#/year">Year in review</a></div>` : ""
+    }
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : emptyHtml({ body: "No events shared yet." })}
     ${events.length ? `<h2>All events</h2>
@@ -4806,7 +4864,7 @@ function shareYear(params) {
     ${yearReviewHtml(shareData.events, Number(params.get("y")), "#/year", {
       href: (y) => `/share/${encodeURIComponent(SHARE_SLUG)}/wrapped/${y}`,
       whose: shareData.name ? `${shareData.name}'s` : "the",
-    })}
+    }, { shared: true })}
   `);
   wireRowLinks(view);
 }
@@ -4829,7 +4887,8 @@ function shareTrack(trackId) {
   // carries the event's ambient range, which is weather rather than anything
   // the driver wrote down.
   const band = conditionsBand(chrono);
-  const chart = points.length
+  // One timed event is a dot, not a trend — the chart waits for a second.
+  const chart = points.length >= 2
     ? lineChart(points, {
         goal: track.goal_ms,
         bands: band ? { cells: band.cells, label: bandLabel(band, usUnits()) } : null,
@@ -4843,7 +4902,7 @@ function shareTrack(trackId) {
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← All tracks</a></p>
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}</div>` : ""}
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}</div>` : `<div class="chart-card">${emptyHtml({ body: CHART_WAITS, compact: true })}</div>`}
     <h2>Events</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
     <tbody>${shareEventRows(events)}</tbody></table></div>
@@ -4870,6 +4929,16 @@ async function shareWrapped(year) {
   const slug = encodeURIComponent(SHARE_SLUG);
   const res = await fetch(`/api/share/${slug}/wrapped/${year}`);
   if (!res.ok) {
+    // A live link to a year with no track days is a page, not a dead link —
+    // the server says which it is.
+    const err = await res.json().catch(() => null);
+    if (res.status === 404 && /^no events in /.test(err?.error ?? "")) {
+      shareShell(`
+        <p style="margin:22px 0 0"><a class="backlink" href="/share/${slug}">← Logbook</a></p>
+        ${emptyHtml({ title: wrappedEmptyTitle(year), body: "Wrapped tells the story of a season once there's a track day in it." })}
+      `);
+      return;
+    }
     shareNotFound("Nothing to show", "This season isn't shared, or the link has been disabled.");
     return;
   }
@@ -4974,18 +5043,20 @@ async function route() {
     if (parts[0] === "settings") return await viewSettings();
     viewNotFound();
   } catch (err) {
-    if (err instanceof OfflineError) {
-      // The page was never opened online, so the offline cache has nothing for
-      // it. The sync banner already says the device is offline; this says what
-      // that means here, and the way back.
-      const view = shell(`<div class="panel offline-uncached">
-        <p>${esc(err.message)}</p>
-        <div class="btn-row"><button class="btn small primary" type="button" id="offline-retry">Try again</button>
-          <a class="btn small" href="#/">Back to dashboard</a></div>
-      </div>`);
-      view.querySelector("#offline-retry").onclick = () => route();
+    if (err instanceof ApiError && err.status === 404) {
+      viewNotFound();
     } else if (err.message !== "unauthorized") {
-      shell(`<div class="error-banner">${esc(err.message)}</div><a href="#/">Back to dashboard</a>`);
+      // Anything else retries through one control, as on the phones. Offline
+      // with nothing cached is the common case: the sync banner already says
+      // the device is offline, and OFFLINE_UNCACHED says what that means here.
+      const offline = err instanceof OfflineError;
+      const view = shell(`<div class="panel${offline ? " offline-uncached" : ""}">${emptyHtml({
+        title: "Couldn't load this",
+        body: esc(err.message),
+        action: { label: "Try again", id: "load-retry" },
+        compact: true,
+      })}</div>`);
+      view.querySelector("#load-retry").onclick = () => route();
     }
   }
 }

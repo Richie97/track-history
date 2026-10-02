@@ -104,4 +104,11 @@ class WrappedStoryTest {
         )
         assertEquals(listOf("Supercalifragilistic", "lap"), WrappedPoster.wrapWords("Supercalifragilistic lap", 10f, measure))
     }
+
+    @Test
+    fun `an empty year says yet only while the season can still have a track day`() {
+        assertEquals("No track days in 2025", wrappedEmptyTitle(2025, 2026))
+        assertEquals("No track days in 2026 — yet", wrappedEmptyTitle(2026, 2026))
+        assertEquals("No track days in 2027 — yet", wrappedEmptyTitle(2027, 2026))
+    }
 }

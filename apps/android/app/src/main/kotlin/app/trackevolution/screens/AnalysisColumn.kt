@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -16,11 +15,9 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.LapTime
@@ -30,6 +27,7 @@ import app.trackevolution.core.TraceSample
 // the name of the JS module they both come from — so the import says which.
 import app.trackevolution.core.TrackMap as TrackMapGeometry
 import app.trackevolution.core.model.Session
+import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.charts.ChannelHit
 import app.trackevolution.ui.charts.LapChannelChart
@@ -124,29 +122,16 @@ fun AnalysisColumn(
 
 @Composable
 private fun Empty(anyChannels: Boolean) {
-    val colors = TrackTheme.colors
-    Column(
+    // The shared empty state (#342), in the column's own words.
+    TEEmpty(
+        if (anyChannels) {
+            "Tap a session's Compare laps to see its channels here."
+        } else {
+            "Import a session, or record laps with the app, and the channels land here."
+        },
+        title = if (anyChannels) "Pick a session" else "No channel data yet",
         modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            if (anyChannels) "Pick a session" else "No channel data yet",
-            style = TrackTheme.typography.h3,
-            color = colors.textStrong,
-        )
-        Text(
-            if (anyChannels) {
-                "Tap a session's Compare laps to see its channels here."
-            } else {
-                "Import a session, or record laps with the app, and the channels land here."
-            },
-            style = TrackTheme.typography.sm,
-            color = colors.textMuted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(max = 300.dp),
-        )
-    }
+    )
 }
 
 /**

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import app.trackevolution.core.LineReview
 import app.trackevolution.core.LocationFix
+import app.trackevolution.core.NewEventDates
 import app.trackevolution.core.RecorderCore
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.telemetry.ByteArraySource
@@ -102,7 +103,13 @@ class RecordingFlowImportTest {
 
         flow.stageForNewEvent()
         assertTrue(flow.state.value.awaitingNewEvent)
+        assertEquals(
+            "the new event is dated from the clip, one day long",
+            NewEventDates.Span("2026-06-20", 1),
+            flow.stagedSpan,
+        )
         val handed = flow.takeStaged()
+        assertNull("taken with the drafts", flow.stagedSpan)
         assertEquals(1, handed.size)
         assertEquals(listOf(47124, 47124), handed[0].laps)
 
@@ -121,6 +128,30 @@ class RecordingFlowImportTest {
         state = flow.state.value
         assertFalse(state.awaitingNewEvent)
         assertTrue("the review is done with", state.items.isEmpty())
+    }
+
+    @Test
+    fun `events that fail to load are said with a retry, not an empty picker`() {
+        var fail = true
+        val engine = MockEngine { request ->
+            if (fail && request.url.encodedPath.endsWith("/events")) {
+                respond("""{"error":"Server is down"}""", HttpStatusCode.InternalServerError, headersOf(HttpHeaders.ContentType, "application/json"))
+            } else {
+                respond(EVENTS, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val flow = RecordingFlow(CoroutineScope(Dispatchers.Default), ApiClient(engine, baseUrl = "https://example.test"))
+        flow.beginImport(TelemetryImporter.finish(listOf(clip("pdr-delta.mp4"))), preferredEventId = null)
+        runBlocking { withTimeout(15_000) { while (flow.state.value.eventsError == null) delay(5) } }
+
+        assertEquals("Couldn't load your events: Server is down", flow.state.value.eventsError)
+        assertFalse("no answer about the logbook, so no new event either", flow.state.value.offersNewEvent)
+
+        fail = false
+        flow.reloadEvents()
+        awaitEvents(flow)
+        assertNull(flow.state.value.eventsError)
+        assertEquals(7, flow.state.value.selectedEventId)
     }
 
     @Test
@@ -213,6 +244,7 @@ class RecordingFlowImportTest {
         assertTrue("the racing line rides along", staged[0].trace!!.size > 10)
         assertNull(flow.savedEventId)
 
+        assertNull("the form's own import leaves its date alone", flow.stagedSpan)
         assertEquals(staged, flow.takeStaged())
         assertEquals("taken once", emptyList<Any>(), flow.staged.value)
     }

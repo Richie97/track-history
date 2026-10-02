@@ -1,5 +1,6 @@
 package app.trackevolution.navigation
 
+import app.trackevolution.core.NewEventDates
 import android.net.Uri
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -126,6 +127,12 @@ fun AppNavHost(
      */
     stagedImports: List<SessionDraft> = emptyList(),
     onConsumeStagedImports: () -> Unit = {},
+    /**
+     * The dates the staged drafts were driven on, when a review's *Save to a
+     * new event* staged them (#344) — read as they arrive, before they are
+     * consumed. Null for the form's own import, which leaves the date alone.
+     */
+    stagedSpan: () -> NewEventDates.Span? = { null },
     /**
      * A new event was created, with the staged drafts it posted — told to the
      * review a *Save to a new event* came from (#344) before the form makes way
@@ -306,7 +313,7 @@ fun AppNavHost(
                 // video…": taken the moment the form is back on screen.
                 LaunchedEffect(stagedImports) {
                     if (stagedImports.isNotEmpty() && route.editId == null) {
-                        model.stage(stagedImports)
+                        model.stage(stagedImports, stagedSpan())
                         onConsumeStagedImports()
                     }
                 }
@@ -432,6 +439,7 @@ fun AppNavHost(
                     model = model,
                     canViewChannels = Entitlement.canViewChannels(entitlement),
                     onSubscribe = onRequirePro,
+                    onNavigate = { next: Route -> nav.navigate(next) },
                 )
             }
 

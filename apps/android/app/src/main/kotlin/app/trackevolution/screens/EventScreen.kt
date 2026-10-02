@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -392,13 +394,18 @@ private fun ChecklistCard(
         )
 
         if (items.isEmpty()) {
-            Text(
-                "Nothing on the list yet.",
-                style = TrackTheme.typography.sm,
-                color = colors.textMuted,
-                modifier = Modifier.padding(vertical = 6.dp),
-            )
-            TextButton(onClick = { onChange(template.map { ChecklistItem(text = it, done = false) }) }) {
+            // The button alone, as on the web and iOS: the add field below
+            // already says the list is there to fill. Quiet — the outlined
+            // secondary style — like iOS's.
+            OutlinedButton(
+                onClick = { onChange(template.map { ChecklistItem(text = it, done = false) }) },
+                border = BorderStroke(1.dp, colors.borderHairline),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = colors.surfaceCard,
+                    contentColor = colors.textStrong,
+                ),
+                modifier = Modifier.padding(vertical = 6.dp).testTag("useChecklistTemplate"),
+            ) {
                 Text(
                     // The wording follows whose list it is: a user who edited
                     // the template in Settings is starting from *theirs*.
@@ -407,8 +414,7 @@ private fun ChecklistCard(
                     } else {
                         "Use my list"
                     },
-                    style = TrackTheme.typography.sm,
-                    color = colors.accentInk,
+                    style = TrackTheme.typography.bodyStrong,
                 )
             }
         } else {
@@ -695,7 +701,7 @@ private fun AddSessionCard(
             color = colors.textStrong,
         )
         Text(
-            "Corvette PDR or GoPro clips, or a .vbo or Track Precision .csv log, already on this phone — laps, " +
+            "Corvette PDR or GoPro clips, or a .vbo or Track Precision .csv log, already on this device — laps, " +
                 "racing line and channel graphs come out of the telemetry. The file is read " +
                 "in place, never copied or uploaded.",
             style = TrackTheme.typography.xs,

@@ -68,9 +68,11 @@ class SharedLogbookModel(
                 state = LoadState.Ready
             } catch (e: ApiException) {
                 state = if (e.status == 404) {
+                    // The web's share-page wording, word for word.
                     LoadState.Failed(
-                        "There's no shared logbook at /share/$slug — the link may have been disabled.",
+                        "This share link doesn't exist or has been disabled.",
                         retryable = false,
+                        title = "Link not found",
                     )
                 } else {
                     LoadState.Failed(e.message ?: "That shared logbook isn't available.")

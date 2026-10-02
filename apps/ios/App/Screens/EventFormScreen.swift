@@ -37,6 +37,21 @@ struct EventFormScreen: View {
     /// in the detail pane behind the recorder's cover would otherwise share it.
     var onCreated: ((Int, [SessionDraft]) -> Void)?
 
+    init(
+        target: EventFormTarget,
+        presetSpan: NewEventDates.Span? = nil,
+        onCreated: ((Int, [SessionDraft]) -> Void)? = nil
+    ) {
+        self.target = target
+        self.presetSpan = presetSpan
+        self.onCreated = onCreated
+    }
+
+    /// The start date and length *Save to a new event* derived from the
+    /// sessions it hands over (`NewEventDates`). nil for every other way in —
+    /// the form's own "Add laps" import leaves the driver's date alone.
+    var presetSpan: NewEventDates.Span?
+
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
     @Environment(\.dismiss) private var dismiss
@@ -61,6 +76,7 @@ struct EventFormScreen: View {
                     units: auth.units,
                     restoring: onCreated == nil ? EventFormDraft.restorable(router.eventFormDraft, for: target) : nil
                 )
+                if let presetSpan { model.applySpan(presetSpan) }
                 self.model = model
                 await model.load()
             }
@@ -249,7 +265,7 @@ struct EventFormScreen: View {
                     Text("Import a video")
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
-                    Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
+                    Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this device.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
                     Button("Import video") {
@@ -490,6 +506,14 @@ final class EventFormModel {
     var submitTitle: String {
         if isEditing { return "Save changes" }
         return createdId == nil ? "Create event" : "Add the laps"
+    }
+
+    /// Date the new event from the sessions handed to it. A restored draft is
+    /// the driver's own typing and keeps its date.
+    func applySpan(_ span: NewEventDates.Span) {
+        guard !isEditing, !hydrated, let date = EventDates.date(fromISO: span.startDate) else { return }
+        startDate = date
+        days = Double(min(span.days, 30))
     }
 
     func stage(_ drafts: [SessionDraft]) {

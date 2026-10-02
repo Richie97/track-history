@@ -101,9 +101,14 @@ struct StudentLogbook: View {
                         """)
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
-                    Button("Leave this logbook") { router.dropStudent(studentId) }
-                        .buttonStyle(TEButtonStyle(kind: .quiet))
-                        .accessibilityIdentifier("leaveRevokedStudent")
+                    // Out of the logbook and to where the grants are listed,
+                    // as on the web and Android.
+                    Button("Go to Coaching") {
+                        router.dropStudent(studentId)
+                        router.show(.coaching)
+                    }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("leaveRevokedStudent")
                 }
             }
         }
@@ -198,11 +203,18 @@ struct StudentHomeScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            TEStatRow(tiles: [
-                TEStatTile(label: "Events", value: "\(past.count)"),
-                TEStatTile(label: "Track days", value: fmtDays(past.reduce(0) { $0 + $1.days })),
-                TEStatTile(label: "Tracks", value: "\(tracksWithData.count)")
-            ])
+            if events.isEmpty {
+                // An empty logbook is one sentence, not three zeros and two
+                // "nothing yet"s — the coach's reading of the owner's first run
+                // (#344), as on the web.
+                TEEmpty("\(owner.displayName) hasn't logged an event yet.")
+            } else {
+                TEStatRow(tiles: [
+                    TEStatTile(label: "Events", value: "\(past.count)"),
+                    TEStatTile(label: "Track days", value: fmtDays(past.reduce(0) { $0 + $1.days })),
+                    TEStatTile(label: "Tracks", value: "\(tracksWithData.count)")
+                ])
+            }
 
             TESectionHeader("Driver profile")
             ProfileCard(profile: profile, empty: "\(owner.displayName) hasn't filled in a driver profile yet.")
@@ -224,39 +236,41 @@ struct StudentHomeScreen: View {
                 }
             }
 
-            // The latest days out: where a coach usually starts, since it is
-            // what they are being asked about.
-            TESectionHeader("Latest events")
-            if past.isEmpty {
-                TEEmpty("No events logged yet.")
-            } else {
-                ForEach(past.prefix(8)) { event in
-                    TENavCard(route: .event(event.id), identifier: "studentEvent") {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(event.trackName)
-                                    .teStyle(.bodyStrong)
-                                    .foregroundStyle(Color(.textStrong))
-                                TEMeta([EventDates.fmtDate(event.startDate), event.runGroup, event.car])
-                            }
-                            Spacer(minLength: 8)
-                            VStack(alignment: .trailing, spacing: 2) {
-                                TETime(ms: event.bestMs)
-                                Text(fmtCount(event.lapCount, "lap"))
-                                    .teStyle(.xxs)
-                                    .foregroundStyle(Color(.textFaint))
+            if !events.isEmpty {
+                // The latest days out: where a coach usually starts, since it is
+                // what they are being asked about.
+                TESectionHeader("Latest events")
+                if past.isEmpty {
+                    TEEmpty("No events logged yet.")
+                } else {
+                    ForEach(past.prefix(8)) { event in
+                        TENavCard(route: .event(event.id), identifier: "studentEvent") {
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(event.trackName)
+                                        .teStyle(.bodyStrong)
+                                        .foregroundStyle(Color(.textStrong))
+                                    TEMeta([EventDates.fmtDate(event.startDate), event.runGroup, event.car])
+                                }
+                                Spacer(minLength: 8)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    TETime(ms: event.bestMs)
+                                    Text(fmtCount(event.lapCount, "lap"))
+                                        .teStyle(.xxs)
+                                        .foregroundStyle(Color(.textFaint))
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            TESectionHeader("Tracks")
-            if tracksWithData.isEmpty {
-                TEEmpty("No tracks yet.")
-            } else {
-                TECardGrid(items: tracksWithData) { track in
-                    TrackCard(track: track)
+                TESectionHeader("Tracks")
+                if tracksWithData.isEmpty {
+                    TEEmpty("No tracks yet.")
+                } else {
+                    TECardGrid(items: tracksWithData) { track in
+                        TrackCard(track: track)
+                    }
                 }
             }
 

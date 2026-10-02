@@ -80,18 +80,18 @@ struct CoachingScreen: View {
             }
 
             TESectionHeader("Coaches who can see your logbook")
-            TECard {
-                VStack(alignment: .leading, spacing: 12) {
-                    if model.coaches.isEmpty {
-                        Text("Nobody can see your logbook yet.")
-                            .teStyle(.sm)
-                            .foregroundStyle(Color(.textMuted))
+            if model.coaches.isEmpty {
+                // The invite above is the next step, so the sentence alone.
+                TEEmpty("Nobody can see your logbook yet.")
+            } else {
+                TECard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(model.coaches) { coach in
+                            coachRow(coach)
+                        }
                     }
-                    ForEach(model.coaches) { coach in
-                        coachRow(coach)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             TESectionHeader("Driver profile")

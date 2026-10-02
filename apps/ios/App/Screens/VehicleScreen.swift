@@ -256,7 +256,8 @@ struct VehicleScreen: View {
             if vehicle.isDefault {
                 DefaultBadge()
             }
-            if let notes = vehicle.notes, !notes.isEmpty {
+            // A coach reads the notes under their own heading (studentSpecs).
+            if !owner.isReadOnly, let notes = vehicle.notes, !notes.isEmpty {
                 Text(notes)
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textMuted))
@@ -401,8 +402,16 @@ struct VehicleScreen: View {
             vehicle.steeringRatio.map { ("Steering ratio", "\(Self.fmtNumber($0)):1") },
             vehicle.targetHotPsi.map { ("Target hot pressure", "\(Self.fmtNumber($0)) psi") }
         ].compactMap { $0 }
-        if vehicle.notes?.isEmpty ?? true {
-            TESectionHeader("Modifications & notes")
+        TESectionHeader("Modifications & notes")
+        if let notes = vehicle.notes, !notes.isEmpty {
+            TECard {
+                Text(notes)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textBody))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityIdentifier("studentCarNotes")
+        } else {
             TEEmpty("None listed.")
         }
         if !specs.isEmpty {
@@ -464,7 +473,8 @@ struct VehicleScreen: View {
                 .foregroundStyle(Color(.textFaint))
 
             if model.activeParts.isEmpty {
-                TEEmpty("Nothing tracked yet — add pads, tires or fluid and Track Evolution will tell you when they're due.")
+                // "Below": the + Add part button follows the shelf.
+                TEEmpty("Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.")
             } else {
                 ForEach(model.activeParts) { part in
                     partCard(model, part)
