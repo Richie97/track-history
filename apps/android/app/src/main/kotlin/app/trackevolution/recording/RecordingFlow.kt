@@ -79,6 +79,14 @@ data class ReviewUiState(
      * "save" hands the drafts back to the form through [RecordingFlow.staged].
      */
     val forNewEvent: Boolean = false,
+    /** Whether [events] is the server's answer, rather than the empty list it starts as. */
+    val eventsLoaded: Boolean = false,
+    /**
+     * *Save to a new event* (#344) has handed the drafts to the New Event form
+     * and the review is waiting underneath it — closed, not reset, so backing
+     * out of the form comes back to it with nothing lost.
+     */
+    val awaitingNewEvent: Boolean = false,
     val saving: Boolean = false,
     /** The server's own message when a save failed. */
     val error: String? = null,
@@ -89,6 +97,14 @@ data class ReviewUiState(
     val selectedCount: Int get() = items.count { it.include && it.hasLaps }
 
     val canSave: Boolean get() = selectedCount > 0 && (forNewEvent || selectedEventId != null) && !saving
+
+    /**
+     * Whether *Save to a new event* takes the save button's place (#344): the
+     * events came back and there are none. Not before they answer — offline,
+     * that is no answer about the logbook — and not for an import begun from
+     * the form, whose event is the one being typed.
+     */
+    val offersNewEvent: Boolean get() = !forNewEvent && eventsLoaded && events.isEmpty()
 
     /** The recording's laps, for the single-item case the screen lays out simply. */
     val trace: List<TracePoint> get() = pickTrace
@@ -148,6 +164,9 @@ class RecordingFlow(
     val staged: StateFlow<List<SessionDraft>> = _staged.asStateFlow()
 
     fun takeStaged(): List<SessionDraft> = _staged.value.also { _staged.value = emptyList() }
+
+    /** What *Save to a new event* handed the form, to know whether it was posted. */
+    private var handedToNewEvent: List<SessionDraft> = emptyList()
 
     /**
      * Loads a stopped (or recovered) recording for review.
@@ -222,6 +241,7 @@ class RecordingFlow(
             val likely = events.firstOrNull { it.startDate <= today } ?: events.firstOrNull()
             _state.value = _state.value.copy(
                 events = events,
+                eventsLoaded = true,
                 selectedEventId = _state.value.selectedEventId ?: likely?.id,
             )
         }
@@ -329,9 +349,7 @@ class RecordingFlow(
         if (current.forNewEvent) {
             // Nothing to post onto yet. The same drafts the loop below would
             // send go to the form, which sends them once the event exists.
-            _staged.value = current.items
-                .filter { it.include && it.hasLaps }
-                .mapNotNull { item -> item.parsed?.let { draftFor(item, it, current.notes, units) } }
+            _staged.value = draftsFor(current, units)
             Haptics.confirm(context)
             _state.value = current.copy(saving = false, error = null)
             _saved.value = true
@@ -370,6 +388,58 @@ class RecordingFlow(
                 _state.value = _state.value.copy(items = remaining, saving = false, error = e.message)
             }
         }
+    }
+
+    /** The included items as the bodies of `POST /events/:id/sessions`, in order. */
+    private fun draftsFor(current: ReviewUiState, units: UnitSystem): List<SessionDraft> = current.items
+        .filter { it.include && it.hasLaps }
+        .mapNotNull { item -> item.parsed?.let { draftFor(item, it, current.notes, units) } }
+
+    /**
+     * *Save to a new event* (#344): the drafts go to the New Event form through
+     * [staged] — the hand-off a new-event import already uses — and the review
+     * waits, intact, while the form is open. The caller navigates to the form.
+     */
+    fun stageForNewEvent(units: UnitSystem = Units.DEFAULT_UNITS) {
+        val current = _state.value
+        if (!current.offersNewEvent || current.selectedCount == 0) return
+        val drafts = draftsFor(current, units)
+        handedToNewEvent = drafts
+        _staged.value = drafts
+        _state.value = current.copy(awaitingNewEvent = true, error = null)
+    }
+
+    /**
+     * The form created the event and posted [posted] onto it. A recording is
+     * forgotten only if its session was among them — the driver may have
+     * removed it on the form — and otherwise stays here, journalled, for the
+     * banner to offer again with the new event to save it onto.
+     */
+    fun newEventCreated(context: Context, posted: List<SessionDraft>) {
+        if (!_state.value.awaitingNewEvent) return
+        val delivered = posted.any { it in handedToNewEvent }
+        handedToNewEvent = emptyList()
+        if (recording != null && !delivered) {
+            _state.value = _state.value.copy(awaitingNewEvent = false)
+            loadEvents()
+            return
+        }
+        if (recording != null) Recorder.consumeFinished(context)
+        recording = null
+        _state.value = ReviewUiState()
+    }
+
+    /**
+     * Back out of the form without creating the event: the review comes back as
+     * it was. The events are read again, since a session failing after the
+     * event was created leaves an event to save onto rather than to make twice.
+     */
+    fun newEventAbandoned() {
+        if (!_state.value.awaitingNewEvent) return
+        handedToNewEvent = emptyList()
+        _staged.value = emptyList()
+        _state.value = _state.value.copy(awaitingNewEvent = false)
+        loadEvents()
     }
 
     /** One reviewed item as the body of `POST /events/:id/sessions`. */

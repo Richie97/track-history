@@ -126,6 +126,12 @@ fun AppNavHost(
      */
     stagedImports: List<SessionDraft> = emptyList(),
     onConsumeStagedImports: () -> Unit = {},
+    /**
+     * A new event was created, with the staged drafts it posted — told to the
+     * review a *Save to a new event* came from (#344) before the form makes way
+     * for the event. Defaulted for the same reason as [onImportParsed].
+     */
+    onEventCreated: (Int, List<SessionDraft>) -> Unit = { _, _ -> },
     /** Videos handed in by the share sheet, waiting for the import chooser. */
     incomingImport: List<Uri>? = null,
     onConsumedIncomingImport: () -> Unit = {},
@@ -313,6 +319,7 @@ fun AppNavHost(
                         // from the back stack — going "back" into a saved form is
                         // an invitation to save it twice.
                         if (route.editId == null) {
+                            onEventCreated(id, model.postedStaged)
                             nav.navigate(Route.Event(id)) {
                                 popUpTo(formDestination) { inclusive = true }
                             }
@@ -594,7 +601,7 @@ fun AppNavHost(
                 if (garageAsDetailPlaceholder) {
                     // At expanded width the garage list is the pane beside this, so
                     // its root draws "Pick a car" rather than the list twice (NS-34).
-                    GarageDetailPlaceholder()
+                    GarageDetailPlaceholder(api = api)
                 } else {
                     GaragePane(nav = nav, api = api, selection = null, inListPane = false, onRequirePro = onRequirePro)
                 }

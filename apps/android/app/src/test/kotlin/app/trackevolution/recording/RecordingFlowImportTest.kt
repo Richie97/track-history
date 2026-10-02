@@ -56,7 +56,7 @@ class RecordingFlowImportTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val posted = CopyOnWriteArrayList<Pair<String, String>>()
 
-    private fun api(): ApiClient {
+    private fun api(events: String = EVENTS): ApiClient {
         val engine = MockEngine { request ->
             val path = request.url.encodedPath
             val body = when {
@@ -64,7 +64,7 @@ class RecordingFlowImportTest {
                     posted.add(path to (request.body as TextContent).text)
                     """{"id":501}"""
                 }
-                path.endsWith("/events") -> EVENTS
+                path.endsWith("/events") -> events
                 else -> """{"ok":true}"""
             }
             respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
@@ -90,6 +90,48 @@ class RecordingFlowImportTest {
     }
 
     private fun body(i: Int) = Json.parseToJsonElement(posted[i].second).jsonObject
+
+    @Test
+    fun `with no events it stages for a new event, and leaving the form brings the review back intact`() {
+        val flow = RecordingFlow(CoroutineScope(Dispatchers.Default), api(events = "[]"))
+        flow.beginImport(TelemetryImporter.finish(listOf(clip("pdr-delta.mp4"))), preferredEventId = null)
+        runBlocking { withTimeout(15_000) { while (!flow.state.value.eventsLoaded) delay(5) } }
+
+        assertTrue("an answer with no events offers a new one", flow.state.value.offersNewEvent)
+        assertFalse("and there is nothing to Save onto", flow.state.value.canSave)
+
+        flow.stageForNewEvent()
+        assertTrue(flow.state.value.awaitingNewEvent)
+        val handed = flow.takeStaged()
+        assertEquals(1, handed.size)
+        assertEquals(listOf(47124, 47124), handed[0].laps)
+
+        // Back out of the form: the review is as it was, nothing posted.
+        flow.newEventAbandoned()
+        var state = flow.state.value
+        assertFalse(state.awaitingNewEvent)
+        assertEquals(1, state.items.size)
+        assertTrue(state.items[0].include)
+        assertTrue(flow.staged.value.isEmpty())
+        assertTrue(posted.isEmpty())
+
+        // Again, and this time the form creates the event and posts it.
+        flow.stageForNewEvent()
+        flow.newEventCreated(context, flow.takeStaged())
+        state = flow.state.value
+        assertFalse(state.awaitingNewEvent)
+        assertTrue("the review is done with", state.items.isEmpty())
+    }
+
+    @Test
+    fun `an import begun from the form offers no new event`() {
+        val flow = RecordingFlow(CoroutineScope(Dispatchers.Default), api())
+        flow.beginImport(TelemetryImporter.finish(listOf(clip("pdr-delta.mp4"))), preferredEventId = null, forNewEvent = true)
+        assertFalse("begun from the form, the event is the one being typed", flow.state.value.offersNewEvent)
+        flow.stageForNewEvent()
+        assertFalse(flow.state.value.awaitingNewEvent)
+        assertTrue(flow.staged.value.isEmpty())
+    }
 
     @Test
     fun `imports a batch, applies one line to the clip that needs it, and posts what was included`() {

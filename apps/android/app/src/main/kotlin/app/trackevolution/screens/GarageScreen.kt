@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.api.ApiClient
 import app.trackevolution.R
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
@@ -438,11 +440,19 @@ private fun MaintenanceStrip(alerts: List<Garage.Alert>, onOpenVehicle: (Int) ->
 /**
  * The Garage tab's detail pane with nothing picked, at expanded width (NS-34):
  * the list is the pane beside it, so the detail must not show it twice.
+ *
+ * An empty garage says so instead (#344), once `/vehicles` has answered — a
+ * cache read, since the list beside it has just fetched the same thing.
  */
 @Composable
-fun GarageDetailPlaceholder(modifier: Modifier = Modifier) {
+fun GarageDetailPlaceholder(api: ApiClient, modifier: Modifier = Modifier) {
+    var hasCars by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        runCatching { api.vehicles() }.onSuccess { hasCars = it.isNotEmpty() }
+    }
+    val empty = hasCars == false
     TEPanePlaceholder(
-        title = "Pick a car",
+        title = if (empty) "No cars yet" else "Pick a car",
         tag = "garagePlaceholder",
         mark = {
             Icon(
@@ -452,7 +462,7 @@ fun GarageDetailPlaceholder(modifier: Modifier = Modifier) {
                 modifier = Modifier.size(40.dp),
             )
         },
-        text = "Its logbook, best laps and — for Pro — its consumables open here.",
+        text = if (empty) "Add a car and its page opens here." else "Its logbook, best laps and — for Pro — its consumables open here.",
         modifier = modifier,
     )
 }

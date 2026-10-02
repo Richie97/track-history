@@ -63,6 +63,11 @@ fun ReviewScreen(
     onSelectEvent: (Int) -> Unit,
     onSave: () -> Unit,
     onDiscard: () -> Unit,
+    /**
+     * *Save to a new event* (#344), offered in the save button's place when
+     * there is no event to save onto. Null hides it.
+     */
+    onSaveToNewEvent: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -174,10 +179,10 @@ fun ReviewScreen(
                     // choice lives here, at save time, rather than at start.
                     TrackCard {
                         Text("SAVE ONTO", style = type.eyebrow, color = colors.textFaint)
-                        if (state.events.isEmpty()) {
+                        if (state.offersNewEvent) {
                             Text(
-                                "No events yet. Add one, then come back to save this — " +
-                                    if (state.isImport) "the files aren't going anywhere." else "the recording keeps until you do.",
+                                "No events yet. Make one for this and the " +
+                                    (if (state.isImport) "sessions are" else "recording is") + " saved with it.",
                                 style = type.sm,
                                 color = colors.textMuted,
                                 modifier = Modifier.padding(top = 6.dp),
@@ -229,29 +234,44 @@ fun ReviewScreen(
                     }
                 }
 
-                Button(
-                    onClick = onSave,
-                    enabled = state.canSave,
-                    modifier = Modifier.fillMaxWidth().testTag("reviewSave"),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colors.accent,
-                        contentColor = colors.accentContrast,
-                    ),
-                ) {
-                    if (state.saving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.height(18.dp),
-                            color = colors.accentContrast,
-                        )
-                    } else {
-                        Text(
-                            when {
-                                state.forNewEvent -> "Add to new event"
-                                state.selectedCount > 1 -> "Save ${state.selectedCount} sessions"
-                                else -> "Save session"
-                            },
-                            style = type.bodyStrong,
-                        )
+                if (state.offersNewEvent && onSaveToNewEvent != null) {
+                    // In place of a Save with nowhere to save to (#344).
+                    Button(
+                        onClick = onSaveToNewEvent,
+                        enabled = state.selectedCount > 0,
+                        modifier = Modifier.fillMaxWidth().testTag("reviewSaveToNewEvent"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colors.accent,
+                            contentColor = colors.accentContrast,
+                        ),
+                    ) {
+                        Text("Save to a new event", style = type.bodyStrong)
+                    }
+                } else {
+                    Button(
+                        onClick = onSave,
+                        enabled = state.canSave,
+                        modifier = Modifier.fillMaxWidth().testTag("reviewSave"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colors.accent,
+                            contentColor = colors.accentContrast,
+                        ),
+                    ) {
+                        if (state.saving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.height(18.dp),
+                                color = colors.accentContrast,
+                            )
+                        } else {
+                            Text(
+                                when {
+                                    state.forNewEvent -> "Add to new event"
+                                    state.selectedCount > 1 -> "Save ${state.selectedCount} sessions"
+                                    else -> "Save session"
+                                },
+                                style = type.bodyStrong,
+                            )
+                        }
                     }
                 }
 

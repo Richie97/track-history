@@ -7,6 +7,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import app.trackevolution.screens.WELCOME_TEXT
+import app.trackevolution.screens.WelcomeCard
 import app.trackevolution.ui.theme.TrackTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -86,5 +88,27 @@ class EmptyStateTest {
         compose.onNodeWithTag("garagePlaceholder").assertIsDisplayed()
         compose.onNodeWithText("Pick a car").assertIsDisplayed()
         compose.onNodeWithText("Its logbook opens here.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the welcome card offers an event and the recorder`() {
+        var added = 0
+        var recorded = 0
+        compose.setContent {
+            TrackTheme { WelcomeCard(onNewEvent = { added++ }, onRecord = { recorded++ }) }
+        }
+        compose.onNodeWithText("Welcome to Track Evolution").assertIsDisplayed()
+        compose.onNodeWithText(WELCOME_TEXT).assertIsDisplayed()
+        compose.onNodeWithTag("welcomeAddEvent").performClick()
+        compose.onNodeWithTag("welcomeRecord").performClick()
+        assertEquals(1, added)
+        assertEquals(1, recorded)
+    }
+
+    @Test
+    fun `a busy recorder leaves the welcome card one button`() {
+        compose.setContent { TrackTheme { WelcomeCard(onNewEvent = {}, onRecord = null) } }
+        compose.onNodeWithTag("welcomeAddEvent").assertIsDisplayed()
+        assertTrue(compose.onAllNodesWithTag("welcomeRecord").fetchSemanticsNodes().isEmpty())
     }
 }

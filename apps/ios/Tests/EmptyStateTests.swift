@@ -26,4 +26,12 @@ final class EmptyStateTests: XCTestCase {
         empty.action?.perform()
         XCTAssertEqual(ran, 1)
     }
+
+    /// First run (#344): the welcome card names the recorder on a phone and the
+    /// iPhone on a Mac, which has none (epic #230).
+    func testTheWelcomeCardPointsAMacAtThePhone() {
+        XCTAssertTrue(DashboardScreen.welcomeText(runsOnMac: false).contains("record them with this phone"))
+        XCTAssertTrue(DashboardScreen.welcomeText(runsOnMac: true).contains("record them with the app on your iPhone"))
+        XCTAssertFalse(DashboardScreen.welcomeText(runsOnMac: true).contains("this phone"))
+    }
 }

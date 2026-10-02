@@ -245,6 +245,24 @@ fun SignedInScaffold(
         }
     }
 
+    // *Save to a new event* (#344): the review waits underneath the New Event
+    // form, and the form leaving the Events stack without creating the event
+    // brings the review back as it was. Creation is told first
+    // (`onEventCreated`, before the form navigates), so by the time the entry
+    // changes the review is no longer waiting. A switch to the Garage tab is
+    // not leaving — the form is kept on the saved Events stack, and opening
+    // the form again from the review (`show`) resets that stack anyway.
+    LaunchedEffect(entry?.id) {
+        if (!flow.state.value.awaitingNewEvent) return@LaunchedEffect
+        if (entry?.destination.appTab != AppTab.Events) return@LaunchedEffect
+        // `getBackStackEntry` throws when no such entry is on the stack.
+        val formOpen = runCatching { nav.getBackStackEntry<Route.EventForm>() }.isSuccess
+        if (!formOpen) {
+            flow.newEventAbandoned()
+            reviewing = true
+        }
+    }
+
     // Videos shared into the app open the chooser, which parses them on arrival.
     // Signed-out arrivals park here until there is a graph to send them to.
     // Ungated, like the event page's button — importing is free.
@@ -380,6 +398,7 @@ fun SignedInScaffold(
                     },
                     stagedImports = stagedImports,
                     onConsumeStagedImports = { flow.takeStaged() },
+                    onEventCreated = { _, posted -> flow.newEventCreated(context, posted) },
                     incomingImport = incomingImport,
                     onConsumedIncomingImport = onConsumedIncomingImport,
                     // At expanded width the dashboard is the pane beside this, so the
@@ -404,6 +423,15 @@ fun SignedInScaffold(
                     onSelectEvent = flow::selectEvent,
                     onSave = { flow.save(context, units) },
                     onDiscard = { flow.discard(context); reviewing = false },
+                    onSaveToNewEvent = {
+                        // The form first, so it is on the back stack by the time
+                        // the review is waiting on it — see the effect below. An
+                        // arrival in the Events tab, so back from it is the
+                        // dashboard whichever tab the review was opened over.
+                        nav.show(Route.EventForm())
+                        flow.stageForNewEvent(units)
+                        reviewing = false
+                    },
                 )
             }
         }

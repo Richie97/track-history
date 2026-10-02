@@ -93,6 +93,13 @@ class EventFormModel(
         private set
 
     /**
+     * The staged drafts a save has posted, in order — what a review's *Save to
+     * a new event* (#344) checks before it forgets a recording.
+     */
+    var postedStaged: List<SessionDraft> = emptyList()
+        private set
+
+    /**
      * The event [save] already created, when a session post after it failed.
      * Null until then; the next save skips `POST /events` and posts the
      * sessions still staged.
@@ -235,7 +242,12 @@ class EventFormModel(
                     // laps) before the next, so a failure leaves exactly the rest.
                     for (draft in pendingSessions) {
                         api.createSession(id, draft)
-                        if (stagedSessions.firstOrNull() == draft) stagedSessions = stagedSessions.drop(1) else sessionLaps = ""
+                        if (stagedSessions.firstOrNull() == draft) {
+                            stagedSessions = stagedSessions.drop(1)
+                            postedStaged = postedStaged + draft
+                        } else {
+                            sessionLaps = ""
+                        }
                     }
                     id
                 } else {

@@ -45,7 +45,6 @@ import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.cardGridItems
 import app.trackevolution.ui.TEEmpty
-import app.trackevolution.ui.TEEmptyAction
 import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.TEMeta
@@ -111,6 +110,22 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
             ) {
+                // First run (#344): no tiles reading 0 / 0 / 0 and no empty
+                // Tracks heading — one card saying where a logbook starts.
+                if (model.events.isEmpty()) {
+                    item("welcome") {
+                        WelcomeCard(
+                            onNewEvent = onNewEvent,
+                            onRecord = if (recorderIdle) {
+                                { onRecord(null) }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                    return@LazyColumn
+                }
+
                 item("actions") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
@@ -198,12 +213,10 @@ fun DashboardScreen(
 
                 item("tracks-header") { TESectionHeader("Tracks") }
                 if (model.tracksWithData.isEmpty()) {
+                    // Only upcoming events so far: a track joins the list once
+                    // an event at it has started.
                     item("tracks-empty") {
-                        TEEmpty(
-                            "Add an event and its laps, bests and progress start here.",
-                            title = "No events yet",
-                            action = TEEmptyAction("Add your first event", onNewEvent),
-                        )
+                        TEEmpty("Your tracks show up here once an event at one has started.")
                     }
                 } else {
                     // One card per row on a phone, filling the width above it —
@@ -213,6 +226,62 @@ fun DashboardScreen(
                     }
                 }
 
+            }
+        }
+    }
+}
+
+/** The welcome card's sentence — iOS's `welcomeText` for a phone, verbatim. */
+internal const val WELCOME_TEXT =
+    "Your logbook starts with an event: the track, the date and the car. Then add its sessions — " +
+        "record them with this phone, import a video or a logger file, or type your lap times in — " +
+        "and your bests and progress build from there."
+
+/**
+ * The first-run card (#344) — the web's `.panel.welcome`, plus the recorder
+ * the web doesn't have. [onRecord] is null while the recorder is busy, for the
+ * reason the dashboard's own Record button is idle-only.
+ */
+@Composable
+internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?) {
+    val colors = TrackTheme.colors
+    TrackCard(modifier = Modifier.fillMaxWidth().semantics { testTag = "welcomeCard" }) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            BrandMark(size = 36.dp)
+            Text(
+                "Welcome to Track Evolution",
+                style = TrackTheme.typography.h2,
+                color = colors.textStrong,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(WELCOME_TEXT, style = TrackTheme.typography.sm, color = colors.textMuted)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                Button(
+                    onClick = onNewEvent,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = colors.accentContrast,
+                    ),
+                    modifier = Modifier.semantics { testTag = "welcomeAddEvent" },
+                ) {
+                    Text("Add your first event", style = TrackTheme.typography.bodyStrong)
+                }
+                if (onRecord != null) {
+                    OutlinedButton(
+                        onClick = onRecord,
+                        border = BorderStroke(1.dp, colors.borderHairline),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = colors.surfaceCard,
+                            contentColor = colors.textStrong,
+                        ),
+                        modifier = Modifier.semantics {
+                            testTag = "welcomeRecord"
+                            contentDescription = recordLabel(null)
+                        },
+                    ) {
+                        Text("Record laps", style = TrackTheme.typography.bodyStrong)
+                    }
+                }
             }
         }
     }
