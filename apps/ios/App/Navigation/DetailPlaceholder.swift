@@ -8,6 +8,9 @@ import TrackEvolutionKit
 /// showing the dashboard a second time. On a track-day morning the one thing you
 /// want from this pane is already known, so it may as well be one tap away.
 ///
+/// With an empty logbook it says so (#344) — "Pick an event" beside a list with
+/// nothing in it is an instruction that can't be followed.
+///
 /// With nothing upcoming it says "Pick an event" and stops. That is deliberately
 /// not a call to action: the dashboard beside it already offers *Add event*, and
 /// a second button competing with it would be two answers to the same question.
@@ -21,6 +24,9 @@ struct DetailPlaceholder: View {
     /// about the logbook, so it is made only on an answer — offline with nothing
     /// cached, the pane says no more than Android's does.
     @State private var answered = false
+    /// Whether the logbook holds any event at all — only meaningful once
+    /// `answered`.
+    @State private var hasEvents = true
 
     var body: some View {
         Group {
@@ -38,6 +44,13 @@ struct DetailPlaceholder: View {
                     Button("Open this event") { router.open(.event(next.id)) }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
                 }
+            } else if answered && !hasEvents {
+                PanePlaceholder(
+                    mark: .brand,
+                    title: "No events yet",
+                    text: "Add your first event and it opens here.",
+                    identifier: "detailPlaceholder"
+                )
             } else {
                 PanePlaceholder(
                     mark: .brand,
@@ -54,10 +67,15 @@ struct DetailPlaceholder: View {
         // than a request. A failure is still not shown as an error — that would be
         // about the one thing on screen nobody asked for — but nor is it read as
         // "nothing coming up", which it does not know.
+        //
+        // Re-read on every appearance rather than once: the pane comes back
+        // into view after the first event is added and closed, and it must not
+        // go on saying the logbook is empty.
         .task {
-            guard !loaded else { return }
             do {
-                next = try await auth.api.events()
+                let events = try await auth.api.events()
+                hasEvents = !events.isEmpty
+                next = events
                     .filter { EventDates.isUpcoming($0.startDate) }
                     .min { $0.startDate < $1.startDate }
                 answered = true

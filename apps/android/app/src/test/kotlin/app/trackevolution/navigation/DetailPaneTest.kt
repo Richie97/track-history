@@ -76,10 +76,29 @@ class DetailPaneTest {
         )
     }
 
-    private fun showGraph(dashboardAsDetailPlaceholder: Boolean) {
+    /** With nothing logged both halves say so (#344): the welcome card, and a pane that won't ask for a pick. */
+    @Test
+    fun `an empty logbook says so in both panes`() {
+        showGraph(dashboardAsDetailPlaceholder = true, events = "[]")
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("Add your first event and it opens here.").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(compose.onAllNodesWithText("Pick an event").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun `an empty logbook's dashboard is the welcome card`() {
+        showGraph(dashboardAsDetailPlaceholder = false, events = "[]")
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("Welcome to Track Evolution").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(compose.onAllNodesWithText("+ Add event").fetchSemanticsNodes().isEmpty())
+    }
+
+    private fun showGraph(dashboardAsDetailPlaceholder: Boolean, events: String = ONE_EVENT) {
         val engine = MockEngine { request ->
             val body = when {
-                request.url.encodedPath.endsWith("/events") -> "[]"
+                request.url.encodedPath.endsWith("/events") -> events
                 request.url.encodedPath.endsWith("/tracks") -> "[]"
                 request.url.encodedPath.endsWith("/garage") -> "[]"
                 request.url.encodedPath.endsWith("/me") -> ME
@@ -114,6 +133,9 @@ class DetailPaneTest {
     }
 
     private companion object {
+        /** One past event, so the dashboard is a logbook rather than the welcome card. */
+        const val ONE_EVENT = """[{"id":7,"track_id":1,"track_name":"Summit Point","start_date":"2026-01-01","days":1,"lap_count":0,"session_count":0,"hours":2,"updated_at":1}]"""
+
         const val ME = """
             {"user":{"id":1,"email":"e@example.test","name":"Eric","share_slug":"eric"},
              "totals":{"events":1,"track_days":1}}

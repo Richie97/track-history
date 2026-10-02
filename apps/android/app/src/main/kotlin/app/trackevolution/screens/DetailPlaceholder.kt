@@ -27,6 +27,9 @@ import app.trackevolution.ui.theme.TrackTheme
  * the dashboard a second time. On a track-day morning the one thing wanted from
  * this pane is already known, so it may as well be one tap away.
  *
+ * With an empty logbook it says so (#344) — "Pick an event" beside a list with
+ * nothing in it is an instruction that can't be followed.
+ *
  * With nothing upcoming it says "Pick an event" and stops. That is deliberately
  * not a call to action: the dashboard beside it already offers *+ Add event*, and
  * a second button competing with it would be two answers to one question.
@@ -43,6 +46,8 @@ fun DetailPlaceholder(
     // claim about the logbook, so it is made only on an answer (#343) — iOS's
     // `answered`.
     var answered by remember { mutableStateOf(false) }
+    // Whether the logbook holds any event at all — only meaningful once answered.
+    var hasEvents by remember { mutableStateOf(true) }
 
     // The dashboard beside this has already fetched — and warmed — the same list,
     // so through the offline layer this is normally a cache read rather than a
@@ -51,13 +56,22 @@ fun DetailPlaceholder(
     // nobody asked for.
     LaunchedEffect(Unit) {
         runCatching { api.events() }.onSuccess { events ->
+            hasEvents = events.isNotEmpty()
             next = events.filter { EventDates.isUpcoming(it.startDate) }.minByOrNull { it.startDate }
             answered = true
         }
     }
 
     val upcoming = next
-    if (upcoming == null) {
+    if (answered && !hasEvents) {
+        TEPanePlaceholder(
+            title = "No events yet",
+            tag = "detailPlaceholder",
+            mark = { BrandMark(size = 40.dp) },
+            text = "Add your first event and it opens here.",
+            modifier = modifier,
+        )
+    } else if (upcoming == null) {
         TEPanePlaceholder(
             title = "Pick an event",
             tag = "detailPlaceholder",

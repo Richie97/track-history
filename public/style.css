@@ -837,6 +837,8 @@ button.ch-chip.on { background: var(--surface-raised); }
 .empty-title { color: var(--text-strong); font-weight: 600; margin: 0 0 4px; }
 .empty-action { margin-top: 12px; }
 .empty.empty-compact { padding: 0; text-align: left; font-size: var(--fs-sm); }
+.panel.welcome { margin-top: 20px; }
+.panel.welcome .empty { padding: 16px 8px; max-width: 46ch; margin: 0 auto; }
 
 /* ---------- Footer ---------- */
 .site-footer {

@@ -145,7 +145,9 @@ class DashboardLayoutTest {
         val engine = MockEngine { request ->
             val body = when {
                 request.url.encodedPath.endsWith("/tracks") -> TRACKS
-                request.url.encodedPath.endsWith("/events") -> "[]"
+                // One past event: an empty logbook draws the welcome card
+                // instead of the grid (#344).
+                request.url.encodedPath.endsWith("/events") -> ONE_EVENT
                 request.url.encodedPath.endsWith("/garage") -> "[]"
                 request.url.encodedPath.endsWith("/me") -> ME
                 else -> """{"ok":true}"""
@@ -161,6 +163,8 @@ class DashboardLayoutTest {
     private companion object {
         val TRACK_NAMES = listOf("Summit Point", "Watkins Glen", "Virginia International Raceway", "Dominion Raceway")
         const val FIRST_TRACK = "Summit Point"
+
+        const val ONE_EVENT = """[{"id":7,"track_id":1,"track_name":"Summit Point","start_date":"2026-01-01","days":1,"lap_count":0,"session_count":0,"hours":2,"updated_at":1}]"""
 
         const val ME = """
             {"user":{"id":1,"email":"e@example.test","name":"Eric","share_slug":"eric"},

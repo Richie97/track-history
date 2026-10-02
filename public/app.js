@@ -891,11 +891,30 @@ async function viewDashboard() {
     !wrappedDismissed(wrapYear) &&
     events.some((e) => !isUpcoming(e) && e.start_date.startsWith(`${wrapYear}-`));
 
+  // First run (#344): with nothing logged, the 0 / 0 / 0 tiles, an empty
+  // Tracks heading, Year in review and the share panel all describe a logbook
+  // that isn't there yet — one welcome card says what to do instead.
+  if (events.length === 0) {
+    shell(`
+      <div class="panel welcome">
+        ${emptyHtml({
+          title: "Welcome to Track Evolution",
+          body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
+          action: { label: "Add your first event", href: "#/new" },
+        })}
+      </div>
+    `);
+    return;
+  }
+
+  // Year in review and the share page both count past events only, so until
+  // one has started there is nothing for either to show.
+  const hasHistory = events.some((e) => !isUpcoming(e));
   const slug = state.me.share_slug || "";
   const view = shell(`
     <div class="btn-row" style="margin-top:20px">
       <a class="btn primary" href="#/new">+ Add event</a>
-      <a class="btn" href="#/year">Year in review</a>
+      ${hasHistory ? `<a class="btn" href="#/year">Year in review</a>` : ""}
     </div>
     ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
@@ -908,11 +927,9 @@ async function viewDashboard() {
     ${upcomingCards ? `<h2>Also upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : emptyHtml({
-          title: "No events yet",
-          body: "Add an event and its laps, bests and progress start here.",
-          action: { label: "Add your first event", href: "#/new" },
+          body: "Your tracks show up here once an event at one has started.",
         })}
-    <h2>Share your history</h2>
+    ${hasHistory ? `<h2>Share your history</h2>
     <div class="panel share-panel">
       <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
       <div class="btn-row">
@@ -926,7 +943,7 @@ async function viewDashboard() {
         <button class="btn small danger" id="share-disable">Disable</button>` : ""}
       </div>
       <div id="share-msg" class="hint" style="margin-top:6px"></div>
-    </div>
+    </div>` : ""}
   `);
   // Warm the offline cache in the background while we're on the dashboard.
   scheduleWarm();
@@ -936,6 +953,7 @@ async function viewDashboard() {
     view.querySelector(".wrapped-hero")?.remove();
   });
 
+  if (!hasHistory) return;
   const shareMsg = view.querySelector("#share-msg");
   const shareInput = view.querySelector("#share-slug");
   view.querySelector("#share-save").onclick = async () => {

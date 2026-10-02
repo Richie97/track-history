@@ -25,6 +25,17 @@ import TrackEvolutionKit
 /// already has the real one.
 struct EventFormScreen: View {
     let target: EventFormTarget
+    /// Set when the form is pushed from a review screen's *Save to a new event*
+    /// (#344) rather than opened as a route: the review sits underneath, holding
+    /// the recording or the import, and decides where to go once the event and
+    /// its staged sessions exist. Called with the new event's id and the staged
+    /// drafts that were posted — which can be fewer than were handed over, since
+    /// the driver may remove one here.
+    ///
+    /// Such a form is not on the router's path, so it neither restores nor holds
+    /// a draft there: `eventFormDraft` belongs to the routed form, and one open
+    /// in the detail pane behind the recorder's cover would otherwise share it.
+    var onCreated: ((Int, [SessionDraft]) -> Void)?
 
     @Environment(AuthController.self) private var auth
     @Environment(AppRouter.self) private var router
@@ -48,7 +59,7 @@ struct EventFormScreen: View {
                     api: auth.api,
                     target: target,
                     units: auth.units,
-                    restoring: EventFormDraft.restorable(router.eventFormDraft, for: target)
+                    restoring: onCreated == nil ? EventFormDraft.restorable(router.eventFormDraft, for: target) : nil
                 )
                 self.model = model
                 await model.load()
@@ -62,7 +73,7 @@ struct EventFormScreen: View {
         // this view and its model down — loses nothing. Only once the form is
         // ready: before that the fields are placeholders, not typing.
         .onChange(of: model?.heldDraft) { _, draft in
-            if let draft { router.eventFormDraft = draft }
+            if let draft, onCreated == nil { router.eventFormDraft = draft }
         }
     }
 
@@ -189,11 +200,15 @@ struct EventFormScreen: View {
             Button(model.isSaving ? "Saving…" : model.submitTitle) {
                 Task {
                     guard let id = await model.save() else { return }
+                    Haptics.confirm()
+                    if let onCreated {
+                        onCreated(id, model.postedStaged)
+                        return
+                    }
                     // Saved, so there is nothing left to hold. Leaving the form
                     // below would drop it anyway; this says so rather than relying
                     // on the side effect.
                     router.eventFormDraft = nil
-                    Haptics.confirm()
                     if model.isEditing {
                         dismiss()
                     } else {
@@ -382,6 +397,9 @@ final class EventFormModel {
     var sessionNotes = ""
     /// Sessions the import review staged for this event, in posting order.
     private(set) var stagedSessions: [SessionDraft] = []
+    /// The staged drafts a save has posted, in order — what a review screen's
+    /// *Save to a new event* checks before it forgets a recording.
+    private(set) var postedStaged: [SessionDraft] = []
     /// The event `save()` already created, when a session post after it failed.
     /// nil until then; the next save skips `POST /events` and posts the sessions
     /// still pending — never creating the event twice.
@@ -599,7 +617,7 @@ final class EventFormModel {
                 for session in pendingSessions {
                     _ = try await api.createSession(eventId: id, session)
                     if stagedSessions.first == session {
-                        stagedSessions.removeFirst()
+                        postedStaged.append(stagedSessions.removeFirst())
                     } else {
                         sessionLaps = ""
                     }

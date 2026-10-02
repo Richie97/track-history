@@ -40,6 +40,10 @@ struct ReviewScreen: View {
 
     @State private var model: ReviewModel?
     @State private var showingDiscardConfirmation = false
+    /// The New Event form pushed over this screen by *Save to a new event*
+    /// (#344). This screen stays underneath it, so backing out of the form
+    /// comes back to the review with nothing lost.
+    @State private var creatingEvent = false
 
     private var isRecording: Bool {
         if case .recording = source { return true }
@@ -84,6 +88,38 @@ struct ReviewScreen: View {
         } message: {
             Text("The GPS trace is deleted from this device and can't be recovered.")
         }
+        .navigationDestination(isPresented: $creatingEvent) {
+            EventFormScreen(target: .new(presetTrack: nil)) { id, posted in
+                finishNewEvent(id, posted: posted)
+            }
+        }
+        // Back from the form without creating: the event may exist anyway if a
+        // session failed after it was created, and then it belongs in the picker
+        // rather than being offered a second time.
+        .onChange(of: creatingEvent) { _, open in
+            if !open { Task { await model?.reloadEvents() } }
+        }
+    }
+
+    /// *Save to a new event*: the drafts go to the form through the same
+    /// hand-off a new-event import uses, and the form is pushed over this screen.
+    private func saveToNewEvent(_ model: ReviewModel) {
+        guard let router else { return }
+        router.stagedSessions = model.stagedDrafts()
+        creatingEvent = true
+    }
+
+    /// The event exists and the form has posted what it was given. A recording
+    /// is forgotten only if its session was among those posted — the driver may
+    /// have removed it on the form — and then the event opens where the
+    /// recorder or the importer was.
+    private func finishNewEvent(_ id: Int, posted: [SessionDraft]) {
+        if isRecording, let model, model.stagedDrafts().contains(where: { posted.contains($0) }) {
+            recorder.finishSaving()
+        }
+        guard let router else { return }
+        router.dismissFullWindow()
+        router.path = [.event(id)]
     }
 
     @ViewBuilder
@@ -271,13 +307,19 @@ struct ReviewScreen: View {
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
                 } else if model.events.isEmpty {
-                    Text(
-                        model.loadFailure
-                            ?? "No events yet. Add one, then come back to save this — "
-                            + (isRecording ? "the recording keeps until you do." : "the files aren't going anywhere.")
-                    )
-                    .teStyle(.sm)
-                    .foregroundStyle(Color(.textMuted))
+                    if let failure = model.loadFailure {
+                        Text(failure)
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.textMuted))
+                    } else {
+                        Text(
+                            "No events yet. Make one for this and the "
+                                + (isRecording ? "recording is" : "sessions are")
+                                + " saved with it."
+                        )
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                    }
                 } else {
                     Picker("Event", selection: Binding(get: { model.eventId }, set: { model.eventId = $0 })) {
                         ForEach(model.events) { event in
@@ -309,22 +351,30 @@ struct ReviewScreen: View {
                     }
                 }
 
-                Button(model.isSaving ? "Saving…" : model.saveTitle) {
-                    if model.forNewEvent {
-                        // Nothing to post onto yet: the same drafts `save()` would
-                        // send go to the form, which sends them once the event exists.
-                        router?.stagedSessions += model.stagedDrafts()
-                        Haptics.confirm()
-                        if let onFinish { onFinish() } else { dismiss() }
-                        return
+                if model.offersNewEvent, router != nil {
+                    // In place of a Save with nowhere to save to (#344).
+                    Button("Save to a new event") { saveToNewEvent(model) }
+                        .buttonStyle(TEButtonStyle(kind: .accent))
+                        .disabled(!model.hasSomethingToSave)
+                        .accessibilityIdentifier("reviewSaveToNewEvent")
+                } else {
+                    Button(model.isSaving ? "Saving…" : model.saveTitle) {
+                        if model.forNewEvent {
+                            // Nothing to post onto yet: the same drafts `save()` would
+                            // send go to the form, which sends them once the event exists.
+                            router?.stagedSessions += model.stagedDrafts()
+                            Haptics.confirm()
+                            if let onFinish { onFinish() } else { dismiss() }
+                            return
+                        }
+                        Task {
+                            if await model.save() { dismiss() }
+                        }
                     }
-                    Task {
-                        if await model.save() { dismiss() }
-                    }
+                    .buttonStyle(TEButtonStyle(kind: .accent))
+                    .disabled(!model.canSave)
+                    .accessibilityIdentifier("reviewSave")
                 }
-                .buttonStyle(TEButtonStyle(kind: .accent))
-                .disabled(!model.canSave)
-                .accessibilityIdentifier("reviewSave")
             }
         }
     }
@@ -376,6 +426,8 @@ final class ReviewModel {
     private(set) var guidance: String?
 
     private(set) var events: [Event] = []
+    /// Whether `events` is an answer, rather than the empty list it starts as.
+    private(set) var eventsLoaded = false
     private(set) var loadFailure: String?
     var eventId: Int?
     var notes = ""
@@ -417,6 +469,18 @@ final class ReviewModel {
 
     var canSave: Bool {
         selectedCount > 0 && (forNewEvent || eventId != nil) && !isSaving
+    }
+
+    /// Whether *Save to a new event* takes the save button's place (#344): the
+    /// events came back and there are none. Not on a failed load — that is no
+    /// answer about the logbook — and not for an import begun from the form,
+    /// whose event is the one being typed.
+    var offersNewEvent: Bool {
+        !forNewEvent && eventsLoaded && events.isEmpty
+    }
+
+    var hasSomethingToSave: Bool {
+        selectedCount > 0
     }
 
     private var selectedCount: Int {
@@ -507,12 +571,21 @@ final class ReviewModel {
         // No event list for a new-event import: there is nothing to pick from,
         // and the form underneath is the event.
         if forNewEvent { return }
+        await reloadEvents()
+    }
+
+    /// The picker's events, newest first. Also run on coming back from
+    /// *Save to a new event*'s form without finishing it.
+    func reloadEvents() async {
+        guard !forNewEvent else { return }
         do {
             events = try await api.events()
             // Newest first: a session being saved almost always belongs to the
             // most recent event.
             events.sort { $0.startDate > $1.startDate }
             if eventId == nil { eventId = events.first?.id }
+            eventsLoaded = true
+            loadFailure = nil
         } catch let error as APIError {
             loadFailure = "Couldn't load your events: \(error.message)"
         } catch {

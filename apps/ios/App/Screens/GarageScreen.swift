@@ -196,13 +196,39 @@ struct DefaultBadge: View {
 /// What the Garage's detail pane says with no car picked (NS-34's rule: never
 /// the list a second time).
 struct GarageDetailPlaceholder: View {
+    @Environment(AuthController.self) private var auth
+
+    /// Whether the garage holds a car, once `/vehicles` has answered. nil until
+    /// then, and on a failure — an empty garage is a claim made only on an
+    /// answer, as `DetailPlaceholder` does for events.
+    @State private var hasCars: Bool?
+
     var body: some View {
-        PanePlaceholder(
-            mark: .symbol("car"),
-            title: "Pick a car",
-            text: "Its logbook, best laps and — for Pro — its consumables open here.",
-            identifier: "garagePlaceholder"
-        )
+        Group {
+            if hasCars == false {
+                // An empty garage (#344): "Pick a car" beside a list with no car
+                // in it can't be followed.
+                PanePlaceholder(
+                    mark: .symbol("car"),
+                    title: "No cars yet",
+                    text: "Add a car and its page opens here.",
+                    identifier: "garagePlaceholder"
+                )
+            } else {
+                PanePlaceholder(
+                    mark: .symbol("car"),
+                    title: "Pick a car",
+                    text: "Its logbook, best laps and — for Pro — its consumables open here.",
+                    identifier: "garagePlaceholder"
+                )
+            }
+        }
+        // A cache read through the offline layer, since the list beside this has
+        // just fetched the same thing; re-read on every appearance so adding the
+        // first car and closing it doesn't leave this saying the garage is empty.
+        .task {
+            hasCars = (try? await auth.api.vehicles()).map { !$0.isEmpty }
+        }
     }
 }
 

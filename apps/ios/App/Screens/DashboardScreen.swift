@@ -111,7 +111,61 @@ struct DashboardScreen: View {
         }
     }
 
+    @ViewBuilder
     private func content(_ model: DashboardModel) -> some View {
+        if model.events.isEmpty {
+            // First run (#344): no tiles reading 0 / 0 / 0 and no empty Tracks
+            // heading — one card saying where a logbook starts. The recording
+            // banner stays above it, since a first-day recording is exactly the
+            // unsaved one it exists to keep in view.
+            TEPage {
+                recordingBanner
+                welcomeCard(model)
+            }
+            .refreshable { await model.load() }
+        } else {
+            logbook(model)
+        }
+    }
+
+    /// The web's `.panel.welcome`, plus the recorder the web doesn't have.
+    private func welcomeCard(_ model: DashboardModel) -> some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                BrandMark(size: 36)
+                    .accessibilityHidden(true)
+                Text("Welcome to Track Evolution")
+                    .teStyle(.h2)
+                    .foregroundStyle(Color(.textStrong))
+                    .accessibilityAddTraits(.isHeader)
+                Text(Self.welcomeText(runsOnMac: Platform.runsOnMac))
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: TESpacing.gridGap) {
+                    Button("Add your first event") { openFromList(.eventForm(.new(presetTrack: nil))) }
+                        .buttonStyle(TEButtonStyle(kind: .accent))
+                        .accessibilityIdentifier("welcomeAddEvent")
+                    if Platform.dashboardOffersRecorder(runsOnMac: Platform.runsOnMac, recorderIdle: recorder.phase == .idle) {
+                        Button("Record laps") { openFromList(.record(eventId: nil)) }
+                            .buttonStyle(TEButtonStyle(kind: .quiet))
+                            .accessibilityIdentifier("welcomeRecord")
+                            .accessibilityLabel(Self.recordLabel(nil))
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .accessibilityIdentifier("welcomeCard")
+    }
+
+    /// The Mac has no recorder (epic #230), so it points at the phone instead.
+    static func welcomeText(runsOnMac: Bool) -> String {
+        let record = runsOnMac ? "record them with the app on your iPhone" : "record them with this phone"
+        return "Your logbook starts with an event: the track, the date and the car. Then add its sessions — \(record), import a video or a logger file, or type your lap times in — and your bests and progress build from there."
+    }
+
+    private func logbook(_ model: DashboardModel) -> some View {
         TEPage {
             recordingBanner
 
@@ -180,11 +234,9 @@ struct DashboardScreen: View {
 
             TESectionHeader("Tracks")
             if model.tracksWithData.isEmpty {
-                TEEmpty(
-                    title: "No events yet",
-                    "Add an event and its laps, bests and progress start here.",
-                    action: TEEmpty.Action("Add your first event") { openFromList(.eventForm(.new(presetTrack: nil))) }
-                )
+                // Only upcoming events so far: a track joins the list once an
+                // event at it has started.
+                TEEmpty("Your tracks show up here once an event at one has started.")
             } else {
                 // One card per row on a phone, filling the width above it — the
                 // web's `.cards` grid (NS-34).
