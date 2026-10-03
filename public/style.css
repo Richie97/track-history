@@ -424,6 +424,18 @@ h2 {
 .cost-breakdown { font-size: var(--fs-xs); color: var(--text-muted); margin: -12px 0 22px; }
 .vehicle-odometer { font-size: var(--fs-xs); color: var(--text-muted); margin: -12px 0 22px; }
 .cost-breakdown + .vehicle-odometer { margin-top: -18px; }
+/* ---------- Modal (a native <dialog> opened with showModal) ---------- */
+.modal {
+  width: min(560px, calc(100vw - 32px)); max-height: min(80vh, 640px);
+  padding: 18px 20px; overflow: auto;
+  background: var(--surface-card); color: var(--text-body);
+  border: 1px solid var(--border-hairline); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+}
+.modal::backdrop { background: var(--shadow-color); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.modal-head h2 { margin: 0; }
+.modal .table-wrap { margin: 0; }
 .tile {
   background: var(--surface-card); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg); padding: 18px 20px;

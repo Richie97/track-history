@@ -61,6 +61,9 @@ struct VehicleScreen: View {
         case takeOff(Part)
         /// "Buy another set of those" for a retired part.
         case refreshRetired(Part)
+        /// Best in this car, per track — a pop-up rather than a section, so
+        /// the page stays about the parts.
+        case bests
 
         var id: String {
             switch self {
@@ -69,13 +72,14 @@ struct VehicleScreen: View {
             case .car: "car"
             case .takeOff(let part): "take-off-\(part.id)"
             case .refreshRetired(let part): "refresh-retired-\(part.id)"
+            case .bests: "bests"
             }
         }
 
         var part: Part? {
             switch self {
             case .editPart(let part): part
-            case .addPart, .car, .takeOff, .refreshRetired: nil
+            case .addPart, .car, .takeOff, .refreshRetired, .bests: nil
             }
         }
 
@@ -83,7 +87,7 @@ struct VehicleScreen: View {
             switch self {
             case .addPart: .add
             case .editPart(let part): .edit(part)
-            case .car, .takeOff, .refreshRetired: nil
+            case .car, .takeOff, .refreshRetired, .bests: nil
             }
         }
     }
@@ -128,6 +132,11 @@ struct VehicleScreen: View {
                     RetiredRefreshSheet(part: part, parts: model.allParts) { on, equipped in
                         await model.refreshRetiredPart(id: part.id, on: on, equipped: equipped)
                     }
+                } else if case .bests = form {
+                    BestsSheet(bests: model.logbook.bests) { eventId in
+                        sheet = nil
+                        router.push(owner.link(.event(eventId)))
+                    }
                 } else if let mode = form.partMode {
                     PartFormSheet(
                         mode: mode,
@@ -137,7 +146,7 @@ struct VehicleScreen: View {
                             switch form {
                             case .addPart: await model.addPart(draft)
                             case .editPart(let part): await model.updatePart(id: part.id, patch, mount: mount)
-                            case .car, .takeOff, .refreshRetired: false
+                            case .car, .takeOff, .refreshRetired, .bests: false
                             }
                         },
                         onDelete: form.part.map { part in
@@ -370,7 +379,16 @@ struct VehicleScreen: View {
                 }
             }
         }
-        if !logbook.bests.isEmpty {
+        // The owner's page is about the parts, so the bests are a pop-up behind
+        // one button; a coach's view of the car has no parts and lists them
+        // inline, as `viewStudentVehicle` does.
+        if !logbook.bests.isEmpty, !owner.isReadOnly {
+            Button("Best laps · \(logbook.bests.count) \(logbook.bests.count == 1 ? "track" : "tracks")") {
+                sheet = .bests
+            }
+            .buttonStyle(TEButtonStyle(kind: .quiet))
+            .accessibilityIdentifier("vehicleBests")
+        } else if !logbook.bests.isEmpty {
             TESectionHeader("Best in this car")
             ForEach(logbook.bests) { best in
                 TENavCard(route: .event(best.eventId), identifier: "vehicleBest") {
@@ -1304,6 +1322,58 @@ struct RetiredRefreshSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+/// Best in this car, per track — the vehicle page's *Best laps* pop-up. A row
+/// opens the event the time was set at, closing the sheet on the way.
+struct BestsSheet: View {
+    let bests: [Garage.TrackBest]
+    let open: (Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            TEPage {
+                ForEach(bests) { best in
+                    Button {
+                        open(best.eventId)
+                    } label: {
+                        TECard {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(best.trackName)
+                                    .teStyle(.bodyStrong)
+                                    .foregroundStyle(Color(.textStrong))
+                                HStack {
+                                    Text(LapTime.fmtMs(best.bestMs))
+                                        .teStyle(.lapTime)
+                                        .foregroundStyle(Color(.textStrong))
+                                    Spacer()
+                                    Text(EventDates.fmtDate(best.startDate))
+                                        .teStyle(.xs)
+                                        .foregroundStyle(Color(.textFaint))
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("vehicleBest")
+                }
+            }
+            .navigationTitle("Best in this car")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
         }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -145,6 +146,10 @@ fun VehicleScreen(
     // The car's own form, open or not. Saveable for the same reason the dialogs
     // are: a fold or a rotation must not close it under the driver.
     var editingCar by rememberSaveable { mutableStateOf(false) }
+    // Best in this car, per track: a pop-up behind one button rather than a
+    // section, so the owner's page stays about the parts. Saveable like the
+    // dialogs above.
+    var showingBests by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
     LaunchedEffect(model.deleted) { if (model.deleted) onDeleted() }
@@ -276,7 +281,22 @@ fun VehicleScreen(
                 item("specs") { StudentCarSpecs(vehicle, model) }
             }
 
-            if (logbook.bests.isNotEmpty()) {
+            if (logbook.bests.isNotEmpty() && !model.readOnly) {
+                item("bests-button") {
+                    OutlinedButton(
+                        onClick = { showingBests = true },
+                        modifier = Modifier.testTag("bestsButton"),
+                    ) {
+                        Text(
+                            "Best laps · ${fmtCount(logbook.bests.size, "track")}",
+                            style = TrackTheme.typography.sm,
+                            color = colors.textStrong,
+                        )
+                    }
+                }
+            } else if (logbook.bests.isNotEmpty()) {
+                // A coach's view of the car has no parts, so the bests are
+                // its content and stay inline, as `viewStudentVehicle` has them.
                 item("bests-header") { TESectionHeader("Best in this car") }
                 item("bests") { BestsCard(logbook.bests, onOpenTrack = onOpenTrack, onOpenEvent = onOpenEvent) }
             }
@@ -445,6 +465,28 @@ fun VehicleScreen(
             confirm = "Delete",
             onConfirm = { confirmDeleteId = null; model.deletePart(part.id) },
             onDismiss = { confirmDeleteId = null },
+        )
+    }
+
+    if (showingBests && model.logbook.bests.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showingBests = false },
+            containerColor = colors.surfaceRaised,
+            title = { Text("Best in this car", style = TrackTheme.typography.h3, color = colors.textStrong) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    BestsCard(
+                        model.logbook.bests,
+                        onOpenTrack = { showingBests = false; onOpenTrack(it) },
+                        onOpenEvent = { showingBests = false; onOpenEvent(it) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showingBests = false }) {
+                    Text("Close", color = colors.accentInk)
+                }
+            },
         )
     }
 
