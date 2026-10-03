@@ -638,6 +638,7 @@ change* rule does not apply — see the spec for why.
 | NS-36 | [Season Wrapped](NS-36-season-wrapped.md) | Web (server + web app), then iOS + Android | Year in review, share pages, NS-32, the garage |
 | NS-37 | [The Garage tab](NS-37-garage-tab.md) | Shared (web, iOS, Android; no server change) | NS-29, NS-31, NS-32, NS-34, #221/#222, #147 |
 | NS-38 | [Share with a coach](NS-38-coach-sharing.md) | Shared (server, web, iOS, Android) | NS-32, NS-34, NS-37, the share page, #314 |
+| NS-39 | [A native ChatGPT experience](NS-39-chatgpt-apps.md) | Server (MCP widgets; no client change) | #314, NS-32, NS-36 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
