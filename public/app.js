@@ -3452,7 +3452,12 @@ async function viewVehicle(vehicleId) {
     <p style="margin:22px 0 0"><a class="backlink" href="#/garage">← Garage</a></p>
     <h1>${esc(v.name)}${v.is_default ? ' <span class="default-badge">Default</span>' : ""}</h1>
     ${v.notes ? `<p class="sub">${esc(v.notes)}</p>` : ""}
-    <div class="btn-row"><button class="btn small" id="veh-edit">Edit car</button></div>
+    <div class="btn-row"><button class="btn small" id="veh-edit">Edit car</button>${
+      logbook.bests.length
+        ? `<button class="btn small" id="veh-bests" aria-haspopup="dialog">Best laps · ${logbook.bests.length} ${logbook.bests.length === 1 ? "track" : "tracks"}</button>`
+        : ""
+    }</div>
+    ${bestsDialogHtml()}
     <form class="panel vehicle-edit" id="veh-form" hidden>
       <div class="field"><label>Car</label><input name="name" required value="${esc(v.name)}"></div>
       <div class="field"><label>Modifications &amp; notes</label>
@@ -3491,7 +3496,6 @@ async function viewVehicle(vehicleId) {
       <div class="tile"><div class="label">Events</div><div class="value">${logbook.events}</div></div>
     </div>
     ${logbookLineHtml()}
-    ${bestsHtml()}
     <h2>Consumables, hours and costs</h2>
     ${proPanelHtml("Consumables, hours and costs", GARAGE_PRO_WHAT, { underHeading: true })}`;
   }
@@ -3513,7 +3517,11 @@ async function viewVehicle(vehicleId) {
   }
 
   // Best in this car, per track — free, since it is the driver's own logbook.
-  function bestsHtml() {
+  // A pop-up behind the *Best laps* button rather than a section of the page:
+  // the car page is for managing its parts, and a table per track pushed them
+  // a screen down. A coach's view of the car (`viewStudentVehicle`) has no
+  // parts and keeps the table inline.
+  function bestsDialogHtml() {
     if (!logbook.bests.length) return "";
     const rows = logbook.bests
       .map(
@@ -3524,9 +3532,14 @@ async function viewVehicle(vehicleId) {
         </tr>`
       )
       .join("");
-    return `<h2>Best in this car</h2>
+    return `<dialog class="modal" id="veh-bests-dialog" aria-labelledby="veh-bests-title">
+      <div class="modal-head">
+        <h2 id="veh-bests-title">Best in this car</h2>
+        <button class="btn small" type="button" data-modal-close>Close</button>
+      </div>
       <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best</th><th>Set on</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>`;
+      <tbody>${rows}</tbody></table></div>
+    </dialog>`;
   }
 
   function proVehicleHtml() {
@@ -3549,7 +3562,6 @@ async function viewVehicle(vehicleId) {
       v.odometer ? `<div class="hint vehicle-odometer">${esc(vehicleOdometerLine(v.odometer, units))}</div>` : ""
     }
     ${logbookLineHtml()}
-    ${bestsHtml()}
     <h2>On the car</h2>
     <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (the logged lap time on days with 3+ laps, else 1h15m per track day, unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
     ${active.map(partCard).join("") || emptyHtml({ body: "Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due." })}
@@ -3586,6 +3598,17 @@ async function viewVehicle(vehicleId) {
   // The car itself — name, mods, the pressure the health strip aims at, and
   // whether new events start on it. This used to live only in Settings, a page
   // away from the garage it describes.
+  const bestsDialog = view.querySelector("#veh-bests-dialog");
+  if (bestsDialog) {
+    view.querySelector("#veh-bests").onclick = () => bestsDialog.showModal();
+    bestsDialog.querySelector("[data-modal-close]").onclick = () => bestsDialog.close();
+    // A click on the backdrop lands on the <dialog> itself; one on a link
+    // inside navigates, and the re-render takes the dialog with it.
+    bestsDialog.onclick = (e) => {
+      if (e.target === bestsDialog) bestsDialog.close();
+    };
+  }
+
   const vehForm = view.querySelector("#veh-form");
   view.querySelector("#veh-edit").onclick = () => {
     vehForm.hidden = !vehForm.hidden;

@@ -125,6 +125,12 @@ class GarageTabTest {
         openGarage()
         compose.onNodeWithTag("carTile-1").performClick()
 
+        // The bests are a pop-up behind one button, so the page stays about the parts.
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("bestsButton").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(compose.onAllNodesWithTag("bestsInCar").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithTag("bestsButton").performScrollTo().performClick()
         compose.waitUntil(10_000) {
             compose.onAllNodesWithTag("bestsInCar").fetchSemanticsNodes().isNotEmpty()
         }
