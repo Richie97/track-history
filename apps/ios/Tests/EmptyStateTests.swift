@@ -48,6 +48,15 @@ final class EmptyStateTests: XCTestCase {
         XCTAssertFalse(DashboardScreen.welcomeText(runsOnMac: true).contains("this phone"))
     }
 
+    /// The welcome card and Settings both open the newcomer's guide on the
+    /// docs site — the same page the web and Android link.
+    func testTheTrackDaysGuideIsTheDocsPage() {
+        XCTAssertEqual(
+            SettingsScreen.trackDaysGuideURL.absoluteString,
+            "https://docs.trackevolution.app/docs/track-days.html"
+        )
+    }
+
     /// A finished season with no track days won't get one; only the running
     /// year (or a later one) is "— yet".
     func testAnEmptyWrappedYearIsOnlyYetWhileItCanStillHappen() {

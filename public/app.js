@@ -530,6 +530,9 @@ const TIP_ITEMS = [
 const TIP_URL = "https://buymeacoffee.com/speedshift";
 const REPO_URL = "https://github.com/Richie97/track-history";
 const DOCS_URL = "https://docs.trackevolution.app";
+// The newcomer's guide (what an HPDE is, what you need, where to find one) —
+// linked from the first-run welcome card and from Settings on every client.
+const TRACK_DAYS_URL = `${DOCS_URL}/docs/track-days.html`;
 const APP_STORE_URL = "https://apps.apple.com/us/app/track-evolution/id6792941186";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.trackevolution";
 
@@ -910,6 +913,9 @@ async function viewDashboard() {
           body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a video or a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
           action: { label: "Add your first event", href: "#/new" },
         })}
+        <div class="welcome-guide">
+          <a href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">New to track days? Start here ↗</a>
+        </div>
       </div>
     `);
     return;
@@ -2947,6 +2953,11 @@ async function viewSettings() {
     <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
     <h2>Subscription</h2>
     ${subscriptionPanelHtml()}
+    <h2>New to track days?</h2>
+    <div class="panel">
+      <div class="hint" style="margin:0 0 10px">What a track day is, what you and the car need, where to find an event near you, and what happens on the day.</div>
+      <a class="btn small" href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">Your first track day ↗</a>
+    </div>
     <h2>About &amp; legal</h2>
     <div class="panel">
       <div class="btn-row">
