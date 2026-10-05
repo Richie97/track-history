@@ -62,9 +62,9 @@ ChatGPT conversation
 | Tier | **Pro, as today** (NS-32 row for the MCP server). Widgets are presentation of tool results already gated per `tools/call`, so they need no gate of their own. The wording a free user sees changes; see *Policy*. |
 | What the model sees | **Summaries, as today.** `structuredContent` and its `outputSchema` are unchanged by this work, so text-only hosts and the phone apps lose nothing. Chart arrays go **to the widget only** (see *Widget data*). |
 | Graceful degradation | **The text answer must stand on its own.** A host without the extension, a ChatGPT phone app that fails to render the widget (see *Risks*), or a screen reader all get the same complete answer. A card adds detail; it never carries the only copy of a fact. |
-| Code reuse | **The cards draw with the web app's own pure modules** (`channel-graphs.js`, `chart.js`, `sectors.js`, `limits.js`, `compare-laps.js`, `trackmap.js`, `wrapped-story.js`, `units.js`, `format.js`), bundled at build time. No second implementation of any chart. |
+| Code reuse | **The cards draw with the web app's own modules**, bundled at build time: the pure ones (`compare-laps.js`, `sectors.js`, `gears.js`, `limits.js`, `conditions.js`, `garage.js`, `wrapped.js`, `units.js`, `format.js`) and the markup half of three that also touch the page (`channel-graphs.js`, `chart.js`, `wrapped-story.js`), plus `trackmap.js`, which draws on a canvas (see *Modules under a sandbox*). No second implementation of any chart. |
 | Self-contained resources | **A widget's HTML has no external script, style or font dependency.** Its CSP declares empty `connectDomains`, `resourceDomains` and `frameDomains`. This makes it reviewable by the host before first use, cacheable, and immune to a deploy landing between the HTML and its scripts. |
-| Clients | **None.** No iOS, Android or web-app change. `public/js/` modules are imported, never edited for this. A module that needs a seam gets it the way `channelDefs(units)` did: an explicit parameter with the old default. |
+| Clients | **None.** No iOS, Android or web-app change. `public/js/` modules are imported, and the only edit this work makes to one is a **seam**, the way `channelDefs(units)` got one: an explicit parameter whose default is today's behaviour, so the web app renders exactly as before and its unit tests stay green. At least one is known now (`gearRibbonSvg`; see *Modules under a sandbox*). |
 
 ## Policy (ticket 0, and blocking)
 
@@ -96,11 +96,15 @@ account is acceptable. I found no ruling either way.
 
 **Fallback if review rejects a Pro-only app:** free accounts get the tools
 whose data is free in the apps (`get_profile`, `list_tracks`, `list_events`,
-`get_event` with channels stripped as `stripProFields` already does,
-`get_track_history`, `get_leaderboard`, `get_season_summary` without the
-`pro` half). The analysis tools stay Pro and answer the neutral sentence.
-That fallback costs an NS-32 tier-table change and a consent-page change,
-and is **not** built speculatively.
+`get_event`, `get_track_history`, `get_leaderboard`, `get_season_summary`).
+Two of those need a change for it. `get_event` returns no channel data
+(only which channels a session carries), but it does return `setups`, which
+the apps gate behind `canUseSetups`, so a free account's result drops them.
+`get_season_summary` already answers `pro: null` for a free account, since
+`GET /wrapped/:year` decides that field from the tier. The analysis tools
+stay Pro and answer the neutral sentence. That fallback costs an NS-32
+tier-table change and a consent-page change, and is **not** built
+speculatively.
 
 The docs site's `ai.html` may keep saying "with Pro". It's our site, not a
 surface inside ChatGPT.
@@ -116,9 +120,10 @@ both challenge an unfamiliar device. **Proposal:**
   `lib/review.ts`). Unset means every review route is a **404**, like
   `OPENAI_APPS_CHALLENGE`.
 - **Reachable only from the OAuth consent flow.** When signed out, the
-  consent page today redirects straight to `/auth/login`. It becomes a small
-  chooser: Google, Apple (when configured), and, only when the secrets are
-  set, a *Review account* form. Posting it creates an ordinary
+  consent page already shows a *Sign in to connect* chooser: Google, plus
+  Apple when it's configured, each linking to its login route with `next`
+  set back to the authorization request. It gains a third option, shown only
+  when the secrets are set: a *Review account* form. Posting it creates an ordinary
   `auth_sessions` row for that one user and continues to `next`
   (`isSafeNext` unchanged). It never appears in the web app or the native
   apps.
@@ -144,7 +149,10 @@ against `platform.openai.com/apps-manage`:
   that say when to use them.
 - **Test prompts**: direct, indirect and negative. The draft's `test_cases` /
   `negative_test_cases` already cover this; re-extract them after any tool
-  change.
+  change. **The draft is already stale**: it lists 13 tools, but its
+  `x_submission_review` still says "All 12 annotation objects" and records a
+  commit from before `get_racing_line` landed. Ticket 0 re-extracts it from
+  the current `tools/list`.
 - No request for the full conversation history, location, or sensitive
   inputs. None of our tools asks.
 - **13+ audience.** Track-day drivers are adults; the privacy policy already
@@ -220,9 +228,14 @@ read through the private API's `GET /me`), and is bounded by
 `src/`:
 
 - `src/ai/widgets/<name>/view.js` is a **pure** `render<Name>(payload, ctx)`
-  returning an HTML string, mirroring the codebase's pure/DOM split.
+  returning an HTML string, mirroring the codebase's pure/DOM split. Where a
+  card has a canvas (the session debrief's track map), the string carries an
+  empty `<canvas>` and the payload carries the trace and markers;
+  `bridge.js` hands both to `renderTrackMap` after mounting.
   `bridge.js` is the thin DOM half: the `ui/*` handshake, size
-  notifications, host-context theming, and event delegation.
+  notifications, host-context theming, mounting canvases, the per-module
+  binders (`bindWrappedStory`, the charts' hover read-outs), and event
+  delegation.
 - `npm run widgets:build` (`scripts/build-widgets.mjs`) runs **esbuild**
   (already in the lockfile through wrangler; added as an explicit
   devDependency) to bundle each widget, inline its CSS, and write
@@ -254,16 +267,28 @@ charts' "faster" signal, the same reason Material You is off on Android.
 
 ### Modules under a sandbox
 
-The widget iframe is sandboxed. `localStorage` can throw and there's no
-`#tooltip` element, so:
+The widget iframe is sandboxed, and it isn't the web app's page. The
+modules assume three things about that page, and each needs an answer:
 
-- **Units are passed explicitly** (`channelChartSvg(..., { units })`) and
-  never read through `currentUnits()`.
-- `chart.js`'s tooltip lookup tolerates a missing `#tooltip` (the bundle
-  provides one).
-- `trackmap.js` gets its colours from the computed style as it does now.
+- **Units.** `localStorage` may be unavailable, and `currentUnits()` swallows
+  that and falls back to imperial. A metric driver's card would then read in
+  miles without failing, so **units are always passed explicitly** and never
+  read through `currentUnits()`. Most renderers already take them
+  (`channelChartSvg` and `deltaChartSvg` via `{ units }`, `wrappedStoryHtml`
+  via `ctx.units`). **`gearRibbonSvg` doesn't**: [gears.js](../../../public/js/gears.js)
+  reads `currentUnits()` for its distance axis and labels. Ticket 1 gives it
+  a `{ units = currentUnits() }` option, which is the one `public/js` seam
+  known today.
+- **The tooltip.** `chart.js` (`lineChart`, `multiLineChart`) and
+  `channel-graphs.js`'s hover read-out look up `#tooltip` and use it
+  without a null check, so a page without one throws on the first hover. The
+  bundle's shell **provides a `#tooltip` element** and the modules stay as
+  they are.
+- **Colours.** `trackmap.js` reads its colours from the computed style of
+  `document.documentElement`, so the bundle's `:root` token block (see
+  *Theming*) has to be in place before `renderTrackMap` first draws.
 
-If a module needs a code change to run there, that change is a seam with the
+Any other module that needs a code change to run there gets a seam with the
 old default, made in the ticket that needs it, and the web app's unit tests
 must stay green.
 
@@ -278,7 +303,7 @@ its data isn't there, never to an empty frame.
 | 1 | **Two-lap compare** | `compare_laps` | Head-to-head line, delta chart, speed overlay, sector table (`sectorTableHtml`), the gear ribbon when both laps stored `gear` | Hover read-out. Tap a sector → `ui/update-model-context` ("the driver is looking at S2: +0.61 s"). *Ask about S2* → `ui/message`. Fullscreen adds throttle and brake. |
 | 2 | **Session debrief** | `get_session_insights` | Best-lap track map with limit markers (`limitMarkers`), sector table with theoretical best, the health and balance summary sentences, the stats line | Tap a limit marker or corner row → model context. *Debrief this session* → `ui/message`. |
 | 3 | **Track progress** | `get_track_history` | Best-per-event chart (`lineChart`, lower is better) with the conditions band; waits for two timed events, like every client | Tap a point → model context naming the event. |
-| 3 | **Season Wrapped** | `get_season_summary` | `wrappedStoryHtml` in **fullscreen**, as on the web, with the Pro cards when present | Story navigation only. No poster download: the sandbox can't hand over a file, and the share page is the shareable thing. |
+| 3 | **Season Wrapped** | `get_season_summary` | `wrappedStoryHtml` in **fullscreen**, as on the web, with the Pro cards when `pro` holds data. A `pro: null` payload (only possible under the free fallback in *Policy*) is passed **without the `pro` key**, as the public share page does, so `wrappedCards` draws no locked Pro cards: a locked card is an upsell. `ctx` supplies no year picker, store links or poster actions | Story navigation only. No poster download: the sandbox can't hand over a file, and the share page is the shareable thing. |
 | 4 | **Garage wear** | `get_garage` | Per-car consumables with wear bars, the `partStatus` wording, the no-basis rule (no bar, words instead) | None. |
 
 No card offers a link into the web app in v1. `ui/open-link` to
@@ -317,7 +342,11 @@ and records it here.
   account's app-only tool call gets the Pro tool error like any other.
 - **`test/unit/widgets.test.js`:** each `render<Name>` over a fixture
   payload, in both unit systems, plus the empty case. These are pure-function
-  tests, the same shape as the existing chart tests.
+  tests, the same shape as the existing chart tests. The metric case
+  includes the gear ribbon's axis, which is what proves the `gearRibbonSvg`
+  seam is wired. The track map's canvas drawing isn't reachable from Node,
+  so the debrief test asserts the payload's trace and markers and the empty
+  `<canvas>`, not pixels; the manual pass covers the drawing.
 - **`widgets:check` in CI**, beside `contracts:check`.
 - **Manual, per widget ticket**, recorded in the PR: ChatGPT developer mode
   (web, then the phone apps), Claude (web and desktop), and the MCP Apps
@@ -384,7 +413,9 @@ hosting.
 - Anything sold, priced or linked for purchase inside ChatGPT.
 - A hosted model on our key (#314's follow-on).
 - Native Settings rows for connected assistants (#314's follow-up).
-- Any change to `public/`, `apps/`, or the web app's routes.
+- Any change to `apps/` or the web app's routes, and any change to `public/`
+  beyond the default-preserving seams described under *Clients* and
+  *Modules under a sandbox*.
 
 ## Sources
 
