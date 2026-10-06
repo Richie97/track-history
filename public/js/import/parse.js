@@ -15,6 +15,7 @@
 // (pdr-laps.js).
 
 import { parsePdrFile } from "../../pdr.js";
+import { parsePdr25File } from "./pdr25.js";
 import { parseGpmfFile } from "./gpmf.js";
 import { parseVboFile } from "./vbo.js";
 import { parseTrackPrecisionCsvFile } from "./csv.js";
@@ -35,11 +36,12 @@ export async function parseTelemetryFile(file) {
   // Porsche Track Precision's CSV export — the only CSV layout read.
   if (name.endsWith(".csv")) return attachLapChannels(await parseTrackPrecisionCsvFile(file));
 
-  // .mp4: Corvette PDR first, then GoPro GPMF. Both parsers throw a
-  // "No ... telemetry track" error when the file simply isn't theirs.
+  // .mp4: Corvette PDR first, then the newer AliveDrive PDR 2.5 (2025-on
+  // GM cars), then GoPro GPMF. Every parser throws a "No ... telemetry
+  // track" error when the file simply isn't theirs.
   let pdrErr;
   try {
-    const pdr = await parsePdrFile(file);
+    const pdr = await parsePdrAnyFile(file);
     // Beacon-timed laps share the telemetry clock with the GPS trace, so the
     // fastest lap's window cuts straight out of it. Without laps,
     // the trace goes to the start/finish line picker instead.
@@ -69,5 +71,19 @@ export async function parseTelemetryFile(file) {
       throw new Error("No PDR or GoPro telemetry in this video");
     }
     throw noTrack(pdrErr) ? gpErr : pdrErr;
+  }
+}
+
+const NO_TRACK = /No .* telemetry track/;
+
+// Both PDR generations resolve to the same shape and `kind`, so everything
+// downstream treats them alike; the newer one is tried only when the file has
+// no Marlin track, and its own "no track" error stands for both.
+async function parsePdrAnyFile(file) {
+  try {
+    return await parsePdrFile(file);
+  } catch (err) {
+    if (!NO_TRACK.test(err.message)) throw err;
+    return parsePdr25File(file);
   }
 }

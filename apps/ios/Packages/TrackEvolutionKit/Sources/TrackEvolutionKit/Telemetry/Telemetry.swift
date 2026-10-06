@@ -33,7 +33,8 @@ public enum Telemetry {
     }
 
     /// Parse a telemetry file: a `.vbo` or `.csv` log by name, otherwise an MP4 —
-    /// Corvette PDR first, then GoPro GPMF.
+    /// Corvette PDR first, then the newer AliveDrive PDR 2.5 (2025-on GM cars),
+    /// then GoPro GPMF.
     ///
     /// Both video parsers report "no track of mine here" distinctly from "this
     /// file is mine and it's broken", so a GoPro clip isn't reported as a broken
@@ -56,7 +57,7 @@ public enum Telemetry {
         }
         var pdrErr: TelemetryParseError?
         do {
-            var pdr = try PDR.parsePdrFile(source)
+            var pdr = try parsePdrAnyFile(source)
             // Beacon-timed laps share the telemetry clock with the GPS trace, so
             // the fastest lap's window cuts straight out of it. Without laps, the
             // trace goes to the start/finish line picker instead.
@@ -88,6 +89,17 @@ public enum Telemetry {
                 throw TelemetryParseError(message: "No PDR or GoPro telemetry in this video")
             }
             throw pdrErr?.isNoTrack == true ? gpErr : (pdrErr ?? gpErr)
+        }
+    }
+
+    /// Both PDR generations resolve to the same shape and `kind`; the newer one is
+    /// tried only when the file has no Marlin track, and its own "no track" error
+    /// stands for both. `parsePdrAnyFile` in `parse.js`.
+    static func parsePdrAnyFile(_ source: some TelemetryByteSource) throws -> ParsedTelemetry {
+        do {
+            return try PDR.parsePdrFile(source)
+        } catch let error as TelemetryParseError where error.isNoTrack {
+            return try PDR25.parsePdr25File(source)
         }
     }
 

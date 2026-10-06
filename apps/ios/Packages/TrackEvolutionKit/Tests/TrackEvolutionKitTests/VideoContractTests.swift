@@ -25,6 +25,8 @@ struct VideoContractTests {
         "pdr-nobeacon.mp4",
         "pdr-real-beacons.mp4",
         "pdr-real-shifted.mp4",
+        "pdr25-laps.mp4",
+        "pdr25-nolaps.mp4",
     ])
     func matchesTheJavaScriptParsers(file: String) throws {
         let parsed = try VideoFixtures.parse(file)
@@ -32,7 +34,7 @@ struct VideoContractTests {
         Self.assertMatches(parsed, entry.expected, file: file)
     }
 
-    @Test(arguments: ["gopro.mp4", "pdr-delta-nobeacon.mp4", "pdr-nobeacon.mp4"])
+    @Test(arguments: ["gopro.mp4", "pdr-delta-nobeacon.mp4", "pdr-nobeacon.mp4", "pdr25-nolaps.mp4"])
     func linePickedLapsMatchTheJavaScript(file: String) throws {
         var parsed = try VideoFixtures.parse(file)
         let picked = try #require(VideoFixtures.expected(file).picked)

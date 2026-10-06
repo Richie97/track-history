@@ -2157,7 +2157,7 @@ async function viewEvent(eventId) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR and GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
       </div>
     </div>
     ${
@@ -2682,7 +2682,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR and GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
       </div>
     </div>
     ${
