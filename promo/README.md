@@ -16,6 +16,9 @@ Upload a re-cut, and the video id and the poster frame there change with it:
 ffmpeg -ss 5.45 -i out/track-evolution-promo.mp4 -frames:v 1 -vf scale=1280:-2 -q:v 3 ../site/promo-poster.jpg
 ```
 
+The App Store's product page header, search results asset and app preview
+are built from the same logbook — see [`appstore/README.md`](appstore/README.md).
+
 ## Build it
 
 ```sh

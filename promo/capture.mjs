@@ -337,6 +337,38 @@ await go(m, `#/event/${pbEvent.id}`, "#trackmap");
 await shot(m, "m-event", { fullPage: true, clip: { x: 0, y: 0, width: 390, height: 2600 } });
 await go(m, `#/track/${trackId}/leaderboard`, "table");
 await shot(m, "m-leaderboard");
+// The App Store preview's draft stand-ins (appstore/preview.js): the screens
+// it cuts to, at phone width, until the native footage is recorded.
+const pageShot = async (name, maxH) => {
+  const h = await m.evaluate(() => document.documentElement.scrollHeight);
+  await shot(m, name, { fullPage: true, clip: { x: 0, y: 0, width: 390, height: Math.min(h, maxH) } });
+};
+await go(m, `#/track/${trackId}`, ".chart-card svg");
+await pageShot("m-track", 1800);
+await go(m, `#/vehicle/${z06.id}`, "h1");
+await pageShot("m-vehicle", 2400);
+{
+  await go(m, `#/event/${pbEvent.id}`, "#trackmap");
+  await unstick(m);
+  const card = m.locator("div.session").filter({ has: m.locator("button.ch-chip.on", { hasText: "★" }) }).filter({ hasText: pb.session.label });
+  await card.locator("summary").first().click();
+  await m.waitForTimeout(400);
+  await card.locator("button.ch-chip").nth(order[1].i).click();
+  await m.waitForTimeout(400);
+  for (const tab of ["time", "grip"]) {
+    await card.locator(`[data-ch-tab="${tab}"]`).click();
+    await m.waitForTimeout(500);
+    await card.scrollIntoViewIfNeeded();
+    await card.screenshot({ path: path.join(SHOTS, `m-panel-${tab}.png`) });
+    // where the tab's first chart starts, so the draft can scroll to it
+    facts.boxes[`mPanel_${tab}`] = await card.evaluate((c) => {
+      const r0 = c.getBoundingClientRect();
+      const panel = c.querySelector(".ch-tabpanel:not([hidden])");
+      const r = panel ? panel.getBoundingClientRect() : r0;
+      return { panelY: Math.round(r.top - r0.top), h: Math.round(r0.height) };
+    });
+  }
+}
 // Season Wrapped, card by card.
 await go(m, "#/wrapped/2025", ".wrapped");
 let cards = 0;
