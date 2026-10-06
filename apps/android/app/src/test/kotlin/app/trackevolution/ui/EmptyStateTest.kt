@@ -7,6 +7,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import app.trackevolution.screens.TRACK_DAYS_GUIDE_LINK
+import app.trackevolution.screens.TRACK_DAYS_GUIDE_URL
 import app.trackevolution.screens.WELCOME_TEXT
 import app.trackevolution.screens.WelcomeCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -124,6 +126,18 @@ class EmptyStateTest {
         compose.onNodeWithTag("welcomeRecord").performClick()
         assertEquals(1, added)
         assertEquals(1, recorded)
+    }
+
+    @Test
+    fun `the welcome card links a newcomer to the track-day guide`() {
+        var opened = 0
+        compose.setContent {
+            TrackTheme { WelcomeCard(onNewEvent = {}, onRecord = null, onOpenGuide = { opened++ }) }
+        }
+        compose.onNodeWithText("$TRACK_DAYS_GUIDE_LINK ↗").assertIsDisplayed()
+        compose.onNodeWithTag("welcomeTrackDaysGuide").performClick()
+        assertEquals(1, opened)
+        assertEquals("https://docs.trackevolution.app/docs/track-days.html", TRACK_DAYS_GUIDE_URL)
     }
 
     @Test

@@ -77,6 +77,8 @@ fun DashboardScreen(
     onRecord: (Int?) -> Unit,
     /** Open Season Wrapped for a year — the November banner's door (NS-36). */
     onOpenWrapped: (Int) -> Unit = {},
+    /** Open the newcomer's track-day guide — the welcome card's link. */
+    onOpenTrackDaysGuide: () -> Unit = {},
     /**
      * Whether to draw the recorder's second door at all.
      *
@@ -123,6 +125,7 @@ fun DashboardScreen(
                             } else {
                                 null
                             },
+                            onOpenGuide = onOpenTrackDaysGuide,
                         )
                     }
                     return@LazyColumn
@@ -233,6 +236,15 @@ fun DashboardScreen(
     }
 }
 
+/**
+ * The newcomer's guide — what an HPDE is, what you need, where to find one.
+ * Linked from the welcome card and from Settings, as on the web and iOS.
+ */
+internal const val TRACK_DAYS_GUIDE_URL = "https://docs.trackevolution.app/docs/track-days.html"
+
+/** The welcome card's link to [TRACK_DAYS_GUIDE_URL], in the web's and iOS's words. */
+internal const val TRACK_DAYS_GUIDE_LINK = "New to track days? Start here"
+
 /** The welcome card's sentence — iOS's `welcomeText` for a phone, verbatim. */
 internal const val WELCOME_TEXT =
     "Your logbook starts with an event: the track, the date and the car. Then add its sessions — " +
@@ -246,7 +258,7 @@ internal const val WELCOME_TEXT =
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?) {
+internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?, onOpenGuide: () -> Unit = {}) {
     val colors = TrackTheme.colors
     TrackCard(modifier = Modifier.fillMaxWidth().semantics { testTag = "welcomeCard" }) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -293,6 +305,17 @@ internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?) {
                     }
                 }
             }
+            // For a driver who has never been on track — the guide on the
+            // docs site, as the web's and iOS's cards link it.
+            Text(
+                "$TRACK_DAYS_GUIDE_LINK ↗",
+                style = TrackTheme.typography.sm,
+                color = colors.accentInk,
+                modifier = Modifier
+                    .clickable(onClick = onOpenGuide)
+                    .padding(vertical = 6.dp)
+                    .semantics { testTag = "welcomeTrackDaysGuide" },
+            )
         }
     }
 }

@@ -27,6 +27,15 @@ pages in [`site/`](site/), deployed to GitHub Pages by
 `main` that touches `site/`. (One-time setup: repo *Settings → Pages → Source:
 GitHub Actions*.)
 
+The site also carries the newcomer's guide, `site/docs/track-days.html` — what
+an HPDE is, what the driver and the car need, where to find an event (the
+organizers' links), what happens on the day, and the tools drivers record
+laps with (PDR, Track Precision, VBOX, lap-timer apps, GoPro) with what each
+takes to import — keep that table in step with the importer's sources. Every client links to it from
+the first-run welcome card and from Settings' *New to track days?* section, so
+the organizer list lives in one static page and changing it needs no app
+release.
+
 Both the site and the app carry Open Graph / Twitter-card tags for link
 previews; they share one social preview image, checked in as identical copies
 at `site/og-image.png` and `public/og-image.png` (1200×630 PNG, rendered from

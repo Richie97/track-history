@@ -28,6 +28,10 @@ struct SettingsScreen: View {
 
     private static let checklistKey = "checklistItem"
     private static let docsURL = URL(string: "https://docs.trackevolution.app")!
+    /// The newcomer's guide — what an HPDE is, what you need, where to find
+    /// one. Linked from here and from the dashboard's first-run welcome card,
+    /// as on the web and Android.
+    static let trackDaysGuideURL = URL(string: "https://docs.trackevolution.app/docs/track-days.html")!
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -132,6 +136,19 @@ struct SettingsScreen: View {
                     }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityIdentifier("openGarage")
+                }
+            }
+
+            TESectionHeader("New to track days?")
+            TECard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("What a track day is, what you and the car need, where to find an event near you, and what happens on the day.")
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                    Link(destination: Self.trackDaysGuideURL) {
+                        legalRow("Your first track day")
+                    }
+                    .accessibilityIdentifier("trackDaysGuide")
                 }
             }
 
