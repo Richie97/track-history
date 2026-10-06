@@ -121,7 +121,13 @@ not a follow-up:**
      driver who has never been on track: what an HPDE is, what the car and
      driver need, where to find an event (links to the organizers —
      MotorsportReg, Track Night in America, NASA, Hooked on Driving, Chin
-     Track Days, the marque clubs), and the day itself. Linked from every
+     Track Days, the marque clubs), the day itself, and *Recording your
+     laps* — the tools drivers record with outside the app (the phone
+     recorder, GM's PDR, Porsche Track Precision, Racelogic VBOX, lap-timer
+     apps, GoPro, and the ones the importer can't read), each with what it
+     takes to get it into the logbook. That table states import support,
+     so it owes an edit whenever `site/docs/telemetry-import.html`'s
+     sources change. Linked from every
      client's first-run welcome card and from Settings' *New to track days?*
      section (`TRACK_DAYS_URL` in `public/app.js`,
      `SettingsScreen.trackDaysGuideURL` on iOS, `TRACK_DAYS_GUIDE_URL` in
