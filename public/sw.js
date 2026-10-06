@@ -95,6 +95,9 @@ self.addEventListener("fetch", (e) => {
 
   if (url.origin === self.location.origin) {
     if (url.pathname.startsWith("/auth/")) return; // never cache auth
+    // The store redirect answers per device; a cached copy (or the shell
+    // fallback offline) would be the wrong answer.
+    if (url.pathname === "/get") return;
     // A coach invite link carries a single-use token in its path; keep it out
     // of both caches (NS-38).
     if (url.pathname.startsWith("/coach/") || url.pathname.startsWith("/api/coaching/invites/")) return;

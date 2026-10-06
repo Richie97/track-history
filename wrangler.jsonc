@@ -16,12 +16,14 @@
     // (src/routes/billingWebhooks.ts), public and outside /api. /mcp, /oauth/*
     // and the two OAuth discovery documents are the MCP server and its
     // authorization server (src/routes/mcp.ts, oauth.ts) — without these the
-    // SPA fallback would answer them with index.html.
+    // SPA fallback would answer them with index.html. /get is the store
+    // redirect (src/routes/download.ts), which picks a store per User-Agent.
     "run_worker_first": [
       "/api/*",
       "/auth/*",
       "/share/*",
       "/billing/*",
+      "/get",
       "/.well-known/apple-app-site-association",
       "/.well-known/openai-apps-challenge",
       "/mcp",

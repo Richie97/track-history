@@ -261,6 +261,17 @@ layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-tim
 diff, year in review and the two-event overlay stay web-only by design; Season
 Wrapped is on all three.
 
+**One download link for both stores:** `https://trackevolution.app/get`
+(`src/routes/download.ts`) redirects an iPhone, iPod or iPad to the App Store
+and an Android device to Google Play, by User-Agent (`storeFor` in
+`src/lib/storeLinks.ts`), and shows a page with both links to everything else —
+desktops, and link-preview scrapers, which get its Open Graph tags. iPadOS
+Safari sends a Mac User-Agent, so the page carries a small script that sends a
+touch-screen "Mac" to the App Store too. The redirect is a `302` with
+`Vary: User-Agent` and `Cache-Control: no-store`, and the service worker leaves
+`/get` alone, so no cache can hand one device's answer to another. Use it on
+stickers, QR codes and anywhere a single link has to serve both platforms.
+
 The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
 build; a Mac window is a large screen, so it gets the two-pane layout an iPad
