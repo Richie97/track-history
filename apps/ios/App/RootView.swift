@@ -352,6 +352,8 @@ struct RootView: View {
             CoachInviteScreen(token: token)
         case .student(let id, let page):
             StudentLogbook(studentId: id, page: page)
+        case .trackDaysGuide:
+            TrackDaysGuideScreen()
         }
     }
 
@@ -387,7 +389,7 @@ struct RootView: View {
         case .lap(let eventId, let sessionId, let lapId):
             [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
         case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
-             .coaching, .profile, .coachInvite, .student: nil
+             .coaching, .profile, .coachInvite, .student, .trackDaysGuide: nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }
         return id

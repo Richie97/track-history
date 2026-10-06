@@ -55,6 +55,10 @@ enum Route: Hashable {
     /// that write — the form, the recorder, the importer, the leaderboard — have
     /// no student counterpart to reach by accident.
     case student(id: Int, page: StudentPage)
+    /// *Your first track day*, the docs site's guide, in an in-app web view —
+    /// from the dashboard's first-run card and from Settings. Opens wherever you
+    /// are, like Settings.
+    case trackDaysGuide
 }
 
 /// The pages of a student's logbook a coach can open (NS-38) — the web's
@@ -86,7 +90,7 @@ extension LogbookOwner {
             .student(id: id, page: .lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
         case .student: route
         case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .wrapped,
-             .coaching, .profile, .coachInvite:
+             .coaching, .profile, .coachInvite, .trackDaysGuide:
             .student(id: id, page: .home)
         }
     }
@@ -111,7 +115,7 @@ extension Route {
         switch self {
         case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .lap,
-             .coaching, .profile, .coachInvite, .student: false
+             .coaching, .profile, .coachInvite, .student, .trackDaysGuide: false
         }
     }
 }
@@ -153,7 +157,7 @@ extension Route {
     var tab: AppTab? {
         switch self {
         case .vehicle: .garage
-        case .settings, .coaching, .profile: nil
+        case .settings, .coaching, .profile, .trackDaysGuide: nil
         // A student's logbook is a pushed destination on the Events tab, never a
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
@@ -534,7 +538,7 @@ final class AppRouter {
             // A student's ids are never temp either: a coach cannot write to the
             // logbook, so every row in it came from the server.
             case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
-                 .coaching, .profile, .coachInvite, .student:
+                 .coaching, .profile, .coachInvite, .student, .trackDaysGuide:
                 return route
             }
         }

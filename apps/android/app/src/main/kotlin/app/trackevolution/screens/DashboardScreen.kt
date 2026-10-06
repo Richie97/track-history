@@ -308,7 +308,8 @@ internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?, onOpen
             // For a driver who has never been on track — the guide on the
             // docs site, as the web's and iOS's cards link it.
             Text(
-                "$TRACK_DAYS_GUIDE_LINK ↗",
+                // `›`, not `↗`: it opens in the app's own web view now.
+                "$TRACK_DAYS_GUIDE_LINK ›",
                 style = TrackTheme.typography.sm,
                 color = colors.accentInk,
                 modifier = Modifier

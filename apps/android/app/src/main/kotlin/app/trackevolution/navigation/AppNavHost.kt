@@ -64,6 +64,7 @@ import app.trackevolution.screens.LeaderboardScreen
 import app.trackevolution.screens.SessionCompareScreen
 import app.trackevolution.screens.SettingsModel
 import app.trackevolution.screens.SettingsScreen
+import app.trackevolution.screens.TrackDaysGuideScreen
 import app.trackevolution.screens.SharedLogbookModel
 import app.trackevolution.screens.SharedLogbookScreen
 import app.trackevolution.screens.TrackModel
@@ -459,7 +460,12 @@ fun AppNavHost(
                     entitlement = entitlement ?: Entitlement.FREE,
                     onSubscribe = onRequirePro,
                     onOpenCoaching = { nav.navigate(Route.Coaching) },
+                    onOpenTrackDaysGuide = { nav.navigate(Route.TrackDaysGuide) },
                 )
+            }
+
+            pageComposable<Route.TrackDaysGuide> {
+                TrackDaysGuideScreen()
             }
 
             // ---- Share with a coach (NS-38) -----------------------------------

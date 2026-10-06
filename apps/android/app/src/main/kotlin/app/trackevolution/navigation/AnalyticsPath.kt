@@ -40,6 +40,8 @@ public val Route.analyticsPath: String
         is Route.CoachInvite -> "/coach"
         is Route.Student -> "/student/:id"
         is Route.StudentVehicle -> "/student/:id/vehicle/:id"
+        // A docs-site page, not a web-app route; named in the same idiom.
+        Route.TrackDaysGuide -> "/guide/track-days"
     }
 
 /** The web's `#/student/:id/…` prefix for a page read through a coach's grant. */
@@ -77,6 +79,7 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.CoachInvite::class) -> toRoute<Route.CoachInvite>()
         d.hasRoute(Route.Student::class) -> toRoute<Route.Student>()
         d.hasRoute(Route.StudentVehicle::class) -> toRoute<Route.StudentVehicle>()
+        d.hasRoute(Route.TrackDaysGuide::class) -> Route.TrackDaysGuide
         else -> null
     }
 }

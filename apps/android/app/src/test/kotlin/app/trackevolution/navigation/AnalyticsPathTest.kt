@@ -42,6 +42,7 @@ class AnalyticsPathTest {
         Route.CompareLaps(3, student = 8) to "/student/:id/track/:id/lap-compare",
         Route.Lap(12, 40, 991, student = 8) to "/student/:id/event/:id/lap/:id",
         Route.SessionCompare(12, 40, 991, student = 8) to "/student/:id/event/:id/session/:id/compare",
+        Route.TrackDaysGuide to "/guide/track-days",
     )
 
     @Test

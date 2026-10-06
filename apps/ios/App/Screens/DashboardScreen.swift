@@ -154,16 +154,20 @@ struct DashboardScreen: View {
                 }
                 .padding(.top, 4)
                 // For a driver who has never been on track — the guide on
-                // the docs site, as the web's and Android's cards link it.
-                Link(destination: SettingsScreen.trackDaysGuideURL) {
+                // the docs site, as the web's and Android's cards link it, read
+                // in the app's own web view rather than Safari.
+                Button {
+                    openFromList(.trackDaysGuide)
+                } label: {
                     HStack(spacing: 4) {
                         Text("New to track days? Start here")
-                        Image(systemName: "arrow.up.right")
+                        Image(systemName: "chevron.right")
                             .accessibilityHidden(true)
                     }
                     .teStyle(.sm)
                     .foregroundStyle(Color(.accentInk))
                 }
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("welcomeTrackDaysGuide")
             }
         }

@@ -145,9 +145,15 @@ struct SettingsScreen: View {
                     Text("What a track day is, what you and the car need, where to find an event near you, and what happens on the day.")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
-                    Link(destination: Self.trackDaysGuideURL) {
-                        legalRow("Your first track day")
+                    // In the app's own web view (`TrackDaysGuideScreen`), not
+                    // Safari: it is a page to read, not a site to leave for.
+                    Button {
+                        router.push(.trackDaysGuide)
+                    } label: {
+                        legalRow("Your first track day", symbol: "chevron.right")
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("trackDaysGuide")
                 }
             }
@@ -185,13 +191,15 @@ struct SettingsScreen: View {
         .refreshable { await model.load() }
     }
 
-    private func legalRow(_ title: String) -> some View {
+    /// `arrow.up.right` for a link that leaves the app, `chevron.right` for one
+    /// that opens a screen in it.
+    private func legalRow(_ title: String, symbol: String = "arrow.up.right") -> some View {
         HStack {
             Text(title)
                 .teStyle(.body)
                 .foregroundStyle(Color(.textBody))
             Spacer()
-            Image(systemName: "arrow.up.right")
+            Image(systemName: symbol)
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
         }

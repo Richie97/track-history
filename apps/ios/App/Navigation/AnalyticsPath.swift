@@ -30,6 +30,8 @@ extension Route {
         case .profile: "/profile"
         case .coachInvite: "/coach"
         case .student(_, let page): "/student/:id" + page.analyticsPath
+        // A docs-site page, not a web-app route; named in the same idiom.
+        case .trackDaysGuide: "/guide/track-days"
         }
     }
 

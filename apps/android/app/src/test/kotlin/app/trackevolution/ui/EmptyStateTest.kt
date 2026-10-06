@@ -1,5 +1,6 @@
 package app.trackevolution.ui
 
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -7,12 +8,14 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import app.trackevolution.screens.GuidePage
 import app.trackevolution.screens.TRACK_DAYS_GUIDE_LINK
 import app.trackevolution.screens.TRACK_DAYS_GUIDE_URL
 import app.trackevolution.screens.WELCOME_TEXT
 import app.trackevolution.screens.WelcomeCard
 import app.trackevolution.ui.theme.TrackTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -134,7 +137,7 @@ class EmptyStateTest {
         compose.setContent {
             TrackTheme { WelcomeCard(onNewEvent = {}, onRecord = null, onOpenGuide = { opened++ }) }
         }
-        compose.onNodeWithText("$TRACK_DAYS_GUIDE_LINK ↗").assertIsDisplayed()
+        compose.onNodeWithText("$TRACK_DAYS_GUIDE_LINK ›").assertIsDisplayed()
         compose.onNodeWithTag("welcomeTrackDaysGuide").performClick()
         assertEquals(1, opened)
         assertEquals("https://docs.trackevolution.app/docs/track-days.html", TRACK_DAYS_GUIDE_URL)
@@ -145,5 +148,20 @@ class EmptyStateTest {
         compose.setContent { TrackTheme { WelcomeCard(onNewEvent = {}, onRecord = null) } }
         compose.onNodeWithTag("welcomeAddEvent").assertIsDisplayed()
         assertTrue(compose.onAllNodesWithTag("welcomeRecord").fetchSemanticsNodes().isEmpty())
+    }
+
+    /**
+     * The guide reads in the app's own web view: the docs site stays in it,
+     * and everything else — an organizer, a mail link — goes to a Custom Tab.
+     */
+    @Test
+    fun `the guide keeps the docs site and sends the rest out`() {
+        assertTrue(GuidePage.opensInApp(Uri.parse("https://docs.trackevolution.app/docs/telemetry-import.html")))
+        assertTrue(GuidePage.opensInApp(Uri.parse(TRACK_DAYS_GUIDE_URL)))
+        assertFalse(GuidePage.opensInApp(Uri.parse("https://www.motorsportreg.com/")))
+        assertFalse(GuidePage.opensInApp(Uri.parse("http://docs.trackevolution.app/docs/")))
+        assertFalse(GuidePage.opensInApp(Uri.parse("mailto:eric@speedshift.io")))
+        // The same mark `site/analytics.js` looks for, and iOS's `GuidePage`.
+        assertEquals("TrackEvolution-App", GuidePage.USER_AGENT_MARK)
     }
 }

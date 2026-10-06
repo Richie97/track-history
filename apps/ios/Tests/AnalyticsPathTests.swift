@@ -32,6 +32,7 @@ final class AnalyticsPathTests: XCTestCase {
         (.student(id: 8, page: .track(3)), "/student/:id/track/:id"),
         (.student(id: 8, page: .lap(eventId: 12, sessionId: 40, lapId: 991)), "/student/:id/event/:id/lap/:id"),
         (.student(id: 8, page: .vehicle(4)), "/student/:id/vehicle/:id"),
+        (.trackDaysGuide, "/guide/track-days"),
     ]
 
     func testReportsEachScreenByTheWebsPathShape() {

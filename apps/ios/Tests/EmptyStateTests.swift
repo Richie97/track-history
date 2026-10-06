@@ -57,6 +57,19 @@ final class EmptyStateTests: XCTestCase {
         )
     }
 
+    /// The guide reads in the app's own web view: the docs site stays in it,
+    /// and everything else — an organizer, a mail link — goes to the system.
+    func testTheGuideKeepsTheDocsSiteAndSendsTheRestOut() {
+        XCTAssertTrue(GuidePage.opensInApp(URL(string: "https://docs.trackevolution.app/docs/telemetry-import.html")!))
+        XCTAssertTrue(GuidePage.opensInApp(SettingsScreen.trackDaysGuideURL))
+        XCTAssertFalse(GuidePage.opensInApp(URL(string: "https://www.motorsportreg.com/")!))
+        XCTAssertFalse(GuidePage.opensInApp(URL(string: "http://docs.trackevolution.app/docs/")!))
+        XCTAssertFalse(GuidePage.opensInApp(URL(string: "mailto:eric@speedshift.io")!))
+        // The same mark `site/analytics.js` looks for.
+        XCTAssertEqual(GuidePage.userAgentMark, "TrackEvolution-App")
+        XCTAssertEqual(GuidePage.docsHost, SettingsScreen.trackDaysGuideURL.host())
+    }
+
     /// A finished season with no track days won't get one; only the running
     /// year (or a later one) is "— yet".
     func testAnEmptyWrappedYearIsOnlyYetWhileItCanStillHappen() {

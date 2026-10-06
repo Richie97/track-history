@@ -6,11 +6,9 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.toRoute
-import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.screens.DashboardModel
 import app.trackevolution.screens.DashboardScreen
-import app.trackevolution.screens.TRACK_DAYS_GUIDE_URL
 
 /**
  * The dashboard, wherever it is being shown (spec: NS-34 ticket 2).
@@ -62,7 +60,9 @@ fun DashboardPane(
         onRecord = { nav.navigate(Route.Record(eventId = it)) },
         // Never replaced into the detail pane either: the story owns the window.
         onOpenWrapped = { nav.navigate(Route.Wrapped(it)) },
-        onOpenTrackDaysGuide = { CustomTabs.open(context, TRACK_DAYS_GUIDE_URL) },
+        // In the app's own web view rather than a browser tab — a page to read,
+        // not a site to leave for.
+        onOpenTrackDaysGuide = { nav.open(Route.TrackDaysGuide, inListPane) },
         recorderIdle = recorderIdle,
         selection = if (inListPane) selection else null,
     )

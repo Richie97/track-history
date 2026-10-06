@@ -23,7 +23,11 @@
   ];
   var ZONES = /^(Europe\/|Arctic\/|Atlantic\/(Azores|Canary|Faroe|Madeira|Reykjavik)$|Asia\/(Nicosia|Famagusta)$)/;
   var privacyUrl = new URL("docs/privacy.html#analytics", document.currentScript.src).href;
-  var enabled = HOSTS.indexOf(location.hostname) !== -1;
+  // The phone apps open these pages in their own web view, which marks its
+  // user agent "TrackEvolution-App". The apps report screens by route shape
+  // and nothing else, so a page read inside one sends nothing and asks nothing.
+  var inApp = /\bTrackEvolution-App\b/.test(navigator.userAgent);
+  var enabled = !inApp && HOSTS.indexOf(location.hostname) !== -1;
   var loaded = false;
 
   function read() {
