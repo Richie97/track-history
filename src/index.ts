@@ -5,6 +5,7 @@ import { auth } from "./routes/auth";
 import { apiApp } from "./api";
 import { publicShare, sharePage } from "./routes/share";
 import { wellKnown } from "./routes/wellKnown";
+import { download } from "./routes/download";
 import { billingWebhooks } from "./routes/billingWebhooks";
 import { oauth, oauthWellKnown, sweepOAuth } from "./routes/oauth";
 import { mcp } from "./routes/mcp";
@@ -27,6 +28,8 @@ app.route("/auth", auth);
 // Store webhooks: public, sender-verified, outside /api (see run_worker_first).
 app.route("/", billingWebhooks);
 app.route("/.well-known", wellKnown);
+// "Download the app": a phone goes to its store, anything else gets both links.
+app.route("/get", download);
 // The MCP server (routes/mcp.ts) and the OAuth authorization server its
 // clients sign in through (routes/oauth.ts, plus its discovery documents under
 // /.well-known). Outside /api on purpose: their tokens are not app sessions
