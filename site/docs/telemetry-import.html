@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telemetry import — Track Evolution docs</title>
-  <meta name="description" content="Import Corvette PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta name="description" content="Import Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Track Evolution">
   <meta property="og:title" content="Telemetry import — Track Evolution docs">
-  <meta property="og:description" content="Import Corvette PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta property="og:description" content="Import Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:url" content="https://docs.trackevolution.app/docs/telemetry-import.html">
   <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -96,7 +96,7 @@
     </p>
     <p>
       That is where the footage usually is first: a GoPro clip comes over Wi-Fi
-      into Photos and a Corvette PDR clip lands in Files off a USB stick, both
+      into Photos and a PDR clip lands in Files off a USB stick, both
       before the laptop is opened. The clip is read where it sits — nothing is
       copied and nothing is uploaded, which also means a multi-gigabyte video
       imports without needing gigabytes of free space.
@@ -119,6 +119,11 @@
             <td>Corvette PDR (Cosworth) MP4</td>
             <td>The <code>ctbx</code>/<code>marl</code> telemetry track, read by byte range</td>
             <td>Beacon events + odometer recovery, or latitude/odometer lap recovery when a recording has no beacons (see below)</td>
+          </tr>
+          <tr>
+            <td>Cadillac PDR (Cosworth AliveDrive) MP4<br><small>(the newer recorder in Cadillac's V-Series Blackwings)</small></td>
+            <td>The newer recorder's telemetry track, read by byte range — GPS, the car channels and the slow readings, as with a Corvette</td>
+            <td>The recorder's own lap timer — exact, with no line to pick. A recording whose timer timed no laps uses the line picker</td>
           </tr>
           <tr>
             <td>GoPro MP4 (Hero 5+)</td>
@@ -155,7 +160,15 @@
 
     <h2 id="pdr">How PDR lap times are derived</h2>
     <p>
-      The PDR logic is reverse-engineered from the recorder's telemetry track and
+      There are two generations of the recorder. The newer one, in Cadillac's
+      V-Series Blackwings, times laps itself, so its clips arrive with the
+      recorder's own lap times, to the millisecond — and with the GPS trace,
+      the car channels and the slow readings described below. It logs no battery voltage, and a clip whose
+      timer didn't run gets the start/finish line picker.
+    </p>
+    <p>
+      The Corvette's recorder marks the start/finish line with beacons instead.
+      That logic is reverse-engineered from the recorder's telemetry track and
       validated against Cosworth Toolbox lap times:
     </p>
     <ul>

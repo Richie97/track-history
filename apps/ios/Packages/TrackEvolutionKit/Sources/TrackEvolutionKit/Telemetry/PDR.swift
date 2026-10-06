@@ -714,7 +714,7 @@ public enum PDR {
     /// every other character is itself. Stands in for the JS's two small regexes
     /// over the `mrlv` box; a literal scan avoids depending on a regex flavour
     /// for something this fixed.
-    private static func firstMatch(_ raw: String, after marker: String, shape: String) -> String? {
+    static func firstMatch(_ raw: String, after marker: String, shape: String) -> String? {
         let chars = Array(raw)
         let mark = Array(marker)
         let want = Array(shape)

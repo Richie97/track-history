@@ -207,6 +207,7 @@ import {
   buildGpmfMp4,
   buildPdrDeltaMp4,
   buildPdrMp4,
+  buildPdr25Mp4,
   buildPdrRealMp4,
   buildTrackPrecisionCsv,
   buildVboText,
@@ -1608,6 +1609,17 @@ const videoFixtures = [
     bytes: buildPdrRealMp4({ beaconTimes }),
   },
   {
+    file: "pdr25-laps.mp4",
+    note: "AliveDrive PDR 2.5 (2025-on GM, the Cadillac Blackwing's recorder): self-describing 'adco' entry, untagged scheduled records at 20/10/5/1 Hz, lap.start/lap.end events, four samples per chunk.",
+    bytes: buildPdr25Mp4({ lapCrossings: beaconTimes }),
+  },
+  {
+    file: "pdr25-nolaps.mp4",
+    note: "The same PDR 2.5 recording with no lap events (the recorder didn't know the track): the line picker times the laps.",
+    bytes: buildPdr25Mp4(),
+    pick: true,
+  },
+  {
     file: "pdr-real-shifted.mp4",
     note: "The same track from a different pit-out angle, no beacons: laps recovered from lat+odometer periodicity, then anchored by the file above.",
     bytes: buildPdrRealMp4({ startAngle: 1.0 }),
@@ -1653,11 +1665,11 @@ const anchored = batchResults
 const videoFixture = {
   description:
     "Reference output of the video telemetry parsers (public/pdr.js, " +
-    "public/js/import/gpmf.js, channels.js, pdr-laps.js) over the committed MP4s " +
+    "public/js/import/pdr25.js, gpmf.js, channels.js, pdr-laps.js) over the committed MP4s " +
     "in contracts/logic/video/. The iOS port (NS-30) must reproduce lap times to " +
     "the millisecond, coordinates to 1e-9 and every channel array element for " +
     "element. Regenerate with `npm run contracts:logic`; never hand-edit.",
-  source: "public/pdr.js, public/js/import/gpmf.js, public/js/import/channels.js, public/js/import/pdr-laps.js",
+  source: "public/pdr.js, public/js/import/pdr25.js, public/js/import/gpmf.js, public/js/import/channels.js, public/js/import/pdr-laps.js",
   gpsStride: GPS_STRIDE,
   files: videoCases.map(({ entry }) => entry),
   // What anchorPdrBatch changed once every file in the batch was parsed.

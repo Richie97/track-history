@@ -128,7 +128,8 @@ fun ImportScreen(
                 TrackCard(Modifier.fillMaxWidth()) {
                     Text("Lap times from video", style = type.h3, color = colors.textStrong)
                     Text(
-                        "Corvette PDR and GoPro clips carry telemetry alongside the picture. Pick one and the " +
+                        "Corvette and Cadillac PDR clips and GoPro clips carry telemetry alongside the picture. " +
+                            "Pick one and the " +
                             "laps come out of it here — the video never leaves this device and is never copied; " +
                             "only its telemetry track is read.",
                         style = type.sm,
@@ -176,8 +177,9 @@ fun ImportScreen(
                 TrackCard(Modifier.fillMaxWidth()) {
                     Text("WHAT WORKS", style = type.eyebrow, color = colors.textFaint)
                     Text(
-                        "A PDR clip recorded with the track's beacon arrives with exact lap times and needs " +
-                            "nothing from you. A GoPro clip, or a PDR one without beacons, has GPS but no lap " +
+                        "A PDR clip that timed its own laps — off the track's beacon in a Corvette, or the " +
+                            "recorder's lap timer in a newer Cadillac — arrives with exact lap times and needs " +
+                            "nothing from you. A GoPro clip, or a PDR one that timed no laps, has GPS but no lap " +
                             "markers — tap where the start/finish line is and every pass across it is timed.",
                         style = type.xs,
                         color = colors.textMuted,

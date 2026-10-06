@@ -35,6 +35,8 @@ class VideoContractTest {
             "pdr-nobeacon.mp4",
             "pdr-real-beacons.mp4",
             "pdr-real-shifted.mp4",
+            "pdr25-laps.mp4",
+            "pdr25-nolaps.mp4",
         ],
     )
     fun `matches the JavaScript parsers`(file: String) {
@@ -43,7 +45,7 @@ class VideoContractTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["gopro.mp4", "pdr-delta-nobeacon.mp4", "pdr-nobeacon.mp4"])
+    @ValueSource(strings = ["gopro.mp4", "pdr-delta-nobeacon.mp4", "pdr-nobeacon.mp4", "pdr25-nolaps.mp4"])
     fun `line-picked laps match the JavaScript`(file: String) {
         var parsed = VideoFixtures.parse(file)
         val picked = given(VideoFixtures.expected(file).picked)

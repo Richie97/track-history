@@ -599,6 +599,13 @@ byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
   speed, max RPM, max lateral G) from the speed/engine channels; a recording
   with no beacons still gets lap times, from the GPS line picker or recovered
   from the latitude + odometer channels (details below).
+- **Cadillac PDR (Cosworth AliveDrive "PDR 2.5") MP4** — the newer GM recorder
+  (first seen on a CT5-V Blackwing), a different, self-describing format
+  (`public/js/import/pdr25.js`, details below). Laps come from the recorder's
+  own `lap.start`/`lap.end` events, exact; the GPS, car channels and slow
+  readings arrive in the same units as a Corvette's, so it imports as `kind:
+  "pdr"` and nothing downstream knows the difference. A recording with no lap
+  events goes to the line picker.
 - **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer /
   Porsche Track Precision exports) — laps from the file's `[laptiming]` start
@@ -641,7 +648,7 @@ The two **video** formats also import on the native iOS app (**Import video** on
 any event page, or "Open with Track Evolution" from Files): a GoPro clip arrives
 over Wi-Fi into Photos and a PDR clip lands in Files off a USB stick, so the
 phone is usually where the footage already is. The parsers are ported (`PDR`,
-`GPMF`, `Series` and `TelemetryChannels` in `apps/ios/Packages/TrackEvolutionKit`)
+`PDR25`, `GPMF`, `Series` and `TelemetryChannels` in `apps/ios/Packages/TrackEvolutionKit`)
 and pinned to the JavaScript implementation's output by
 `contracts/logic/video-parsers.json`, so the same clip yields the same lap times
 either way. The clip is read in place through a security-scoped file handle —
@@ -965,6 +972,35 @@ telemetry track and validated against Cosworth Toolbox lap times):
   latitude profiles); without one, laps are cut from where the car first
   reaches pace — real laps of the full track, just not aligned to the
   official line. All flagged `~`.
+
+How the newer **PDR 2.5** recorder (Cosworth "AliveDrive PDR 2.5", in
+2025-on GM cars — first seen on a Cadillac CT5-V Blackwing) is read. It is a
+different format, not a revision of the Marlin one: the telemetry track has
+handler `adrv` and sample entry `adco`, and the file describes itself
+completely. The full layout is the comment block at the top of
+`public/js/import/pdr25.js`; the parts worth knowing before touching it:
+
+- The `adco` entry carries the channel table (`adcp`: name, SI scaling, or an
+  enum's labels), the **record schedule** (`adcr`: groups of fields, each with
+  its own period — 100/50/10/5/2/1 Hz on the Blackwing) and the event names
+  (`adeg`). The sample stream is 1-second data blocks of **untagged**
+  fixed-width records — at every tick of the fastest group, each group whose
+  period divides the tick writes its fields — so the schedule, not the payload,
+  says what each byte is. Validated by every block of three real recordings
+  ending exactly on a record boundary.
+- Laps are `lap.start` / `lap.end` events with exact timestamps; every lap on
+  the real footage matched the recorder's own stored fastest lap to the
+  millisecond. A start/end pair at one timestamp is a crossing (the end sorts
+  first). There is no recording odometer, so `channels` is null and the
+  lat/odometer lap recovery never runs for this format.
+- **`accelerometer.vehicle.x` is lateral and `vehicle.y` is longitudinal with
+  braking positive** — measured against speed × yaw rate (r = 0.99) and dv/dt
+  (r = −0.93), not taken from the names. Enums are read by **label**: the
+  stability-enhancement channel numbers *active* as 0, the reverse of ABS.
+  Wheel slip is rear over front. No battery voltage.
+- The outing `timestamp` says `+00:00` but is **local** wall-clock time — the
+  recorder's own "Morning Drive" / "Afternoon Drive" titles use the same clock
+  — so it becomes the session's date and time as written.
 
 For manual testing with real recordings, drop them in a `telemetry-samples/`
 directory at the repo root — it's gitignored, so large videos and personal

@@ -83,7 +83,8 @@ struct ImportScreen: View {
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
                     Text("""
-                        Corvette PDR and GoPro clips carry telemetry alongside the picture, \
+                        Corvette and Cadillac PDR clips and GoPro clips carry telemetry \
+                        alongside the picture, \
                         and a Racelogic .vbo log (VBOX, or an export from an app such as \
                         Porsche Track Precision) or a Track Precision .csv export is nothing \
                         but telemetry. Pick one and the \
@@ -119,10 +120,11 @@ struct ImportScreen: View {
                         .teStyle(.eyebrow)
                         .foregroundStyle(Color(.textMuted))
                     Text("""
-                        A PDR clip recorded with the track's beacon arrives with exact lap \
-                        times and needs nothing from you. A GoPro clip, or a PDR one without \
-                        beacons, has GPS but no lap markers — tap where the start/finish line \
-                        is and every pass across it is timed.
+                        A PDR clip that timed its own laps — off the track's beacon in a \
+                        Corvette, or the recorder's lap timer in a newer Cadillac — arrives with \
+                        exact lap times and needs nothing from you. A GoPro clip, or a PDR one \
+                        that timed no laps, has GPS but no lap markers — tap where the \
+                        start/finish line is and every pass across it is timed.
                         """)
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))

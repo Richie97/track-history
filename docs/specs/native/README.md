@@ -673,7 +673,9 @@ predicts — the work happens where the web app isn't:
   and the consumables and every cost roll-up Pro, shown locked in place.
 - **Video import** (GoPro and Corvette PDR) — NS-30 on iOS, NS-32 on Android. The
   footage is already on the phone that shot or received it, and the argument was
-  never platform-specific.
+  never platform-specific. The newer Cadillac PDR ("AliveDrive PDR 2.5",
+  `PDR25` in the Kit and `:core`) joined on all three clients at once (2026-10),
+  on the same argument and the same fixture.
 - **`.vbo` import** — on both phones (2026-09). Porsche Track Precision records
   and exports on the phone, so for the files people actually have the phone is
   where the `.vbo` is; a VBOX's SD card still goes to a laptop, and the browser
