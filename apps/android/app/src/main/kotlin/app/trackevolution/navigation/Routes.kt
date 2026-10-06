@@ -72,6 +72,14 @@ public sealed interface Route {
     public data object Settings : Route
 
     /**
+     * *Your first track day*, the docs site's guide, in an in-app web view —
+     * from the dashboard's first-run card and from Settings. In the Events
+     * graph beside Settings.
+     */
+    @Serializable
+    public data object TrackDaysGuide : Route
+
+    /**
      * A car's page: its logbook for every account, and for Pro its consumables
      * and wear (NS-37). Lives in the Garage tab's graph.
      */

@@ -132,7 +132,14 @@ not a follow-up:**
      section (`TRACK_DAYS_URL` in `public/app.js`,
      `SettingsScreen.trackDaysGuideURL` on iOS, `TRACK_DAYS_GUIDE_URL` in
      Android's `DashboardScreen.kt`), so the organizer list is maintained
-     here and never in an app. Keep it organizer-neutral and point at the
+     here and never in an app. **The phones read it in their own web view**,
+     not a browser: `TrackDaysGuideScreen` on both (`Route.trackDaysGuide` /
+     `Route.TrackDaysGuide`, analytics path `/guide/track-days`), whose pure
+     half is `GuidePage` under the same names — the site's header, sidebar,
+     pager and footer hidden by an injected style, the docs host kept in the
+     view and every other link (the organizers) sent to the browser, and the
+     user agent marked `TrackEvolution-App`, which `site/analytics.js` reads
+     to load nothing and show no banner. Keep it organizer-neutral and point at the
      event's own rules rather than restating them.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
@@ -170,8 +177,9 @@ not a follow-up:**
    - If you add a docs page, add it to the sidebar of *every* docs page and
      wire the prev/next pager links.
    - Every page loads `analytics.js` (Google Analytics behind the UK/EU
-     consent banner — `../analytics.js` from `docs/`) at the end of its
-     `<head>`, and its footer carries the *Cookies* button
+     consent banner — `../analytics.js` from `docs/`, and nothing at all
+     inside the phones' web view, whose user agent says `TrackEvolution-App`)
+     at the end of its `<head>`, and its footer carries the *Cookies* button
      (`data-consent-open`) that reopens the banner; a new page copies both.
    - Every page carries Open Graph/Twitter-card meta tags. The social preview
      image is `site/og-image.png`, and `public/og-image.png` is an identical
