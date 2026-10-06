@@ -212,7 +212,7 @@ ticket, because the remaining gap stops being visible.
 
 ## Architecture
 
-One Worker serves both the API and the static frontend (`wrangler.jsonc`: `public/` is served as SPA assets; `/api/*`, `/auth/*` and `/share/*` hit the Worker first — the last so share pages can carry per-slug OG meta; the `ASSETS` binding is how the Worker reads `index.html` to do it).
+One Worker serves both the API and the static frontend (`wrangler.jsonc`: `public/` is served as SPA assets; `/api/*`, `/auth/*`, `/share/*` and `/get` hit the Worker first, among the paths listed in `run_worker_first` — `/share/*` so share pages can carry per-slug OG meta, the `ASSETS` binding being how the Worker reads `index.html` to do it, and `/get` so the store redirect can answer per User-Agent instead of the SPA fallback answering it with the sign-in screen).
 
 **Backend** (`src/`, Hono):
 - `index.ts` — composes the routers. Route order matters: `/api/share` (public, no auth) is registered before `/api` so `GET /api/share/:slug` stays unauthenticated while everything else under `/api` passes through `requireSession` (`middleware.ts`). The `/api` router itself is built by `apiApp(auth)` in `api.ts`, which takes the auth middleware as an argument: `index.ts` mounts it behind `requireSession`, and the MCP tools build a second, private copy of it (see the AI bullet below), and `index.ts` mounts a **third** at `/api/students/:studentId` behind `requireCoachGrant` — a coach's read-only view of a student's logbook (NS-38, see the `coaching.ts` bullet), registered before `/api` like `/api/share`. A new `/api` router is added to the list in `api.ts` — and to `API_ROUTERS` in `test/api/entitlement-gates.test.ts`.
