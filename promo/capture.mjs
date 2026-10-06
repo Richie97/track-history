@@ -113,6 +113,18 @@ const facts = {
   garage: garage.vehicles?.map((v) => ({ name: v.name, parts: v.parts.map((p) => ({ kind: p.kind, name: p.name, wear: p.wear })) })),
   boxes: {},
   ai: aiCompare(pbEvent, febEvent),
+  // The driver's evolution at one track, for the App Store header: the best
+  // lap of the first visit, a middle one and the PB weekend, as the channel
+  // panel overlays them — speed (km/h) on the driven-distance grid.
+  overlay: (() => {
+    const bestEntry = (ev) => {
+      let b = null;
+      for (const s of ev.sessions) for (const e of s.channels?.laps ?? []) if (!b || e.timeMs < b.e.timeMs) b = { e, step: s.channels.dStepM };
+      return b;
+    };
+    const picks = [firstEvent, febEvent, pbEvent].map(bestEntry).filter(Boolean);
+    return { dStepM: picks[0]?.step, laps: picks.map((p) => ({ ms: p.e.timeMs, speed: p.e.speed })) };
+  })(),
 };
 
 // --- the camera --------------------------------------------------------------

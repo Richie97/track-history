@@ -27,7 +27,7 @@
   #stage { position: relative; width: 5244px; height: 2950px; overflow: hidden; background: var(--bg); }
   .layer { position: absolute; inset: 0; }
   #glow { background:
-    radial-gradient(1500px 1000px at 63% 50%, rgba(200, 242, 78, 0.13), transparent 70%),
+    radial-gradient(1700px 900px at 50% 58%, rgba(200, 242, 78, 0.11), transparent 70%),
     radial-gradient(2600px 1500px at 50% 50%, rgba(200, 242, 78, 0.035), transparent 75%); }
   #grid {
     background-image:
@@ -40,13 +40,8 @@
   svg.layer { width: 5244px; height: 2950px; overflow: visible; }
 
   .abs { position: absolute; }
-  .eyebrow { font-size: 54px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--lime); white-space: nowrap; }
-  .timer { font-family: "Geist Mono", monospace; font-size: 210px; font-weight: 500; color: var(--lime); letter-spacing: -0.045em; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .meta { font-size: 44px; font-weight: 600; letter-spacing: 0.14em; color: var(--faint); text-transform: uppercase; white-space: nowrap; }
-  .pb { display: inline-flex; align-items: center; gap: 26px; height: 118px; padding: 0 54px; border-radius: 999px; background: var(--lime); color: var(--lime-contrast); font-size: 46px; font-weight: 700; letter-spacing: 0.12em; white-space: nowrap; }
-  .delta { font-size: 58px; font-weight: 500; color: var(--text-body); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .delta b { color: var(--lime); font-weight: 600; font-variant-numeric: tabular-nums; }
-
+  .headline { font-size: 150px; font-weight: 700; color: var(--text-strong); letter-spacing: -0.04em; line-height: 1.04; white-space: nowrap; }
+  .accent { color: var(--lime); }
   /* ?guides */
   .guide { position: absolute; border: 6px dashed; pointer-events: none; }
   .guide span { position: absolute; left: 12px; top: 8px; font: 600 40px "Geist Mono", monospace; }
@@ -61,7 +56,7 @@
   <div class="layer" id="type"></div>
 </div>
 <script type="module">
-import { fmtMs } from "../../public/js/format.js";
+import { deltaSeries } from "../../public/js/channel-graphs.js";
 
 const W = 5244, H = 2950;
 // The header's art safe area (Apple's template: 1097,493 → 2743,1154 on the
@@ -70,12 +65,10 @@ const W = 5244, H = 2950;
 const HEADER = { x: 0, y: (H - W * 9 / 21) / 2, w: W, h: W * 9 / 21 };
 const k = W / 3840;
 const SAFE = { x: 1097 * k, y: HEADER.y + 493 * k, w: (2743 - 1097) * k, h: (1154 - 493) * k };
-// The left share of the safe area is the type, the rest the circuit.
-const TYPE_SHARE = 0.43;
 const SEARCH = { x: (W - H * 1.5) / 2, y: 0, w: H * 1.5, h: H };
 
 const data = await (await fetch("../out/data.json")).json();
-await Promise.all(["600 54px Geist", "700 46px Geist", "500 232px \"Geist Mono\""].map((f) => document.fonts.load(f)));
+await Promise.all(["700 150px Geist", "600 44px Geist", "500 44px \"Geist Mono\""].map((f) => document.fonts.load(f)));
 const NS = "http://www.w3.org/2000/svg";
 const svg = document.getElementById("art");
 const mk = (tag, attrs, into = svg) => {
@@ -84,90 +77,89 @@ const mk = (tag, attrs, into = svg) => {
   into.appendChild(e);
   return e;
 };
-const mix = (a, b, p) => Math.round(a + (b - a) * p);
-const speedColour = (p, alpha = 1) => `rgba(${mix(0x3a, 0xc8, p)},${mix(0x42, 0xf2, p)},${mix(0x1f, 0x4e, p)},${alpha})`;
+const fmtLap = (ms) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(3).padStart(6, "0")}`;
 
-const tr = data.pb.trace; // [x, y, m/s], metres
-const vs = tr.map((p) => p[2]);
-const [vmin, vmax] = [Math.min(...vs), Math.max(...vs)];
-// cumulative distance, for the speed trace
-const dist = [0];
-for (let i = 1; i < tr.length; i++) dist.push(dist[i - 1] + Math.hypot(tr[i][0] - tr[i - 1][0], tr[i][1] - tr[i - 1][1]));
-const lapM = dist[dist.length - 1];
-
-// --- bleed: the PB lap's speed trace, laid across the whole canvas -----------
-// Three laps of it end to end, so the band runs off both edges whatever the
-// crop; brighter is faster, as on the app's maps.
+// --- the art: one driver's laps, visit after visit -----------------------------
+// The best lap of a first visit, a later one and the personal best, as the
+// app's delta chart draws them: time behind the personal best, accumulating
+// along the lap (public/js/channel-graphs.js's own deltaSeries). The PB is the
+// flat line, slower laps climb above it — so the gap that fans open across the
+// canvas is the time the driver found. No circuit map and no name: it reads as
+// "laps getting faster", not as a particular track, and the fan runs off both
+// edges so every crop is full.
+const laps = data.overlay.laps; // oldest first, PB last
+const dStep = data.overlay.dStepM;
+const COLOURS = ["#f49ac0", "#6ea8ff", "#c8f24e"]; // --chart-line-c, -b, --chart-line
+const LABELS = ["First visit", "Next season", "Best"];
+const pbLap = laps[laps.length - 1];
+const deltas = laps.map((l) => deltaSeries({ speed: l.speed, timeMs: l.ms }, { speed: pbLap.speed, timeMs: pbLap.ms }, dStep));
+// The lap runs from off the left edge to the right of the safe area, so the
+// fan is widest — the whole time found — where every crop can see it.
+const BAND = { y0: SAFE.y + SAFE.h * 0.5, y1: SAFE.y + SAFE.h - 50 };
+const dMax = Math.max(...deltas.flat());
+const X0 = -W * 0.02, X1 = SAFE.x + SAFE.w - 640;
 {
-  const g = mk("g", { opacity: "0.55" });
-  const band = { y0: 1475 - 520, y1: 1475 + 520 };
-  const laps = 3;
-  const pxPerM = W / (lapM * 2.15);
-  const x0 = W / 2 - lapM * pxPerM * 1.5;
-  const yOf = (v) => band.y1 - ((v - vmin) / (vmax - vmin)) * (band.y1 - band.y0);
-  for (let L = 0; L < laps; L++) {
-    for (let i = 0; i + 1 < tr.length; i++) {
-      const xa = x0 + (L * lapM + dist[i]) * pxPerM, xb = x0 + (L * lapM + dist[i + 1]) * pxPerM;
-      const p = (tr[i][2] - vmin) / (vmax - vmin);
-      mk("line", { x1: xa, y1: yOf(tr[i][2]), x2: xb, y2: yOf(tr[i + 1][2]), stroke: speedColour(p, 0.55), "stroke-width": 7, "stroke-linecap": "round" }, g);
-    }
-    // the start/finish of each lap, as a hairline
-    const xs = x0 + L * lapM * pxPerM;
-    mk("line", { x1: xs, y1: band.y0 - 160, x2: xs, y2: band.y1 + 160, stroke: "rgba(255,255,255,0.10)", "stroke-width": 3, "stroke-dasharray": "14 18" }, g);
-  }
-  // the band fades out under the type and toward the edges
-  const fade = mk("linearGradient", { id: "bandfade", x1: "0", x2: "1", y1: "0", y2: "0" }, mk("defs", {}));
-  for (const [o, a] of [[0, 0.0], [0.12, 1], [0.3, 0.35], [0.5, 0.15], [0.7, 0.35], [0.88, 1], [1, 0]]) mk("stop", { offset: o, "stop-color": "#fff", "stop-opacity": a }, fade);
-  const mask = mk("mask", { id: "bandmask", maskUnits: "userSpaceOnUse", x: 0, y: 0, width: W, height: H }, svg.querySelector("defs"));
-  mk("rect", { x: 0, y: 0, width: W, height: H, fill: "url(#bandfade)" }, mask);
-  g.setAttribute("mask", "url(#bandmask)");
-}
-
-// --- the racing line, in the right of the safe area ----------------------------
-{
-  const box = { x: SAFE.x + SAFE.w * TYPE_SHARE + 70, y: SAFE.y + 40, w: SAFE.w * (1 - TYPE_SHARE) - 110, h: SAFE.h - 80 };
-  const xs = tr.map((p) => p[0]), ys = tr.map((p) => p[1]);
-  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const s = Math.min(box.w / (x1 - x0), box.h / (y1 - y0));
-  const ox = box.x + (box.w - (x1 - x0) * s) / 2, oy = box.y + (box.h - (y1 - y0) * s) / 2;
-  const pts = tr.map((p) => [ox + (p[0] - x0) * s, oy + (y1 - p[1]) * s, p[2]]);
-  const poly = pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ") + ` ${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-  const defs = svg.querySelector("defs");
-  const f = mk("filter", { id: "glow", x: "-20%", y: "-20%", width: "140%", height: "140%" }, defs);
-  mk("feGaussianBlur", { stdDeviation: "16", result: "b" }, f);
+  const defs = mk("defs", {});
+  const f = mk("filter", { id: "glow", x: "-5%", y: "-50%", width: "110%", height: "200%" }, defs);
+  mk("feGaussianBlur", { stdDeviation: "12", result: "b" }, f);
   const merge = mk("feMerge", {}, f);
   mk("feMergeNode", { in: "b" }, merge);
   mk("feMergeNode", { in: "SourceGraphic" }, merge);
-  mk("polyline", { points: poly, fill: "none", stroke: "rgba(255,255,255,0.08)", "stroke-width": 48, "stroke-linejoin": "round", "stroke-linecap": "round" });
-  const g = mk("g", { filter: "url(#glow)" });
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i], b = pts[(i + 1) % pts.length];
-    const p = (a[2] - vmin) / (vmax - vmin);
-    mk("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: speedColour(p), "stroke-width": 17, "stroke-linecap": "round" }, g);
+  const fade = mk("linearGradient", { id: "edgefade", x1: "0", x2: "1", y1: "0", y2: "0" }, defs);
+  for (const [o, a] of [[0, 0], [0.06, 1], [0.94, 1], [1, 0]]) mk("stop", { offset: o, "stop-color": "#fff", "stop-opacity": a }, fade);
+  const mask = mk("mask", { id: "edges", maskUnits: "userSpaceOnUse", x: 0, y: 0, width: W, height: H }, defs);
+  mk("rect", { x: 0, y: 0, width: W, height: H, fill: "url(#edgefade)" }, mask);
+  const wash = mk("linearGradient", { id: "wash", x1: "0", x2: "0", y1: "0", y2: "1" }, defs);
+  mk("stop", { offset: 0, "stop-color": "#c8f24e", "stop-opacity": 0.16 }, wash);
+  mk("stop", { offset: 1, "stop-color": "#c8f24e", "stop-opacity": 0.02 }, wash);
+  const g = mk("g", { mask: "url(#edges)" });
+  const xOf = (j, n) => X0 + (X1 - X0) * (j / (n - 1));
+  const yOf = (d) => BAND.y1 - (d / dMax) * (BAND.y1 - BAND.y0);
+  const path = (ds) => ds.map((d, j) => `${j ? "L" : "M"}${xOf(j, ds.length).toFixed(1)},${yOf(d).toFixed(1)}`).join(" ");
+  // the PB lap's speed trace, as texture across the whole canvas
+  {
+    const sp = pbLap.speed, n = sp.length;
+    const [lo, hi] = [Math.min(...sp), Math.max(...sp)];
+    const T0 = -W * 0.04, T1 = W * 1.04;
+    const ty0 = SAFE.y + SAFE.h * 0.55, ty1 = SAFE.y + SAFE.h + 360;
+    const d = sp.map((v, j) => `${j ? "L" : "M"}${(T0 + (T1 - T0) * j / (n - 1)).toFixed(1)},${(ty1 - (v - lo) / (hi - lo) * (ty1 - ty0)).toFixed(1)}`).join(" ");
+    mk("path", { d, fill: "none", stroke: "rgba(200,242,78,0.13)", "stroke-width": 8, "stroke-linejoin": "round" }, g);
   }
-  // the car, at the start/finish line
-  const [hx, hy] = pts[0];
-  mk("circle", { cx: hx, cy: hy, r: 58, fill: "rgba(200,242,78,0.22)" });
-  mk("circle", { cx: hx, cy: hy, r: 22, fill: "#f6f6f7" });
+  // the panel's distance gridlines, faint
+  for (let i = 0; i <= 16; i++) {
+    const x = X0 + (X1 - X0) * (i / 16);
+    mk("line", { x1: x, y1: BAND.y0 - 80, x2: x, y2: BAND.y1 + 60, stroke: "rgba(255,255,255,0.05)", "stroke-width": 3 }, g);
+  }
+  // the time found: the wash between the first visit and the PB
+  const first = deltas[0];
+  mk("path", { d: `${path(first)} L${X1},${yOf(0)} L${X0},${yOf(0)} Z`, fill: "url(#wash)" }, g);
+  deltas.forEach((ds, i) => {
+    const best = i === deltas.length - 1;
+    mk("path", { d: path(ds), fill: "none", stroke: COLOURS[i], "stroke-width": best ? 16 : 12, "stroke-linejoin": "round", "stroke-linecap": "round",
+      filter: best ? "url(#glow)" : "" }, g);
+    // where the lap ends: a dot and the gap to the PB
+    const yEnd = yOf(ds[ds.length - 1]);
+    mk("circle", { cx: X1, cy: yEnd, r: best ? 22 : 18, fill: COLOURS[i] });
+    const t = mk("text", { x: X1 + 48, y: yEnd + 19, "font-family": "Geist", "font-size": 54, "font-weight": 500, fill: "#97979e" });
+    t.textContent = LABELS[i] + " ";
+    const v = mk("tspan", { fill: COLOURS[i], "font-family": "Geist Mono", "font-weight": 500 }, t);
+    v.textContent = best ? fmtLap(ds.length && laps[i].ms) : `+${(ds[ds.length - 1]).toFixed(1)}s`;
+  });
 }
 
-// --- the lap, in the left of the safe area -------------------------------------
+// --- the type: the brand's line, and what the three colours are --------------
 {
   const type = document.getElementById("type");
   const block = document.createElement("div");
   block.className = "abs";
-  Object.assign(block.style, { left: `${SAFE.x + 20}px`, top: "0px" });
-  const firstMs = data.progression[0].best_ms;
+  Object.assign(block.style, { left: `${SAFE.x}px`, width: `${SAFE.w}px`, top: `${SAFE.y + 20}px`, textAlign: "center" });
   block.innerHTML = `
-    <div class="eyebrow">Circuit of the Americas</div>
-    <div class="timer" style="margin-top:30px">${fmtMs(data.pb.ms)}</div>
-    <div class="delta" style="margin-top:30px"><b>−${((firstMs - data.pb.ms) / 1000).toFixed(1)}s</b> <span style="color:var(--muted)">since the first visit</span></div>
-    <div class="pb" style="margin-top:56px">★&nbsp;PERSONAL BEST</div>`;
+    <div class="headline">Your track days,<br><span class="accent">remembered lap by lap.</span></div>`;
   type.appendChild(block);
-  // centred on the safe area, vertically
-  block.style.top = `${SAFE.y + (SAFE.h - block.offsetHeight) / 2}px`;
-  const right = SAFE.x + 20 + block.offsetWidth;
-  if (right > SAFE.x + SAFE.w * TYPE_SHARE) console.warn(`type runs ${Math.round(right - SAFE.x - SAFE.w * TYPE_SHARE)} px into the circuit`);
+  const bottom = SAFE.y + 20 + block.offsetHeight;
+  if (bottom > BAND.y0 - 20) console.warn(`type runs ${Math.round(bottom - BAND.y0 + 20)} px into the traces`);
+  const widest = Math.max(...[...block.querySelectorAll(".headline")].map((e) => e.scrollWidth));
+  if (widest > SAFE.w + 1) console.warn(`type is ${widest - Math.round(SAFE.w)} px wider than the safe area`);
 }
 
 if (new URLSearchParams(location.search).has("guides")) {

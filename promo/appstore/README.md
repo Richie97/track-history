@@ -19,14 +19,19 @@ node appstore/render-preview.mjs --draft          # every scene from its web sta
 
 ## The header
 
-The PB lap at COTA — time, the gain since the first visit, and the racing line
-drawn brighter-is-faster — inside the header's **art safe area** (Apple's
-template: 1097,493 → 2743,1154 on the 3840×1646 header, which `header.html`
-maps onto the universal canvas), with the lap's speed trace as bleed for the
-wider crops. Nothing that matters sits outside the safe area, and the bottom
-is kept quiet because the store draws the app's icon, name and Get button over
-it. No wordmark: the store names the app itself. `?guides` on the page draws
-the two crops and the safe area.
+Deliberately not about any one track — no circuit map, no track name. The
+landing page's line, *Your track days, remembered lap by lap.*, over the app's
+own delta chart: one driver's best lap on a first visit, a later season and
+the personal best, as time behind the PB accumulating along the lap (the
+channel panel's `deltaSeries`, from `overlay` in `out/data.json`). The PB is
+the flat lime line and the gap that fans open above it is the time found,
+labelled where each lap ends; the PB lap's speed trace runs faintly across the
+whole canvas as bleed for the wider crops. The type and the chart's labelled
+end sit inside the header's **art safe area** (Apple's template: 1097,493 →
+2743,1154 on the 3840×1646 header, which `header.html` maps onto the universal
+canvas), and the bottom is kept quiet because the store draws the app's icon,
+name and Get button over it. `?guides` on the page draws the two crops and the
+safe area.
 
 ## The app preview
 
