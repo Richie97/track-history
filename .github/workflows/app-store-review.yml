@@ -1,0 +1,90 @@
+# Submit a TestFlight build to App Review, release it once approved, and steer
+# its phased release. Dispatch-only, by design: Xcode Cloud archives and
+# uploads every build to TestFlight, and putting one in front of App Review is
+# one deliberate click here — never a side effect of a merge.
+#
+# Nothing is built. `submit` picks a build Xcode Cloud already uploaded for the
+# marketing version (MARKETING_VERSION in apps/ios/project.yml), attaches it to
+# that App Store version — creating the version if need be — writes What's New
+# from release/notes/<version>.txt into every localization, sets the release
+# type and phased release, and submits. The logic is release/app-store.mjs
+# (rules in release/lib/app-store.mjs, tested by test/unit/release.test.js);
+# README → "Store submission" has the whole story.
+#
+# Actions:
+#   status           show versions, open submissions and recent builds
+#   submit           send a build to App Review
+#   release          release an approved version submitted with release type MANUAL
+#   pause-phased     pause the 7-day phased release (up to 30 days in total)
+#   resume-phased    resume it
+#   complete-phased  release to everyone now
+name: App Store review
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [status, submit, release, pause-phased, resume-phased, complete-phased]
+        default: status
+      version:
+        description: "Marketing version, e.g. 1.17 (default: MARKETING_VERSION in apps/ios/project.yml)"
+        type: string
+        required: false
+      build_number:
+        description: "submit: the Xcode Cloud build number (default: the newest upload of the version)"
+        type: string
+        required: false
+      release_type:
+        description: "submit: once approved, release manually (the release action) or automatically"
+        type: choice
+        options: [MANUAL, AFTER_APPROVAL]
+        default: MANUAL
+      phased:
+        description: "submit: phased release over 7 days (off = everyone at once)"
+        type: boolean
+        default: true
+      dry_run:
+        description: Report what would happen and change nothing
+        type: boolean
+        default: false
+
+concurrency:
+  group: app-store-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    # Long enough to wait out build processing (WAIT_MINUTES below) with room
+    # to spare.
+    timeout-minutes: 45
+    # A GitHub environment, so App Store access can be gated: add required
+    # reviewers under Settings → Environments → app-store, and every run waits
+    # for an approval. Created empty (no gate) on the first run.
+    environment: app-store
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No npm install, and no macOS runner: the script only talks to the App
+      # Store Connect API, with Node's own fetch and crypto. Inputs travel as
+      # environment variables, never interpolated into the shell.
+      - name: ${{ inputs.action }}
+        run: node release/app-store.mjs
+        env:
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          ACTION: ${{ inputs.action }}
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          PHASED: ${{ inputs.phased }}
+          WAIT_MINUTES: "30"
+          DRY_RUN: ${{ inputs.dry_run }}

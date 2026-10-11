@@ -1,0 +1,91 @@
+# Promote a tested Android build to Google Play production, and steer its
+# staged rollout. Dispatch-only, by design: a merge reaches testers through
+# android-release.yml, and reaching the public is one deliberate click here —
+# never a side effect of a merge.
+#
+# Nothing is built. `start` takes a versionCode already on a test track
+# (internal / alpha / beta) and puts that same bundle on production, so what
+# Google reviews is byte for byte what testers ran. The logic is
+# release/play.mjs (rules in release/lib/play.mjs, tested by
+# test/unit/release.test.js); README → "Store submission" has the whole story.
+#
+# Actions:
+#   status    show every track; change nothing
+#   start     production release of a test-track build at `rollout` percent
+#             (100 = everyone at once); goes to Google's review on commit
+#   increase  grow the staged rollout to `rollout` percent
+#   halt      stop serving the staged release to new users
+#   resume    restart a halted rollout
+#   complete  release the staged build to everyone
+name: Play production
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [status, start, increase, halt, resume, complete]
+        default: status
+      version_code:
+        description: "start: the versionCode to promote (default: the newest on a test track)"
+        type: string
+        required: false
+      rollout:
+        description: "start / increase: rollout percentage, e.g. 5, 20, 50 (start defaults to 5; 100 on start releases to everyone)"
+        type: string
+        required: false
+      version:
+        description: "start: the release notes version, release/notes/<version>.txt (default: versionName in build.gradle.kts)"
+        type: string
+        required: false
+      dry_run:
+        description: Ask Play to validate the change, then discard it
+        type: boolean
+        default: false
+
+# The same group as android-release.yml. Each run holds a Play *edit* open, and
+# Play refuses to commit one when the app changed under it — so a promotion and
+# a test-track upload must never overlap, and neither may be cancelled midway.
+concurrency:
+  group: play-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    # A GitHub environment, so production access can be gated: add required
+    # reviewers under Settings → Environments → play-production, and every run
+    # waits for an approval. Created empty (no gate) on the first run.
+    environment: play-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No npm install: the script uses only Node's own fetch and crypto.
+      # Inputs travel as environment variables, never interpolated into the
+      # shell.
+      - name: ${{ inputs.action }}
+        run: node release/play.mjs
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ACTION: ${{ inputs.action }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          ROLLOUT: ${{ inputs.rollout }}
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+
+      - name: Before the rollout grows
+        if: ${{ inputs.action == 'start' || inputs.action == 'increase' }}
+        run: |
+          {
+            echo
+            echo "Two things no workflow can check (NS-27): the Android Auto form factor"
+            echo "must stay **opted out** in the Play Console — a car review failure rejects"
+            echo "the whole submission — and the recorder must have survived a real track"
+            echo "day before the rollout passes 10%."
+          } >> "$GITHUB_STEP_SUMMARY"
