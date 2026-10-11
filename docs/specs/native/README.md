@@ -38,7 +38,10 @@ The three clients are deliberately **not** at parity:
   this list with [NS-40](NS-40-paddock-loop.md): a sheet is filled in at the
   car.)
 - **The web app stays the feature frontier.** New ideas land there first and
-  graduate to native once proven.
+  graduate to native once proven. **Exporting the logbook**
+  ([NS-44](NS-44-web-export.md)) is the latest: Settings → *Your data* on the
+  web, through bearer-capable routes, so a phone door later needs no server
+  change.
 - **The Mac is a fourth *surface*, not a fourth client** (2026-09, epic
   [#230](https://github.com/Richie97/track-history/issues/230)). It runs the
   iPad build as a *Designed for iPad* app — no target, no Catalyst — so it

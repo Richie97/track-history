@@ -163,6 +163,30 @@ parse as a failed export.
   they are disabled with the sentence above.
 - `sw.js`: `/api/export/` joins the bypass list beside `/coach/`.
 
+## As built
+
+Two decisions changed in the building.
+
+- **The rate limit is per minute, not per hour.** Workers' rate-limiting
+  binding has only 10 s and 60 s windows, so "10 an hour" can't be said on it.
+  `EXPORT` allows **5 exports a minute per user**. That's three files plus a
+  retry or two, and it stops anything hammering the heaviest read the Worker
+  serves. An hourly quota would need a D1 table, and nothing so far asks for
+  one.
+- **The web fetches the files instead of using plain `<a download>` links.**
+  A plain link saves whatever the server sends. A 429, an expired session or
+  a JSON export that stopped partway would be saved as the file. The buttons
+  fetch, word a refusal (`exportErrorText`), check a JSON file's tail for the
+  `error` member (`exportStoppedPartway`), and only then hand the blob to the
+  browser. The pure half is `public/js/export.js`, with
+  `test/unit/export-client.test.js`.
+
+The streaming writer is `JsonStream` in `src/lib/export.ts`. It tracks what is
+open, so a failure closes every array and object before the `error` member,
+and its unit test parses that output. Channel blobs are spliced in as stored
+rather than parsed and re-serialized. The JSON also carries `students` (the
+drivers you coach, by name) beside `coaches`.
+
 ## Docs owed (in the same PR)
 
 - **Privacy policy**, *Retention and deletion* (bump the effective date):
@@ -185,7 +209,7 @@ parse as a failed export.
 - [ ] With telemetry, a logbook of 200 channel-carrying sessions exports without exceeding Worker memory (a test streams a synthetic logbook of that size and checks the parse).
 - [ ] A free account's export is complete, channels included.
 - [ ] `/api/export/*` never lands in the service worker's or the offline layer's cache.
-- [ ] The coach mount and other users can't reach it; the 11th export in an hour is a 429.
+- [ ] The coach mount and other users can't reach it; past the per-minute limit an export is a 429 (see *As built*).
 - [ ] `npm test`, `npm run typecheck`, `npm run contracts:check` pass.
 
 ## Follow-ups, deliberately not here
