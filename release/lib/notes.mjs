@@ -29,9 +29,23 @@ export function readNotes(root, version) {
   const file = notesPath(root, version);
   const shown = `release/notes/${version}.txt`;
   if (!existsSync(file)) {
-    throw new Error(`${shown} does not exist — write the release notes for ${version} first.`);
+    throw new Error(
+      `${shown} does not exist — fill in the release_notes input, or commit release notes for ${version}.`
+    );
   }
   return checkNotes(readFileSync(file, "utf8"), shown);
+}
+
+// The notes typed into the workflow's release_notes input win over the file.
+// A dispatch input is a one-line box in GitHub's UI, so a literal "\n" in it
+// starts a new line; `gh workflow run -f release_notes="$(cat notes.txt)"`
+// passes real newlines, which work too.
+export function resolveNotes(root, version, inputText) {
+  if (inputText != null && inputText.trim() !== "") {
+    const text = inputText.replace(/\\n/g, "\n");
+    return { notes: checkNotes(text, "The release_notes input"), source: "the release_notes input" };
+  }
+  return { notes: readNotes(root, version), source: `\`release/notes/${version}.txt\`` };
 }
 
 // The checked-in versions, used when a dispatch doesn't name one.

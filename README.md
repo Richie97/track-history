@@ -604,11 +604,16 @@ decisions (what may be promoted, which states refuse) are pure functions in
 `release/lib/`, unit-tested by `test/unit/release.test.js`. Every action has a
 **dry run**, and `status` changes nothing.
 
-**Release notes** are one file per version, `release/notes/<version>.txt`,
-shared by both stores — the apps carry the same version (`versionName` and
-`MARKETING_VERSION`, which a unit test keeps equal) — and held to Play's 500
-characters, the tighter of the two limits. Write it before submitting; both
-workflows refuse a missing or empty file.
+**Release notes** come from the run itself or from the repo. Both workflows
+take a `release_notes` input (`start` on Play, `submit` on the App Store):
+type the notes there, with `\n` for a new line since GitHub's box is a single
+line, or pass a file's real newlines with
+`gh workflow run app-store-review.yml -f action=submit -f release_notes="$(cat notes.txt)"`.
+Left empty, they read `release/notes/<version>.txt`, one file per version shared
+by both stores — the apps carry the same version (`versionName` and
+`MARKETING_VERSION`, which a unit test keeps equal). Either way the notes are
+held to Play's 500 characters, the tighter of the two limits, and a run with
+neither refuses before changing anything.
 
 [**Play production**](.github/workflows/play-production.yml)
 (`release/play.mjs`):
@@ -677,11 +682,11 @@ workflow can do is fill in the stores' questionnaires — the App Privacy label,
 Play's Data safety form, the content ratings — which change only when what the
 app collects does, and stay Console work.
 
-A release, end to end: bump the version on both apps, merge, write
-`release/notes/<version>.txt`, let testers run the internal-track and
-TestFlight builds, then run *Play production* → `start` and *App Store review*
-→ `submit`; after approval, `release` on iOS and `increase` → `complete` on
-Android as the rollout earns it.
+A release, end to end: bump the version on both apps, merge, let testers run
+the internal-track and TestFlight builds, then run *Play production* → `start`
+and *App Store review* → `submit` with the notes in `release_notes` (or
+committed as `release/notes/<version>.txt` beforehand); after approval,
+`release` on iOS and `increase` → `complete` on Android as the rollout earns it.
 
 ## Video / telemetry import
 

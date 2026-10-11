@@ -9,6 +9,7 @@
 //   VERSION_CODE  start only: the build to promote (default: the newest on a test track)
 //   ROLLOUT       start / increase: a percentage (start defaults to 5)
 //   VERSION       start only: release notes version (default: versionName in build.gradle.kts)
+//   RELEASE_NOTES start only: the notes themselves; empty reads release/notes/<VERSION>.txt
 //   DRY_RUN       "true": validate the edit with Play, then discard it
 //
 // Everything happens inside one Play *edit*, which is a transaction: nothing
@@ -20,7 +21,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { googleAssertion } from "./lib/jwt.mjs";
 import { requestJson } from "./lib/http.mjs";
-import { gradleVersionName, readNotes } from "./lib/notes.mjs";
+import { gradleVersionName, resolveNotes } from "./lib/notes.mjs";
 import {
   ACTIONS,
   describeRelease,
@@ -76,13 +77,13 @@ async function main(out) {
       const versionName =
         input("VERSION") ??
         gradleVersionName(readFileSync(join(ROOT, "apps/android/app/build.gradle.kts"), "utf8"));
-      const notes = readNotes(ROOT, versionName);
+      const { notes, source } = resolveNotes(ROOT, versionName, input("RELEASE_NOTES"));
       // Notes go in the listing's default language — the one Play requires.
       const { defaultLanguage } = await api("GET", `/edits/${edit.id}/details`);
       const plan = planStart({ tracks, versionCode, fraction, notes, versionName, language: defaultLanguage });
       update = plan.update;
       out.line(
-        `Promoting **${versionCode}** from \`${plan.source}\` to production at **${pctText(fraction)}**, notes from \`release/notes/${versionName}.txt\` (${defaultLanguage}):`
+        `Promoting **${versionCode}** from \`${plan.source}\` to production at **${pctText(fraction)}**, notes from ${source} (${defaultLanguage}):`
       );
       out.line();
       out.lines(notes.split("\n").map((l) => `> ${l}`));

@@ -10,6 +10,7 @@ import {
   marketingVersion,
   MAX_NOTES_CHARS,
   readNotes,
+  resolveNotes,
 } from "../../release/lib/notes.mjs";
 import {
   latestTestVersionCode,
@@ -108,6 +109,21 @@ describe("release notes", () => {
   });
   it("names the missing file", () => {
     expect(() => readNotes(ROOT, "0.0-none")).toThrow("release/notes/0.0-none.txt does not exist");
+  });
+  it("takes the workflow's release_notes input over the file, with \\n as a new line", () => {
+    expect(resolveNotes(ROOT, "0.0-none", "Faster laps.\\nFewer crashes.")).toEqual({
+      notes: "Faster laps.\nFewer crashes.",
+      source: "the release_notes input",
+    });
+    expect(resolveNotes(ROOT, "0.0-none", "Line one\nline two").notes).toBe("Line one\nline two");
+    expect(() => resolveNotes(ROOT, "0.0-none", "a".repeat(MAX_NOTES_CHARS + 1))).toThrow(/release_notes input .* at most 500/);
+  });
+  it("falls back to the file when the input is empty, and says how to fix a missing one", () => {
+    expect(resolveNotes(ROOT, "1.20", "  ")).toEqual({
+      notes: "Bug fixes and performance improvements",
+      source: "`release/notes/1.20.txt`",
+    });
+    expect(() => resolveNotes(ROOT, "0.0-none", null)).toThrow(/fill in the release_notes input/);
   });
   it("every committed notes file is within both stores' limits", () => {
     for (const file of readdirSync(join(ROOT, "release/notes")).filter((f) => f.endsWith(".txt"))) {

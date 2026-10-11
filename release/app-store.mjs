@@ -7,6 +7,7 @@
 //   APP_STORE_CONNECT_ISSUER_ID / _KEY_ID / _PRIVATE_KEY   the API key (.p8 contents)
 //   ACTION        status | submit | release | pause-phased | resume-phased | complete-phased
 //   VERSION       the marketing version (default: MARKETING_VERSION in apps/ios/project.yml)
+//   RELEASE_NOTES submit only: What's New; empty reads release/notes/<VERSION>.txt
 //   BUILD_NUMBER  submit only: the Xcode Cloud build number (default: the newest upload)
 //   RELEASE_TYPE  submit only: MANUAL (default) or AFTER_APPROVAL
 //   PHASED        submit only: "false" turns off the 7-day phased release (default on)
@@ -24,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { ascToken } from "./lib/jwt.mjs";
 import { requestJson, StoreApiError } from "./lib/http.mjs";
-import { marketingVersion, readNotes } from "./lib/notes.mjs";
+import { marketingVersion, resolveNotes } from "./lib/notes.mjs";
 import {
   ACTIONS,
   RELEASE_TYPES,
@@ -153,7 +154,7 @@ async function submit(api, app, version, out) {
   const dryRun = input("DRY_RUN") === "true";
 
   // Everything that can refuse is checked before the first write.
-  const notes = readNotes(ROOT, version);
+  const { notes, source } = resolveNotes(ROOT, version, input("RELEASE_NOTES"));
   const build = await waitForBuild(api, app.id, version, buildNumber, dryRun ? 0 : waitMinutes, out);
   const versionPlan = planVersion(await listVersions(api, app.id), version);
   const { data: subs } = await api(
@@ -169,7 +170,7 @@ async function submit(api, app, version, out) {
   out.line(`- release: ${releaseType === "MANUAL" ? "manually, once approved (the *release* action)" : "automatically once approved"}`);
   out.line(`- phased release: ${phased ? "on — 7 days" : "off — everyone at once"}${phasedPlan === "keep" ? "" : ` (${phasedPlan})`}`);
   out.line(`- review submission: ${submissionPlan.kind === "create" ? "create one" : "add to the open draft"}`);
-  out.line(`- What's New, from \`release/notes/${version}.txt\`:`);
+  out.line(`- What's New, from ${source}:`);
   out.line();
   out.lines(notes.split("\n").map((l) => `> ${l}`));
   out.line();

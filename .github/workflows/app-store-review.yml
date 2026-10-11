@@ -6,8 +6,8 @@
 # Nothing is built. `submit` picks a build Xcode Cloud already uploaded for the
 # marketing version (MARKETING_VERSION in apps/ios/project.yml), attaches it to
 # that App Store version — creating the version if need be — writes What's New
-# from release/notes/<version>.txt into every localization, sets the release
-# type and phased release, and submits. The logic is release/app-store.mjs
+# (the release_notes input, else release/notes/<version>.txt) into every
+# localization, sets the release type and phased release, and submits. The logic is release/app-store.mjs
 # (rules in release/lib/app-store.mjs, tested by test/unit/release.test.js);
 # README → "Store submission" has the whole story.
 #
@@ -30,6 +30,10 @@ on:
         default: status
       version:
         description: "Marketing version, e.g. 1.17 (default: MARKETING_VERSION in apps/ios/project.yml)"
+        type: string
+        required: false
+      release_notes:
+        description: "submit: the release notes, at most 500 characters; type \\n for a new line (empty: release/notes/<version>.txt)"
         type: string
         required: false
       build_number:
@@ -84,6 +88,7 @@ jobs:
           ACTION: ${{ inputs.action }}
           VERSION: ${{ inputs.version }}
           BUILD_NUMBER: ${{ inputs.build_number }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
           RELEASE_TYPE: ${{ inputs.release_type }}
           PHASED: ${{ inputs.phased }}
           WAIT_MINUTES: "30"

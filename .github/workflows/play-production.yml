@@ -35,8 +35,12 @@ on:
         description: "start / increase: rollout percentage, e.g. 5, 20, 50 (start defaults to 5; 100 on start releases to everyone)"
         type: string
         required: false
+      release_notes:
+        description: "start: the release notes, at most 500 characters; type \\n for a new line (empty: release/notes/<version>.txt)"
+        type: string
+        required: false
       version:
-        description: "start: the release notes version, release/notes/<version>.txt (default: versionName in build.gradle.kts)"
+        description: "start: the version, for the release name and the notes file (default: versionName in build.gradle.kts)"
         type: string
         required: false
       dry_run:
@@ -77,6 +81,7 @@ jobs:
           VERSION_CODE: ${{ inputs.version_code }}
           ROLLOUT: ${{ inputs.rollout }}
           VERSION: ${{ inputs.version }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
           DRY_RUN: ${{ inputs.dry_run }}
 
       - name: Before the rollout grows
