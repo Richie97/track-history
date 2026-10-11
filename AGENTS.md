@@ -163,7 +163,8 @@ not a follow-up:**
      terms of use (operator: Speedshift LLC). In the app they're linked from
      the Settings page (account dropdown → Settings) on every platform, and
      additionally from the footer (`footerHtml({ legal: true })` in
-     `public/app.js`) on signed-out and public share pages, where Settings
+     `public/app.js`, which on every page also carries the *Veteran-owned
+     business* line beside the copyright, as the site's footer does) on signed-out and public share pages, where Settings
      isn't reachable; the native apps render no footer at all. Update the
      privacy policy when data
      collection, storage, or sharing behavior changes, and bump the effective

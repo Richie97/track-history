@@ -864,6 +864,8 @@ button.ch-chip.on { background: var(--surface-raised); }
   font-size: var(--fs-sm); color: var(--text-faint);
 }
 .footer-left { display: inline-flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.footer-vob { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-weight: var(--weight-medium); white-space: nowrap; }
+.footer-vob-star { width: 13px; height: 13px; fill: var(--accent-ink); flex: none; }
 .login-card .site-footer { margin-top: 28px; justify-content: center; border-top: none; padding-top: 0; }
 .login-card .footer-left { justify-content: center; }
 .ss-credit { display: inline-flex; align-items: center; gap: 7px; color: var(--text-faint); }
