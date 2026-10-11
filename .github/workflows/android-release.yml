@@ -9,8 +9,9 @@
 #
 # Test tracks only, deliberately. `production` is not in the choice list: this
 # workflow exists to get builds in front of testers, and the production rollout
-# is the staged, percentage-gated Console operation NS-27 describes, which
-# should not be one mis-click away in a dropdown.
+# is the staged, percentage-gated operation NS-27 describes, which should not be
+# one mis-click away in a dropdown. That is play-production.yml's job: it
+# promotes a build this workflow already uploaded, without rebuilding it.
 #
 # It builds apps/android, whose applicationId is app.trackevolution — the id the
 # retired web-view shell used — so an upload lands on the existing listing rather

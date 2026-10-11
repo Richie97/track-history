@@ -508,7 +508,9 @@ driving-task app and the Play car review rejects it under Points of Interest.
   Connect* with ITMS-90186 ("train version is closed") / ITMS-90062 ("must
   contain a higher version") — so bump it before the first upload of a new
   release. On Android the equivalents are `versionCode` / `versionName` in
-  `apps/android/app/build.gradle.kts`.
+  `apps/android/app/build.gradle.kts`. Bump both apps together: the store
+  submission workflows read one release-notes file per version, and a unit test
+  fails while the two versions differ.
 
 ### Play Store test track
 
@@ -520,7 +522,7 @@ to `main` that touches the Android client** (same path filter as `android.yml`),
 which uploads to the **internal** track, and manually from the Actions tab via
 `workflow_dispatch`. Dispatch inputs: the track (`internal`, `alpha` or `beta` —
 production is deliberately absent, since that rollout is the staged,
-percentage-gated Console operation), optional `versionCode` / `versionName`
+percentage-gated promotion *Play production* does, below), optional `versionCode` / `versionName`
 overrides, and a dry run that builds and signs but uploads nothing, attaching
 the bundle to the run instead.
 
@@ -588,6 +590,103 @@ cd apps/android && ./gradlew :app:bundleRelease
 
 The iOS side has no equivalent: those builds go through Xcode Cloud, which
 archives and uploads to TestFlight itself.
+
+### Store submission
+
+Getting a tested build to the public is two more workflows, both
+**dispatch-only** (Actions tab → *Run workflow*), so a merge never reaches
+review by itself. Neither builds anything: each takes a build that is already
+in testers' hands — a `versionCode` on a Play test track, a TestFlight build
+from Xcode Cloud — and moves *that* build forward, so what the store reviews is
+byte for byte what testers ran. The scripts are dependency-free Node in
+[`release/`](release/), called with the API keys from repository secrets; the
+decisions (what may be promoted, which states refuse) are pure functions in
+`release/lib/`, unit-tested by `test/unit/release.test.js`. Every action has a
+**dry run**, and `status` changes nothing.
+
+**Release notes** come from the run itself or from the repo. Both workflows
+take a `release_notes` input (`start` on Play, `submit` on the App Store):
+type the notes there, with `\n` for a new line since GitHub's box is a single
+line, or pass a file's real newlines with
+`gh workflow run app-store-review.yml -f action=submit -f release_notes="$(cat notes.txt)"`.
+Left empty, they read `release/notes/<version>.txt`, one file per version shared
+by both stores — the apps carry the same version (`versionName` and
+`MARKETING_VERSION`, which a unit test keeps equal). Either way the notes are
+held to Play's 500 characters, the tighter of the two limits, and a run with
+neither refuses before changing anything.
+
+[**Play production**](.github/workflows/play-production.yml)
+(`release/play.mjs`):
+
+| Action | What it does |
+| --- | --- |
+| `status` | lists production and the three test tracks |
+| `start` | puts a test-track `versionCode` (default: the newest one) on production at `rollout` percent (default 5; 100 is a full release), with the notes in the listing's default language; committing sends it to Google's review |
+| `increase` | grows the staged rollout to `rollout` percent — it can only grow |
+| `halt` / `resume` | stops serving the staged release to new users, and restarts it |
+| `complete` | releases the staged build to everyone |
+
+All of it happens inside one Play *edit*, so a refusal leaves nothing behind,
+and a dry run is Play's own `validate` of the change before it is discarded.
+`start` refuses a build that never reached a test track, one already on
+production, or one while another staged rollout is still in progress (halt or
+complete that first; a halted one can be superseded). It shares
+`android-release.yml`'s concurrency group, since two open edits make the second
+commit fail. The service account (`PLAY_SERVICE_ACCOUNT_JSON`, the same secret)
+needs **Release to production** as well as testing-track access in Play
+Console → Users and permissions. Turning on **Managed publishing** in the
+Console makes an approved release wait for *Publish* there, which is a sensible
+last catch. NS-27's two preconditions still apply and are repeated in the run's
+summary: Android Auto opted out in the Console, and a real track day before the
+rollout passes 10%.
+
+[**App Store review**](.github/workflows/app-store-review.yml)
+(`release/app-store.mjs`, on an ordinary Linux runner — it only calls the App
+Store Connect API):
+
+| Action | What it does |
+| --- | --- |
+| `status` | lists the App Store versions, open review submissions and the version's recent builds |
+| `submit` | picks a build of the version (default: the newest upload, waited for while it processes — up to 30 minutes), creates or reuses the App Store version, attaches the build, writes What's New into every localization, sets the release type (`MANUAL` by default) and the 7-day phased release (on by default), and submits it to App Review |
+| `release` | releases an approved `MANUAL` version (`PENDING_DEVELOPER_RELEASE`) |
+| `pause-phased` / `resume-phased` / `complete-phased` | steers the phased release |
+
+`submit` checks everything that can refuse before its first write, and every
+write is safe to repeat, so re-running after a failure picks up the same
+version and draft submission. It refuses rather than guesses where App Store
+Connect would refuse anyway: a version already with App Review, a version whose
+train is closed (bump `MARKETING_VERSION`, see *App version* above), a second
+version already being prepared, a build that failed processing or expired, and
+a build with no export-compliance answer — `ITSAppUsesNonExemptEncryption` in
+`apps/ios/App/Info.plist` answers that at upload, and the workflow never
+answers a legal declaration itself. A submission that came back with
+**unresolved issues** is left to App Store Connect's Resolution Center, since
+answering App Review is not a job for a script. The App Review contact and demo
+account carry over from the previous version; set them once in App Store
+Connect.
+
+It needs three repository secrets, from App Store Connect → Users and Access →
+Integrations → App Store Connect API, a **Team** key with the *App Manager*
+role:
+
+| Secret | What it is |
+| --- | --- |
+| `APP_STORE_CONNECT_ISSUER_ID` | the issuer ID shown above the key list |
+| `APP_STORE_CONNECT_KEY_ID` | the key's ID |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | the contents of the downloaded `AuthKey_<id>.p8` (it can be downloaded once) |
+
+Both workflows run in a GitHub **environment** (`play-production`,
+`app-store`), created empty on the first run; add required reviewers under
+Settings → Environments to make every run wait for an approval. What no
+workflow can do is fill in the stores' questionnaires — the App Privacy label,
+Play's Data safety form, the content ratings — which change only when what the
+app collects does, and stay Console work.
+
+A release, end to end: bump the version on both apps, merge, let testers run
+the internal-track and TestFlight builds, then run *Play production* → `start`
+and *App Store review* → `submit` with the notes in `release_notes` (or
+committed as `release/notes/<version>.txt` beforehand); after approval,
+`release` on iOS and `increase` → `complete` on Android as the rollout earns it.
 
 ## Video / telemetry import
 

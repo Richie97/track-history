@@ -1,0 +1,4 @@
+- A new logbook now opens on a welcome card that walks you to your first event or your first recording.
+- A recording or import with no event to save to can now be saved to a new event, without losing the review.
+- Every empty page tells you what to do next, and a failed load has one Try again button.
+- When you're offline and a page hasn't been saved for offline use yet, the app now says so.
