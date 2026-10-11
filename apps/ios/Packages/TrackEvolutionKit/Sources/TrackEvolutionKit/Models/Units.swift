@@ -151,8 +151,8 @@ public enum Units {
 
     // MARK: - Pressure (stored psi) and fuel (stored gallons)
 
-    /// The setup notebook these serve is web-only; the constants port so the two
-    /// clients can never disagree if that changes.
+    /// The setup notebook's pressure and fuel fields (NS-40) convert through
+    /// these, so a sheet reads the same in bar or litres on every client.
     public static let PSI_PER_BAR = 14.503774
     public static let L_PER_GAL = 3.785412
 

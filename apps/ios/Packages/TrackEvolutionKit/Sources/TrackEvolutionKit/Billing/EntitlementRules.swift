@@ -58,9 +58,9 @@ public extension Entitlement {
     static func canViewYearInReview(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
     /// Cost roll-ups across events — per track, per car, per season (NS-37).
-    /// Entering costs stays free, and so does one event's own total. Ported for
-    /// name parity with `public/js/entitlement.js`: costs are web-first, so no
-    /// native screen shows a roll-up yet.
+    /// Entering costs stays free, and so does one event's own total. Read by
+    /// the track page's spend line (NS-40); the car page's spend is in its Pro
+    /// half, which `/garage`'s 402 already locks.
     static func canViewSpend(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
     /// The web's two-event lap overlay. Ported for name parity with
