@@ -424,6 +424,18 @@ h2 {
 .cost-breakdown { font-size: var(--fs-xs); color: var(--text-muted); margin: -12px 0 22px; }
 .vehicle-odometer { font-size: var(--fs-xs); color: var(--text-muted); margin: -12px 0 22px; }
 .cost-breakdown + .vehicle-odometer { margin-top: -18px; }
+/* ---------- Modal (a native <dialog> opened with showModal) ---------- */
+.modal {
+  width: min(560px, calc(100vw - 32px)); max-height: min(80vh, 640px);
+  padding: 18px 20px; overflow: auto;
+  background: var(--surface-card); color: var(--text-body);
+  border: 1px solid var(--border-hairline); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+}
+.modal::backdrop { background: var(--shadow-color); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.modal-head h2 { margin: 0; }
+.modal .table-wrap { margin: 0; }
 .tile {
   background: var(--surface-card); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg); padding: 18px 20px;
@@ -774,6 +786,10 @@ button.ch-chip.on { background: var(--surface-raised); }
 }
 
 .notes-block { white-space: pre-wrap; }
+/* A session's label + notes editor (NS-40), opened from the card's Edit. */
+.session-edit { margin-top: 12px; display: grid; gap: 8px; }
+.session-edit[hidden] { display: none; }
+.session-edit textarea { min-height: 72px; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; font-size: 14px; margin: 12px 0; }
 .kv dt { color: var(--text-muted); }
 .kv dd { margin: 0; }
@@ -839,6 +855,7 @@ button.ch-chip.on { background: var(--surface-raised); }
 .empty.empty-compact { padding: 0; text-align: left; font-size: var(--fs-sm); }
 .panel.welcome { margin-top: 20px; }
 .panel.welcome .empty { padding: 16px 8px; max-width: 46ch; margin: 0 auto; }
+.welcome-guide { text-align: center; font-size: var(--fs-sm); padding: 0 8px 8px; }
 
 /* ---------- Footer ---------- */
 .site-footer {

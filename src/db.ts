@@ -7,7 +7,7 @@
 // them with db.batch() into one round trip instead of awaiting each in turn.
 
 import type { EventCosts } from "./lib/costs";
-import { type ComputedEvent, type EventRow, withComputed } from "./lib/stats";
+import { CLEAN_FACTOR, type ComputedEvent, type EventRow, withComputed } from "./lib/stats";
 
 // The session-conditions aggregates (#191) are MIN/MAX rather than an average
 // for two reasons. The laps LEFT JOIN repeats a session's row once per lap, so
@@ -21,8 +21,26 @@ import { type ComputedEvent, type EventRow, withComputed } from "./lib/stats";
 // Event rows with lap aggregates, computed in a single pass: LEFT JOINs plus
 // GROUP BY read each session and lap once, where the correlated-subquery
 // version rescanned an event's laps once per aggregate. `where` must filter on
-// e.* columns (it lands before the GROUP BY); `orderBy` lands after it.
+// e.* columns; `orderBy` lands after the GROUP BY.
+//
+// Consistency is computed over *clean* laps — within CLEAN_FACTOR of their own
+// session's best (NS-42) — so each lap needs its session's best. That comes
+// from the `sb` CTE, which is scoped to the caller's events through `ev`: a
+// derived table over the whole laps table would scan every user's laps, and a
+// correlated subquery would re-read a session's laps once per lap (D1 bills
+// rows read). `where` appears once, inside `ev`, so callers' binds are
+// unchanged. lap_count / lap_avg stay over every lap: the hours rule reads them.
+// A lap within CLEAN_FACTOR of its session's best — the cleanLaps rule in
+// public/js/lap-stats.js, compared the same way (inclusive, in doubles).
+const CLEAN_LAP = `l.time_ms <= sb.sbest * ${CLEAN_FACTOR}`;
+
 export const eventSelect = (where: string, orderBy = "") => `
+  WITH ev AS (SELECT e.* FROM events e ${where}),
+  sb AS (
+    SELECT l.session_id, MIN(l.time_ms) AS sbest
+    FROM ev JOIN sessions s ON s.event_id = ev.id JOIN laps l ON l.session_id = s.id
+    GROUP BY l.session_id
+  )
   SELECT e.id, e.track_id, t.name AS track_name,
          e.start_date, e.days, e.club, e.run_group, e.car, e.vehicle_id, e.notes,
          e.conditions, e.temp_f, e.checklist, e.best_time_ms, e.track_hours, e.updated_at,
@@ -34,11 +52,14 @@ export const eventSelect = (where: string, orderBy = "") => `
          COUNT(l.id) AS lap_count,
          AVG(l.time_ms * 1.0) AS lap_avg,
          AVG(l.time_ms * 1.0 * l.time_ms) AS lap_avg_sq,
+         COUNT(CASE WHEN ${CLEAN_LAP} THEN 1 END) AS clean_count,
+         AVG(CASE WHEN ${CLEAN_LAP} THEN l.time_ms * 1.0 END) AS clean_avg,
+         AVG(CASE WHEN ${CLEAN_LAP} THEN l.time_ms * 1.0 * l.time_ms END) AS clean_avg_sq,
          COUNT(DISTINCT s.id) AS session_count
-  FROM events e JOIN tracks t ON t.id = e.track_id
+  FROM ev e JOIN tracks t ON t.id = e.track_id
   LEFT JOIN sessions s ON s.event_id = e.id
   LEFT JOIN laps l ON l.session_id = s.id
-  ${where}
+  LEFT JOIN sb ON sb.session_id = s.id
   GROUP BY e.id
   ${orderBy}
 `;

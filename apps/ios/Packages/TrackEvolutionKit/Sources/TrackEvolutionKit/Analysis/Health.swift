@@ -40,9 +40,10 @@ import Foundation
 ///
 /// The **tire-pressure loop** — the setup sheet's cold pressures and a
 /// per-vehicle target turning the import's hot pressures into the cold pressure
-/// to start from next time — is web-only, because the setup notebook is. What
-/// ports is the arithmetic under it (``hotPressures(_:)``, ``suggestCold(_:_:_:)``)
-/// and nothing that needs a sheet: `pressureLoop` has no counterpart here.
+/// to start from next time — is ported since NS-40, when the setup notebook came
+/// to the phones: `pressureLoop`, `nextTimeNote`, `recordHotSheet` and
+/// `nextDaySheet` live in `PressureLoop.swift`, pinned with the setup helpers by
+/// `contracts/logic/setups.json`.
 public enum Health {
     // MARK: - Columns
 
@@ -398,7 +399,7 @@ public enum Health {
     private static func jsRound(_ v: Double) -> Double { (v + 0.5).rounded(.down) }
 
     /// What ``suggestCold(_:_:_:)`` works out.
-    public struct ColdSuggestion: Equatable, Sendable, Decodable {
+    public struct ColdSuggestion: Hashable, Sendable, Decodable {
         public var coldPsi: Double
         public var hotPsi: Double
         public var targetPsi: Double
@@ -411,8 +412,8 @@ public enum Health {
     /// `target` hot, start from cold minus the overshoot. Rounded to the
     /// sheet's step. nil unless all three are known.
     ///
-    /// The loop *around* this — reading the day's setup sheet and writing the
-    /// next day's — is web-only, because the setup notebook is.
+    /// The loop around it is ``pressureLoop(_:_:_:)`` (`PressureLoop.swift`,
+    /// NS-40), with the two sheets its buttons write.
     public static func suggestCold(_ coldPsi: Double?, _ hotPsi: Double?, _ targetPsi: Double?) -> ColdSuggestion? {
         guard let coldPsi, let hotPsi, let targetPsi else { return nil }
         let suggested = roundPsi(coldPsi - (hotPsi - targetPsi))

@@ -2,6 +2,7 @@ package app.trackevolution.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -83,6 +84,8 @@ fun SettingsScreen(
     onSubscribe: () -> Unit = {},
     /** Share with a coach (NS-38): its own page, one row here. */
     onOpenCoaching: () -> Unit = {},
+    /** *Your first track day*, in the app's own web view. */
+    onOpenTrackDaysGuide: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -138,6 +141,9 @@ fun SettingsScreen(
 
             item("coaching-header") { TESectionHeader("Coaching") }
             item("coaching") { CoachingCard(onOpenCoaching) }
+
+            item("track-days-header") { TESectionHeader("New to track days?") }
+            item("track-days") { TrackDaysCard(onOpenTrackDaysGuide) }
 
             item("legal-header") { TESectionHeader("About & legal") }
             item("legal") { LegalCard(onOpenLink) }
@@ -653,6 +659,24 @@ private fun CoachingCard(onOpenCoaching: () -> Unit) {
     }
 }
 
+/** The newcomer's guide on the docs site — the web's and iOS's same section. */
+@Composable
+private fun TrackDaysCard(onOpenGuide: () -> Unit) {
+    val colors = TrackTheme.colors
+    TrackCard(Modifier.fillMaxWidth()) {
+        Text(
+            "What a track day is, what you and the car need, where to find an event near you, " +
+                "and what happens on the day.",
+            style = TrackTheme.typography.sm,
+            color = colors.textMuted,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        Box(Modifier.testTag("trackDaysGuide")) {
+            LegalRow("Your first track day", external = false, onClick = onOpenGuide)
+        }
+    }
+}
+
 @Composable
 private fun LegalCard(onOpenLink: (String) -> Unit) {
     val colors = TrackTheme.colors
@@ -677,8 +701,9 @@ private fun LegalCard(onOpenLink: (String) -> Unit) {
     }
 }
 
+/** `↗` for a link that leaves the app, `›` for one that opens a screen in it. */
 @Composable
-private fun LegalRow(title: String, onClick: () -> Unit) {
+private fun LegalRow(title: String, external: Boolean = true, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -689,6 +714,6 @@ private fun LegalRow(title: String, onClick: () -> Unit) {
             color = TrackTheme.colors.textBody,
             textDecoration = TextDecoration.Underline,
         )
-        Text("↗", style = TrackTheme.typography.xs, color = TrackTheme.colors.textFaint)
+        Text(if (external) "↗" else "›", style = TrackTheme.typography.xs, color = TrackTheme.colors.textFaint)
     }
 }

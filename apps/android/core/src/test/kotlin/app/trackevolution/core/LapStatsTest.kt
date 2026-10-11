@@ -1,5 +1,12 @@
 package app.trackevolution.core
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -125,5 +132,60 @@ class LapStatsTest {
     @Test
     fun `says nothing at all about an empty session`() {
         assertNull(LapStats.summary(emptyList()))
+    }
+
+    // ---- eventConsistency (NS-42) ----
+
+    private fun cv(xs: List<Int>): Double {
+        val m = xs.sum().toDouble() / xs.size
+        return kotlin.math.sqrt(xs.sumOf { (it - m) * (it - m) } / xs.size) / m
+    }
+
+    @Test
+    fun `eventConsistency is the CV of the clean laps`() {
+        val c = LapStats.eventConsistency(listOf(listOf(160_000, 122_000, 121_000, 123_000, 150_000)))!!
+        assertEquals(cv(listOf(122_000, 121_000, 123_000)), c, 1e-12)
+    }
+
+    @Test
+    fun `eventConsistency judges each session against its own best`() {
+        val c = LapStats.eventConsistency(listOf(listOf(120_000, 121_000), listOf(132_000, 133_000)))!!
+        assertEquals(cv(listOf(120_000, 121_000, 132_000, 133_000)), c, 1e-12)
+    }
+
+    @Test
+    fun `eventConsistency keeps a lap exactly at 107 percent`() {
+        assertTrue(LapStats.eventConsistency(listOf(listOf(100_000, 107_000, 100_000))) != null)
+    }
+
+    @Test
+    fun `eventConsistency is null under three clean laps`() {
+        assertNull(LapStats.eventConsistency(listOf(listOf(100_000, 110_000, 120_000))))
+        assertNull(LapStats.eventConsistency(listOf(listOf(100_000), listOf(100_000))))
+        assertNull(LapStats.eventConsistency(emptyList()))
+    }
+
+    @Test
+    fun `eventConsistency is zero for identical laps`() {
+        assertEquals(0.0, LapStats.eventConsistency(listOf(listOf(120_000, 120_000, 120_000))))
+    }
+
+    /** `contracts/logic/consistency.json` — the web implementation's output. */
+    @Test
+    fun `eventConsistency matches the JavaScript implementation`() {
+        val fixture = Json.parseToJsonElement(RepoRoot.path("contracts/logic/consistency.json").readText()).jsonObject
+        assertEquals(LapStats.CLEAN_FACTOR, fixture.getValue("CLEAN_FACTOR").jsonPrimitive.double)
+        assertEquals(LapStats.MIN_CONSISTENCY_LAPS, fixture.getValue("MIN_CONSISTENCY_LAPS").jsonPrimitive.int)
+        val cases = fixture.getValue("cases").jsonArray
+        assertTrue(cases.isNotEmpty())
+        for (case in cases.map { it.jsonObject }) {
+            val name = case.getValue("name").jsonPrimitive.content
+            val sessions = case.getValue("sessions").jsonArray.map { s -> s.jsonArray.map { it.jsonPrimitive.int } }
+            val clean = case.getValue("clean").jsonArray.map { s -> s.jsonArray.map { it.jsonPrimitive.int } }
+            assertEquals(clean, sessions.map { LapStats.cleanLaps(it) }, name)
+            val want = case.getValue("consistency").jsonPrimitive.doubleOrNull
+            val got = LapStats.eventConsistency(sessions)
+            if (want == null) assertNull(got, name) else assertEquals(want, got!!, 1e-12, name)
+        }
     }
 }

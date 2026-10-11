@@ -60,6 +60,12 @@ class RoutesTest {
             Route.Record(eventId = 42),
             Route.Record(eventId = -1).remapTempId(from = -1, to = 42),
         )
+        // NS-40: a sheet logged on an event created offline follows it too,
+        // keeping its day and the sheet it opened with.
+        assertEquals(
+            Route.SetupForm(42, 2, startFrom = "{}"),
+            Route.SetupForm(-1, 2, startFrom = "{}").remapTempId(from = -1, to = 42),
+        )
     }
 
     /** A lap route carries three ids and any of them can be temp (#268). */

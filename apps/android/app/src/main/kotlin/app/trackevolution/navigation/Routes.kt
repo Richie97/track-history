@@ -32,6 +32,16 @@ public sealed interface Route {
      * "+ Add event at <track>" carrying its name across, and [presetCar] a car
      * page's "Add an event" (#342) carrying the car's.
      */
+    /**
+     * One day's setup sheet, logged or edited (NS-40). [startFrom] is a sheet to
+     * open the form with instead of the day's own or the copy-forward prefill —
+     * the pressure loop's next-day sheet with its suggested colds — carried as
+     * its JSON, since a route argument has to be a Bundle value. Not a
+     * `DeepLink` case: the web reaches the notebook only from the event page.
+     */
+    @Serializable
+    public data class SetupForm(val eventId: Int, val day: Int, val startFrom: String? = null) : Route
+
     @Serializable
     public data class EventForm(
         val editId: Int? = null,
@@ -70,6 +80,14 @@ public sealed interface Route {
 
     @Serializable
     public data object Settings : Route
+
+    /**
+     * *Your first track day*, the docs site's guide, in an in-app web view —
+     * from the dashboard's first-run card and from Settings. In the Events
+     * graph beside Settings.
+     */
+    @Serializable
+    public data object TrackDaysGuide : Route
 
     /**
      * A car's page: its logbook for every account, and for Pro its consumables

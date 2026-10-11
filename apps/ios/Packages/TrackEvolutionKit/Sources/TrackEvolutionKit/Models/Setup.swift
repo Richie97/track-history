@@ -4,10 +4,10 @@ import Foundation
 /// `src/lib/validate.ts` field for field — every field optional, because
 /// applicability varies by car.
 ///
-/// The setup notebook is a **deferred** feature on native (web only, see
-/// `docs/specs/native/README.md`); this type exists so the event-detail and
-/// track-setup responses decode losslessly, and so a native editor later has
-/// somewhere to land.
+/// The phones write sheets since NS-40, so **every key the server accepts must
+/// be here**: a key this model lacks is dropped on decode and erased on the
+/// next save. The golden `event-detail` carries a sheet with every key, and
+/// `OfflinePatchTests` round-trips it.
 public struct SetupSheet: Codable, Hashable, Sendable {
     /// Tire pressures, psi.
     public var tpCold: CornerValues?
@@ -24,8 +24,11 @@ public struct SetupSheet: Codable, Hashable, Sendable {
     public var sway: AxleValues?
     /// Gallons at session start.
     public var fuel: Double?
-    /// `parts.id` references — which consumables were on the car.
+    /// `parts.id` references — which consumables were on the car: a full set of
+    /// tires, or a front / rear pair (`tires_front` / `tires_rear` parts).
     public var tiresId: Int?
+    public var tiresFId: Int?
+    public var tiresRId: Int?
     public var padsFId: Int?
     public var padsRId: Int?
     public var notes: String?
@@ -35,6 +38,8 @@ public struct SetupSheet: Codable, Hashable, Sendable {
         case tpCold = "tp_cold"
         case tpHot = "tp_hot"
         case tiresId = "tires_id"
+        case tiresFId = "tires_f_id"
+        case tiresRId = "tires_r_id"
         case padsFId = "pads_f_id"
         case padsRId = "pads_r_id"
     }
@@ -48,12 +53,24 @@ public struct CornerValues: Codable, Hashable, Sendable {
     public var fr: Double?
     public var rl: Double?
     public var rr: Double?
+
+    public init(fl: Double? = nil, fr: Double? = nil, rl: Double? = nil, rr: Double? = nil) {
+        self.fl = fl
+        self.fr = fr
+        self.rl = rl
+        self.rr = rr
+    }
 }
 
 /// Per-axle values: front, rear.
 public struct AxleValues: Codable, Hashable, Sendable {
     public var f: Double?
     public var r: Double?
+
+    public init(f: Double? = nil, r: Double? = nil) {
+        self.f = f
+        self.r = r
+    }
 }
 
 /// One day's setup sheet as returned inside an event's detail.
@@ -63,6 +80,11 @@ public struct Setup: Codable, Hashable, Sendable, Identifiable {
     public var data: SetupSheet
 
     public var id: Int { day }
+
+    public init(day: Int, data: SetupSheet) {
+        self.day = day
+        self.data = data
+    }
 }
 
 /// `GET /api/events/:id/setups/prefill` — the copy-forward prefill for a blank

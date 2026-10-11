@@ -33,17 +33,22 @@ The three clients are deliberately **not** at parity:
   entitlement, Google has no equivalent to grant, and that asymmetry is now a
   permanent feature of the split rather than a gap to close.
 - **The web app owns the desk-bound long tail** — logger-file import other
-  than video and `.vbo`, year in review, the setup notebook and its lap-time correlation. Big
-  screen, file drag-and-drop, ships instantly.
+  than video and `.vbo`, year in review, the setup-vs-lap-times correlation. Big
+  screen, file drag-and-drop, ships instantly. (The setup notebook itself left
+  this list with [NS-40](NS-40-paddock-loop.md): a sheet is filled in at the
+  car.)
 - **The web app stays the feature frontier.** New ideas land there first and
-  graduate to native once proven.
+  graduate to native once proven. **Exporting the logbook**
+  ([NS-44](NS-44-web-export.md)) is the latest: Settings → *Your data* on the
+  web, through bearer-capable routes, so a phone door later needs no server
+  change.
 - **The Mac is a fourth *surface*, not a fourth client** (2026-09, epic
   [#230](https://github.com/Richie97/track-history/issues/230)). It runs the
   iPad build as a *Designed for iPad* app — no target, no Catalyst — so it
   inherits the native feature set **minus the recorder**: a Mac has no GPS, and
   `Platform.runsOnMac` closes every door to it. The web-only list above is
   **unchanged** by the Mac: year in review, the two-event
-  overlay and the setup notebook do not come to native because the app is on a
+  overlay and the setup-vs-lap-times diff do not come to native because the app is on a
   desk, which is the same rule NS-34 applies to a big screen. A desk-sized
   native client is the standing *argument* for revisiting that list — recorded
   here so the next person does not reopen the debate from scratch — and a
@@ -209,8 +214,8 @@ Features added after the rewrite shipped, and where they landed:
 - **Session health strip**
   ([#190](https://github.com/Richie97/track-history/issues/190), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))
-  — shipped **web first**, and the strip is now on **all three**, with the
-  setup-sheet loop **web-only**. The panel's Car tab, finally filled: the
+  — shipped **web first**, and the strip is now on **all three**, and since
+  [NS-40](NS-40-paddock-loop.md) so is the setup-sheet loop. The panel's Car tab, finally filled: the
   fourteen per-lap scalars plus per-lap peak boost as small multiples (a card
   per figure with the session's number by that channel's own rule and a
   sparkline across the laps), threshold shading in the garage's wear
@@ -222,10 +227,10 @@ Features added after the rewrite shipped, and where they landed:
   (`HEALTH_DEFS`, `lapValue`, `healthStatus`, `sessionHealth`, `tyreSpread`,
   `fuelBurn`, `hotPressures`, `suggestCold`, `healthSummary`) and pinned by
   `contracts/logic/health.json`; the drawing is per platform
-  (`healthStripHtml` / `HealthStrip.swift` / `HealthStrip.kt`). `pressureLoop`
-  is the one function with no counterpart: it takes a setup sheet, and the
-  notebook is web-only — the arithmetic under it (`hotPressures`,
-  `suggestCold`) ports so the hot pressures on the strip are the same numbers.
+  (`healthStripHtml` / `HealthStrip.swift` / `HealthStrip.kt`). `pressureLoop`,
+  which takes a setup sheet, ported with the notebook in NS-40 — with
+  `nextTimeNote`, `recordHotSheet` and `nextDaySheet` — and is pinned by
+  `contracts/logic/setups.json`.
   Two layout decisions differ on a phone and are stated in both ports: the
   web's **per-lap table appears at expanded width only** (fifteen columns is a
   desk layout, so on a phone the sparkline plus the session figure is the same
@@ -242,11 +247,12 @@ Features added after the rewrite shipped, and where they landed:
   **tire-pressure loop** — the sheet's cold pressures, the import's hot ones
   and a per-vehicle target (`vehicles.target_hot_psi`, the one schema change)
   becoming the cold pressure to start from next time, recorded onto the day's
-  sheet with a *next time* note that copies forward — stays web-only because
-  the setup notebook is (see the deferred list); the native clients show the
-  hot pressures on the strip and nothing more. `target_hot_psi` reached the
-  golden captures, so both native `Vehicle` models decode it without reading
-  it.
+  sheet with a *next time* note that copies forward — reached the phones with
+  the notebook in [NS-40](NS-40-paddock-loop.md). On the web it sits on the
+  Car tab; on both phones it sits **under the notebook on the event page**,
+  fed by the latest session that recorded tire pressures, because below
+  expanded width the channel panel is a sheet (iOS) or a destination
+  (Android) and the last session out is the one the next colds are for.
 - **Session conditions**
   ([#191](https://github.com/Richie97/track-history/issues/191), 2026-09,
   epic [#193](https://github.com/Richie97/track-history/issues/193))
@@ -493,7 +499,13 @@ Features added after the rewrite shipped, and where they landed:
   `costCents` (null when nothing was entered — not zero, so an uncosted day
   never reads as free), and both `GarageVehicle`s decode
   `event_cost_cents` / `parts_cost_cents`. A phone edit therefore never
-  drops a cost the web entered, and neither phone shows one yet. Costs are
+  drops a cost the web entered. Since [NS-40](NS-40-paddock-loop.md) both
+  phones **enter and show them** too — the four fields behind a *What it
+  cost* disclosure on the event form, a *Cost* tile and breakdown on the event
+  page, and the Pro roll-ups (`canViewSpend`) on the track and car pages; the
+  form helpers are `Costs` in the Kit and `:core`, pinned by
+  `contracts/logic/costs.json`. Year in review, and so the cost-per-second
+  headline, stays web-only. Costs are
   private: `GET /api/share/:slug` strips the line items and the total like
   notes.
 - **Front / rear tires, part sizes and the Equipped switch** (2026-09,
@@ -512,7 +524,8 @@ Features added after the rewrite shipped, and where they landed:
   sentences and the swap choice are `Garage.equipSwapKinds` / `equipSwapsOff`
   / `partTitle` / `equipNote` / `addSwapNote` in the Kit and `:core`, the first
   three pinned by `contracts/logic/garage-status.json`. The setup sheet's two
-  new tire refs (`tires_f_id` / `tires_r_id`) stay with the notebook, web-only.
+  new tire refs (`tires_f_id` / `tires_r_id`) are in both native `SetupSheet`s
+  since NS-40, and both phones' notebooks pick them.
 - **Share-page OG meta** (2026-08) — **server-side**, no client work: the
   Worker injects per-slug tags into the SPA shell for `/share/:slug`.
 - **AI assistants over MCP** (2026-09, epic
@@ -560,8 +573,8 @@ Features added after the rewrite shipped, and where they landed:
   `entitlement.js` and both ports — and the delta chart, sector splits and the
   two-lap compare stay Pro through `canViewChannels`; every free channel panel
   ends on a note saying what the rest of the recording would show.
-  The web-only Pro features — the two-event overlay, year in review, the setup
-  notebook — gate on the client through `public/js/entitlement.js`, whose
+  The web-only Pro features — the two-event overlay, year in review, the
+  setup-vs-lap-times diff — gate on the client through `public/js/entitlement.js`, whose
   predicates both ports carry under the same names even where no native screen
   reads them.
 
@@ -638,6 +651,12 @@ change* rule does not apply — see the spec for why.
 | NS-36 | [Season Wrapped](NS-36-season-wrapped.md) | Web (server + web app), then iOS + Android | Year in review, share pages, NS-32, the garage |
 | NS-37 | [The Garage tab](NS-37-garage-tab.md) | Shared (web, iOS, Android; no server change) | NS-29, NS-31, NS-32, NS-34, #221/#222, #147 |
 | NS-38 | [Share with a coach](NS-38-coach-sharing.md) | Shared (server, web, iOS, Android) | NS-32, NS-34, NS-37, the share page, #314 |
+| NS-39 | [A native ChatGPT experience](NS-39-chatgpt-apps.md) | Server (MCP widgets; no client change) | #314, NS-32, NS-36 |
+| NS-40 | [The paddock loop on the phones](NS-40-paddock-loop.md) — setup notebook, costs, session notes | Shared (one server fix, web, iOS, Android) | NS-29, NS-31, NS-32, #190, #147 |
+| NS-41 | [HPDE progression](NS-41-hpde-progression.md) — instructor, sign-offs, run-group timeline | Shared (server, web, iOS, Android) | NS-38, the share page, #314 |
+| NS-42 | [Consistency over clean laps](NS-42-clean-lap-consistency.md) | Shared (server + the three offline mirrors; no screen change) | `withComputed`, `cleanLaps` |
+| NS-43 | [Calendar feed](NS-43-calendar-feed.md) | Shared (server, web, iOS, Android) | the events list |
+| NS-44 | [Export your logbook](NS-44-web-export.md) | Server + web (native door a follow-up) | `eventSelect`, the garage tables |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
@@ -653,26 +672,32 @@ waits on the Duo simulator.
 
 ## Deferred — not in this programme
 
-Available on web throughout, ported to native later or never: the setup notebook,
-the setup-vs-lap-times diff, year in review, and the
+Available on web throughout, ported to native later or never: the
+setup-vs-lap-times diff, year in review, and the
 **two-event** compare view (`viewCompare`).
 
-Four things were on this list and came off it, all for the reason the split
+Five things were on this list and came off it, all for the reason the split
 predicts — the work happens where the web app isn't:
 
 - **The garage** (vehicles, parts, wear, measurements) — NS-29 on iOS, NS-31 on
   Android. Deciding whether the pads will last the weekend is something you do
   *at* the car, and that argument was never iOS-specific — it was simply written
-  down while iOS was the client being built. Its **analysis** half — the setup
-  notebook and the setup-vs-lap-times diff — stays deferred on both platforms,
-  and that division is deliberate rather than a stopping point someone ran out of
-  time at. Since [NS-37](NS-37-garage-tab.md) the garage is also the other half
+  down while iOS was the client being built. Its **analysis** half — the
+  setup-vs-lap-times diff — stays deferred on both platforms, and that division
+  is deliberate rather than a stopping point someone ran out of time at. Since [NS-37](NS-37-garage-tab.md) the garage is also the other half
   of the app on every client — a tab on both phones, a top-bar link on the web —
   with a **free** half (the cars, *+ Add car*, each car's logbook and best laps)
   and the consumables and every cost roll-up Pro, shown locked in place.
+- **The setup notebook and its tire-pressure loop** —
+  [NS-40](NS-40-paddock-loop.md), on both phones (2026-10), on the garage's
+  at-the-car argument: a day's sheet is filled in between sessions with a
+  gauge in one hand, and the loop's *next time* colds are for the morning.
+  The setup-vs-lap-times table stays here — it is a season-review tool.
 - **Video import** (GoPro and Corvette PDR) — NS-30 on iOS, NS-32 on Android. The
   footage is already on the phone that shot or received it, and the argument was
-  never platform-specific.
+  never platform-specific. The newer Cadillac PDR ("AliveDrive PDR 2.5",
+  `PDR25` in the Kit and `:core`) joined on all three clients at once (2026-10),
+  on the same argument and the same fixture.
 - **`.vbo` import** — on both phones (2026-09). Porsche Track Precision records
   and exports on the phone, so for the files people actually have the phone is
   where the `.vbo` is; a VBOX's SD card still goes to a laptop, and the browser

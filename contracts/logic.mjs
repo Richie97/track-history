@@ -186,6 +186,26 @@ import {
   liveTimingDisplay,
 } from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
+import { CLEAN_FACTOR, MIN_CONSISTENCY_LAPS, cleanLaps, eventConsistency } from "../public/js/lap-stats.js";
+import {
+  AXLE_KEYS as SETUP_AXLE_KEYS,
+  CORNER_KEYS as SETUP_CORNER_KEYS,
+  PART_REFS as SETUP_PART_REFS,
+  SETUP_FIELDS,
+  diffSetups,
+  flatLabel,
+  flatUnit,
+  flattenSetup,
+  fmtSetupValue,
+  previousSheet,
+  setupFieldFor,
+  setupStep,
+  setupToDisplay,
+  setupToStored,
+  setupUnit,
+} from "../public/js/garage.js";
+import { nextDaySheet, nextTimeNote, pressureLoop, recordHotSheet } from "../public/js/health.js";
+import { COST_FIELDS, centsToDollars, dollarsToCents, fmtSpend } from "../public/js/costs.js";
 import { fmtDays, fmtGain, posterLines, trackDistance, wrappedCards, wrappedSeason } from "../public/js/wrapped.js";
 import { sessionsToCreate, stagedSummary } from "../public/js/event-form.js";
 import {
@@ -207,6 +227,7 @@ import {
   buildGpmfMp4,
   buildPdrDeltaMp4,
   buildPdrMp4,
+  buildPdr25Mp4,
   buildPdrRealMp4,
   buildTrackPrecisionCsv,
   buildVboText,
@@ -1608,6 +1629,17 @@ const videoFixtures = [
     bytes: buildPdrRealMp4({ beaconTimes }),
   },
   {
+    file: "pdr25-laps.mp4",
+    note: "AliveDrive PDR 2.5 (2025-on GM, the Cadillac Blackwing's recorder): self-describing 'adco' entry, untagged scheduled records at 20/10/5/1 Hz, lap.start/lap.end events, four samples per chunk.",
+    bytes: buildPdr25Mp4({ lapCrossings: beaconTimes }),
+  },
+  {
+    file: "pdr25-nolaps.mp4",
+    note: "The same PDR 2.5 recording with no lap events (the recorder didn't know the track): the line picker times the laps.",
+    bytes: buildPdr25Mp4(),
+    pick: true,
+  },
+  {
     file: "pdr-real-shifted.mp4",
     note: "The same track from a different pit-out angle, no beacons: laps recovered from lat+odometer periodicity, then anchored by the file above.",
     bytes: buildPdrRealMp4({ startAngle: 1.0 }),
@@ -1653,11 +1685,11 @@ const anchored = batchResults
 const videoFixture = {
   description:
     "Reference output of the video telemetry parsers (public/pdr.js, " +
-    "public/js/import/gpmf.js, channels.js, pdr-laps.js) over the committed MP4s " +
+    "public/js/import/pdr25.js, gpmf.js, channels.js, pdr-laps.js) over the committed MP4s " +
     "in contracts/logic/video/. The iOS port (NS-30) must reproduce lap times to " +
     "the millisecond, coordinates to 1e-9 and every channel array element for " +
     "element. Regenerate with `npm run contracts:logic`; never hand-edit.",
-  source: "public/pdr.js, public/js/import/gpmf.js, public/js/import/channels.js, public/js/import/pdr-laps.js",
+  source: "public/pdr.js, public/js/import/pdr25.js, public/js/import/gpmf.js, public/js/import/channels.js, public/js/import/pdr-laps.js",
   gpsStride: GPS_STRIDE,
   files: videoCases.map(({ entry }) => entry),
   // What anchorPdrBatch changed once every file in the batch was parsed.
@@ -1906,6 +1938,40 @@ const csvFixture = {
   gpsStride: GPS_STRIDE,
   files: csvCases,
   lapsFromLaptime: laptimeCases,
+};
+
+// --- event consistency over clean laps (NS-42) -----------------------------
+// lap-stats.js's eventConsistency, which every offline mirror calls and the
+// server computes in SQL. The cases are the ways a port goes wrong: an out-lap
+// and a cool-down, a lap exactly at 107% (inclusive in doubles), two sessions
+// judged against their own bests, 3 laps of which 1 is clean, single-lap
+// sessions, nothing at all.
+const consistencyCases = [
+  { name: "out-lap and cool-down", sessions: [[160000, 122000, 121000, 123000, 150000]] },
+  { name: "exactly at 107%", sessions: [[100000, 107000, 100000]] },
+  { name: "just over 107%", sessions: [[100000, 107001, 100000, 101000]] },
+  { name: "two sessions, own bests", sessions: [[120000, 121000], [132000, 133000]] },
+  { name: "one clean of three", sessions: [[100000, 110000, 120000]] },
+  { name: "single-lap sessions", sessions: [[121000], [121500], [122000]] },
+  { name: "single lap beside a full session", sessions: [[90000], [121000, 122000, 123500, 124000]] },
+  { name: "identical laps", sessions: [[120000, 120000, 120000]] },
+  { name: "no sessions", sessions: [] },
+  { name: "empty session", sessions: [[]] },
+];
+const consistencyFixture = {
+  description:
+    "eventConsistency from public/js/lap-stats.js (NS-42): the coefficient of variation of an " +
+    "event's clean laps — within CLEAN_FACTOR of their own session's best — null under " +
+    "MIN_CONSISTENCY_LAPS. Both OfflineMirrors.recomputeDetail ports call LapStats.eventConsistency " +
+    "and must match to 1e-12. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/lap-stats.js",
+  CLEAN_FACTOR,
+  MIN_CONSISTENCY_LAPS,
+  cases: consistencyCases.map((c) => ({
+    ...c,
+    clean: c.sessions.map((laps) => cleanLaps(laps)),
+    consistency: eventConsistency(c.sessions),
+  })),
 };
 
 // ---------------------------------------------------------------------------
@@ -2227,10 +2293,169 @@ const trackmapFixture = {
   },
 };
 
+// --- the setup notebook's pure half (NS-40) --------------------------------
+// garage.js's setup-sheet helpers and health.js's pressure loop, which both
+// phones port so a sheet logged or loop-recorded on a phone is the sheet the
+// web would write. Inputs are chosen for the ports' traps: every field in both
+// unit systems, a bar value that doesn't land on the psi step, a sheet with
+// every key (the part refs too, which a model that drops one silently erases),
+// days with gaps, and the loop's record action run twice — the note must not
+// double.
+const SETUP_UNIT_SYSTEMS = ["imperial", "metric"];
+const fullSheet = {
+  tp_cold: { fl: 26, fr: 26.5, rl: 24, rr: 24 },
+  tp_hot: { fl: 33.5, fr: 34, rl: 31, rr: 31.5 },
+  camber: { f: -3.2, r: -2.1 },
+  toe: { f: -0.05, r: 0.12 },
+  caster: { f: 7.5, r: 0 },
+  rebound: { f: 8, r: 6 },
+  compression: { f: 4, r: 3 },
+  sway: { f: 2, r: 1 },
+  fuel: 12.5,
+  tires_id: 11,
+  tires_f_id: 12,
+  tires_r_id: 13,
+  pads_f_id: 14,
+  pads_r_id: 15,
+  notes: "Pushing in T5; went two clicks stiffer front.",
+};
+const nextSheet = {
+  ...fullSheet,
+  tp_cold: { fl: 25.5, fr: 26.5, rl: 24, rr: 23.5 },
+  camber: { f: -3.5, r: -2.1 },
+  fuel: null,
+  tires_f_id: 16,
+  pads_r_id: undefined,
+};
+delete nextSheet.pads_r_id;
+const setupValueProbes = [
+  ["tp_cold.fl", 26],
+  ["tp_cold.fl", 29.01],
+  ["tp_hot.rr", 34.5],
+  ["camber.f", -3.2],
+  ["toe.r", 0.12],
+  ["caster.f", 7.5],
+  ["rebound.f", 8],
+  ["sway.r", 1],
+  ["fuel", 12.5],
+  ["fuel", 0],
+  ["tires_id", 11],
+  ["nonsense", 3],
+  ["tp_cold.fl", null],
+];
+const displayProbes = [26, 29.01, 31.5, 2.14, 0, 12.5];
+const loopSheet = { tp_cold: { fl: 26, fr: 26, rl: 24, rr: 24 }, notes: "Day one." };
+const loop = pressureLoop(healthChannels, loopSheet, 34);
+const loopNoTarget = pressureLoop(healthChannels, loopSheet, null);
+const recordedOnce = recordHotSheet(loopSheet, loop);
+const setupsFixture = {
+  description:
+    "The setup notebook's pure half (NS-40): garage.js's setup-sheet helpers (SETUP_FIELDS, " +
+    "setupUnit / setupStep / setupToDisplay / setupToStored, flattenSetup / flatLabel / " +
+    "flatUnit / fmtSetupValue / diffSetups, previousSheet) and health.js's pressure loop " +
+    "(pressureLoop / nextTimeNote / recordHotSheet / nextDaySheet). Both phones' ports must " +
+    "match it exactly — strings verbatim, doubles to 1e-9. Units are the account's " +
+    "'imperial' / 'metric'. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: ["public/js/garage.js", "public/js/health.js"],
+  SETUP_FIELDS,
+  CORNER_KEYS: SETUP_CORNER_KEYS,
+  AXLE_KEYS: SETUP_AXLE_KEYS,
+  PART_REFS: SETUP_PART_REFS,
+  fields: SETUP_UNIT_SYSTEMS.flatMap((units) =>
+    SETUP_FIELDS.map((f) => ({
+      key: f.key,
+      units,
+      unit: setupUnit(f, units),
+      step: setupStep(f, units),
+      display: displayProbes.map((v) => [v, setupToDisplay(f, v, units)]),
+      // Displayed → stored, including the displayed values of the probes
+      // above, so a round trip is pinned as well as each direction.
+      stored: displayProbes.map((v) => [v, setupToStored(f, v, units)]),
+    }))
+  ),
+  fieldFor: ["tp_cold.fl", "camber.r", "fuel", "tires_id", "notes", "nonsense.x"].map((k) => [
+    k,
+    setupFieldFor(k)?.key ?? null,
+  ]),
+  flat: {
+    sheet: fullSheet,
+    flatten: flattenSetup(fullSheet),
+    labels: flattenSetup(fullSheet).map(([k]) => [k, flatLabel(k)]),
+    unknownLabel: flatLabel("nonsense"),
+    units: SETUP_UNIT_SYSTEMS.map((units) => ({
+      units,
+      units_of: flattenSetup(fullSheet).map(([k]) => [k, flatUnit(k, units)]),
+      values: setupValueProbes.map(([k, v]) => [k, v, fmtSetupValue(k, v, units)]),
+    })),
+    emptyFlatten: flattenSetup(null),
+  },
+  diff: {
+    prev: fullSheet,
+    cur: nextSheet,
+    changes: diffSetups(fullSheet, nextSheet),
+    fromNothing: diffSetups(null, { tp_cold: { fl: 26 }, fuel: 10 }),
+    toNothing: diffSetups({ camber: { f: -3 } }, null),
+    same: diffSetups(fullSheet, { ...fullSheet }),
+  },
+  previous: {
+    setups: [
+      { day: 3, data: { fuel: 3 } },
+      { day: 1, data: { fuel: 1 } },
+    ],
+    cases: [1, 2, 3, 4, 9].map((day) => [
+      day,
+      previousSheet(
+        [
+          { day: 3, data: { fuel: 3 } },
+          { day: 1, data: { fuel: 1 } },
+        ],
+        day
+      ),
+    ]),
+    none: previousSheet([], 2),
+  },
+  loop: {
+    channels: "health.json input.channels",
+    sheet: loopSheet,
+    targetPsi: 34,
+    loop,
+    loopNoTarget,
+    loopNoSheet: pressureLoop(healthChannels, null, 34),
+    note: nextTimeNote(loop),
+    noteNoTarget: nextTimeNote(loopNoTarget),
+    recordedOnce,
+    recordedTwice: recordHotSheet(recordedOnce, loop),
+    recordedOnNothing: recordHotSheet(null, loop),
+    nextFromToday: nextDaySheet(null, fullSheet, loop),
+    nextKeepsItsOwn: nextDaySheet({ camber: { f: -2 }, tp_cold: { fl: 20 } }, fullSheet, loop),
+    nextNoSuggestion: nextDaySheet(null, fullSheet, loopNoTarget),
+  },
+};
+
+// --- the cost form's pure half (NS-40) --------------------------------------
+// costs.js's form helpers, which both phones port for the event form. The
+// trap is dollarsToCents: Math.round of the binary product, so "0.285" is 28
+// cents, not 29 — a port that rounds the decimal string is a cent out.
+const dollarInputs = ["12.5", "12", "", "   ", "-1", "1,200", "12.345", "0.285", "0.1", "1e3", "abc", "389.50", null];
+const costsFixture = {
+  description:
+    "The cost form's pure half (NS-40): COST_FIELDS, dollarsToCents, centsToDollars and " +
+    "fmtSpend from public/js/costs.js. Both phones' ports must match it exactly. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/costs.js",
+  COST_FIELDS,
+  dollarsToCents: dollarInputs.map((v) => [v, dollarsToCents(v)]),
+  centsToDollars: [38950, 38900, 5, 0, 100, 123456, null].map((c) => [c, centsToDollars(c)]),
+  fmtSpend: [0, 99, 100, 123456, 100000000, null].map((c) => [c, fmtSpend(c)]),
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "consistency.json"), JSON.stringify(consistencyFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "setups.json"), JSON.stringify(setupsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "costs.json"), JSON.stringify(costsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "wrapped.json"), JSON.stringify(wrappedFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
@@ -2561,6 +2786,9 @@ console.log(`wrote contracts/logic/car-catalog-match.json (${catalogQueries.leng
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
+console.log(`wrote contracts/logic/consistency.json (${consistencyCases.length} cases)`);
+console.log(`wrote contracts/logic/setups.json (${setupsFixture.fields.length} field/unit rows)`);
+console.log(`wrote contracts/logic/costs.json (${costsFixture.dollarsToCents.length} dollar inputs)`);
 console.log(`wrote contracts/logic/wrapped.json (${wrappedSeasons.length} seasons)`);
 console.log(`wrote contracts/logic/event-form.json (${eventFormCases.length} cases)`);
 console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);

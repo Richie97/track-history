@@ -60,6 +60,9 @@ fun DashboardPane(
         onRecord = { nav.navigate(Route.Record(eventId = it)) },
         // Never replaced into the detail pane either: the story owns the window.
         onOpenWrapped = { nav.navigate(Route.Wrapped(it)) },
+        // In the app's own web view rather than a browser tab — a page to read,
+        // not a site to leave for.
+        onOpenTrackDaysGuide = { nav.open(Route.TrackDaysGuide, inListPane) },
         recorderIdle = recorderIdle,
         selection = if (inListPane) selection else null,
     )

@@ -126,25 +126,25 @@ struct GarageScreen: View {
                 .foregroundStyle(Color(.textMuted))
             if let garageRow {
                 let active = garageRow.parts.filter(Garage.isOnCar)
-                let worst = Garage.garageAlerts([garageRow]).first?.status
+                let alerts = Garage.garageAlerts([garageRow])
+                let worst = alerts.first?.status
                 Text("\(Garage.fmtHours(garageRow.hours)) on track")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
-                Text(Self.statusLine(worst: worst, activeParts: active.count))
+                Text(Self.statusLine(alerts: alerts.count, activeParts: active.count))
                     .teStyle(.xs)
                     .foregroundStyle((worst ?? .ok).ink)
             }
         }
     }
 
-    static func statusLine(worst: Garage.PartStatus?, activeParts: Int) -> String {
-        switch worst {
-        case .due: "Replace something now"
-        case .low: "Something's due soon"
-        // No alert isn't the same as nothing fitted: an empty tile says so
-        // rather than claiming everything's healthy.
-        case .ok, nil: activeParts == 0 ? "No consumables tracked yet" : "Nothing due"
-        }
+    /// The tile's status, in the web's and Android's words: how many items
+    /// `Garage.garageAlerts` raised, else whether anything is fitted at all — no
+    /// alert isn't the same as nothing fitted, so an empty tile says so rather
+    /// than claiming everything's healthy.
+    static func statusLine(alerts: Int, activeParts: Int) -> String {
+        if alerts > 0 { return "● \(alerts) item\(alerts == 1 ? "" : "s") due soon" }
+        return activeParts > 0 ? "● consumables OK" : "No consumables tracked yet"
     }
 
     /// The last card: add a car. A button dressed as a card, so it reads as one
@@ -161,8 +161,8 @@ struct GarageScreen: View {
                     .teStyle(.h3)
                     .foregroundStyle(Color(.textStrong))
                 Text(model.vehicles.isEmpty
-                    ? "Add the car you drive — new events fill it in, and its page keeps what it has done."
-                    : "Pick it from the catalog or type it in.")
+                    ? "Add the car you drive — new events fill it in, and its page keeps what it has done"
+                    : "Pick it from the catalog or type it in")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
             }

@@ -101,7 +101,7 @@
           <h3>Telemetry import
           <span class="tier">Free</span>
           </h3>
-          <p>Drop in Corvette PDR video, GoPro footage, Racelogic VBO or Porsche Track Precision files and get sessions with laps and racing lines — free, on the web and in the phone apps, straight from Files or Photos. Parsing happens entirely on your own device: videos are read by byte range and never uploaded. Per-lap speed, throttle and brake graphs are free too. With <a href="#pricing">Pro</a>, the same files also give you the rest of the channels — steering, RPM, lateral G and yaw — a gear ribbon with your shift points, ABS and wheelspin marks on the track map, sector splits with a theoretical best lap, a car-health strip of the slow readings (oil and tire temperatures, pressures, fuel and battery, lap by lap), and a lap-vs-lap delta chart that shows exactly where the time went — including comparing any two laps across sessions, events or seasons.</p>
+          <p>Drop in Corvette or Cadillac PDR video, GoPro footage, Racelogic VBO or Porsche Track Precision files and get sessions with laps and racing lines — free, on the web and in the phone apps, straight from Files or Photos. Parsing happens entirely on your own device: videos are read by byte range and never uploaded. Per-lap speed, throttle and brake graphs are free too. With <a href="#pricing">Pro</a>, the same files also give you the rest of the channels — steering, RPM, lateral G and yaw — a gear ribbon with your shift points, ABS and wheelspin marks on the track map, sector splits with a theoretical best lap, a car-health strip of the slow readings (oil and tire temperatures, pressures, fuel and battery, lap by lap), and a lap-vs-lap delta chart that shows exactly where the time went — including comparing any two laps across sessions, events or seasons.</p>
         </div>
 
         <div class="feature">
@@ -121,7 +121,7 @@
           <h3>Lap stats that mean something
           <span class="tier">Free</span>
           </h3>
-          <p>Best time per event, consistency as coefficient of variation, best-N averages, pace trends and warmup analysis — computed from your actual laps.</p>
+          <p>Best time per event, consistency over your clean laps — the ones within 7% of the session's best, so a cool-down lap or a lap stuck in traffic doesn't count against you — best-N averages, pace trends and warmup analysis — computed from your actual laps.</p>
         </div>
 
         <div class="feature">
@@ -131,7 +131,7 @@
           <h3>Garage &amp; setup notebook
           <span class="tier pro">Pro</span>
           </h3>
-          <p>Pads, tires and fluid tracked per car, with wear projected from your logged track time — the app tells you "front pads: about two days left" before the weekend, not after. Setup sheets per event day, diffed against your lap times.</p>
+          <p>Pads, tires and fluid tracked per car, with wear projected from your logged track time — the app tells you "front pads: about two days left" before the weekend, not after. Setup sheets per event day, filled in at the car on the web or either phone app and diffed against your lap times — and when an import knows the hot tire pressures you ran, the notebook suggests the cold pressures to start from next session.</p>
         </div>
 
         <div class="feature">
@@ -221,6 +221,10 @@
           <p>Lap times recovered from beacon and odometer telemetry — reverse-engineered and validated against Cosworth Toolbox, including crossings the recorder dropped. The GPS trace, top speed, max RPM and max lateral G are decoded too, and recordings with no beacons still get lap times via the line picker or the telemetry's lap-to-lap periodicity.</p>
         </div>
         <div class="feature">
+          <h3>Cadillac PDR MP4</h3>
+          <p>The newer recorder in Cadillac's V-Series Blackwings times laps itself, so its clips arrive with the car's own lap times to the millisecond — plus the GPS trace and the same car channels and readings as a Corvette's. No line to pick.</p>
+        </div>
+        <div class="feature">
           <h3>GoPro MP4</h3>
           <p>The GPS trace from the GPMF metadata track (Hero 5 and newer), timed with the start/finish line picker.</p>
         </div>
@@ -275,7 +279,8 @@
             <li>Sector splits, theoretical best and lap-vs-lap deltas</li>
             <li>Consumable tracking: pads, tires, fluid, wear projections and cost per hour</li>
             <li>What it all cost, rolled up per track and per car</li>
-            <li>The setup notebook, diffed against your lap times</li>
+            <li>The setup notebook, diffed against your lap times, with
+              suggested cold tire pressures from the hots you ran</li>
             <li>Year in review, with what the season cost per second found</li>
             <li>Season Wrapped's favorite-tire and top-speed cards</li>
             <li>Connect Claude, ChatGPT or another AI assistant to your logbook</li>
@@ -310,6 +315,8 @@
         or <a href="https://play.google.com/store/apps/details?id=app.trackevolution">Android</a> app — the iPhone app
         also installs on iPad and Apple silicon Macs — or just sign in at
         <a href="https://trackevolution.app">trackevolution.app</a>, and log your first event.
+        Never driven on track? Read <a href="docs/track-days.html">your first track day</a> —
+        what an HPDE is, what you need and where to find one.
       </p>
 
       <div class="steps">

@@ -364,7 +364,10 @@ section.alt { background: var(--bg-subtle); border-block: 1px solid var(--border
   display: grid;
   grid-template-columns: 220px 1fr;
   gap: 48px;
-  padding: 40px 0 72px;
+  /* Top and bottom only: the shorthand would zero .wrap's side padding,
+     which a centred desktop column hides and a phone does not. */
+  padding-top: 40px;
+  padding-bottom: 72px;
 }
 
 .docs-sidebar {

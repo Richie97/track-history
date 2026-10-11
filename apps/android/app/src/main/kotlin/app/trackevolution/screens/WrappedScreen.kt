@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TERetryButton
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.SessionConditions
@@ -125,16 +126,9 @@ fun WrappedScreen(
                 TERetryButton(onClick = { model.load() })
             }
             is WrappedModel.Phase.Empty -> Column(Modifier.padding(24.dp).align(Alignment.Center)) {
-                Text(
-                    "No track days in ${model.year} — yet",
-                    style = TrackTheme.typography.h1,
-                    color = colors.textStrong,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
+                TEEmpty(
                     "Wrapped tells the story of a season once there's a track day in it.",
-                    style = TrackTheme.typography.body,
-                    color = colors.textMuted,
+                    title = wrappedEmptyTitle(model.year, java.time.LocalDate.now().year),
                 )
                 // The way out the web offers (#342): every year that has a
                 // story, or the one there is.
@@ -662,3 +656,10 @@ private fun ShareButtons(data: Wrapped, units: UnitSystem, shareUrl: String?) {
         }
     }
 }
+
+/**
+ * The empty year's heading: a season still running (or not begun) may yet have
+ * a track day — "— yet" — and one that is over won't. The web's wording.
+ */
+internal fun wrappedEmptyTitle(year: Int, currentYear: Int): String =
+    if (year < currentYear) "No track days in $year" else "No track days in $year — yet"

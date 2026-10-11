@@ -10,8 +10,9 @@ import UniformTypeIdentifiers
 /// reach for, and porting that button instead of the gesture would be porting the
 /// workaround.
 ///
-/// Out of scope here, and absent rather than stubbed: the per-day setup notebook,
-/// the setup-vs-lap-times diff, and telemetry file import — all web-only
+/// The per-day **setup notebook** is here since NS-40 (`SetupNotebookCard`), with
+/// the tire-pressure loop under it: a sheet is filled in at the car, between
+/// sessions. The setup-vs-lap-times diff stays web-only
 /// (`docs/specs/native/README.md`). The lap *recorder* is native, and its entry
 /// point is the "Add a session" card at the bottom, alongside video import and hand
 /// entry — one card, because they are three answers to one question.
@@ -47,6 +48,9 @@ struct EventScreen: View {
     /// arrive, and an always-open three-field form under them made the card read as a
     /// form with two buttons above it rather than as three ways in.
     @State private var manualEntryOpened = false
+    /// The setup notebook starts collapsed, as on the web; this holds it open
+    /// across the pushed setup form and the reload a saved sheet causes.
+    @State private var setupNotebookOpen = false
 
     // Typed text is held on the router rather than in `@State`, so crossing
     // 840pt — which swaps the shell and tears this view down — keeps it (epic
@@ -136,6 +140,12 @@ struct EventScreen: View {
                 self.model = model
                 await model.load()
             }
+        }
+        // Back from a page pushed over this one — a day's setup sheet, the event
+        // form — which wrote to this event: read it again. The first appearance
+        // has no detail yet and is the `.task` above's.
+        .onAppear {
+            if model?.detail != nil { Task { await model?.reload() } }
         }
         .task(id: model?.state) {
             // An event created offline is renumbered when its create flushes; follow
@@ -246,6 +256,9 @@ struct EventScreen: View {
             // server sends it as null — and the rest of it is a write.
             if !owner.isReadOnly {
                 checklistSection(model, detail.event)
+                // The setup notebook (NS-40), above the sessions as on the web.
+                // Not shared with a coach (NS-38), so a read-only page has none.
+                setupSection(model, detail)
             }
             // At expanded width the trace moves to the analysis column, so the map
             // and the charts of the session you are reading are in one eyeline —
@@ -297,20 +310,39 @@ struct EventScreen: View {
         if EventDates.isUpcoming(event.startDate), let countdown = EventDates.fmtCountdown(event.startDate) {
             row {
                 TECard(padding: 14) {
-                    Text("**\(countdown)** — log sessions here once you're back from the track.")
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.textBody))
+                    // A coach can't log anything here; the sessions are the
+                    // driver's to add (NS-38).
+                    Group {
+                        if owner.isReadOnly {
+                            Text("**\(countdown)** — sessions show up here once they're logged.")
+                        } else {
+                            Text("**\(countdown)** — log sessions here once you're back from the track.")
+                        }
+                    }
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textBody))
                 }
             }
         }
 
         row {
-            TEStatRow(tiles: [
-                TEStatTile(label: "Best time", value: LapTime.fmtMs(event.bestMs), monospaced: true),
-                TEStatTile(label: "Days", value: fmtDays(event.days)),
-                TEStatTile(label: "Laps recorded", value: "\(event.lapCount)"),
-                TEStatTile(label: "Consistency", value: LapTime.fmtConsistency(event.consistency))
-            ])
+            VStack(alignment: .leading, spacing: 6) {
+                TEStatRow(tiles: [
+                    TEStatTile(label: "Best time", value: LapTime.fmtMs(event.bestMs), monospaced: true),
+                    TEStatTile(label: "Days", value: fmtDays(event.days)),
+                    TEStatTile(label: "Laps recorded", value: "\(event.lapCount)"),
+                    TEStatTile(label: "Consistency", value: LapTime.fmtConsistency(event.consistency))
+                ] + costTiles(event))
+                // What the day cost (#147, NS-40), line by line. One event's own
+                // total is free; the roll-ups across events are Pro. A coach's
+                // view sends the items null, so it says nothing there.
+                if let breakdown = SetupNotebook.costBreakdown(event) {
+                    Text(breakdown)
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textMuted))
+                        .accessibilityIdentifier("costBreakdown")
+                }
+            }
         }
 
         if let notes = event.notes, !notes.isEmpty {
@@ -321,6 +353,51 @@ struct EventScreen: View {
                         .foregroundStyle(Color(.textBody))
                 }
             }
+        }
+    }
+
+    /// The *Cost* tile, when anything was entered — an uncosted day has no tile
+    /// rather than "$0".
+    private func costTiles(_ event: Event) -> [TEStatTile] {
+        guard let total = Costs.fmtSpend(event.costCents) else { return [] }
+        return [TEStatTile(label: "Cost", value: total)]
+    }
+
+    // MARK: - Setup notebook
+
+    @ViewBuilder
+    private func setupSection(_ model: EventModel, _ detail: EventDetail) -> some View {
+        let pro = Entitlement.canUseSetups(auth.entitlement)
+        let vehicle = model.garageVehicle
+        Section {
+            row {
+                SetupNotebookCard(
+                    event: detail.event,
+                    setups: detail.setups,
+                    sessions: detail.sessions,
+                    parts: vehicle?.parts ?? [],
+                    targetHotPsi: vehicle?.targetHotPsi,
+                    units: auth.units,
+                    pro: pro,
+                    expanded: $setupNotebookOpen,
+                    onOpenDay: { day in
+                        router.push(.setupForm(eventId: model.eventId, day: day, startFrom: nil))
+                    },
+                    onRecordHots: { day, sheet in
+                        Task {
+                            if await model.saveSetup(day: day, sheet) { Haptics.confirm() }
+                        }
+                    },
+                    onSetNextCold: { day, sheet in
+                        router.push(.setupForm(eventId: model.eventId, day: day, startFrom: sheet))
+                    }
+                )
+            }
+            // The notebook names its part references from the garage, and the
+            // loop reads the car's target hot pressure there.
+            .task(id: pro) { if pro { await model.loadGarage() } }
+        } header: {
+            header("Setup notebook")
         }
     }
 
@@ -957,7 +1034,7 @@ struct EventScreen: View {
             Text("Import a video")
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
-            Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this phone.")
+            Text("PDR and GoPro clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this device.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Button("Import video") {
@@ -1040,9 +1117,9 @@ struct EventScreen: View {
     }
 }
 
-/// Rename a session, or edit its notes. `PUT /sessions/:id` writes both columns
-/// unconditionally, so an emptied field clears it — which is why this edits them
-/// together rather than one at a time.
+/// Rename a session, or edit its notes. The two fields edit together, and only
+/// what changed is sent (`EventModel.sessionPatch`): `PUT /sessions/:id` writes
+/// only the keys present since NS-40, and an emptied field clears.
 struct SessionEditSheet: View {
     let session: Session
     let save: (String, String) async -> Bool

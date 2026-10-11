@@ -62,9 +62,15 @@ class OfflineMirrorsTest {
         assertNull(recompute(laps = listOf(110_000)).event.consistency)
         assertNull(recompute(laps = emptyList()).event.consistency)
 
-        // Mirrors the JS case: stdev 8164.97 over a 110000 mean.
-        val three = recompute(laps = listOf(100_000, 110_000, 120_000))
-        assertEquals(8164.97 / 110_000, three.event.consistency!!, 1e-4)
+        // Mirrors the JS case: stdev 2449.49 over a 103000 mean.
+        val three = recompute(laps = listOf(100_000, 103_000, 106_000))
+        assertEquals(2449.49 / 103_000, three.event.consistency!!, 1e-4)
+
+        // NS-42: only clean laps count. 110000 and 120000 are beyond 107% of
+        // 100000, so one clean lap gives no figure, though all three are laps.
+        val oneClean = recompute(laps = listOf(100_000, 110_000, 120_000))
+        assertEquals(3, oneClean.event.lapCount)
+        assertNull(oneClean.event.consistency)
     }
 
     @Test

@@ -19,7 +19,9 @@ import TrackEvolutionKit
 enum LoadState: Equatable {
     case loading
     case ready
-    case failed(String, retryable: Bool = true)
+    /// `title` replaces the default heading ("Couldn't load this", or "Not
+    /// found" when there is nothing to retry) where the page has better words.
+    case failed(String, retryable: Bool = true, title: String? = nil)
 }
 
 /// A page of cards on the app background.
@@ -129,11 +131,11 @@ struct TELoadable<Content: View>: View {
                 Color(.bgPage).ignoresSafeArea()
                 ProgressView()
             }
-        case .failed(let message, let retryable):
+        case .failed(let message, let retryable, let title):
             TEPage {
                 TECard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(retryable ? "Couldn't load this" : "Not found")
+                        Text(title ?? (retryable ? "Couldn't load this" : "Not found"))
                             .teStyle(.h3)
                             .foregroundStyle(Color(.textStrong))
                         Text(message)
@@ -303,15 +305,19 @@ struct TEEmpty: View {
     let title: String?
     let text: String
     let action: Action?
+    /// Inside a card that already has a surface: no box of its own — the web's
+    /// `emptyHtml({ compact: true })`.
+    let compact: Bool
 
     init(_ text: String) {
         self.init(title: nil, text, action: nil)
     }
 
-    init(title: String? = nil, _ text: String, action: Action? = nil) {
+    init(title: String? = nil, _ text: String, action: Action? = nil, compact: Bool = false) {
         self.title = title
         self.text = text
         self.action = action
+        self.compact = compact
     }
 
     var body: some View {
@@ -332,9 +338,9 @@ struct TEEmpty: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 18)
-        .padding(.horizontal, 16)
-        .background(Color(.bgSubtle), in: .rect(cornerRadius: TERadius.md))
+        .padding(.vertical, compact ? 0 : 18)
+        .padding(.horizontal, compact ? 0 : 16)
+        .background(compact ? Color.clear : Color(.bgSubtle), in: .rect(cornerRadius: TERadius.md))
     }
 }
 

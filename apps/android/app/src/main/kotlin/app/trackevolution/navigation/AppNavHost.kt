@@ -1,5 +1,8 @@
 package app.trackevolution.navigation
 
+import app.trackevolution.core.model.SetupSheet
+import kotlinx.serialization.json.Json
+import app.trackevolution.core.NewEventDates
 import android.net.Uri
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -61,8 +64,11 @@ import app.trackevolution.screens.LeaderboardLapScreen
 import app.trackevolution.screens.LeaderboardModel
 import app.trackevolution.screens.LeaderboardScreen
 import app.trackevolution.screens.SessionCompareScreen
+import app.trackevolution.screens.SetupFormModel
+import app.trackevolution.screens.SetupFormScreen
 import app.trackevolution.screens.SettingsModel
 import app.trackevolution.screens.SettingsScreen
+import app.trackevolution.screens.TrackDaysGuideScreen
 import app.trackevolution.screens.SharedLogbookModel
 import app.trackevolution.screens.SharedLogbookScreen
 import app.trackevolution.screens.TrackModel
@@ -126,6 +132,12 @@ fun AppNavHost(
      */
     stagedImports: List<SessionDraft> = emptyList(),
     onConsumeStagedImports: () -> Unit = {},
+    /**
+     * The dates the staged drafts were driven on, when a review's *Save to a
+     * new event* staged them (#344) — read as they arrive, before they are
+     * consumed. Null for the form's own import, which leaves the date alone.
+     */
+    stagedSpan: () -> NewEventDates.Span? = { null },
     /**
      * A new event was created, with the staged drafts it posted — told to the
      * review a *Save to a new event* came from (#344) before the form makes way
@@ -242,8 +254,41 @@ fun AppNavHost(
                         nav.navigate(Route.SessionCompare(route.id, sessionId, student = route.student))
                     },
                     readOnly = owner.readOnly,
+                    // The setup notebook (NS-40): the owner's own tier — it is
+                    // never shared with a coach, so a read-only page has none.
+                    canUseSetups = !owner.readOnly && Entitlement.canUseSetups(entitlement),
+                    onOpenSetup = { day, startFrom ->
+                        nav.navigate(
+                            Route.SetupForm(
+                                route.id,
+                                day,
+                                startFrom?.let { SetupFormJson.encodeToString(SetupSheet.serializer(), it) },
+                            ),
+                        )
+                    },
                 )
                 }
+            }
+
+            // One day's setup sheet (NS-40), a destination rather than a dialog.
+            // The units are read once, at construction: the draft holds typed text.
+            pageComposable<Route.SetupForm> { entry ->
+                val route = entry.toRoute<Route.SetupForm>()
+                val units = LocalUnitSystem.current
+                val model = rememberScreenModel { scope, handle ->
+                    SetupFormModel(
+                        scope = scope,
+                        api = api,
+                        eventId = route.eventId,
+                        day = route.day,
+                        startFrom = route.startFrom?.let {
+                            runCatching { SetupFormJson.decodeFromString(SetupSheet.serializer(), it) }.getOrNull()
+                        },
+                        units = units,
+                        saved = handle,
+                    )
+                }
+                SetupFormScreen(model = model, onDone = { nav.popBackStack() })
             }
 
             pageComposable<Route.Lap> { entry ->
@@ -306,7 +351,7 @@ fun AppNavHost(
                 // video…": taken the moment the form is back on screen.
                 LaunchedEffect(stagedImports) {
                     if (stagedImports.isNotEmpty() && route.editId == null) {
-                        model.stage(stagedImports)
+                        model.stage(stagedImports, stagedSpan())
                         onConsumeStagedImports()
                     }
                 }
@@ -371,6 +416,9 @@ fun AppNavHost(
                         onShare = share,
                         serverUrl = serverUrl,
                         readOnly = owner.readOnly,
+                        // Costs are never shared with a coach (NS-38), so only
+                        // the owner's own tier decides the roll-up.
+                        canViewSpend = !owner.readOnly && Entitlement.canViewSpend(entitlement),
                     )
                 }
                 if (compareWidth != null && comparing) {
@@ -432,6 +480,7 @@ fun AppNavHost(
                     model = model,
                     canViewChannels = Entitlement.canViewChannels(entitlement),
                     onSubscribe = onRequirePro,
+                    onNavigate = { next: Route -> nav.navigate(next) },
                 )
             }
 
@@ -451,7 +500,12 @@ fun AppNavHost(
                     entitlement = entitlement ?: Entitlement.FREE,
                     onSubscribe = onRequirePro,
                     onOpenCoaching = { nav.navigate(Route.Coaching) },
+                    onOpenTrackDaysGuide = { nav.navigate(Route.TrackDaysGuide) },
                 )
+            }
+
+            pageComposable<Route.TrackDaysGuide> {
+                TrackDaysGuideScreen()
             }
 
             // ---- Share with a coach (NS-38) -----------------------------------
@@ -679,6 +733,7 @@ private fun FollowTempIds(nav: NavHostController, api: ApiClient) {
 private fun NavBackStackEntry.routeOrNull(): Route? = when {
     destination.hasRoute(Route.Event::class) -> toRoute<Route.Event>()
     destination.hasRoute(Route.EventForm::class) -> toRoute<Route.EventForm>()
+    destination.hasRoute(Route.SetupForm::class) -> toRoute<Route.SetupForm>()
     destination.hasRoute(Route.Record::class) -> toRoute<Route.Record>()
     destination.hasRoute(Route.Import::class) -> toRoute<Route.Import>()
     destination.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
@@ -694,6 +749,7 @@ private fun Route.tempId(): Int? {
     val ids = when (this) {
         is Route.Event -> listOf(id)
         is Route.EventForm -> listOfNotNull(editId)
+        is Route.SetupForm -> listOf(eventId)
         is Route.Record -> listOfNotNull(eventId)
         is Route.Import -> listOfNotNull(eventId)
         is Route.Lap -> listOf(eventId, sessionId, lapId)
@@ -702,3 +758,6 @@ private fun Route.tempId(): Int? {
     }
     return ids.firstOrNull { OfflineStore.isTemp(it) }
 }
+
+/** How a sheet rides a [Route.SetupForm] argument: nulls left out, unknown keys ignored. */
+private val SetupFormJson = Json { explicitNulls = false; ignoreUnknownKeys = true }

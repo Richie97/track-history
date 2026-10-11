@@ -43,6 +43,7 @@ import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
+import app.trackevolution.navigation.Route
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.charts.LapChannelChart
@@ -82,6 +83,11 @@ fun LeaderboardLapScreen(
     canViewChannels: Boolean,
     modifier: Modifier = Modifier,
     onSubscribe: () -> Unit = {},
+    /**
+     * Leaves for another screen — the no-lap-of-mine empty state's next step,
+     * the two-lap compare's ([noTelemetryAction]). Null hides it.
+     */
+    onNavigate: ((Route) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
 
@@ -130,11 +136,10 @@ fun LeaderboardLapScreen(
 
             if (panel.mine == null) {
                 item("no-lap-of-mine") {
-                    Text(
+                    TEEmpty(
                         "You have no lap with telemetry at this track yet, so there's nothing to overlay. " +
-                            "Record with the app or import a session and this screen will put the two side by side.",
-                        style = TrackTheme.typography.xs,
-                        color = colors.textMuted,
+                            "Import a session, or record laps with the app, and this screen will put the two side by side.",
+                        action = onNavigate?.let { noTelemetryAction(model.events, it) },
                     )
                 }
             } else {

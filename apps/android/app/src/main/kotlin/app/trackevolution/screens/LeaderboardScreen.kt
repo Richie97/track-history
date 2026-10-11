@@ -179,6 +179,12 @@ private fun Board(
                 }
             }
         }
+        // Why the viewer's row is missing or slower than their logbook — right
+        // under the board, where iOS puts it.
+        Leaderboard.note(model.logbookBest, leaderboard)?.let {
+            Text(it, style = TrackTheme.typography.xs, color = colors.textFaint)
+        }
+        model.leaderboardError?.let { TEErrorBanner(it) }
         if (leaderboard.entries.any { it.lapId != null }) {
             Text(
                 "Rows with a chevron open the lap — its racing line and telemetry, next to your own best here.",
@@ -186,10 +192,6 @@ private fun Board(
                 color = colors.textFaint,
             )
         }
-        Leaderboard.note(model.logbookBest, leaderboard)?.let {
-            Text(it, style = TrackTheme.typography.xs, color = colors.textFaint)
-        }
-        model.leaderboardError?.let { TEErrorBanner(it) }
         if (leaderboard.optedIn) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

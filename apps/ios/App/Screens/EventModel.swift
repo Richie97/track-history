@@ -24,6 +24,11 @@ final class EventModel {
     var writeError: String?
     /// Set once the event is gone, so the screen can pop itself.
     private(set) var isDeleted = false
+    /// The garage, for the setup notebook (NS-40): the event's car's parts name
+    /// the sheets' part references, and its target hot pressure closes the
+    /// pressure loop. Read only when the notebook is shown, and its failure is
+    /// swallowed — a sheet reads fine without part names.
+    private(set) var garage: [GarageVehicle]?
 
     init(api: APIClient, eventId: Int) {
         self.api = api
@@ -49,9 +54,11 @@ final class EventModel {
         }
     }
 
-    /// Re-read after a write. Keeps the current content on screen if the re-read
-    /// fails, rather than replacing an event you can see with an error.
-    private func reload() async {
+    /// Re-read after a write — here, or on a page pushed over this one (the
+    /// setup form, the event form) that the page comes back to. Keeps the
+    /// current content on screen if the re-read fails, rather than replacing an
+    /// event you can see with an error.
+    func reload() async {
         guard detail != nil else {
             await load()
             return
@@ -79,13 +86,29 @@ final class EventModel {
         return await write { _ = try await api.createSession(eventId: eventId, draft) }
     }
 
+    /// Rename a session or edit its notes. Only what changed is sent — the
+    /// server writes only the keys present (NS-40), so a rename made here can't
+    /// clear notes written on another device in the meantime. An emptied field
+    /// is sent as null and clears.
     @discardableResult
     func updateSession(id: Int, label: String, notes: String) async -> Bool {
-        // Both columns are written unconditionally by the server, so an emptied field
-        // really does clear it.
-        await write {
-            try await api.updateSession(id: id, SessionPatch(label: trimmedOrNil(label), notes: trimmedOrNil(notes)))
+        let current = detail?.sessions.first { $0.id == id }
+        let patch = Self.sessionPatch(from: current, label: label, notes: notes)
+        guard !patch.isEmpty else { return true }
+        return await write { try await api.updateSession(id: id, patch) }
+    }
+
+    /// The patch an edit makes: each field that differs from the session as
+    /// loaded, trimmed, an empty one as null.
+    static func sessionPatch(from session: Session?, label: String, notes: String) -> SessionPatch {
+        func clean(_ text: String) -> String? {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
         }
+        var patch = SessionPatch()
+        if clean(label) != session?.label { patch.label = .set(clean(label)) }
+        if clean(notes) != session?.notes { patch.notes = .set(clean(notes)) }
+        return patch
     }
 
     @discardableResult
@@ -108,6 +131,27 @@ final class EventModel {
     @discardableResult
     func deleteLap(id: Int) async -> Bool {
         await write { try await api.deleteLap(id: id) }
+    }
+
+    // MARK: - Setup notebook (NS-40)
+
+    /// The event's car in the garage, when the garage has been read.
+    var garageVehicle: GarageVehicle? {
+        guard let vehicleId = event?.vehicleId else { return nil }
+        return garage?.first { $0.id == vehicleId }
+    }
+
+    func loadGarage() async {
+        // Offline with nothing cached, or a lapsed tier: the notebook shows the
+        // sheets without part names or a target.
+        if let garage = try? await api.garage() { self.garage = garage }
+    }
+
+    /// A day's sheet, written whole — the loop's *Record hot pressures*.
+    /// Queueable, so it saves in the paddock with no signal and replays.
+    @discardableResult
+    func saveSetup(day: Int, _ sheet: SetupSheet) async -> Bool {
+        await write { try await api.putSetup(eventId: eventId, day: day, sheet) }
     }
 
     // MARK: - The event itself

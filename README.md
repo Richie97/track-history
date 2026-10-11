@@ -27,6 +27,15 @@ pages in [`site/`](site/), deployed to GitHub Pages by
 `main` that touches `site/`. (One-time setup: repo *Settings → Pages → Source:
 GitHub Actions*.)
 
+The site also carries the newcomer's guide, `site/docs/track-days.html` — what
+an HPDE is, what the driver and the car need, where to find an event (the
+organizers' links), what happens on the day, and the tools drivers record
+laps with (PDR, Track Precision, VBOX, lap-timer apps, GoPro) with what each
+takes to import — keep that table in step with the importer's sources. Every client links to it from
+the first-run welcome card and from Settings' *New to track days?* section, so
+the organizer list lives in one static page and changing it needs no app
+release.
+
 Both the site and the app carry Open Graph / Twitter-card tags for link
 previews; they share one social preview image, checked in as identical copies
 at `site/og-image.png` and `public/og-image.png` (1200×630 PNG, rendered from
@@ -95,7 +104,8 @@ fails if the tree is dirty.
 
 The fixture is deliberately awkward — an event with no laps (`best_ms` and
 `consistency` null), a session below the 3-lap threshold where `consistency`
-stays null, sessions with and without channel data, both VIR layouts as separate
+stays null, a cool-down lap beyond 107% that consistency leaves out and the lap
+count keeps, sessions with and without channel data, both VIR layouts as separate
 tracks, and one error response per status the clients handle. Volatile fields
 (ids, timestamps) are normalized to stable placeholders of the same type rather
 than deleted, so nullability is still pinned. Regenerating twice must produce a
@@ -223,9 +233,9 @@ web view. The backend and the web app (`public/`) were unchanged by that work.
 
 **There are three clients, and "add it everywhere" is not the default.** The
 web app is the feature frontier and keeps the desk-bound long tail (year in
-review, the setup notebook and its lap-time
-correlation); the native apps own the on-track path — recording, the logbook you
-check between sessions, the garage you check before an event, CarPlay, and
+review, the setup-vs-lap-times correlation); the native apps own the on-track
+path — recording, the logbook you check between sessions, the garage you check
+before an event, the setup notebook you fill in at the car, CarPlay, and
 **video**, **`.vbo`** and Track Precision **`.csv`** import, which belong on the
 device the file is already on. The
 split is deliberate and is recorded per feature in
@@ -248,9 +258,23 @@ on the event page is a door to its own screen — the time and the gap to the
 session's best, the racing line when it is the lap the trace was drawn from,
 its own channel traces, and a *Compare laps* control that opens the session's
 overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
-layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
-diff, year in review and the two-event overlay stay web-only by design; Season
-Wrapped is on all three.
+layout with the best lap pre-selected). **The setup notebook is native on both
+phones** (NS-40): a card per event day on the event page with the changed
+values marked, a form per day that copies the day before forward, and the
+tire-pressure loop under it — as are session notes and the track-day cost
+fields. The setup-vs-lap-times diff, year in review and the two-event overlay
+stay web-only by design; Season Wrapped is on all three.
+
+**One download link for both stores:** `https://trackevolution.app/get`
+(`src/routes/download.ts`) redirects an iPhone, iPod or iPad to the App Store
+and an Android device to Google Play, by User-Agent (`storeFor` in
+`src/lib/storeLinks.ts`), and shows a page with both links to everything else —
+desktops, and link-preview scrapers, which get its Open Graph tags. iPadOS
+Safari sends a Mac User-Agent, so the page carries a small script that sends a
+touch-screen "Mac" to the App Store too. The redirect is a `302` with
+`Vary: User-Agent` and `Cache-Control: no-store`, and the service worker leaves
+`/get` alone, so no cache can hand one device's answer to another. Use it on
+stickers, QR codes and anywhere a single link has to serve both platforms.
 
 The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
@@ -673,6 +697,13 @@ byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
   speed, max RPM, max lateral G) from the speed/engine channels; a recording
   with no beacons still gets lap times, from the GPS line picker or recovered
   from the latitude + odometer channels (details below).
+- **Cadillac PDR (Cosworth AliveDrive "PDR 2.5") MP4** — the newer GM recorder
+  (first seen on a CT5-V Blackwing), a different, self-describing format
+  (`public/js/import/pdr25.js`, details below). Laps come from the recorder's
+  own `lap.start`/`lap.end` events, exact; the GPS, car channels and slow
+  readings arrive in the same units as a Corvette's, so it imports as `kind:
+  "pdr"` and nothing downstream knows the difference. A recording with no lap
+  events goes to the line picker.
 - **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer /
   Porsche Track Precision exports) — laps from the file's `[laptiming]` start
@@ -715,7 +746,7 @@ The two **video** formats also import on the native iOS app (**Import video** on
 any event page, or "Open with Track Evolution" from Files): a GoPro clip arrives
 over Wi-Fi into Photos and a PDR clip lands in Files off a USB stick, so the
 phone is usually where the footage already is. The parsers are ported (`PDR`,
-`GPMF`, `Series` and `TelemetryChannels` in `apps/ios/Packages/TrackEvolutionKit`)
+`PDR25`, `GPMF`, `Series` and `TelemetryChannels` in `apps/ios/Packages/TrackEvolutionKit`)
 and pinned to the JavaScript implementation's output by
 `contracts/logic/video-parsers.json`, so the same clip yields the same lap times
 either way. The clip is read in place through a security-scoped file handle —
@@ -909,8 +940,9 @@ and the lateral-G and yaw traces), and *Car* (the session health strip);
 only tabs with content render, and a session with one populated tab renders
 flat. All of it — the tabs, the ribbon, the shift points, the limit marks and
 their bands, the friction circle, the balance read-out and the Car tab's health
-strip — is on the web app and both phone apps; only the tire-pressure loop
-below stays web-only, because the setup notebook it writes to is.
+strip — is on the web app and both phone apps, and so, since NS-40, is the
+tire-pressure loop below (on the phones it sits under the setup notebook on
+the event page rather than on the Car tab).
 
 **Session health** ([#190](https://github.com/Richie97/track-history/issues/190),
 `public/js/health.js`) is the Car tab: the fourteen per-lap scalars plus
@@ -936,8 +968,10 @@ and pinned for both by `contracts/logic/health.json`; each client draws its own
 cards and their sparklines but not the per-lap table — fifteen columns is a
 desk layout, and the sparkline carries the shape in the width a phone has.
 
-The tab also closes the **tire-pressure loop** the setup notebook opens, and
-this half is web-only because the notebook is: the sheet records the cold
+The tab also closes the **tire-pressure loop** the setup notebook opens —
+on the web here, on the phones under the notebook on the event page, all of
+them writing through the same pinned `recordHotSheet` / `nextDaySheet`
+(`contracts/logic/setups.json`): the sheet records the cold
 pressures set in the morning, the import knows the hot pressures the tires
 reached (the highest end-of-lap reading per corner), and a per-vehicle
 **target hot pressure** (`vehicles.target_hot_psi`, set right there on the
@@ -1039,6 +1073,35 @@ telemetry track and validated against Cosworth Toolbox lap times):
   latitude profiles); without one, laps are cut from where the car first
   reaches pace — real laps of the full track, just not aligned to the
   official line. All flagged `~`.
+
+How the newer **PDR 2.5** recorder (Cosworth "AliveDrive PDR 2.5", in
+2025-on GM cars — first seen on a Cadillac CT5-V Blackwing) is read. It is a
+different format, not a revision of the Marlin one: the telemetry track has
+handler `adrv` and sample entry `adco`, and the file describes itself
+completely. The full layout is the comment block at the top of
+`public/js/import/pdr25.js`; the parts worth knowing before touching it:
+
+- The `adco` entry carries the channel table (`adcp`: name, SI scaling, or an
+  enum's labels), the **record schedule** (`adcr`: groups of fields, each with
+  its own period — 100/50/10/5/2/1 Hz on the Blackwing) and the event names
+  (`adeg`). The sample stream is 1-second data blocks of **untagged**
+  fixed-width records — at every tick of the fastest group, each group whose
+  period divides the tick writes its fields — so the schedule, not the payload,
+  says what each byte is. Validated by every block of three real recordings
+  ending exactly on a record boundary.
+- Laps are `lap.start` / `lap.end` events with exact timestamps; every lap on
+  the real footage matched the recorder's own stored fastest lap to the
+  millisecond. A start/end pair at one timestamp is a crossing (the end sorts
+  first). There is no recording odometer, so `channels` is null and the
+  lat/odometer lap recovery never runs for this format.
+- **`accelerometer.vehicle.x` is lateral and `vehicle.y` is longitudinal with
+  braking positive** — measured against speed × yaw rate (r = 0.99) and dv/dt
+  (r = −0.93), not taken from the names. Enums are read by **label**: the
+  stability-enhancement channel numbers *active* as 0, the reverse of ABS.
+  Wheel slip is rear over front. No battery voltage.
+- The outing `timestamp` says `+00:00` but is **local** wall-clock time — the
+  recorder's own "Morning Drive" / "Afternoon Drive" titles use the same clock
+  — so it becomes the session's date and time as written.
 
 For manual testing with real recordings, drop them in a `telemetry-samples/`
 directory at the repo root — it's gitignored, so large videos and personal
@@ -1192,20 +1255,26 @@ privacy label and Play's Data safety form.
 
 - An event's **best time** is `MIN(best logged lap, manual best)` — the manual
   field exists because the spreadsheet-era events only recorded a best time.
-- **Consistency** is the coefficient of variation (stdev ÷ mean) of all laps in an
-  event; shown once an event has 3+ laps. Lower is more consistent.
+- **Consistency** is the coefficient of variation (stdev ÷ mean) of an event's
+  *clean* laps — within 107% of their own session's best, so out-laps, cool-downs
+  and laps lost in heavy traffic don't count against it — shown once an event has
+  3 of them (NS-42). Lower is more consistent. `lap_count` and on-track hours still
+  count every lap. The rule is computed in SQL (`eventSelect`'s `sb` CTE in
+  `src/db.ts`) and mirrored by `eventConsistency` in `public/js/lap-stats.js`,
+  which the web and both native offline mirrors call; `contracts/logic/consistency.json`
+  pins the ports.
 - Imported per-session bests (from a spreadsheet era) appear as one-lap sessions;
   full lap-by-lap data can be attached to any event via `RAW_SESSIONS` in the seed
   data or pasted into the UI.
 - **What a day cost** ([#147](https://github.com/Richie97/track-history/issues/147))
   — four optional line items on an event (entry fee, fuel, travel & lodging,
   misc; `events.cost_*_cents`, migration `0025`, whole cents validated by
-  `isValidCostCents` in `src/lib/costs.ts`), entered in dollars on the web
-  event form and summed into `cost_cents` by `withComputed` — **null when
+  `isValidCostCents` in `src/lib/costs.ts`), entered in dollars on the
+  event form of every client and summed into `cost_cents` by `withComputed` — **null when
   nothing was entered**, never zero, so an uncosted day drops out of every
   roll-up instead of reading as free. Entering them is free; the roll-ups
   across events are **Pro** (`canViewSpend`, NS-37 — one event's own total
-  stays free), web-only for now, and
+  stays free), on the web and — for the track and car pages — both phones, and
   count past events only, on the totals' rule: the track page says what a
   track has cost, the vehicle page adds the car's track days to its parts
   spend (`event_cost_cents` / `parts_cost_cents` on `GET /api/garage`), and
@@ -1213,8 +1282,9 @@ privacy label and Play's Data safety form.
   found — spend ÷ the seconds its best dropped against every year before
   (`cents_per_second` in `public/js/year-review.js`, null without a spend or a
   gain). Costs are private: the share payload strips the line items and the
-  total. The native apps decode and carry the fields (a phone edit never drops
-  one) and show nothing yet — `docs/specs/native/README.md`.
+  total. Both phones enter and show them since NS-40 — a *What it cost*
+  disclosure on the event form, a *Cost* tile and breakdown on the event page
+  — through `Costs` in the Kit and `:core`, pinned by `contracts/logic/costs.json`.
 - **Prep checklists** hang off an upcoming event: tick items off as you pack,
   and the dashboard's countdown card shows how far through you are. The list a
   new checklist starts from is **yours to edit** — account menu → Settings → Prep
@@ -1413,7 +1483,9 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   shows every sheet at that track with what changed between sheets next to
   the event's best/consistency. An imported session's hot tire pressures can
   be written onto the day's sheet from the channel panel's Car tab, with the
-  suggested cold pressures for next time (see *Session health* above).
+  suggested cold pressures for next time (see *Session health* above). The
+  notebook and that loop are on both phones too (NS-40); the "Setup vs. lap
+  times" table stays on the web.
 - **Spend** — the vehicle page's *Spent* tile is the car's parts (every
   part ever fitted, retired ones included) plus what its past track days cost
   (the events' cost line items, #147), both summed server-side on
@@ -1494,7 +1566,7 @@ shipped dark):
 |---|---|
 | `requireEntitlement` | `GET /garage`, the parts/measurements routes, and the setups routes (`PUT`/`DELETE /events/:id/setups/:day`, `GET /events/:id/setups/prefill`, `GET /tracks/:id/setups`) — and nothing else. `test/api/entitlement-gates.test.ts` enumerates the set by handler identity, so a gate added anywhere else fails a test. |
 | `stripProFields` | `GET /events/:id` and the leaderboard lap, the two responses carrying `sessions.channels`. A free account keeps `FREE_CHANNELS` — speed, throttle and brake — per lap and loses every other channel and every per-lap scalar; `trace` and `meta` are kept, since the track map is free and a session with a trace and no channels is what a recorder save looks like. |
-| Client | The recorder's Start on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`), and on the web the setup notebook, setup-vs-lap-times table, garage page, year in review and both compare routes. **Import is not gated on any client** — it is free, and `channels` above is what the tier actually costs. |
+| Client | The recorder's Start on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`); on all three clients the setup notebook and its pressure loop (`canUseSetups`, NS-40), the cost roll-ups (`canViewSpend`) and the garage page's Pro half; and on the web the setup-vs-lap-times table, year in review and both compare routes. **Import is not gated on any client** — it is free, and `channels` above is what the tier actually costs. |
 
 A 402 renders the paywall on every client, never the sync banner — that is why
 `APIError.proRequired` and `ApiException.PaymentRequired` are their own cases.
@@ -1760,6 +1832,41 @@ Wrapped, which is free.
   cached responses (`ApiClient.forgetStudent`) and says the logbook is no
   longer shared.
 
+## Exporting your logbook
+
+**Settings → Your data** on the web downloads a copy of everything a driver has
+put in (NS-44, `docs/specs/native/NS-44-web-export.md`):
+
+- `GET /api/export/laps.csv` — one row per lap: event, session, lap number,
+  `lap_time_ms` and `m:ss.fff`, whether it was the session's best, whether it
+  was **clean** (within 107% of the session's best, NS-42's rule, so a
+  spreadsheet can reproduce the consistency figure) and whether it was
+  device-timed.
+- `GET /api/export/events.csv` — one row per event, newest first, with the
+  computed best, consistency, hours and costs in dollars; an upcoming event's
+  computed columns are empty.
+- `GET /api/export/logbook.json?telemetry=1` — the whole logbook as one
+  document, led by `{ format: "track-evolution-export", version: 1, … }` and a
+  `units` legend: profile and preferences, tracks, events with their sessions,
+  laps and setup sheets, the garage (vehicles → parts → mounts and
+  measurements), and `access` (coaches, students and assistants by name, the
+  subscription by state). `telemetry=1` adds every session's `channels`.
+
+The export is **complete for every account** — a free account's file carries
+the channels, garage and setup sheets the app only draws with Pro — and in
+**stored units with the API's own names**, like the MCP tools. It never holds a
+credential, a hash, a store identifier or a provider subject; the API test
+walks the whole file for `FORBIDDEN_EXPORT_KEYS`. The JSON is **streamed**
+(`JsonStream` in `src/lib/export.ts`): the channel blobs are read ten sessions
+at a time and spliced in as stored, and a failure partway ends the document
+with an `error` member, which the web reports instead of saving the file.
+
+The files are fetched rather than opened as plain links, so a refusal is said
+in words; `sw.js` never caches `/api/export/`, and the coach mount can't reach
+it. The `EXPORT` rate-limit binding allows 5 exports a minute per user (the
+binding's longest window is a minute), answering 429 with `Retry-After: 60`;
+its `namespace_id` is account-scoped like the MCP ones.
+
 ## AI assistants (MCP)
 
 Pro users can connect Claude, ChatGPT, Claude Code, Cursor or any other
@@ -1834,8 +1941,8 @@ Nothing to configure on deploy beyond applying migration `0028`. Claude users ca
   from their providers' servers, so an IP stands for thousands of users and
   only the Worker can tell connections apart. 60 `/mcp` requests a minute per
   connection, 10 token requests a minute per client, 60 registrations a minute
-  per IP; each answers 429 with `Retry-After: 60`. The three `namespace_id`s
-  are account-scoped — change them if another Worker on the account uses them.
+  per IP; each answers 429 with `Retry-After: 60`. The `namespace_id`s (these
+  three and the logbook export's `EXPORT`) are account-scoped — change them if another Worker on the account uses them.
   A fork without the bindings runs unlimited.
 - **CORS** is answered (`*`, no credentials) on `/mcp`, the token/register/
   revoke endpoints and the discovery documents only — bearer-token surfaces a

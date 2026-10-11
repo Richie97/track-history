@@ -22,6 +22,8 @@ public val Route.analyticsPath: String
         Route.Dashboard -> "/"
         is Route.Event -> student(student) + "/event/:id"
         is Route.EventForm -> if (editId == null) "/new" else "/event/:id/edit"
+        // The web's notebook is inline on the event page; the form is a screen here.
+        is Route.SetupForm -> "/event/:id/setup/:day"
         is Route.Track -> student(student) + "/track/:id"
         is Route.CompareLaps -> student(student) + "/track/:id/lap-compare"
         is Route.Leaderboard -> "/track/:id/leaderboard"
@@ -40,6 +42,8 @@ public val Route.analyticsPath: String
         is Route.CoachInvite -> "/coach"
         is Route.Student -> "/student/:id"
         is Route.StudentVehicle -> "/student/:id/vehicle/:id"
+        // A docs-site page, not a web-app route; named in the same idiom.
+        Route.TrackDaysGuide -> "/guide/track-days"
     }
 
 /** The web's `#/student/:id/…` prefix for a page read through a coach's grant. */
@@ -59,6 +63,7 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.Dashboard::class) -> Route.Dashboard
         d.hasRoute(Route.Event::class) -> toRoute<Route.Event>()
         d.hasRoute(Route.EventForm::class) -> toRoute<Route.EventForm>()
+        d.hasRoute(Route.SetupForm::class) -> toRoute<Route.SetupForm>()
         d.hasRoute(Route.Track::class) -> toRoute<Route.Track>()
         d.hasRoute(Route.CompareLaps::class) -> toRoute<Route.CompareLaps>()
         d.hasRoute(Route.Leaderboard::class) -> toRoute<Route.Leaderboard>()
@@ -77,6 +82,7 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.CoachInvite::class) -> toRoute<Route.CoachInvite>()
         d.hasRoute(Route.Student::class) -> toRoute<Route.Student>()
         d.hasRoute(Route.StudentVehicle::class) -> toRoute<Route.StudentVehicle>()
+        d.hasRoute(Route.TrackDaysGuide::class) -> Route.TrackDaysGuide
         else -> null
     }
 }

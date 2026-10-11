@@ -398,6 +398,7 @@ fun SignedInScaffold(
                     },
                     stagedImports = stagedImports,
                     onConsumeStagedImports = { flow.takeStaged() },
+                    stagedSpan = { flow.stagedSpan },
                     onEventCreated = { _, posted -> flow.newEventCreated(context, posted) },
                     incomingImport = incomingImport,
                     onConsumedIncomingImport = onConsumedIncomingImport,
@@ -421,6 +422,7 @@ fun SignedInScaffold(
                     onIncludeChange = flow::setInclude,
                     onNotesChange = flow::setNotes,
                     onSelectEvent = flow::selectEvent,
+                    onRetryEvents = flow::reloadEvents,
                     onSave = { flow.save(context, units) },
                     onDiscard = { flow.discard(context); reviewing = false },
                     onSaveToNewEvent = {

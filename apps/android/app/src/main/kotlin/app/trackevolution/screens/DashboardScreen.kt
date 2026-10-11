@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -75,6 +77,8 @@ fun DashboardScreen(
     onRecord: (Int?) -> Unit,
     /** Open Season Wrapped for a year — the November banner's door (NS-36). */
     onOpenWrapped: (Int) -> Unit = {},
+    /** Open the newcomer's track-day guide — the welcome card's link. */
+    onOpenTrackDaysGuide: () -> Unit = {},
     /**
      * Whether to draw the recorder's second door at all.
      *
@@ -121,6 +125,7 @@ fun DashboardScreen(
                             } else {
                                 null
                             },
+                            onOpenGuide = onOpenTrackDaysGuide,
                         )
                     }
                     return@LazyColumn
@@ -231,10 +236,19 @@ fun DashboardScreen(
     }
 }
 
+/**
+ * The newcomer's guide — what an HPDE is, what you need, where to find one.
+ * Linked from the welcome card and from Settings, as on the web and iOS.
+ */
+internal const val TRACK_DAYS_GUIDE_URL = "https://docs.trackevolution.app/docs/track-days.html"
+
+/** The welcome card's link to [TRACK_DAYS_GUIDE_URL], in the web's and iOS's words. */
+internal const val TRACK_DAYS_GUIDE_LINK = "New to track days? Start here"
+
 /** The welcome card's sentence — iOS's `welcomeText` for a phone, verbatim. */
 internal const val WELCOME_TEXT =
     "Your logbook starts with an event: the track, the date and the car. Then add its sessions — " +
-        "record them with this phone, import a video or a logger file, or type your lap times in — " +
+        "record them on track, import a video or a logger file, or type your lap times in — " +
         "and your bests and progress build from there."
 
 /**
@@ -242,8 +256,9 @@ internal const val WELCOME_TEXT =
  * the web doesn't have. [onRecord] is null while the recorder is busy, for the
  * reason the dashboard's own Record button is idle-only.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?) {
+internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?, onOpenGuide: () -> Unit = {}) {
     val colors = TrackTheme.colors
     TrackCard(modifier = Modifier.fillMaxWidth().semantics { testTag = "welcomeCard" }) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -255,7 +270,14 @@ internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?) {
                 modifier = Modifier.semantics { heading() },
             )
             Text(WELCOME_TEXT, style = TrackTheme.typography.sm, color = colors.textMuted)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+            // A FlowRow, not a Row: the two labels don't fit side by side on a
+            // narrow phone or in the list pane, and a Row squeezes each one
+            // onto two lines where this drops the second button under the first.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
                 Button(
                     onClick = onNewEvent,
                     colors = ButtonDefaults.buttonColors(
@@ -283,6 +305,18 @@ internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?) {
                     }
                 }
             }
+            // For a driver who has never been on track — the guide on the
+            // docs site, as the web's and iOS's cards link it.
+            Text(
+                // `›`, not `↗`: it opens in the app's own web view now.
+                "$TRACK_DAYS_GUIDE_LINK ›",
+                style = TrackTheme.typography.sm,
+                color = colors.accentInk,
+                modifier = Modifier
+                    .clickable(onClick = onOpenGuide)
+                    .padding(vertical = 6.dp)
+                    .semantics { testTag = "welcomeTrackDaysGuide" },
+            )
         }
     }
 }

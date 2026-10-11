@@ -55,8 +55,9 @@ struct DetailPlaceholder: View {
                 PanePlaceholder(
                     mark: .brand,
                     title: "Pick an event",
-                    text: !loaded ? ""
-                        : answered ? "Nothing coming up — choose an event from the list."
+                    // While the list loads it says what Android's does, rather
+                    // than an empty line that then fills in.
+                    text: loaded && answered ? "Nothing coming up — choose an event from the list."
                         : "Choose an event from the list.",
                     identifier: "detailPlaceholder"
                 )

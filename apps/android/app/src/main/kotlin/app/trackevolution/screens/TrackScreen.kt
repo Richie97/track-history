@@ -1,5 +1,7 @@
 package app.trackevolution.screens
 
+import androidx.compose.ui.platform.testTag
+import app.trackevolution.core.Costs
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -68,6 +70,11 @@ fun TrackScreen(
      * not shared.
      */
     readOnly: Boolean = false,
+    /**
+     * What this track has cost across its past events (#147, NS-40) — a roll-up,
+     * so Pro (`Entitlement.canViewSpend`); each event's own total stays free.
+     */
+    canViewSpend: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -104,12 +111,25 @@ fun TrackScreen(
                             color = colors.textMuted,
                         )
                     }
+                    // Every past event here, dry-only filter or not — a rain
+                    // weekend still cost the entry fee.
+                    if (canViewSpend) {
+                        spentLine(model.allEvents)?.let {
+                            Text(
+                                it,
+                                style = TrackTheme.typography.sm,
+                                color = colors.textMuted,
+                                modifier = Modifier.testTag("trackSpent"),
+                            )
+                        }
+                    }
                 }
             }
 
-            if (model.chartPoints.isNotEmpty()) {
-                item("chart") { ChartCard(model, goalMs = track.goalMs) }
-            }
+            // Always the slot, even before there is a line to draw: the card
+            // says when the chart starts, and carries the dry-only switch that
+            // may be the reason it is empty.
+            item("chart") { ChartCard(model, goalMs = track.goalMs) }
 
             if (!readOnly) {
                 item("goal") { GoalCard(model, hasGoal = track.goalMs != null) }
@@ -228,13 +248,18 @@ fun TrackScreen(
 private fun ChartCard(model: TrackModel, goalMs: Int?) {
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
-        Text(
-            "Best lap per event — down is faster",
-            style = TrackTheme.typography.xs,
-            color = colors.textFaint,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-        ProgressChart(points = model.chartPoints, goalMs = goalMs)
+        if (model.chartPoints.size < 2) {
+            // One point is a dot, not progress — say when the line starts.
+            TEEmpty("The chart starts once two events here have a lap time.")
+        } else {
+            Text(
+                "Best lap per event — down is faster",
+                style = TrackTheme.typography.xs,
+                color = colors.textFaint,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            ProgressChart(points = model.chartPoints, goalMs = goalMs)
+        }
         if (model.hasWetData) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -371,4 +396,18 @@ private fun EventRow(event: Event, onClick: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * What a set of events cost, as the web's track page says it: "$1,960 spent",
+ * or "… spent (2 of 3 events costed)" when some weren't. Past events only — an
+ * upcoming one isn't spent yet — and null when none was costed, so a track
+ * nobody costed says nothing rather than "$0" (#147).
+ */
+internal fun spentLine(events: List<Event>): String? {
+    val past = events.filter { !EventDates.isUpcoming(it.startDate) }
+    val costed = past.mapNotNull { it.costCents }
+    if (costed.isEmpty()) return null
+    val total = Costs.fmtSpend(costed.sum())
+    return if (costed.size < past.size) "$total spent (${costed.size} of ${past.size} events costed)" else "$total spent"
 }

@@ -18,6 +18,8 @@ struct LeaderboardScreen: View {
     let trackId: Int
 
     @Environment(AuthController.self) private var auth
+    @Environment(AppRouter.self) private var router
+    @Environment(\.layout) private var layout
     @State private var model: LeaderboardModel?
     @State private var confirmingLeave = false
     /// The leaderboard lap being read (NS-35), by its id.
@@ -44,7 +46,12 @@ struct LeaderboardScreen: View {
             }
         }
         .sheet(item: $openingLap) { lap in
-            LeaderboardLapScreen(trackId: trackId, lapId: lap.id)
+            LeaderboardLapScreen(trackId: trackId, lapId: lap.id, trackName: model?.trackName) { route in
+                // The lap is a sheet: close it before going anywhere, as the
+                // track page does for its compare sheet.
+                openingLap = nil
+                router.push(route, at: layout.layoutClass)
+            }
         }
     }
 

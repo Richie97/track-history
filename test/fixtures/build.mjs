@@ -264,17 +264,23 @@ const u32 = (...vals) => {
 // handler/sample-format and one sample per chunk). `sampleEntryChildren`
 // nests boxes (mrld/mrlv) inside the sample entry, after its standard 8-byte
 // reserved/data-reference-index fields.
-function buildTelemetryMp4({ handler, sampleFormat, payloads, timescale = 1000, sampleDelta = 1000, sampleEntryChildren = [] }) {
+// `samplesPerChunk` packs consecutive samples into one chunk (the last chunk
+// takes whatever is left), which is what a real PDR 2.5 file's 'stsc' does.
+function buildTelemetryMp4({ handler, sampleFormat, payloads, timescale = 1000, sampleDelta = 1000, sampleEntryChildren = [], samplesPerChunk = 1 }) {
   const ftyp = box("ftyp", te.encode("mp42"), u32(0));
   const mdatBody = concat(payloads);
   const mdat = box("mdat", mdatBody);
 
   const offsets = [];
   let off = ftyp.length + 8; // mdat body starts after its own header
-  for (const p of payloads) {
-    offsets.push(off);
+  payloads.forEach((p, i) => {
+    if (i % samplesPerChunk === 0) offsets.push(off);
     off += p.length;
-  }
+  });
+  const tail = payloads.length % samplesPerChunk;
+  const stscRuns = [[1, samplesPerChunk, 1]];
+  if (tail && offsets.length > 1) stscRuns.push([offsets.length, tail, 1]);
+  else if (tail) stscRuns[0][1] = tail;
 
   const sampleEntry = sampleEntryChildren.length
     ? box(sampleFormat, new Uint8Array(8), ...sampleEntryChildren)
@@ -284,9 +290,9 @@ function buildTelemetryMp4({ handler, sampleFormat, payloads, timescale = 1000, 
     "stbl",
     box("stsd", u32(0, 1), sampleEntry),
     box("stts", u32(0, 1, n, sampleDelta)),
-    box("stsc", u32(0, 1, 1, 1, 1)),
+    box("stsc", u32(0, stscRuns.length, ...stscRuns.flat())),
     box("stsz", u32(0, 0, n, ...payloads.map((p) => p.length))),
-    box("stco", u32(0, n, ...offsets))
+    box("stco", u32(0, offsets.length, ...offsets))
   );
   const mdhd = box("mdhd", u32(0, 0, 0, timescale, n * sampleDelta));
   const hdlr = box("hdlr", u32(0, 0), te.encode(handler), u32(0, 0, 0));
@@ -640,4 +646,276 @@ export function buildPdrRealMp4({
     events.push(pdrEvent(0x42, Math.round(d), t));
   }
   return buildTelemetryMp4({ handler: "ctbx", sampleFormat: "marl", payloads: [concat(events)] });
+}
+
+// --- AliveDrive PDR 2.5 fixture (2025-on GM: Cadillac Blackwing) --------------------
+
+// The newer Cosworth recorder: handler 'adrv', sample entry 'adco' describing
+// its own channels and record schedule, and a sample stream of untagged
+// fixed-layout records (see public/js/import/pdr25.js). Laid out exactly as
+// the Blackwing files are, at lower rates so the committed file stays small:
+// a 20 Hz group, a 10 Hz group with the GPS, a 5 Hz group and a 1 Hz group.
+// Channel ids, scalings and enum tables are the real firmware's; a few
+// channels the parser doesn't read ride along in each group — an s8, a u32
+// enum with several fields, a reversed active/inactive enum — so a port that
+// mis-sizes a field it skips misreads everything after it.
+const p25str = (s) => te.encode(`${s}\0`);
+const p25u16 = (v) => new Uint8Array([(v >> 8) & 0xff, v & 0xff]);
+const P25_WIDTH = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 4, 6: 4, 9: 4 };
+function p25stored(code, v) {
+  const out = new Uint8Array(P25_WIDTH[code]);
+  const dv = new DataView(out.buffer);
+  if (code === 1) dv.setInt8(0, v);
+  else if (code === 2) dv.setUint8(0, v);
+  else if (code === 3) dv.setInt16(0, v);
+  else if (code === 4) dv.setUint16(0, v);
+  else if (code === 5) dv.setInt32(0, v);
+  else if (code === 6) dv.setUint32(0, v);
+  else dv.setFloat32(0, v);
+  return out;
+}
+const p25f64 = (...vals) => {
+  const out = new Uint8Array(vals.length * 8);
+  const dv = new DataView(out.buffer);
+  vals.forEach((v, i) => dv.setFloat64(i * 8, v));
+  return out;
+};
+
+const P25_RAD = Math.PI / 180;
+// id, name, unit, storage code, and either {mult, off, min, max} or an enum's
+// fields [{name, mask, def: [label, value], labels: [[label, value]...]}].
+const P25_CHANNELS = [
+  { id: 0, name: "speed", unit: 4, code: 4, fmt: 9, mult: 1 / 230.4, min: 0, max: 0x7fff },
+  { id: 1, name: "location.latitude", unit: 0, code: 5, fmt: 10, mult: P25_RAD * 1e-7, min: -900000000, max: 900000000 },
+  { id: 2, name: "location.longitude", unit: 0, code: 5, fmt: 10, mult: P25_RAD * 1e-7, min: -1800000000, max: 1800000000 },
+  { id: 3, name: "location.altitude", unit: 2, code: 5, fmt: 10, mult: 0.001, min: -0x80000000, max: 0x7fffffff },
+  { id: 4, name: "location.heading", unit: 0, code: 5, fmt: 10, mult: P25_RAD * 1e-5, min: 0, max: 35999999 },
+  { id: 5, name: "location.fixquality", unit: 6, code: 2, fmt: 2, mult: 1, min: 0, max: 3 },
+  { id: 7, name: "stability.antilockbrakingsystem", unit: 6, code: 2,
+    fields: [{ name: "status", mask: 3, def: ["unknown", 3], labels: [["inactive", 0], ["active", 1]] }] },
+  { id: 11, name: "accelerometer.vehicle.x", unit: 7, code: 9, fmt: 9, mult: 9.80665, min: -8, max: 8 },
+  { id: 12, name: "accelerometer.vehicle.y", unit: 7, code: 9, fmt: 9, mult: 9.80665, min: -8, max: 8 },
+  { id: 14, name: "throttle.position", unit: 8, code: 2, fmt: 9, mult: 1 / 255, min: 0, max: 255 },
+  { id: 15, name: "propulsion.electricmotor.powerlevel", unit: 8, code: 1, fmt: 9, mult: 0.01, min: -128, max: 127 },
+  { id: 16, name: "brake.position", unit: 8, code: 2, fmt: 9, mult: 1 / 255, min: 0, max: 255 },
+  { id: 17, name: "gear", unit: 6, code: 2,
+    fields: [{ name: "current", mask: 15, def: ["notsupported", 0], labels: [
+      ["first", 1], ["second", 2], ["third", 3], ["fourth", 4], ["fifth", 5], ["sixth", 6], ["seventh", 7],
+      ["eighth", 8], ["ninth", 9], ["tenth", 10], ["unused", 11], ["cvtforward", 12], ["neutral", 13],
+      ["reverse", 14], ["park", 15],
+    ] }] },
+  { id: 19, name: "driveperformancemode", unit: 6, code: 6,
+    fields: [
+      { name: "tour", mask: 1, def: ["inactive", 0], labels: [["active", 1]] },
+      { name: "track", mask: 2, def: ["inactive", 0], labels: [["active", 2]] },
+    ] },
+  { id: 23, name: "engine.temperature.coolant", unit: 3, code: 2, fmt: 9, mult: 1, off: 233.15, min: 0, max: 255 },
+  { id: 24, name: "engine.pressure.airintake.boost", unit: 5, code: 4, fmt: 5, mult: 1000, off: -110000, min: 0, max: 0x1ff },
+  { id: 25, name: "engine.temperature.airintake", unit: 3, code: 2, fmt: 9, mult: 1, off: 233.15, min: 0, max: 255 },
+  { id: 26, name: "engine.pressure.oil", unit: 5, code: 2, fmt: 6, mult: 4000, min: 0, max: 255 },
+  { id: 27, name: "engine.temperature.oil", unit: 3, code: 2, fmt: 9, mult: 1, off: 233.15, min: 0, max: 255 },
+  { id: 29, name: "enginespeed", unit: 9, code: 4, fmt: 9, mult: Math.PI / 120, min: 0, max: 0xffff },
+  { id: 32, name: "temperature.outsideair", unit: 3, code: 2, fmt: 9, mult: 0.5, off: 233.15, min: 0, max: 255 },
+  { id: 33, name: "stability.electronicstabilitycontrol", unit: 6, code: 2,
+    fields: [{ name: "status", mask: 3, def: ["unknown", 3], labels: [["inactive", 0], ["active", 1]] }] },
+  { id: 34, name: "engine.level.fuel", unit: 8, code: 2, fmt: 9, mult: 0.003921, min: 0, max: 255 },
+  { id: 38, name: "odometer.distance", unit: 2, code: 6, fmt: 9, mult: 15.625, min: 0, max: 0x0fffffff },
+  { id: 42, name: "steeringangle", unit: 0, code: 3, fmt: 9, mult: P25_RAD / 16, min: -0x4000, max: 0x3fff },
+  { id: 43, name: "stability.tractioncontrolsystem", unit: 6, code: 2,
+    fields: [{ name: "status", mask: 3, def: ["unknown", 3], labels: [["inactive", 0], ["active", 1]] }] },
+  { id: 44, name: "transmission.oil.temperature", unit: 3, code: 2, fmt: 9, mult: 1, off: 233.15, min: 0, max: 255 },
+  { id: 45, name: "tire.pressure.front.left", unit: 5, code: 2, fmt: 6, mult: 4000, min: 0, max: 255 },
+  { id: 46, name: "tire.pressure.front.right", unit: 5, code: 2, fmt: 6, mult: 4000, min: 0, max: 255 },
+  { id: 47, name: "tire.pressure.rear.left", unit: 5, code: 2, fmt: 6, mult: 4000, min: 0, max: 255 },
+  { id: 48, name: "tire.pressure.rear.right", unit: 5, code: 2, fmt: 6, mult: 4000, min: 0, max: 255 },
+  { id: 49, name: "tire.temperature.front.left", unit: 3, code: 2, fmt: 9, mult: 1, off: 253.15, min: 0, max: 127 },
+  { id: 50, name: "tire.temperature.front.right", unit: 3, code: 2, fmt: 9, mult: 1, off: 253.15, min: 0, max: 127 },
+  { id: 51, name: "tire.temperature.rear.left", unit: 3, code: 2, fmt: 9, mult: 1, off: 253.15, min: 0, max: 127 },
+  { id: 52, name: "tire.temperature.rear.right", unit: 3, code: 2, fmt: 9, mult: 1, off: 253.15, min: 0, max: 127 },
+  // active is 0 and inactive 1 here, the reverse of every other status
+  { id: 53, name: "stability.vehiclestabilityenhancement", unit: 6, code: 2,
+    fields: [{ name: "status", mask: 3, def: ["unknown", 3], labels: [["active", 0], ["inactive", 1]] }] },
+  { id: 54, name: "wheel.speed.front.left", unit: 4, code: 9, fmt: 9, mult: 1, min: 0, max: 253.54 },
+  { id: 55, name: "wheel.speed.front.right", unit: 4, code: 9, fmt: 9, mult: 1, min: 0, max: 253.54 },
+  { id: 56, name: "wheel.speed.rear.left", unit: 4, code: 9, fmt: 9, mult: 1, min: 0, max: 253.54 },
+  { id: 57, name: "wheel.speed.rear.right", unit: 4, code: 9, fmt: 9, mult: 1, min: 0, max: 253.54 },
+  { id: 58, name: "gyro.vehicle.yaw", unit: 9, code: 3, fmt: 9, mult: 0.024 * P25_RAD, min: -0x1000, max: 0x0fff },
+];
+
+const P25_GROUPS = [
+  { period: 500000, ids: [16, 29, 42, 58] }, // 20 Hz
+  { period: 1000000, ids: [0, 1, 2, 3, 4, 5, 7, 14, 24, 15, 11, 12] }, // 10 Hz
+  { period: 2000000, ids: [17, 33, 43, 54, 55, 56, 57] }, // 5 Hz
+  { period: 10000000, ids: [26, 19, 23, 25, 27, 32, 34, 38, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53] }, // 1 Hz
+];
+
+const P25_EVENTS = [
+  "lap.start", "lap.end", "performance.0-60mph.start", "performance.0-60mph.end",
+];
+
+function p25ChannelEntry(c) {
+  const head = [p25u16(c.id), p25str(`com.cosworth.channel.${c.name}`), p25u16(c.unit)];
+  if (!c.fields) {
+    return concat([...head, new Uint8Array([1, c.fmt]), p25f64(c.mult, c.off ?? 0), p25stored(c.code, c.min), p25stored(c.code, c.max)]);
+  }
+  const parts = [...head, new Uint8Array([2, c.code, c.fields.length])];
+  for (const f of c.fields) {
+    parts.push(p25str(f.name), p25stored(c.code, f.mask), p25str(f.def[0]), p25stored(c.code, f.def[1]), new Uint8Array([f.labels.length]));
+    for (const [label, v] of f.labels) parts.push(p25str(label), p25stored(c.code, v));
+  }
+  return concat(parts);
+}
+
+// Outing properties as the recorder writes them: name\0, a type, a value.
+function p25Properties(stamp) {
+  const prop = (name, type, value) => concat([te.encode(`com.cosworth.outingproperty.${name}\0${type}`), value]);
+  return box(
+    "adop",
+    prop("source.tag", "strn", p25str("com.cosworth.outing.source.pdr2_5")),
+    prop("timestamp", "dtim", te.encode(`${stamp}+00:00`)),
+    prop("vehicle.make", "strn", p25str("Cadillac")),
+    prop("stat.fastestlaptime", "siva", concat([p25u16(1), new Uint8Array([10]), p25f64(0)])),
+  );
+}
+
+export function buildPdr25Mp4({
+  lapCrossings = [],
+  revolutions = 2.7,
+  radius = 300,
+  speed = 40,
+  lat0 = 36.56,
+  lon0 = -79.2,
+  stamp = "2026-07-17T11:22:47",
+} = {}) {
+  const byId = new Map(P25_CHANNELS.map((c) => [c.id, c]));
+  const kx = 111320 * Math.cos(lat0 * P25_RAD);
+  const ky = 110540;
+  const totalS = (2 * Math.PI * radius * revolutions) / speed;
+
+  // The car on the reference circle — the same shapes buildPdrDeltaMp4 drives,
+  // written as each channel's raw stored value.
+  const raw = (c, t) => {
+    const ang = (speed * t) / radius;
+    const v = speed * (1 + 0.05 * Math.sin(t / 20)); // m/s
+    const pedal = Math.sin(t / 8);
+    const warm = Math.min(1, t / 120);
+    switch (c.name) {
+      case "speed": return Math.round(v * 230.4);
+      case "location.latitude": return Math.round((lat0 + (radius * Math.sin(ang)) / ky) * 1e7);
+      case "location.longitude": return Math.round((lon0 + (radius * Math.cos(ang)) / kx) * 1e7);
+      case "location.altitude": return Math.round(112600 + 38000 * Math.abs(Math.sin(t / 40)));
+      case "location.heading": return Math.round((((ang * 180) / Math.PI + 180) % 360) * 1e5);
+      case "location.fixquality": return t < 2 ? 0 : 3; // no position for the first two seconds
+      case "stability.antilockbrakingsystem": return Math.sin(t / 7) < -0.98 ? 1 : 0;
+      // lateral is x, longitudinal y with braking positive (in g)
+      case "accelerometer.vehicle.x": return (v * v) / radius / 9.80665;
+      case "accelerometer.vehicle.y": return -0.8 * Math.sin(t / 7);
+      case "throttle.position": return Math.round(Math.max(0, pedal) * 255);
+      case "propulsion.electricmotor.powerlevel": return -100;
+      case "brake.position": return Math.round(Math.max(0, -pedal) * 255);
+      case "gear": return t % 60 < 3 ? 13 : 1 + (Math.floor(t / 7) % 5); // 13 = neutral
+      case "driveperformancemode": return 2; // track
+      case "engine.temperature.coolant": return Math.round(110 + 35 * warm);
+      case "engine.pressure.airintake.boost": return Math.round(110 + 60 * Math.sin(t / 9));
+      case "engine.temperature.airintake": return 57;
+      case "engine.pressure.oil": return Math.round(70 + 14 * Math.sin(t / 11));
+      case "engine.temperature.oil": return Math.round(83 + 87 * warm);
+      case "enginespeed": return Math.round((4500 + 1500 * Math.sin(t / 10)) * 4);
+      case "temperature.outsideair": return 110; // 288.15 K, 15 °C
+      case "stability.electronicstabilitycontrol": return Math.sin(t / 5) > 0.97 ? 1 : 0;
+      case "engine.level.fuel": return Math.round(248 - 61 * warm);
+      case "odometer.distance": return Math.round(4549603 + (speed * t) / 15.625);
+      case "steeringangle": return Math.round(30 * Math.sin(t / 6) * 16);
+      case "stability.tractioncontrolsystem": return Math.sin(t / 5) > 0.99 ? 1 : 0;
+      case "transmission.oil.temperature": return Math.round(59 + 79 * warm);
+      case "tire.pressure.front.left": return Math.round(36 + 19 * warm);
+      case "tire.pressure.front.right": return Math.round(37 + 19 * warm);
+      case "tire.pressure.rear.left": return Math.round(38 + 19 * warm);
+      case "tire.pressure.rear.right": return Math.round(39 + 19 * warm);
+      case "tire.temperature.front.left": return Math.round(37 + 57 * warm);
+      case "tire.temperature.front.right": return Math.round(38 + 57 * warm);
+      case "tire.temperature.rear.left": return Math.round(39 + 57 * warm);
+      case "tire.temperature.rear.right": return Math.round(40 + 57 * warm);
+      case "stability.vehiclestabilityenhancement": return 1; // inactive
+      case "wheel.speed.front.left":
+      case "wheel.speed.front.right": return v;
+      case "wheel.speed.rear.left":
+      case "wheel.speed.rear.right": return v * 1.02; // rear-drive wheelspin
+      case "gyro.vehicle.yaw": return Math.round(((v / radius) * 180) / Math.PI / 0.024);
+      default: return 0;
+    }
+  };
+
+  // Events, 100 ns ticks: lap.end before lap.start at a shared crossing, and
+  // a 0-60 timer that the parser must step past.
+  const events = [{ tk: Math.round(5.7e7), id: 2 }, { tk: Math.round(9.1e7), id: 3 }];
+  lapCrossings.forEach((t, i) => {
+    const tk = Math.round(t * 1e7);
+    if (i > 0) events.push({ tk, id: 1 });
+    events.push({ tk, id: 0 });
+  });
+  const eventBlock = (e) => {
+    const out = new Uint8Array(11);
+    const dv = new DataView(out.buffer);
+    dv.setBigUint64(0, BigInt(e.tk));
+    dv.setUint8(8, 2);
+    dv.setUint16(9, e.id);
+    return out;
+  };
+  const dataBlock = (tk, payload) => {
+    const out = new Uint8Array(14 + payload.length);
+    const dv = new DataView(out.buffer);
+    dv.setBigUint64(0, BigInt(tk));
+    dv.setUint8(8, 1);
+    dv.setUint32(10, payload.length);
+    out.set(payload, 14);
+    return out;
+  };
+
+  // One sample per second: the data block, then the events inside that
+  // second — after an empty block at 0, as the recorder opens its stream.
+  const tick = Math.min(...P25_GROUPS.map((g) => g.period));
+  const samples = [dataBlock(0, new Uint8Array(0))];
+  for (let sec = 0; sec <= Math.floor(totalS); sec++) {
+    const records = [];
+    for (let k = 0; k * tick < 1e7; k++) {
+      const t = sec + (k * tick) / 1e7;
+      if (t > totalS) break;
+      for (const g of P25_GROUPS) {
+        if ((k * tick) % g.period) continue;
+        for (const id of g.ids) {
+          const c = byId.get(id);
+          records.push(p25stored(c.code, raw(c, t)));
+        }
+      }
+    }
+    const inSecond = events.filter((e) => e.tk >= sec * 1e7 && e.tk < (sec + 1) * 1e7).map(eventBlock);
+    samples.push(concat([dataBlock(sec * 1e7, concat(records)), ...inSecond]));
+  }
+
+  const adcr = box(
+    "adcr",
+    new Uint8Array([1]),
+    p25u16(P25_GROUPS.length),
+    ...P25_GROUPS.map((g) => {
+      const period = new Uint8Array(8);
+      new DataView(period.buffer).setBigUint64(0, BigInt(g.period));
+      return concat([period, p25u16(g.ids.length), ...g.ids.map((id) => concat([p25u16(id), new Uint8Array([byId.get(id).code])]))]);
+    }),
+  );
+  const adco = [
+    box("advi", new Uint8Array([0, 5, 0, 0, 0, 2]), p25str("com.cosworth.outing.source.pdr2_5")),
+    p25Properties(stamp),
+    box("adcp", ...P25_CHANNELS.map(p25ChannelEntry)),
+    adcr,
+    box("adud", p25u16(4), p25str("com.cosworth.unit.velocity.si")),
+    box("adeg", ...P25_EVENTS.map((n, i) => concat([p25u16(i), p25str(`com.cosworth.event.${n}`)]))),
+  ];
+  return buildTelemetryMp4({
+    handler: "adrv",
+    sampleFormat: "adco",
+    payloads: samples,
+    sampleEntryChildren: adco,
+    samplesPerChunk: 4,
+  });
 }

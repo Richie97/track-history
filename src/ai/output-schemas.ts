@@ -47,7 +47,7 @@ const eventProperties = {
   car: textOrNull, vehicle_id: integerOrNull, club: textOrNull, run_group: textOrNull,
   conditions: textOrNull, temp_f: numberOrNull, ambient_lo_c: numberOrNull, ambient_hi_c: numberOrNull,
   best_ms: msOrNull, best: formattedTime, lap_count: integer, session_count: integer,
-  consistency_cv_pct: described(numberOrNull, "Coefficient of variation of lap times as a percentage; unavailable below three laps."),
+  consistency_cv_pct: described(numberOrNull, "Coefficient of variation of the clean lap times (within 107% of each session's best) as a percentage; unavailable below three clean laps."),
   on_track_hours: described(number, "On-track hours, entered or estimated."), cost_cents: centsOrNull,
 };
 const eventRow = object({ ...eventProperties, notes: textOrNull }, ["notes"]);

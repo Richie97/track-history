@@ -262,7 +262,7 @@ export const TOOLS: Tool[] = [
     outputSchema: OUTPUT_SCHEMAS.list_events,
     title: "Events",
     description:
-      "Track-day events, newest first, with each one's best lap, lap and session counts, consistency (coefficient of variation of lap times), conditions and on-track hours. Filter by track, car or year. An event's best is the lower of its fastest logged lap and a manually entered best.",
+      "Track-day events, newest first, with each one's best lap, lap and session counts, consistency (coefficient of variation of the clean lap times — within 107% of each session's best, so out-laps and traffic don't count), conditions and on-track hours. Filter by track, car or year. An event's best is the lower of its fastest logged lap and a manually entered best.",
     inputSchema: {
       type: "object",
       properties: {

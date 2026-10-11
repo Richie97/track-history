@@ -112,9 +112,11 @@ struct SharedLogbookScreen: View {
             data = try await auth.api.sharedLogbook(slug: slug)
             state = .ready
         } catch let error as APIError where error.status == 404 {
+            // The web's words for the same link.
             state = .failed(
-                "There's no shared logbook at /share/\(slug) — the link may have been disabled.",
-                retryable: false
+                "This share link doesn't exist or has been disabled.",
+                retryable: false,
+                title: "Link not found"
             )
         } catch let error as APIError {
             state = .failed(error.message)

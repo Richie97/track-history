@@ -151,8 +151,8 @@ public enum Units {
 
     // MARK: - Pressure (stored psi) and fuel (stored gallons)
 
-    /// The setup notebook these serve is web-only; the constants port so the two
-    /// clients can never disagree if that changes.
+    /// The setup notebook's pressure and fuel fields (NS-40) convert through
+    /// these, so a sheet reads the same in bar or litres on every client.
     public static let PSI_PER_BAR = 14.503774
     public static let L_PER_GAL = 3.785412
 
@@ -182,7 +182,7 @@ public enum Units {
     }
 
     /// `Number.prototype.toFixed(dp)`: a fixed number of decimals, ties rounded up.
-    static func toFixed(_ v: Double, _ dp: Int) -> String {
+    public static func toFixed(_ v: Double, _ dp: Int) -> String {
         let factor = pow(10.0, Double(dp))
         return String(format: "%.\(dp)f", JSMath.round(v, factor))
     }
@@ -198,7 +198,7 @@ public enum Units {
     }
 
     /// `${m}` for a metre count: a whole number prints without a decimal.
-    static func jsNumber(_ v: Double) -> String {
+    public static func jsNumber(_ v: Double) -> String {
         v == v.rounded() && abs(v) < 1e15 ? String(Int(v)) : String(v)
     }
 }

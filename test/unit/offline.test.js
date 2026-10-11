@@ -87,10 +87,17 @@ describe("recomputeDetail", () => {
     expect(d.lap_count).toBe(2);
     expect(d.consistency).toBeNull();
 
-    d.sessions[0].laps = laps([100000, 110000, 120000]);
+    d.sessions[0].laps = laps([100000, 103000, 106000]);
     recomputeDetail(d);
     expect(d.best_ms).toBe(100000);
-    expect(d.consistency).toBeCloseTo(8164.97 / 110000, 4);
+    expect(d.consistency).toBeCloseTo(2449.49 / 103000, 4);
+
+    // NS-42: only clean laps count — 110000 and 120000 are beyond 107% of
+    // 100000, so one clean lap gives no figure, though all three are laps.
+    d.sessions[0].laps = laps([100000, 110000, 120000]);
+    recomputeDetail(d);
+    expect(d.lap_count).toBe(3);
+    expect(d.consistency).toBeNull();
   });
 
   it("hours: the override, else 3+ laps' total time, else 1h15m per day (eventHours)", () => {
@@ -200,6 +207,12 @@ describe("offline mutation queue", () => {
 
     await enqueue("PUT", "/sessions/7", { label: "Renamed" });
     expect((await cachedGet("/events/10")).sessions[0].label).toBe("Renamed");
+    // Present keys only (NS-40): notes alone keeps the label; "" clears.
+    await enqueue("PUT", "/sessions/7", { notes: "  brake later into T5 " });
+    expect((await cachedGet("/events/10")).sessions[0]).toMatchObject({ label: "Renamed", notes: "brake later into T5" });
+    await enqueue("PUT", "/sessions/7", { label: "" });
+    expect((await cachedGet("/events/10")).sessions[0]).toMatchObject({ label: null, notes: "brake later into T5" });
+    await enqueue("PUT", "/sessions/7", { label: "Renamed" });
 
     await enqueue("POST", "/sessions/7/laps", { laps: [119000] });
     expect((await cachedGet("/events/10")).sessions[0].laps.map((l) => l.lap_num)).toEqual([1, 2]);

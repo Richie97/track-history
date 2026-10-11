@@ -52,6 +52,7 @@ export type Env = {
   MCP_CALLS?: RateLimit; // per connection (grant): POST /mcp
   OAUTH_TOKEN?: RateLimit; // per client id: POST /oauth/token
   OAUTH_REGISTER?: RateLimit; // per IP: POST /oauth/register
+  EXPORT?: RateLimit; // per user: GET /api/export/* (NS-44)
 };
 
 export type AppContext = {

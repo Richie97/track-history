@@ -13,9 +13,16 @@ import Foundation
 /// function from a different JS file (`sanitizeLaps` in `src/lib/validate.ts`).
 /// Both keep their original's name, which is why they live in separate namespaces.
 public enum LapStats {
+    /// A lap within this factor of its session's best is "clean" — the F1 107% rule.
+    /// `CLEAN_FACTOR` in `lap-stats.js` and `src/lib/stats.ts`.
+    public static let CLEAN_FACTOR = 1.07
+
+    /// Consistency needs this many clean laps (NS-42).
+    public static let MIN_CONSISTENCY_LAPS = 3
+
     /// Laps within `factor` of the session best. Filters out-laps, cool-downs and
     /// heavy traffic the same way the F1 107% rule separates representative pace.
-    public static func cleanLaps(_ laps: [Int], factor: Double = 1.07) -> [Int] {
+    public static func cleanLaps(_ laps: [Int], factor: Double = LapStats.CLEAN_FACTOR) -> [Int] {
         guard let best = laps.min() else { return [] }
         return laps.filter { Double($0) <= Double(best) * factor }
     }
@@ -30,7 +37,7 @@ public enum LapStats {
     /// Least-squares slope of clean laps in ms per lap. Positive = getting slower
     /// through the session (tires/driver going off), negative = still improving.
     /// nil with fewer than 4 clean laps — a trend over less isn't meaningful.
-    public static func paceSlope(_ laps: [Int], factor: Double = 1.07) -> Double? {
+    public static func paceSlope(_ laps: [Int], factor: Double = LapStats.CLEAN_FACTOR) -> Double? {
         let clean = cleanLaps(laps, factor: factor)
         let n = clean.count
         guard n >= 4 else { return nil }
@@ -53,5 +60,24 @@ public enum LapStats {
             return nil
         }
         return idx + 1
+    }
+
+    /// An event's consistency (NS-42): the coefficient of variation (population
+    /// stdev ÷ mean) of its clean laps, each session's laps judged against that
+    /// session's own best. One array of lap times per session; nil under
+    /// `MIN_CONSISTENCY_LAPS` clean laps.
+    ///
+    /// Computed as mean of squares minus squared mean — the server's arithmetic
+    /// over its SQL aggregates — because `OfflineMirrors.recomputeDetail` is
+    /// checked against the server's figure to 1e-12. Pinned by
+    /// `contracts/logic/consistency.json`.
+    public static func eventConsistency(_ sessionLaps: [[Int]]) -> Double? {
+        let clean = sessionLaps.flatMap { cleanLaps($0) }
+        guard clean.count >= MIN_CONSISTENCY_LAPS else { return nil }
+        let n = Double(clean.count)
+        let mean = clean.reduce(0.0) { $0 + Double($1) } / n
+        let meanOfSquares = clean.reduce(0.0) { $0 + Double($1) * Double($1) } / n
+        let variance = max(0, meanOfSquares - mean * mean)
+        return variance.squareRoot() / mean
     }
 }

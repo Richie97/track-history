@@ -55,6 +55,15 @@ enum Route: Hashable {
     /// that write — the form, the recorder, the importer, the leaderboard — have
     /// no student counterpart to reach by accident.
     case student(id: Int, page: StudentPage)
+    /// *Your first track day*, the docs site's guide, in an in-app web view —
+    /// from the dashboard's first-run card and from Settings. Opens wherever you
+    /// are, like Settings.
+    case trackDaysGuide
+    /// One day's setup sheet, logged or edited (NS-40), from the event page's
+    /// notebook. `startFrom` is the pressure loop's next-day sheet with its
+    /// suggested colds; nil opens the day's own sheet or the copy-forward
+    /// prefill. A pushed page, never a sheet — see `SetupFormScreen`.
+    case setupForm(eventId: Int, day: Int, startFrom: SetupSheet?)
 }
 
 /// The pages of a student's logbook a coach can open (NS-38) — the web's
@@ -86,7 +95,7 @@ extension LogbookOwner {
             .student(id: id, page: .lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
         case .student: route
         case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .wrapped,
-             .coaching, .profile, .coachInvite:
+             .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm:
             .student(id: id, page: .home)
         }
     }
@@ -111,7 +120,7 @@ extension Route {
         switch self {
         case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .lap,
-             .coaching, .profile, .coachInvite, .student: false
+             .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm: false
         }
     }
 }
@@ -153,12 +162,12 @@ extension Route {
     var tab: AppTab? {
         switch self {
         case .vehicle: .garage
-        case .settings, .coaching, .profile: nil
+        case .settings, .coaching, .profile, .trackDaysGuide: nil
         // A student's logbook is a pushed destination on the Events tab, never a
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
         case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .lap, .wrapped,
-             .coachInvite, .student: .events
+             .coachInvite, .student, .setupForm: .events
         }
     }
 }
@@ -521,6 +530,11 @@ final class AppRouter {
             case .importVideo(let id, let incoming, let forNewEvent):
                 guard let id, OfflineStore.isTemp(id), let real = resolve(id) else { return route }
                 return .importVideo(eventId: real, incoming: incoming, forNewEvent: forNewEvent)
+            case .setupForm(let id, let day, let startFrom):
+                // An event created offline can have its setup logged before the
+                // create flushes; the held draft follows the route's new key.
+                guard OfflineStore.isTemp(id), let real = resolve(id) else { return route }
+                return .setupForm(eventId: real, day: day, startFrom: startFrom)
             case .lap(let eventId, let sessionId, let lapId):
                 // Three ids, any of which can be temp: an event, a session and a
                 // lap can each be created offline. Each follows its own row.
@@ -534,7 +548,7 @@ final class AppRouter {
             // A student's ids are never temp either: a coach cannot write to the
             // logbook, so every row in it came from the server.
             case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
-                 .coaching, .profile, .coachInvite, .student:
+                 .coaching, .profile, .coachInvite, .student, .trackDaysGuide:
                 return route
             }
         }

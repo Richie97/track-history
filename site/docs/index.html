@@ -42,6 +42,7 @@
     <p class="group">Documentation</p>
     <ul>
       <li><a href="./" class="active">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
       <li><a href="./telemetry-import.html">Telemetry import</a></li>
       <li><a href="./lap-recording.html">Recording laps</a></li>
       <li><a href="./data-model.html">Data model &amp; stats</a></li>
@@ -66,7 +67,9 @@
     </p>
     <p>
       Want the tour first? <a href="https://youtu.be/UBnjPYRr8wU">Watch Track Evolution
-      in 84 seconds</a> on YouTube.
+      in 84 seconds</a> on YouTube. Never driven on track?
+      <a href="./track-days.html">Your first track day</a> covers what an HPDE is,
+      what you and the car need, and where to find one.
     </p>
 
     <h2 id="sign-in">Sign in</h2>
@@ -97,7 +100,8 @@
       graphs inside those imported files (steering, RPM, lateral G and yaw, the
       gear ribbon, ABS and wheelspin marks, the car-health strip) with sector
       splits and lap-vs-lap deltas, consumable wear tracking in the garage, the
-      setup notebook, and year in review. It applies to your
+      setup notebook with its tire-pressure suggestions, what your days cost
+      rolled up per track and per car, and year in review. It applies to your
       <em>account</em>, so one subscription covers the iPhone app, the Android
       app and the web app.
     </p>
@@ -179,7 +183,7 @@
     <h2 id="import">Import telemetry</h2>
     <p>
       On any event page, <strong>Import video / telemetry…</strong> turns
-      recordings into sessions with laps: Corvette PDR video, GoPro footage,
+      recordings into sessions with laps: Corvette and Cadillac PDR video, GoPro footage,
       Racelogic VBO files and Porsche Track Precision CSV exports. Parsing happens on your own device — videos are
       read in place and <strong>never uploaded</strong>.
       See <a href="./telemetry-import.html">Telemetry import</a> for the full
@@ -304,9 +308,34 @@
       <a href="./data-model.html#sharing">share pages</a> for what it shows.
     </p>
 
+    <h2 id="your-data">Your data</h2>
+    <p>
+      You can download a copy of your logbook at any time from
+      <strong>Settings → Your data</strong> on the web. There are three files:
+    </p>
+    <ul>
+      <li><strong>Laps (CSV)</strong> — one row per lap, with its event,
+        session, time, whether it was the session's best and whether it was a
+        <a href="./data-model.html#consistency">clean lap</a>. Ready for a spreadsheet.</li>
+      <li><strong>Events (CSV)</strong> — one row per event, with its best lap,
+        consistency, hours and what it cost.</li>
+      <li><strong>Everything (JSON)</strong> — the complete logbook: your
+        tracks, events, sessions and laps, setup sheets, your garage, your
+        profile and preferences, and who you've given access to. Tick
+        <em>Include telemetry</em> to add every imported or recorded session's
+        channel data, which makes the file much larger.</li>
+    </ul>
+    <p>
+      The copy is complete whatever your plan. Telemetry, your garage and
+      setup sheets are in it even if you don't have Pro — Pro is what the app
+      draws from your data, and the data is yours. The JSON is in the units the
+      app stores (lap times in milliseconds, speeds in km/h and so on), and it
+      says so at the top of the file.
+    </p>
+
     <nav class="docs-pager">
       <span></span>
-      <a href="./telemetry-import.html"><span class="label">Next</span>Telemetry import →</a>
+      <a href="./track-days.html"><span class="label">Next</span>Your first track day →</a>
     </nav>
   </article>
 

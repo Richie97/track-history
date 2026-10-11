@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import app.trackevolution.core.Costs
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -145,6 +147,10 @@ fun VehicleScreen(
     // The car's own form, open or not. Saveable for the same reason the dialogs
     // are: a fold or a rotation must not close it under the driver.
     var editingCar by rememberSaveable { mutableStateOf(false) }
+    // Best in this car, per track: a pop-up behind one button rather than a
+    // section, so the owner's page stays about the parts. Saveable like the
+    // dialogs above.
+    var showingBests by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
     LaunchedEffect(model.deleted) { if (model.deleted) onDeleted() }
@@ -187,8 +193,12 @@ fun VehicleScreen(
                             }
                         }
                     }
-                    vehicle.notes?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, style = TrackTheme.typography.sm, color = colors.textMuted)
+                    // A coach reads them under their own heading instead, with
+                    // "None listed." when there are none (StudentCarSpecs).
+                    if (!model.readOnly) {
+                        vehicle.notes?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = TrackTheme.typography.sm, color = colors.textMuted)
+                        }
                     }
                 }
             }
@@ -243,6 +253,10 @@ fun VehicleScreen(
                             "Track days" to pro.eventDays.toString(),
                             "Events" to pro.eventCount.toString(),
                             "Parts spend" to (Garage.fmtCost(model.spendCents.takeIf { it > 0 }) ?: "—"),
+                            // What the car's past track days cost (#147, NS-40),
+                            // the entered costs of its linked events — the server's
+                            // sum, so zero rather than null when none was costed.
+                            "Track-day spend" to (Costs.fmtSpend(pro.eventCostCents.takeIf { it > 0 }) ?: "—"),
                         )
                     } else {
                         listOf(
@@ -272,7 +286,22 @@ fun VehicleScreen(
                 item("specs") { StudentCarSpecs(vehicle, model) }
             }
 
-            if (logbook.bests.isNotEmpty()) {
+            if (logbook.bests.isNotEmpty() && !model.readOnly) {
+                item("bests-button") {
+                    OutlinedButton(
+                        onClick = { showingBests = true },
+                        modifier = Modifier.testTag("bestsButton"),
+                    ) {
+                        Text(
+                            "Best laps · ${fmtCount(logbook.bests.size, "track")}",
+                            style = TrackTheme.typography.sm,
+                            color = colors.textStrong,
+                        )
+                    }
+                }
+            } else if (logbook.bests.isNotEmpty()) {
+                // A coach's view of the car has no parts, so the bests are
+                // its content and stay inline, as `viewStudentVehicle` has them.
                 item("bests-header") { TESectionHeader("Best in this car") }
                 item("bests") { BestsCard(logbook.bests, onOpenTrack = onOpenTrack, onOpenEvent = onOpenEvent) }
             }
@@ -444,6 +473,28 @@ fun VehicleScreen(
         )
     }
 
+    if (showingBests && model.logbook.bests.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showingBests = false },
+            containerColor = colors.surfaceRaised,
+            title = { Text("Best in this car", style = TrackTheme.typography.h3, color = colors.textStrong) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    BestsCard(
+                        model.logbook.bests,
+                        onOpenTrack = { showingBests = false; onOpenTrack(it) },
+                        onOpenEvent = { showingBests = false; onOpenEvent(it) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showingBests = false }) {
+                    Text("Close", color = colors.accentInk)
+                }
+            },
+        )
+    }
+
     model.vehicle?.takeIf { it.id == confirmDeleteCarId }?.let { vehicle ->
         TEConfirmDialog(
             text = "Delete ${vehicle.name}? Past events keep the car name they were logged with" +
@@ -456,9 +507,11 @@ fun VehicleScreen(
 }
 
 /**
- * What a coach reads about a student's car beyond its name and modifications
- * (NS-38): the catalog pick and the geometry — `viewStudentVehicle`'s *Specs*.
- * Nothing when none of it is set.
+ * What a coach reads about a student's car beyond its name (NS-38): its
+ * modifications — "None listed." when there are none, since a coach has no
+ * form to find that out from — then the catalog pick and the geometry, the
+ * `viewStudentVehicle` *Modifications & notes* and *Specs*. Specs draw nothing
+ * when none of it is set.
  */
 @Composable
 private fun StudentCarSpecs(vehicle: Vehicle, model: VehicleModel) {
@@ -471,8 +524,19 @@ private fun StudentCarSpecs(vehicle: Vehicle, model: VehicleModel) {
         vehicle.steeringRatio?.let { "Steering ratio" to "${fmtRatio(it)}:1" },
         vehicle.targetHotPsi?.let { "Target hot pressure" to "${fmtRatio(it)} psi" },
     )
-    if (specs.isEmpty()) return
     Column {
+        TESectionHeader("Modifications & notes")
+        val notes = vehicle.notes?.takeIf { it.isNotBlank() }
+        if (notes != null) {
+            TrackCard(Modifier.fillMaxWidth().testTag("studentCarNotes")) {
+                Text(notes, style = TrackTheme.typography.sm, color = colors.textBody)
+            }
+        } else {
+            TEEmpty("None listed.")
+        }
+    }
+    if (specs.isEmpty()) return
+    Column(Modifier.padding(top = 12.dp)) {
         TESectionHeader("Specs")
         TrackCard(Modifier.fillMaxWidth().testTag("studentCarSpecs")) {
             specs.forEach { (label, value) ->

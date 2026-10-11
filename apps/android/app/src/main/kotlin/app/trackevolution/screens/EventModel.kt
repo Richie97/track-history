@@ -16,11 +16,13 @@ import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.EventPatch
+import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.SessionPatch
+import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.Track
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +70,15 @@ class EventModel(
     var isDeleted by mutableStateOf(false)
         private set
 
+    /**
+     * The garage, for the setup notebook (NS-40): the event's car's parts name
+     * the sheet's part references, and its target hot pressure closes the
+     * pressure loop. Read only when the notebook is shown, and its failure is
+     * swallowed — a sheet reads fine without part names.
+     */
+    var garage by mutableStateOf<List<GarageVehicle>?>(null)
+        private set
+
     fun load() {
         scope.launch {
             try {
@@ -112,16 +123,16 @@ class EventModel(
     }
 
     /**
-     * Both fields are written unconditionally by the server — `SessionPatch` is
-     * not a three-state patch — so an omitted field and an explicit null both
-     * mean "cleared". The edit sheet therefore always sends both.
+     * The edit sheet sends both fields as they now read — `Patch.Set(null)` for
+     * an emptied one, which clears it. The server writes only the keys present
+     * (NS-40), so a caller that passes [Patch.Unchanged] leaves that column alone.
      */
     fun updateSession(id: Int, label: String?, notes: String?) = write {
         api.updateSession(
             id,
             SessionPatch(
-                label = label?.takeIf { it.isNotBlank() },
-                notes = notes?.takeIf { it.isNotBlank() },
+                label = Patch.Set(label?.trim()?.takeIf { it.isNotEmpty() }),
+                notes = Patch.Set(notes?.trim()?.takeIf { it.isNotEmpty() }),
             ),
         )
     }
@@ -131,6 +142,25 @@ class EventModel(
     fun appendLaps(sessionId: Int, laps: List<Int>) = write { api.appendLaps(sessionId, laps) }
 
     fun deleteLap(id: Int) = write { api.deleteLap(id) }
+
+    // ---- Setup notebook (NS-40) ---------------------------------------------
+
+    fun loadGarage() {
+        scope.launch {
+            try {
+                garage = api.garage()
+            } catch (_: ApiException) {
+                // Offline with nothing cached, or a lapsed tier: the notebook
+                // shows the sheets without part names or a target.
+            }
+        }
+    }
+
+    /**
+     * A day's sheet, written whole — the loop's *Record hot pressures*. Queueable,
+     * so it saves in the paddock with no signal and replays.
+     */
+    fun saveSetup(day: Int, sheet: SetupSheet) = write { api.putSetup(eventId, day, sheet) }
 
     // ---- Checklist ---------------------------------------------------------
 

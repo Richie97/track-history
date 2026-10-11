@@ -96,6 +96,41 @@ describe("GET /api/events/:id", () => {
     expect((await api("GET", `/events/${eventId}`)).body.consistency).toBeNull();
   });
 
+  // NS-42: out-laps and cool-downs don't count against consistency, each
+  // session is judged against its own best, and every lap still counts for
+  // lap_count and hours. Through the real SQL, list and detail alike.
+  it("computes consistency over each session's clean laps", async () => {
+    const { api } = await signedInUser();
+    const eventId = await createEvent(api, { days: 1 });
+    await api("POST", `/events/${eventId}/sessions`, { laps: [160000, 122000, 121000, 123000, 150000] });
+    // A wet session 10% off the dry one: all clean against its own best.
+    await api("POST", `/events/${eventId}/sessions`, { laps: [133000, 134000] });
+
+    const clean = [122000, 121000, 123000, 133000, 134000];
+    const mean = clean.reduce((a, b) => a + b, 0) / clean.length;
+    const sd = Math.sqrt(clean.reduce((a, b) => a + (b - mean) ** 2, 0) / clean.length);
+
+    const detail = (await api("GET", `/events/${eventId}`)).body;
+    expect(detail.consistency).toBeCloseTo(sd / mean, 10);
+    expect(detail.lap_count).toBe(7);
+    expect(detail.hours).toBe(Math.round((943000 / 3_600_000) * 10) / 10);
+    expect(detail).not.toHaveProperty("clean_count");
+
+    const listed = (await api("GET", "/events")).body.find((e: any) => e.id === eventId);
+    expect(listed.consistency).toBeCloseTo(sd / mean, 10);
+  });
+
+  it("scopes the session bests to the caller's events", async () => {
+    // Another user's faster laps must not change this user's session bests.
+    const other = await signedInUser();
+    const otherEvent = await createEvent(other.api);
+    await other.api("POST", `/events/${otherEvent}/sessions`, { laps: [60000, 60000, 60000] });
+    const { api } = await signedInUser();
+    const eventId = await createEvent(api);
+    await api("POST", `/events/${eventId}/sessions`, { laps: [121000, 122000, 123000] });
+    expect((await api("GET", `/events/${eventId}`)).body.consistency).not.toBeNull();
+  });
+
   it("404s for another user's event", async () => {
     const a = await signedInUser();
     const b = await signedInUser();

@@ -1,0 +1,136 @@
+{
+  "description": "The cost form's pure half (NS-40): COST_FIELDS, dollarsToCents, centsToDollars and fmtSpend from public/js/costs.js. Both phones' ports must match it exactly. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/costs.js",
+  "COST_FIELDS": [
+    [
+      "cost_entry_cents",
+      "Entry fee",
+      "450"
+    ],
+    [
+      "cost_fuel_cents",
+      "Fuel",
+      "120"
+    ],
+    [
+      "cost_travel_cents",
+      "Travel & lodging",
+      "300"
+    ],
+    [
+      "cost_misc_cents",
+      "Misc",
+      "tow, insurance, a mirror…"
+    ]
+  ],
+  "dollarsToCents": [
+    [
+      "12.5",
+      1250
+    ],
+    [
+      "12",
+      1200
+    ],
+    [
+      "",
+      null
+    ],
+    [
+      "   ",
+      null
+    ],
+    [
+      "-1",
+      null
+    ],
+    [
+      "1,200",
+      null
+    ],
+    [
+      "12.345",
+      1235
+    ],
+    [
+      "0.285",
+      28
+    ],
+    [
+      "0.1",
+      10
+    ],
+    [
+      "1e3",
+      100000
+    ],
+    [
+      "abc",
+      null
+    ],
+    [
+      "389.50",
+      38950
+    ],
+    [
+      null,
+      null
+    ]
+  ],
+  "centsToDollars": [
+    [
+      38950,
+      "389.50"
+    ],
+    [
+      38900,
+      "389"
+    ],
+    [
+      5,
+      "0.05"
+    ],
+    [
+      0,
+      "0"
+    ],
+    [
+      100,
+      "1"
+    ],
+    [
+      123456,
+      "1234.56"
+    ],
+    [
+      null,
+      ""
+    ]
+  ],
+  "fmtSpend": [
+    [
+      0,
+      "$0"
+    ],
+    [
+      99,
+      "$0.99"
+    ],
+    [
+      100,
+      "$1"
+    ],
+    [
+      123456,
+      "$1,234.56"
+    ],
+    [
+      100000000,
+      "$1,000,000"
+    ],
+    [
+      null,
+      null
+    ]
+  ]
+}

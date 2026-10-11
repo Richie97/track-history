@@ -162,8 +162,8 @@ public object Units {
 
     // ---- pressure (stored psi) and fuel (stored gallons) ---------------------
 
-    // The setup notebook that uses these stays web-only; the constants are here
-    // so the port's constant list stays diffable against the JS.
+    // The setup notebook's pressure and fuel fields (NS-40) convert through these,
+    // so a sheet reads the same in bar or litres on every client.
     public const val PSI_PER_BAR: Double = 14.503774
     public const val L_PER_GAL: Double = 3.785412
 
@@ -205,6 +205,6 @@ public object Units {
         if (!fixed.contains('.')) fixed else fixed.trimEnd('0').trimEnd('.')
 
     /** A number the way JavaScript stringifies it in `${m} m`: `800.0` → "800". */
-    private fun jsNumber(value: Double): String =
+    public fun jsNumber(value: Double): String =
         if (value == Math.rint(value) && kotlin.math.abs(value) < 1e15) value.toLong().toString() else value.toString()
 }

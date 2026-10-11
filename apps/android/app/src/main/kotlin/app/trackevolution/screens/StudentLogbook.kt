@@ -215,7 +215,7 @@ fun ProfileCard(profile: DriverProfile?, empty: String, modifier: Modifier = Mod
     val sections = remember(profile) { Profile.profileSections(profile) }
     TrackCard(modifier.fillMaxWidth().testTag("profileCard")) {
         if (sections.isEmpty()) {
-            Text(empty, style = TrackTheme.typography.sm, color = colors.textMuted)
+            TEEmpty(empty)
             return@TrackCard
         }
         sections.forEachIndexed { index, section ->
@@ -317,14 +317,23 @@ fun StudentHomeScreen(
                     }
                 }
             }
-            item("tiles") {
-                TEStatRow(
-                    listOf(
-                        "Events" to past.size.toString(),
-                        "Track days" to fmtTrackDays(past.sumOf { it.days }),
-                        "Tracks" to tracks.size.toString(),
-                    ),
-                )
+            // An empty logbook is one sentence, not three zeros and two empty
+            // sections (#344's rule, read-only — so no action).
+            val noEvents = model.events.isEmpty()
+            if (noEvents) {
+                item("no-events") {
+                    TEEmpty("$who hasn't logged an event yet.", modifier = Modifier.testTag("studentNoEvents"))
+                }
+            } else {
+                item("tiles") {
+                    TEStatRow(
+                        listOf(
+                            "Events" to past.size.toString(),
+                            "Track days" to fmtTrackDays(past.sumOf { it.days }),
+                            "Tracks" to tracks.size.toString(),
+                        ),
+                    )
+                }
             }
             item("profile-header") { TESectionHeader("Driver profile") }
             item("profile") {
@@ -340,40 +349,42 @@ fun StudentHomeScreen(
                     }
                 }
             }
-            item("latest-header") { TESectionHeader("Latest events") }
-            if (past.isEmpty()) {
-                item("latest-empty") { TEEmpty("No events logged yet.") }
-            } else {
-                items(past.take(8), key = { "ev-${it.id}" }) { event ->
-                    TENavCard(onClick = { onOpenEvent(event.id) }) {
-                        Row(Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f)) {
-                                Text(event.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-                                TEMeta(listOf(EventDates.fmtDate(event.startDate), event.runGroup, event.car))
-                            }
-                            Column {
-                                Text(LapTime.fmtMs(event.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
-                                Text(fmtCount(event.lapCount, "lap"), style = TrackTheme.typography.xxs, color = colors.textFaint)
+            if (!noEvents) {
+                item("latest-header") { TESectionHeader("Latest events") }
+                if (past.isEmpty()) {
+                    item("latest-empty") { TEEmpty("No events logged yet.") }
+                } else {
+                    items(past.take(8), key = { "ev-${it.id}" }) { event ->
+                        TENavCard(onClick = { onOpenEvent(event.id) }) {
+                            Row(Modifier.fillMaxWidth()) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(event.trackName, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+                                    TEMeta(listOf(EventDates.fmtDate(event.startDate), event.runGroup, event.car))
+                                }
+                                Column {
+                                    Text(LapTime.fmtMs(event.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
+                                    Text(fmtCount(event.lapCount, "lap"), style = TrackTheme.typography.xxs, color = colors.textFaint)
+                                }
                             }
                         }
                     }
                 }
-            }
-            item("tracks-header") { TESectionHeader("Tracks") }
-            if (tracks.isEmpty()) {
-                item("tracks-empty") { TEEmpty("No tracks yet.") }
-            } else {
-                items(tracks, key = { "tr-${it.id}" }) { track ->
-                    TENavCard(onClick = { onOpenTrack(track.id) }) {
-                        Text(track.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-                        Text(LapTime.fmtMs(track.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
-                        TEMeta(
-                            listOf(
-                                fmtCount(track.eventCount, "event"),
-                                fmtCount(track.trackDays, "day"),
-                                EventDates.fmtDate(track.lastDate),
-                            ),
-                        )
+                item("tracks-header") { TESectionHeader("Tracks") }
+                if (tracks.isEmpty()) {
+                    item("tracks-empty") { TEEmpty("No tracks yet.") }
+                } else {
+                    items(tracks, key = { "tr-${it.id}" }) { track ->
+                        TENavCard(onClick = { onOpenTrack(track.id) }) {
+                            Text(track.name, style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
+                            Text(LapTime.fmtMs(track.bestMs), style = TrackTheme.typography.lapTime, color = colors.textStrong)
+                            TEMeta(
+                                listOf(
+                                    fmtCount(track.eventCount, "event"),
+                                    fmtCount(track.trackDays, "day"),
+                                    EventDates.fmtDate(track.lastDate),
+                                ),
+                            )
+                        }
                     }
                 }
             }

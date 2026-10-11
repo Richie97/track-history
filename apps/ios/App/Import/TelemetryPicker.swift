@@ -26,7 +26,7 @@ enum PickerFailure: Error, Equatable, Sendable {
     var message: String {
         switch self {
         case .notDownloaded(let name):
-            "\(name) isn't downloaded to this phone. Open it in Photos or Files once to download it, then try again — importing it here would pull down the whole video."
+            "\(name) isn't downloaded to this device. Open it in Photos or Files once to download it, then try again — importing it here would pull down the whole video."
         case .notFileBacked(let name):
             "\(name) is an edited or slow-motion clip, which iOS stores as a recipe rather than a file. Export the original, or pick it from Files instead."
         case .photoAccessDenied:

@@ -10,6 +10,10 @@
 // tests) an in-memory backend is used automatically.
 
 import { eventCostCents } from "./costs.js";
+// Not cleanLaps: this file's own cleanLaps is the sanitizeLaps mirror below,
+// a different thing from lap-stats.js's 107% filter. eventConsistency applies
+// that filter itself.
+import { eventConsistency } from "./lap-stats.js";
 
 // ---------- storage backends -------------------------------------------------
 
@@ -403,8 +407,9 @@ const cleanLaps = (laps) =>
     .filter((v) => Number.isFinite(v) && v > 0);
 
 // Mirror of withComputed in src/lib/stats.ts (best-time rule, coefficient
-// of variation, on-track hours via eventHours in src/lib/wear.ts, and the
-// cost total via eventCostCents in src/lib/costs.ts) — keep in sync.
+// of variation over clean laps via eventConsistency in lap-stats.js — NS-42 —
+// on-track hours via eventHours in src/lib/wear.ts, and the cost total via
+// eventCostCents in src/lib/costs.ts) — keep in sync.
 export function recomputeDetail(d) {
   const laps = d.sessions.flatMap((s) => s.laps.map((l) => l.time_ms));
   d.lap_count = laps.length;
@@ -412,13 +417,8 @@ export function recomputeDetail(d) {
   d.lap_best_ms = laps.length ? Math.min(...laps) : null;
   const bests = [d.best_time_ms, d.lap_best_ms].filter((v) => v != null);
   d.best_ms = bests.length ? Math.min(...bests) : null;
-  if (laps.length >= 3) {
-    const mean = laps.reduce((a, b) => a + b, 0) / laps.length;
-    const variance = Math.max(0, laps.reduce((a, b) => a + b * b, 0) / laps.length - mean * mean);
-    d.consistency = Math.sqrt(variance) / mean;
-  } else {
-    d.consistency = null;
-  }
+  d.consistency = eventConsistency(d.sessions.map((s) => s.laps.map((l) => l.time_ms)));
+  // Hours read every lap, out-laps included — they are time on track.
   const hours =
     d.track_hours != null && d.track_hours > 0
       ? d.track_hours
@@ -593,9 +593,12 @@ async function applyLocal(m) {
       const i = d.sessions.findIndex((s) => String(s.id) === String(seg[1]));
       if (i === -1) return false;
       if (m.method === "PUT") {
-        // The route replaces both fields (missing → null) — mirror that.
-        d.sessions[i].label = m.body?.label ?? null;
-        d.sessions[i].notes = m.body?.notes ?? null;
+        // The route writes only the keys present, trimmed, "" as null (NS-40).
+        for (const key of ["label", "notes"]) {
+          if (!m.body || !(key in m.body)) continue;
+          const v = m.body[key];
+          d.sessions[i][key] = typeof v === "string" && v.trim() ? v.trim() : null;
+        }
       } else {
         d.sessions.splice(i, 1);
       }

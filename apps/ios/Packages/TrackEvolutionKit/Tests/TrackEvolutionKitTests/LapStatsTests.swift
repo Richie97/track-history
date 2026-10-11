@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import TrackEvolutionKit
@@ -73,4 +74,71 @@ struct LapStatsTests {
         #expect(LapStats.warmupLapCount([120_000]) == nil)
         #expect(LapStats.warmupLapCount([]) == nil)
     }
+
+    // MARK: eventConsistency (NS-42)
+
+    private func cv(_ xs: [Int]) -> Double {
+        let m = Double(xs.reduce(0, +)) / Double(xs.count)
+        let v = xs.reduce(0.0) { $0 + (Double($1) - m) * (Double($1) - m) } / Double(xs.count)
+        return v.squareRoot() / m
+    }
+
+    @Test
+    func eventConsistencyIsTheCVOfTheCleanLaps() throws {
+        let c = try #require(LapStats.eventConsistency([[160_000, 122_000, 121_000, 123_000, 150_000]]))
+        #expect(abs(c - cv([122_000, 121_000, 123_000])) < 1e-12)
+    }
+
+    @Test
+    func eventConsistencyJudgesEachSessionAgainstItsOwnBest() throws {
+        let c = try #require(LapStats.eventConsistency([[120_000, 121_000], [132_000, 133_000]]))
+        #expect(abs(c - cv([120_000, 121_000, 132_000, 133_000])) < 1e-12)
+    }
+
+    @Test
+    func eventConsistencyKeepsALapExactlyAt107Percent() {
+        #expect(LapStats.eventConsistency([[100_000, 107_000, 100_000]]) != nil)
+    }
+
+    @Test
+    func eventConsistencyIsNilUnderThreeCleanLaps() {
+        #expect(LapStats.eventConsistency([[100_000, 110_000, 120_000]]) == nil)
+        #expect(LapStats.eventConsistency([[100_000], [100_000]]) == nil)
+        #expect(LapStats.eventConsistency([]) == nil)
+    }
+
+    @Test
+    func eventConsistencyIsZeroForIdenticalLaps() {
+        #expect(LapStats.eventConsistency([[120_000, 120_000, 120_000]]) == 0)
+    }
+
+    /// `contracts/logic/consistency.json` — the web implementation's output.
+    @Test
+    func eventConsistencyMatchesTheJavaScriptImplementation() throws {
+        let url = RepoRoot.path("contracts/logic/consistency.json")
+        let fixture = try JSONDecoder().decode(ConsistencyFixture.self, from: try Data(contentsOf: url))
+        #expect(fixture.CLEAN_FACTOR == LapStats.CLEAN_FACTOR)
+        #expect(fixture.MIN_CONSISTENCY_LAPS == LapStats.MIN_CONSISTENCY_LAPS)
+        for c in fixture.cases {
+            #expect(c.sessions.map { LapStats.cleanLaps($0) } == c.clean, "\(c.name)")
+            let got = LapStats.eventConsistency(c.sessions)
+            switch (got, c.consistency) {
+            case (nil, nil): break
+            case let (g?, w?): #expect(abs(g - w) < 1e-12, "\(c.name)")
+            default: Issue.record("\(c.name): got \(String(describing: got)), want \(String(describing: c.consistency))")
+            }
+        }
+    }
+}
+
+private struct ConsistencyFixture: Decodable {
+    struct Case: Decodable {
+        let name: String
+        let sessions: [[Int]]
+        let clean: [[Int]]
+        let consistency: Double?
+    }
+    let CLEAN_FACTOR: Double
+    let MIN_CONSISTENCY_LAPS: Int
+    let cases: [Case]
 }

@@ -21,6 +21,8 @@ import app.trackevolution.core.model.Me
 import app.trackevolution.core.model.OkResponse
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.model.SessionPatch
+import app.trackevolution.core.model.SetupPrefill
+import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.Track
@@ -449,6 +451,31 @@ public class ApiClient private constructor(
 
     public suspend fun deleteLap(id: Int) {
         send("DELETE", "/laps/$id", null, OkResponse.serializer())
+    }
+
+    // ---- Setup sheets (NS-40) ---------------------------------------------
+
+    /**
+     * The copy-forward prefill for a blank sheet on [day]: the latest earlier
+     * day's sheet, else this car's last event's. Null when there is nothing to
+     * copy. Pro — a free account gets [ApiException.PaymentRequired]. Offline
+     * with nothing cached it throws, and the caller falls back to
+     * `Garage.previousSheet` over the cached detail.
+     */
+    public suspend fun setupPrefill(eventId: Int, day: Int): SetupSheet? = get(
+        "/events/$eventId/setups/prefill",
+        SetupPrefill.serializer(),
+        query = listOf("day" to day.toString()),
+    ).data
+
+    /** Upsert a day's sheet. Queueable: it saves offline and replays. */
+    public suspend fun putSetup(eventId: Int, day: Int, sheet: SetupSheet) {
+        send("PUT", "/events/$eventId/setups/$day", encode(SetupSheet.serializer(), sheet), OkResponse.serializer())
+    }
+
+    /** Delete a day's sheet. Queueable. */
+    public suspend fun deleteSetup(eventId: Int, day: Int) {
+        send("DELETE", "/events/$eventId/setups/$day", null, OkResponse.serializer())
     }
 
     // ---- Tracks -----------------------------------------------------------

@@ -352,6 +352,10 @@ struct RootView: View {
             CoachInviteScreen(token: token)
         case .student(let id, let page):
             StudentLogbook(studentId: id, page: page)
+        case .trackDaysGuide:
+            TrackDaysGuideScreen()
+        case .setupForm(let eventId, let day, let startFrom):
+            SetupFormScreen(eventId: eventId, day: day, startFrom: startFrom)
         }
     }
 
@@ -382,12 +386,13 @@ struct RootView: View {
         case .eventForm(.edit(let id)): id
         case .record(let id): id
         case .importVideo(let id, _, _): id
+        case .setupForm(let id, _, _): id
         // The first temp id of the three; the 3-second loop below resolves the
         // next one on its next pass, which is soon enough.
         case .lap(let eventId, let sessionId, let lapId):
             [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
         case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
-             .coaching, .profile, .coachInvite, .student: nil
+             .coaching, .profile, .coachInvite, .student, .trackDaysGuide: nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }
         return id

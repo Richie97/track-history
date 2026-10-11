@@ -8,6 +8,7 @@ import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LeaderboardLap
 import app.trackevolution.core.model.SessionChannels
@@ -47,6 +48,13 @@ class LeaderboardLapModel(
     private var channelsBySession: Map<Int, SessionChannels> = emptyMap()
 
     /**
+     * The viewer's events at this track — what the no-lap-of-mine empty state's
+     * next step is decided from ([noTelemetryAction]), as on the two-lap compare.
+     */
+    var events by mutableStateOf<List<Event>>(emptyList())
+        private set
+
+    /**
      * Index into [rows], defaulted to the viewer's own fastest: the comparison
      * anyone opening a leaderboard row wants is "my best against theirs".
      */
@@ -77,6 +85,7 @@ class LeaderboardLapModel(
         if (lap?.entry == null) return
         try {
             val events = api.events(trackId = trackId)
+            this.events = events
             val details = events.filter { it.lapCount > 0 }.map { api.event(it.id) }
             rows = CompareLaps.comparableLaps(details.map { CompareLaps.EventLaps(it) })
             channelsBySession = details

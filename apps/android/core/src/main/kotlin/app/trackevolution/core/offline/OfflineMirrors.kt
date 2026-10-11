@@ -1,10 +1,10 @@
 package app.trackevolution.core.offline
 
+import app.trackevolution.core.Costs
 import app.trackevolution.core.JsMath
+import app.trackevolution.core.LapStats
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
-import kotlin.math.max
-import kotlin.math.sqrt
 
 /**
  * Server behaviors reimplemented client-side, so an offline read looks like a
@@ -22,6 +22,10 @@ import kotlin.math.sqrt
  * |---|---|---|---|
  * | [cleanLaps] | `cleanLaps` in `offline.js` | `OfflineMirrors.cleanLaps` | `sanitizeLaps` in `src/lib/validate.ts` |
  * | [recomputeDetail] | `recomputeDetail` in `offline.js` | `OfflineMirrors.recomputeDetail` | `withComputed` in `src/lib/stats.ts` (+ `eventHours` in `src/lib/wear.ts`, `eventCostCents` in `src/lib/costs.ts`) |
+ * | consistency, via `LapStats.eventConsistency` | `eventConsistency` in `lap-stats.js` | `LapStats.eventConsistency` | the `clean_*` aggregates in `src/db.ts` + `withComputed` |
+ *
+ * [cleanLaps] here is **not** `LapStats.cleanLaps`: this one validates lap
+ * times on the way in, that one is the 107% filter consistency uses (NS-42).
  *
  * If you find a divergence from the server, fix the server-matching behavior and
  * say so — the web app probably has the same bug.
@@ -61,8 +65,9 @@ public object OfflineMirrors {
      *
      *  - [Event.bestMs] is `MIN(manual best, best logged lap)`, and null when
      *    there is neither.
-     *  - [Event.consistency] is the coefficient of variation, and **null below 3
-     *    laps** — not zero. Two laps say nothing about consistency.
+     *  - [Event.consistency] is the coefficient of variation of the **clean**
+     *    laps — within 107% of their own session's best (NS-42) — and **null
+     *    below 3 of them**, not zero. `lapCount` and `hours` still count every lap.
      *  - [Event.hours] is the manual override when set, else
      *    the logged lap time with 3+ laps, else `days × 1h15m`, rounded to 1dp. It is never null.
      *  - [Event.costCents] is the sum of the entered cost line items, and
@@ -74,16 +79,9 @@ public object OfflineMirrors {
         val lapBestMs = laps.minOrNull()
         val bestMs = listOfNotNull(detail.event.bestTimeMs, lapBestMs).minOrNull()
 
-        // Doubles throughout: a lap time squared is ~1.4e10, which overflows Int
-        // silently and would make consistency garbage rather than wrong-looking.
-        val consistency = if (laps.size >= 3) {
-            val n = laps.size.toDouble()
-            val mean = laps.sumOf { it.toDouble() } / n
-            val meanOfSquares = laps.sumOf { it.toDouble() * it.toDouble() } / n
-            sqrt(max(0.0, meanOfSquares - mean * mean)) / mean
-        } else {
-            null
-        }
+        val consistency = LapStats.eventConsistency(
+            detail.sessions.map { session -> session.laps.map { it.timeMs } },
+        )
 
         // `eventHours`: the override wins; otherwise 3+ logged laps are the
         // time actually spent on track, and anything sparser is the 1h15m-per-day
@@ -99,13 +97,12 @@ public object OfflineMirrors {
         }
 
         // `eventCostCents`: the entered line items summed, null when there are none.
-        val costItems = listOfNotNull(
+        val costCents = Costs.eventCostCents(
             detail.event.costEntryCents,
             detail.event.costFuelCents,
             detail.event.costTravelCents,
             detail.event.costMiscCents,
         )
-        val costCents = if (costItems.isEmpty()) null else costItems.sum()
 
         return detail.copy(
             event = detail.event.copy(

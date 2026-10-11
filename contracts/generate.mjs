@@ -257,11 +257,15 @@ async function build(api) {
   const bare = await api("POST", "/events", FIXTURE.bareEvent);
 
   // --- sessions and laps --------------------------------------------------
-  // 4 laps: enough for consistency (needs 3+).
+  // 4 clean laps — enough for consistency (needs 3+ clean) — and a cool-down
+  // lap beyond 107% of the session's best (NS-42). It counts toward lap_count
+  // and hours but not consistency, which is the one difference between the
+  // old all-laps rule and the clean-lap one; without it no golden could tell
+  // them apart, and both native recomputeDetail tests would pass either way.
   const s1 = await api("POST", `/events/${rich.body.id}/sessions`, {
     label: "Session 1",
     notes: "Learning the line.",
-    laps: [128_400, 125_100, 123_800, 124_200],
+    laps: [128_400, 125_100, 123_800, 124_200, 139_600],
   });
 
   // 2 laps: below the 3-lap threshold. Captured so a client can see that a
@@ -392,7 +396,7 @@ async function build(api) {
   // …swapped for a fresh pair after the rich event's first session (migration
   // 0030), so both mounts carry a swap point: the old pair's removed_* and the
   // new pair's mounted_* name the same event and session…
-  await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
+  const hoosiers = await api("POST", `/vehicles/${vehicle.body.id}/parts`, {
     kind: "tires_front",
     name: "Hoosier A7",
     size: "255/40R17",
@@ -413,6 +417,32 @@ async function build(api) {
   // Two measurements: enough for the least-squares projection path.
   await api("POST", `/parts/${pads.body.id}/measurements`, { measured_on: "2026-04-12", value: 9.5, unit: "mm" });
   await api("POST", `/parts/${pads.body.id}/measurements`, { measured_on: "2026-05-02", value: 7.8, unit: "mm" });
+
+  // The rich event's day-2 sheet again, now carrying every key sanitizeSetup
+  // accepts — the part refs too, pointing at the parts above (NS-40). Both
+  // native SetupSheet models must decode and re-encode every one: a phone
+  // that saves a sheet the web wrote would otherwise erase a key its model
+  // lacks, and Android's strict golden decode is what notices. Non-null on
+  // purpose, since iOS's golden check drops nulls before it diffs.
+  await api("PUT", `/events/${rich.body.id}/setups/2`, {
+    tp_cold: { fl: 25, fr: 25, rl: 24, rr: 24 },
+    tp_hot: { fl: 33.5, fr: 34, rl: 31, rr: 31.5 },
+    camber: { f: -3.5, r: -2.1 },
+    toe: { f: -0.05, r: 0.1 },
+    caster: { f: 7.5, r: 0 },
+    rebound: { f: 10, r: 6 },
+    compression: { f: 4, r: 3 },
+    sway: { f: 2, r: 1 },
+    fuel: 12.5,
+    tires_f_id: hoosiers.body.id,
+    tires_r_id: spareRears.body.id,
+    pads_f_id: pads.body.id,
+    notes: "Two clicks more rebound front; pushing less in T5.",
+  });
+
+  // A session note written after the fact, through the present-keys PUT
+  // (NS-40): notes alone, so the label must survive.
+  await api("PUT", `/sessions/${s1.body.id}`, { notes: "Learning the line. Brake later into T5." });
 
   // --- share --------------------------------------------------------------
   await api("PUT", "/share", { slug: "contract-fixture" });
@@ -551,7 +581,8 @@ async function captureAll(api, anon, f) {
     "src/routes/sessions.ts",
     await api("POST", `/events/${bare}/sessions`, { label: "Session 1", laps: [95_000] }));
 
-  record("session-update", "PUT", "/sessions/:id", "Update a session.", "src/routes/sessions.ts",
+  record("session-update", "PUT", "/sessions/:id",
+    "Update a session — only the keys present are written (NS-40).", "src/routes/sessions.ts",
     await api("PUT", `/sessions/${sess}`, { label: "Session 1 (renamed)" }));
 
   record("laps-append", "POST", "/sessions/:id/laps", "Append laps to a session.",

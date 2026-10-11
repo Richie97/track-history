@@ -14,6 +14,10 @@ import Foundation
 /// |---|---|---|
 /// | `cleanLaps` | `cleanLaps` in `offline.js` | `sanitizeLaps` in `src/lib/validate.ts` |
 /// | `recomputeDetail` | `recomputeDetail` in `offline.js` | `withComputed` in `src/lib/stats.ts` (+ `eventHours` in `src/lib/wear.ts`, `eventCostCents` in `src/lib/costs.ts`) |
+/// | consistency, via `LapStats.eventConsistency` | `eventConsistency` in `lap-stats.js` | the `clean_*` aggregates in `src/db.ts` + `withComputed` |
+///
+/// `cleanLaps` here is **not** `LapStats.cleanLaps`: this one validates lap
+/// times on the way in, that one is the 107% filter consistency uses (NS-42).
 ///
 /// If you find a divergence from the server, fix the server-matching behavior and
 /// say so — the web app probably has the same bug.
@@ -41,8 +45,9 @@ public enum OfflineMirrors {
     ///
     /// - `bestMs` is `MIN(manual best, best logged lap)`, and nil when there is
     ///   neither.
-    /// - `consistency` is the coefficient of variation, and **nil below 3 laps** —
-    ///   not zero. Two laps say nothing about consistency.
+    /// - `consistency` is the coefficient of variation of the **clean** laps —
+    ///   within 107% of their own session's best (NS-42) — and **nil below 3 of
+    ///   them**, not zero. `lapCount` and `hours` still count every lap.
     /// - `hours` is the manual override when set, else (3+ laps) the logged lap time, else `days × 1h15m` —
     ///   time)`, rounded to 1dp. It is never nil.
     /// - `costCents` is the sum of the entered cost line items, and **nil when
@@ -56,15 +61,7 @@ public enum OfflineMirrors {
         detail.event.lapBestMs = laps.min()
         detail.event.bestMs = [detail.event.bestTimeMs, detail.event.lapBestMs].compactMap { $0 }.min()
 
-        if laps.count >= 3 {
-            let n = Double(laps.count)
-            let mean = laps.reduce(0.0) { $0 + Double($1) } / n
-            let meanOfSquares = laps.reduce(0.0) { $0 + Double($1) * Double($1) } / n
-            let variance = max(0, meanOfSquares - mean * mean)
-            detail.event.consistency = variance.squareRoot() / mean
-        } else {
-            detail.event.consistency = nil
-        }
+        detail.event.consistency = LapStats.eventConsistency(detail.sessions.map { $0.laps.map(\.timeMs) })
 
         // `eventHours`: the override wins; otherwise 3+ logged laps are the time
         // actually spent on track, and anything sparser is the 1h15m-per-day estimate.
@@ -80,11 +77,10 @@ public enum OfflineMirrors {
         detail.event.hours = JSMath.round(hours, 10)
 
         // `eventCostCents`: the entered line items summed, nil when there are none.
-        let costItems = [
+        detail.event.costCents = Costs.eventCostCents(
             detail.event.costEntryCents, detail.event.costFuelCents,
-            detail.event.costTravelCents, detail.event.costMiscCents,
-        ].compactMap { $0 }
-        detail.event.costCents = costItems.isEmpty ? nil : costItems.reduce(0, +)
+            detail.event.costTravelCents, detail.event.costMiscCents
+        )
     }
 
     /// The list-shaped row for an event, which is its detail minus the nested

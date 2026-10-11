@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telemetry import — Track Evolution docs</title>
-  <meta name="description" content="Import Corvette PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta name="description" content="Import Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Track Evolution">
   <meta property="og:title" content="Telemetry import — Track Evolution docs">
-  <meta property="og:description" content="Import Corvette PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta property="og:description" content="Import Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:url" content="https://docs.trackevolution.app/docs/telemetry-import.html">
   <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -42,6 +42,7 @@
     <p class="group">Documentation</p>
     <ul>
       <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
       <li><a href="./telemetry-import.html" class="active">Telemetry import</a></li>
       <li><a href="./lap-recording.html">Recording laps</a></li>
       <li><a href="./data-model.html">Data model &amp; stats</a></li>
@@ -95,7 +96,7 @@
     </p>
     <p>
       That is where the footage usually is first: a GoPro clip comes over Wi-Fi
-      into Photos and a Corvette PDR clip lands in Files off a USB stick, both
+      into Photos and a PDR clip lands in Files off a USB stick, both
       before the laptop is opened. The clip is read where it sits — nothing is
       copied and nothing is uploaded, which also means a multi-gigabyte video
       imports without needing gigabytes of free space.
@@ -118,6 +119,11 @@
             <td>Corvette PDR (Cosworth) MP4</td>
             <td>The <code>ctbx</code>/<code>marl</code> telemetry track, read by byte range</td>
             <td>Beacon events + odometer recovery, or latitude/odometer lap recovery when a recording has no beacons (see below)</td>
+          </tr>
+          <tr>
+            <td>Cadillac PDR (Cosworth AliveDrive) MP4<br><small>(the newer recorder in Cadillac's V-Series Blackwings)</small></td>
+            <td>The newer recorder's telemetry track, read by byte range — GPS, the car channels and the slow readings, as with a Corvette</td>
+            <td>The recorder's own lap timer — exact, with no line to pick. A recording whose timer timed no laps uses the line picker</td>
           </tr>
           <tr>
             <td>GoPro MP4 (Hero 5+)</td>
@@ -154,7 +160,15 @@
 
     <h2 id="pdr">How PDR lap times are derived</h2>
     <p>
-      The PDR logic is reverse-engineered from the recorder's telemetry track and
+      There are two generations of the recorder. The newer one, in Cadillac's
+      V-Series Blackwings, times laps itself, so its clips arrive with the
+      recorder's own lap times, to the millisecond — and with the GPS trace,
+      the car channels and the slow readings described below. It logs no battery voltage, and a clip whose
+      timer didn't run gets the start/finish line picker.
+    </p>
+    <p>
+      The Corvette's recorder marks the start/finish line with beacons instead.
+      That logic is reverse-engineered from the recorder's telemetry track and
       validated against Cosworth Toolbox lap times:
     </p>
     <ul>
@@ -267,12 +281,15 @@
         figure — on the phones the small charts carry it, which is the same
         reading in the width a phone has. The strip is on the iPhone and
         Android apps too.
-        A session typed in by hand has none of this and shows no Car tab. On
-        the web app the tab also closes the loop with your
+        A session typed in by hand has none of this and shows no Car tab. The
+        tire pressures also close the loop with your
         <a href="./garage.html#setups">setup notebook</a>: the sheet's cold
         pressures, the hot pressures the import measured and your car's
         target hot pressure become the cold pressure to start from next time,
-        recordable onto the day's sheet in one tap.
+        recordable onto the day's sheet in one tap. On the web the loop is on
+        the Car tab; in the iPhone and Android apps it sits under the setup
+        notebook on the event page, reading the latest session that recorded
+        tire pressures.
         Under it, the same tab answers <strong>am I understeering or
         oversteering?</strong> from the recording's yaw rate and steering
         angle. In a neutral car the two rise together: steering the car
@@ -333,7 +350,7 @@
     </div>
 
     <nav class="docs-pager">
-      <a href="./"><span class="label">Previous</span>← Getting started</a>
+      <a href="./track-days.html"><span class="label">Previous</span>← Your first track day</a>
       <a href="./lap-recording.html"><span class="label">Next</span>Recording laps →</a>
     </nav>
   </article>

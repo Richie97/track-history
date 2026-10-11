@@ -111,9 +111,9 @@ public data class Entitlement(
          * Cost roll-ups across events (NS-37): a track's "\$N spent", a car's
          * spend, a season's. Entering the line items stays free — it is a write,
          * and no write is gated — and so does one event's own total. A
-         * client-side gate on a convenience, not a protected field. No Android
-         * screen shows a roll-up yet (costs are web-first); the predicate exists
-         * so the names stay diffable against `public/js/entitlement.js`.
+         * client-side gate on a convenience, not a protected field. Read by the
+         * track page's spend line (NS-40); the car page's spend is in its Pro
+         * half, which `/garage`'s 402 already locks.
          */
         public fun canViewSpend(entitlement: Entitlement?): Boolean = isPro(entitlement)
 

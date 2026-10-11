@@ -34,8 +34,8 @@ public object Telemetry {
      * [TrackPrecisionCsv.parseTrackPrecisionCsv] — the dispatch is by name, as
      * `parse.js`'s is, because a `.vbo` has no registered MIME type and a
      * `.csv` could be anything, and each arrives as whatever the provider
-     * guesses. Anything else is an MP4: Corvette PDR first, then GoPro
-     * GPMF.
+     * guesses. Anything else is an MP4: Corvette PDR first, then the newer
+     * AliveDrive PDR 2.5 (2025-on GM cars), then GoPro GPMF.
      *
      * Both video parsers report "no track of mine here" distinctly from "this
      * file is mine and it's broken", so a GoPro clip isn't reported as a broken
@@ -89,9 +89,22 @@ public object Telemetry {
     private const val READ_CHUNK = 1 shl 20
     internal const val MAX_TEXT_BYTES: Long = 256L shl 20
 
+    /**
+     * Both PDR generations resolve to the same shape and `kind`; the newer one is
+     * tried only when the file has no Marlin track, and its own "no track" error
+     * stands for both. `parsePdrAnyFile` in `parse.js`.
+     */
+    internal fun parsePdrAnyFile(source: TelemetryByteSource): ParsedTelemetry =
+        try {
+            PDR.parsePdrFile(source)
+        } catch (e: TelemetryParseException) {
+            if (!e.isNoTrack) throw e
+            PDR25.parsePdr25File(source)
+        }
+
     /** The PDR branch of [parseTelemetryFile]: parse, then the post-parse steps `parse.js` adds. */
     private fun parsePdr(source: TelemetryByteSource): ParsedTelemetry {
-        var pdr = PDR.parsePdrFile(source)
+        var pdr = parsePdrAnyFile(source)
         // Beacon-timed laps share the telemetry clock with the GPS trace, so
         // the fastest lap's window cuts straight out of it. Without laps, the
         // trace goes to the start/finish line picker instead.

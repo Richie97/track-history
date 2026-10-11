@@ -259,11 +259,17 @@ extension OfflineStore {
         try eachEventDetail(db) { path, detail in
             guard let index = detail.sessions.firstIndex(where: { String($0.id) == id }) else { return false }
             if item.method == "PUT" {
-                // The route writes both columns unconditionally (missing → null),
-                // so mirror that rather than merging.
-                let body = item.body.flatMap { try? JSONDecoder().decode(SessionBody.self, from: $0) }
-                detail.sessions[index].label = body?.label
-                detail.sessions[index].notes = body?.notes
+                // The route writes only the keys present, trimmed, "" as nil
+                // (NS-40) — so a key's absence and its null mean different things,
+                // which a Decodable struct cannot tell apart.
+                let body = item.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+                func written(_ key: String) -> String?? {
+                    guard let value = body[key] else { return .none }
+                    let trimmed = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    return .some(trimmed.isEmpty ? nil : trimmed)
+                }
+                if let label = written("label") { detail.sessions[index].label = label }
+                if let notes = written("notes") { detail.sessions[index].notes = notes }
             } else {
                 detail.sessions.remove(at: index)
             }

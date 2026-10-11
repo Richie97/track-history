@@ -23,8 +23,14 @@ import TrackEvolutionKit
 struct LeaderboardLapScreen: View {
     let trackId: Int
     let lapId: Int
+    /// The track's name, for *Add an event* when the viewer has nothing here.
+    var trackName: String?
+    /// Where the empty state's next step goes — the presenter closes the
+    /// sheet first. nil offers no step.
+    var onNavigate: ((Route) -> Void)?
 
     @Environment(AuthController.self) private var auth
+    @Environment(\.logbookOwner) private var owner
     @State private var model: LeaderboardLapModel?
 
     var body: some View {
@@ -74,10 +80,11 @@ struct LeaderboardLapScreen: View {
                     TEEmpty("This lap's telemetry isn't available.")
                 } else if let view = model.panel {
                     if view.mine == nil {
-                        Text("You have no lap with telemetry at this track yet, so there's nothing to overlay. "
-                            + "Record with the app or import a session and this screen will put the two side by side.")
-                            .teStyle(.xs)
-                            .foregroundStyle(Color(.textMuted))
+                        TEEmpty(
+                            "You have no lap with telemetry at this track yet, so there's nothing to overlay. "
+                                + "Import a session, or record laps with the app, and this screen will put the two side by side.",
+                            action: owner.isReadOnly ? nil : noTelemetryAction(model)
+                        )
                     } else {
                         minePicker(model, view)
                         if view.mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
@@ -108,6 +115,17 @@ struct LeaderboardLapScreen: View {
             .padding(TESpacing.pageGutter)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// `CompareLapsScreen`'s next step when there is nothing to compare
+    /// (#342): import into the event that day belongs to, or — nothing here has
+    /// happened yet — add one.
+    private func noTelemetryAction(_ model: LeaderboardLapModel) -> TEEmpty.Action? {
+        guard let onNavigate else { return nil }
+        if let target = EventDates.importTargetEvent(model.events, today: EventDates.todayISO(), startDate: \.startDate) {
+            return TEEmpty.Action("Import a session") { onNavigate(.importVideo(eventId: target.id, incoming: nil)) }
+        }
+        return TEEmpty.Action("Add an event") { onNavigate(.eventForm(.new(presetTrack: trackName))) }
     }
 
     // MARK: - Header
@@ -294,6 +312,8 @@ final class LeaderboardLapModel {
     /// two-lap compare does, so the pick list reads identically.
     private(set) var rows: [CompareLaps.Row] = []
     private var channelsBySession: [Int: SessionChannels] = [:]
+    /// The viewer's events at this track, for the empty state's next step.
+    private(set) var events: [Event] = []
     /// Index into ``rows``, defaulted to the viewer's own fastest: the comparison
     /// anyone opening a leaderboard row wants is "my best against theirs".
     var selectedMine: Int?
@@ -322,6 +342,7 @@ final class LeaderboardLapModel {
         guard lap?.entry != nil else { return }
         do {
             let events = try await api.events(trackId: trackId)
+            self.events = events
             var details: [EventDetail] = []
             for event in events where event.lapCount > 0 {
                 details.append(try await api.event(id: event.id))

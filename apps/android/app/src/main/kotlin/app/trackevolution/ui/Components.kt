@@ -54,8 +54,12 @@ sealed interface LoadState {
      * There is no paywall case: a 402 locks a *section* in place
      * ([TEProLocked]) rather than the whole screen, since NS-37 made every
      * page's free half readable by every account.
+     *
+     * [title] overrides the heading where a screen has its own words for the
+     * failure ("Link not found" on a share page); null is iOS's rule —
+     * "Couldn't load this", or "Not found" when the answer is final.
      */
-    data class Failed(val message: String, val retryable: Boolean = true) : LoadState
+    data class Failed(val message: String, val retryable: Boolean = true, val title: String? = null) : LoadState
 }
 
 /**
@@ -81,6 +85,15 @@ fun TELoadable(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // iOS's TELoadable says the same: a final answer is "Not found",
+            // anything worth retrying "Couldn't load this".
+            Text(
+                state.title ?: if (state.retryable) "Couldn't load this" else "Not found",
+                style = TrackTheme.typography.h3,
+                color = TrackTheme.colors.textStrong,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
             Text(
                 state.message,
                 style = TrackTheme.typography.sm,

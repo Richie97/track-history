@@ -6,6 +6,7 @@ import app.trackevolution.core.Gate
 import app.trackevolution.core.GeoTrace
 import app.trackevolution.core.GpsPoint
 import app.trackevolution.core.LineReview
+import app.trackevolution.core.NewEventDates
 import app.trackevolution.core.RecorderCore
 import app.trackevolution.core.Recording
 import app.trackevolution.core.TracePoint
@@ -81,6 +82,12 @@ data class ReviewUiState(
     val forNewEvent: Boolean = false,
     /** Whether [events] is the server's answer, rather than the empty list it starts as. */
     val eventsLoaded: Boolean = false,
+    /**
+     * Why the events didn't load — "Couldn't load your events: …", iOS's
+     * wording — shown in the save card with a Try again rather than an empty
+     * picker and a Save that can never enable. Null once they have.
+     */
+    val eventsError: String? = null,
     /**
      * *Save to a new event* (#344) has handed the drafts to the New Event form
      * and the review is waiting underneath it — closed, not reset, so backing
@@ -163,7 +170,20 @@ class RecordingFlow(
     private val _staged = MutableStateFlow<List<SessionDraft>>(emptyList())
     val staged: StateFlow<List<SessionDraft>> = _staged.asStateFlow()
 
-    fun takeStaged(): List<SessionDraft> = _staged.value.also { _staged.value = emptyList() }
+    fun takeStaged(): List<SessionDraft> = _staged.value.also {
+        _staged.value = emptyList()
+        stagedSpan = null
+    }
+
+    /**
+     * The dates *Save to a new event* hands the form with its drafts — the
+     * sessions' own span ([NewEventDates.span]). Null for the form's own "Add
+     * laps" import, which must not move a date the driver may have typed, and
+     * when no clip carried a date. Set before [staged], so the form reading it
+     * as the drafts arrive always sees the pair.
+     */
+    var stagedSpan: NewEventDates.Span? = null
+        private set
 
     /** What *Save to a new event* handed the form, to know whether it was posted. */
     private var handedToNewEvent: List<SessionDraft> = emptyList()
@@ -236,15 +256,29 @@ class RecordingFlow(
      */
     private fun loadEvents() {
         scope.launch {
-            val events = runCatching { api.events() }.getOrNull() ?: return@launch
+            val events = try {
+                api.events()
+            } catch (e: ApiException) {
+                // Said, with a retry ([reloadEvents]) — swallowing it left an
+                // empty card and a Save that could never enable.
+                _state.value = _state.value.copy(eventsError = "Couldn't load your events: ${e.message}")
+                return@launch
+            }
             val today = java.time.LocalDate.now().toString()
             val likely = events.firstOrNull { it.startDate <= today } ?: events.firstOrNull()
             _state.value = _state.value.copy(
                 events = events,
                 eventsLoaded = true,
+                eventsError = null,
                 selectedEventId = _state.value.selectedEventId ?: likely?.id,
             )
         }
+    }
+
+    /** The save card's Try again after the events failed to load. */
+    fun reloadEvents() {
+        if (_state.value.forNewEvent) return
+        loadEvents()
     }
 
     /**
@@ -405,6 +439,7 @@ class RecordingFlow(
         if (!current.offersNewEvent || current.selectedCount == 0) return
         val drafts = draftsFor(current, units)
         handedToNewEvent = drafts
+        stagedSpan = NewEventDates.span(current.items.filter { it.include && it.hasLaps }.map { it.parsed?.date })
         _staged.value = drafts
         _state.value = current.copy(awaitingNewEvent = true, error = null)
     }
@@ -438,6 +473,7 @@ class RecordingFlow(
         if (!_state.value.awaitingNewEvent) return
         handedToNewEvent = emptyList()
         _staged.value = emptyList()
+        stagedSpan = null
         _state.value = _state.value.copy(awaitingNewEvent = false)
         loadEvents()
     }

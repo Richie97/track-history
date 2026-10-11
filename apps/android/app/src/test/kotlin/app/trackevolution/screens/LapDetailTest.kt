@@ -166,7 +166,9 @@ class LapDetailTest {
             compose.onAllNodesWithTag("lapDetail").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText(LapTime.fmtMs(firstLapMs)).assertIsDisplayed()
-        compose.onNodeWithText("Lap 1 of 4", substring = true).assertIsDisplayed()
+        // Session 1 of the golden carries five laps since NS-42 added an
+        // off-pace one for the clean-lap consistency case.
+        compose.onNodeWithText("Lap 1 of 5", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("compareLaps").assertDoesNotExist()
         compose.onNodeWithTag("trackMap").assertDoesNotExist()
         compose.onNodeWithTag("lapFacts").assertDoesNotExist()

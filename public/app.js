@@ -17,7 +17,9 @@ import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
 import {
   balanceHtml, balanceSummary, bindBalance, estimateSteeringRatio, measuredRatioLine, measuredRatioValue, ratioAgrees,
 } from "./js/balance.js";
-import { healthHtml, healthSummary, nextTimeNote, pressureLoop, pressureLoopHtml } from "./js/health.js";
+import {
+  healthHtml, healthSummary, nextDaySheet, nextTimeNote, pressureLoop, pressureLoopHtml, recordHotSheet,
+} from "./js/health.js";
 import {
   ambientText, bandLabel, conditionsBand, conditionsChipHtml, conditionsLegendHtml,
   elevationText, eventAmbient, tempText, trackElevationM,
@@ -40,7 +42,7 @@ import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
   catalogCarLabel, catalogCarName, catalogPrefill,
   defaultMeasurementUnit, diffSetups, equipSwapsOff, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
-  isTireKind, partTitle,
+  isTireKind, partTitle, previousSheet,
   matchCatalogCars, partOdometerLine, vehicleOdometerLine,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit,
   defaultSwapChoice, swapSessionChoices, swapSessionEvent, vehicleLogbook, vehicleTileLine, wearLimitHint,
@@ -50,6 +52,7 @@ import { initPullRefresh } from "./js/pull-refresh.js";
 import { initAnalytics, openConsentBanner, trackPageView } from "./js/analytics.js";
 import { PROFILE_GROUPS, profileBody, profileSections } from "./js/profile.js";
 import { inviteExpiryText, lastViewedText, studentLine } from "./js/coaching.js";
+import { EXPORT_FILES, EXPORT_OFFLINE, exportErrorText, exportFilename, exportStoppedPartway, exportUrl } from "./js/export.js";
 import {
   canCompareEvents, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
@@ -59,6 +62,10 @@ const $app = document.getElementById("app");
 
 // Host shown in share URLs.
 const serverHost = () => location.host;
+
+// What a track's progress chart says in its place until there are two timed
+// events to draw a line between — the same words on all three clients.
+const CHART_WAITS = "The chart starts once two events here have a lap time.";
 
 // ---------- a coach reading a student's logbook (NS-38) ----------------------
 //
@@ -526,6 +533,9 @@ const TIP_ITEMS = [
 const TIP_URL = "https://buymeacoffee.com/speedshift";
 const REPO_URL = "https://github.com/Richie97/track-history";
 const DOCS_URL = "https://docs.trackevolution.app";
+// The newcomer's guide (what an HPDE is, what you need, where to find one) —
+// linked from the first-run welcome card and from Settings on every client.
+const TRACK_DAYS_URL = `${DOCS_URL}/docs/track-days.html`;
 const APP_STORE_URL = "https://apps.apple.com/us/app/track-evolution/id6792941186";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.trackevolution";
 
@@ -639,7 +649,11 @@ function renderUnreachable(err) {
       <div class="login-card">
         <div class="flag">${appLogoHtml("lg")}</div>
         <h1>Can't reach the server</h1>
-        <p>${esc(serverHost())} didn't answer${err?.message ? ` (${esc(err.message)})` : ""}. Check your connection and try again.</p>
+        <p>${esc(serverHost())} didn't answer${
+          // The offline layer's own sentence is about a page, not the server;
+          // inside these brackets it reads as nonsense.
+          err?.message && !(err instanceof OfflineError) ? ` (${esc(err.message)})` : ""
+        }. Check your connection and try again.</p>
         <button class="btn primary" id="retry-connect">Try again</button>
         ${footerHtml({ legal: true })}
       </div>
@@ -899,9 +913,12 @@ async function viewDashboard() {
       <div class="panel welcome">
         ${emptyHtml({
           title: "Welcome to Track Evolution",
-          body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
+          body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a video or a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
           action: { label: "Add your first event", href: "#/new" },
         })}
+        <div class="welcome-guide">
+          <a href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">New to track days? Start here ↗</a>
+        </div>
       </div>
     `);
     return;
@@ -1071,7 +1088,8 @@ async function viewTrack(trackId, params) {
   // deepening with the air temperature — so a run of slower times in August
   // reads as August. The numbers are on the tooltip and in the key below.
   const band = conditionsBand(chrono);
-  const chart = points.length
+  // One timed event is a dot, not a trend — the chart waits for a second.
+  const chart = points.length >= 2
     ? lineChart(points, {
         goal: track.goal_ms,
         bands: band ? { cells: band.cells, label: bandLabel(band, usUnits()) } : null,
@@ -1161,7 +1179,7 @@ async function viewTrack(trackId, params) {
   const view = shell(`
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong>${dryOnly ? " (dry)" : ""} · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}${spentText}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${goalControl}</div>`}
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span>${dryToggle}</div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}${goalControl}${compareControl}</div>` : `<div class="chart-card">${dryToggle}${emptyHtml({ body: CHART_WAITS, compact: true })}${goalControl}${compareControl}</div>`}
     ${
       ro
         ? ""
@@ -1183,8 +1201,12 @@ async function viewTrack(trackId, params) {
     </div>`
     }
     <h2>Events${dryOnly ? " (dry only)" : ""}</h2>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th>${ro ? "" : "<th>Notes</th>"}</tr></thead>
-    <tbody>${rows}</tbody></table></div>
+    ${
+      events.length
+        ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th>${ro ? "" : "<th>Notes</th>"}</tr></thead>
+    <tbody>${rows}</tbody></table></div>`
+        : emptyHtml({ body: dryOnly ? "No dry events logged here." : "No events at this track yet." })
+    }
     ${
       ro
         ? ""
@@ -1275,7 +1297,7 @@ function viewProGate(trackId, heading, what) {
 
 async function viewCompare(trackId, params) {
   if (!canCompareEvents(ent())) return viewProGate(trackId, "Lap overlay",
-    "Put two track days at the same circuit on one chart, lap by lap, and see where the " +
+    "Put two events at the same circuit on one chart, lap by lap, and see where the " +
       "second one actually gained.");
   const allEvents = await api(`/events?track_id=${trackId}`);
   // Only events with recorded laps can be overlaid; list is most recent first.
@@ -1284,7 +1306,10 @@ async function viewCompare(trackId, params) {
     shell(`
       <p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← Back to track</a></p>
       <h1>Lap overlay</h1>
-      ${emptyHtml({ body: "Comparing needs two events with recorded laps at this track." })}
+      ${emptyHtml({
+        body: "Comparing needs two events with recorded laps at this track.",
+        action: readOnly() ? null : noLapsAction(allEvents),
+      })}
     `);
     return;
   }
@@ -1416,6 +1441,15 @@ function bindPairTooltip(container, aligned, { sideColors, sideLabels, delta = n
 // The next step when a lap view has no telemetry to show (#342): import a
 // session into the event that day belongs to, or — when nothing at the track
 // has happened yet — add one there.
+// The lap overlay's next step: laps for the latest started event here that
+// has none, else another event at the track.
+function noLapsAction(events) {
+  const target = importTargetEvent(events.filter((e) => !(e.lap_count > 0)), todayISO());
+  if (target) return { label: "Add a session", href: `#/event/${target.id}` };
+  const name = events[0]?.track_name;
+  return { label: "Add an event", href: name ? `#/new?track=${encodeURIComponent(name)}` : "#/new" };
+}
+
 function noTelemetryAction(events, trackName) {
   const target = importTargetEvent(events, todayISO());
   if (target) return { label: "Import a session", href: `#/event/${target.id}` };
@@ -1433,13 +1467,14 @@ async function viewLapCompare(trackId, params) {
     allEvents.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`))
   );
   const rows = comparableLaps(details);
-  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← ${esc(details[0]?.track_name ?? "Back to track")}</a></p>`;
+  const trackName = allEvents[0]?.track_name;
+  const backHtml = `<p style="margin:22px 0 0"><a class="backlink" href="${L(`#/track/${trackId}`)}">← ${esc(trackName ?? "Back to track")}</a></p>`;
   if (rows.length < 2) {
     shell(`${backHtml}
       <h1>Compare two laps</h1>
       ${emptyHtml({
         body: "Comparing laps needs two laps with telemetry at this track — import a session, or record laps with the Track Evolution app.",
-        action: readOnly() ? null : noTelemetryAction(allEvents, details[0]?.track_name),
+        action: readOnly() ? null : noTelemetryAction(allEvents, trackName),
       })}`);
     return;
   }
@@ -1588,9 +1623,14 @@ async function viewLeaderboard(trackId) {
     ${
       leaderboard
         ? leaderboardHtml(leaderboard, viewerBest, track.id)
-        : emptyHtml({ body: "Couldn't load the leaderboard — it needs a connection." })
+        : emptyHtml({
+            body: "Couldn't load the leaderboard — it needs a connection.",
+            action: { label: "Try again", id: "lb-retry" },
+          })
     }
   `);
+  const lbRetry = view.querySelector("#lb-retry");
+  if (lbRetry) lbRetry.onclick = () => route();
 
   // Leaderboard opt-in/out — a live server write on purpose (not queueable):
   // publishing your name is not something to replay silently later.
@@ -1922,10 +1962,30 @@ async function viewEvent(eventId) {
           <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "No laps"}</span>
           ${conditionsChipHtml(s, usUnits())}
           <span class="grow"></span>
-          ${ro ? "" : `<button class="btn small danger" data-del-session="${s.id}">Delete</button>`}
+          ${
+            ro
+              ? ""
+              : `<button class="btn small" data-edit-session="${s.id}" aria-expanded="false">Edit</button>
+          <button class="btn small danger" data-del-session="${s.id}">Delete</button>`
+          }
         </div>
         ${stats.length ? `<div class="s-stats">${stats.join(" · ")}</div>` : ""}
-        ${s.notes ? `<div class="notes-block">${esc(s.notes)}</div>` : ""}
+        ${s.notes ? `<div class="notes-block" data-session-notes="${s.id}">${esc(s.notes)}</div>` : ""}
+        ${
+          ro
+            ? ""
+            : `<form class="session-edit" data-session-edit="${s.id}" hidden>
+          <div class="field"><label for="session-label-${s.id}">Label</label>
+            <input id="session-label-${s.id}" name="label" maxlength="200" value="${esc(s.label ?? "")}" placeholder="Session"></div>
+          <div class="field"><label for="session-notes-${s.id}">Notes</label>
+            <textarea id="session-notes-${s.id}" name="notes" placeholder="What to change next session — brake later into T5…">${esc(s.notes ?? "")}</textarea></div>
+          <div class="btn-row">
+            <button class="btn small primary">Save</button>
+            <button class="btn small" type="button" data-session-edit-cancel="${s.id}">Cancel</button>
+            <span class="goal-msg" data-session-edit-msg="${s.id}"></span>
+          </div>
+        </form>`
+        }
         ${lapsHtml}
         ${
           ro
@@ -1988,10 +2048,7 @@ async function viewEvent(eventId) {
   const setupsByDay = new Map((e.setups ?? []).map((s) => [s.day, s.data]));
   const setupDays = [...Array(Math.max(1, Math.ceil(e.days))).keys()].map((i) => i + 1);
   for (const s of e.setups ?? []) if (!setupDays.includes(s.day)) setupDays.push(s.day);
-  const prevSheetFor = (day) => {
-    for (let d = day - 1; d >= 1; d--) if (setupsByDay.has(d)) return setupsByDay.get(d);
-    return null;
-  };
+  const prevSheetFor = (day) => previousSheet(e.setups ?? [], day);
   const setupDayHtml = (day) => {
     const sheet = setupsByDay.get(day);
     return `<div class="session setup-day">
@@ -2126,7 +2183,7 @@ async function viewEvent(eventId) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR and GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
       </div>
     </div>
     ${
@@ -2368,10 +2425,7 @@ async function viewEvent(eventId) {
         // Hot pressures onto the day's sheet, plus the "next time" line in
         // its notes when there is a suggestion — notes copy forward, so the
         // suggestion is in the next sheet's form before it is typed.
-        const base = ctx.sheet ?? {};
-        const data = { ...base, tp_hot: { ...(base.tp_hot ?? {}), ...ctx.loop.hotSheet } };
-        if (ctx.noteLine && !base.notes?.includes(ctx.noteLine))
-          data.notes = base.notes ? `${base.notes}\n${ctx.noteLine}` : ctx.noteLine;
+        const data = recordHotSheet(ctx.sheet, ctx.loop);
         try {
           await api(`/events/${e.id}/setups/${ctx.day}`, { method: "PUT", body: data });
           route();
@@ -2385,13 +2439,8 @@ async function viewEvent(eventId) {
       // belong to today), an existing one keeps everything else it has.
       const day = Number(next.dataset.healthNext);
       const existing = setupsByDay.get(day) ?? null;
-      let carried = existing;
-      if (!carried) {
-        const { tp_hot: _todaysHots, ...rest } = ctx.sheet ?? {};
-        carried = rest;
-      }
       notebook.open = true;
-      openSetupForm(day, { ...carried, tp_cold: ctx.loop.coldSheet }, existing != null, true);
+      openSetupForm(day, nextDaySheet(existing, ctx.sheet, ctx.loop), existing != null, true);
       view.querySelector(`[data-setup-body="${day}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     // Hovering a point on the friction circle or the balance scatter answers
@@ -2416,6 +2465,43 @@ async function viewEvent(eventId) {
       if (!confirm("Delete this session and its laps?")) return;
       await api(`/sessions/${btn.dataset.delSession}`, { method: "DELETE" });
       route();
+    };
+  });
+  // A session's label and notes (NS-40): the form sends only what changed,
+  // since PUT /sessions/:id writes only the keys present, and an emptied field
+  // is sent as null, which clears it. Queueable, so it works offline too.
+  const sessionEditForm = (id) => view.querySelector(`[data-session-edit="${id}"]`);
+  const toggleSessionEdit = (id, open) => {
+    const form = sessionEditForm(id);
+    if (!form) return;
+    form.hidden = !open;
+    view.querySelector(`[data-edit-session="${id}"]`)?.setAttribute("aria-expanded", String(open));
+    if (open) form.querySelector("textarea")?.focus();
+  };
+  view.querySelectorAll("[data-edit-session]").forEach((btn) => {
+    btn.onclick = () => toggleSessionEdit(btn.dataset.editSession, sessionEditForm(btn.dataset.editSession)?.hidden);
+  });
+  view.querySelectorAll("[data-session-edit-cancel]").forEach((btn) => {
+    btn.onclick = () => toggleSessionEdit(btn.dataset.sessionEditCancel, false);
+  });
+  view.querySelectorAll("[data-session-edit]").forEach((form) => {
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      const id = form.dataset.sessionEdit;
+      const s = e.sessions.find((x) => String(x.id) === String(id));
+      const body = {};
+      for (const key of ["label", "notes"]) {
+        const v = form.elements[key].value.trim() || null;
+        if (v !== (s?.[key] ?? null)) body[key] = v;
+      }
+      if (!Object.keys(body).length) return toggleSessionEdit(id, false);
+      try {
+        await api(`/sessions/${id}`, { method: "PUT", body });
+        route();
+      } catch (err) {
+        const msg = view.querySelector(`[data-session-edit-msg="${id}"]`);
+        if (msg) msg.textContent = err.message;
+      }
     };
   });
   view.querySelectorAll("[data-add-laps]").forEach((btn) => {
@@ -2651,7 +2737,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette PDR &amp; GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR and GoPro video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
       </div>
     </div>
     ${
@@ -2843,6 +2929,9 @@ function subscriptionPanelHtml() {
   </div>`;
 }
 
+// Whether the browser says it is offline — an export needs the server.
+const exportOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
+
 async function viewSettings() {
   // The user's own list, or the built-in one shown as the starting point.
   const template = checklistTemplate();
@@ -2914,8 +3003,29 @@ async function viewSettings() {
     <h2>AI assistants</h2>
     <div class="hint" style="margin:0 0 4px">With Pro, you can connect Claude, ChatGPT or another AI assistant to your logbook and ask it about your laps, sessions and garage. It can read your data and can't change anything. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
     <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
+    <h2>Your data</h2>
+    <div class="hint" style="margin:0 0 4px">Download a copy of everything you've put in the logbook — yours to keep, whatever your plan, including the telemetry, garage and setup sheets only Pro shows.</div>
+    <div class="panel" id="export-panel">
+      <div class="btn-row">
+        ${EXPORT_FILES.map(
+          (f) => `<button type="button" class="btn small" data-export="${f.kind}"${exportOffline() ? " disabled" : ""}>${f.label}</button>`
+        ).join("")}
+      </div>
+      <label class="dry-toggle" style="float:none;display:flex;margin-top:12px">
+        <input type="checkbox" id="export-telemetry"> Include telemetry in the JSON
+      </label>
+      <div class="hint" style="margin:6px 0 0">Telemetry makes the file much larger — about 1 MB per imported or recorded session. The CSVs open in any spreadsheet; the JSON holds everything, in the units the app stores.</div>
+      <div id="export-status" role="status" aria-live="polite">${
+        exportOffline() ? `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>` : ""
+      }</div>
+    </div>
     <h2>Subscription</h2>
     ${subscriptionPanelHtml()}
+    <h2>New to track days?</h2>
+    <div class="panel">
+      <div class="hint" style="margin:0 0 10px">What a track day is, what you and the car need, where to find an event near you, and what happens on the day.</div>
+      <a class="btn small" href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">Your first track day ↗</a>
+    </div>
     <h2>About &amp; legal</h2>
     <div class="panel">
       <div class="btn-row">
@@ -2989,6 +3099,52 @@ async function viewSettings() {
   });
   const tmplReset = view.querySelector("#tmpl-reset");
   if (tmplReset) tmplReset.onclick = () => saveTemplate([]);
+
+  // --- your data (NS-44) ---
+  // Fetched rather than opened as plain links, so a refusal (the per-minute
+  // limit, an expired session) or a JSON export that stopped partway is said
+  // here in words instead of being saved as the file. Never through api(): an
+  // export is a download, not data for the offline cache.
+  const exportStatus = view.querySelector("#export-status");
+  const exportButtons = [...view.querySelectorAll("[data-export]")];
+  exportButtons.forEach((btn) => {
+    btn.onclick = async () => {
+      if (exportOffline()) {
+        exportStatus.innerHTML = `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>`;
+        return;
+      }
+      const kind = btn.dataset.export;
+      const telemetry = view.querySelector("#export-telemetry").checked;
+      exportButtons.forEach((b) => (b.disabled = true));
+      exportStatus.innerHTML = `<div class="hint" style="margin:8px 0 0">Preparing ${esc(btn.textContent)}…</div>`;
+      try {
+        const res = await fetch(exportUrl(kind, telemetry), { credentials: "same-origin" });
+        if (!res.ok) throw new Error(exportErrorText(res.status, await res.json().catch(() => null)));
+        const blob = await res.blob();
+        if (kind === "logbook" && exportStoppedPartway(await blob.slice(-4096).text())) {
+          throw new Error("The export stopped partway through, so the file would be incomplete. Try again.");
+        }
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = exportFilename(kind, res.headers.get("Content-Disposition"));
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+        if (exportStatus.isConnected) {
+          exportStatus.innerHTML = `<div class="hint" style="margin:8px 0 0">Downloaded ${esc(a.download)}.</div>`;
+        }
+      } catch (err) {
+        if (exportStatus.isConnected) {
+          exportStatus.innerHTML = `<div class="error-banner">${esc(
+            err instanceof TypeError ? EXPORT_OFFLINE : err.message
+          )}</div>`;
+        }
+      } finally {
+        exportButtons.forEach((b) => (b.disabled = exportOffline()));
+      }
+    };
+  });
 
   // --- connected AI assistants (MCP, #316) ---
   // Loaded after the page draws: it is the one section that needs its own
@@ -3421,7 +3577,12 @@ async function viewVehicle(vehicleId) {
     <p style="margin:22px 0 0"><a class="backlink" href="#/garage">← Garage</a></p>
     <h1>${esc(v.name)}${v.is_default ? ' <span class="default-badge">Default</span>' : ""}</h1>
     ${v.notes ? `<p class="sub">${esc(v.notes)}</p>` : ""}
-    <div class="btn-row"><button class="btn small" id="veh-edit">Edit car</button></div>
+    <div class="btn-row"><button class="btn small" id="veh-edit">Edit car</button>${
+      logbook.bests.length
+        ? `<button class="btn small" id="veh-bests" aria-haspopup="dialog">Best laps · ${logbook.bests.length} ${logbook.bests.length === 1 ? "track" : "tracks"}</button>`
+        : ""
+    }</div>
+    ${bestsDialogHtml()}
     <form class="panel vehicle-edit" id="veh-form" hidden>
       <div class="field"><label>Car</label><input name="name" required value="${esc(v.name)}"></div>
       <div class="field"><label>Modifications &amp; notes</label>
@@ -3460,7 +3621,6 @@ async function viewVehicle(vehicleId) {
       <div class="tile"><div class="label">Events</div><div class="value">${logbook.events}</div></div>
     </div>
     ${logbookLineHtml()}
-    ${bestsHtml()}
     <h2>Consumables, hours and costs</h2>
     ${proPanelHtml("Consumables, hours and costs", GARAGE_PRO_WHAT, { underHeading: true })}`;
   }
@@ -3482,7 +3642,11 @@ async function viewVehicle(vehicleId) {
   }
 
   // Best in this car, per track — free, since it is the driver's own logbook.
-  function bestsHtml() {
+  // A pop-up behind the *Best laps* button rather than a section of the page:
+  // the car page is for managing its parts, and a table per track pushed them
+  // a screen down. A coach's view of the car (`viewStudentVehicle`) has no
+  // parts and keeps the table inline.
+  function bestsDialogHtml() {
     if (!logbook.bests.length) return "";
     const rows = logbook.bests
       .map(
@@ -3493,9 +3657,14 @@ async function viewVehicle(vehicleId) {
         </tr>`
       )
       .join("");
-    return `<h2>Best in this car</h2>
+    return `<dialog class="modal" id="veh-bests-dialog" aria-labelledby="veh-bests-title">
+      <div class="modal-head">
+        <h2 id="veh-bests-title">Best in this car</h2>
+        <button class="btn small" type="button" data-modal-close>Close</button>
+      </div>
       <div class="table-wrap"><table><thead><tr><th>Track</th><th class="num">Best</th><th>Set on</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>`;
+      <tbody>${rows}</tbody></table></div>
+    </dialog>`;
   }
 
   function proVehicleHtml() {
@@ -3518,7 +3687,6 @@ async function viewVehicle(vehicleId) {
       v.odometer ? `<div class="hint vehicle-odometer">${esc(vehicleOdometerLine(v.odometer, units))}</div>` : ""
     }
     ${logbookLineHtml()}
-    ${bestsHtml()}
     <h2>On the car</h2>
     <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (the logged lap time on days with 3+ laps, else 1h15m per track day, unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
     ${active.map(partCard).join("") || emptyHtml({ body: "Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due." })}
@@ -3555,6 +3723,17 @@ async function viewVehicle(vehicleId) {
   // The car itself — name, mods, the pressure the health strip aims at, and
   // whether new events start on it. This used to live only in Settings, a page
   // away from the garage it describes.
+  const bestsDialog = view.querySelector("#veh-bests-dialog");
+  if (bestsDialog) {
+    view.querySelector("#veh-bests").onclick = () => bestsDialog.showModal();
+    bestsDialog.querySelector("[data-modal-close]").onclick = () => bestsDialog.close();
+    // A click on the backdrop lands on the <dialog> itself; one on a link
+    // inside navigates, and the re-render takes the dialog with it.
+    bestsDialog.onclick = (e) => {
+      if (e.target === bestsDialog) bestsDialog.close();
+    };
+  }
+
   const vehForm = view.querySelector("#veh-form");
   view.querySelector("#veh-edit").onclick = () => {
     vehForm.hidden = !vehForm.hidden;
@@ -3945,15 +4124,21 @@ async function viewVehicle(vehicleId) {
 // Shared renderer: works for both the authed view and the public share page.
 // `wrapped` links the season to its Season Wrapped story (NS-36): the href for
 // a year, and whose season it is, for the button's words.
-function yearReviewHtml(events, year, hashBase, wrapped = null) {
+function yearReviewHtml(events, year, hashBase, wrapped = null, { shared = false } = {}) {
   const past = events.filter((e) => !isUpcoming(e));
   const years = yearsAvailable(past);
   if (!years.length) {
-    return emptyHtml({
-      title: "Nothing to review yet",
-      body: "Year in review adds up your seasons once there's an event in one.",
-      action: { label: "Add an event", href: "#/new" },
-    });
+    // On a share page the reader isn't the driver: no "your", and nothing to add.
+    return shared
+      ? emptyHtml({
+          title: "Nothing to review yet",
+          body: "Year in review adds up the seasons once there's an event in one.",
+        })
+      : emptyHtml({
+          title: "Nothing to review yet",
+          body: "Year in review adds up your seasons once there's an event in one.",
+          action: { label: "Add an event", href: "#/new" },
+        });
   }
   const y = years.includes(year) ? year : years[0];
   const r = yearReview(past, y);
@@ -4093,6 +4278,12 @@ const wrappedLockedHtml = () => `<div class="btn-row">
   </div>
   <p class="hint">Track Evolution Pro is ${PRO_PRICE}. Wrapped itself is free.</p>`;
 
+// A finished season with no track days won't get one; only the running year
+// (or a later one) is "— yet". The same rule on all three clients.
+function wrappedEmptyTitle(year) {
+  return Number(year) < new Date().getFullYear() ? `No track days in ${year}` : `No track days in ${year} — yet`;
+}
+
 async function viewWrapped(yearParam) {
   let year = /^\d{4}$/.test(yearParam ?? "") ? Number(yearParam) : null;
   let years = null;
@@ -4110,7 +4301,7 @@ async function viewWrapped(yearParam) {
     years ??= await pastYears();
     shell(`
       <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
-      <h1>No track days in ${year} — yet</h1>
+      <h1>${esc(wrappedEmptyTitle(year))}</h1>
       <p class="sub">Wrapped tells the story of a season once there's a track day in it.</p>
       ${wrappedYearPicker(years, year, (y) => `#/wrapped/${y}`) || (years.length ? `<div class="btn-row"><a class="btn small" href="#/wrapped/${years[0]}">See ${years[0]}</a></div>` : "")}
     `);
@@ -4632,22 +4823,32 @@ async function viewStudentHome() {
   const view = shell(`
     <h1>${esc(who)}</h1>
     <p class="sub">${viewing.pro ? "" : `${studentFreeNote()}`}</p>
-    <div class="tiles">
+    ${
+      // An empty logbook is one sentence, not three zeros and two "nothing
+      // yet"s — the coach's reading of the owner's first run (#344).
+      events.length === 0
+        ? emptyHtml({ body: `${esc(who)} hasn't logged an event yet.` })
+        : `<div class="tiles">
       <div class="tile"><div class="label">Events</div><div class="value">${past.length}</div></div>
       <div class="tile"><div class="label">Track days</div><div class="value">${trackDays}</div></div>
       <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
-    </div>
+    </div>`
+    }
     <h2>Driver profile</h2>
     ${profileCardHtml(viewing.profile, { empty: emptyHtml({ body: `${esc(who)} hasn't filled in a driver profile yet.` }) })}
     ${upcomingCards ? `<h2>Upcoming</h2><div class="cards">${upcomingCards}</div>` : ""}
-    <h2>Latest events</h2>
+    ${
+      events.length === 0
+        ? ""
+        : `<h2>Latest events</h2>
     ${
       recentRows
         ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Track</th><th>Group</th><th>Car</th><th class="num">Best</th><th class="num">Laps</th></tr></thead><tbody>${recentRows}</tbody></table></div>`
         : emptyHtml({ body: "No events logged yet." })
     }
     <h2>Tracks</h2>
-    ${trackCards ? `<div class="cards">${trackCards}</div>` : emptyHtml({ body: "No tracks yet." })}
+    ${trackCards ? `<div class="cards">${trackCards}</div>` : emptyHtml({ body: "No tracks yet." })}`
+    }
     ${carCards ? `<h2>Cars</h2><div class="cards">${carCards}</div>` : ""}
   `);
   wireRowLinks(view);
@@ -4691,6 +4892,7 @@ async function viewStudentVehicle(vehicleId) {
       <div class="tile"><div class="label">Track days</div><div class="value">${logbook.track_days}</div></div>
       <div class="tile"><div class="label">Events</div><div class="value">${logbook.events}</div></div>
     </div>
+    ${logbook.events === 0 ? emptyHtml({ body: "No track days in this car yet." }) : ""}
     <h2>Modifications &amp; notes</h2>
     ${v.notes ? `<div class="panel notes-block">${esc(v.notes)}</div>` : emptyHtml({ body: "None listed." })}
     ${
@@ -4709,7 +4911,8 @@ async function viewStudentVehicle(vehicleId) {
 }
 
 function viewNotFound() {
-  shell(emptyHtml({ title: "Not found", body: `<a href="#/">Back to dashboard</a>` }));
+  // L(): inside a student's logbook the way back is their dashboard.
+  shell(emptyHtml({ title: "Not found", body: `<a href="${L("#/")}">Back to dashboard</a>` }));
 }
 
 function wireRowLinks(view) {
@@ -4790,7 +4993,10 @@ function shareDashboard() {
       <div class="tile"><div class="label">Track days</div><div class="value">${totals.track_days}</div></div>
       <div class="tile"><div class="label">Tracks</div><div class="value">${withData.length}</div></div>
     </div>
-    <div class="btn-row"><a class="btn small" href="#/year">Year in review</a></div>
+    ${
+      // Year in review counts past events only, as on the owner's dashboard.
+      events.some((e) => !isUpcoming(e)) ? `<div class="btn-row"><a class="btn small" href="#/year">Year in review</a></div>` : ""
+    }
     <h2>Tracks</h2>
     ${cards ? `<div class="cards">${cards}</div>` : emptyHtml({ body: "No events shared yet." })}
     ${events.length ? `<h2>All events</h2>
@@ -4806,7 +5012,7 @@ function shareYear(params) {
     ${yearReviewHtml(shareData.events, Number(params.get("y")), "#/year", {
       href: (y) => `/share/${encodeURIComponent(SHARE_SLUG)}/wrapped/${y}`,
       whose: shareData.name ? `${shareData.name}'s` : "the",
-    })}
+    }, { shared: true })}
   `);
   wireRowLinks(view);
 }
@@ -4829,7 +5035,8 @@ function shareTrack(trackId) {
   // carries the event's ambient range, which is weather rather than anything
   // the driver wrote down.
   const band = conditionsBand(chrono);
-  const chart = points.length
+  // One timed event is a dot, not a trend — the chart waits for a second.
+  const chart = points.length >= 2
     ? lineChart(points, {
         goal: track.goal_ms,
         bands: band ? { cells: band.cells, label: bandLabel(band, usUnits()) } : null,
@@ -4843,7 +5050,7 @@ function shareTrack(trackId) {
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← All tracks</a></p>
     <h1>${esc(track.name)}</h1>
     <p class="sub">Personal best <strong>${fmtMs(pb)}</strong> · ${events.length} event${events.length === 1 ? "" : "s"}${elevM != null ? ` · ${esc(elevationText(elevM, usUnits()))}` : ""}</p>
-    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}</div>` : ""}
+    ${chart ? `<div class="chart-card"><div class="chart-title">Best lap per event — <span class="dir">down is faster</span></div><div class="chart-wrap" id="chart">${chart.svg}</div>${conditionsLegendHtml(band)}</div>` : `<div class="chart-card">${emptyHtml({ body: CHART_WAITS, compact: true })}</div>`}
     <h2>Events</h2>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Days</th><th>Club</th><th>Group</th><th>Car</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th></tr></thead>
     <tbody>${shareEventRows(events)}</tbody></table></div>
@@ -4870,6 +5077,16 @@ async function shareWrapped(year) {
   const slug = encodeURIComponent(SHARE_SLUG);
   const res = await fetch(`/api/share/${slug}/wrapped/${year}`);
   if (!res.ok) {
+    // A live link to a year with no track days is a page, not a dead link —
+    // the server says which it is.
+    const err = await res.json().catch(() => null);
+    if (res.status === 404 && /^no events in /.test(err?.error ?? "")) {
+      shareShell(`
+        <p style="margin:22px 0 0"><a class="backlink" href="/share/${slug}">← Logbook</a></p>
+        ${emptyHtml({ title: wrappedEmptyTitle(year), body: "Wrapped tells the story of a season once there's a track day in it." })}
+      `);
+      return;
+    }
     shareNotFound("Nothing to show", "This season isn't shared, or the link has been disabled.");
     return;
   }
@@ -4974,18 +5191,20 @@ async function route() {
     if (parts[0] === "settings") return await viewSettings();
     viewNotFound();
   } catch (err) {
-    if (err instanceof OfflineError) {
-      // The page was never opened online, so the offline cache has nothing for
-      // it. The sync banner already says the device is offline; this says what
-      // that means here, and the way back.
-      const view = shell(`<div class="panel offline-uncached">
-        <p>${esc(err.message)}</p>
-        <div class="btn-row"><button class="btn small primary" type="button" id="offline-retry">Try again</button>
-          <a class="btn small" href="#/">Back to dashboard</a></div>
-      </div>`);
-      view.querySelector("#offline-retry").onclick = () => route();
+    if (err instanceof ApiError && err.status === 404) {
+      viewNotFound();
     } else if (err.message !== "unauthorized") {
-      shell(`<div class="error-banner">${esc(err.message)}</div><a href="#/">Back to dashboard</a>`);
+      // Anything else retries through one control, as on the phones. Offline
+      // with nothing cached is the common case: the sync banner already says
+      // the device is offline, and OFFLINE_UNCACHED says what that means here.
+      const offline = err instanceof OfflineError;
+      const view = shell(`<div class="panel${offline ? " offline-uncached" : ""}">${emptyHtml({
+        title: "Couldn't load this",
+        body: esc(err.message),
+        action: { label: "Try again", id: "load-retry" },
+        compact: true,
+      })}</div>`);
+      view.querySelector("#load-retry").onclick = () => route();
     }
   }
 }
