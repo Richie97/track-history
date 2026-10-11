@@ -643,6 +643,7 @@ change* rule does not apply — see the spec for why.
 | NS-41 | [HPDE progression](NS-41-hpde-progression.md) — instructor, sign-offs, run-group timeline | Shared (server, web, iOS, Android) | NS-38, the share page, #314 |
 | NS-42 | [Consistency over clean laps](NS-42-clean-lap-consistency.md) | Shared (server + the three offline mirrors; no screen change) | `withComputed`, `cleanLaps` |
 | NS-43 | [Calendar feed](NS-43-calendar-feed.md) | Shared (server, web, iOS, Android) | the events list |
+| NS-44 | [Export your logbook](NS-44-web-export.md) | Server + web (native door a follow-up) | `eventSelect`, the garage tables |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
