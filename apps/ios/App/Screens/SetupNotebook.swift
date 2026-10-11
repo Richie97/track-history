@@ -119,7 +119,12 @@ private struct SetupDayRow: View {
                         .foregroundStyle(Color(.textMuted))
                 }
                 Spacer()
+                // `.plain` is what keeps this tap to this button: the notebook is
+                // one `List` row, and a default-styled button there makes the whole
+                // row its hit area — one tap fired every day's button and pushed
+                // the form once per day, last day on top.
                 Button(sheet == nil ? "Log day \(day) setup" : "Edit", action: onOpen)
+                    .buttonStyle(.plain)
                     .teStyle(.sm)
                     .foregroundStyle(Color(.accentInk))
                     .accessibilityIdentifier("setupOpen-\(day)")
