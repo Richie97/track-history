@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   SETUP_FIELDS,
+  previousSheet,
   catalogCarLabel,
   catalogCarName,
   catalogPrefill,
@@ -431,4 +432,22 @@ describe("swaps between sessions (migration 0030)", () => {
     expect(defaultSwapChoice(undefined)).toBeNull();
   });
 
+});
+
+// NS-40: the comparison base for a day's sheet and the phones' offline prefill.
+describe("previousSheet", () => {
+  const setups = [
+    { day: 3, data: { fuel: 3 } },
+    { day: 1, data: { fuel: 1 } },
+  ];
+  it("is the latest earlier day's sheet, in any order and across gaps", () => {
+    expect(previousSheet(setups, 3)).toEqual({ fuel: 1 });
+    expect(previousSheet(setups, 2)).toEqual({ fuel: 1 });
+    expect(previousSheet(setups, 4)).toEqual({ fuel: 3 });
+  });
+  it("is null with no earlier sheet", () => {
+    expect(previousSheet(setups, 1)).toBeNull();
+    expect(previousSheet([], 2)).toBeNull();
+    expect(previousSheet(undefined, 2)).toBeNull();
+  });
 });

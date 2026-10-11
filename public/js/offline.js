@@ -593,9 +593,12 @@ async function applyLocal(m) {
       const i = d.sessions.findIndex((s) => String(s.id) === String(seg[1]));
       if (i === -1) return false;
       if (m.method === "PUT") {
-        // The route replaces both fields (missing → null) — mirror that.
-        d.sessions[i].label = m.body?.label ?? null;
-        d.sessions[i].notes = m.body?.notes ?? null;
+        // The route writes only the keys present, trimmed, "" as null (NS-40).
+        for (const key of ["label", "notes"]) {
+          if (!m.body || !(key in m.body)) continue;
+          const v = m.body[key];
+          d.sessions[i][key] = typeof v === "string" && v.trim() ? v.trim() : null;
+        }
       } else {
         d.sessions.splice(i, 1);
       }

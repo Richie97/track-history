@@ -188,6 +188,18 @@ export function fmtSetupValue(key, v, units) {
   return `${setupToDisplay(f, v, units)}${unit ? `${unit === "°" ? "" : " "}${unit}` : ""}`;
 }
 
+// The sheet a day's setup is compared against (NS-40): the latest sheet on an
+// earlier day of the same event, or null. `setups` is the event detail's
+// `[{ day, data }]`, in any order and with gaps. The changed-value marks on the
+// event page diff against it, and the phones' offline prefill falls back to
+// it — the first half of GET /events/:id/setups/prefill's rule; the car's last
+// event, the other half, needs the server.
+export function previousSheet(setups, day) {
+  let best = null;
+  for (const s of setups ?? []) if (s.day < day && (best == null || s.day > best.day)) best = s;
+  return best ? best.data : null;
+}
+
 // What changed between two sheets: [{key, from, to}] in spec order. A null
 // prev means everything in cur is "new" (from: null). Part-ref values are the
 // raw ids — the caller maps them to part names for display.

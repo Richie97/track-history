@@ -786,6 +786,10 @@ button.ch-chip.on { background: var(--surface-raised); }
 }
 
 .notes-block { white-space: pre-wrap; }
+/* A session's label + notes editor (NS-40), opened from the card's Edit. */
+.session-edit { margin-top: 12px; display: grid; gap: 8px; }
+.session-edit[hidden] { display: none; }
+.session-edit textarea { min-height: 72px; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; font-size: 14px; margin: 12px 0; }
 .kv dt { color: var(--text-muted); }
 .kv dd { margin: 0; }

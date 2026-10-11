@@ -39,15 +39,42 @@
           "f": -3.5,
           "r": -2.1
         },
+        "caster": {
+          "f": 7.5,
+          "r": 0
+        },
+        "compression": {
+          "f": 4,
+          "r": 3
+        },
+        "fuel": 12.5,
+        "notes": "Two clicks more rebound front; pushing less in T5.",
+        "pads_f_id": 1,
         "rebound": {
           "f": 10,
           "r": 6
+        },
+        "sway": {
+          "f": 2,
+          "r": 1
+        },
+        "tires_f_id": 3,
+        "tires_r_id": 4,
+        "toe": {
+          "f": -0.05,
+          "r": 0.1
         },
         "tp_cold": {
           "fl": 25,
           "fr": 25,
           "rl": 24,
           "rr": 24
+        },
+        "tp_hot": {
+          "fl": 33.5,
+          "fr": 34,
+          "rl": 31,
+          "rr": 31.5
         }
       },
       "day": 2,

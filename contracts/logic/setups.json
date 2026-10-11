@@ -1,0 +1,2330 @@
+{
+  "description": "The setup notebook's pure half (NS-40): garage.js's setup-sheet helpers (SETUP_FIELDS, setupUnit / setupStep / setupToDisplay / setupToStored, flattenSetup / flatLabel / flatUnit / fmtSetupValue / diffSetups, previousSheet) and health.js's pressure loop (pressureLoop / nextTimeNote / recordHotSheet / nextDaySheet). Both phones' ports must match it exactly — strings verbatim, doubles to 1e-9. Units are the account's 'imperial' / 'metric'. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": [
+    "public/js/garage.js",
+    "public/js/health.js"
+  ],
+  "SETUP_FIELDS": [
+    {
+      "key": "tp_cold",
+      "label": "Tire pressure — cold",
+      "unit": "psi",
+      "shape": "corners",
+      "step": 0.5,
+      "metric": {
+        "unit": "bar",
+        "perUnit": 14.503774,
+        "step": 0.05,
+        "dp": 2
+      }
+    },
+    {
+      "key": "tp_hot",
+      "label": "Tire pressure — hot",
+      "unit": "psi",
+      "shape": "corners",
+      "step": 0.5,
+      "metric": {
+        "unit": "bar",
+        "perUnit": 14.503774,
+        "step": 0.05,
+        "dp": 2
+      }
+    },
+    {
+      "key": "camber",
+      "label": "Camber",
+      "unit": "°",
+      "shape": "axle",
+      "step": 0.1
+    },
+    {
+      "key": "toe",
+      "label": "Toe",
+      "unit": "",
+      "shape": "axle",
+      "step": 0.01
+    },
+    {
+      "key": "caster",
+      "label": "Caster",
+      "unit": "°",
+      "shape": "axle",
+      "step": 0.1
+    },
+    {
+      "key": "rebound",
+      "label": "Rebound",
+      "unit": "clk",
+      "shape": "axle",
+      "step": 1
+    },
+    {
+      "key": "compression",
+      "label": "Compression",
+      "unit": "clk",
+      "shape": "axle",
+      "step": 1
+    },
+    {
+      "key": "sway",
+      "label": "Sway bar",
+      "unit": "pos",
+      "shape": "axle",
+      "step": 1
+    },
+    {
+      "key": "fuel",
+      "label": "Fuel",
+      "unit": "gal",
+      "shape": "number",
+      "step": 0.5,
+      "metric": {
+        "unit": "L",
+        "perUnit": 0.26417203728418465,
+        "step": 1,
+        "dp": 1
+      }
+    }
+  ],
+  "CORNER_KEYS": [
+    [
+      "fl",
+      "FL"
+    ],
+    [
+      "fr",
+      "FR"
+    ],
+    [
+      "rl",
+      "RL"
+    ],
+    [
+      "rr",
+      "RR"
+    ]
+  ],
+  "AXLE_KEYS": [
+    [
+      "f",
+      "F"
+    ],
+    [
+      "r",
+      "R"
+    ]
+  ],
+  "PART_REFS": [
+    [
+      "tires_id",
+      "Tires",
+      "tires"
+    ],
+    [
+      "tires_f_id",
+      "Front tires",
+      "tires_front"
+    ],
+    [
+      "tires_r_id",
+      "Rear tires",
+      "tires_rear"
+    ],
+    [
+      "pads_f_id",
+      "Front pads",
+      "pads_front"
+    ],
+    [
+      "pads_r_id",
+      "Rear pads",
+      "pads_rear"
+    ]
+  ],
+  "fields": [
+    {
+      "key": "tp_cold",
+      "units": "imperial",
+      "unit": "psi",
+      "step": 0.5,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "tp_hot",
+      "units": "imperial",
+      "unit": "psi",
+      "step": 0.5,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "camber",
+      "units": "imperial",
+      "unit": "°",
+      "step": 0.1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "toe",
+      "units": "imperial",
+      "unit": "",
+      "step": 0.01,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "caster",
+      "units": "imperial",
+      "unit": "°",
+      "step": 0.1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "rebound",
+      "units": "imperial",
+      "unit": "clk",
+      "step": 1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "compression",
+      "units": "imperial",
+      "unit": "clk",
+      "step": 1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "sway",
+      "units": "imperial",
+      "unit": "pos",
+      "step": 1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "fuel",
+      "units": "imperial",
+      "unit": "gal",
+      "step": 0.5,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "tp_cold",
+      "units": "metric",
+      "unit": "bar",
+      "step": 0.05,
+      "display": [
+        [
+          26,
+          1.79
+        ],
+        [
+          29.01,
+          2
+        ],
+        [
+          31.5,
+          2.17
+        ],
+        [
+          2.14,
+          0.15
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          0.86
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          377.1
+        ],
+        [
+          29.01,
+          420.75
+        ],
+        [
+          31.5,
+          456.87
+        ],
+        [
+          2.14,
+          31.04
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          181.3
+        ]
+      ]
+    },
+    {
+      "key": "tp_hot",
+      "units": "metric",
+      "unit": "bar",
+      "step": 0.05,
+      "display": [
+        [
+          26,
+          1.79
+        ],
+        [
+          29.01,
+          2
+        ],
+        [
+          31.5,
+          2.17
+        ],
+        [
+          2.14,
+          0.15
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          0.86
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          377.1
+        ],
+        [
+          29.01,
+          420.75
+        ],
+        [
+          31.5,
+          456.87
+        ],
+        [
+          2.14,
+          31.04
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          181.3
+        ]
+      ]
+    },
+    {
+      "key": "camber",
+      "units": "metric",
+      "unit": "°",
+      "step": 0.1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "toe",
+      "units": "metric",
+      "unit": "",
+      "step": 0.01,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "caster",
+      "units": "metric",
+      "unit": "°",
+      "step": 0.1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "rebound",
+      "units": "metric",
+      "unit": "clk",
+      "step": 1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "compression",
+      "units": "metric",
+      "unit": "clk",
+      "step": 1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "sway",
+      "units": "metric",
+      "unit": "pos",
+      "step": 1,
+      "display": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          26
+        ],
+        [
+          29.01,
+          29.01
+        ],
+        [
+          31.5,
+          31.5
+        ],
+        [
+          2.14,
+          2.14
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          12.5
+        ]
+      ]
+    },
+    {
+      "key": "fuel",
+      "units": "metric",
+      "unit": "L",
+      "step": 1,
+      "display": [
+        [
+          26,
+          98.4
+        ],
+        [
+          29.01,
+          109.8
+        ],
+        [
+          31.5,
+          119.2
+        ],
+        [
+          2.14,
+          8.1
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          47.3
+        ]
+      ],
+      "stored": [
+        [
+          26,
+          6.87
+        ],
+        [
+          29.01,
+          7.66
+        ],
+        [
+          31.5,
+          8.32
+        ],
+        [
+          2.14,
+          0.57
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          12.5,
+          3.3
+        ]
+      ]
+    }
+  ],
+  "fieldFor": [
+    [
+      "tp_cold.fl",
+      "tp_cold"
+    ],
+    [
+      "camber.r",
+      "camber"
+    ],
+    [
+      "fuel",
+      "fuel"
+    ],
+    [
+      "tires_id",
+      null
+    ],
+    [
+      "notes",
+      null
+    ],
+    [
+      "nonsense.x",
+      null
+    ]
+  ],
+  "flat": {
+    "sheet": {
+      "tp_cold": {
+        "fl": 26,
+        "fr": 26.5,
+        "rl": 24,
+        "rr": 24
+      },
+      "tp_hot": {
+        "fl": 33.5,
+        "fr": 34,
+        "rl": 31,
+        "rr": 31.5
+      },
+      "camber": {
+        "f": -3.2,
+        "r": -2.1
+      },
+      "toe": {
+        "f": -0.05,
+        "r": 0.12
+      },
+      "caster": {
+        "f": 7.5,
+        "r": 0
+      },
+      "rebound": {
+        "f": 8,
+        "r": 6
+      },
+      "compression": {
+        "f": 4,
+        "r": 3
+      },
+      "sway": {
+        "f": 2,
+        "r": 1
+      },
+      "fuel": 12.5,
+      "tires_id": 11,
+      "tires_f_id": 12,
+      "tires_r_id": 13,
+      "pads_f_id": 14,
+      "pads_r_id": 15,
+      "notes": "Pushing in T5; went two clicks stiffer front."
+    },
+    "flatten": [
+      [
+        "tp_cold.fl",
+        26
+      ],
+      [
+        "tp_cold.fr",
+        26.5
+      ],
+      [
+        "tp_cold.rl",
+        24
+      ],
+      [
+        "tp_cold.rr",
+        24
+      ],
+      [
+        "tp_hot.fl",
+        33.5
+      ],
+      [
+        "tp_hot.fr",
+        34
+      ],
+      [
+        "tp_hot.rl",
+        31
+      ],
+      [
+        "tp_hot.rr",
+        31.5
+      ],
+      [
+        "camber.f",
+        -3.2
+      ],
+      [
+        "camber.r",
+        -2.1
+      ],
+      [
+        "toe.f",
+        -0.05
+      ],
+      [
+        "toe.r",
+        0.12
+      ],
+      [
+        "caster.f",
+        7.5
+      ],
+      [
+        "caster.r",
+        0
+      ],
+      [
+        "rebound.f",
+        8
+      ],
+      [
+        "rebound.r",
+        6
+      ],
+      [
+        "compression.f",
+        4
+      ],
+      [
+        "compression.r",
+        3
+      ],
+      [
+        "sway.f",
+        2
+      ],
+      [
+        "sway.r",
+        1
+      ],
+      [
+        "fuel",
+        12.5
+      ],
+      [
+        "tires_id",
+        11
+      ],
+      [
+        "tires_f_id",
+        12
+      ],
+      [
+        "tires_r_id",
+        13
+      ],
+      [
+        "pads_f_id",
+        14
+      ],
+      [
+        "pads_r_id",
+        15
+      ]
+    ],
+    "labels": [
+      [
+        "tp_cold.fl",
+        "Tire pressure — cold FL"
+      ],
+      [
+        "tp_cold.fr",
+        "Tire pressure — cold FR"
+      ],
+      [
+        "tp_cold.rl",
+        "Tire pressure — cold RL"
+      ],
+      [
+        "tp_cold.rr",
+        "Tire pressure — cold RR"
+      ],
+      [
+        "tp_hot.fl",
+        "Tire pressure — hot FL"
+      ],
+      [
+        "tp_hot.fr",
+        "Tire pressure — hot FR"
+      ],
+      [
+        "tp_hot.rl",
+        "Tire pressure — hot RL"
+      ],
+      [
+        "tp_hot.rr",
+        "Tire pressure — hot RR"
+      ],
+      [
+        "camber.f",
+        "Camber F"
+      ],
+      [
+        "camber.r",
+        "Camber R"
+      ],
+      [
+        "toe.f",
+        "Toe F"
+      ],
+      [
+        "toe.r",
+        "Toe R"
+      ],
+      [
+        "caster.f",
+        "Caster F"
+      ],
+      [
+        "caster.r",
+        "Caster R"
+      ],
+      [
+        "rebound.f",
+        "Rebound F"
+      ],
+      [
+        "rebound.r",
+        "Rebound R"
+      ],
+      [
+        "compression.f",
+        "Compression F"
+      ],
+      [
+        "compression.r",
+        "Compression R"
+      ],
+      [
+        "sway.f",
+        "Sway bar F"
+      ],
+      [
+        "sway.r",
+        "Sway bar R"
+      ],
+      [
+        "fuel",
+        "Fuel"
+      ],
+      [
+        "tires_id",
+        "Tires"
+      ],
+      [
+        "tires_f_id",
+        "Front tires"
+      ],
+      [
+        "tires_r_id",
+        "Rear tires"
+      ],
+      [
+        "pads_f_id",
+        "Front pads"
+      ],
+      [
+        "pads_r_id",
+        "Rear pads"
+      ]
+    ],
+    "unknownLabel": "nonsense",
+    "units": [
+      {
+        "units": "imperial",
+        "units_of": [
+          [
+            "tp_cold.fl",
+            "psi"
+          ],
+          [
+            "tp_cold.fr",
+            "psi"
+          ],
+          [
+            "tp_cold.rl",
+            "psi"
+          ],
+          [
+            "tp_cold.rr",
+            "psi"
+          ],
+          [
+            "tp_hot.fl",
+            "psi"
+          ],
+          [
+            "tp_hot.fr",
+            "psi"
+          ],
+          [
+            "tp_hot.rl",
+            "psi"
+          ],
+          [
+            "tp_hot.rr",
+            "psi"
+          ],
+          [
+            "camber.f",
+            "°"
+          ],
+          [
+            "camber.r",
+            "°"
+          ],
+          [
+            "toe.f",
+            ""
+          ],
+          [
+            "toe.r",
+            ""
+          ],
+          [
+            "caster.f",
+            "°"
+          ],
+          [
+            "caster.r",
+            "°"
+          ],
+          [
+            "rebound.f",
+            "clk"
+          ],
+          [
+            "rebound.r",
+            "clk"
+          ],
+          [
+            "compression.f",
+            "clk"
+          ],
+          [
+            "compression.r",
+            "clk"
+          ],
+          [
+            "sway.f",
+            "pos"
+          ],
+          [
+            "sway.r",
+            "pos"
+          ],
+          [
+            "fuel",
+            "gal"
+          ],
+          [
+            "tires_id",
+            ""
+          ],
+          [
+            "tires_f_id",
+            ""
+          ],
+          [
+            "tires_r_id",
+            ""
+          ],
+          [
+            "pads_f_id",
+            ""
+          ],
+          [
+            "pads_r_id",
+            ""
+          ]
+        ],
+        "values": [
+          [
+            "tp_cold.fl",
+            26,
+            "26 psi"
+          ],
+          [
+            "tp_cold.fl",
+            29.01,
+            "29.01 psi"
+          ],
+          [
+            "tp_hot.rr",
+            34.5,
+            "34.5 psi"
+          ],
+          [
+            "camber.f",
+            -3.2,
+            "-3.2°"
+          ],
+          [
+            "toe.r",
+            0.12,
+            "0.12"
+          ],
+          [
+            "caster.f",
+            7.5,
+            "7.5°"
+          ],
+          [
+            "rebound.f",
+            8,
+            "8 clk"
+          ],
+          [
+            "sway.r",
+            1,
+            "1 pos"
+          ],
+          [
+            "fuel",
+            12.5,
+            "12.5 gal"
+          ],
+          [
+            "fuel",
+            0,
+            "0 gal"
+          ],
+          [
+            "tires_id",
+            11,
+            "11"
+          ],
+          [
+            "nonsense",
+            3,
+            "3"
+          ],
+          [
+            "tp_cold.fl",
+            null,
+            "—"
+          ]
+        ]
+      },
+      {
+        "units": "metric",
+        "units_of": [
+          [
+            "tp_cold.fl",
+            "bar"
+          ],
+          [
+            "tp_cold.fr",
+            "bar"
+          ],
+          [
+            "tp_cold.rl",
+            "bar"
+          ],
+          [
+            "tp_cold.rr",
+            "bar"
+          ],
+          [
+            "tp_hot.fl",
+            "bar"
+          ],
+          [
+            "tp_hot.fr",
+            "bar"
+          ],
+          [
+            "tp_hot.rl",
+            "bar"
+          ],
+          [
+            "tp_hot.rr",
+            "bar"
+          ],
+          [
+            "camber.f",
+            "°"
+          ],
+          [
+            "camber.r",
+            "°"
+          ],
+          [
+            "toe.f",
+            ""
+          ],
+          [
+            "toe.r",
+            ""
+          ],
+          [
+            "caster.f",
+            "°"
+          ],
+          [
+            "caster.r",
+            "°"
+          ],
+          [
+            "rebound.f",
+            "clk"
+          ],
+          [
+            "rebound.r",
+            "clk"
+          ],
+          [
+            "compression.f",
+            "clk"
+          ],
+          [
+            "compression.r",
+            "clk"
+          ],
+          [
+            "sway.f",
+            "pos"
+          ],
+          [
+            "sway.r",
+            "pos"
+          ],
+          [
+            "fuel",
+            "L"
+          ],
+          [
+            "tires_id",
+            ""
+          ],
+          [
+            "tires_f_id",
+            ""
+          ],
+          [
+            "tires_r_id",
+            ""
+          ],
+          [
+            "pads_f_id",
+            ""
+          ],
+          [
+            "pads_r_id",
+            ""
+          ]
+        ],
+        "values": [
+          [
+            "tp_cold.fl",
+            26,
+            "1.79 bar"
+          ],
+          [
+            "tp_cold.fl",
+            29.01,
+            "2 bar"
+          ],
+          [
+            "tp_hot.rr",
+            34.5,
+            "2.38 bar"
+          ],
+          [
+            "camber.f",
+            -3.2,
+            "-3.2°"
+          ],
+          [
+            "toe.r",
+            0.12,
+            "0.12"
+          ],
+          [
+            "caster.f",
+            7.5,
+            "7.5°"
+          ],
+          [
+            "rebound.f",
+            8,
+            "8 clk"
+          ],
+          [
+            "sway.r",
+            1,
+            "1 pos"
+          ],
+          [
+            "fuel",
+            12.5,
+            "47.3 L"
+          ],
+          [
+            "fuel",
+            0,
+            "0 L"
+          ],
+          [
+            "tires_id",
+            11,
+            "11"
+          ],
+          [
+            "nonsense",
+            3,
+            "3"
+          ],
+          [
+            "tp_cold.fl",
+            null,
+            "—"
+          ]
+        ]
+      }
+    ],
+    "emptyFlatten": []
+  },
+  "diff": {
+    "prev": {
+      "tp_cold": {
+        "fl": 26,
+        "fr": 26.5,
+        "rl": 24,
+        "rr": 24
+      },
+      "tp_hot": {
+        "fl": 33.5,
+        "fr": 34,
+        "rl": 31,
+        "rr": 31.5
+      },
+      "camber": {
+        "f": -3.2,
+        "r": -2.1
+      },
+      "toe": {
+        "f": -0.05,
+        "r": 0.12
+      },
+      "caster": {
+        "f": 7.5,
+        "r": 0
+      },
+      "rebound": {
+        "f": 8,
+        "r": 6
+      },
+      "compression": {
+        "f": 4,
+        "r": 3
+      },
+      "sway": {
+        "f": 2,
+        "r": 1
+      },
+      "fuel": 12.5,
+      "tires_id": 11,
+      "tires_f_id": 12,
+      "tires_r_id": 13,
+      "pads_f_id": 14,
+      "pads_r_id": 15,
+      "notes": "Pushing in T5; went two clicks stiffer front."
+    },
+    "cur": {
+      "tp_cold": {
+        "fl": 25.5,
+        "fr": 26.5,
+        "rl": 24,
+        "rr": 23.5
+      },
+      "tp_hot": {
+        "fl": 33.5,
+        "fr": 34,
+        "rl": 31,
+        "rr": 31.5
+      },
+      "camber": {
+        "f": -3.5,
+        "r": -2.1
+      },
+      "toe": {
+        "f": -0.05,
+        "r": 0.12
+      },
+      "caster": {
+        "f": 7.5,
+        "r": 0
+      },
+      "rebound": {
+        "f": 8,
+        "r": 6
+      },
+      "compression": {
+        "f": 4,
+        "r": 3
+      },
+      "sway": {
+        "f": 2,
+        "r": 1
+      },
+      "fuel": null,
+      "tires_id": 11,
+      "tires_f_id": 16,
+      "tires_r_id": 13,
+      "pads_f_id": 14,
+      "notes": "Pushing in T5; went two clicks stiffer front."
+    },
+    "changes": [
+      {
+        "key": "tp_cold.fl",
+        "from": 26,
+        "to": 25.5
+      },
+      {
+        "key": "tp_cold.rr",
+        "from": 24,
+        "to": 23.5
+      },
+      {
+        "key": "camber.f",
+        "from": -3.2,
+        "to": -3.5
+      },
+      {
+        "key": "fuel",
+        "from": 12.5,
+        "to": null
+      },
+      {
+        "key": "tires_f_id",
+        "from": 12,
+        "to": 16
+      },
+      {
+        "key": "pads_r_id",
+        "from": 15,
+        "to": null
+      }
+    ],
+    "fromNothing": [
+      {
+        "key": "tp_cold.fl",
+        "from": null,
+        "to": 26
+      },
+      {
+        "key": "fuel",
+        "from": null,
+        "to": 10
+      }
+    ],
+    "toNothing": [
+      {
+        "key": "camber.f",
+        "from": -3,
+        "to": null
+      }
+    ],
+    "same": []
+  },
+  "previous": {
+    "setups": [
+      {
+        "day": 3,
+        "data": {
+          "fuel": 3
+        }
+      },
+      {
+        "day": 1,
+        "data": {
+          "fuel": 1
+        }
+      }
+    ],
+    "cases": [
+      [
+        1,
+        null
+      ],
+      [
+        2,
+        {
+          "fuel": 1
+        }
+      ],
+      [
+        3,
+        {
+          "fuel": 1
+        }
+      ],
+      [
+        4,
+        {
+          "fuel": 3
+        }
+      ],
+      [
+        9,
+        {
+          "fuel": 3
+        }
+      ]
+    ],
+    "none": null
+  },
+  "loop": {
+    "channels": "health.json input.channels",
+    "sheet": {
+      "tp_cold": {
+        "fl": 26,
+        "fr": 26,
+        "rl": 24,
+        "rr": 24
+      },
+      "notes": "Day one."
+    },
+    "targetPsi": 34,
+    "loop": {
+      "rows": [
+        {
+          "corner": "LF",
+          "key": "fl",
+          "coldPsi": 26,
+          "hotPsi": 35.38920951093708,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": {
+            "coldPsi": 26,
+            "hotPsi": 35.38920951093708,
+            "targetPsi": 34,
+            "suggestedPsi": 24.5,
+            "deltaPsi": -1.5
+          }
+        },
+        {
+          "corner": "RF",
+          "key": "fr",
+          "coldPsi": 26,
+          "hotPsi": 34.22890755975881,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": {
+            "coldPsi": 26,
+            "hotPsi": 34.22890755975881,
+            "targetPsi": 34,
+            "suggestedPsi": 26,
+            "deltaPsi": 0
+          }
+        },
+        {
+          "corner": "LR",
+          "key": "rl",
+          "coldPsi": 24,
+          "hotPsi": 32.6334923768887,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": {
+            "coldPsi": 24,
+            "hotPsi": 32.6334923768887,
+            "targetPsi": 34,
+            "suggestedPsi": 25.5,
+            "deltaPsi": 1.5
+          }
+        },
+        {
+          "corner": "RR",
+          "key": "rr",
+          "coldPsi": 24,
+          "hotPsi": 32.05334140129957,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": {
+            "coldPsi": 24,
+            "hotPsi": 32.05334140129957,
+            "targetPsi": 34,
+            "suggestedPsi": 26,
+            "deltaPsi": 2
+          }
+        }
+      ],
+      "hotSheet": {
+        "fl": 35.5,
+        "fr": 34,
+        "rl": 32.5,
+        "rr": 32
+      },
+      "coldSheet": {
+        "fl": 24.5,
+        "fr": 26,
+        "rl": 25.5,
+        "rr": 26
+      }
+    },
+    "loopNoTarget": {
+      "rows": [
+        {
+          "corner": "LF",
+          "key": "fl",
+          "coldPsi": 26,
+          "hotPsi": 35.38920951093708,
+          "hotChIdx": 2,
+          "targetPsi": null,
+          "suggestion": null
+        },
+        {
+          "corner": "RF",
+          "key": "fr",
+          "coldPsi": 26,
+          "hotPsi": 34.22890755975881,
+          "hotChIdx": 2,
+          "targetPsi": null,
+          "suggestion": null
+        },
+        {
+          "corner": "LR",
+          "key": "rl",
+          "coldPsi": 24,
+          "hotPsi": 32.6334923768887,
+          "hotChIdx": 2,
+          "targetPsi": null,
+          "suggestion": null
+        },
+        {
+          "corner": "RR",
+          "key": "rr",
+          "coldPsi": 24,
+          "hotPsi": 32.05334140129957,
+          "hotChIdx": 2,
+          "targetPsi": null,
+          "suggestion": null
+        }
+      ],
+      "hotSheet": {
+        "fl": 35.5,
+        "fr": 34,
+        "rl": 32.5,
+        "rr": 32
+      },
+      "coldSheet": null
+    },
+    "loopNoSheet": {
+      "rows": [
+        {
+          "corner": "LF",
+          "key": "fl",
+          "coldPsi": null,
+          "hotPsi": 35.38920951093708,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": null
+        },
+        {
+          "corner": "RF",
+          "key": "fr",
+          "coldPsi": null,
+          "hotPsi": 34.22890755975881,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": null
+        },
+        {
+          "corner": "LR",
+          "key": "rl",
+          "coldPsi": null,
+          "hotPsi": 32.6334923768887,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": null
+        },
+        {
+          "corner": "RR",
+          "key": "rr",
+          "coldPsi": null,
+          "hotPsi": 32.05334140129957,
+          "hotChIdx": 2,
+          "targetPsi": 34,
+          "suggestion": null
+        }
+      ],
+      "hotSheet": {
+        "fl": 35.5,
+        "fr": 34,
+        "rl": 32.5,
+        "rr": 32
+      },
+      "coldSheet": null
+    },
+    "note": "Next time cold: LF 24.5 / RF 26.0 / LR 25.5 / RR 26.0 psi (hots ran 35.5 / 34.0 / 32.5 / 32.0 vs 34.0 target)",
+    "noteNoTarget": null,
+    "recordedOnce": {
+      "tp_cold": {
+        "fl": 26,
+        "fr": 26,
+        "rl": 24,
+        "rr": 24
+      },
+      "notes": "Day one.\nNext time cold: LF 24.5 / RF 26.0 / LR 25.5 / RR 26.0 psi (hots ran 35.5 / 34.0 / 32.5 / 32.0 vs 34.0 target)",
+      "tp_hot": {
+        "fl": 35.5,
+        "fr": 34,
+        "rl": 32.5,
+        "rr": 32
+      }
+    },
+    "recordedTwice": {
+      "tp_cold": {
+        "fl": 26,
+        "fr": 26,
+        "rl": 24,
+        "rr": 24
+      },
+      "notes": "Day one.\nNext time cold: LF 24.5 / RF 26.0 / LR 25.5 / RR 26.0 psi (hots ran 35.5 / 34.0 / 32.5 / 32.0 vs 34.0 target)",
+      "tp_hot": {
+        "fl": 35.5,
+        "fr": 34,
+        "rl": 32.5,
+        "rr": 32
+      }
+    },
+    "recordedOnNothing": {
+      "tp_hot": {
+        "fl": 35.5,
+        "fr": 34,
+        "rl": 32.5,
+        "rr": 32
+      },
+      "notes": "Next time cold: LF 24.5 / RF 26.0 / LR 25.5 / RR 26.0 psi (hots ran 35.5 / 34.0 / 32.5 / 32.0 vs 34.0 target)"
+    },
+    "nextFromToday": {
+      "tp_cold": {
+        "fl": 24.5,
+        "fr": 26,
+        "rl": 25.5,
+        "rr": 26
+      },
+      "camber": {
+        "f": -3.2,
+        "r": -2.1
+      },
+      "toe": {
+        "f": -0.05,
+        "r": 0.12
+      },
+      "caster": {
+        "f": 7.5,
+        "r": 0
+      },
+      "rebound": {
+        "f": 8,
+        "r": 6
+      },
+      "compression": {
+        "f": 4,
+        "r": 3
+      },
+      "sway": {
+        "f": 2,
+        "r": 1
+      },
+      "fuel": 12.5,
+      "tires_id": 11,
+      "tires_f_id": 12,
+      "tires_r_id": 13,
+      "pads_f_id": 14,
+      "pads_r_id": 15,
+      "notes": "Pushing in T5; went two clicks stiffer front."
+    },
+    "nextKeepsItsOwn": {
+      "camber": {
+        "f": -2
+      },
+      "tp_cold": {
+        "fl": 24.5,
+        "fr": 26,
+        "rl": 25.5,
+        "rr": 26
+      }
+    },
+    "nextNoSuggestion": {
+      "tp_cold": null,
+      "camber": {
+        "f": -3.2,
+        "r": -2.1
+      },
+      "toe": {
+        "f": -0.05,
+        "r": 0.12
+      },
+      "caster": {
+        "f": 7.5,
+        "r": 0
+      },
+      "rebound": {
+        "f": 8,
+        "r": 6
+      },
+      "compression": {
+        "f": 4,
+        "r": 3
+      },
+      "sway": {
+        "f": 2,
+        "r": 1
+      },
+      "fuel": 12.5,
+      "tires_id": 11,
+      "tires_f_id": 12,
+      "tires_r_id": 13,
+      "pads_f_id": 14,
+      "pads_r_id": 15,
+      "notes": "Pushing in T5; went two clicks stiffer front."
+    }
+  }
+}

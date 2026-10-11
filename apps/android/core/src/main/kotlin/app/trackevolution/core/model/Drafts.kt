@@ -167,15 +167,32 @@ public data class SessionDraft(
 )
 
 /**
- * `PUT /api/sessions/:id`. Not a patch: the server writes both columns
- * unconditionally (`SET label = ?, notes = ?` with `body.label ?? null`), so an
- * omitted field and an explicit null mean the same thing — cleared.
+ * `PUT /api/sessions/:id`. A three-state patch since NS-40: the server writes
+ * only the keys present, so [Patch.Unchanged] leaves a column alone and
+ * `Patch.Set(null)` clears it. Before, both columns were written
+ * unconditionally and an omitted field cleared — which, with this client's
+ * `explicitNulls = false`, made a null mean "omit" and therefore "clear" by
+ * accident rather than by design.
  */
-@Serializable
+@Serializable(with = SessionPatchSerializer::class)
 public data class SessionPatch(
-    val label: String? = null,
-    val notes: String? = null,
+    val label: Patch<String> = Patch.Unchanged,
+    val notes: Patch<String> = Patch.Unchanged,
 )
+
+public object SessionPatchSerializer : KSerializer<SessionPatch> {
+    override val descriptor: SerialDescriptor = patchDescriptor("SessionPatch")
+
+    override fun deserialize(decoder: Decoder): SessionPatch = neverDecoded("SessionPatch")
+
+    override fun serialize(encoder: Encoder, value: SessionPatch) {
+        val out = jsonEncoder(encoder, "SessionPatch")
+        val body = PatchBody(out.json)
+        body.put("label", value.label) { JsonPrimitive(it) }
+        body.put("notes", value.notes) { JsonPrimitive(it) }
+        out.encodeJsonElement(body.build())
+    }
+}
 
 /**
  * `PUT /api/tracks/:id` — rename, set a goal time, or edit notes.

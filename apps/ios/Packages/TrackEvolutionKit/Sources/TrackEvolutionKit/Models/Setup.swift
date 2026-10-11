@@ -4,10 +4,10 @@ import Foundation
 /// `src/lib/validate.ts` field for field — every field optional, because
 /// applicability varies by car.
 ///
-/// The setup notebook is a **deferred** feature on native (web only, see
-/// `docs/specs/native/README.md`); this type exists so the event-detail and
-/// track-setup responses decode losslessly, and so a native editor later has
-/// somewhere to land.
+/// The phones write sheets since NS-40, so **every key the server accepts must
+/// be here**: a key this model lacks is dropped on decode and erased on the
+/// next save. The golden `event-detail` carries a sheet with every key, and
+/// `OfflinePatchTests` round-trips it.
 public struct SetupSheet: Codable, Hashable, Sendable {
     /// Tire pressures, psi.
     public var tpCold: CornerValues?
@@ -24,8 +24,11 @@ public struct SetupSheet: Codable, Hashable, Sendable {
     public var sway: AxleValues?
     /// Gallons at session start.
     public var fuel: Double?
-    /// `parts.id` references — which consumables were on the car.
+    /// `parts.id` references — which consumables were on the car: a full set of
+    /// tires, or a front / rear pair (`tires_front` / `tires_rear` parts).
     public var tiresId: Int?
+    public var tiresFId: Int?
+    public var tiresRId: Int?
     public var padsFId: Int?
     public var padsRId: Int?
     public var notes: String?
@@ -35,6 +38,8 @@ public struct SetupSheet: Codable, Hashable, Sendable {
         case tpCold = "tp_cold"
         case tpHot = "tp_hot"
         case tiresId = "tires_id"
+        case tiresFId = "tires_f_id"
+        case tiresRId = "tires_r_id"
         case padsFId = "pads_f_id"
         case padsRId = "pads_r_id"
     }

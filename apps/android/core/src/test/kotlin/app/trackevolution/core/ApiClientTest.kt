@@ -7,6 +7,7 @@ import app.trackevolution.core.model.EventDraft
 import app.trackevolution.core.model.EventPatch
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Patch
+import app.trackevolution.core.model.SessionPatch
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.core.model.TracePoint
@@ -224,6 +225,22 @@ class ApiClientTest {
         assertEquals(setOf("club", "notes"), body.keys)
         assertEquals(JsonPrimitive("Chin"), body["club"])
         assertEquals(JsonNull, body["notes"])
+    }
+
+    /** NS-40: the server writes only the keys present, so the patch must say which. */
+    @Test
+    fun `a session patch sends only what changed, and a clear as a null`() = runTest {
+        val api = client { respondJson("""{"ok":true}""") }
+        api.updateSession(7, SessionPatch(notes = Patch.Set("Brake later into T5")))
+        api.updateSession(7, SessionPatch(label = Patch.Set(null), notes = Patch.Set(null)))
+
+        val notesOnly = bodyOf(recorded[0])
+        assertEquals(setOf("notes"), notesOnly.keys)
+        assertEquals(JsonPrimitive("Brake later into T5"), notesOnly["notes"])
+        val cleared = bodyOf(recorded[1])
+        assertEquals(setOf("label", "notes"), cleared.keys)
+        assertEquals(JsonNull, cleared["label"])
+        assertEquals(JsonNull, cleared["notes"])
     }
 
     @Test

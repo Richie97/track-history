@@ -35,12 +35,27 @@ sessions.post("/events/:id/sessions", async (c) => {
   return c.json({ id: session.id }, 201);
 });
 
+// Writes only the keys present (NS-40), the PUT /events/:id rule: a body
+// carrying just `notes` leaves the label alone, and an explicit null — or an
+// empty string, after trimming — clears. Every offline mirror (offline.js and
+// both native OfflinePatch) applies the same rule.
 sessions.put("/sessions/:id", async (c) => {
-  const body = await c.req.json<{ label?: string; notes?: string }>();
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) return c.json({ error: "invalid body" }, 400);
+  const sets: string[] = [];
+  const binds: (string | null)[] = [];
+  for (const key of ["label", "notes"] as const) {
+    if (!(key in body)) continue;
+    const v = body[key];
+    if (v !== null && typeof v !== "string") return c.json({ error: `${key} must be a string or null` }, 400);
+    sets.push(`${key} = ?`);
+    binds.push(typeof v === "string" && v.trim() ? v.trim() : null);
+  }
+  if (!sets.length) return c.json({ error: "nothing to update" }, 400);
   const res = await c.env.DB.prepare(
-    "UPDATE sessions SET label = ?, notes = ? WHERE id = ? AND event_id IN (SELECT id FROM events WHERE user_id = ?)"
+    `UPDATE sessions SET ${sets.join(", ")} WHERE id = ? AND event_id IN (SELECT id FROM events WHERE user_id = ?)`
   )
-    .bind(body.label ?? null, body.notes ?? null, c.req.param("id"), c.get("userId"))
+    .bind(...binds, c.req.param("id"), c.get("userId"))
     .run();
   if (!res.meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });

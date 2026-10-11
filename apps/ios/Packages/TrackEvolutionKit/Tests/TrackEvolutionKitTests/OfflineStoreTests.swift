@@ -215,7 +215,7 @@ struct OfflineStoreTests {
         try await store.cachePut("/events/7", body: try encode(detail(event, sessions: [existing])))
         try await store.cachePut("/events", body: try encode([detail(event, sessions: [existing]).event]))
 
-        // The route writes both columns unconditionally, so an absent notes clears it.
+        // The route writes only the keys present (NS-40); this session has no notes.
         _ = try await store.enqueue(method: "PUT", path: "/sessions/5", body: try json(["label": "Renamed"]))
         var detail = try await decode(EventDetail.self, store.cachedGet("/events/7"))
         #expect(detail.sessions[0].label == "Renamed")
@@ -256,6 +256,55 @@ struct OfflineStoreTests {
         #expect(tracks[0].goalMs == 120_000)
         #expect(tracks[0].notes == "Bus stop in 4th")
         #expect(tracks[0].name == "Summit Point", "an absent key is left alone")
+    }
+
+    /// NS-40: `PUT /sessions/:id` writes only the keys present, trimmed, with an
+    /// explicit null or an empty string clearing — and the patch must agree.
+    @Test func sessionUpdatesWriteOnlyTheKeysPresent() async throws {
+        let store = try store()
+        let event = try event(id: 7, date: "2026-05-01")
+        var existing = session(id: 5, laps: [121_500, 120_900, 122_100])
+        existing.notes = "damp"
+        try await store.cachePut("/events/7", body: try encode(detail(event, sessions: [existing])))
+
+        _ = try await store.enqueue(method: "PUT", path: "/sessions/5", body: try json(["label": "Renamed"]))
+        var detail = try await decode(EventDetail.self, store.cachedGet("/events/7"))
+        #expect(detail.sessions[0].label == "Renamed")
+        #expect(detail.sessions[0].notes == "damp", "a rename keeps the note")
+
+        _ = try await store.enqueue(method: "PUT", path: "/sessions/5", body: try json(["notes": "  brake later into T5 "]))
+        detail = try await decode(EventDetail.self, store.cachedGet("/events/7"))
+        #expect(detail.sessions[0].notes == "brake later into T5")
+        #expect(detail.sessions[0].label == "Renamed")
+
+        _ = try await store.enqueue(method: "PUT", path: "/sessions/5", body: try json(["label": NSNull(), "notes": ""]))
+        detail = try await decode(EventDetail.self, store.cachedGet("/events/7"))
+        #expect(detail.sessions[0].label == nil)
+        #expect(detail.sessions[0].notes == nil)
+    }
+
+    /// NS-40: the phones save sheets now, so a sheet the web wrote must survive
+    /// the offline patch with every key — the golden's day-2 sheet carries all
+    /// of them, part refs included. A key `SetupSheet` lacked would vanish here,
+    /// and a phone's save would erase it on the server.
+    @Test func aSetupSheetWithEveryKeySurvivesTheOfflinePatch() async throws {
+        let store = try store()
+        try await store.cachePut("/events/7", body: try encode(detail(try event(id: 7, date: "2026-05-01"))))
+
+        let golden = try #require(try JSONSerialization.jsonObject(with: Goldens.body("event-detail")) as? [String: Any])
+        let setups = try #require(golden["setups"] as? [[String: Any]])
+        let sheet = try #require(setups.first { ($0["day"] as? Int) == 2 }?["data"] as? [String: Any])
+        #expect(sheet["tires_f_id"] != nil, "the golden sheet should carry every key")
+
+        _ = try await store.enqueue(
+            method: "PUT", path: "/events/7/setups/2", body: try JSONSerialization.data(withJSONObject: sheet)
+        )
+        let detail = try await decode(EventDetail.self, store.cachedGet("/events/7"))
+        let patched = try #require(detail.setups.first { $0.day == 2 }?.data)
+        let reencoded = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(patched)) as? [String: Any]
+        )
+        #expect(NSDictionary(dictionary: reencoded).isEqual(to: sheet), "re-encoded: \(reencoded)")
     }
 
     @Test func setupSheetsArePatchedIntoTheEventDetail() async throws {
