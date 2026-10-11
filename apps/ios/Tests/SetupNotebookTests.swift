@@ -59,6 +59,14 @@ final class SetupNotebookTests: XCTestCase {
         XCTAssertEqual(SetupNotebook.defaultLoopDay([1, 2], [:]), 1)
     }
 
+    func testAFirstSheetMarksNothingAndALaterOneMarksOnlyWhatChanged() {
+        let first = sheet { $0.tpCold = CornerValues(fl: 26, fr: 26); $0.fuel = 12 }
+        let second = sheet { $0.tpCold = CornerValues(fl: 26, fr: 25.5); $0.fuel = 12 }
+        XCTAssertEqual(SetupNotebook.changedKeys(first, previous: nil), [])
+        XCTAssertEqual(SetupNotebook.changedKeys(second, previous: first), ["tp_cold.fr"])
+        XCTAssertEqual(SetupNotebook.changedKeys(nil, previous: first), [])
+    }
+
     func testTheCollapsedCardSaysWhatIsInsideAsTheWebDoes() {
         XCTAssertEqual(SetupNotebook.summary(pro: false, sheetCount: 2), "Pro")
         XCTAssertEqual(SetupNotebook.summary(pro: true, sheetCount: 0), "pressures, alignment, dampers…")

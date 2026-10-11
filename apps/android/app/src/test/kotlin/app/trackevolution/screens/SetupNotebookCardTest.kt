@@ -11,7 +11,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import app.trackevolution.core.model.CornerValues
 import app.trackevolution.core.model.EventDetail
+import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.serialization.json.Json
@@ -41,6 +43,15 @@ class SetupNotebookCardTest {
         assertEquals("pressures, alignment, dampers…", setupNotebookSummary(pro = true, sheetCount = 0))
         assertEquals("1 day sheet", setupNotebookSummary(pro = true, sheetCount = 1))
         assertEquals("3 day sheets", setupNotebookSummary(pro = true, sheetCount = 3))
+    }
+
+    @Test
+    fun `a first sheet marks nothing and a later one marks only what changed`() {
+        val first = SetupSheet(tpCold = CornerValues(fl = 26.0, fr = 26.0), fuel = 12.0)
+        val second = SetupSheet(tpCold = CornerValues(fl = 26.0, fr = 25.5), fuel = 12.0)
+        assertEquals(emptySet<String>(), changedKeys(first, previous = null))
+        assertEquals(setOf("tp_cold.fr"), changedKeys(second, previous = first))
+        assertEquals(emptySet<String>(), changedKeys(null, previous = first))
     }
 
     @Test
