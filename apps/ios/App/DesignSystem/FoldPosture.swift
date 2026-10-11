@@ -140,15 +140,27 @@ private struct FoldGeometryReader: ViewModifier {
 
     /// The hinge's frame in `proxy`'s space while partially folded, else nil.
     ///
-    /// **The one read the posture needs, and not yet made.** On iOS 27.1 it is
-    /// `proxy.reservedRegions(kind: .division)` behind `#available(iOS 27.1, *)`,
-    /// which needs the iOS 27.1 SDK to compile — Xcode 27.1, which neither CI nor
-    /// the machines this was written on carry yet (epic #277, ticket 2). Until
-    /// then it answers nil, so every device is `.flat` and `RecordingScreen` is
-    /// exactly what it was; everything downstream of this line is built and
-    /// tested, and filling it in is the whole of what is left.
+    /// The one read the posture needs. The query's default options leave out
+    /// inactive regions, and a division is active only while the device is
+    /// partially folded, so "any region at all" is "half-opened"; the `isActive`
+    /// check restates that rather than trusting it.
+    ///
+    /// Two guards, for two different absences. `#available` is the device: on
+    /// iOS 27.0 and below there is no division and the answer is nil, as it is on
+    /// every device that does not fold. `canImport(_version:)` is the **SDK**:
+    /// the call only compiles against iOS 27.1's SwiftUI (module 8.0.85; 27.0's
+    /// is 8.0.84), and both Xcodes ship the same Swift compiler, so
+    /// `#if compiler` cannot tell them apart. A build on Xcode 27.0 therefore
+    /// still compiles — answering nil everywhere — which keeps CI green until it
+    /// moves (epic #277, ticket 2), and is also why **a release archived on 27.0
+    /// ships without the posture** and no test notices.
     private static func division(in proxy: GeometryProxy) -> CGRect? {
-        nil
+        #if canImport(SwiftUI, _version: 8.0.85)
+        if #available(iOS 27.1, *) {
+            return proxy.reservedRegions(kind: .division).first(where: \.isActive)?.frame
+        }
+        #endif
+        return nil
     }
 
     #if DEBUG
