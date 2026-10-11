@@ -77,11 +77,10 @@ public enum OfflineMirrors {
         detail.event.hours = JSMath.round(hours, 10)
 
         // `eventCostCents`: the entered line items summed, nil when there are none.
-        let costItems = [
+        detail.event.costCents = Costs.eventCostCents(
             detail.event.costEntryCents, detail.event.costFuelCents,
-            detail.event.costTravelCents, detail.event.costMiscCents,
-        ].compactMap { $0 }
-        detail.event.costCents = costItems.isEmpty ? nil : costItems.reduce(0, +)
+            detail.event.costTravelCents, detail.event.costMiscCents
+        )
     }
 
     /// The list-shaped row for an event, which is its detail minus the nested

@@ -137,6 +137,16 @@ struct TrackScreen: View {
                             .foregroundStyle(Color(.textMuted))
                     }
                 }
+                // What this track has cost across its past events (#147, NS-40)
+                // — a roll-up, so Pro; each event's own total stays free. Every
+                // past event, dry-only filter or not: a rain weekend still cost
+                // the entry fee.
+                if Entitlement.canViewSpend(auth.entitlement), let spent = SetupNotebook.spentLine(model.allEvents) {
+                    Text(spent)
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                        .accessibilityIdentifier("trackSpent")
+                }
             }
 
             chartCard(model, track)

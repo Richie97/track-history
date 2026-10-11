@@ -57,6 +57,8 @@ struct EventFormScreen: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var model: EventFormModel?
+    /// The cost disclosure, once opened by hand.
+    @State private var costsOpen = false
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -202,6 +204,8 @@ struct EventFormScreen: View {
                             .teInput()
                             .lineLimit(3...6)
                     }
+
+                    costsDisclosure(model)
                 }
             }
 
@@ -241,6 +245,39 @@ struct EventFormScreen: View {
         // The keyboard must not cover the field being typed into; a form this long
         // needs the scroll view to dismiss it interactively too.
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    // MARK: - Costs
+
+    /// What the day cost (#147, NS-40): four line items in dollars behind a
+    /// disclosure, since most events are logged without them — open from the
+    /// start when the event already carries one. The web's *What it cost*.
+    private func costsDisclosure(_ model: EventFormModel) -> some View {
+        DisclosureGroup(isExpanded: Binding(
+            get: { costsOpen || model.hasCosts },
+            set: { costsOpen = $0 }
+        )) {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(Costs.COST_FIELDS) { field in
+                    TEField(label: "\(field.label) ($)") {
+                        TextField(field.placeholder, text: Binding(
+                            get: { model.costs[field.key] ?? "" },
+                            set: { model.costs[field.key] = $0 }
+                        ))
+                        .teInput()
+                        .keyboardType(.decimalPad)
+                        .accessibilityIdentifier("formCost-\(field.key)")
+                    }
+                }
+            }
+            .padding(.top, 12)
+        } label: {
+            Text("What it cost (optional)")
+                .teStyle(.sm)
+                .foregroundStyle(Color(.accentInk))
+        }
+        .tint(Color(.accentInk))
+        .accessibilityIdentifier("formCosts")
     }
 
     // MARK: - Add laps
@@ -406,6 +443,15 @@ final class EventFormModel {
     var temp = ""
     var bestTime = ""
     var notes = ""
+    /// What the day cost (#147, NS-40): each line item as typed, in dollars, by
+    /// its column — `Costs.COST_FIELDS`. Cents only on the way out
+    /// (`Costs.dollarsToCents`), so a half-typed "45." survives a rotation.
+    var costs: [String: String] = [:]
+
+    /// Whether any line item has been typed — the disclosure opens when so.
+    var hasCosts: Bool {
+        costs.values.contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
 
     /// The hand-typed session of the "Add laps" card, new events only.
     var sessionLabel = ""
@@ -461,6 +507,7 @@ final class EventFormModel {
         draft.temp = temp
         draft.bestTime = bestTime
         draft.notes = notes
+        draft.costs = costs
         draft.sessionLabel = sessionLabel
         draft.sessionLaps = sessionLaps
         draft.sessionNotes = sessionNotes
@@ -488,6 +535,7 @@ final class EventFormModel {
         temp = draft.temp
         bestTime = draft.bestTime
         notes = draft.notes
+        costs = draft.costs
         sessionLabel = draft.sessionLabel
         sessionLaps = draft.sessionLaps
         sessionNotes = draft.sessionNotes
@@ -581,6 +629,17 @@ final class EventFormModel {
         temp = Units.tempToDisplay(event.tempF, units).map(String.init) ?? ""
         bestTime = event.bestTimeMs.map { LapTime.fmtMs($0) } ?? ""
         notes = event.notes ?? ""
+        costs = [
+            "cost_entry_cents": Costs.centsToDollars(event.costEntryCents),
+            "cost_fuel_cents": Costs.centsToDollars(event.costFuelCents),
+            "cost_travel_cents": Costs.centsToDollars(event.costTravelCents),
+            "cost_misc_cents": Costs.centsToDollars(event.costMiscCents),
+        ].filter { !$0.value.isEmpty }
+    }
+
+    /// A line item's typed dollars as cents; nil when blank.
+    private func cents(_ key: String) -> Int? {
+        Costs.dollarsToCents(costs[key])
     }
 
     /// The typed temperature as the whole °F the server stores; nil clears it.
@@ -610,6 +669,17 @@ final class EventFormModel {
             return nil
         }
 
+        // A typed cost that isn't a number is refused here rather than saved as
+        // blank: dropping it silently would read as "nothing spent".
+        if let unreadable = Costs.COST_FIELDS.first(where: { field in
+            let text = (costs[field.key] ?? "").trimmingCharacters(in: .whitespaces)
+            return !text.isEmpty && Costs.dollarsToCents(text) == nil
+        }) {
+            let text = (costs[unreadable.key] ?? "").trimmingCharacters(in: .whitespaces)
+            error = "Couldn't read the \(unreadable.label.lowercased()) \"\(text)\" — type dollars, like 450 or 45.50."
+            return nil
+        }
+
         isSaving = true
         defer { isSaving = false }
 
@@ -631,6 +701,10 @@ final class EventFormModel {
                     draft.tempF = storedTemp
                     draft.bestTimeMs = best
                     draft.notes = nilIfEmpty(notes)
+                    draft.costEntryCents = cents("cost_entry_cents")
+                    draft.costFuelCents = cents("cost_fuel_cents")
+                    draft.costTravelCents = cents("cost_travel_cents")
+                    draft.costMiscCents = cents("cost_misc_cents")
                     id = try await api.createEvent(draft)
                     createdId = id
                 }
@@ -662,6 +736,10 @@ final class EventFormModel {
                 patch.tempF = .set(storedTemp)
                 patch.bestTimeMs = .set(best)
                 patch.notes = .set(nilIfEmpty(notes))
+                patch.costEntryCents = .set(cents("cost_entry_cents"))
+                patch.costFuelCents = .set(cents("cost_fuel_cents"))
+                patch.costTravelCents = .set(cents("cost_travel_cents"))
+                patch.costMiscCents = .set(cents("cost_misc_cents"))
                 try await api.updateEvent(id: id, patch)
                 return id
             }

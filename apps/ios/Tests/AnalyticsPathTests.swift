@@ -1,3 +1,4 @@
+import TrackEvolutionKit
 import XCTest
 
 @testable import TrackEvolution
@@ -33,6 +34,8 @@ final class AnalyticsPathTests: XCTestCase {
         (.student(id: 8, page: .lap(eventId: 12, sessionId: 40, lapId: 991)), "/student/:id/event/:id/lap/:id"),
         (.student(id: 8, page: .vehicle(4)), "/student/:id/vehicle/:id"),
         (.trackDaysGuide, "/guide/track-days"),
+        (.setupForm(eventId: 12, day: 2, startFrom: nil), "/event/:id/setup/:day"),
+        (.setupForm(eventId: 12, day: 3, startFrom: SetupSheet()), "/event/:id/setup/:day"),
     ]
 
     func testReportsEachScreenByTheWebsPathShape() {

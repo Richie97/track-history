@@ -279,7 +279,14 @@ struct VehicleScreen: View {
                     TEStatTile(label: "Track hours", value: Garage.fmtHours(garageVehicle.hours)),
                     TEStatTile(label: "Track days", value: "\(garageVehicle.eventDays)"),
                     TEStatTile(label: "Events", value: "\(garageVehicle.eventCount)"),
-                    TEStatTile(label: "Parts spend", value: Garage.fmtCost(model.spendCents) ?? "—")
+                    TEStatTile(label: "Parts spend", value: Garage.fmtCost(model.spendCents) ?? "—"),
+                    // What the car's past track days cost (#147, NS-40): the
+                    // entered costs of its linked events — the server's sum, so
+                    // zero rather than nil when none was costed.
+                    TEStatTile(
+                        label: "Track-day spend",
+                        value: Costs.fmtSpend(garageVehicle.eventCostCents > 0 ? garageVehicle.eventCostCents : nil) ?? "—"
+                    )
                 ])
             } else {
                 TEStatRow(tiles: [
