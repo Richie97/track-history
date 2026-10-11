@@ -181,7 +181,8 @@ not a follow-up:**
      consent banner — `../analytics.js` from `docs/`, and nothing at all
      inside the phones' web view, whose user agent says `TrackEvolution-App`)
      at the end of its `<head>`, and its footer carries the *Cookies* button
-     (`data-consent-open`) that reopens the banner; a new page copies both.
+     (`data-consent-open`) that reopens the banner and the *Veteran-owned
+     business · Speedshift LLC* line (`.footer-vob`); a new page copies all three.
    - Every page carries Open Graph/Twitter-card meta tags. The social preview
      image is `site/og-image.png`, and `public/og-image.png` is an identical
      copy used by the app — the two must stay in sync (regenerate both if the
