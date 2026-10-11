@@ -162,7 +162,7 @@ private struct SetupDayRow: View {
     let onOpen: () -> Void
 
     var body: some View {
-        let changed = sheet.map { Set(Garage.diffSetups(previous, $0).map(\.key)) } ?? []
+        let changed = SetupNotebook.changedKeys(sheet, previous: previous)
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Day \(day)")
@@ -373,6 +373,14 @@ enum SetupNotebook {
         if !pro { return "Pro" }
         if sheetCount > 0 { return "\(sheetCount) day sheet\(sheetCount == 1 ? "" : "s")" }
         return "pressures, alignment, dampers…"
+    }
+
+    /// The keys a day's sheet marks as changed: what differs from the previous
+    /// day's sheet, and nothing when there is no previous sheet — a first sheet
+    /// is the baseline, not a change, as the web's `setupSheetHtml` renders it.
+    static func changedKeys(_ sheet: SetupSheet?, previous: SetupSheet?) -> Set<String> {
+        guard let sheet, let previous else { return [] }
+        return Set(Garage.diffSetups(previous, sheet).map(\.key))
     }
 
     /// The session the loop reads: the latest one that recorded tire pressures.
