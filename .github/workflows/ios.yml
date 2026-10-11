@@ -85,8 +85,10 @@ jobs:
       # Once the image carries Xcode 27.1 the first match may be the iPhone Duo
       # (epic #277); that is fine here — these tests are pure logic and pass on
       # any phone. The *toolchain* is a different matter: the tabletop recorder's
-      # hinge read needs the iOS 27.1 SDK, so when it lands `runs-on` moves to
-      # whichever label carries 27.1 (ticket 2), pinned and said so.
+      # hinge read compiles only against the iOS 27.1 SDK (`FoldPosture.swift`
+      # guards it with `canImport(SwiftUI, _version:)`, so 27.0 still builds,
+      # answering flat), and `runs-on` moves to whichever label carries 27.1
+      # (ticket 2), pinned and said so.
       - name: App unit tests
         working-directory: apps/ios
         run: |

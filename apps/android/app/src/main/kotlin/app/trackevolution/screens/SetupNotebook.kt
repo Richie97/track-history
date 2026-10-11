@@ -187,7 +187,7 @@ private fun SetupDayRow(
     onOpen: () -> Unit,
 ) {
     val colors = TrackTheme.colors
-    val changed = if (sheet == null) emptySet() else Garage.diffSetups(previous, sheet).map { it.key }.toSet()
+    val changed = changedKeys(sheet, previous)
     Column(Modifier.fillMaxWidth().testTag("setupDay-$day")) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Day $day", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
@@ -387,6 +387,16 @@ internal fun setupNotebookSummary(pro: Boolean, sheetCount: Int): String = when 
     sheetCount > 0 -> "$sheetCount day sheet${if (sheetCount == 1) "" else "s"}"
     else -> "pressures, alignment, dampers…"
 }
+
+/**
+ * The keys a day's sheet marks as changed: what differs from the previous day's
+ * sheet, and nothing when there is no previous sheet — a first sheet is the
+ * baseline, not a change, as the web's `setupSheetHtml` renders it. iOS's
+ * `SetupNotebook.changedKeys`.
+ */
+internal fun changedKeys(sheet: SetupSheet?, previous: SetupSheet?): Set<String> =
+    if (sheet == null || previous == null) emptySet()
+    else Garage.diffSetups(previous, sheet).map { it.key }.toSet()
 
 /**
  * The days a notebook has a row for: every day of the event (a fractional day

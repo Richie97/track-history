@@ -236,8 +236,9 @@ At expanded width the page is **two columns inside the detail pane**:
   since the iPhone Duo and iOS 27.1 (`reservedRegions(kind: .division)`), and
   epic #277 ticket 3 ports this layout to iOS — `Folds.geometry` under the same
   name in `apps/ios/App/DesignSystem/FoldPosture.swift`, the tabletop layout in
-  `RecordingScreen`. Until the app builds with Xcode 27.1 the division read is
-  a stub answering flat, so the iOS record screen is unchanged in practice.
+  `RecordingScreen`. The division read compiles only against the iOS 27.1 SDK
+  (`#if canImport(SwiftUI, _version: 8.0.85)`); a build on Xcode 27.0 answers
+  flat everywhere, so the shipping archive has to be made on 27.1.
 
 ## Foldables
 
