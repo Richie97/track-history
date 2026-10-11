@@ -274,12 +274,19 @@ struct APIClientTests {
         #expect(drafted.keys.sorted() == ["catalog_id", "name"])
     }
 
-    @Test func aSessionPatchAlwaysSendsBothColumns() throws {
-        let encoded = try JSONEncoder().encode(SessionPatch(label: "Session 4"))
-        let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-        // The route writes `SET label = ?, notes = ?` unconditionally.
-        #expect(json.keys.sorted() == ["label", "notes"])
-        #expect(json["notes"] is NSNull)
+    @Test func aSessionPatchSendsOnlyTheKeysItChanges() throws {
+        // The route writes only the keys present (NS-40): a rename must not
+        // carry a `notes` key, or it would clear the notes.
+        let renamed = try JSONEncoder().encode(SessionPatch(label: .set("Session 4")))
+        let json = try #require(JSONSerialization.jsonObject(with: renamed) as? [String: Any])
+        #expect(json.keys.sorted() == ["label"])
+        #expect(json["label"] as? String == "Session 4")
+
+        let cleared = try JSONEncoder().encode(SessionPatch(notes: .set(nil)))
+        let clearedJson = try #require(JSONSerialization.jsonObject(with: cleared) as? [String: Any])
+        #expect(clearedJson.keys.sorted() == ["notes"])
+        #expect(clearedJson["notes"] is NSNull)
+        #expect(SessionPatch().isEmpty)
     }
 
     @Test func aTrackRenameNeverSendsANullName() throws {
@@ -289,6 +296,37 @@ struct APIClientTests {
         let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         #expect(json.keys.sorted() == ["goal_ms"])
         #expect(json["goal_ms"] as? Int == 120_000)
+    }
+
+    @Test func setupSheetsArePrefilledPutAndDeletedByDay() async throws {
+        let seen = Recorder()
+        let api = client { request in
+            seen.record(request)
+            let golden = switch request.httpMethod {
+            case "GET": "event-setups-prefill"
+            case "DELETE": "setup-delete"
+            default: "setup-upsert"
+            }
+            return (200, try Goldens.body(golden))
+        }
+        _ = try await api.setupPrefill(eventId: 4, day: 2)
+        #expect(seen.last?.url?.absoluteString == "https://example.test/api/events/4/setups/prefill?day=2")
+
+        var sheet = SetupSheet()
+        sheet.tpCold = CornerValues(fl: 27.56)
+        sheet.tiresFId = 7
+        try await api.putSetup(eventId: 4, day: 2, sheet)
+        #expect(seen.last?.httpMethod == "PUT")
+        #expect(seen.last?.url?.absoluteString == "https://example.test/api/events/4/setups/2")
+        let body = try #require(seen.lastBody)
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        // Only what the sheet carries: an absent key is an unrecorded value.
+        #expect(json.keys.sorted() == ["tires_f_id", "tp_cold"])
+        #expect((json["tp_cold"] as? [String: Any])?["fl"] as? Double == 27.56)
+
+        try await api.deleteSetup(eventId: 4, day: 2)
+        #expect(seen.last?.httpMethod == "DELETE")
+        #expect(seen.last?.url?.absoluteString == "https://example.test/api/events/4/setups/2")
     }
 
     @Test func recordedLapsAreSentAsMilliseconds() async throws {

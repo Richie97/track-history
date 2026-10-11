@@ -53,12 +53,24 @@ public struct CornerValues: Codable, Hashable, Sendable {
     public var fr: Double?
     public var rl: Double?
     public var rr: Double?
+
+    public init(fl: Double? = nil, fr: Double? = nil, rl: Double? = nil, rr: Double? = nil) {
+        self.fl = fl
+        self.fr = fr
+        self.rl = rl
+        self.rr = rr
+    }
 }
 
 /// Per-axle values: front, rear.
 public struct AxleValues: Codable, Hashable, Sendable {
     public var f: Double?
     public var r: Double?
+
+    public init(f: Double? = nil, r: Double? = nil) {
+        self.f = f
+        self.r = r
+    }
 }
 
 /// One day's setup sheet as returned inside an event's detail.
@@ -68,6 +80,11 @@ public struct Setup: Codable, Hashable, Sendable, Identifiable {
     public var data: SetupSheet
 
     public var id: Int { day }
+
+    public init(day: Int, data: SetupSheet) {
+        self.day = day
+        self.data = data
+    }
 }
 
 /// `GET /api/events/:id/setups/prefill` — the copy-forward prefill for a blank

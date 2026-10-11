@@ -182,7 +182,7 @@ public enum Units {
     }
 
     /// `Number.prototype.toFixed(dp)`: a fixed number of decimals, ties rounded up.
-    static func toFixed(_ v: Double, _ dp: Int) -> String {
+    public static func toFixed(_ v: Double, _ dp: Int) -> String {
         let factor = pow(10.0, Double(dp))
         return String(format: "%.\(dp)f", JSMath.round(v, factor))
     }
@@ -198,7 +198,7 @@ public enum Units {
     }
 
     /// `${m}` for a metre count: a whole number prints without a decimal.
-    static func jsNumber(_ v: Double) -> String {
+    public static func jsNumber(_ v: Double) -> String {
         v == v.rounded() && abs(v) < 1e15 ? String(Int(v)) : String(v)
     }
 }

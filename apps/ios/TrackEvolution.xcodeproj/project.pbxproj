@@ -19,6 +19,7 @@
 		1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC08E6DAFEE98F1569066E49 /* TokenGallery.swift */; };
 		16F76D3ABFB5F0B3629DEE17 /* WrappedScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9570CFC110307BABC907C9 /* WrappedScreen.swift */; };
 		1F8CC9EE19DF817203CC8DE4 /* RouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78F6C833C2E45EF6248BB416 /* RouterTests.swift */; };
+		AFB090680E48174DA0AD1EFA /* SetupNotebookTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4DC018E6DACCD724A8C171 /* SetupNotebookTests.swift */; };
 		212E41370DD7175B47DE9DDB /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF71BFD1447FEAD3D7528461 /* LocationService.swift */; };
 		2639E291816F71B3EB423DD9 /* LayoutClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E6005E048856702DE32420 /* LayoutClass.swift */; };
 		293C075351115201DCE5537C /* LayoutTokens.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D436F55509605E4D98ECE48 /* LayoutTokens.generated.swift */; };
@@ -91,6 +92,8 @@
 		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
 		D6C3C7BA8C69F7A9AEB93473 /* EventFormDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABAAE67FE76AB66F49B1FC14 /* EventFormDraft.swift */; };
 		D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D029EFD956A7AC879046769 /* SettingsScreen.swift */; };
+		E11143BAF25E9EDECCB80C3D /* SetupFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B0E4A2D1B32EEE5278B2BD /* SetupFormScreen.swift */; };
+		4B48D5CB756590ED4771D55B /* SetupNotebook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A954D4DFCF10536136EA5 /* SetupNotebook.swift */; };
 		5C7A9E2D41B83F06A2D9C113 /* TrackDaysGuideScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3B61F0A4C92D7751E0B6A8 /* TrackDaysGuideScreen.swift */; };
 		DA264BA1CC72048E06DF405D /* TelemetryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */; };
 		DAE2D0644FF52D0956D4E4B9 /* ChannelGraphsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2133654268DDDB033D753977 /* ChannelGraphsUITests.swift */; };
@@ -175,12 +178,15 @@
 		684F8FFC9870756AC968E1E6 /* SignInScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInScreen.swift; sourceTree = "<group>"; };
 		6C37B0DDB941D4C18A32BA87 /* TrackScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackScreen.swift; sourceTree = "<group>"; };
 		6D029EFD956A7AC879046769 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		08B0E4A2D1B32EEE5278B2BD /* SetupFormScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupFormScreen.swift; sourceTree = "<group>"; };
+		4C7A954D4DFCF10536136EA5 /* SetupNotebook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupNotebook.swift; sourceTree = "<group>"; };
 		8E3B61F0A4C92D7751E0B6A8 /* TrackDaysGuideScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDaysGuideScreen.swift; sourceTree = "<group>"; };
 		6EA73ABB4BB40CF826F60AF4 /* LinePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinePickerView.swift; sourceTree = "<group>"; };
 		6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineWritesUITests.swift; sourceTree = "<group>"; };
 		701AF92200EE69ABFB9FD787 /* AppAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAnalytics.swift; sourceTree = "<group>"; };
 		77AAF51B0B3269B08721385C /* ThemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreference.swift; sourceTree = "<group>"; };
 		78F6C833C2E45EF6248BB416 /* RouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterTests.swift; sourceTree = "<group>"; };
+		5D4DC018E6DACCD724A8C171 /* SetupNotebookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupNotebookTests.swift; sourceTree = "<group>"; };
 		79F49713447F61795FB0C3F5 /* ChannelPanelKeyboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPanelKeyboardUITests.swift; sourceTree = "<group>"; };
 		7AA462858C458A9A04843E98 /* CoachInviteScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachInviteScreen.swift; sourceTree = "<group>"; };
 		7CE53488843E1D73126026F6 /* ChecklistTemplateUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistTemplateUITests.swift; sourceTree = "<group>"; };
@@ -315,6 +321,8 @@
 				85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */,
 				BA6A3D0739BB464BEAE8AE8E /* LeaderboardScreen.swift */,
 				6D029EFD956A7AC879046769 /* SettingsScreen.swift */,
+				08B0E4A2D1B32EEE5278B2BD /* SetupFormScreen.swift */,
+				4C7A954D4DFCF10536136EA5 /* SetupNotebook.swift */,
 				8E3B61F0A4C92D7751E0B6A8 /* TrackDaysGuideScreen.swift */,
 				AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */,
 				6C37B0DDB941D4C18A32BA87 /* TrackScreen.swift */,
@@ -375,6 +383,7 @@
 				B8DBFF02978726AA4E08D545 /* LayoutClassTests.swift */,
 				43C910E5711C4568839C4E16 /* PlatformTests.swift */,
 				78F6C833C2E45EF6248BB416 /* RouterTests.swift */,
+				5D4DC018E6DACCD724A8C171 /* SetupNotebookTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -691,6 +700,8 @@
 				51CF45A0E84DE89AA15DB4D7 /* Router.swift in Sources */,
 				791FD58FCA19C993DB62F19D /* SectorTable.swift in Sources */,
 				D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */,
+				E11143BAF25E9EDECCB80C3D /* SetupFormScreen.swift in Sources */,
+				4B48D5CB756590ED4771D55B /* SetupNotebook.swift in Sources */,
 				5C7A9E2D41B83F06A2D9C113 /* TrackDaysGuideScreen.swift in Sources */,
 				4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */,
 				48D153C4F58B8B1A62F7A616 /* SharedLogbookScreen.swift in Sources */,
@@ -728,6 +739,7 @@
 				EB1D1E92428310BA3AAE7BAD /* LayoutClassTests.swift in Sources */,
 				6BC3D2B49F8F35A46F7CF8E5 /* PlatformTests.swift in Sources */,
 				1F8CC9EE19DF817203CC8DE4 /* RouterTests.swift in Sources */,
+				AFB090680E48174DA0AD1EFA /* SetupNotebookTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

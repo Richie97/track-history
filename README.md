@@ -233,9 +233,9 @@ web view. The backend and the web app (`public/`) were unchanged by that work.
 
 **There are three clients, and "add it everywhere" is not the default.** The
 web app is the feature frontier and keeps the desk-bound long tail (year in
-review, the setup notebook and its lap-time
-correlation); the native apps own the on-track path — recording, the logbook you
-check between sessions, the garage you check before an event, CarPlay, and
+review, the setup-vs-lap-times correlation); the native apps own the on-track
+path — recording, the logbook you check between sessions, the garage you check
+before an event, the setup notebook you fill in at the car, CarPlay, and
 **video**, **`.vbo`** and Track Precision **`.csv`** import, which belong on the
 device the file is already on. The
 split is deliberate and is recorded per feature in
@@ -258,9 +258,12 @@ on the event page is a door to its own screen — the time and the gap to the
 session's best, the racing line when it is the lap the trace was drawn from,
 its own channel traces, and a *Compare laps* control that opens the session's
 overlay with that lap lit beside the best (the web keeps its chips-as-lap-list
-layout with the best lap pre-selected). The setup notebook, the setup-vs-lap-times
-diff, year in review and the two-event overlay stay web-only by design; Season
-Wrapped is on all three.
+layout with the best lap pre-selected). **The setup notebook is native on both
+phones** (NS-40): a card per event day on the event page with the changed
+values marked, a form per day that copies the day before forward, and the
+tire-pressure loop under it — as are session notes and the track-day cost
+fields. The setup-vs-lap-times diff, year in review and the two-event overlay
+stay web-only by design; Season Wrapped is on all three.
 
 **One download link for both stores:** `https://trackevolution.app/get`
 (`src/routes/download.ts`) redirects an iPhone, iPod or iPad to the App Store
@@ -843,8 +846,9 @@ and the lateral-G and yaw traces), and *Car* (the session health strip);
 only tabs with content render, and a session with one populated tab renders
 flat. All of it — the tabs, the ribbon, the shift points, the limit marks and
 their bands, the friction circle, the balance read-out and the Car tab's health
-strip — is on the web app and both phone apps; only the tire-pressure loop
-below stays web-only, because the setup notebook it writes to is.
+strip — is on the web app and both phone apps, and so, since NS-40, is the
+tire-pressure loop below (on the phones it sits under the setup notebook on
+the event page rather than on the Car tab).
 
 **Session health** ([#190](https://github.com/Richie97/track-history/issues/190),
 `public/js/health.js`) is the Car tab: the fourteen per-lap scalars plus
@@ -870,8 +874,10 @@ and pinned for both by `contracts/logic/health.json`; each client draws its own
 cards and their sparklines but not the per-lap table — fifteen columns is a
 desk layout, and the sparkline carries the shape in the width a phone has.
 
-The tab also closes the **tire-pressure loop** the setup notebook opens, and
-this half is web-only because the notebook is: the sheet records the cold
+The tab also closes the **tire-pressure loop** the setup notebook opens —
+on the web here, on the phones under the notebook on the event page, all of
+them writing through the same pinned `recordHotSheet` / `nextDaySheet`
+(`contracts/logic/setups.json`): the sheet records the cold
 pressures set in the morning, the import knows the hot pressures the tires
 reached (the highest end-of-lap reading per corner), and a per-vehicle
 **target hot pressure** (`vehicles.target_hot_psi`, set right there on the
@@ -1169,12 +1175,12 @@ privacy label and Play's Data safety form.
 - **What a day cost** ([#147](https://github.com/Richie97/track-history/issues/147))
   — four optional line items on an event (entry fee, fuel, travel & lodging,
   misc; `events.cost_*_cents`, migration `0025`, whole cents validated by
-  `isValidCostCents` in `src/lib/costs.ts`), entered in dollars on the web
-  event form and summed into `cost_cents` by `withComputed` — **null when
+  `isValidCostCents` in `src/lib/costs.ts`), entered in dollars on the
+  event form of every client and summed into `cost_cents` by `withComputed` — **null when
   nothing was entered**, never zero, so an uncosted day drops out of every
   roll-up instead of reading as free. Entering them is free; the roll-ups
   across events are **Pro** (`canViewSpend`, NS-37 — one event's own total
-  stays free), web-only for now, and
+  stays free), on the web and — for the track and car pages — both phones, and
   count past events only, on the totals' rule: the track page says what a
   track has cost, the vehicle page adds the car's track days to its parts
   spend (`event_cost_cents` / `parts_cost_cents` on `GET /api/garage`), and
@@ -1182,8 +1188,9 @@ privacy label and Play's Data safety form.
   found — spend ÷ the seconds its best dropped against every year before
   (`cents_per_second` in `public/js/year-review.js`, null without a spend or a
   gain). Costs are private: the share payload strips the line items and the
-  total. The native apps decode and carry the fields (a phone edit never drops
-  one) and show nothing yet — `docs/specs/native/README.md`.
+  total. Both phones enter and show them since NS-40 — a *What it cost*
+  disclosure on the event form, a *Cost* tile and breakdown on the event page
+  — through `Costs` in the Kit and `:core`, pinned by `contracts/logic/costs.json`.
 - **Prep checklists** hang off an upcoming event: tick items off as you pack,
   and the dashboard's countdown card shows how far through you are. The list a
   new checklist starts from is **yours to edit** — account menu → Settings → Prep
@@ -1382,7 +1389,9 @@ on the top bar's *Garage* link and the dashboard's next-event hero:
   shows every sheet at that track with what changed between sheets next to
   the event's best/consistency. An imported session's hot tire pressures can
   be written onto the day's sheet from the channel panel's Car tab, with the
-  suggested cold pressures for next time (see *Session health* above).
+  suggested cold pressures for next time (see *Session health* above). The
+  notebook and that loop are on both phones too (NS-40); the "Setup vs. lap
+  times" table stays on the web.
 - **Spend** — the vehicle page's *Spent* tile is the car's parts (every
   part ever fitted, retired ones included) plus what its past track days cost
   (the events' cost line items, #147), both summed server-side on

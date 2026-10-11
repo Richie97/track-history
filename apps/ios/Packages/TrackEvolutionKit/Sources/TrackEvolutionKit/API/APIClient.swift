@@ -228,6 +228,30 @@ public actor APIClient {
         var laps: [Int]
     }
 
+    // MARK: - Setup sheets (NS-40)
+
+    /// The copy-forward prefill for a blank day's form: the latest earlier
+    /// day's sheet, else the car's last event's — nil when there is nothing to
+    /// copy. Pro on the server, like every setup route.
+    public func setupPrefill(eventId: Int, day: Int) async throws -> SetupSheet? {
+        try await get(
+            "/events/\(eventId)/setups/prefill",
+            query: [URLQueryItem(name: "day", value: String(day))],
+            as: SetupPrefill.self
+        ).data
+    }
+
+    /// Writes one day's sheet, replacing whatever was there. Queues offline,
+    /// like the web's (`QUEUEABLE`), and the queued write patches the cached
+    /// event so the notebook shows it at once.
+    public func putSetup(eventId: Int, day: Int, _ sheet: SetupSheet) async throws {
+        _ = try await send("PUT", "/events/\(eventId)/setups/\(day)", body: sheet, as: OKResponse.self)
+    }
+
+    public func deleteSetup(eventId: Int, day: Int) async throws {
+        _ = try await send("DELETE", "/events/\(eventId)/setups/\(day)", body: NoBody?.none, as: OKResponse.self)
+    }
+
     /// Stand-in body type for requests that don't have one.
     private struct NoBody: Encodable {}
 

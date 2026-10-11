@@ -32,6 +32,8 @@ struct EventFormDraft: Equatable {
     var temp = ""
     var bestTime = ""
     var notes = ""
+    /// The cost line items as typed, in dollars, by column (`Costs.COST_FIELDS`).
+    var costs: [String: String] = [:]
 
     var sessionLabel = ""
     var sessionLaps = ""

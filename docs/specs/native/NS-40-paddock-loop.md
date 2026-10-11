@@ -195,6 +195,19 @@ The same screens as iOS, the Android way:
   `eventId`, since an offline-created event can carry a sheet before it
   syncs.
 
+### As built
+
+One decision changed in the building, on both phones alike: **the pressure
+loop sits under the setup notebook on the event page, not on the channel
+panel's Car tab.** Below expanded width that panel is a sheet on iOS and a
+destination of its own on Android, so a loop there would write to a notebook
+the driver can't see. The loop reads the latest session that recorded tire
+pressures — the last one out is the one the next colds are for — and compares
+it against the latest day whose sheet carries cold pressures (the web's
+`defaultHealthDay`). The web keeps it on the Car tab, where it can pick any
+session. Everything the loop writes is the same pinned `recordHotSheet` /
+`nextDaySheet` on every client.
+
 ## Docs owed (in the same PRs)
 
 - `docs/specs/native/README.md`: the product split, the deferred list (the

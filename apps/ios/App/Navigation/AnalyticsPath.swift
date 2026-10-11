@@ -32,6 +32,9 @@ extension Route {
         case .student(_, let page): "/student/:id" + page.analyticsPath
         // A docs-site page, not a web-app route; named in the same idiom.
         case .trackDaysGuide: "/guide/track-days"
+        // The web edits a sheet inline on the event page; the phones give it a
+        // page, named in the same idiom. The day is a position, not a record id.
+        case .setupForm: "/event/:id/setup/:day"
         }
     }
 

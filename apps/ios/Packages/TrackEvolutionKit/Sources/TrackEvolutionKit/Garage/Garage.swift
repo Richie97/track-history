@@ -4,10 +4,9 @@ import Foundation
 ///
 /// A port of the consumable half of `public/js/garage.js` plus `garageAlerts` from
 /// `public/app.js`, keeping the JS function and constant names so the two diff by
-/// eye. The setup-sheet half of that file (`SETUP_FIELDS`, `flattenSetup`,
-/// `diffSetups`) is **not** here: the setup notebook is a separate deferred
-/// feature (`docs/specs/native/README.md`), and porting its spec without its UI
-/// would be dead code that silently drifts from `sanitizeSetup`.
+/// eye. Since NS-40 the setup-sheet half of that file is ported too, in
+/// `SetupSheets.swift` (`SETUP_FIELDS` … `diffSetups`, `previousSheet`), pinned
+/// by `contracts/logic/setups.json`, because the phones carry the setup notebook.
 ///
 /// **The wear math is not here either, and must not be added.** `wearEstimate` in
 /// `src/lib/wear.ts` runs on the server and arrives pre-computed on every part

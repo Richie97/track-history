@@ -51,6 +51,7 @@ turns lap times into analysis.
 | Best lap per track, progress chart, consistency, per-session stats | Free | — |
 | Public share pages, per-track leaderboards | Free | — (share is unauthenticated; a leaderboard behind a paywall is empty) |
 | Offline reads and writes, prep checklist, themes, Settings | Free | — |
+| Session labels and notes, edited after the fact ([NS-40](NS-40-paddock-loop.md)) | Free | — (a write; no write is gated) |
 | The garage's **vehicle list** (pre-fills the car field) | Free | — |
 | The **Garage** page / tab, its car tiles and **+ Add car**, and each car's page with its logbook — track days, events, last and next event, best lap per track ([NS-37](NS-37-garage-tab.md)) | Free | — (computed on the client from `/vehicles` and `/events`; the Pro sections below render locked in place) |
 | Track-day **cost entry** — the four line items on the event form, and one event's own total | Free | — (a write; no write is gated) |
@@ -61,8 +62,8 @@ turns lap times into analysis.
 | The rest of the channel panel: steering, RPM, lateral G, yaw, the gear ribbon + shift points, limit marks (ABS / slip on the track map), the friction circle and balance, the Car tab; the lap delta chart, sector splits, the two-lap compare | **Pro** | Server: every channel beyond `FREE_CHANNELS` and every per-lap scalar stripped from `channels` (rule 4); client: `canViewChannels` for the delta, the sectors and the compare, which derive from the free speed trace |
 | Two-event lap overlay (web) | **Pro** | Client |
 | Garage **consumables**: parts, wear, measurements, refresh, equip and when in a track day a swap happened, ledger | **Pro** | Server: `requireEntitlement` on the parts/measurements routes and `GET /garage` |
-| Setup notebook + setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes |
-| Session health strip (the Car tab, [#190](https://github.com/Richie97/track-history/issues/190)) and its tire-pressure loop (web) | **Pro** | Server: rides on `channels` (rule 4) and, for the loop, the setups routes; the vehicle's `target_hot_psi` itself is a free vehicle-list field |
+| Setup notebook — every client since [NS-40](NS-40-paddock-loop.md) — and the setup-vs-lap-times diff (web) | **Pro** | Server: `requireEntitlement` on the setups routes; client: `canUseSetups` locks the notebook in place |
+| Session health strip (the Car tab, [#190](https://github.com/Richie97/track-history/issues/190)) and its tire-pressure loop (every client since NS-40; under the notebook on the phones) | **Pro** | Server: rides on `channels` (rule 4) and, for the loop, the setups routes; the vehicle's `target_hot_psi` itself is a free vehicle-list field |
 | Year in review (web) | **Pro** | Client |
 | Season Wrapped — the story, the poster and its public share (web, [NS-36](NS-36-season-wrapped.md)) | Free | — (the share is the acquisition loop; a paywalled poster is a dead one) |
 | Season Wrapped — the favorite-tire and top-speed cards | **Pro** | Server: the `pro` field of `GET /api/wrapped/:year` is `null` for a free account, the way `channels` is stripped (rule 4); the client draws the two cards locked |
