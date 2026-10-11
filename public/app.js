@@ -52,6 +52,7 @@ import { initPullRefresh } from "./js/pull-refresh.js";
 import { initAnalytics, openConsentBanner, trackPageView } from "./js/analytics.js";
 import { PROFILE_GROUPS, profileBody, profileSections } from "./js/profile.js";
 import { inviteExpiryText, lastViewedText, studentLine } from "./js/coaching.js";
+import { EXPORT_FILES, EXPORT_OFFLINE, exportErrorText, exportFilename, exportStoppedPartway, exportUrl } from "./js/export.js";
 import {
   canCompareEvents, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
@@ -2928,6 +2929,9 @@ function subscriptionPanelHtml() {
   </div>`;
 }
 
+// Whether the browser says it is offline — an export needs the server.
+const exportOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
+
 async function viewSettings() {
   // The user's own list, or the built-in one shown as the starting point.
   const template = checklistTemplate();
@@ -2999,6 +3003,22 @@ async function viewSettings() {
     <h2>AI assistants</h2>
     <div class="hint" style="margin:0 0 4px">With Pro, you can connect Claude, ChatGPT or another AI assistant to your logbook and ask it about your laps, sessions and garage. It can read your data and can't change anything. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
     <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
+    <h2>Your data</h2>
+    <div class="hint" style="margin:0 0 4px">Download a copy of everything you've put in the logbook — yours to keep, whatever your plan, including the telemetry, garage and setup sheets only Pro shows.</div>
+    <div class="panel" id="export-panel">
+      <div class="btn-row">
+        ${EXPORT_FILES.map(
+          (f) => `<button type="button" class="btn small" data-export="${f.kind}"${exportOffline() ? " disabled" : ""}>${f.label}</button>`
+        ).join("")}
+      </div>
+      <label class="dry-toggle" style="float:none;display:flex;margin-top:12px">
+        <input type="checkbox" id="export-telemetry"> Include telemetry in the JSON
+      </label>
+      <div class="hint" style="margin:6px 0 0">Telemetry makes the file much larger — about 1 MB per imported or recorded session. The CSVs open in any spreadsheet; the JSON holds everything, in the units the app stores.</div>
+      <div id="export-status" role="status" aria-live="polite">${
+        exportOffline() ? `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>` : ""
+      }</div>
+    </div>
     <h2>Subscription</h2>
     ${subscriptionPanelHtml()}
     <h2>New to track days?</h2>
@@ -3079,6 +3099,52 @@ async function viewSettings() {
   });
   const tmplReset = view.querySelector("#tmpl-reset");
   if (tmplReset) tmplReset.onclick = () => saveTemplate([]);
+
+  // --- your data (NS-44) ---
+  // Fetched rather than opened as plain links, so a refusal (the per-minute
+  // limit, an expired session) or a JSON export that stopped partway is said
+  // here in words instead of being saved as the file. Never through api(): an
+  // export is a download, not data for the offline cache.
+  const exportStatus = view.querySelector("#export-status");
+  const exportButtons = [...view.querySelectorAll("[data-export]")];
+  exportButtons.forEach((btn) => {
+    btn.onclick = async () => {
+      if (exportOffline()) {
+        exportStatus.innerHTML = `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>`;
+        return;
+      }
+      const kind = btn.dataset.export;
+      const telemetry = view.querySelector("#export-telemetry").checked;
+      exportButtons.forEach((b) => (b.disabled = true));
+      exportStatus.innerHTML = `<div class="hint" style="margin:8px 0 0">Preparing ${esc(btn.textContent)}…</div>`;
+      try {
+        const res = await fetch(exportUrl(kind, telemetry), { credentials: "same-origin" });
+        if (!res.ok) throw new Error(exportErrorText(res.status, await res.json().catch(() => null)));
+        const blob = await res.blob();
+        if (kind === "logbook" && exportStoppedPartway(await blob.slice(-4096).text())) {
+          throw new Error("The export stopped partway through, so the file would be incomplete. Try again.");
+        }
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = exportFilename(kind, res.headers.get("Content-Disposition"));
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+        if (exportStatus.isConnected) {
+          exportStatus.innerHTML = `<div class="hint" style="margin:8px 0 0">Downloaded ${esc(a.download)}.</div>`;
+        }
+      } catch (err) {
+        if (exportStatus.isConnected) {
+          exportStatus.innerHTML = `<div class="error-banner">${esc(
+            err instanceof TypeError ? EXPORT_OFFLINE : err.message
+          )}</div>`;
+        }
+      } finally {
+        exportButtons.forEach((b) => (b.disabled = exportOffline()));
+      }
+    };
+  });
 
   // --- connected AI assistants (MCP, #316) ---
   // Loaded after the page draws: it is the one section that needs its own

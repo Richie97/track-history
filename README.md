@@ -1738,6 +1738,41 @@ Wrapped, which is free.
   cached responses (`ApiClient.forgetStudent`) and says the logbook is no
   longer shared.
 
+## Exporting your logbook
+
+**Settings → Your data** on the web downloads a copy of everything a driver has
+put in (NS-44, `docs/specs/native/NS-44-web-export.md`):
+
+- `GET /api/export/laps.csv` — one row per lap: event, session, lap number,
+  `lap_time_ms` and `m:ss.fff`, whether it was the session's best, whether it
+  was **clean** (within 107% of the session's best, NS-42's rule, so a
+  spreadsheet can reproduce the consistency figure) and whether it was
+  device-timed.
+- `GET /api/export/events.csv` — one row per event, newest first, with the
+  computed best, consistency, hours and costs in dollars; an upcoming event's
+  computed columns are empty.
+- `GET /api/export/logbook.json?telemetry=1` — the whole logbook as one
+  document, led by `{ format: "track-evolution-export", version: 1, … }` and a
+  `units` legend: profile and preferences, tracks, events with their sessions,
+  laps and setup sheets, the garage (vehicles → parts → mounts and
+  measurements), and `access` (coaches, students and assistants by name, the
+  subscription by state). `telemetry=1` adds every session's `channels`.
+
+The export is **complete for every account** — a free account's file carries
+the channels, garage and setup sheets the app only draws with Pro — and in
+**stored units with the API's own names**, like the MCP tools. It never holds a
+credential, a hash, a store identifier or a provider subject; the API test
+walks the whole file for `FORBIDDEN_EXPORT_KEYS`. The JSON is **streamed**
+(`JsonStream` in `src/lib/export.ts`): the channel blobs are read ten sessions
+at a time and spliced in as stored, and a failure partway ends the document
+with an `error` member, which the web reports instead of saving the file.
+
+The files are fetched rather than opened as plain links, so a refusal is said
+in words; `sw.js` never caches `/api/export/`, and the coach mount can't reach
+it. The `EXPORT` rate-limit binding allows 5 exports a minute per user (the
+binding's longest window is a minute), answering 429 with `Retry-After: 60`;
+its `namespace_id` is account-scoped like the MCP ones.
+
 ## AI assistants (MCP)
 
 Pro users can connect Claude, ChatGPT, Claude Code, Cursor or any other
@@ -1812,8 +1847,8 @@ Nothing to configure on deploy beyond applying migration `0028`. Claude users ca
   from their providers' servers, so an IP stands for thousands of users and
   only the Worker can tell connections apart. 60 `/mcp` requests a minute per
   connection, 10 token requests a minute per client, 60 registrations a minute
-  per IP; each answers 429 with `Retry-After: 60`. The three `namespace_id`s
-  are account-scoped — change them if another Worker on the account uses them.
+  per IP; each answers 429 with `Retry-After: 60`. The `namespace_id`s (these
+  three and the logbook export's `EXPORT`) are account-scoped — change them if another Worker on the account uses them.
   A fork without the bindings runs unlimited.
 - **CORS** is answered (`*`, no credentials) on `/mcp`, the token/register/
   revoke endpoints and the discovery documents only — bearer-token surfaces a
