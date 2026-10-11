@@ -163,7 +163,8 @@ not a follow-up:**
      terms of use (operator: Speedshift LLC). In the app they're linked from
      the Settings page (account dropdown → Settings) on every platform, and
      additionally from the footer (`footerHtml({ legal: true })` in
-     `public/app.js`) on signed-out and public share pages, where Settings
+     `public/app.js`, which on every page also carries the *Veteran-owned
+     business* line beside the copyright, as the site's footer does) on signed-out and public share pages, where Settings
      isn't reachable; the native apps render no footer at all. Update the
      privacy policy when data
      collection, storage, or sharing behavior changes, and bump the effective
@@ -181,7 +182,8 @@ not a follow-up:**
      consent banner — `../analytics.js` from `docs/`, and nothing at all
      inside the phones' web view, whose user agent says `TrackEvolution-App`)
      at the end of its `<head>`, and its footer carries the *Cookies* button
-     (`data-consent-open`) that reopens the banner; a new page copies both.
+     (`data-consent-open`) that reopens the banner and the *Veteran-owned
+     business · Speedshift LLC* line (`.footer-vob`); a new page copies all three.
    - Every page carries Open Graph/Twitter-card meta tags. The social preview
      image is `site/og-image.png`, and `public/og-image.png` is an identical
      copy used by the app — the two must stay in sync (regenerate both if the

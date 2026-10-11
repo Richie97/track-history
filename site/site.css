@@ -358,6 +358,9 @@ section.alt { background: var(--bg-subtle); border-block: 1px solid var(--border
 }
 .site-footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .site-footer a { color: var(--text-muted); }
+.footer-about { display: flex; flex-direction: column; gap: 6px; }
+.footer-vob { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-weight: 500; }
+.footer-vob-star { width: 14px; height: 14px; fill: var(--accent-ink); flex: none; }
 
 /* ---------- Docs layout ---------- */
 .docs-layout {

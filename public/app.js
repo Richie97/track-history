@@ -563,6 +563,7 @@ function footerHtml({ legal = false } = {}) {
   return `<footer class="site-footer">
     <span class="footer-left">
       <span>© ${new Date().getFullYear()} Speedshift LLC</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business</span>
       ${
         legal
           ? `<a class="footer-link" href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy</a>
