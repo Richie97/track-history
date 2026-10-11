@@ -257,11 +257,15 @@ async function build(api) {
   const bare = await api("POST", "/events", FIXTURE.bareEvent);
 
   // --- sessions and laps --------------------------------------------------
-  // 4 laps: enough for consistency (needs 3+).
+  // 4 clean laps — enough for consistency (needs 3+ clean) — and a cool-down
+  // lap beyond 107% of the session's best (NS-42). It counts toward lap_count
+  // and hours but not consistency, which is the one difference between the
+  // old all-laps rule and the clean-lap one; without it no golden could tell
+  // them apart, and both native recomputeDetail tests would pass either way.
   const s1 = await api("POST", `/events/${rich.body.id}/sessions`, {
     label: "Session 1",
     notes: "Learning the line.",
-    laps: [128_400, 125_100, 123_800, 124_200],
+    laps: [128_400, 125_100, 123_800, 124_200, 139_600],
   });
 
   // 2 laps: below the 3-lap threshold. Captured so a client can see that a

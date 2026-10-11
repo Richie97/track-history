@@ -11,12 +11,18 @@ struct ModelTests {
         #expect(detail.event.consistency == nil, "must be nil, never 0")
         #expect(detail.event.lapCount == 0)
 
-        // …and populated once there are enough laps.
+        // Fewer than 3 laps can't hold 3 clean ones (NS-42)…
         let events = try Goldens.decode([Event].self, "events-list")
-        let withLaps = events.filter { $0.lapCount >= 3 }
-        #expect(!withLaps.isEmpty, "fixture should include an event with 3+ laps")
-        #expect(withLaps.allSatisfy { $0.consistency != nil })
         #expect(events.filter { $0.lapCount < 3 }.allSatisfy { $0.consistency == nil })
+
+        // …and the rich event, whose clean laps are known from its sessions, is
+        // populated exactly when 3+ of them are clean. `lapCount` counts every
+        // lap, the out-lap the fixture carries included, so it alone decides nothing.
+        let rich = try Goldens.decode(EventDetail.self, "event-detail")
+        let clean = rich.sessions.flatMap { LapStats.cleanLaps($0.laps.map(\.timeMs)) }
+        #expect(clean.count >= 3, "fixture should include an event with 3+ clean laps")
+        #expect(clean.count < rich.event.lapCount, "fixture should include a lap that isn't clean")
+        #expect(rich.event.consistency != nil)
     }
 
     @Test func bestMsIsNilWithoutAManualBestOrAnyLaps() throws {

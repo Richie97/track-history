@@ -1,0 +1,191 @@
+{
+  "description": "eventConsistency from public/js/lap-stats.js (NS-42): the coefficient of variation of an event's clean laps — within CLEAN_FACTOR of their own session's best — null under MIN_CONSISTENCY_LAPS. Both OfflineMirrors.recomputeDetail ports call LapStats.eventConsistency and must match to 1e-12. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/lap-stats.js",
+  "CLEAN_FACTOR": 1.07,
+  "MIN_CONSISTENCY_LAPS": 3,
+  "cases": [
+    {
+      "name": "out-lap and cool-down",
+      "sessions": [
+        [
+          160000,
+          122000,
+          121000,
+          123000,
+          150000
+        ]
+      ],
+      "clean": [
+        [
+          122000,
+          121000,
+          123000
+        ]
+      ],
+      "consistency": 0.006692594925633908
+    },
+    {
+      "name": "exactly at 107%",
+      "sessions": [
+        [
+          100000,
+          107000,
+          100000
+        ]
+      ],
+      "clean": [
+        [
+          100000,
+          107000,
+          100000
+        ]
+      ],
+      "consistency": 0.03224591184564123
+    },
+    {
+      "name": "just over 107%",
+      "sessions": [
+        [
+          100000,
+          107001,
+          100000,
+          101000
+        ]
+      ],
+      "clean": [
+        [
+          100000,
+          100000,
+          101000
+        ]
+      ],
+      "consistency": 0.00469838392816102
+    },
+    {
+      "name": "two sessions, own bests",
+      "sessions": [
+        [
+          120000,
+          121000
+        ],
+        [
+          132000,
+          133000
+        ]
+      ],
+      "clean": [
+        [
+          120000,
+          121000
+        ],
+        [
+          132000,
+          133000
+        ]
+      ],
+      "consistency": 0.04759523548929761
+    },
+    {
+      "name": "one clean of three",
+      "sessions": [
+        [
+          100000,
+          110000,
+          120000
+        ]
+      ],
+      "clean": [
+        [
+          100000
+        ]
+      ],
+      "consistency": null
+    },
+    {
+      "name": "single-lap sessions",
+      "sessions": [
+        [
+          121000
+        ],
+        [
+          121500
+        ],
+        [
+          122000
+        ]
+      ],
+      "clean": [
+        [
+          121000
+        ],
+        [
+          121500
+        ],
+        [
+          122000
+        ]
+      ],
+      "consistency": 0.0033600682342640686
+    },
+    {
+      "name": "single lap beside a full session",
+      "sessions": [
+        [
+          90000
+        ],
+        [
+          121000,
+          122000,
+          123500,
+          124000
+        ]
+      ],
+      "clean": [
+        [
+          90000
+        ],
+        [
+          121000,
+          122000,
+          123500,
+          124000
+        ]
+      ],
+      "consistency": 0.11277786255526553
+    },
+    {
+      "name": "identical laps",
+      "sessions": [
+        [
+          120000,
+          120000,
+          120000
+        ]
+      ],
+      "clean": [
+        [
+          120000,
+          120000,
+          120000
+        ]
+      ],
+      "consistency": 0
+    },
+    {
+      "name": "no sessions",
+      "sessions": [],
+      "clean": [],
+      "consistency": null
+    },
+    {
+      "name": "empty session",
+      "sessions": [
+        []
+      ],
+      "clean": [
+        []
+      ],
+      "consistency": null
+    }
+  ]
+}

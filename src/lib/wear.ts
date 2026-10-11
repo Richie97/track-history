@@ -8,7 +8,9 @@
 export const DEFAULT_HOURS_PER_DAY = 1.25;
 
 // Laps an event needs before its logged lap time stands in for the day-count
-// estimate — the same 3+ bar consistency uses. Below it the logging is taken to
+// estimate. Every logged lap counts here, out-laps included — they are time on
+// track — unlike consistency's MIN_CONSISTENCY_LAPS, which counts clean laps
+// (lib/stats.ts). Below it the logging is taken to
 // be sparse (a best-lap-only history) and says nothing about seat time.
 export const MIN_TIMED_LAPS = 3;
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bestNAvg, cleanLaps, paceSlope, warmupLapCount } from "../../public/js/lap-stats.js";
+import {
+  bestNAvg,
+  cleanLaps,
+  eventConsistency,
+  paceSlope,
+  warmupLapCount,
+} from "../../public/js/lap-stats.js";
 
 describe("cleanLaps", () => {
   it("drops laps slower than the 107% cutoff", () => {
@@ -62,5 +68,34 @@ describe("warmupLapCount", () => {
   it("is null with fewer than 2 laps", () => {
     expect(warmupLapCount([120000])).toBeNull();
     expect(warmupLapCount([])).toBeNull();
+  });
+});
+
+describe("eventConsistency (NS-42)", () => {
+  const cv = (xs) => {
+    const m = xs.reduce((a, b) => a + b, 0) / xs.length;
+    return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length) / m;
+  };
+
+  it("is the coefficient of variation of the clean laps", () => {
+    expect(eventConsistency([[160000, 122000, 121000, 123000, 150000]])).toBeCloseTo(cv([122000, 121000, 123000]), 12);
+  });
+
+  it("judges each session against its own best", () => {
+    expect(eventConsistency([[120000, 121000], [132000, 133000]])).toBeCloseTo(cv([120000, 121000, 132000, 133000]), 12);
+  });
+
+  it("keeps a lap exactly at 107%", () => {
+    expect(eventConsistency([[100000, 107000, 100000]])).not.toBeNull();
+  });
+
+  it("is null under three clean laps, however many laps", () => {
+    expect(eventConsistency([[100000, 110000, 120000]])).toBeNull();
+    expect(eventConsistency([[100000], [100000]])).toBeNull();
+    expect(eventConsistency([])).toBeNull();
+  });
+
+  it("is 0 for identical laps", () => {
+    expect(eventConsistency([[120000, 120000, 120000]])).toBe(0);
   });
 });

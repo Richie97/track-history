@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type EventRow, withComputed } from "../../src/lib/stats";
+import { CLEAN_FACTOR, type EventRow, withComputed } from "../../src/lib/stats";
 
 const base: EventRow = {
   id: 1,
@@ -29,22 +29,34 @@ const base: EventRow = {
   lap_count: 0,
   lap_avg: null,
   lap_avg_sq: null,
+  clean_count: 0,
+  clean_avg: null,
+  clean_avg_sq: null,
   session_count: 0,
 };
 
-// Build the lap aggregate columns the SQL query would produce.
-function withLaps(laps: number[], extra: Partial<EventRow> = {}): EventRow {
-  const avg = laps.reduce((s, v) => s + v, 0) / laps.length;
-  const avgSq = laps.reduce((s, v) => s + v * v, 0) / laps.length;
+// Build the lap aggregate columns the SQL query would produce: every lap for
+// lap_*, and for clean_* only the laps within CLEAN_FACTOR of their own
+// session's best (src/db.ts's `sb` CTE).
+function withSessions(sessions: number[][], extra: Partial<EventRow> = {}): EventRow {
+  const laps = sessions.flat();
+  const clean = sessions.flatMap((s) => s.filter((ms) => ms <= Math.min(...s) * CLEAN_FACTOR));
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((a, v) => a + v, 0) / xs.length : null);
   return {
     ...base,
     lap_count: laps.length,
     lap_best_ms: Math.min(...laps),
-    lap_avg: avg,
-    lap_avg_sq: avgSq,
+    lap_avg: mean(laps),
+    lap_avg_sq: mean(laps.map((v) => v * v)),
+    clean_count: clean.length,
+    clean_avg: mean(clean),
+    clean_avg_sq: mean(clean.map((v) => v * v)),
+    session_count: sessions.length,
     ...extra,
   };
 }
+
+const withLaps = (laps: number[], extra: Partial<EventRow> = {}) => withSessions([laps], extra);
 
 describe("withComputed best_ms", () => {
   it("is null with neither manual time nor laps", () => {
@@ -70,14 +82,39 @@ describe("withComputed consistency", () => {
     expect(withComputed(withLaps([120000, 121000])).consistency).toBeNull();
   });
 
-  it("is the coefficient of variation with 3+ laps", () => {
-    const c = withComputed(withLaps([100000, 110000, 120000])).consistency!;
-    // stdev(pop) = 8164.97, mean = 110000 -> cv = 0.07423
-    expect(c).toBeCloseTo(0.07423, 4);
+  it("is the coefficient of variation with 3+ clean laps", () => {
+    const c = withComputed(withLaps([100000, 103000, 106000])).consistency!;
+    // stdev(pop) = 2449.49, mean = 103000 -> cv = 0.023781
+    expect(c).toBeCloseTo(0.023781, 5);
   });
 
   it("is 0 for perfectly consistent laps", () => {
     expect(withComputed(withLaps([120000, 120000, 120000])).consistency).toBe(0);
+  });
+
+  // NS-42: an out-lap and a cool-down are not driver inconsistency.
+  it("leaves out laps beyond 107% of the session's best", () => {
+    const withOutLap = withComputed(withLaps([160000, 122000, 121000, 123000, 150000]));
+    const cleanOnly = withComputed(withLaps([122000, 121000, 123000]));
+    expect(withOutLap.consistency).toBeCloseTo(cleanOnly.consistency!, 12);
+    // …while the lap count and the hours still count every lap.
+    expect(withOutLap.lap_count).toBe(5);
+  });
+
+  it("counts clean laps toward the minimum, not all laps", () => {
+    // Only 100000 is within 107% of 100000 — one clean lap is no figure.
+    expect(withComputed(withLaps([100000, 110000, 120000])).consistency).toBeNull();
+  });
+
+  it("keeps a lap exactly at 107% (inclusive)", () => {
+    expect(withComputed(withLaps([100000, 107000, 100000])).consistency).not.toBeNull();
+  });
+
+  it("judges each session against its own best", () => {
+    // A wet session 10% slower than the dry one: against the event's best it
+    // would vanish; against its own best every lap is clean.
+    const out = withComputed(withSessions([[120000, 121000], [132000, 133000]]));
+    expect(out.consistency).not.toBeNull();
   });
 });
 
@@ -86,6 +123,9 @@ describe("withComputed shape", () => {
     const out = withComputed(withLaps([120000, 121000, 122000]));
     expect(out).not.toHaveProperty("lap_avg");
     expect(out).not.toHaveProperty("lap_avg_sq");
+    expect(out).not.toHaveProperty("clean_count");
+    expect(out).not.toHaveProperty("clean_avg");
+    expect(out).not.toHaveProperty("clean_avg_sq");
     expect(out).toHaveProperty("lap_count", 3);
   });
 });

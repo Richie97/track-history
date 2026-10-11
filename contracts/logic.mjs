@@ -186,6 +186,7 @@ import {
   liveTimingDisplay,
 } from "../public/js/record/live-timing.js";
 import { DEFAULT_CHECKLIST } from "../public/js/checklist.js";
+import { CLEAN_FACTOR, MIN_CONSISTENCY_LAPS, cleanLaps, eventConsistency } from "../public/js/lap-stats.js";
 import { fmtDays, fmtGain, posterLines, trackDistance, wrappedCards, wrappedSeason } from "../public/js/wrapped.js";
 import { sessionsToCreate, stagedSummary } from "../public/js/event-form.js";
 import {
@@ -1920,6 +1921,40 @@ const csvFixture = {
   lapsFromLaptime: laptimeCases,
 };
 
+// --- event consistency over clean laps (NS-42) -----------------------------
+// lap-stats.js's eventConsistency, which every offline mirror calls and the
+// server computes in SQL. The cases are the ways a port goes wrong: an out-lap
+// and a cool-down, a lap exactly at 107% (inclusive in doubles), two sessions
+// judged against their own bests, 3 laps of which 1 is clean, single-lap
+// sessions, nothing at all.
+const consistencyCases = [
+  { name: "out-lap and cool-down", sessions: [[160000, 122000, 121000, 123000, 150000]] },
+  { name: "exactly at 107%", sessions: [[100000, 107000, 100000]] },
+  { name: "just over 107%", sessions: [[100000, 107001, 100000, 101000]] },
+  { name: "two sessions, own bests", sessions: [[120000, 121000], [132000, 133000]] },
+  { name: "one clean of three", sessions: [[100000, 110000, 120000]] },
+  { name: "single-lap sessions", sessions: [[121000], [121500], [122000]] },
+  { name: "single lap beside a full session", sessions: [[90000], [121000, 122000, 123500, 124000]] },
+  { name: "identical laps", sessions: [[120000, 120000, 120000]] },
+  { name: "no sessions", sessions: [] },
+  { name: "empty session", sessions: [[]] },
+];
+const consistencyFixture = {
+  description:
+    "eventConsistency from public/js/lap-stats.js (NS-42): the coefficient of variation of an " +
+    "event's clean laps — within CLEAN_FACTOR of their own session's best — null under " +
+    "MIN_CONSISTENCY_LAPS. Both OfflineMirrors.recomputeDetail ports call LapStats.eventConsistency " +
+    "and must match to 1e-12. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/lap-stats.js",
+  CLEAN_FACTOR,
+  MIN_CONSISTENCY_LAPS,
+  cases: consistencyCases.map((c) => ({
+    ...c,
+    clean: c.sessions.map((laps) => cleanLaps(laps)),
+    consistency: eventConsistency(c.sessions),
+  })),
+};
+
 // ---------------------------------------------------------------------------
 // The prep checklist a new event starts from.
 //
@@ -2243,6 +2278,7 @@ mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "consistency.json"), JSON.stringify(consistencyFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "wrapped.json"), JSON.stringify(wrappedFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
@@ -2573,6 +2609,7 @@ console.log(`wrote contracts/logic/car-catalog-match.json (${catalogQueries.leng
 console.log(`wrote contracts/logic/units.json (${unitsFixture.dist.length} distances, ${unitsFixture.temp.length} temperatures)`);
 console.log(`wrote contracts/logic/remote-attach.json (${attachCases.length} cases)`);
 console.log(`wrote contracts/logic/checklist.json (${DEFAULT_CHECKLIST.length} items)`);
+console.log(`wrote contracts/logic/consistency.json (${consistencyCases.length} cases)`);
 console.log(`wrote contracts/logic/wrapped.json (${wrappedSeasons.length} seasons)`);
 console.log(`wrote contracts/logic/event-form.json (${eventFormCases.length} cases)`);
 console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);
