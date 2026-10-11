@@ -4,6 +4,7 @@ import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.Session
+import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.offline.InMemoryOfflinePersistence
 import app.trackevolution.core.offline.OfflineMirrors
@@ -14,6 +15,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -281,16 +286,24 @@ class OfflineStoreTest {
     }
 
     @Test
-    fun `clears both session fields on a rename, as the route does`() = runTest {
+    fun `writes only the session fields present, as the route does`() = runTest {
         val store = store()
         val d = detail(
             sessions = listOf(session(id = 7, label = "S1", laps = listOf(121000)).copy(notes = "damp")),
         )
         store.putDetail(d)
 
-        // `PUT /sessions/:id` writes `label = ?, notes = ?` unconditionally, so an
-        // omitted note is a cleared note — not a preserved one.
+        // `PUT /sessions/:id` writes only the keys present (NS-40), so a rename
+        // keeps the note…
         store.enqueue("PUT", "/sessions/7", """{"label":"Renamed"}""")
+        assertEquals("damp", store.detailAt(10)?.sessions?.first()?.notes)
+        assertEquals("Renamed", store.detailAt(10)?.sessions?.first()?.label)
+
+        // …trims what it writes, and clears on an explicit null or an empty string.
+        store.enqueue("PUT", "/sessions/7", """{"notes":"  brake later into T5 "}""")
+        assertEquals("brake later into T5", store.detailAt(10)?.sessions?.first()?.notes)
+        store.enqueue("PUT", "/sessions/7", """{"label":null,"notes":""}""")
+        assertNull(store.detailAt(10)?.sessions?.first()?.label)
         assertNull(store.detailAt(10)?.sessions?.first()?.notes)
     }
 
@@ -306,6 +319,29 @@ class OfflineStoreTest {
 
         store.enqueue("DELETE", "/events/10/setups/1", null)
         assertEquals(listOf(2), store.detailAt(10)?.setups?.map { it.day })
+    }
+
+    /**
+     * NS-40: a phone saves sheets now, so a sheet the web wrote must survive the
+     * offline patch with every key — the golden's day-2 sheet carries all of
+     * them, the part refs included. A key [app.trackevolution.core.model.SetupSheet]
+     * lacked would vanish here, and a phone's save would erase it on the server.
+     */
+    @Test
+    fun `a setup sheet with every key survives the offline patch`() = runTest {
+        val store = store()
+        store.putDetail(detail())
+        val golden = Goldens.body("event-detail").jsonObject.getValue("setups").jsonArray
+            .map { it.jsonObject }
+            .first { it.getValue("day").jsonPrimitive.int == 2 }
+            .getValue("data")
+        assertTrue(golden.jsonObject.containsKey("tires_f_id"), "the golden sheet should carry every key")
+
+        store.enqueue("PUT", "/events/10/setups/2", golden.toString())
+        val patched = store.detailAt(10)?.setups?.single { it.day == 2 }?.data
+        val reencoded = Json.encodeToJsonElement(SetupSheet.serializer(), patched!!)
+        // `difference` rather than equality: Kotlin writes 25 back as 25.0.
+        assertNull(JsonShape.difference(JsonShape.normalize(golden), JsonShape.normalize(reencoded)))
     }
 
     @Test

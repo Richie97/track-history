@@ -629,6 +629,33 @@ export function nextTimeNote(loop) {
   ).join(" / ")} vs ${target != null ? target.toFixed(1) : "—"} target)`;
 }
 
+// The sheet the loop's *Record hot pressures* writes (NS-40): the day's sheet
+// (or an empty one) with the import's hot pressures merged over its tp_hot,
+// and the nextTimeNote line appended to its notes — once: a sheet whose notes
+// already carry the line is not extended again. Notes copy forward, so the
+// suggestion is in the next sheet's form before anyone types it. Pure, so the
+// phones' ports write exactly the sheet the web does.
+export function recordHotSheet(sheet, loop) {
+  const base = sheet ?? {};
+  const data = { ...base, tp_hot: { ...(base.tp_hot ?? {}), ...(loop?.hotSheet ?? {}) } };
+  const line = nextTimeNote(loop);
+  if (line && !base.notes?.includes(line)) data.notes = base.notes ? `${base.notes}\n${line}` : line;
+  return data;
+}
+
+// The sheet *Set day N+1 cold* opens the next day's form with (NS-40): the
+// next day's own sheet when it has one — everything else on it kept — else
+// today's carried forward without its hot pressures, which belong to today;
+// either way with the loop's suggested colds as tp_cold.
+export function nextDaySheet(nextSheet, todaySheet, loop) {
+  let carried = nextSheet;
+  if (!carried) {
+    const { tp_hot: _todaysHots, ...rest } = todaySheet ?? {};
+    carried = rest;
+  }
+  return { ...carried, tp_cold: loop?.coldSheet };
+}
+
 // The whole Car tab: the cards, the fuel line, the spread tables, the loop
 // card (when the caller has one — it is web-only and needs the event's
 // sheets) and the per-lap table. Returns "" when the session stored no

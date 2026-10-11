@@ -96,7 +96,7 @@ was. **New in `health.js`**: the two writes `app.js` builds inline today,
 extracted so the ports share them:
 - `recordHotSheet(sheet, loop)`: the sheet with `tp_hot` merged from
   `loop.hotSheet`, plus the `nextTimeNote` line appended to `notes` (once; a
-  sheet whose notes already end with that line isn't extended again).
+  sheet whose notes already contain that line isn't extended again — the web's existing `includes` rule).
 - `nextDaySheet(nextSheet, todaySheet, loop)`: the next day's starting
   sheet, which is `nextSheet` if there is one, else today's sheet without
   `tp_hot`, with `tp_cold` from `loop.coldSheet`.

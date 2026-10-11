@@ -202,6 +202,46 @@ describe("PUT /api/sessions/:id", () => {
     const { sessionId } = await eventWithSession(a.api);
     expect((await b.api("PUT", `/sessions/${sessionId}`, { label: "x" })).status).toBe(404);
   });
+  // NS-40: present keys only — the PUT /events/:id rule.
+  it("writes only the keys present", async () => {
+    const { api } = await signedInUser();
+    const { eventId, sessionId } = await eventWithSession(api);
+    await api("PUT", `/sessions/${sessionId}`, { label: "Morning", notes: "cold tyres" });
+
+    await api("PUT", `/sessions/${sessionId}`, { notes: "brake later into T5" });
+    let s = (await api("GET", `/events/${eventId}`)).body.sessions[0];
+    expect(s.label).toBe("Morning");
+    expect(s.notes).toBe("brake later into T5");
+
+    await api("PUT", `/sessions/${sessionId}`, { label: "Session 2" });
+    s = (await api("GET", `/events/${eventId}`)).body.sessions[0];
+    expect(s.label).toBe("Session 2");
+    expect(s.notes).toBe("brake later into T5");
+  });
+
+  it("clears with an explicit null or an empty string, and trims", async () => {
+    const { api } = await signedInUser();
+    const { eventId, sessionId } = await eventWithSession(api);
+    await api("PUT", `/sessions/${sessionId}`, { label: "  Morning  ", notes: "x" });
+    let s = (await api("GET", `/events/${eventId}`)).body.sessions[0];
+    expect(s.label).toBe("Morning");
+
+    await api("PUT", `/sessions/${sessionId}`, { label: null, notes: "   " });
+    s = (await api("GET", `/events/${eventId}`)).body.sessions[0];
+    expect(s.label).toBeNull();
+    expect(s.notes).toBeNull();
+  });
+
+  it("400s on an empty body or a non-string value", async () => {
+    const { api } = await signedInUser();
+    const { sessionId } = await eventWithSession(api);
+    const empty = await api("PUT", `/sessions/${sessionId}`, {});
+    expect(empty.status).toBe(400);
+    expect(empty.body.error).toBe("nothing to update");
+    const bad = await api("PUT", `/sessions/${sessionId}`, { notes: 42 });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toBe("notes must be a string or null");
+  });
 });
 
 describe("DELETE /api/sessions/:id", () => {

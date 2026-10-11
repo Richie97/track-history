@@ -248,12 +248,15 @@ private suspend fun patchSession(id: String, item: QueuedWrite, txn: OfflineTran
         if (index == -1) return@eachEventDetail null
         val sessions = detail.sessions.toMutableList()
         if (item.method == "PUT") {
-            // The route writes both columns unconditionally (`body.label ?? null`),
-            // so mirror that rather than merging.
+            // The route writes only the keys present, trimmed, "" as null (NS-40):
+            // an absent key keeps the column, an explicit null clears it.
             val body = item.bodyObject()
+            fun written(key: String, current: String?): String? =
+                if (body == null || !body.containsKey(key)) current
+                else body.string(key)?.trim()?.takeIf { it.isNotEmpty() }
             sessions[index] = sessions[index].copy(
-                label = body?.string("label"),
-                notes = body?.string("notes"),
+                label = written("label", sessions[index].label),
+                notes = written("notes", sessions[index].notes),
             )
         } else {
             sessions.removeAt(index)

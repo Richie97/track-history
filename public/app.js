@@ -17,7 +17,9 @@ import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
 import {
   balanceHtml, balanceSummary, bindBalance, estimateSteeringRatio, measuredRatioLine, measuredRatioValue, ratioAgrees,
 } from "./js/balance.js";
-import { healthHtml, healthSummary, nextTimeNote, pressureLoop, pressureLoopHtml } from "./js/health.js";
+import {
+  healthHtml, healthSummary, nextDaySheet, nextTimeNote, pressureLoop, pressureLoopHtml, recordHotSheet,
+} from "./js/health.js";
 import {
   ambientText, bandLabel, conditionsBand, conditionsChipHtml, conditionsLegendHtml,
   elevationText, eventAmbient, tempText, trackElevationM,
@@ -40,7 +42,7 @@ import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
   catalogCarLabel, catalogCarName, catalogPrefill,
   defaultMeasurementUnit, diffSetups, equipSwapsOff, flatLabel, fmtCost, fmtHours, fmtRemaining, fmtSetupValue,
-  isTireKind, partTitle,
+  isTireKind, partTitle, previousSheet,
   matchCatalogCars, partOdometerLine, vehicleOdometerLine,
   partKindLabel, partStatus, setupFieldFor, setupStep, setupToDisplay, setupToStored, setupUnit,
   defaultSwapChoice, swapSessionChoices, swapSessionEvent, vehicleLogbook, vehicleTileLine, wearLimitHint,
@@ -1959,10 +1961,30 @@ async function viewEvent(eventId) {
           <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "No laps"}</span>
           ${conditionsChipHtml(s, usUnits())}
           <span class="grow"></span>
-          ${ro ? "" : `<button class="btn small danger" data-del-session="${s.id}">Delete</button>`}
+          ${
+            ro
+              ? ""
+              : `<button class="btn small" data-edit-session="${s.id}" aria-expanded="false">Edit</button>
+          <button class="btn small danger" data-del-session="${s.id}">Delete</button>`
+          }
         </div>
         ${stats.length ? `<div class="s-stats">${stats.join(" · ")}</div>` : ""}
-        ${s.notes ? `<div class="notes-block">${esc(s.notes)}</div>` : ""}
+        ${s.notes ? `<div class="notes-block" data-session-notes="${s.id}">${esc(s.notes)}</div>` : ""}
+        ${
+          ro
+            ? ""
+            : `<form class="session-edit" data-session-edit="${s.id}" hidden>
+          <div class="field"><label for="session-label-${s.id}">Label</label>
+            <input id="session-label-${s.id}" name="label" maxlength="200" value="${esc(s.label ?? "")}" placeholder="Session"></div>
+          <div class="field"><label for="session-notes-${s.id}">Notes</label>
+            <textarea id="session-notes-${s.id}" name="notes" placeholder="What to change next session — brake later into T5…">${esc(s.notes ?? "")}</textarea></div>
+          <div class="btn-row">
+            <button class="btn small primary">Save</button>
+            <button class="btn small" type="button" data-session-edit-cancel="${s.id}">Cancel</button>
+            <span class="goal-msg" data-session-edit-msg="${s.id}"></span>
+          </div>
+        </form>`
+        }
         ${lapsHtml}
         ${
           ro
@@ -2025,10 +2047,7 @@ async function viewEvent(eventId) {
   const setupsByDay = new Map((e.setups ?? []).map((s) => [s.day, s.data]));
   const setupDays = [...Array(Math.max(1, Math.ceil(e.days))).keys()].map((i) => i + 1);
   for (const s of e.setups ?? []) if (!setupDays.includes(s.day)) setupDays.push(s.day);
-  const prevSheetFor = (day) => {
-    for (let d = day - 1; d >= 1; d--) if (setupsByDay.has(d)) return setupsByDay.get(d);
-    return null;
-  };
+  const prevSheetFor = (day) => previousSheet(e.setups ?? [], day);
   const setupDayHtml = (day) => {
     const sheet = setupsByDay.get(day);
     return `<div class="session setup-day">
@@ -2405,10 +2424,7 @@ async function viewEvent(eventId) {
         // Hot pressures onto the day's sheet, plus the "next time" line in
         // its notes when there is a suggestion — notes copy forward, so the
         // suggestion is in the next sheet's form before it is typed.
-        const base = ctx.sheet ?? {};
-        const data = { ...base, tp_hot: { ...(base.tp_hot ?? {}), ...ctx.loop.hotSheet } };
-        if (ctx.noteLine && !base.notes?.includes(ctx.noteLine))
-          data.notes = base.notes ? `${base.notes}\n${ctx.noteLine}` : ctx.noteLine;
+        const data = recordHotSheet(ctx.sheet, ctx.loop);
         try {
           await api(`/events/${e.id}/setups/${ctx.day}`, { method: "PUT", body: data });
           route();
@@ -2422,13 +2438,8 @@ async function viewEvent(eventId) {
       // belong to today), an existing one keeps everything else it has.
       const day = Number(next.dataset.healthNext);
       const existing = setupsByDay.get(day) ?? null;
-      let carried = existing;
-      if (!carried) {
-        const { tp_hot: _todaysHots, ...rest } = ctx.sheet ?? {};
-        carried = rest;
-      }
       notebook.open = true;
-      openSetupForm(day, { ...carried, tp_cold: ctx.loop.coldSheet }, existing != null, true);
+      openSetupForm(day, nextDaySheet(existing, ctx.sheet, ctx.loop), existing != null, true);
       view.querySelector(`[data-setup-body="${day}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     // Hovering a point on the friction circle or the balance scatter answers
@@ -2453,6 +2464,43 @@ async function viewEvent(eventId) {
       if (!confirm("Delete this session and its laps?")) return;
       await api(`/sessions/${btn.dataset.delSession}`, { method: "DELETE" });
       route();
+    };
+  });
+  // A session's label and notes (NS-40): the form sends only what changed,
+  // since PUT /sessions/:id writes only the keys present, and an emptied field
+  // is sent as null, which clears it. Queueable, so it works offline too.
+  const sessionEditForm = (id) => view.querySelector(`[data-session-edit="${id}"]`);
+  const toggleSessionEdit = (id, open) => {
+    const form = sessionEditForm(id);
+    if (!form) return;
+    form.hidden = !open;
+    view.querySelector(`[data-edit-session="${id}"]`)?.setAttribute("aria-expanded", String(open));
+    if (open) form.querySelector("textarea")?.focus();
+  };
+  view.querySelectorAll("[data-edit-session]").forEach((btn) => {
+    btn.onclick = () => toggleSessionEdit(btn.dataset.editSession, sessionEditForm(btn.dataset.editSession)?.hidden);
+  });
+  view.querySelectorAll("[data-session-edit-cancel]").forEach((btn) => {
+    btn.onclick = () => toggleSessionEdit(btn.dataset.sessionEditCancel, false);
+  });
+  view.querySelectorAll("[data-session-edit]").forEach((form) => {
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      const id = form.dataset.sessionEdit;
+      const s = e.sessions.find((x) => String(x.id) === String(id));
+      const body = {};
+      for (const key of ["label", "notes"]) {
+        const v = form.elements[key].value.trim() || null;
+        if (v !== (s?.[key] ?? null)) body[key] = v;
+      }
+      if (!Object.keys(body).length) return toggleSessionEdit(id, false);
+      try {
+        await api(`/sessions/${id}`, { method: "PUT", body });
+        route();
+      } catch (err) {
+        const msg = view.querySelector(`[data-session-edit-msg="${id}"]`);
+        if (msg) msg.textContent = err.message;
+      }
     };
   });
   view.querySelectorAll("[data-add-laps]").forEach((btn) => {

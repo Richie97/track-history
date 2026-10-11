@@ -8,10 +8,10 @@ import kotlinx.serialization.Serializable
  * `src/lib/validate.ts` field for field — every field optional, because
  * applicability varies by car.
  *
- * The setup notebook is a **deferred** feature on native (web only, see
- * `docs/specs/native/README.md`); this type exists so the event-detail and
- * track-setup responses decode losslessly, and so a native editor later has
- * somewhere to land.
+ * The phones write sheets since NS-40, so **every key the server accepts must
+ * be here**: a key this model lacks is dropped on decode and erased on the next
+ * save. The golden `event-detail` carries a sheet with every key, which
+ * `GoldenContractTest`'s strict decode and `OfflineStoreTest` both read.
  */
 @Serializable
 public data class SetupSheet(
@@ -30,8 +30,13 @@ public data class SetupSheet(
     val sway: AxleValues? = null,
     /** Gallons at session start. */
     val fuel: Double? = null,
-    /** `parts.id` references — which consumables were on the car. */
+    /**
+     * `parts.id` references — which consumables were on the car: a full set of
+     * tires, or a front / rear pair (`tires_front` / `tires_rear` parts).
+     */
     @SerialName("tires_id") val tiresId: Int? = null,
+    @SerialName("tires_f_id") val tiresFId: Int? = null,
+    @SerialName("tires_r_id") val tiresRId: Int? = null,
     @SerialName("pads_f_id") val padsFId: Int? = null,
     @SerialName("pads_r_id") val padsRId: Int? = null,
     val notes: String? = null,

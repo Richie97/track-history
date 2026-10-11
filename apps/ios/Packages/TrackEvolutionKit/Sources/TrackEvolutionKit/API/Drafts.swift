@@ -182,8 +182,9 @@ public struct UnitsDraft: Codable, Hashable, Sendable {
     }
 }
 
-/// `PUT /api/sessions/:id`. Both columns are written unconditionally by the
-/// server, so nil really does clear them here.
+/// `PUT /api/sessions/:id`. The server writes only the keys present (NS-40);
+/// this always sends both, with explicit nulls, so nil really does clear here —
+/// the edit sheet's "both fields as they now read".
 public struct SessionPatch: Encodable, Hashable, Sendable {
     public var label: String?
     public var notes: String?
@@ -195,7 +196,7 @@ public struct SessionPatch: Encodable, Hashable, Sendable {
 
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        // Explicit nulls: `UPDATE sessions SET label = ?, notes = ?` writes both.
+        // Explicit nulls: both keys present, so the server writes both.
         try c.encode(label, forKey: .label)
         try c.encode(notes, forKey: .notes)
     }

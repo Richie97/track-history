@@ -112,16 +112,16 @@ class EventModel(
     }
 
     /**
-     * Both fields are written unconditionally by the server — `SessionPatch` is
-     * not a three-state patch — so an omitted field and an explicit null both
-     * mean "cleared". The edit sheet therefore always sends both.
+     * The edit sheet sends both fields as they now read — `Patch.Set(null)` for
+     * an emptied one, which clears it. The server writes only the keys present
+     * (NS-40), so a caller that passes [Patch.Unchanged] leaves that column alone.
      */
     fun updateSession(id: Int, label: String?, notes: String?) = write {
         api.updateSession(
             id,
             SessionPatch(
-                label = label?.takeIf { it.isNotBlank() },
-                notes = notes?.takeIf { it.isNotBlank() },
+                label = Patch.Set(label?.trim()?.takeIf { it.isNotEmpty() }),
+                notes = Patch.Set(notes?.trim()?.takeIf { it.isNotEmpty() }),
             ),
         )
     }

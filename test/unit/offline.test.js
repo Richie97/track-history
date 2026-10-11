@@ -207,6 +207,12 @@ describe("offline mutation queue", () => {
 
     await enqueue("PUT", "/sessions/7", { label: "Renamed" });
     expect((await cachedGet("/events/10")).sessions[0].label).toBe("Renamed");
+    // Present keys only (NS-40): notes alone keeps the label; "" clears.
+    await enqueue("PUT", "/sessions/7", { notes: "  brake later into T5 " });
+    expect((await cachedGet("/events/10")).sessions[0]).toMatchObject({ label: "Renamed", notes: "brake later into T5" });
+    await enqueue("PUT", "/sessions/7", { label: "" });
+    expect((await cachedGet("/events/10")).sessions[0]).toMatchObject({ label: null, notes: "brake later into T5" });
+    await enqueue("PUT", "/sessions/7", { label: "Renamed" });
 
     await enqueue("POST", "/sessions/7/laps", { laps: [119000] });
     expect((await cachedGet("/events/10")).sessions[0].laps.map((l) => l.lap_num)).toEqual([1, 2]);

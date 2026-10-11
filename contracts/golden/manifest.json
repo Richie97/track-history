@@ -232,7 +232,7 @@
       "method": "PUT",
       "path": "/sessions/:id",
       "status": 200,
-      "description": "Update a session.",
+      "description": "Update a session — only the keys present are written (NS-40).",
       "source": "src/routes/sessions.ts"
     },
     {

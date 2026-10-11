@@ -21,8 +21,10 @@ import {
   kpaToPsi,
   lapValue,
   nextTimeNote,
+  nextDaySheet,
   pressureLoop,
   pressureLoopHtml,
+  recordHotSheet,
   psiToKpa,
   roundPsi,
   scalarSeries,
@@ -342,5 +344,41 @@ describe("web rendering", () => {
     expect(html).toContain('class="ch-health"');
     expect(html).toContain("health-loop");
     expect(html).toContain("health-table");
+  });
+});
+
+// NS-40: the two sheets the loop's buttons write, extracted from app.js so the
+// phones' ports write the same ones.
+describe("recordHotSheet", () => {
+  const sheet = { tp_cold: { fl: 27, fr: 27, rl: 26, rr: 26 }, tp_hot: { fl: 40 }, notes: "baseline" };
+  it("merges the import's hots over the sheet's and appends the next-time note", () => {
+    const loop = pressureLoop(channels, sheet, 30);
+    const out = recordHotSheet(sheet, loop);
+    expect(out.tp_cold).toEqual(sheet.tp_cold);
+    expect(out.tp_hot).toEqual(loop.hotSheet);
+    expect(out.notes).toBe(`baseline\n${nextTimeNote(loop)}`);
+  });
+  it("appends the note once, however often it is recorded", () => {
+    const loop = pressureLoop(channels, sheet, 30);
+    const once = recordHotSheet(sheet, loop);
+    expect(recordHotSheet(once, loop).notes).toBe(once.notes);
+  });
+  it("starts a sheet from nothing, and writes no note without a suggestion", () => {
+    const loop = pressureLoop(channels, null, null);
+    const out = recordHotSheet(null, loop);
+    expect(out).toEqual({ tp_hot: loop.hotSheet });
+  });
+});
+
+describe("nextDaySheet", () => {
+  const today = { tp_cold: { fl: 27, fr: 27, rl: 26, rr: 26 }, tp_hot: { fl: 31 }, camber: { f: -3 } };
+  it("carries today's sheet forward without its hots, with the suggested colds", () => {
+    const loop = pressureLoop(channels, today, 30);
+    expect(nextDaySheet(null, today, loop)).toEqual({ camber: { f: -3 }, tp_cold: loop.coldSheet });
+  });
+  it("keeps everything else on a next-day sheet that exists", () => {
+    const loop = pressureLoop(channels, today, 30);
+    const next = { camber: { f: -2 }, tp_hot: { fl: 33 }, tp_cold: { fl: 20 } };
+    expect(nextDaySheet(next, today, loop)).toEqual({ ...next, tp_cold: loop.coldSheet });
   });
 });
