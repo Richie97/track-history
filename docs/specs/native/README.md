@@ -639,6 +639,10 @@ change* rule does not apply — see the spec for why.
 | NS-37 | [The Garage tab](NS-37-garage-tab.md) | Shared (web, iOS, Android; no server change) | NS-29, NS-31, NS-32, NS-34, #221/#222, #147 |
 | NS-38 | [Share with a coach](NS-38-coach-sharing.md) | Shared (server, web, iOS, Android) | NS-32, NS-34, NS-37, the share page, #314 |
 | NS-39 | [A native ChatGPT experience](NS-39-chatgpt-apps.md) | Server (MCP widgets; no client change) | #314, NS-32, NS-36 |
+| NS-40 | [The paddock loop on the phones](NS-40-paddock-loop.md) — setup notebook, costs, session notes | Shared (one server fix, web, iOS, Android) | NS-29, NS-31, NS-32, #190, #147 |
+| NS-41 | [HPDE progression](NS-41-hpde-progression.md) — instructor, sign-offs, run-group timeline | Shared (server, web, iOS, Android) | NS-38, the share page, #314 |
+| NS-42 | [Consistency over clean laps](NS-42-clean-lap-consistency.md) | Shared (server + the three offline mirrors; no screen change) | `withComputed`, `cleanLaps` |
+| NS-43 | [Calendar feed](NS-43-calendar-feed.md) | Shared (server, web, iOS, Android) | the events list |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
@@ -657,6 +661,12 @@ waits on the Duo simulator.
 Available on web throughout, ported to native later or never: the setup notebook,
 the setup-vs-lap-times diff, year in review, and the
 **two-event** compare view (`viewCompare`).
+
+**Specified to come off (2026-10):** the setup notebook and its tire-pressure
+loop, by [NS-40](NS-40-paddock-loop.md), on the same at-the-car argument as
+the garage. The setup-vs-lap-times diff stays here. Until NS-40's tickets
+land, the paragraphs below and the product split above describe what is
+built, not what is planned.
 
 Four things were on this list and came off it, all for the reason the split
 predicts — the work happens where the web app isn't:
