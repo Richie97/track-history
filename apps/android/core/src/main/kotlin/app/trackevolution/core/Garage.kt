@@ -1,10 +1,14 @@
 package app.trackevolution.core
 
+import app.trackevolution.core.model.AxleValues
 import app.trackevolution.core.model.CatalogCar
+import app.trackevolution.core.model.CornerValues
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Part
 import app.trackevolution.core.model.PartKind
 import app.trackevolution.core.model.PartOdometer
+import app.trackevolution.core.model.Setup
+import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.VehicleOdometer
 import app.trackevolution.core.model.WearEstimate
@@ -14,10 +18,9 @@ import app.trackevolution.core.model.WearEstimate
  *
  * A port of the consumable half of `public/js/garage.js` plus `garageAlerts`
  * from `public/app.js`, keeping the JS function and constant names so the two
- * diff by eye. The setup-sheet half of that file (`SETUP_FIELDS`,
- * `flattenSetup`, `diffSetups`) is **not** here: the setup notebook stays
- * deferred on both native platforms, and porting its field spec without its UI
- * would be dead code drifting silently from `sanitizeSetup`.
+ * diff by eye. Since NS-40 the setup-sheet half of that file is here too
+ * (`SETUP_FIELDS` … `diffSetups`, `previousSheet`), pinned by
+ * `contracts/logic/setups.json`, because the phones carry the setup notebook.
  *
  * **The wear math is not here either, and must not be added.** `wearEstimate` in
  * `src/lib/wear.ts` runs on the server and arrives pre-computed on every part
@@ -605,6 +608,269 @@ public object Garage {
         }
 
     private const val EM_DASH = "—"
+
+    // ---------- setup sheet spec (NS-40) ------------------------------------
+
+    /** A field's layout: four corners, two axles, or one number. */
+    public enum class SetupShape { CORNERS, AXLE, NUMBER }
+
+    /**
+     * A field's metric alternative: [perUnit] stored units per one displayed unit
+     * (psi per bar, gallons per litre), with the display step and precision.
+     */
+    public data class SetupMetric(val unit: String, val perUnit: Double, val step: Double, val dp: Int)
+
+    /** One row of the setup form, `SETUP_FIELDS` in `garage.js`. */
+    public data class SetupField(
+        val key: String,
+        val label: String,
+        val unit: String,
+        val shape: SetupShape,
+        val step: Double,
+        val metric: SetupMetric? = null,
+    )
+
+    private val BAR = SetupMetric("bar", Units.PSI_PER_BAR, 0.05, 2)
+    private val LITRES = SetupMetric("L", 1 / Units.L_PER_GAL, 1.0, 1)
+
+    /** The setup sheet's fields, in the order the form, the summary and the diff use. */
+    public val SETUP_FIELDS: List<SetupField> = listOf(
+        SetupField("tp_cold", "Tire pressure — cold", "psi", SetupShape.CORNERS, 0.5, BAR),
+        SetupField("tp_hot", "Tire pressure — hot", "psi", SetupShape.CORNERS, 0.5, BAR),
+        SetupField("camber", "Camber", "°", SetupShape.AXLE, 0.1),
+        SetupField("toe", "Toe", "", SetupShape.AXLE, 0.01),
+        SetupField("caster", "Caster", "°", SetupShape.AXLE, 0.1),
+        SetupField("rebound", "Rebound", "clk", SetupShape.AXLE, 1.0),
+        SetupField("compression", "Compression", "clk", SetupShape.AXLE, 1.0),
+        SetupField("sway", "Sway bar", "pos", SetupShape.AXLE, 1.0),
+        SetupField("fuel", "Fuel", "gal", SetupShape.NUMBER, 0.5, LITRES),
+    )
+
+    public val CORNER_KEYS: List<Pair<String, String>> = listOf("fl" to "FL", "fr" to "FR", "rl" to "RL", "rr" to "RR")
+    public val AXLE_KEYS: List<Pair<String, String>> = listOf("f" to "F", "r" to "R")
+
+    /** A part reference a sheet can carry: which consumable was on the car. */
+    public data class PartRef(val key: String, val label: String, val kind: PartKind)
+
+    public val PART_REFS: List<PartRef> = listOf(
+        PartRef("tires_id", "Tires", PartKind.TIRES),
+        PartRef("tires_f_id", "Front tires", PartKind.TIRES_FRONT),
+        PartRef("tires_r_id", "Rear tires", PartKind.TIRES_REAR),
+        PartRef("pads_f_id", "Front pads", PartKind.PADS_FRONT),
+        PartRef("pads_r_id", "Rear pads", PartKind.PADS_REAR),
+    )
+
+    private fun metricSpec(f: SetupField, units: UnitSystem): SetupMetric? =
+        if (Units.isMetric(units)) f.metric else null
+
+    /** `Math.round(v * 10 ** dp) / 10 ** dp`, JavaScript's half-up. */
+    private fun roundTo(v: Double, dp: Int): Double = JsMath.round(v, Math.pow(10.0, dp.toDouble()))
+
+    /** The unit label for a field in the user's system. */
+    public fun setupUnit(f: SetupField, units: UnitSystem): String = metricSpec(f, units)?.unit ?: f.unit
+
+    /** The input step for a field in the user's system. */
+    public fun setupStep(f: SetupField, units: UnitSystem): Double = metricSpec(f, units)?.step ?: f.step
+
+    /** Stored → displayed, rounded to the display unit's precision. Null passes through. */
+    public fun setupToDisplay(f: SetupField, v: Double?, units: UnitSystem): Double? {
+        if (v == null) return null
+        val m = metricSpec(f, units) ?: return v
+        return roundTo(v / m.perUnit, m.dp)
+    }
+
+    /** Displayed → stored, to two decimals, which is what `sanitizeSetup` keeps. */
+    public fun setupToStored(f: SetupField, v: Double?, units: UnitSystem): Double? {
+        if (v == null) return null
+        val m = metricSpec(f, units) ?: return v
+        return roundTo(v * m.perUnit, 2)
+    }
+
+    /** The field a flat key ("tp_cold.fl") belongs to, or null (a part ref, notes). */
+    public fun setupFieldFor(flatKey: String): SetupField? {
+        val root = flatKey.substringBefore('.')
+        return SETUP_FIELDS.firstOrNull { it.key == root }
+    }
+
+    private fun subKeys(shape: SetupShape): List<String> =
+        (if (shape == SetupShape.CORNERS) CORNER_KEYS else AXLE_KEYS).map { it.first }
+
+    private fun CornerValues.corner(sub: String): Double? = when (sub) {
+        "fl" -> fl
+        "fr" -> fr
+        "rl" -> rl
+        "rr" -> rr
+        else -> null
+    }
+
+    private fun AxleValues.axle(sub: String): Double? = when (sub) {
+        "f" -> f
+        "r" -> r
+        else -> null
+    }
+
+    /** A corner or axle group's value by sub-key — the typed sheet read the way the JS indexes its object. */
+    private fun groupValue(sheet: SetupSheet, key: String, sub: String): Double? = when (key) {
+        "tp_cold" -> sheet.tpCold?.corner(sub)
+        "tp_hot" -> sheet.tpHot?.corner(sub)
+        "camber" -> sheet.camber?.axle(sub)
+        "toe" -> sheet.toe?.axle(sub)
+        "caster" -> sheet.caster?.axle(sub)
+        "rebound" -> sheet.rebound?.axle(sub)
+        "compression" -> sheet.compression?.axle(sub)
+        "sway" -> sheet.sway?.axle(sub)
+        else -> null
+    }
+
+    /** A part reference's id by its key, `sheet[key]` in the JS. */
+    public fun partRefValue(sheet: SetupSheet, key: String): Int? = when (key) {
+        "tires_id" -> sheet.tiresId
+        "tires_f_id" -> sheet.tiresFId
+        "tires_r_id" -> sheet.tiresRId
+        "pads_f_id" -> sheet.padsFId
+        "pads_r_id" -> sheet.padsRId
+        else -> null
+    }
+
+    /**
+     * The value at a flat key ("tp_cold.fl", "fuel", "tires_id"), or null.
+     * Port-only: the JS indexes its plain object directly.
+     */
+    public fun sheetValue(sheet: SetupSheet?, flatKey: String): Double? {
+        if (sheet == null) return null
+        val root = flatKey.substringBefore('.')
+        val sub = flatKey.substringAfter('.', "")
+        if (root == "fuel") return sheet.fuel
+        partRefValue(sheet, root)?.let { return it.toDouble() }
+        return if (sub.isEmpty()) null else groupValue(sheet, root, sub)
+    }
+
+    private fun CornerValues?.with(sub: String, value: Double?): CornerValues? {
+        val base = this ?: CornerValues()
+        val next = when (sub) {
+            "fl" -> base.copy(fl = value)
+            "fr" -> base.copy(fr = value)
+            "rl" -> base.copy(rl = value)
+            "rr" -> base.copy(rr = value)
+            else -> base
+        }
+        return if (next == CornerValues()) null else next
+    }
+
+    private fun AxleValues?.with(sub: String, value: Double?): AxleValues? {
+        val base = this ?: AxleValues()
+        val next = when (sub) {
+            "f" -> base.copy(f = value)
+            "r" -> base.copy(r = value)
+            else -> base
+        }
+        return if (next == AxleValues()) null else next
+    }
+
+    /**
+     * The sheet with one flat key set (null clears it). Port-only, for the form:
+     * the JS builds its sheet from named inputs instead. A group left with no
+     * value is dropped, as `sanitizeSetup` drops it.
+     */
+    public fun withSheetValue(sheet: SetupSheet, flatKey: String, value: Double?): SetupSheet {
+        val root = flatKey.substringBefore('.')
+        val sub = flatKey.substringAfter('.', "")
+        val id = value?.toInt()
+        return when (root) {
+            "tp_cold" -> sheet.copy(tpCold = sheet.tpCold.with(sub, value))
+            "tp_hot" -> sheet.copy(tpHot = sheet.tpHot.with(sub, value))
+            "camber" -> sheet.copy(camber = sheet.camber.with(sub, value))
+            "toe" -> sheet.copy(toe = sheet.toe.with(sub, value))
+            "caster" -> sheet.copy(caster = sheet.caster.with(sub, value))
+            "rebound" -> sheet.copy(rebound = sheet.rebound.with(sub, value))
+            "compression" -> sheet.copy(compression = sheet.compression.with(sub, value))
+            "sway" -> sheet.copy(sway = sheet.sway.with(sub, value))
+            "fuel" -> sheet.copy(fuel = value)
+            "tires_id" -> sheet.copy(tiresId = id)
+            "tires_f_id" -> sheet.copy(tiresFId = id)
+            "tires_r_id" -> sheet.copy(tiresRId = id)
+            "pads_f_id" -> sheet.copy(padsFId = id)
+            "pads_r_id" -> sheet.copy(padsRId = id)
+            else -> sheet
+        }
+    }
+
+    /** Every flat key a field has: "tp_cold.fl" … or just "fuel". Port-only, for the form. */
+    public fun flatKeys(f: SetupField): List<String> =
+        if (f.shape == SetupShape.NUMBER) listOf(f.key) else subKeys(f.shape).map { "${f.key}.$it" }
+
+    /** True when a sheet records nothing at all — the server refuses to store one. */
+    public fun isEmptySheet(sheet: SetupSheet): Boolean =
+        flattenSetup(sheet).isEmpty() && sheet.notes.isNullOrBlank()
+
+    /**
+     * A sheet flattened to "field.sub" → value, numbers then part refs, in spec
+     * order (notes left out). Part refs are their ids, as doubles.
+     */
+    public fun flattenSetup(sheet: SetupSheet?): List<Pair<String, Double>> {
+        if (sheet == null) return emptyList()
+        val out = mutableListOf<Pair<String, Double>>()
+        for (f in SETUP_FIELDS) {
+            for (key in flatKeys(f)) sheetValue(sheet, key)?.let { out += key to it }
+        }
+        for (ref in PART_REFS) partRefValue(sheet, ref.key)?.let { out += ref.key to it.toDouble() }
+        return out
+    }
+
+    /** Human label for a flat key: "tp_cold.fl" → "Tire pressure — cold FL". */
+    public fun flatLabel(key: String): String {
+        val root = key.substringBefore('.')
+        val sub = key.substringAfter('.', "")
+        PART_REFS.firstOrNull { it.key == root }?.let { return it.label }
+        val f = SETUP_FIELDS.firstOrNull { it.key == root } ?: return key
+        val subLabel = if (sub.isEmpty()) {
+            ""
+        } else {
+            (if (f.shape == SetupShape.CORNERS) CORNER_KEYS else AXLE_KEYS).firstOrNull { it.first == sub }?.second ?: sub
+        }
+        return if (subLabel.isNotEmpty()) "${f.label} $subLabel" else f.label
+    }
+
+    /** Unit for a flat key ("psi" / "bar"); "" for part refs and unitless fields. */
+    public fun flatUnit(key: String, units: UnitSystem): String =
+        setupFieldFor(key)?.let { setupUnit(it, units) } ?: ""
+
+    /**
+     * A flat key's stored value as the user reads it: "31 psi" / "2.14 bar",
+     * "-3.2°", unitless fields bare, "—" for none. Part refs are the caller's
+     * job (they need the garage) and come back as the bare id.
+     */
+    public fun fmtSetupValue(key: String, v: Double?, units: UnitSystem): String {
+        if (v == null) return "—"
+        val f = setupFieldFor(key) ?: return Units.jsNumber(v)
+        val unit = setupUnit(f, units)
+        val shown = Units.jsNumber(setupToDisplay(f, v, units) ?: v)
+        return if (unit.isEmpty()) shown else "$shown${if (unit == "°") "" else " "}$unit"
+    }
+
+    /** One changed value between two sheets. */
+    public data class SetupChange(val key: String, val from: Double?, val to: Double?)
+
+    /** What changed between two sheets, in spec order; a null [prev] makes everything new. */
+    public fun diffSetups(prev: SetupSheet?, cur: SetupSheet?): List<SetupChange> {
+        val beforeList = flattenSetup(prev)
+        val afterList = flattenSetup(cur)
+        val before = beforeList.toMap()
+        val after = afterList.toMap()
+        val keys = LinkedHashSet<String>().apply {
+            beforeList.forEach { add(it.first) }
+            afterList.forEach { add(it.first) }
+        }
+        return keys.filter { before[it] != after[it] }.map { SetupChange(it, before[it], after[it]) }
+    }
+
+    /**
+     * The sheet a day's setup is compared against: the latest sheet on an
+     * earlier day of the same event, or null. The changed-value marks diff
+     * against it, and offline it stands in for the server's prefill.
+     */
+    public fun previousSheet(setups: List<Setup>?, day: Int): SetupSheet? =
+        setups.orEmpty().filter { it.day < day }.maxByOrNull { it.day }?.data
 }
 
 /**

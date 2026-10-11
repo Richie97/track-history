@@ -8,11 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -21,17 +21,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import app.trackevolution.core.model.Conditions
-import app.trackevolution.core.model.SessionDraft
+import app.trackevolution.core.Costs
 import app.trackevolution.core.EventFormSessions
 import app.trackevolution.core.Units
+import app.trackevolution.core.model.Conditions
+import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEErrorBanner
@@ -193,6 +197,12 @@ fun EventFormScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+            }
+
+            // What the day cost (#147, NS-40): collapsed until opened, since most
+            // events are logged without it — and open already when it was filled.
+            item("costs") {
+                CostsSection(model)
             }
 
             if (model.editId == null) {
@@ -430,5 +440,38 @@ private fun ConditionChip(label: String, selected: Boolean, onClick: () -> Unit)
             style = TrackTheme.typography.xs,
             color = if (selected) colors.accentInk else colors.textMuted,
         )
+    }
+}
+
+/**
+ * The four cost line items, in dollars (NS-40). A disclosure rather than four
+ * always-open fields: costs are optional, and the form is long enough already.
+ * Opened from the start when the event already carries one.
+ */
+@Composable
+private fun CostsSection(model: EventFormModel) {
+    val colors = TrackTheme.colors
+    var open by rememberSaveable { mutableStateOf(model.hasCosts) }
+    LaunchedEffect(model.hasCosts) { if (model.hasCosts) open = true }
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            (if (open) "▾ " else "▸ ") + "What it cost (optional)",
+            style = TrackTheme.typography.sm,
+            color = colors.accentInk,
+            modifier = Modifier
+                .clickable { open = !open }
+                .padding(vertical = 6.dp)
+                .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
+                .testTag("eventFormCosts"),
+        )
+        if (open) {
+            Costs.COST_FIELDS.forEach { field ->
+                TEField("${field.label} ($)") {
+                    NumberField(model.costText(field.key), placeholder = field.placeholder) {
+                        model.setCostText(field.key, it)
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 package app.trackevolution.core.offline
 
+import app.trackevolution.core.Costs
 import app.trackevolution.core.JsMath
 import app.trackevolution.core.LapStats
 import app.trackevolution.core.model.Event
@@ -96,13 +97,12 @@ public object OfflineMirrors {
         }
 
         // `eventCostCents`: the entered line items summed, null when there are none.
-        val costItems = listOfNotNull(
+        val costCents = Costs.eventCostCents(
             detail.event.costEntryCents,
             detail.event.costFuelCents,
             detail.event.costTravelCents,
             detail.event.costMiscCents,
         )
-        val costCents = if (costItems.isEmpty()) null else costItems.sum()
 
         return detail.copy(
             event = detail.event.copy(

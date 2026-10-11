@@ -156,6 +156,33 @@ class EventFormModelTest {
         assertNull(sent.firstOrNull { it.method.value == "POST" })
     }
 
+    // ---- costs (NS-40) -----------------------------------------------------
+
+    @Test
+    fun `sends the cost line items as whole cents, leaving blank ones out`() {
+        val model = EventFormModel(CoroutineScope(Dispatchers.Default), api())
+        model.trackName = "VIR (Full)"
+        model.costEntry = "495"
+        model.costFuel = "145.50"
+        model.save()
+
+        val body = bodyOf(awaitPosts(model, 1).first())
+        assertEquals(49_500, body["cost_entry_cents"]!!.jsonPrimitive.content.toInt())
+        assertEquals(14_550, body["cost_fuel_cents"]!!.jsonPrimitive.content.toInt())
+        assertNull(body["cost_travel_cents"])
+    }
+
+    @Test
+    fun `refuses a cost that isn't dollars rather than saving it as blank`() {
+        val model = EventFormModel(CoroutineScope(Dispatchers.Default), api())
+        model.trackName = "VIR"
+        model.costMisc = "a lot"
+        model.save()
+
+        assertEquals("Couldn't read the misc \"a lot\" — type dollars, like 450 or 45.50.", model.error)
+        assertNull(sent.firstOrNull { it.method.value == "POST" })
+    }
+
     // ---- the "Add laps" section --------------------------------------------
 
     /**

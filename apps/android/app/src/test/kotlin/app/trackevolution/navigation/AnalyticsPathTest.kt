@@ -17,6 +17,8 @@ class AnalyticsPathTest {
         Route.EventForm() to "/new",
         Route.EventForm(presetTrack = "Road Atlanta") to "/new",
         Route.EventForm(editId = 12) to "/event/:id/edit",
+        Route.SetupForm(12, 2) to "/event/:id/setup/:day",
+        Route.SetupForm(12, 3, startFrom = "{\"fuel\":12.5}") to "/event/:id/setup/:day",
         Route.Track(3) to "/track/:id",
         Route.CompareLaps(3) to "/track/:id/lap-compare",
         Route.Leaderboard(3) to "/track/:id/leaderboard",
