@@ -59,6 +59,13 @@ final class SetupNotebookTests: XCTestCase {
         XCTAssertEqual(SetupNotebook.defaultLoopDay([1, 2], [:]), 1)
     }
 
+    func testTheCollapsedCardSaysWhatIsInsideAsTheWebDoes() {
+        XCTAssertEqual(SetupNotebook.summary(pro: false, sheetCount: 2), "Pro")
+        XCTAssertEqual(SetupNotebook.summary(pro: true, sheetCount: 0), "pressures, alignment, dampers…")
+        XCTAssertEqual(SetupNotebook.summary(pro: true, sheetCount: 1), "1 day sheet")
+        XCTAssertEqual(SetupNotebook.summary(pro: true, sheetCount: 3), "3 day sheets")
+    }
+
     // MARK: - Costs
 
     func testTheCostLinesNameOnlyWhatWasEntered() throws {

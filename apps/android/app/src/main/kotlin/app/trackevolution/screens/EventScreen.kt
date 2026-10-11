@@ -280,6 +280,9 @@ fun EventScreen(
             // shared with a coach (NS-38), so a read-only page has none.
             if (!readOnly) item("setups") {
                 val vehicle = model.garage?.firstOrNull { it.id == event.vehicleId }
+                // Collapsed by default, as on the web; saveable so the round
+                // trip to the setup form, a rotation or a fold keeps it open.
+                var notebookOpen by rememberSaveable { mutableStateOf(false) }
                 SetupNotebookCard(
                     event = event,
                     setups = detail.setups,
@@ -288,6 +291,8 @@ fun EventScreen(
                     targetHotPsi = vehicle?.targetHotPsi,
                     units = LocalUnitSystem.current,
                     pro = canUseSetups,
+                    expanded = notebookOpen,
+                    onToggle = { notebookOpen = !notebookOpen },
                     onSubscribe = onSubscribe,
                     onOpenDay = { day -> onOpenSetup(day, null) },
                     onRecordHots = { day, sheet -> model.saveSetup(day, sheet) },

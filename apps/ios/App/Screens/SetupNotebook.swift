@@ -16,6 +16,13 @@ import TrackEvolutionKit
 /// it: below expanded width that panel is a sheet, and the last session out is
 /// the one the next cold pressures are for.
 ///
+/// **Collapsed by default**, as the web's `<details>` is: a weekend's sheets
+/// are a screen of numbers, and the sessions under the card are what the page
+/// is mostly read for. Closed, it is one row saying what is inside —
+/// ``SetupNotebook/summary(pro:sheetCount:)``, the web's summary line. Whether
+/// it is open is the event page's to hold, so coming back from the pushed form
+/// finds it as it was left.
+///
 /// Pro: a free account sees the card locked in place, never missing.
 struct SetupNotebookCard: View {
     let event: Event
@@ -25,21 +32,72 @@ struct SetupNotebookCard: View {
     let targetHotPsi: Double?
     let units: UnitSystem
     let pro: Bool
+    @Binding var expanded: Bool
     let onOpenDay: (Int) -> Void
     let onRecordHots: (Int, SetupSheet) -> Void
     let onSetNextCold: (Int, SetupSheet) -> Void
 
+    @State private var showingPaywall = false
+
     var body: some View {
-        if pro {
-            notebook
-        } else {
-            ProUpsellCard(
-                title: "Setup notebook",
-                blurb: """
-                    Log each day's pressures, alignment, dampers and fuel, see what changed since the \
-                    day before, and turn the hot pressures a session recorded into next session's colds.
-                    """
-            )
+        TECard {
+            VStack(alignment: .leading, spacing: 12) {
+                toggle
+                if expanded {
+                    Divider().overlay(Color(.borderHairline))
+                    if pro { notebook } else { upsell }
+                }
+            }
+        }
+        .accessibilityIdentifier("setupNotebook")
+    }
+
+    /// The row the card collapses to. `.plain`, because the card is one `List`
+    /// row and a default-styled button there would take the whole row as its
+    /// hit area — the day buttons' trap (#391).
+    private var toggle: some View {
+        let summary = SetupNotebook.summary(pro: pro, sheetCount: setups.count)
+        return Button {
+            withAnimation(.snappy) { expanded.toggle() }
+        } label: {
+            HStack(spacing: 8) {
+                Text(summary)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                Spacer()
+                Text(expanded ? "Hide" : "Show")
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.accentInk))
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(.accentInk))
+                    .rotationEffect(.degrees(expanded ? 180 : 0))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Setup notebook")
+        .accessibilityValue("\(summary), \(expanded ? "shown" : "hidden")")
+        .accessibilityHint(expanded ? "Hides the day sheets." : "Shows the day sheets.")
+        .accessibilityIdentifier("setupNotebookToggle")
+    }
+
+    /// A free account's open card: what the notebook does and the way to Pro —
+    /// `ProUpsellCard`'s words, inside this card rather than as a second one.
+    private var upsell: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("""
+                Log each day's pressures, alignment, dampers and fuel, see what changed since the \
+                day before, and turn the hot pressures a session recorded into next session's colds.
+                """)
+                .teStyle(.sm)
+                .foregroundStyle(Color(.textMuted))
+            Button("See Track Evolution Pro") { showingPaywall = true }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .accessibilityIdentifier("proUpsell")
+                .sheet(isPresented: $showingPaywall) {
+                    PaywallSheet(context: .general)
+                }
         }
     }
 
@@ -55,44 +113,41 @@ struct SetupNotebookCard: View {
     private var notebook: some View {
         let days = SetupNotebook.setupDays(event, setups)
         let byDay = Dictionary(setups.map { ($0.day, $0.data) }, uniquingKeysWith: { _, last in last })
-        return TECard {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(Array(days.enumerated()), id: \.element) { index, day in
-                    if index > 0 { Divider().overlay(Color(.borderHairline)) }
-                    SetupDayRow(
-                        day: day,
-                        date: days.count > 1 || byDay[day] != nil
-                            ? EventDates.eventDayISO(event.startDate, day: day).map { EventDates.fmtDate($0) }
-                            : nil,
-                        sheet: byDay[day],
-                        previous: Garage.previousSheet(setups, day),
-                        parts: parts,
-                        units: units,
-                        onOpen: { onOpenDay(day) }
-                    )
-                }
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                if index > 0 { Divider().overlay(Color(.borderHairline)) }
+                SetupDayRow(
+                    day: day,
+                    date: days.count > 1 || byDay[day] != nil
+                        ? EventDates.eventDayISO(event.startDate, day: day).map { EventDates.fmtDate($0) }
+                        : nil,
+                    sheet: byDay[day],
+                    previous: Garage.previousSheet(setups, day),
+                    parts: parts,
+                    units: units,
+                    onOpen: { onOpenDay(day) }
+                )
+            }
 
-                if let session = SetupNotebook.loopSession(sessions) {
-                    let day = SetupNotebook.defaultLoopDay(days, byDay)
-                    let sheet = byDay[day]
-                    if let loop = Health.pressureLoop(session.channels, sheet, targetHotPsi) {
-                        let nextDay = days.first(where: { $0 == day + 1 })
-                        Divider().overlay(Color(.borderHairline))
-                        PressureLoopView(
-                            session: session,
-                            day: day,
-                            loop: loop,
-                            units: units,
-                            hasTarget: targetHotPsi != nil,
-                            nextDay: nextDay,
-                            onRecord: { onRecordHots(day, Health.recordHotSheet(sheet, loop)) },
-                            onSetNext: setNext(nextDay, byDay, sheet, loop)
-                        )
-                    }
+            if let session = SetupNotebook.loopSession(sessions) {
+                let day = SetupNotebook.defaultLoopDay(days, byDay)
+                let sheet = byDay[day]
+                if let loop = Health.pressureLoop(session.channels, sheet, targetHotPsi) {
+                    let nextDay = days.first(where: { $0 == day + 1 })
+                    Divider().overlay(Color(.borderHairline))
+                    PressureLoopView(
+                        session: session,
+                        day: day,
+                        loop: loop,
+                        units: units,
+                        hasTarget: targetHotPsi != nil,
+                        nextDay: nextDay,
+                        onRecord: { onRecordHots(day, Health.recordHotSheet(sheet, loop)) },
+                        onSetNext: setNext(nextDay, byDay, sheet, loop)
+                    )
                 }
             }
         }
-        .accessibilityIdentifier("setupNotebook")
     }
 }
 
@@ -310,6 +365,14 @@ enum SetupNotebook {
     static func setupDays(_ event: Event, _ setups: [Setup]) -> [Int] {
         let span = max(1, Int(event.days.rounded(.up)))
         return Array(Set(Array(1...span) + setups.map(\.day))).sorted()
+    }
+
+    /// What the collapsed card says it holds — the web's `<summary>` line:
+    /// "Pro" for a free account, else the sheet count, else what a sheet is for.
+    static func summary(pro: Bool, sheetCount: Int) -> String {
+        if !pro { return "Pro" }
+        if sheetCount > 0 { return "\(sheetCount) day sheet\(sheetCount == 1 ? "" : "s")" }
+        return "pressures, alignment, dampers…"
     }
 
     /// The session the loop reads: the latest one that recorded tire pressures.

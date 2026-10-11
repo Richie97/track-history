@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.EventDates
@@ -29,7 +32,6 @@ import app.trackevolution.core.model.Session
 import app.trackevolution.core.model.Setup
 import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.UnitSystem
-import app.trackevolution.ui.TEProLocked
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
@@ -47,6 +49,13 @@ import kotlin.math.ceil
  * *Log day N setup*, which copies the day before forward, or *Edit*. Under the
  * days, when a session recorded tire pressures, the pressure loop.
  *
+ * **Collapsed by default**, as the web's `<details>` is: a weekend's sheets are a
+ * screen of numbers, and the sessions under the card are what the page is mostly
+ * read for. Closed, it is its header and one line saying what is inside —
+ * [setupNotebookSummary], the web's summary line. Whether it is open is the
+ * caller's to hold (`rememberSaveable`), so coming back from the setup form
+ * finds it as it was left.
+ *
  * Pro: a free account sees the card locked in place, never missing.
  */
 @Composable
@@ -58,25 +67,50 @@ internal fun SetupNotebookCard(
     targetHotPsi: Double?,
     units: UnitSystem,
     pro: Boolean,
+    expanded: Boolean,
+    onToggle: () -> Unit,
     onSubscribe: () -> Unit,
     onOpenDay: (Int) -> Unit,
     onRecordHots: (Int, SetupSheet) -> Unit,
     onSetNextCold: (Int, SetupSheet) -> Unit,
 ) {
-    if (!pro) {
-        TEProLocked(
-            title = "Setup notebook",
-            blurb = "Log each day's pressures, alignment, dampers and fuel, see what changed since the " +
-                "day before, and turn the hot pressures a session recorded into next session's colds.",
-            onSubscribe = onSubscribe,
-        )
-        return
-    }
     val colors = TrackTheme.colors
-    val days = setupDays(event, setups)
-    val byDay = setups.associate { it.day to it.data }
     TrackCard(Modifier.fillMaxWidth().testTag("setupNotebook")) {
-        TESectionHeader("Setup notebook")
+        NotebookToggle(setupNotebookSummary(pro, setups.size), expanded, onToggle)
+        if (expanded && !pro) {
+            Text(
+                "Log each day's pressures, alignment, dampers and fuel, see what changed since the " +
+                    "day before, and turn the hot pressures a session recorded into next session's colds.",
+                style = TrackTheme.typography.sm,
+                color = colors.textMuted,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            TextButton(onClick = onSubscribe, modifier = Modifier.testTag("proLocked")) {
+                Text("See Track Evolution Pro", style = TrackTheme.typography.bodyStrong, color = colors.accentInk)
+            }
+        }
+        if (expanded && pro) NotebookDays(event, setups, sessions, parts, targetHotPsi, units, onOpenDay, onRecordHots, onSetNextCold)
+    }
+}
+
+/** The open card's days and, under them, the pressure loop. */
+@Composable
+private fun NotebookDays(
+    event: Event,
+    setups: List<Setup>,
+    sessions: List<Session>,
+    parts: List<Part>,
+    targetHotPsi: Double?,
+    units: UnitSystem,
+    onOpenDay: (Int) -> Unit,
+    onRecordHots: (Int, SetupSheet) -> Unit,
+    onSetNextCold: (Int, SetupSheet) -> Unit,
+) {
+    val colors = TrackTheme.colors
+    Column {
+        val days = setupDays(event, setups)
+        val byDay = setups.associate { it.day to it.data }
+        HorizontalDivider(color = colors.borderHairline, modifier = Modifier.padding(top = 8.dp, bottom = 10.dp))
         days.forEachIndexed { index, day ->
             if (index > 0) HorizontalDivider(color = colors.borderHairline, modifier = Modifier.padding(vertical = 10.dp))
             SetupDayRow(
@@ -109,6 +143,36 @@ internal fun SetupNotebookCard(
                 },
             )
         }
+    }
+}
+
+/**
+ * The header the card collapses to: the title, what is inside, and Show / Hide.
+ * One click target, a button to TalkBack, with its state said.
+ */
+@Composable
+private fun NotebookToggle(summary: String, expanded: Boolean, onToggle: () -> Unit) {
+    val colors = TrackTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClickLabel = if (expanded) "Hide the day sheets" else "Show the day sheets") {
+                onToggle()
+            }
+            .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }
+            .testTag("setupNotebookToggle"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            TESectionHeader("Setup notebook")
+            Text(summary, style = TrackTheme.typography.xs, color = colors.textMuted)
+        }
+        Text(
+            (if (expanded) "Hide ▴" else "Show ▾"),
+            style = TrackTheme.typography.sm,
+            color = colors.accentInk,
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 
@@ -311,6 +375,17 @@ private fun LoopRowLine(corner: String, cold: String, hot: String, target: Strin
         }
         Text(next, style = style, color = if (header) color else colors.accentInk, modifier = Modifier.weight(1f))
     }
+}
+
+/**
+ * What the collapsed card says it holds — the web's `<summary>` line: "Pro" for
+ * a free account, else the sheet count, else what a sheet is for. iOS's
+ * `SetupNotebook.summary`.
+ */
+internal fun setupNotebookSummary(pro: Boolean, sheetCount: Int): String = when {
+    !pro -> "Pro"
+    sheetCount > 0 -> "$sheetCount day sheet${if (sheetCount == 1) "" else "s"}"
+    else -> "pressures, alignment, dampers…"
 }
 
 /**

@@ -48,6 +48,9 @@ struct EventScreen: View {
     /// arrive, and an always-open three-field form under them made the card read as a
     /// form with two buttons above it rather than as three ways in.
     @State private var manualEntryOpened = false
+    /// The setup notebook starts collapsed, as on the web; this holds it open
+    /// across the pushed setup form and the reload a saved sheet causes.
+    @State private var setupNotebookOpen = false
 
     // Typed text is held on the router rather than in `@State`, so crossing
     // 840pt — which swaps the shell and tears this view down — keeps it (epic
@@ -376,6 +379,7 @@ struct EventScreen: View {
                     targetHotPsi: vehicle?.targetHotPsi,
                     units: auth.units,
                     pro: pro,
+                    expanded: $setupNotebookOpen,
                     onOpenDay: { day in
                         router.push(.setupForm(eventId: model.eventId, day: day, startFrom: nil))
                     },
