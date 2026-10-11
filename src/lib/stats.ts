@@ -32,10 +32,26 @@ export type EventRow = EventCosts & {
   lap_count: number;
   lap_avg: number | null;
   lap_avg_sq: number | null;
+  // The same three over the event's clean laps only (NS-42): those within
+  // CLEAN_FACTOR of their own session's best. Consistency reads these.
+  clean_count: number;
+  clean_avg: number | null;
+  clean_avg_sq: number | null;
   session_count: number;
 };
 
-export type ComputedEvent = Omit<EventRow, "lap_avg" | "lap_avg_sq" | "checklist"> & {
+// A lap is clean when it is within this factor of its own session's best — the
+// F1 107% rule, which leaves out out-laps, cool-downs and laps lost in heavy
+// traffic. The same constant as cleanLaps in public/js/lap-stats.js and
+// LapStats.CLEAN_FACTOR on both phones; src/db.ts writes it into the SQL.
+export const CLEAN_FACTOR = 1.07;
+// Consistency needs this many clean laps; a coefficient over fewer is noise.
+export const MIN_CONSISTENCY_LAPS = 3;
+
+export type ComputedEvent = Omit<
+  EventRow,
+  "lap_avg" | "lap_avg_sq" | "clean_count" | "clean_avg" | "clean_avg_sq" | "checklist"
+> & {
   best_ms: number | null;
   consistency: number | null;
   hours: number; // on-track hours (override, or estimated — see lib/wear.ts)
@@ -59,11 +75,12 @@ export function parseChecklist(raw: string | null): ChecklistItem[] | null {
 export function withComputed(e: EventRow): ComputedEvent {
   const bests = [e.best_time_ms, e.lap_best_ms].filter((v): v is number => v != null);
   const best_ms = bests.length ? Math.min(...bests) : null;
-  // Coefficient of variation of lap times (stdev / mean), only meaningful with 3+ laps.
+  // Coefficient of variation (stdev / mean) of the event's clean laps (NS-42),
+  // only meaningful with MIN_CONSISTENCY_LAPS of them.
   let consistency: number | null = null;
-  if (e.lap_count >= 3 && e.lap_avg != null && e.lap_avg_sq != null) {
-    const variance = Math.max(0, e.lap_avg_sq - e.lap_avg * e.lap_avg);
-    consistency = Math.sqrt(variance) / e.lap_avg;
+  if (e.clean_count >= MIN_CONSISTENCY_LAPS && e.clean_avg != null && e.clean_avg_sq != null) {
+    const variance = Math.max(0, e.clean_avg_sq - e.clean_avg * e.clean_avg);
+    consistency = Math.sqrt(variance) / e.clean_avg;
   }
   const hours = eventHours({
     start_date: e.start_date,
@@ -72,7 +89,7 @@ export function withComputed(e: EventRow): ComputedEvent {
     lap_ms_sum: e.lap_avg != null ? e.lap_avg * e.lap_count : null,
     lap_count: e.lap_count,
   });
-  const { lap_avg, lap_avg_sq, ...rest } = e;
+  const { lap_avg, lap_avg_sq, clean_count, clean_avg, clean_avg_sq, ...rest } = e;
   return {
     ...rest,
     best_ms,

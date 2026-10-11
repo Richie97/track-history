@@ -17,6 +17,9 @@ public object LapStats {
     /** The F1 107% rule's factor: laps slower than this are not representative. */
     public const val CLEAN_FACTOR: Double = 1.07
 
+    /** Consistency needs this many clean laps (NS-42); `MIN_CONSISTENCY_LAPS` in `lap-stats.js`. */
+    public const val MIN_CONSISTENCY_LAPS: Int = 3
+
     /** Within 1% of the session best counts as "up to speed". */
     public const val WARMUP_PCT: Double = 0.01
 
@@ -106,4 +109,24 @@ public object LapStats {
     }
 
     private const val FADING_MS_PER_LAP = 150.0
+
+    /**
+     * An event's consistency (NS-42): the coefficient of variation (population
+     * stdev ÷ mean) of its clean laps, each session's laps judged against that
+     * session's own best. One list of lap times per session; null under
+     * [MIN_CONSISTENCY_LAPS] clean laps.
+     *
+     * Mean of squares minus squared mean, in doubles — the server's arithmetic
+     * over its SQL aggregates, which [app.trackevolution.core.offline.OfflineMirrors.recomputeDetail]
+     * is checked against to 1e-12. A lap time squared is ~1.4e10, which would
+     * overflow an Int silently. Pinned by `contracts/logic/consistency.json`.
+     */
+    public fun eventConsistency(sessionLaps: List<List<Int>>): Double? {
+        val clean = sessionLaps.flatMap { cleanLaps(it) }
+        if (clean.size < MIN_CONSISTENCY_LAPS) return null
+        val n = clean.size.toDouble()
+        val mean = clean.sumOf { it.toDouble() } / n
+        val meanOfSquares = clean.sumOf { it.toDouble() * it.toDouble() } / n
+        return kotlin.math.sqrt(kotlin.math.max(0.0, meanOfSquares - mean * mean)) / mean
+    }
 }

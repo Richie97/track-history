@@ -104,7 +104,8 @@ fails if the tree is dirty.
 
 The fixture is deliberately awkward — an event with no laps (`best_ms` and
 `consistency` null), a session below the 3-lap threshold where `consistency`
-stays null, sessions with and without channel data, both VIR layouts as separate
+stays null, a cool-down lap beyond 107% that consistency leaves out and the lap
+count keeps, sessions with and without channel data, both VIR layouts as separate
 tracks, and one error response per status the clients handle. Volatile fields
 (ids, timestamps) are normalized to stable placeholders of the same type rather
 than deleted, so nullability is still pinned. Regenerating twice must produce a
@@ -1154,8 +1155,14 @@ privacy label and Play's Data safety form.
 
 - An event's **best time** is `MIN(best logged lap, manual best)` — the manual
   field exists because the spreadsheet-era events only recorded a best time.
-- **Consistency** is the coefficient of variation (stdev ÷ mean) of all laps in an
-  event; shown once an event has 3+ laps. Lower is more consistent.
+- **Consistency** is the coefficient of variation (stdev ÷ mean) of an event's
+  *clean* laps — within 107% of their own session's best, so out-laps, cool-downs
+  and laps lost in heavy traffic don't count against it — shown once an event has
+  3 of them (NS-42). Lower is more consistent. `lap_count` and on-track hours still
+  count every lap. The rule is computed in SQL (`eventSelect`'s `sb` CTE in
+  `src/db.ts`) and mirrored by `eventConsistency` in `public/js/lap-stats.js`,
+  which the web and both native offline mirrors call; `contracts/logic/consistency.json`
+  pins the ports.
 - Imported per-session bests (from a spreadsheet era) appear as one-lap sessions;
   full lap-by-lap data can be attached to any event via `RAW_SESSIONS` in the seed
   data or pasted into the UI.
