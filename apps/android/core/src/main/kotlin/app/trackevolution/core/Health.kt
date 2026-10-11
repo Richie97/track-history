@@ -1,7 +1,9 @@
 package app.trackevolution.core
 
+import app.trackevolution.core.model.CornerValues
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.core.model.SetupSheet
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.floor
@@ -51,9 +53,10 @@ import kotlinx.serialization.Serializable
  *
  * The **tire-pressure loop** — the setup sheet's cold pressures and a
  * per-vehicle target turning the import's hot pressures into the cold pressure
- * to start from next time — is web-only, because the setup notebook is. What
- * ports is the arithmetic under it ([hotPressures], [suggestCold]) and nothing
- * that needs a sheet: `pressureLoop` has no counterpart here.
+ * to start from next time — is ported since NS-40, when the setup notebook came
+ * to the phones: [pressureLoop], [nextTimeNote] and the two sheets its buttons
+ * write, [recordHotSheet] and [nextDaySheet], pinned with the setup helpers by
+ * `contracts/logic/setups.json`.
  */
 public object Health {
 
@@ -378,13 +381,119 @@ public object Health {
      * hot, start from cold minus the overshoot. Rounded to the sheet's step.
      * Null unless all three are known.
      *
-     * The loop *around* this — reading the day's setup sheet and writing the
-     * next day's — is web-only, because the setup notebook is.
+     * The loop around it is [pressureLoop], with [recordHotSheet] and
+     * [nextDaySheet] the two sheets its buttons write (NS-40).
      */
     public fun suggestCold(coldPsi: Double?, hotPsi: Double?, targetPsi: Double?): ColdSuggestion? {
         if (coldPsi == null || hotPsi == null || targetPsi == null) return null
         val suggested = roundPsi(coldPsi - (hotPsi - targetPsi))
         return ColdSuggestion(coldPsi, hotPsi, targetPsi, suggested, suggested - coldPsi)
+    }
+
+    /** One corner of the pressure loop: the sheet's cold, the import's hot, the target, the suggestion. */
+    public data class LoopRow(
+        val corner: String,
+        val key: String,
+        val coldPsi: Double?,
+        val hotPsi: Double?,
+        val hotChIdx: Int?,
+        val targetPsi: Double?,
+        val suggestion: ColdSuggestion?,
+    )
+
+    /**
+     * The pressure loop for one session. [hotSheet] is the sheet's `tp_hot` as
+     * the import measured it, on the sheet's step, with only the corners that
+     * recorded one; [coldSheet] the suggested colds, when every corner has one.
+     */
+    public data class PressureLoop(
+        val rows: List<LoopRow>,
+        val hotSheet: CornerValues,
+        val coldSheet: CornerValues?,
+    )
+
+    private fun cornerValues(entries: Map<String, Double>): CornerValues =
+        CornerValues(fl = entries["fl"], fr = entries["fr"], rl = entries["rl"], rr = entries["rr"])
+
+    private fun CornerValues.byKey(key: String): Double? = when (key) {
+        "fl" -> fl
+        "fr" -> fr
+        "rl" -> rl
+        "rr" -> rr
+        else -> null
+    }
+
+    /**
+     * `pressureLoop` in `health.js` (NS-40): per corner, the day's sheet's cold,
+     * the import's hot (peak end-of-lap, psi), the vehicle's target, and the
+     * suggestion when all three exist. Null when the session stored no hot
+     * pressure at all — nothing to close the loop on.
+     */
+    public fun pressureLoop(channels: SessionChannels?, sheet: SetupSheet?, targetPsi: Double?): PressureLoop? {
+        val hot = hotPressures(channels) ?: return null
+        val rows = TYRE_CORNERS.map { (corner, key) ->
+            val h = hot[corner]
+            val hotPsi = h?.let { kpaToPsi(it.peakKpa) }
+            val coldPsi = sheet?.tpCold?.byKey(key)
+            LoopRow(corner, key, coldPsi, hotPsi, h?.peakChIdx, targetPsi, suggestCold(coldPsi, hotPsi, targetPsi))
+        }
+        val hotSheet = cornerValues(rows.filter { it.hotPsi != null }.associate { it.key to roundPsi(it.hotPsi!!) })
+        val coldSheet = if (rows.all { it.suggestion != null }) {
+            cornerValues(rows.associate { it.key to it.suggestion!!.suggestedPsi })
+        } else {
+            null
+        }
+        return PressureLoop(rows, hotSheet, coldSheet)
+    }
+
+    /**
+     * The "next time" note the record action appends to the sheet, so the
+     * suggestion rides the copy-forward prefill: "Next time cold: LF 24.5 / … psi
+     * (hots ran 35.5 / … vs 34.0 target)". Null without a cold suggestion.
+     */
+    public fun nextTimeNote(loop: PressureLoop?): String? {
+        val cold = loop?.coldSheet ?: return null
+        val colds = TYRE_CORNERS.joinToString(" / ") { (c, k) -> "$c ${app.trackevolution.core.Units.toFixed(cold.byKey(k)!!, 1)}" }
+        val target = loop.rows.firstOrNull { it.targetPsi != null }?.targetPsi
+        val hots = TYRE_CORNERS.joinToString(" / ") { (_, k) ->
+            loop.hotSheet.byKey(k)?.let { app.trackevolution.core.Units.toFixed(it, 1) } ?: "—"
+        }
+        return "Next time cold: $colds psi (hots ran $hots vs ${target?.let { app.trackevolution.core.Units.toFixed(it, 1) } ?: "—"} target)"
+    }
+
+    /**
+     * The sheet *Record hot pressures* writes (NS-40): [sheet] (or an empty one)
+     * with the import's hots merged over its `tp_hot`, and [nextTimeNote]
+     * appended to its notes — once: notes already carrying the line are left
+     * alone.
+     */
+    public fun recordHotSheet(sheet: SetupSheet?, loop: PressureLoop?): SetupSheet {
+        val base = sheet ?: SetupSheet()
+        val hot = loop?.hotSheet ?: CornerValues()
+        val prev = base.tpHot ?: CornerValues()
+        val merged = CornerValues(
+            fl = hot.fl ?: prev.fl,
+            fr = hot.fr ?: prev.fr,
+            rl = hot.rl ?: prev.rl,
+            rr = hot.rr ?: prev.rr,
+        )
+        val line = nextTimeNote(loop)
+        val notes = if (line != null && base.notes?.contains(line) != true) {
+            base.notes?.let { "$it\n$line" } ?: line
+        } else {
+            base.notes
+        }
+        return base.copy(tpHot = merged, notes = notes)
+    }
+
+    /**
+     * The sheet *Set day N+1 cold* opens the next day's form with (NS-40): the
+     * next day's own sheet when there is one, else [todaySheet] without its
+     * hots, which belong to today; either way with the suggested colds.
+     */
+    public fun nextDaySheet(nextSheet: SetupSheet?, todaySheet: SetupSheet?, loop: PressureLoop?): SetupSheet {
+        val carried = nextSheet ?: (todaySheet ?: SetupSheet()).copy(tpHot = null)
+        return carried.copy(tpCold = loop?.coldSheet)
     }
 
     /**

@@ -205,6 +205,6 @@ public object Units {
         if (!fixed.contains('.')) fixed else fixed.trimEnd('0').trimEnd('.')
 
     /** A number the way JavaScript stringifies it in `${m} m`: `800.0` → "800". */
-    private fun jsNumber(value: Double): String =
+    public fun jsNumber(value: Double): String =
         if (value == Math.rint(value) && kotlin.math.abs(value) < 1e15) value.toLong().toString() else value.toString()
 }

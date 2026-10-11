@@ -22,6 +22,8 @@ public val Route.analyticsPath: String
         Route.Dashboard -> "/"
         is Route.Event -> student(student) + "/event/:id"
         is Route.EventForm -> if (editId == null) "/new" else "/event/:id/edit"
+        // The web's notebook is inline on the event page; the form is a screen here.
+        is Route.SetupForm -> "/event/:id/setup/:day"
         is Route.Track -> student(student) + "/track/:id"
         is Route.CompareLaps -> student(student) + "/track/:id/lap-compare"
         is Route.Leaderboard -> "/track/:id/leaderboard"
@@ -61,6 +63,7 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.Dashboard::class) -> Route.Dashboard
         d.hasRoute(Route.Event::class) -> toRoute<Route.Event>()
         d.hasRoute(Route.EventForm::class) -> toRoute<Route.EventForm>()
+        d.hasRoute(Route.SetupForm::class) -> toRoute<Route.SetupForm>()
         d.hasRoute(Route.Track::class) -> toRoute<Route.Track>()
         d.hasRoute(Route.CompareLaps::class) -> toRoute<Route.CompareLaps>()
         d.hasRoute(Route.Leaderboard::class) -> toRoute<Route.Leaderboard>()

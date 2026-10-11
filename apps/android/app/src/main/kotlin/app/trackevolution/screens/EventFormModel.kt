@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
+import app.trackevolution.core.Costs
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.EventFormSessions
 import app.trackevolution.core.NewEventDates
@@ -83,6 +84,38 @@ class EventFormModel(
     var temp by SavedState(saved, "temp", "")
     var bestTime by SavedState(saved, "bestTime", "")
     var notes by SavedState(saved, "notes", "")
+
+    /**
+     * What the day cost (#147, NS-40), four line items as typed in dollars —
+     * `Costs.COST_FIELDS`' order. Cents only on the way out ([Costs.dollarsToCents]),
+     * so a half-typed "45." survives a rotation as typed.
+     */
+    var costEntry by SavedState(saved, "costEntry", "")
+    var costFuel by SavedState(saved, "costFuel", "")
+    var costTravel by SavedState(saved, "costTravel", "")
+    var costMisc by SavedState(saved, "costMisc", "")
+
+    /** A line item's typed value by its column, for the form's loop over `COST_FIELDS`. */
+    fun costText(key: String): String = when (key) {
+        "cost_entry_cents" -> costEntry
+        "cost_fuel_cents" -> costFuel
+        "cost_travel_cents" -> costTravel
+        "cost_misc_cents" -> costMisc
+        else -> ""
+    }
+
+    fun setCostText(key: String, value: String) {
+        when (key) {
+            "cost_entry_cents" -> costEntry = value
+            "cost_fuel_cents" -> costFuel = value
+            "cost_travel_cents" -> costTravel = value
+            "cost_misc_cents" -> costMisc = value
+        }
+    }
+
+    /** Whether any line item has been typed — the form opens the section when so. */
+    val hasCosts: Boolean
+        get() = Costs.COST_FIELDS.any { costText(it.key).isNotBlank() }
 
     /** The hand-typed session of the "Add laps" section, new events only. */
     var sessionLabel by SavedState(saved, "sessionLabel", "")
@@ -202,6 +235,10 @@ class EventFormModel(
                     temp = Units.tempToDisplay(existing.tempF, units)?.toString().orEmpty()
                     bestTime = existing.bestTimeMs?.let { LapTime.fmtMs(it) }.orEmpty()
                     notes = existing.notes.orEmpty()
+                    costEntry = Costs.centsToDollars(existing.costEntryCents)
+                    costFuel = Costs.centsToDollars(existing.costFuelCents)
+                    costTravel = Costs.centsToDollars(existing.costTravelCents)
+                    costMisc = Costs.centsToDollars(existing.costMiscCents)
                 } else if (car.isBlank()) {
                     // A new event starts on the default car, which is the whole
                     // point of marking one.
@@ -226,6 +263,20 @@ class EventFormModel(
             error = "Couldn't parse best time \"${bestTime.trim()}\" — use 2:01.24 format."
             return
         }
+        // A typed cost that isn't a number is refused here rather than saved as
+        // blank: dropping it silently would read as "nothing spent".
+        val unreadable = Costs.COST_FIELDS.firstOrNull {
+            costText(it.key).isNotBlank() && Costs.dollarsToCents(costText(it.key)) == null
+        }
+        if (unreadable != null) {
+            error = "Couldn't read the ${unreadable.label.lowercase()} \"${costText(unreadable.key).trim()}\" — " +
+                "type dollars, like 450 or 45.50."
+            return
+        }
+        val entryCents = Costs.dollarsToCents(costEntry)
+        val fuelCents = Costs.dollarsToCents(costFuel)
+        val travelCents = Costs.dollarsToCents(costTravel)
+        val miscCents = Costs.dollarsToCents(costMisc)
 
         error = null
         saving = true
@@ -245,6 +296,10 @@ class EventFormModel(
                             tempF = Units.tempToStored(temp.trim().toDoubleOrNull(), units),
                             bestTimeMs = bestMs,
                             trackHours = trackHours.toDoubleOrNull(),
+                            costEntryCents = entryCents,
+                            costFuelCents = fuelCents,
+                            costTravelCents = travelCents,
+                            costMiscCents = miscCents,
                         ),
                     ).also { createdId = it }
                     // Then the laps, onto the event that now exists: the staged
@@ -278,6 +333,10 @@ class EventFormModel(
                             tempF = Patch.Set(Units.tempToStored(temp.trim().toDoubleOrNull(), units)),
                             bestTimeMs = Patch.Set(bestMs),
                             trackHours = Patch.Set(trackHours.toDoubleOrNull()),
+                            costEntryCents = Patch.Set(entryCents),
+                            costFuelCents = Patch.Set(fuelCents),
+                            costTravelCents = Patch.Set(travelCents),
+                            costMiscCents = Patch.Set(miscCents),
                         ),
                     )
                     editId

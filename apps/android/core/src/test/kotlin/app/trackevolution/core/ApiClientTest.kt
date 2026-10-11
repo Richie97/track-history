@@ -8,6 +8,7 @@ import app.trackevolution.core.model.EventPatch
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Patch
 import app.trackevolution.core.model.SessionPatch
+import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.model.TrackPatch
 import app.trackevolution.core.model.TracePoint
@@ -225,6 +226,29 @@ class ApiClientTest {
         assertEquals(setOf("club", "notes"), body.keys)
         assertEquals(JsonPrimitive("Chin"), body["club"])
         assertEquals(JsonNull, body["notes"])
+    }
+
+    /** NS-40: a day's prefill is a query, and a sheet is written whole with no nulls. */
+    @Test
+    fun `setup sheets read the prefill by day and write the sheet without nulls`() = runTest {
+        val api = client { request ->
+            if (request.method.value == "GET") respondJson("""{"data":{"fuel":10,"tires_f_id":3}}""")
+            else respondJson("""{"ok":true}""")
+        }
+        val prefill = api.setupPrefill(3, 2)
+        assertEquals(10.0, prefill?.fuel)
+        assertEquals(3, prefill?.tiresFId)
+        assertEquals("/api/events/3/setups/prefill", recorded[0].url.encodedPath)
+        assertEquals("2", recorded[0].url.parameters["day"])
+
+        api.putSetup(3, 2, SetupSheet(fuel = 12.5, tiresRId = 4))
+        val body = bodyOf(recorded[1])
+        assertEquals(setOf("fuel", "tires_r_id"), body.keys)
+        assertEquals("PUT", recorded[1].method.value)
+        assertEquals("/api/events/3/setups/2", recorded[1].url.encodedPath)
+
+        api.deleteSetup(3, 2)
+        assertEquals("DELETE", recorded[2].method.value)
     }
 
     /** NS-40: the server writes only the keys present, so the patch must say which. */

@@ -1,5 +1,7 @@
 package app.trackevolution.screens
 
+import androidx.compose.ui.platform.testTag
+import app.trackevolution.core.Costs
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -68,6 +70,11 @@ fun TrackScreen(
      * not shared.
      */
     readOnly: Boolean = false,
+    /**
+     * What this track has cost across its past events (#147, NS-40) — a roll-up,
+     * so Pro (`Entitlement.canViewSpend`); each event's own total stays free.
+     */
+    canViewSpend: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -103,6 +110,18 @@ fun TrackScreen(
                             style = TrackTheme.typography.sm,
                             color = colors.textMuted,
                         )
+                    }
+                    // Every past event here, dry-only filter or not — a rain
+                    // weekend still cost the entry fee.
+                    if (canViewSpend) {
+                        spentLine(model.allEvents)?.let {
+                            Text(
+                                it,
+                                style = TrackTheme.typography.sm,
+                                color = colors.textMuted,
+                                modifier = Modifier.testTag("trackSpent"),
+                            )
+                        }
                     }
                 }
             }
@@ -377,4 +396,18 @@ private fun EventRow(event: Event, onClick: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * What a set of events cost, as the web's track page says it: "$1,960 spent",
+ * or "… spent (2 of 3 events costed)" when some weren't. Past events only — an
+ * upcoming one isn't spent yet — and null when none was costed, so a track
+ * nobody costed says nothing rather than "$0" (#147).
+ */
+internal fun spentLine(events: List<Event>): String? {
+    val past = events.filter { !EventDates.isUpcoming(it.startDate) }
+    val costed = past.mapNotNull { it.costCents }
+    if (costed.isEmpty()) return null
+    val total = Costs.fmtSpend(costed.sum())
+    return if (costed.size < past.size) "$total spent (${costed.size} of ${past.size} events costed)" else "$total spent"
 }

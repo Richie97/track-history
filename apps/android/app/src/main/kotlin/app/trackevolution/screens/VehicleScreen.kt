@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import app.trackevolution.core.Costs
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -252,6 +253,10 @@ fun VehicleScreen(
                             "Track days" to pro.eventDays.toString(),
                             "Events" to pro.eventCount.toString(),
                             "Parts spend" to (Garage.fmtCost(model.spendCents.takeIf { it > 0 }) ?: "—"),
+                            // What the car's past track days cost (#147, NS-40),
+                            // the entered costs of its linked events — the server's
+                            // sum, so zero rather than null when none was costed.
+                            "Track-day spend" to (Costs.fmtSpend(pro.eventCostCents.takeIf { it > 0 }) ?: "—"),
                         )
                     } else {
                         listOf(

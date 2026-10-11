@@ -62,6 +62,8 @@ public fun NavHostController.showDeepLink(route: Route) = show(route)
 public fun Route.remapTempId(from: Int, to: Int): Route = when (this) {
     is Route.Event -> if (id == from) copy(id = to) else this
     is Route.EventForm -> if (editId == from) copy(editId = to) else this
+    // An event created offline can carry a sheet before it syncs (NS-40).
+    is Route.SetupForm -> if (eventId == from) copy(eventId = to) else this
     is Route.Record -> if (eventId == from) copy(eventId = to) else this
     is Route.Import -> if (eventId == from) copy(eventId = to) else this
     // Three ids, any of which can be temp: an event, a session and a lap can

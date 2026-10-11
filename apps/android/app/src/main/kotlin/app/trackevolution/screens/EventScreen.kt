@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
+import app.trackevolution.core.Costs
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
@@ -49,6 +50,7 @@ import app.trackevolution.core.Units
 import app.trackevolution.core.model.ChecklistItem
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.Session
+import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.TraceSample
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalLayoutMetrics
@@ -70,8 +72,9 @@ import app.trackevolution.ui.theme.TrackTheme
 /**
  * One event: its sessions, laps, prep checklist and best-lap trace (NS-26).
  *
- * Deliberately absent, and not by omission: the per-day **setup notebook**,
- * which stays web-only per the product split — it is desk work. **Video** and
+ * The per-day **setup notebook** is here since NS-40 (`SetupNotebookCard`): a
+ * sheet is filled in at the car, between sessions, so it belongs on the phone,
+ * with the tire-pressure loop under it. **Video** and
  * `.vbo` import are here, though: a PDR or GoPro clip is already on the phone
  * that shot or received it, which is the argument NS-30 made for iOS, and
  * Porsche's Track Precision app exports its `.vbo` and `.csv` on the phone too. The card
@@ -105,6 +108,14 @@ fun EventScreen(
      * otherwise the owner's own, which is the point of reusing it.
      */
     readOnly: Boolean = false,
+    /** Whether the account gets the setup notebook (`Entitlement.canUseSetups`, NS-40). */
+    canUseSetups: Boolean = false,
+    /**
+     * A day's setup form (NS-40): `(day, startFrom)` — [SetupSheet] null opens
+     * the day's own sheet or the copy-forward prefill; non-null is the pressure
+     * loop's next-day sheet with its suggested colds.
+     */
+    onOpenSetup: (Int, SetupSheet?) -> Unit = { _, _ -> },
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -123,6 +134,9 @@ fun EventScreen(
     var selectedSessionId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
+    // The notebook names its part references from the garage, and the loop
+    // reads the car's target hot pressure there.
+    LaunchedEffect(canUseSetups, readOnly) { if (canUseSetups && !readOnly) model.loadGarage() }
     LaunchedEffect(model.isDeleted) { if (model.isDeleted) onDeleted() }
 
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
@@ -177,14 +191,28 @@ fun EventScreen(
             }
 
             item("tiles") {
-                TEStatRow(
-                    listOf(
-                        "Best time" to LapTime.fmtMs(event.bestMs),
-                        "Days" to EventDates.fmtDays(event.days),
-                        "Laps" to event.lapCount.toString(),
-                        "Consistency" to LapTime.fmtConsistency(event.consistency),
-                    ),
-                )
+                Column {
+                    TEStatRow(
+                        listOfNotNull(
+                            "Best time" to LapTime.fmtMs(event.bestMs),
+                            "Days" to EventDates.fmtDays(event.days),
+                            "Laps" to event.lapCount.toString(),
+                            "Consistency" to LapTime.fmtConsistency(event.consistency),
+                            // What the day cost (#147, NS-40) — one event's own
+                            // total is free; the roll-ups across events are Pro.
+                            // Hidden for a coach, whose view sends the items null.
+                            event.costCents?.let { "Cost" to (Costs.fmtSpend(it) ?: "") },
+                        ),
+                    )
+                    costBreakdown(event)?.let {
+                        Text(
+                            it,
+                            style = TrackTheme.typography.xs,
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(top = 6.dp).testTag("costBreakdown"),
+                        )
+                    }
+                }
             }
 
             model.writeError?.let { message ->
@@ -248,6 +276,25 @@ fun EventScreen(
                 }
             }
 
+            // The setup notebook (NS-40), above the sessions as on the web. Not
+            // shared with a coach (NS-38), so a read-only page has none.
+            if (!readOnly) item("setups") {
+                val vehicle = model.garage?.firstOrNull { it.id == event.vehicleId }
+                SetupNotebookCard(
+                    event = event,
+                    setups = detail.setups,
+                    sessions = detail.sessions,
+                    parts = vehicle?.parts.orEmpty(),
+                    targetHotPsi = vehicle?.targetHotPsi,
+                    units = LocalUnitSystem.current,
+                    pro = canUseSetups,
+                    onSubscribe = onSubscribe,
+                    onOpenDay = { day -> onOpenSetup(day, null) },
+                    onRecordHots = { day, sheet -> model.saveSetup(day, sheet) },
+                    onSetNextCold = { day, sheet -> onOpenSetup(day, sheet) },
+                )
+            }
+
             item("sessions-header") { TESectionHeader("Sessions") }
 
             if (detail.sessions.isEmpty()) {
@@ -270,6 +317,7 @@ fun EventScreen(
                             onSubscribe = onSubscribe,
                             onOpenLap = { lapId -> onOpenLap(session.id, lapId) },
                             onCompare = { onCompareLaps(session.id) },
+                            onSave = { label, notes -> model.updateSession(session.id, label, notes) },
                             readOnly = readOnly,
                         )
                     }
@@ -337,6 +385,18 @@ internal fun defaultChannelSession(sessions: List<Session>): Session? =
     sessions
         .filter { it.channels != null && it.bestLapMs != null }
         .minByOrNull { it.bestLapMs ?: Int.MAX_VALUE }
+
+/**
+ * The cost line items that were entered, "Entry fee $495 · Fuel $145" — null
+ * when none was, so an uncosted day says nothing rather than "$0" (#147).
+ */
+internal fun costBreakdown(event: app.trackevolution.core.model.Event): String? {
+    val values = listOf(event.costEntryCents, event.costFuelCents, event.costTravelCents, event.costMiscCents)
+    val parts = Costs.COST_FIELDS.zip(values).mapNotNull { (field, cents) ->
+        cents?.let { "${field.label} ${Costs.fmtSpend(it)}" }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
 
 /**
  * The session holding the event's fastest lap, and its trace.
@@ -482,10 +542,17 @@ private fun SessionCard(
     onSubscribe: () -> Unit = {},
     onOpenLap: (Int) -> Unit = {},
     onCompare: () -> Unit = {},
+    /** A session's label and notes edited after the fact (NS-40): `(label, notes)`. */
+    onSave: (String?, String?) -> Unit = { _, _ -> },
     readOnly: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
+    // The edit form's typing is saveable, so a rotation or the system killing
+    // the app in the background keeps it.
+    var editing by rememberSaveable(session.id) { mutableStateOf(false) }
+    var labelDraft by rememberSaveable(session.id) { mutableStateOf(session.label.orEmpty()) }
+    var notesDraft by rememberSaveable(session.id) { mutableStateOf(session.notes.orEmpty()) }
     val best = session.bestLapMs
 
     TrackCard(
@@ -536,8 +603,59 @@ private fun SessionCard(
                 )
             }
             if (!readOnly) {
+                TextButton(
+                    onClick = {
+                        if (!editing) {
+                            labelDraft = session.label.orEmpty()
+                            notesDraft = session.notes.orEmpty()
+                        }
+                        editing = !editing
+                    },
+                    modifier = Modifier.testTag("editSession-${session.id}"),
+                ) {
+                    Text("Edit", style = TrackTheme.typography.xs, color = colors.accentInk)
+                }
                 TextButton(onClick = onDelete) {
                     Text("Delete", style = TrackTheme.typography.xs, color = colors.danger)
+                }
+            }
+        }
+
+        if (editing && !readOnly) {
+            OutlinedTextField(
+                value = labelDraft,
+                onValueChange = { if (it.length <= 200) labelDraft = it },
+                label = { Text("Label", style = TrackTheme.typography.xs) },
+                placeholder = { Text("Session", style = TrackTheme.typography.sm) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).testTag("sessionLabelField"),
+            )
+            OutlinedTextField(
+                value = notesDraft,
+                onValueChange = { notesDraft = it },
+                label = { Text("Notes", style = TrackTheme.typography.xs) },
+                placeholder = {
+                    Text("What to change next session — brake later into T5…", style = TrackTheme.typography.sm)
+                },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).testTag("sessionNotesField"),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                Button(
+                    onClick = {
+                        onSave(labelDraft, notesDraft)
+                        editing = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = colors.accentContrast,
+                    ),
+                    modifier = Modifier.testTag("saveSession"),
+                ) {
+                    Text("Save", style = TrackTheme.typography.bodyStrong)
+                }
+                TextButton(onClick = { editing = false }) {
+                    Text("Cancel", style = TrackTheme.typography.sm, color = colors.textMuted)
                 }
             }
         }
