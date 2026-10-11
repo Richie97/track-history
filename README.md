@@ -1472,7 +1472,7 @@ shipped dark):
 |---|---|
 | `requireEntitlement` | `GET /garage`, the parts/measurements routes, and the setups routes (`PUT`/`DELETE /events/:id/setups/:day`, `GET /events/:id/setups/prefill`, `GET /tracks/:id/setups`) — and nothing else. `test/api/entitlement-gates.test.ts` enumerates the set by handler identity, so a gate added anywhere else fails a test. |
 | `stripProFields` | `GET /events/:id` and the leaderboard lap, the two responses carrying `sessions.channels`. A free account keeps `FREE_CHANNELS` — speed, throttle and brake — per lap and loses every other channel and every per-lap scalar; `trace` and `meta` are kept, since the track map is free and a session with a trace and no channels is what a recorder save looks like. |
-| Client | The recorder's Start on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`), and on the web the setup notebook, setup-vs-lap-times table, garage page, year in review and both compare routes. **Import is not gated on any client** — it is free, and `channels` above is what the tier actually costs. |
+| Client | The recorder's Start on both phones (`Entitlement.gatesEnabled` / `GATES_ENABLED`, both `true`); on all three clients the setup notebook and its pressure loop (`canUseSetups`, NS-40), the cost roll-ups (`canViewSpend`) and the garage page's Pro half; and on the web the setup-vs-lap-times table, year in review and both compare routes. **Import is not gated on any client** — it is free, and `channels` above is what the tier actually costs. |
 
 A 402 renders the paywall on every client, never the sync banner — that is why
 `APIError.proRequired` and `ApiException.PaymentRequired` are their own cases.
