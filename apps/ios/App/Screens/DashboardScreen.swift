@@ -73,8 +73,10 @@ struct DashboardScreen: View {
                 // to its content, and the disc landed flush against the capsule's
                 // curve on both sides. Padding here goes *inside* the glass — the
                 // capsule grows with it — so this is the breathing room, not a
-                // shift of the item along the bar.
-                .padding(.horizontal, 2)
+                // shift of the item along the bar. 2pt still read as cramped, the
+                // wordmark's last letter close against the curve; 8 gives both
+                // ends the same air as the gap between the disc and the word.
+                .padding(.horizontal, 8)
                 // Hidden rather than combined into a header: the bar is *already*
                 // named "Track Evolution" by `navigationTitle`, so an element
                 // repeating it is a second announcement of the same thing — and

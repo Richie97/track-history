@@ -666,9 +666,10 @@ landscape = expanded), and web-only stays web-only on a 7.6″ iPhone as on a
 840pt — which the open Duo crosses on every rotation, as an iPad mini always
 did — by living on `AppRouter` (the event form's `eventFormDraft`, other
 pages' `heldFields`). And the tabletop recorder is ported from Android behind
-`#available(iOS 27.1, *)`; its hinge read waits on Xcode 27.1 on CI and
-Xcode Cloud (ticket 2), and the Device Hub verification pass (ticket 4)
-waits on the Duo simulator.
+`#available(iOS 27.1, *)`; its hinge read compiles only on Xcode 27.1, so
+CI and the Xcode Cloud archive have to move to it (ticket 2) before it
+ships, and the Device Hub verification pass (ticket 4) waits on the Duo
+simulator.
 
 ## Deferred — not in this programme
 
