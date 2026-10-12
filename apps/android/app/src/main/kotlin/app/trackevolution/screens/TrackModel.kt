@@ -19,6 +19,7 @@ import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.charts.ProgressPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -87,40 +88,47 @@ class TrackModel(
     fun load() {
         scope.launch {
             try {
-                val tracksJob = async { api.tracks() }
-                val eventsJob = async { api.events(trackId = trackId) }
-                val found = tracksJob.await().firstOrNull { it.id == trackId }
-                val loaded = eventsJob.await()
-                if (found == null) {
-                    state = LoadState.Failed(
-                        // A coach is reading someone else's logbook (NS-38).
-                        if (api.owner.readOnly) {
-                            "That track isn't in this logbook any more."
-                        } else {
-                            "That track isn't in your logbook any more."
-                        },
-                        retryable = false,
-                    )
-                    return@launch
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val tracksJob = async { api.tracks() }
+                    val eventsJob = async { api.events(trackId = trackId) }
+                    val found = tracksJob.await().firstOrNull { it.id == trackId }
+                    val loaded = eventsJob.await()
+                    if (found == null) {
+                        state = LoadState.Failed(
+                            // A coach is reading someone else's logbook (NS-38).
+                            if (api.owner.readOnly) {
+                                "That track isn't in this logbook any more."
+                            } else {
+                                "That track isn't in your logbook any more."
+                            },
+                            retryable = false,
+                        )
+                        return@coroutineScope
+                    }
+                    // Both at once: publishing the track before its events would let
+                    // a recomposition in between draw a circuit with no history.
+                    track = found
+                    allEvents = loaded
+                    // A re-load must not overwrite something half-typed. Every write
+                    // on this screen ends in one, so "saved the goal" would otherwise
+                    // discard unsaved course notes sitting in the field above it.
+                    val serverGoal = found.goalMs?.let { LapTime.fmtMs(it) }.orEmpty()
+                    if (goalText == savedGoalText) goalText = serverGoal
+                    savedGoalText = serverGoal
+                    val edited = notesChanged
+                    savedNotes = found.notes.orEmpty()
+                    if (!edited) notes = savedNotes
+                    state = LoadState.Ready
                 }
-                // Both at once: publishing the track before its events would let
-                // a recomposition in between draw a circuit with no history.
-                track = found
-                allEvents = loaded
-                // A re-load must not overwrite something half-typed. Every write
-                // on this screen ends in one, so "saved the goal" would otherwise
-                // discard unsaved course notes sitting in the field above it.
-                val serverGoal = found.goalMs?.let { LapTime.fmtMs(it) }.orEmpty()
-                if (goalText == savedGoalText) goalText = serverGoal
-                savedGoalText = serverGoal
-                val edited = notesChanged
-                savedNotes = found.notes.orEmpty()
-                if (!edited) notes = savedNotes
-                state = LoadState.Ready
             } catch (e: ApiException) {
                 if (track == null) state = LoadState.Failed(e.message ?: "Couldn't load this track.")
                 return@launch
             }
+            // The track is gone: nothing to share.
+            if (state != LoadState.Ready) return@launch
             // A student's track (NS-38) has no share slug to offer: `/me` is
             // not on the coach mount, and the link would be theirs anyway.
             if (api.owner.readOnly) return@launch

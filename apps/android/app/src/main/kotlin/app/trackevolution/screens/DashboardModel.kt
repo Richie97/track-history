@@ -18,6 +18,7 @@ import app.trackevolution.navigation.GarageBadge
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -50,14 +51,19 @@ class DashboardModel(
     fun load() {
         scope.launch {
             try {
-                val me = async { api.me() }
-                val trackList = async { api.tracks() }
-                val eventList = async { api.events() }
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val me = async { api.me() }
+                    val trackList = async { api.tracks() }
+                    val eventList = async { api.events() }
 
-                totals = me.await().totals
-                tracks = trackList.await()
-                events = eventList.await()
-                state = LoadState.Ready
+                    totals = me.await().totals
+                    tracks = trackList.await()
+                    events = eventList.await()
+                    state = LoadState.Ready
+                }
             } catch (e: ApiException) {
                 state = LoadState.Failed(e.message ?: "Couldn't load your logbook.")
                 return@launch

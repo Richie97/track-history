@@ -9,6 +9,7 @@ import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -50,20 +51,25 @@ class LeaderboardModel(
     fun load() {
         scope.launch {
             try {
-                val tracksJob = async { api.tracks() }
-                val eventsJob = async { api.events(trackId = trackId) }
-                val boardJob = async { api.trackLeaderboard(trackId) }
-                val found = tracksJob.await().firstOrNull { it.id == trackId }
-                val events = eventsJob.await()
-                val board = boardJob.await()
-                if (found == null) {
-                    state = LoadState.Failed("That track isn't in your logbook any more.", retryable = false)
-                    return@launch
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val tracksJob = async { api.tracks() }
+                    val eventsJob = async { api.events(trackId = trackId) }
+                    val boardJob = async { api.trackLeaderboard(trackId) }
+                    val found = tracksJob.await().firstOrNull { it.id == trackId }
+                    val events = eventsJob.await()
+                    val board = boardJob.await()
+                    if (found == null) {
+                        state = LoadState.Failed("That track isn't in your logbook any more.", retryable = false)
+                        return@coroutineScope
+                    }
+                    trackName = found.name
+                    logbookBest = events.mapNotNull { it.bestMs }.minOrNull()
+                    leaderboard = board
+                    state = LoadState.Ready
                 }
-                trackName = found.name
-                logbookBest = events.mapNotNull { it.bestMs }.minOrNull()
-                leaderboard = board
-                state = LoadState.Ready
             } catch (e: ApiException) {
                 if (leaderboard == null) state = LoadState.Failed(e.message ?: "Couldn't load the leaderboard.")
             }

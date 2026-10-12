@@ -16,6 +16,7 @@ import app.trackevolution.navigation.GarageBadge
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -68,23 +69,28 @@ class GarageModel(
     fun load() {
         scope.launch {
             try {
-                val vehicleList = async { api.vehicles() }
-                val eventList = async { api.events() }
-                val garageList = async {
-                    try {
-                        api.garage()
-                    } catch (e: ApiException) {
-                        if (e.isPaymentRequired) proLocked = true
-                        null
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val vehicleList = async { api.vehicles() }
+                    val eventList = async { api.events() }
+                    val garageList = async {
+                        try {
+                            api.garage()
+                        } catch (e: ApiException) {
+                            if (e.isPaymentRequired) proLocked = true
+                            null
+                        }
                     }
+                    vehicles = vehicleList.await()
+                    events = eventList.await()
+                    garage = garageList.await()?.also {
+                        proLocked = false
+                        GarageBadge.note(it)
+                    }
+                    state = LoadState.Ready
                 }
-                vehicles = vehicleList.await()
-                events = eventList.await()
-                garage = garageList.await()?.also {
-                    proLocked = false
-                    GarageBadge.note(it)
-                }
-                state = LoadState.Ready
             } catch (e: ApiException) {
                 // A reload over data already on screen keeps it.
                 if (state != LoadState.Ready) state = LoadState.Failed(e.message ?: "Couldn't load your garage.")

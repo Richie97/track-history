@@ -22,6 +22,7 @@ import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -204,48 +205,53 @@ class EventFormModel(
     fun load() {
         scope.launch {
             try {
-                val tracksJob = async { api.tracks() }
-                val catalogJob = async { runCatching { api.catalog() }.getOrDefault(emptyList()) }
-                val vehiclesJob = async { runCatching { api.vehicles() }.getOrDefault(emptyList()) }
-                val editJob = editId?.let { id -> async { api.event(id) } }
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val tracksJob = async { api.tracks() }
+                    val catalogJob = async { runCatching { api.catalog() }.getOrDefault(emptyList()) }
+                    val vehiclesJob = async { runCatching { api.vehicles() }.getOrDefault(emptyList()) }
+                    val editJob = editId?.let { id -> async { api.event(id) } }
 
-                val own = tracksJob.await().map { it.name }
-                val seen = own.map { it.lowercase() }.toSet()
-                trackOptions = own + catalogJob.await().map { it.name }.filter { it.lowercase() !in seen }
+                    val own = tracksJob.await().map { it.name }
+                    val seen = own.map { it.lowercase() }.toSet()
+                    trackOptions = own + catalogJob.await().map { it.name }.filter { it.lowercase() !in seen }
 
-                val vehicles = vehiclesJob.await()
-                carOptions = vehicles.map { it.name }
+                    val vehicles = vehiclesJob.await()
+                    carOptions = vehicles.map { it.name }
 
-                val existing = editJob?.await()?.event
-                if (hydrated) {
-                    // A restored draft wins over the server's copy: it is what
-                    // the user was in the middle of typing.
+                    val existing = editJob?.await()?.event
+                    if (hydrated) {
+                        // A restored draft wins over the server's copy: it is what
+                        // the user was in the middle of typing.
+                        state = LoadState.Ready
+                        return@coroutineScope
+                    }
+                    if (existing != null) {
+                        trackName = existing.trackName
+                        startDate = existing.startDate
+                        days = existing.days.trimmedNumber()
+                        trackHours = existing.trackHours?.trimmedNumber().orEmpty()
+                        club = existing.club.orEmpty()
+                        runGroup = existing.runGroup.orEmpty()
+                        car = existing.car.orEmpty()
+                        conditions = existing.conditions
+                        temp = Units.tempToDisplay(existing.tempF, units)?.toString().orEmpty()
+                        bestTime = existing.bestTimeMs?.let { LapTime.fmtMs(it) }.orEmpty()
+                        notes = existing.notes.orEmpty()
+                        costEntry = Costs.centsToDollars(existing.costEntryCents)
+                        costFuel = Costs.centsToDollars(existing.costFuelCents)
+                        costTravel = Costs.centsToDollars(existing.costTravelCents)
+                        costMisc = Costs.centsToDollars(existing.costMiscCents)
+                    } else if (car.isBlank()) {
+                        // A new event starts on the default car, which is the whole
+                        // point of marking one.
+                        car = vehicles.firstOrNull { it.isDefault }?.name.orEmpty()
+                    }
+                    hydrated = true
                     state = LoadState.Ready
-                    return@launch
                 }
-                if (existing != null) {
-                    trackName = existing.trackName
-                    startDate = existing.startDate
-                    days = existing.days.trimmedNumber()
-                    trackHours = existing.trackHours?.trimmedNumber().orEmpty()
-                    club = existing.club.orEmpty()
-                    runGroup = existing.runGroup.orEmpty()
-                    car = existing.car.orEmpty()
-                    conditions = existing.conditions
-                    temp = Units.tempToDisplay(existing.tempF, units)?.toString().orEmpty()
-                    bestTime = existing.bestTimeMs?.let { LapTime.fmtMs(it) }.orEmpty()
-                    notes = existing.notes.orEmpty()
-                    costEntry = Costs.centsToDollars(existing.costEntryCents)
-                    costFuel = Costs.centsToDollars(existing.costFuelCents)
-                    costTravel = Costs.centsToDollars(existing.costTravelCents)
-                    costMisc = Costs.centsToDollars(existing.costMiscCents)
-                } else if (car.isBlank()) {
-                    // A new event starts on the default car, which is the whole
-                    // point of marking one.
-                    car = vehicles.firstOrNull { it.isDefault }?.name.orEmpty()
-                }
-                hydrated = true
-                state = LoadState.Ready
             } catch (e: ApiException) {
                 state = LoadState.Failed(e.message ?: "Couldn't load the form.")
             }
