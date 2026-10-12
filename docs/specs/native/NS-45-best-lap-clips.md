@@ -11,7 +11,8 @@ under the session list:
 ┌───────────────────────────────────────────────────┐
 │ ● Save best-lap video                       [ on ]│
 │   A clip of each session's fastest lap, about     │
-│   150 MB each. Uploads on Wi-Fi.            Pro   │
+│   150 MB each. Uploads on Wi-Fi. Your coaches     │
+│   can watch it too.                         Pro   │
 └───────────────────────────────────────────────────┘
                   [ Save 3 sessions ]
 ```
@@ -21,7 +22,8 @@ things for each included video session. It cuts the session's best lap out
 of the source file on the device, without re-encoding, with a few seconds
 either side. It saves the session exactly as it does today. Then it uploads
 the clip in the background. The clip plays on the lap's page on every
-client.
+client, for the driver and for the coaches they have invited
+([NS-38](NS-38-coach-sharing.md)).
 
 The telemetry stays the record and the video is an extra on top of it. A
 clip that fails to cut or upload never costs the session.
@@ -37,9 +39,13 @@ clip that fails to cut or upload never costs the session.
   only the best lap instead of the whole day takes that from about 5 GB to
   about 150 MB per session, roughly 1/30 to 1/50 of the size. That's what
   makes it affordable (see *Cost*).
+- **It's what a coach wants most.** NS-38 gives an instructor the
+  telemetry, but a coach reviewing a student's day wants to watch the lap:
+  where the eyes are, the hands, the line through the windscreen. A stored
+  clip turns the coach's lap page into a debrief.
 - **It sets up the follow-ups worth having.** Video synced to the trace
-  cursor, a coach watching a student's lap, and side-by-side video in the
-  two-lap compare all need a stored clip first.
+  cursor and side-by-side video in the two-lap compare both need a stored
+  clip first.
 
 ## Fixed decisions
 
@@ -58,7 +64,10 @@ clip that fails to cut or upload never costs the session.
 | Lapse | Clips are **kept and hidden**, on the #264 rule ("a lapse hides the Pro half and never deletes it"). The lap still carries its `clip` metadata, so the client draws a locked player that offers Pro back. Deleting clips after a long lapse is an open question (below). It isn't settled here because at expected scale the cost is small. |
 | Quota | **`CLIP_QUOTA_BYTES = 20 GiB` per user**, which is about 130 clips. The sum covers every `ready` clip plus the declared size of every `uploading` one. A create that would exceed the quota is a **409 `{ error: "clip storage full" }`**. The review's row then says *"Your lap video storage is full (20 GB). Delete old clips from a lap's page."* with the switch off and disabled. **Nothing is ever deleted to make room.** |
 | Cellular | **Wi-Fi only by default.** Settings gets *"Upload lap videos over cellular"*, off by default. Tracks often have no Wi-Fi, so most clips upload when the driver gets home. Until then the lap row says *Video waiting for Wi-Fi*. |
-| Who can see a clip | **Only the owner.** It isn't on the share page, the leaderboard lap (NS-35), the coach mount (NS-38: no `/clips` path in `COACH_ROUTES`, and `clip` isn't in the coach lap view's allow-list), Season Wrapped, or the MCP tools. Each of these is a deliberate follow-up with its own consent copy. A coach watching a student's lap is the obvious first one. |
+| Who can see a clip | **The driver and the coaches they have invited.** A coach can **watch** a student's clips, on the student's lap pages, under the coach mount (NS-38). A coach can't download or delete one: the mount answers only `GET`, and the download route isn't in `COACH_ROUTES`. Clips are not on the share page, the leaderboard lap (NS-35), Season Wrapped or the MCP tools. Each of those is a deliberate follow-up with its own consent copy. |
+| Coach consent | **Asked where the video is made, not per grant.** No coach has seen a clip before this ships, because none exist, so no existing grant widens over anything already uploaded. From then on, the review row says *"Your coaches can watch it too."* whenever the driver has at least one coach. Every clip is uploaded knowing who will see it. The Coaching page's *what they see* sentence names best-lap videos on all three clients. A driver who wants one clip out of a coach's reach deletes it. A per-grant *include videos* switch is a follow-up if anyone asks for it. |
+| Coach tier | **The student's**, as NS-38 decides every coach read. The URL route runs with the student's `entitledUntil`, so a Pro student's free coach watches, and a lapsed student's clips are locked for their coach too. The coach sees *"Lap videos play while <name> has Pro"* rather than an upsell, because the upgrade is the student's, not the coach's (`studentFreeNote`'s rule). |
+| Revoking a coach | Takes effect for **new** URLs at once: `requireCoachGrant` answers 404 the moment the grant is gone. A URL already handed out keeps playing until it expires, at most an hour. Any player that can play a URL can also save the file, so revoking stops future viewing, not copies already made. The Coaching page says so in one line (*"Removing a coach stops them watching your videos; it can't take back a video they saved."*), and so does the privacy policy. |
 | Offline | Clip **metadata** is cached with the event detail like any other lap field. **Playback needs a connection.** The player says *"Playing a lap video needs a connection"* rather than spinning. A clip saved offline waits locally for its session's real id (see *Uploader*). |
 | Export | NS-44's JSON lists each lap's clip as `{ duration_ms, lap_offset_ms, size_bytes, created_at }`, metadata only. The video itself is downloadable from the lap's page (*Download video*). Putting video in a JSON stream would make the export unusable. |
 | Web | **Plays, downloads and deletes. Doesn't upload yet.** A passthrough cut in the browser means writing an MP4 remuxer by hand (the web app takes no dependencies). That's a ticket of its own, listed under follow-ups. This makes NS-45 the first feature to land on the phones before the web, which the feature split in `README.md` has to say. The web's import review draws no clip row in v1. |
@@ -161,16 +170,35 @@ Each lap in `GET /events/:id` gains `clip: { id, duration_ms,
 lap_offset_ms, size_bytes } | null`, non-null only for a `ready` clip.
 This is **not** stripped for a free account: the clip's existence is the
 driver's data, and the locked player is the offer. `withComputed` and the
-offline mirrors pass it through untouched. The share endpoint, the coach
-lap view and the leaderboard lap don't carry it. The share endpoint
-already strips per-lap data, and the coach view's allow-list copies named
-fields, so for both of those the work is a test, not code. The MCP tools'
-lap summaries drop it, and the output schemas don't grow.
+offline mirrors pass it through untouched. The share endpoint and the
+leaderboard lap don't carry it. The share endpoint already strips per-lap
+data, so that's a test, not code. The MCP tools' lap summaries drop it,
+and the output schemas don't grow.
+
+### The coach mount
+
+- **`COACH_LAP_FIELDS` gains `clip`**, copied through its own allow-list,
+  `COACH_CLIP_FIELDS = ["id", "duration_ms", "lap_offset_ms"]`. That's the
+  `publicLapChannels` rule: a field added to the clip object later stays
+  private without an edit here. `size_bytes` is the student's storage
+  bookkeeping, not lap data, so it stays out.
+- **`COACH_ROUTES` gains `{ path: /^\/clips\/\d+\/url$/, view:
+  coachClipUrl }`**, which copies `{ url, expires_at }`. Under the mount the
+  route's owner check runs against the student, so a coach gets URLs for
+  that student's clips and nobody else's. `requireEntitlement` reads the
+  student's `entitledUntil`. `/clips/:id/download`, `DELETE /clips/:id`
+  and every upload route stay off the table, so a coach gets a 404 from
+  each.
+- Coach URLs are signed the same way as the owner's. `/clips/*` doesn't
+  know who asked, which is why a revocation can't recall a URL already
+  issued (see *Revoking a coach*).
+- `last_viewed_at` is touched by these reads like any other coach read.
 
 ### `GET /me`
 
-Gains `clips: { used_bytes, quota_bytes }`, which the review row and
-Settings read. Both native `User` models get the field (optional), and the
+Gains `clips: { used_bytes, quota_bytes, coach_count }`, which the review
+row and Settings read. `coach_count` is the number of coaches who would see
+a new clip, so the row can say so without fetching `GET /coaching`. Both native `User` models get the field (optional), and the
 goldens capture it.
 
 ### Cron
@@ -212,7 +240,14 @@ through `/clips/*`.
   - Another user's clip is 404 on every route.
   - An expired or tampered signature gives 403.
   - Deleting the event leaves a tombstone, and the cron drains it.
-  - `clip` is absent from the share, coach and leaderboard responses.
+  - `clip` is absent from the share and leaderboard responses, and in the
+    coach's event detail carries only `COACH_CLIP_FIELDS`.
+  - A coach gets a URL for a student's clip, and that URL plays.
+  - A coach gets 404 on another student's clip, on the download route, on
+    `DELETE`, and on every upload route under the mount.
+  - A lapsed student's coach gets 402 on the URL.
+  - Revoking the grant makes the next URL request a 404.
+  - `/me`'s `coach_count` counts the student's grants.
 - **`test/unit/clips.test.ts`**: part arithmetic, the signature, filenames.
 
 ## Shared pure logic (ticket 1, web; ported in 2 and 3)
@@ -232,6 +267,10 @@ are pinned to:
   `"full"` | `"on"`. Which state the review row is in: no candidate among
   the included items, free account, over quota once the candidates'
   estimated sizes are added, or offered and on.
+- **`clipOfferNote(clips)`**: the row's second sentence. *"Your coaches can
+  watch it too."* when `coach_count ≥ 1`, else nothing. It's one sentence
+  for every count: naming coaches belongs on the Coaching page, and a count
+  in a switch's subtitle reads as a warning.
 - **`estimateClipBytes(lap, fileBytes, durationS)`**: the file's average
   bitrate × the window. The row's "about N MB" and the quota check use it.
 - **`canSaveLapVideo(entitlement)`** goes in `entitlement.js` (a new Pro
@@ -264,9 +303,16 @@ wrong:
   - A free account sees `proPanelHtml` in the player's place.
   - Offline, or with `OfflineError`, the panel shows the needs-a-connection
     sentence.
-  - A student view (`readOnly()`) never draws the control. The server
-    doesn't send `clip` there anyway.
+  - **A student view** (`readOnly()`, a coach reading through the mount)
+    draws the control and the player, without *Download* or *Delete*. The
+    URL comes from `api()`, which already prefixes `/students/<id>`. When
+    the student isn't Pro (`ent()`, the student's tier), the player's place
+    says *"Lap videos play while <name> has Pro."* instead of
+    `proPanelHtml`.
 - **Settings → Your data** gains one line: *"Lap videos: 3.2 GB of 20 GB"*.
+- **Coaching page**: `COACH_SHARES` names *"your best-lap videos"* beside
+  the racing lines, and the coaches list gains the revocation sentence from
+  *Revoking a coach*.
 - **The import review is unchanged in v1.**
 
 ## iOS (ticket 2)
@@ -309,7 +355,14 @@ wrong:
   - A pending local job shows *Video uploading* / *waiting for Wi-Fi*
     instead.
   - The event page's lap row gets a ▶ glyph, spoken as "has video".
+  - **Under `StudentLogbook`** (`owner.isReadOnly`) the player shows
+    without the menu. The URL comes through `auth.api.scoped(to: owner)`,
+    and the locked state is the student-tier sentence, not
+    `ProUpsellCard`. A coach has no local upload jobs, so the pending
+    states never show for them.
 - **Settings**: *Upload lap videos over cellular* and the storage line.
+- **Coaching page**: the *what they see* copy in `CoachingScreen` and the
+  revocation sentence, worded as on the web.
 - `Info.plist`'s `NSPhotoLibraryUsageDescription` currently promises the
   video is "never uploaded or copied". It becomes *"…reads the telemetry
   track of a video you pick to work out your lap times. If you choose to
@@ -337,8 +390,12 @@ wrong:
 - **Lap page** (`LapDetailScreen`): Media3 ExoPlayer (`media3-exoplayer`,
   `media3-ui` in `libs.versions.toml`, `:app` only) with the same seek,
   menu, locked and pending states. R8 needs no keep rules: Media3 ships
-  consumer rules.
+  consumer rules. Under `LogbookOwnerScope` it follows `readOnly`: no
+  menu, the URL comes from the scoped client, and a free student's clip
+  shows the student-tier sentence, as on iOS.
 - **Settings**: the cellular switch and the storage line.
+- **Coaching page**: `CoachingScreen.kt`'s *what they see* copy and the
+  revocation sentence.
 - **Backups**: `filesDir/clips/` is excluded in **both** backup XMLs. A
   restored manifest pointing at a missing file is a dead job.
 
@@ -347,7 +404,9 @@ wrong:
 `contracts/generate.mjs` creates one `ready` clip row on the rich event's
 best lap. It inserts the row directly, since the goldens are about shapes,
 not R2. So the event-detail golden carries `clip` as both an object and a
-null, and `me` carries `clips`. Both native `Lap` models gain an optional
+null, and `me` carries `clips`. The coach-mount event-detail capture
+carries the coach's cut of `clip`, so the allow-list is pinned at the
+shape as well as by the API test. Both native `Lap` models gain an optional
 `clip` (iOS `LapClip?`, Android `LapClip?` with `@SerialName`s) and `User`
 gains `clips`, all decoded in the golden tests. Android's
 `ignoreUnknownKeys = true` means a shipped build doesn't break when the
@@ -359,8 +418,14 @@ models catch up.
 - **`site/docs/privacy.html`**: the *Telemetry* section stops saying video
   is never uploaded. Instead: an imported video is read on the device; if
   you choose *Save best-lap video*, a clip of each session's best lap, with
-  audio, is uploaded and stored. It's visible only to you, deleted when you
-  delete it, its lap, or your account. Bump the effective date.
+  audio, is uploaded and stored. It's visible to you and to the coaches
+  you've invited, never on your share page or a leaderboard. It's deleted
+  when you delete it, its lap, or your account. Removing a coach stops
+  them watching, but can't take back a video they saved. Bump the
+  effective date. The coaching paragraph near line 278 names videos among
+  what a coach sees.
+- **`site/docs/index.html`**: the *Share with a coach* paragraph (near
+  line 264) adds best-lap videos to what a coach sees.
 - **`site/docs/telemetry-import.html`**: a *Best-lap video* section with
   the switch, Wi-Fi, quota, where it plays, and deleting. Fix line 324.
 - **`site/index.html`**: line 333's "never uploaded" becomes true only of
@@ -376,7 +441,10 @@ models catch up.
   cap that sets the part size.
 - **`AGENTS.md`**: the routes, the `/clips/*` worker-first path, the
   tombstone arrangement, the third write exception, and `ClipCutter` /
-  `ClipUploadQueue` on both phones.
+  `ClipUploadQueue` on both phones. The NS-38 `coaching.ts` bullet gains
+  `/clips/:id/url` in `COACH_ROUTES` and `COACH_CLIP_FIELDS`.
+- **`NS-38-coach-sharing.md`**: its *What is shared* decision adds
+  best-lap videos (watch only) and points here.
 - **`NS-32-subscriptions.md`**: a tier-table row, *"Best-lap video:
   saving, playing, downloading — **Pro**; deleting — free. Server:
   `requireEntitlement` on create, url, download."*
@@ -424,8 +492,17 @@ models catch up.
       room.
 - [ ] Deleting a clip, its lap, session or event, or the account, removes
       the R2 object within a day.
-- [ ] No clip is reachable from the share page, a coach's view, the
-      leaderboard or the MCP tools.
+- [ ] A coach plays a Pro student's clips on the student's lap pages, on
+      all three clients, whatever the coach's own tier. They can't
+      download or delete one, and they get nothing from another student.
+- [ ] A coach of a lapsed student sees the clip locked with the
+      student-tier sentence, not an upsell. A removed coach's next play
+      fails.
+- [ ] The review row says *"Your coaches can watch it too."* exactly when
+      the driver has a coach, and the Coaching page names videos among
+      what coaches see, on all three clients.
+- [ ] No clip is reachable from the share page, the leaderboard or the MCP
+      tools.
 - [ ] A lapsed account keeps its clips. They're locked, not gone, and still
       deletable.
 - [ ] Privacy policy, store forms and the import docs say what is uploaded.
@@ -453,8 +530,10 @@ models catch up.
 - **Video synced to the trace cursor**: the lap page's channel charts and
   the player share one clock through `lap_offset_ms`. It also needs a
   distance → time mapping, which `lapTimeSeries` already provides.
-- **A coach watching a student's clip**: a `COACH_ROUTES` entry plus
-  invite-copy changes, so existing grants aren't silently widened.
+- **A per-coach *include videos* switch**: only if a driver asks for it.
+  Deleting a clip already covers one clip.
+- **Coach comments pinned to a moment in a clip**: needs the first
+  coach *write*, which NS-38 rules out.
 - **Side-by-side video in the two-lap compare.**
 - **Clips on the leaderboard lap (NS-35)**: needs a third consent beside
   `leaderboard_share_laps`.
