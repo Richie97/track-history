@@ -44,6 +44,7 @@ import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
@@ -100,11 +101,16 @@ class CoachingModel(
     fun load() {
         scope.launch {
             try {
-                val c = async { api.coaching() }
-                val p = async { runCatching { api.profile() }.getOrNull() }
-                coaching = c.await()
-                profile = p.await()
-                state = LoadState.Ready
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val c = async { api.coaching() }
+                    val p = async { runCatching { api.profile() }.getOrNull() }
+                    coaching = c.await()
+                    profile = p.await()
+                    state = LoadState.Ready
+                }
             } catch (e: ApiException) {
                 if (coaching == null) state = LoadState.Failed(e.message)
             }

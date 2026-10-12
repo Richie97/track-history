@@ -54,6 +54,7 @@ import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 // ---- Who, and whether this account may still read them (NS-38) -------------
@@ -261,14 +262,19 @@ class StudentHomeModel(
     fun load() {
         scope.launch {
             try {
-                val t = async { api.tracks() }
-                val e = async { api.events() }
-                // A car list that fails costs the cars section, not the page.
-                val v = async { runCatching { api.vehicles() }.getOrDefault(emptyList()) }
-                tracks = t.await()
-                events = e.await()
-                vehicles = v.await()
-                state = LoadState.Ready
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val t = async { api.tracks() }
+                    val e = async { api.events() }
+                    // A car list that fails costs the cars section, not the page.
+                    val v = async { runCatching { api.vehicles() }.getOrDefault(emptyList()) }
+                    tracks = t.await()
+                    events = e.await()
+                    vehicles = v.await()
+                    state = LoadState.Ready
+                }
             } catch (err: ApiException) {
                 if (state != LoadState.Ready) state = LoadState.Failed(err.message)
             }

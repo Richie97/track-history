@@ -26,6 +26,7 @@ import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -113,37 +114,42 @@ class VehicleModel(
     fun load() {
         scope.launch {
             try {
-                val vehicleList = async { api.vehicles() }
-                val eventList = async { api.events() }
-                val garageList = async {
-                    // A student's car (NS-38) has no Pro half to read: `/garage` is
-                    // consumables, wear and spend, none of which a coach is shown,
-                    // and the coach mount answers it 404.
-                    if (readOnly) return@async null
-                    try {
-                        api.garage()
-                    } catch (e: ApiException) {
-                        if (e.isPaymentRequired) proLocked = true
-                        null
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val vehicleList = async { api.vehicles() }
+                    val eventList = async { api.events() }
+                    val garageList = async {
+                        // A student's car (NS-38) has no Pro half to read: `/garage` is
+                        // consumables, wear and spend, none of which a coach is shown,
+                        // and the coach mount answers it 404.
+                        if (readOnly) return@async null
+                        try {
+                            api.garage()
+                        } catch (e: ApiException) {
+                            if (e.isPaymentRequired) proLocked = true
+                            null
+                        }
                     }
+                    val found = vehicleList.await().firstOrNull { it.id == vehicleId }
+                    events = eventList.await()
+                    val pro = garageList.await()
+                    if (found == null) {
+                        state = LoadState.Failed(
+                            if (readOnly) "That car isn't in this logbook any more." else "That car isn't in your garage any more.",
+                            retryable = false,
+                        )
+                        return@coroutineScope
+                    }
+                    vehicle = found
+                    if (pro != null) {
+                        proLocked = false
+                        garage = pro.firstOrNull { it.id == vehicleId }
+                        GarageBadge.note(pro)
+                    }
+                    state = LoadState.Ready
                 }
-                val found = vehicleList.await().firstOrNull { it.id == vehicleId }
-                events = eventList.await()
-                val pro = garageList.await()
-                if (found == null) {
-                    state = LoadState.Failed(
-                        if (readOnly) "That car isn't in this logbook any more." else "That car isn't in your garage any more.",
-                        retryable = false,
-                    )
-                    return@launch
-                }
-                vehicle = found
-                if (pro != null) {
-                    proLocked = false
-                    garage = pro.firstOrNull { it.id == vehicleId }
-                    GarageBadge.note(pro)
-                }
-                state = LoadState.Ready
             } catch (e: ApiException) {
                 if (vehicle != null) return@launch
                 state = LoadState.Failed(e.message ?: "Couldn't load this car.")

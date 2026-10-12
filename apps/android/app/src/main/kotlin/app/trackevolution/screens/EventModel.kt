@@ -27,6 +27,7 @@ import app.trackevolution.core.model.Track
 import app.trackevolution.ui.LoadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -82,12 +83,17 @@ class EventModel(
     fun load() {
         scope.launch {
             try {
-                val eventJob = async { api.event(eventId) }
-                val tracksJob = async { api.tracks() }
-                val loaded = eventJob.await()
-                detail = loaded
-                track = tracksJob.await().firstOrNull { it.id == loaded.event.trackId }
-                state = LoadState.Ready
+                // A scope of its own, so a failed fetch reaches the catch below
+                // rather than failing the launch — an uncaught failure there
+                // crashes the app.
+                coroutineScope {
+                    val eventJob = async { api.event(eventId) }
+                    val tracksJob = async { api.tracks() }
+                    val loaded = eventJob.await()
+                    detail = loaded
+                    track = tracksJob.await().firstOrNull { it.id == loaded.event.trackId }
+                    state = LoadState.Ready
+                }
             } catch (e: ApiException) {
                 // Only blank the screen if there is nothing to show; a refresh
                 // that fails over real content leaves the content.
