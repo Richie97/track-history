@@ -10,6 +10,7 @@ import { vehicles } from "../../src/routes/vehicles";
 import { billing } from "../../src/routes/billing";
 import { coaching } from "../../src/routes/coaching";
 import { exportRoutes } from "../../src/routes/export";
+import { clips } from "../../src/routes/clips";
 import { LEGACY_ENTITLED_UNTIL_MS } from "../../src/lib/entitlement";
 import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
@@ -21,7 +22,7 @@ import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
 // Every router mounted under /api (src/index.ts). Kept explicit so a new
 // router has to be added here, at which point its gates are enumerated too.
-const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes };
+const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes, clips };
 
 const guardedRoutes = () =>
   Object.values(API_ROUTERS)
@@ -55,6 +56,12 @@ const EXPECTED_GATES = [
   // Inviting a coach (NS-38): what it shares is the analysis Pro pays for.
   // Accepting, listing and revoking stay free.
   "POST /coaching/invites",
+  // Best-lap video (NS-45): saving one, and a URL to play or download it.
+  // Uploading its parts, completing it and deleting it stay free, so a lapse
+  // mid-upload still finishes and a lapsed driver can always remove a video.
+  "POST /sessions/:id/clip",
+  "GET /clips/:id/url",
+  "GET /clips/:id/download",
 ].sort();
 
 // A recording is the one irreplaceable thing in the system, and the offline
@@ -91,7 +98,10 @@ describe("which routes requireEntitlement guards", () => {
           r.handler === requireEntitlement &&
           r.method !== "GET" &&
           LOGBOOK_WRITE_PREFIXES.some((p) => r.path === p || r.path.startsWith(`${p}/`)) &&
-          !r.path.includes("/setups/")
+          !r.path.includes("/setups/") &&
+          // A clip is not a recording: the session it belongs to has already
+          // saved without it (NS-45, the third stated exception).
+          r.path !== "/sessions/:id/clip"
       );
     expect(gatedWrites).toEqual([]);
   });
@@ -125,6 +135,9 @@ describe("a free account meeting the gates", () => {
       ["GET", `/events/${eventId}/setups/prefill?day=1`],
       ["GET", `/tracks/${trackId}/setups`],
       ["POST", "/coaching/invites"],
+      ["POST", "/sessions/1/clip", { time_ms: 90_000, size_bytes: 10, duration_ms: 95_000, lap_offset_ms: 3_000 }],
+      ["GET", "/clips/1/url"],
+      ["GET", "/clips/1/download"],
     ];
     for (const [method, path, body] of calls) {
       const res = await api(method, path, body);

@@ -102,7 +102,11 @@ events.get("/events/:id", async (c) => {
       .bind(id),
     db
       .prepare(
-        "SELECT l.id, l.session_id, l.lap_num, l.time_ms FROM laps l JOIN sessions s ON s.id = l.session_id WHERE s.event_id = ? ORDER BY l.session_id, l.lap_num"
+        `SELECT l.id, l.session_id, l.lap_num, l.time_ms,
+                k.id AS clip_id, k.duration_ms AS clip_duration_ms, k.lap_offset_ms AS clip_lap_offset_ms, k.size_bytes AS clip_size_bytes
+           FROM laps l JOIN sessions s ON s.id = l.session_id
+           LEFT JOIN lap_clips k ON k.lap_id = l.id AND k.status = 'ready'
+          WHERE s.event_id = ? ORDER BY l.session_id, l.lap_num`
       )
       .bind(id),
     db.prepare("SELECT day, data FROM setups WHERE event_id = ? ORDER BY day").bind(id),
@@ -138,7 +142,27 @@ events.get("/events/:id", async (c) => {
       entitled
     )
   );
-  const laps = lapRes.results as { id: number; session_id: number; lap_num: number; time_ms: number }[];
+  // `clip` (NS-45): a ready best-lap video, or null. Not stripped for a free
+  // account — the clip's existence is the driver's data, and the locked player
+  // is the offer; only the URL to play it is Pro.
+  const laps = (
+    lapRes.results as {
+      id: number;
+      session_id: number;
+      lap_num: number;
+      time_ms: number;
+      clip_id: number | null;
+      clip_duration_ms: number | null;
+      clip_lap_offset_ms: number | null;
+      clip_size_bytes: number | null;
+    }[]
+  ).map(({ clip_id, clip_duration_ms, clip_lap_offset_ms, clip_size_bytes, ...l }) => ({
+    ...l,
+    clip:
+      clip_id == null
+        ? null
+        : { id: clip_id, duration_ms: clip_duration_ms, lap_offset_ms: clip_lap_offset_ms, size_bytes: clip_size_bytes },
+  }));
 
   const sessionsWithLaps = sessions.map((s) => ({
     ...s,

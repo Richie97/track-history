@@ -5,6 +5,7 @@ import { DEFAULT_UNITS, isValidUnits, sanitizeChecklistTemplate } from "../lib/v
 import { entitlementResponse, isEntitled, type SubscriptionRow } from "../lib/entitlement";
 import { parseProfile, sanitizeProfile } from "../lib/profile";
 import { subscriptionsForUserStmt } from "../lib/billing/store";
+import { CLIP_QUOTA_BYTES } from "../lib/clips";
 
 export const me = new Hono<AppContext>();
 
@@ -25,13 +26,22 @@ me.get("/me", async (c) => {
   const userId = c.get("userId");
   // The user row, the totals and the subscription rows are independent — one
   // batched round trip.
-  const [userRes, totalsRes, subsRes] = await c.env.DB.batch([
+  const [userRes, totalsRes, subsRes, clipsRes] = await c.env.DB.batch([
     c.env.DB.prepare(
       "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in, leaderboard_share_laps, units FROM users WHERE id = ?"
     ).bind(userId),
     userTotalsStmt(c.env.DB, userId),
     subscriptionsForUserStmt(c.env.DB, userId),
+    // Best-lap video storage (NS-45): what counts against the quota — every
+    // ready clip and the declared size of every uploading one — and how many
+    // coaches would see a new clip, so the import review can say so without
+    // reading /coaching.
+    c.env.DB.prepare(
+      `SELECT (SELECT COALESCE(SUM(size_bytes), 0) FROM lap_clips WHERE user_id = ?1) AS used_bytes,
+              (SELECT COUNT(*) FROM coach_grants WHERE student_id = ?1) AS coach_count`
+    ).bind(userId),
   ]);
+  const clips = clipsRes.results[0] as { used_bytes: number; coach_count: number };
   const row = (userRes.results[0] ?? null) as Record<string, unknown> | null;
   const user = row && {
     ...row,
@@ -42,6 +52,7 @@ me.get("/me", async (c) => {
     // in one place, rather than in three clients that would each have to agree
     // on what "unset" means.
     units: isValidUnits(row.units) ? row.units : DEFAULT_UNITS,
+    clips: { used_bytes: clips.used_bytes, quota_bytes: CLIP_QUOTA_BYTES, coach_count: clips.coach_count },
   };
   // Tier comes from entitled_until as loaded with the session; the rows only
   // say where it came from (NS-32 requirement 1).
