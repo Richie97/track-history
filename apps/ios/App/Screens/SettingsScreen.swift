@@ -81,6 +81,35 @@ struct SettingsScreen: View {
         }
     }
 
+    /// Best-lap videos (NS-45): whether they upload over cellular — off by
+    /// default, since a clip is ~150 MB and tracks rarely have Wi-Fi — and how
+    /// much of the storage they use.
+    private var lapVideosCard: some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(
+                    "Upload lap videos over cellular",
+                    isOn: Binding(
+                        get: { AppServices.clips.allowsCellular },
+                        set: { AppServices.clips.allowsCellular = $0 }
+                    )
+                )
+                .teStyle(.sm)
+                .tint(Color(.accent))
+                .accessibilityIdentifier("clipsOverCellular")
+                Text("Off, a best-lap video waits for Wi-Fi — usually until you're home from the track.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+                if let line = LapClips.clipStorageLine(auth.me?.user.clips) {
+                    Text(line)
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textBody))
+                        .accessibilityIdentifier("clipStorageLine")
+                }
+            }
+        }
+    }
+
     private func content(_ model: SettingsModel) -> some View {
         @Bindable var model = model
         return TEPage {
@@ -101,6 +130,9 @@ struct SettingsScreen: View {
 
             TESectionHeader("Units")
             unitsCard(model)
+
+            TESectionHeader("Lap videos")
+            lapVideosCard
 
             TESectionHeader("Share your history")
             shareCard(model)

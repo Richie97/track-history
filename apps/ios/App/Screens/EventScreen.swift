@@ -618,6 +618,12 @@ struct EventScreen: View {
                                 .teStyle(.sm)
                                 .foregroundStyle(Color(.textMuted))
                             Spacer()
+                            if lap.clip != nil {
+                                // A best-lap video (NS-45) plays on the lap's page.
+                                Text("▶")
+                                    .teStyle(.xs)
+                                    .foregroundStyle(Color(.accentInk))
+                            }
                             if lap.timeMs == session.bestLapMs {
                                 Text("★")
                                     .teStyle(.xs)
@@ -634,7 +640,9 @@ struct EventScreen: View {
                     // "Lap 3 · 2:01.240", the web's row text — and deliberately not
                     // the chips' "Lap 3, 2:01.240", so a test that queries the compare
                     // sheet's chips by label cannot land on the row underneath it.
-                    .accessibilityLabel("Lap \(String(lap.lapNum)) · \(LapTime.fmtMs(lap.timeMs))")
+                    .accessibilityLabel(
+                        "Lap \(String(lap.lapNum)) · \(LapTime.fmtMs(lap.timeMs))" + (lap.clip != nil ? ", has video" : "")
+                    )
                     .accessibilityIdentifier("lap-\(lap.id)")
                 }
                 .swipeActions {

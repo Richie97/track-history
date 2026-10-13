@@ -9,6 +9,12 @@ struct ImportedClip: Sendable, Identifiable {
     var file: String
     var parsed: ParsedTelemetry?
     var error: String?
+    /// The video itself, kept readable until the review saves or is discarded,
+    /// because its best lap is cut at save (NS-45). Nil for a `.vbo` / `.csv`,
+    /// which has no video to cut.
+    var source: ClipSource?
+    /// The file's size, for the review's clip-size estimate.
+    var fileBytes: Int?
 }
 
 /// Parsing a selection of videos and `.vbo` / Track Precision `.csv` logs, off the main actor.
@@ -49,7 +55,14 @@ enum TelemetryImporter {
             let source = try FileTelemetryByteSource(url: pick.url)
             // The name decides .vbo / .csv vs video, as `parse.js` does.
             let parsed = try Telemetry.parseTelemetryFile(source, name: pick.name)
-            return ImportedClip(file: pick.name, parsed: parsed)
+            // A video keeps its source past the parse, whose byte source gives
+            // the security scope back as soon as it is released.
+            let video = LapClips.VIDEO_KINDS.contains(parsed.kind)
+            return ImportedClip(
+                file: pick.name, parsed: parsed,
+                source: video ? ClipSource(url: pick.url) : nil,
+                fileBytes: source.size
+            )
         } catch let error as TelemetryParseError {
             return ImportedClip(file: pick.name, error: error.message)
         } catch let error as CancellationError {
