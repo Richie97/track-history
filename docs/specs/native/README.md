@@ -663,6 +663,7 @@ change* rule does not apply — see the spec for why.
 | NS-43 | [Calendar feed](NS-43-calendar-feed.md) | Shared (server, web, iOS, Android) | the events list |
 | NS-44 | [Export your logbook](NS-44-web-export.md) | Server + web (native door a follow-up) | `eventSelect`, the garage tables |
 | NS-45 | [Best-lap video clips](NS-45-best-lap-clips.md) | Server + iOS + Android, web playback (web upload a follow-up) | the video importers, the review flow, `requireEntitlement` |
+| NS-46 | [Publish a best-lap video to YouTube](NS-46-youtube-upload.md) | Shared (server-side upload; web, iOS, Android forms) | NS-45, Google OAuth verification + the YouTube API audit |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
