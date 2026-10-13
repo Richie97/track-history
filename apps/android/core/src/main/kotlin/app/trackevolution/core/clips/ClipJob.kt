@@ -1,0 +1,61 @@
+package app.trackevolution.core.clips
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/**
+ * One best-lap clip on its way to the server (NS-45): `{ session id (temp or
+ * real), time_ms, file, size, duration, offset, clip id?, uploaded parts }`,
+ * the shape the spec fixes for both phones, plus what this side needs to say
+ * where it is (the lap page's *Video uploading* / *Couldn't save this lap's
+ * video*) and to give up honestly.
+ *
+ * Persisted as JSON in the app's `clips/` directory by [ClipManifest] — not a
+ * Room table, so the offline database owes no migration for it.
+ */
+@Serializable
+public data class ClipJob(
+    /** Stable for the job's life: its manifest key and its WorkManager unique name. */
+    val id: String,
+    /**
+     * The session the clip belongs to. **Negative while the session's create is
+     * still in the offline queue** — the temp id `OfflineStore` gave it — and
+     * swapped for the real id through the store's id map once it flushes.
+     */
+    @SerialName("session_id") val sessionId: Int,
+    /** The event the session is on, for the lap page to find its pending jobs. Temp too, until it isn't. */
+    @SerialName("event_id") val eventId: Int,
+    /** The best lap's time: how `POST /sessions/:id/clip` finds the lap. */
+    @SerialName("time_ms") val timeMs: Int,
+    /** The cut clip, in app-private storage. Null until the cut has finished. */
+    val file: String? = null,
+    @SerialName("size_bytes") val sizeBytes: Long = 0,
+    @SerialName("duration_ms") val durationMs: Int = 0,
+    /** Where the lap starts inside the clip, measured from the cut. */
+    @SerialName("lap_offset_ms") val lapOffsetMs: Int = 0,
+    @SerialName("clip_id") val clipId: Int? = null,
+    @SerialName("part_bytes") val partBytes: Long? = null,
+    val parts: Int? = null,
+    /** Part numbers the server holds, as of the last create or part upload. */
+    val uploaded: List<Int> = emptyList(),
+    val state: State = State.CUTTING,
+    /** Server-side failures (5xx) so far; transport failures don't count. */
+    val attempts: Int = 0,
+    /** Epoch ms, for pruning failed jobs a while after they have been said. */
+    @SerialName("created_at") val createdAt: Long,
+) {
+    @Serializable
+    public enum class State {
+        /** Being cut from the source video. Interrupted by a process death, it is [CUT_FAILED]. */
+        @SerialName("cutting") CUTTING,
+
+        /** Cut and waiting to upload, or uploading. */
+        @SerialName("pending") PENDING,
+
+        /**
+         * The cut failed: nothing was written, and the lap page says *"Couldn't
+         * save this lap's video"* until the job is pruned. The session is fine.
+         */
+        @SerialName("cut_failed") CUT_FAILED,
+    }
+}

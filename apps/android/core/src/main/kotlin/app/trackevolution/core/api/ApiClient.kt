@@ -11,7 +11,11 @@ import app.trackevolution.core.model.InviteAccepted
 import app.trackevolution.core.model.InvitePreview
 import app.trackevolution.core.model.ProfileResponse
 import app.trackevolution.core.model.ProfileSaved
+import app.trackevolution.core.model.ClipCreate
+import app.trackevolution.core.model.ClipUpload
+import app.trackevolution.core.model.ClipUrl
 import app.trackevolution.core.model.CreatedId
+import app.trackevolution.core.model.LapClip
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.EventDraft
@@ -48,14 +52,21 @@ import app.trackevolution.core.offline.OfflineStore
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.request.header
+import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.contentType
 import io.ktor.http.takeFrom
+import io.ktor.utils.io.ByteWriteChannel
+import io.ktor.utils.io.readAvailable
+import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -212,6 +223,13 @@ public class ApiClient private constructor(
      * server.
      */
     public suspend fun resolveTempId(id: Int): Int? = offline?.resolveId(id)
+
+    /**
+     * How many writes are waiting in the offline queue — loaded from storage on
+     * first use, so it is right in a fresh process (a background upload worker)
+     * before anything else has touched the store.
+     */
+    public suspend fun pendingWriteCount(): Int = offline?.pendingCount() ?: 0
 
     /**
      * Pull every event's detail into the cache, so an event you never opened still
@@ -451,6 +469,101 @@ public class ApiClient private constructor(
 
     public suspend fun deleteLap(id: Int) {
         send("DELETE", "/laps/$id", null, OkResponse.serializer())
+    }
+
+    // ---- Best-lap video clips (NS-45) --------------------------------------
+    //
+    // Every one of these is **live, never queued**: none of the paths is on the
+    // offline whitelist (`ClipApiTest` pins that), and the upload queue that
+    // drives the first three ([ClipUploadQueue]) keeps its own durable state
+    // and its own retries. A clip is an extra on top of a session that has
+    // already saved; nothing here may ever stand in the way of that save.
+
+    /**
+     * Starts — or, with the same [ClipCreate.sizeBytes], resumes — the upload
+     * of a session's best-lap clip (Pro: a free account gets
+     * [ApiException.PaymentRequired]). 409 `clip storage full` and 409 `lap
+     * already has a clip` never change on retry.
+     */
+    public suspend fun createClip(sessionId: Int, body: ClipCreate): ClipUpload =
+        send("POST", "/sessions/$sessionId/clip", encode(ClipCreate.serializer(), body), ClipUpload.serializer())
+
+    /**
+     * One part of a clip, streamed from [file] — never read whole into memory
+     * (a part is 50 MiB). The body is sent with an exact `Content-Length`,
+     * which the server requires to equal the part's size: R2 refuses to
+     * stitch parts of unequal size, and finding that out at `complete` would
+     * cost the whole upload.
+     */
+    public suspend fun uploadClipPart(clipId: Int, partNumber: Int, file: java.io.File, offset: Long, length: Long) {
+        val path = scoped("PUT", "/clips/$clipId/parts/$partNumber", API_PREFIX)
+        val (status, text) = rawSendContent("PUT", path, FileSliceContent(file, offset, length))
+        if (status !in 200..299) throw ApiException.from(status, text)
+    }
+
+    /** Stitches the parts; answers the ready clip. A retry on a ready clip answers it again. */
+    public suspend fun completeClip(clipId: Int): LapClip =
+        send("POST", "/clips/$clipId/complete", buildJsonObject { }, LapClip.serializer())
+
+    /**
+     * A signed URL that plays for an hour (Pro — the **student's** tier on a
+     * student client, NS-38). Read past the offline cache: a cached URL is an
+     * expired one, and offline the player says it needs a connection rather
+     * than handing ExoPlayer a link that will fail.
+     */
+    public suspend fun clipUrl(clipId: Int): ClipUrl =
+        send("GET", "/clips/$clipId/url", null, ClipUrl.serializer(), cached = false)
+
+    /**
+     * Downloads a clip through `GET /clips/:id/download` (Pro; not on the coach
+     * mount, so a student client is refused before sending). The route is a
+     * 302 to the signed file with `Content-Disposition: attachment`, whose
+     * filename — `<track>-<date>-lap-<n>.mp4` — is handed to [open] for the
+     * stream the bytes are copied into. Answers that filename.
+     */
+    public suspend fun downloadClip(clipId: Int, open: (fileName: String) -> java.io.OutputStream): String {
+        // A coach watches and never downloads: the route isn't on the mount's
+        // table, so it is refused here rather than sent for a 404.
+        if (owner != LogbookOwner.Me) throw ApiException.ReadOnly()
+        val path = "/clips/$clipId/download"
+        val token = tokens.currentToken()
+        try {
+            return client.prepareRequest {
+                method = HttpMethod.Get
+                url { takeFrom(serverUrl + API_PREFIX + path) }
+                defaultHeaders.forEach { (name, value) -> header(name, value) }
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+            }.execute { response ->
+                if (response.status.value !in 200..299) {
+                    throw ApiException.from(response.status.value, response.bodyAsText())
+                }
+                val name = response.headers[HttpHeaders.ContentDisposition]
+                    ?.let { runCatching { ContentDisposition.parse(it).parameter(ContentDisposition.Parameters.FileName) }.getOrNull() }
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "lap-video-$clipId.mp4"
+                val channel = response.bodyAsChannel()
+                open(name).use { out ->
+                    val buffer = ByteArray(DOWNLOAD_BUFFER)
+                    while (true) {
+                        val n = channel.readAvailable(buffer, 0, buffer.size)
+                        if (n < 0) break
+                        if (n > 0) out.write(buffer, 0, n)
+                    }
+                }
+                name
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: java.io.IOException) {
+            throw ApiException.Transport(e.message ?: "Network unavailable", e)
+        }
+    }
+
+    /** Deletes a clip — free, always. The lap and its telemetry stay. */
+    public suspend fun deleteClip(clipId: Int) {
+        send("DELETE", "/clips/$clipId", null, OkResponse.serializer())
     }
 
     // ---- Setup sheets (NS-40) ---------------------------------------------
@@ -915,7 +1028,60 @@ public class ApiClient private constructor(
         return response.status.value to response.bodyAsText()
     }
 
+    /**
+     * [rawSend] for a body that isn't JSON — a clip part. The same transport,
+     * auth and error rule: throws only when the network failed.
+     */
+    private suspend fun rawSendContent(method: String, path: String, content: OutgoingContent): Pair<Int, String> {
+        val token = tokens.currentToken()
+        val response = try {
+            client.request {
+                this.method = HttpMethod.parse(method)
+                url { takeFrom(serverUrl + API_PREFIX + path) }
+                defaultHeaders.forEach { (name, value) -> header(name, value) }
+                if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+                setBody(content)
+            }
+        } catch (e: Exception) {
+            if (e is ApiException) throw e
+            if (e is CancellationException) throw e
+            throw ApiException.Transport(e.message ?: "Network unavailable", e)
+        }
+        return response.status.value to response.bodyAsText()
+    }
+
+    /**
+     * `length` bytes of [file] from [offset], streamed — a 50 MiB part is never
+     * held in memory. [contentLength] is what puts the exact `Content-Length`
+     * on the request (OkHttp sends a fixed-length body rather than chunking).
+     */
+    private class FileSliceContent(
+        private val file: java.io.File,
+        private val offset: Long,
+        private val length: Long,
+    ) : OutgoingContent.WriteChannelContent() {
+        override val contentLength: Long get() = length
+        override val contentType: ContentType get() = ContentType.Video.MP4
+
+        override suspend fun writeTo(channel: ByteWriteChannel) {
+            java.io.RandomAccessFile(file, "r").use { raf ->
+                raf.seek(offset)
+                val buffer = ByteArray(DOWNLOAD_BUFFER)
+                var left = length
+                while (left > 0) {
+                    val n = raf.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt())
+                    if (n < 0) throw java.io.EOFException("${file.name} ended $left bytes early")
+                    channel.writeFully(buffer, 0, n)
+                    left -= n
+                }
+            }
+        }
+    }
+
     public companion object {
+        /** Copy buffer for clip parts and downloads. */
+        private const val DOWNLOAD_BUFFER = 64 * 1024
+
         /** The hosted instance users are pointed to. */
         public const val DEFAULT_BASE_URL: String = "https://trackevolution.app"
 
