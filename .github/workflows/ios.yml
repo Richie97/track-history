@@ -23,6 +23,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Xcode Cloud resolves packages with automatic resolution disabled, so an
+      # app build reads the *committed* apps/ios/Packages/TrackEvolutionKit/
+      # Package.resolved as is — and that file carries the app's pins
+      # (firebase-ios-sdk and its tree) as well as the Kit's. `swift test` in
+      # the Kit rewrites it with the Kit's dependencies alone, and committing
+      # that rewrite broke every Xcode Cloud archive after NS-45 merged. This
+      # runs the same strict resolve first, before anything here touches the
+      # file, so a stripped Package.resolved fails the PR instead of the release.
+      - name: Package.resolved matches the app's dependencies (as Xcode Cloud resolves)
+        working-directory: apps/ios
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project TrackEvolution.xcodeproj \
+            -scheme TrackEvolution \
+            -disableAutomaticPackageResolution
+
       # The Kit builds for macOS as well as iOS precisely so its tests need no
       # simulator: `swift test` runs the whole suite in seconds, where
       # `xcodebuild test` would boot one first for the same result.
