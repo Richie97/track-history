@@ -1,6 +1,6 @@
 # NS-46 — Publish a best-lap video to YouTube
 
-**Phase:** post-rewrite · **Platform:** Server + web + iOS + Android (the upload runs on the server, so every client is a form and a status line) · **Depends on:** best-lap video clips ([NS-45](NS-45-best-lap-clips.md)), `requireEntitlement`, the daily cron, a Google Cloud project that has passed OAuth verification **and** the YouTube API Services audit (ticket 0) · **Estimate:** Google review is weeks of lead time with little work in it; server + web 5–6 days; each phone 2–3 days · **Issue:** —
+**Phase:** post-rewrite · **Platform:** Server + web + iOS + Android (the upload runs on the server, so every client is a form and a status line) · **Depends on:** best-lap video clips ([NS-45](NS-45-best-lap-clips.md)), `requireEntitlement`, the daily cron, a Google Cloud project that has passed OAuth verification **and** the YouTube API Services audit (ticket 0) · **Estimate:** Google review is weeks of lead time with little work in it; server + web 5–6 days; each phone 2–3 days · **Issue:** [#409](https://github.com/Richie97/track-history/issues/409) (tickets #410, #411, #412, #413)
 
 ## Goal
 
