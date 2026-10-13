@@ -15,6 +15,7 @@ import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.clips.ClipJob
 import app.trackevolution.core.clips.ClipManifest
 import app.trackevolution.core.clips.ClipUploadQueue
+import app.trackevolution.core.clips.ClipUploadRunner
 import app.trackevolution.data.settingsDataStore
 import app.trackevolution.videoimport.ClipCutter
 import kotlinx.coroutines.CoroutineScope
@@ -57,7 +58,8 @@ internal class ClipUploads(
 
     val manifest = ClipManifest(dir)
 
-    val queue = ClipUploadQueue(manifest, ClipUploadQueue.transport(api), ClipUploadQueue.tempIds(api))
+    /** Drives a job through `:core`'s [ClipUploadQueue] — the same state machine as iOS's. */
+    val runner = ClipUploadRunner(manifest, ClipUploadRunner.transport(api), ClipUploadRunner.tempIds(api))
 
     /** Every job, for the lap page's *Video uploading* and *Couldn't save* states. */
     override val jobs: StateFlow<List<ClipJob>> get() = manifest.jobs
@@ -133,9 +135,21 @@ internal class ClipUploads(
         manifest.clear()
     }
 
-    private fun schedule(jobId: String, cellular: Boolean, policy: ExistingWorkPolicy) {
+    /**
+     * The next run of a job that has to wait — for its session's offline
+     * create, or out a backoff — after [delayMs]. Called from inside the
+     * running worker, so it is **appended** to the job's unique chain: it
+     * starts once this run returns, after its delay. The wait is therefore
+     * the queue's own (30 s … 1 h, as on iOS), not WorkManager's backoff.
+     */
+    suspend fun scheduleAgain(jobId: String, delayMs: Long) {
+        schedule(jobId, cellularAllowed.first(), ExistingWorkPolicy.APPEND_OR_REPLACE, delayMs)
+    }
+
+    private fun schedule(jobId: String, cellular: Boolean, policy: ExistingWorkPolicy, delayMs: Long = 0) {
         val request = OneTimeWorkRequestBuilder<ClipUploadWorker>()
             .setInputData(workDataOf(ClipUploadWorker.KEY_JOB to jobId))
+            .setInitialDelay(Duration.ofMillis(delayMs.coerceAtLeast(0)))
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(if (cellular) NetworkType.CONNECTED else NetworkType.UNMETERED)

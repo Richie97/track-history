@@ -41,6 +41,7 @@ import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.api.LogbookOwner
 import app.trackevolution.core.clips.ClipJob
+import app.trackevolution.core.clips.ClipUploadQueue
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapClip
@@ -93,6 +94,7 @@ internal sealed interface LapVideoState {
         fun of(
             lap: Lap,
             sessionId: Int,
+            sessionLaps: List<Lap>,
             owner: LogbookOwner,
             viewer: Entitlement?,
             jobs: List<ClipJob>,
@@ -109,9 +111,18 @@ internal sealed interface LapVideoState {
                 }
             }
             if (owner.readOnly) return None
+            // The server puts a clip on the lowest lap number with its time, so
+            // a second lap tied on time never shows the first one's upload —
+            // iOS's `ClipUploadQueue.clipLap` rule, under the same name here.
+            if (ClipUploadQueue.clipLap(sessionLaps, lap.timeMs)?.id != lap.id) return None
             val job = jobs.lastOrNull { job ->
-                job.timeMs == lap.timeMs &&
-                    (job.sessionId == sessionId || (OfflineStore.isTemp(job.sessionId) && resolve(job.sessionId) == sessionId))
+                ClipUploadQueue.isFor(
+                    jobSessionId = job.sessionId,
+                    jobTimeMs = job.timeMs,
+                    sessionId = sessionId,
+                    resolved = if (OfflineStore.isTemp(job.sessionId)) resolve(job.sessionId) else null,
+                    timeMs = lap.timeMs,
+                )
             } ?: return None
             return when (job.state) {
                 ClipJob.State.CUT_FAILED -> CutFailed
@@ -153,6 +164,7 @@ internal fun LapVideoCard(
     viewer: Entitlement?,
     sessionId: Int,
     lap: Lap,
+    sessionLaps: List<Lap>,
     onSubscribe: () -> Unit,
     onDeleted: () -> Unit,
     modifier: Modifier = Modifier,
@@ -169,6 +181,7 @@ internal fun LapVideoCard(
     val state = LapVideoState.of(
         lap = lap,
         sessionId = sessionId,
+        sessionLaps = sessionLaps,
         owner = owner,
         viewer = viewer,
         jobs = jobs,

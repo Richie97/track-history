@@ -2,6 +2,7 @@ package app.trackevolution.core.clips
 
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.api.ClipMissingParts
 import app.trackevolution.core.api.LogbookOwner
 import app.trackevolution.core.api.StaticToken
 import app.trackevolution.core.model.ClipCreate
@@ -91,6 +92,20 @@ class ClipApiTest {
         }
         assertEquals(409, e.status)
         assertEquals("clip storage full", e.message)
+    }
+
+    @Test
+    fun `complete's missing parts come back as the part numbers`() = runTest {
+        val api = client(HttpStatusCode.Conflict) { """{"error":"missing parts","missing":[2,3]}""" }
+        val e = assertThrows(ClipMissingParts::class.java) {
+            kotlinx.coroutines.runBlocking { api.completeClip(9) }
+        }
+        assertEquals(listOf(2, 3), e.missing)
+        // Any other 409 on complete is an ordinary refusal.
+        val other = client(HttpStatusCode.Conflict) { """{"error":"something else"}""" }
+        assertThrows(ApiException.Server::class.java) {
+            kotlinx.coroutines.runBlocking { other.completeClip(9) }
+        }
     }
 
     @Test

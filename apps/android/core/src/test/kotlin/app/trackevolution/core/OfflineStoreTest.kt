@@ -380,6 +380,22 @@ class OfflineStoreTest {
     }
 
     @Test
+    fun `a temp id is queued, then mapped, or neither once the server refuses it`() = runTest {
+        val store = store()
+        store.putList()
+        val kept = store.enqueue("POST", "/events", """{"track_name":"X","start_date":"2026-05-01"}""") as OfflineStore.QueuedResult.Created
+        val refused = store.enqueue("POST", "/events", """{"track_name":"Y","start_date":"2026-05-02"}""") as OfflineStore.QueuedResult.Created
+        assertEquals(OfflineStore.TempIdState(mapped = null, queued = true), store.tempIdState(kept.id))
+
+        var calls = 0
+        store.flush { _, _, _ -> if (++calls == 1) ok(id = 42) else OfflineStore.SendResult(400, """{"error":"nope"}""") }
+
+        // The clip queue's three answers (NS-45): mapped, still waiting, lost.
+        assertEquals(OfflineStore.TempIdState(mapped = 42, queued = false), store.tempIdState(kept.id))
+        assertEquals(OfflineStore.TempIdState(mapped = null, queued = false), store.tempIdState(refused.id))
+    }
+
+    @Test
     fun `stops on network failure and keeps the remainder queued`() = runTest {
         val store = store()
         var calls = 0

@@ -675,19 +675,28 @@ The review row, `ClipCutter`, `ClipUploadQueue` + `ClipUploadWorker`, the lap
 page's player, Settings and the Coaching copy. Where the code differs from the
 text above, and why:
 
-- **`ClipUploadQueue` was written to this spec's contract, not ported.** iOS's
-  Kit was being built at the same time, so `:core`'s queue is its own reading
-  of *Uploader*, with every transition written out at the type for the two to
-  be reconciled by eye: wait while the session id is a temp id and follow
-  `OfflineStore`'s id map — and **drop the job when the queue drains without
-  resolving it** (the session's create was refused, so there is nothing to
-  attach to); **call create on every run**, since it is also the resume and
-  its `uploaded` list is the server's word on which parts landed; drop on the
-  409s and on a 400, 402 (a lapse between saving and uploading) or 404 (the
-  session or lap deleted since) at create; on a 404 mid-upload (the row was
-  deleted, or swept as a week-stale upload) forget the clip id and create
-  afresh; back off on transport failures, 401 and 429 without counting and on
-  5xx counted, dropping after `MAX_ATTEMPTS` (8).
+- **`ClipUploadQueue` is the iOS Kit's, ported.** The two phones were built
+  in parallel and first wrote two different queues; they were then made one
+  before merging: `:core`'s `ClipUploadQueue` is the Kit's state machine under
+  the same names, with `ClipUploadQueueTests` ported one for one, so both
+  phones follow the transition table on the Kit's type (summarised under
+  *As built (ticket 2)*) — create only
+  without a clip id (a held one resumes at the next part), drop on any create
+  refusal, restart from create on a 404 mid-upload at most `MAX_RESTARTS` (3)
+  times, send exactly the parts `complete`'s 409 names, and back off on
+  transport, 401, 408, 429 and 5xx from 30 s doubling to an hour, **never
+  dropping for that**. `ClipUploadRunner` is the loop that drives it, and
+  `ClipUploadWorker` re-enqueues a waiting job with the queue's own delay
+  rather than WorkManager's backoff. Two details came out of the comparison
+  and are now the same on both: a temp id's *queued* create is read **before**
+  its id map (a flush writes the map and then deletes the queued item, so the
+  other order could call a just-saved session lost), and the lap page shows a
+  pending upload only on `clipLap`'s lap — the lowest lap number with the
+  clip's time, the server's rule. What still differs is plumbing, not policy:
+  Android keeps its jobs' cut state on the job (`CUTTING` / `PENDING` /
+  `CUT_FAILED`) where iOS keeps failed cuts in a list beside them, and a
+  missing cut file is dropped before the first request rather than when a part
+  is copied out — both as `refused`.
 - **A job exists before its cut.** It is written `CUTTING` the moment the
   review hands it over, so the lap page can say *Video uploading* at once; a
   process that dies mid-cut leaves it `CUT_FAILED` at the next start (the

@@ -1995,9 +1995,11 @@ MJPEG cover image, never the telemetry track or any location) into
 `filesDir/clips/`, outside the save's job, and uploads it with
 `ClipUploadWorker` — unique WorkManager work per clip, on an unmetered network
 unless Settings' *Upload lap videos over cellular* is on, in the foreground as
-`dataSync`. The upload's state machine is `:core`'s `ClipUploadQueue` over a
-JSON manifest beside the clips (not a Room table); a clip saved offline waits
-for its session's create to flush and follows the offline queue's id map.
+`dataSync`. The upload's state machine is `:core`'s `ClipUploadQueue` — the
+iOS Kit's, ported under the same names with the same tests, so both phones
+retry and give up identically — over a JSON manifest beside the clips (not a
+Room table); a clip saved offline waits for its session's create to flush and
+follows the offline queue's id map.
 `filesDir/clips/` is excluded from both backup XMLs. The lap page plays the
 clip with Media3 ExoPlayer, opened on the lap's first frame, with Download
 (through the share sheet) and Delete for the owner. `ClipCutterTest` is the

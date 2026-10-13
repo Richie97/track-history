@@ -93,3 +93,11 @@ public sealed class ApiException(
         private val LENIENT = Json { ignoreUnknownKeys = true }
     }
 }
+
+/**
+ * `POST /clips/:id/complete`'s 409 that names the parts the server doesn't
+ * hold (NS-45): the upload sends exactly those again. iOS's `ClipMissingParts`.
+ * Not an [ApiException] — it is an answer the clip queue acts on, never an
+ * error a screen shows.
+ */
+public class ClipMissingParts(public val missing: List<Int>) : Exception("missing parts")

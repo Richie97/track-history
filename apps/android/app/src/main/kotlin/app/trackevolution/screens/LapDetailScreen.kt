@@ -206,6 +206,7 @@ fun LapDetailScreen(
                         viewer = viewer,
                         sessionId = view.session.id,
                         lap = view.lap,
+                        sessionLaps = view.session.laps,
                         onSubscribe = onSubscribe,
                         onDeleted = model::load,
                     )

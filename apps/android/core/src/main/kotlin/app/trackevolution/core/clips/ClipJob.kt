@@ -1,5 +1,6 @@
 package app.trackevolution.core.clips
 
+import app.trackevolution.core.model.ClipCreate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -39,11 +40,23 @@ public data class ClipJob(
     /** Part numbers the server holds, as of the last create or part upload. */
     val uploaded: List<Int> = emptyList(),
     val state: State = State.CUTTING,
-    /** Server-side failures (5xx) so far; transport failures don't count. */
-    val attempts: Int = 0,
+    /** Consecutive retryable failures — the backoff's exponent. Reset by any success. */
+    val failures: Int = 0,
+    /**
+     * Times the server lost the upload under us (a 404 on a part or on
+     * `complete`: deleted on another device, or swept as a week-stale upload)
+     * and it was started over. Past [ClipUploadQueue.MAX_RESTARTS] the job is dropped.
+     */
+    val restarts: Int = 0,
+    /** Epoch ms before which nothing is tried (backoff). */
+    @SerialName("not_before_ms") val notBeforeMs: Long? = null,
     /** Epoch ms, for pruning failed jobs a while after they have been said. */
     @SerialName("created_at") val createdAt: Long,
 ) {
+    /** The body of `POST /sessions/:id/clip` for this job — iOS's `createBody`. */
+    val createBody: ClipCreate
+        get() = ClipCreate(timeMs = timeMs, sizeBytes = sizeBytes, durationMs = durationMs, lapOffsetMs = lapOffsetMs)
+
     @Serializable
     public enum class State {
         /** Being cut from the source video. Interrupted by a process death, it is [CUT_FAILED]. */

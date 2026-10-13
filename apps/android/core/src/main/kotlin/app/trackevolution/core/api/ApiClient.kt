@@ -62,6 +62,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.content.OutgoingContent
+import io.ktor.http.content.TextContent
 import io.ktor.http.contentType
 import io.ktor.http.takeFrom
 import io.ktor.utils.io.ByteWriteChannel
@@ -79,6 +80,10 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.int
 
 /**
  * The HTTP client for the Worker's `/api` surface. One suspend function per
@@ -225,11 +230,11 @@ public class ApiClient private constructor(
     public suspend fun resolveTempId(id: Int): Int? = offline?.resolveId(id)
 
     /**
-     * How many writes are waiting in the offline queue — loaded from storage on
-     * first use, so it is right in a fresh process (a background upload worker)
-     * before anything else has touched the store.
+     * Where a temp id stands in the offline queue, for the clip upload (NS-45):
+     * mapped to a real id, still queued, or neither. iOS's `tempIdState`.
      */
-    public suspend fun pendingWriteCount(): Int = offline?.pendingCount() ?: 0
+    public suspend fun tempIdState(id: Int): OfflineStore.TempIdState =
+        offline?.tempIdState(id) ?: OfflineStore.TempIdState(mapped = null, queued = false)
 
     /**
      * Pull every event's detail into the cache, so an event you never opened still
@@ -501,9 +506,28 @@ public class ApiClient private constructor(
         if (status !in 200..299) throw ApiException.from(status, text)
     }
 
-    /** Stitches the parts; answers the ready clip. A retry on a ready clip answers it again. */
-    public suspend fun completeClip(clipId: Int): LapClip =
-        send("POST", "/clips/$clipId/complete", buildJsonObject { }, LapClip.serializer())
+    /**
+     * Stitches the parts; answers the ready clip. A retry on a ready clip
+     * answers it again. A 409 that names the parts the server is missing
+     * throws [ClipMissingParts], so the upload sends exactly those again —
+     * iOS's `completeClip` does the same.
+     */
+    public suspend fun completeClip(clipId: Int): LapClip {
+        val path = scoped("POST", "/clips/$clipId/complete", API_PREFIX)
+        val (status, text) = rawSendContent("POST", path, TextContent("{}", ContentType.Application.Json))
+        if (status == 409) {
+            val missing = runCatching {
+                responseJson.parseToJsonElement(text).jsonObject["missing"]?.jsonArray?.map { it.jsonPrimitive.int }
+            }.getOrNull()
+            if (!missing.isNullOrEmpty()) throw ClipMissingParts(missing)
+        }
+        if (status !in 200..299) throw ApiException.from(status, text)
+        return try {
+            responseJson.decodeFromString(LapClip.serializer(), text)
+        } catch (e: SerializationException) {
+            throw ApiException.Decoding("/clips/$clipId/complete: ${e.message}", e)
+        }
+    }
 
     /**
      * A signed URL that plays for an hour (Pro — the **student's** tier on a

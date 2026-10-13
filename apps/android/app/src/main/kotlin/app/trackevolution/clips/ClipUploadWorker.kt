@@ -12,7 +12,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import app.trackevolution.R
-import app.trackevolution.core.clips.ClipUploadQueue.Outcome
+import app.trackevolution.core.clips.ClipUploadRunner.Outcome
 import app.trackevolution.data.AppServices
 
 /**
@@ -22,9 +22,9 @@ import app.trackevolution.data.AppServices
  * (`foregroundServiceType="dataSync"`, declared on WorkManager's
  * `SystemForegroundService` in the manifest).
  *
- * The shell around `:core`'s [app.trackevolution.core.clips.ClipUploadQueue],
- * which holds every decision: this only turns its outcome into a WorkManager
- * result. Progress is in the manifest after every part, so a worker the system
+ * The shell around `:core`'s [app.trackevolution.core.clips.ClipUploadRunner]
+ * and the [app.trackevolution.core.clips.ClipUploadQueue] it drives, which hold
+ * every decision: this only turns a wait into the next run's delay. Progress is in the manifest after every part, so a worker the system
  * stops — or a process that dies — resumes at the next part.
  */
 internal class ClipUploadWorker(
@@ -40,16 +40,16 @@ internal class ClipUploadWorker(
         // (Android 12+); it then uploads within the ordinary worker window and
         // resumes on its next run.
         runCatching { setForeground(foregroundInfo()) }
-        return when (val outcome = clips.queue.run(jobId)) {
-            Outcome.Done, Outcome.Skipped -> Result.success()
-            is Outcome.Dropped -> {
-                Log.i(TAG, "clip $jobId dropped: ${outcome.reason}")
-                Result.success()
-            }
-            // Waiting on the session's offline create, or a failure worth
-            // another go: WorkManager's backoff decides when.
-            Outcome.Waiting, is Outcome.Retry -> Result.retry()
+        when (val outcome = clips.runner.run(jobId)) {
+            Outcome.Done, Outcome.Skipped -> Unit
+            is Outcome.Dropped -> Log.i(TAG, "clip $jobId dropped: ${outcome.reason.rawValue}")
+            // The waits are the queue's, as on iOS: half a minute while the
+            // session's create is still in the offline queue, and the backoff's
+            // own 30 s … 1 h after a failure — never WorkManager's schedule.
+            Outcome.WaitForSession -> clips.scheduleAgain(jobId, SESSION_POLL_MS)
+            is Outcome.WaitUntil -> clips.scheduleAgain(jobId, outcome.ms - System.currentTimeMillis())
         }
+        return Result.success()
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo()
@@ -65,6 +65,9 @@ internal class ClipUploadWorker(
 
     companion object {
         const val KEY_JOB = "job"
+
+        /** How soon a job waiting on its session's offline create looks again — iOS's 30 s wake. */
+        const val SESSION_POLL_MS: Long = 30_000
         private const val TAG = "clip-upload"
         private const val CHANNEL_ID = "clip-upload"
         private const val NOTIFICATION_ID = 1002

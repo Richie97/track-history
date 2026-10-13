@@ -1,230 +1,278 @@
 package app.trackevolution.core.clips
 
-import app.trackevolution.core.api.ApiClient
-import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.ClipCreate
 import app.trackevolution.core.model.ClipUpload
+import app.trackevolution.core.model.Lap
 import app.trackevolution.core.offline.OfflineStore
-import kotlinx.coroutines.CancellationException
-import java.io.File
 
 /**
- * The best-lap clip upload, as a state machine over one [ClipJob] at a time
- * (NS-45). Pure in the sense that matters: the transport and the offline id
- * map are injected, the job's progress lives in [ClipManifest], and nothing
- * here knows about WorkManager, notifications or Wi-Fi — so `ClipUploadQueueTest`
- * runs every transition on the JVM. `ClipUploadWorker` in `:app` is the shell
- * that calls [run] and turns its [Outcome] into a WorkManager result.
+ * The clip uploader's state machine (NS-45) — the port of the iOS Kit's
+ * `ClipUploadQueue` under the same names, with its tests ported one for one in
+ * `ClipUploadQueueTest`. Pure: no network, no file, no clock, so every
+ * transition is pinned on the JVM. [ClipUploadRunner] is the loop that drives
+ * it, and `ClipUploadWorker` in `:app` the shell around that.
  *
- * The spec has iOS's Kit carry the same machine under the same name; this one
- * was written to the spec's contract while that was being built, with the
- * transitions spelled out here so the two can be reconciled by eye.
+ * A job goes **create → parts → complete**: `POST /sessions/:id/clip` answers a
+ * clip id, the part size and (on a resume) the parts already held; each part
+ * is `PUT /clips/:id/parts/:n`, exactly `partBytes` long but the last; `POST
+ * /clips/:id/complete` stitches them. The driver loop:
  *
- * ## Transitions, in the order [run] takes them
+ * ```
+ * loop:
+ *   action = nextAction(job, session = sessionState(...), nowMs)
+ *   perform action            // the app's HTTP, file and timer work
+ *   outcome = apply(job, action, response, nowMs)
+ *   persist / delete the file per outcome
+ * ```
  *
- * 1. **Not ready.** A job still `CUTTING`, or a failed cut, is not uploaded:
- *    [Outcome.Skipped]. It stays in the manifest for the lap page to read.
- * 2. **File check.** No file, a missing file, or one whose length isn't the
- *    declared size (a restored manifest, a cleared cache) can never upload:
- *    the job is dropped ([Outcome.Dropped]).
- * 3. **Temp session id.** A negative id is a session whose create is still in
- *    the offline queue. It is resolved through `OfflineStore`'s id map; while
- *    unresolved and the queue still holds writes, the job **waits**
- *    ([Outcome.Waiting]). Unresolved with the queue empty means the create was
- *    refused or cancelled — the session never existed — and the job is
- *    dropped. The event id is resolved the same way, for the lap page.
- * 4. **Create** `POST /sessions/:id/clip`, every run — it is idempotent for
- *    resume with the same size, and its `uploaded` list is the server's word
- *    on which parts it already holds, so a part this side thinks it sent but
- *    the server never stored is sent again.
- * 5. **Parts** `PUT /clips/:id/parts/:n` for every part not uploaded, each
- *    `part_bytes` long (the last the remainder), each recorded in the manifest
- *    as soon as it lands, so a killed worker resumes at the next part.
- * 6. **Complete** `POST /clips/:id/complete`. A 200 is [Outcome.Done]: the job
- *    and its file are deleted.
+ * The transitions — the same table as iOS's, and the tests pin it row by row:
  *
- * ## Failures
+ * | Step | Answer | Then |
+ * |---|---|---|
+ * | any | session id still temp, its create still queued | wait for the offline queue |
+ * | any | session id temp, create gone (the server refused it) | **drop** |
+ * | any | `notBeforeMs` in the future | wait until then |
+ * | create | 2xx | take `clip_id`, `part_bytes`, `parts`, `uploaded` |
+ * | create | 409 *clip storage full* / *lap already has a clip* | **drop** — neither changes on retry |
+ * | create | 402, 404, 400, any other 4xx | **drop** |
+ * | part | 2xx | mark the part uploaded |
+ * | part | 409 (*clip already uploaded*) | treat every part as held; complete |
+ * | part | 404 | **restart** from create (the server lost the upload) |
+ * | part | 400 / 411 (sizes disagree) | **drop** |
+ * | complete | 2xx | **finished** — delete the file |
+ * | complete | 409 with `missing` | forget those parts; send them again |
+ * | complete | 404 | **restart** |
+ * | any | transport, 401, 408, 429, 5xx | **back off**: `failures + 1`, wait [backoffMs] |
  *
- * - **409 on create** — `clip storage full`, `lap already has a clip` — and
- *   any **400, 402 or 404 on create** never change on retry: dropped, file
- *   deleted. (A 402 is a lapse between saving and uploading; a 404 is a
- *   session or lap deleted since.)
- * - **404 on a part or on complete**: the clip row is gone (deleted, or swept
- *   as a week-stale upload). The job forgets its clip id and retries, which
- *   creates a fresh row.
- * - **409 on a part** (`clip already uploaded`) goes straight to complete;
- *   **409 on complete** (`missing parts`) retries, and the next create says
- *   which parts the server is missing.
- * - **Transport failures, 401 and 429** retry ([Outcome.Retry]) without
- *   counting; **5xx** retries and counts, and is dropped after [MAX_ATTEMPTS].
- *
- * A clip never costs its session: by the time a job exists the session has
- * already been posted (or queued), and nothing here touches it.
+ * A restart past [MAX_RESTARTS] drops the job, so a clip that keeps vanishing
+ * can't upload forever. Nothing is dropped for being offline, however long.
  */
-public class ClipUploadQueue(
-    private val manifest: ClipManifest,
-    private val transport: Transport,
-    private val ids: TempIds,
-) {
-    /** The three clip routes the upload uses. [ApiClient] is the real one ([from]). */
-    public interface Transport {
-        public suspend fun create(sessionId: Int, body: ClipCreate): ClipUpload
+public object ClipUploadQueue {
+    /** The first retry's wait, doubled per consecutive failure up to the cap. */
+    public const val BACKOFF_BASE_MS: Long = 30_000
+    public const val BACKOFF_MAX_MS: Long = 60L * 60 * 1000
+    public const val MAX_RESTARTS: Int = 3
 
-        public suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long)
+    /** Where a job's session stands. */
+    public sealed interface SessionState {
+        /** A server id the routes can use. */
+        public data class Real(val id: Int) : SessionState
 
-        public suspend fun complete(clipId: Int)
+        /** A temp id whose create is still in the offline queue. */
+        public data object Waiting : SessionState
+
+        /** A temp id with no create behind it and no mapping: the server refused the session. */
+        public data object Lost : SessionState
     }
 
-    /** `OfflineStore`'s id map and queue depth, which is all a temp id needs. */
-    public interface TempIds {
-        public suspend fun resolve(tempId: Int): Int?
-
-        public suspend fun pendingWrites(): Int
+    /** Resolve a job's session id through the offline store's id map. */
+    public fun sessionState(sessionId: Int, mapped: Int?, queued: Boolean): SessionState = when {
+        !OfflineStore.isTemp(sessionId) -> SessionState.Real(sessionId)
+        mapped != null -> SessionState.Real(mapped)
+        queued -> SessionState.Waiting
+        else -> SessionState.Lost
     }
 
+    /** What to do next. */
+    public sealed interface Action {
+        public data object WaitForSession : Action
+
+        public data class WaitUntil(val ms: Long) : Action
+
+        public data class Create(val sessionId: Int, val body: ClipCreate) : Action
+
+        public data class UploadPart(val clipId: Int, val part: Int, val offset: Long, val length: Long) : Action
+
+        public data class Complete(val clipId: Int) : Action
+
+        public data class Drop(val reason: DropReason) : Action
+    }
+
+    /** Why a job was given up on — the same strings as iOS's `DropReason`. */
+    public enum class DropReason(public val rawValue: String) {
+        /** The session the clip belongs to never reached the server. */
+        SESSION_LOST("session lost"),
+
+        /** `clip storage full`. */
+        STORAGE_FULL("clip storage full"),
+
+        /** `lap already has a clip`. */
+        ALREADY_HAS_CLIP("lap already has a clip"),
+
+        /** 402: the account isn't Pro (any more) when the upload started. */
+        PRO_REQUIRED("pro required"),
+
+        /** 404 on create: the session or its lap is gone. */
+        NOT_FOUND("not found"),
+
+        /** Any other refusal the server won't change its mind about — or a cut file that is gone. */
+        REFUSED("refused"),
+
+        /** The server lost the upload more than [MAX_RESTARTS] times. */
+        TOO_MANY_RESTARTS("too many restarts"),
+    }
+
+    /** What the step got back. */
+    public sealed interface Response {
+        /** The create's 2xx. */
+        public data class Created(val start: ClipUpload) : Response
+
+        /** A part's or `complete`'s 2xx. */
+        public data object Ok : Response
+
+        /** `complete`'s 409 with the parts the server is missing. */
+        public data class MissingParts(val missing: List<Int>) : Response
+
+        /** Any other non-2xx, with the server's `{ error }`. */
+        public data class Status(val status: Int, val error: String?) : Response
+
+        /** No answer at all. */
+        public data object Transport : Response
+    }
+
+    /** The result of applying a response. */
     public sealed interface Outcome {
-        /** Uploaded and complete; the job and its file are gone. */
-        public data object Done : Outcome
+        /** Keep going with the updated job (persist it). */
+        public data class Continue(val job: ClipJob) : Outcome
 
-        /** Never going to upload; the job and its file are gone. */
-        public data class Dropped(val reason: String) : Outcome
+        /** `complete` answered: delete the local file and the job. */
+        public data object Finished : Outcome
 
-        /** The session's create is still queued offline. Try again later. */
-        public data object Waiting : Outcome
-
-        /** A failure worth retrying with backoff; progress so far is kept. */
-        public data class Retry(val reason: String) : Outcome
-
-        /** Not an uploadable job (still cutting, or a failed cut, or gone). */
-        public data object Skipped : Outcome
+        /** Give up: delete the local file and the job. */
+        public data class Dropped(val reason: DropReason) : Outcome
     }
 
-    /** Drives job [id] as far as it will go this time. */
-    public suspend fun run(id: String): Outcome {
-        var job = manifest.get(id) ?: return Outcome.Skipped
-        if (job.state != ClipJob.State.PENDING) return Outcome.Skipped
-
-        val path = job.file
-        val file = path?.let(::File)
-        if (file == null || !file.isFile || file.length() != job.sizeBytes || job.sizeBytes <= 0) {
-            return drop(job, "the cut clip is missing")
+    public fun nextAction(job: ClipJob, session: SessionState, nowMs: Long): Action {
+        val sessionId = when (session) {
+            SessionState.Lost -> return Action.Drop(DropReason.SESSION_LOST)
+            SessionState.Waiting -> return Action.WaitForSession
+            is SessionState.Real -> session.id
         }
+        job.notBeforeMs?.let { if (it > nowMs) return Action.WaitUntil(it) }
+        val clipId = job.clipId
+        val partBytes = job.partBytes
+        val parts = job.parts
+        if (clipId == null || partBytes == null || parts == null) return Action.Create(sessionId, job.createBody)
+        nextPart(job)?.let { part ->
+            val (offset, length) = partRange(job.sizeBytes, partBytes, parts, part)
+            return Action.UploadPart(clipId, part, offset, length)
+        }
+        return Action.Complete(clipId)
+    }
 
-        // 3. A session still waiting in the offline queue.
-        if (OfflineStore.isTemp(job.sessionId)) {
-            val real = ids.resolve(job.sessionId)
-            when {
-                real != null -> job = manifest.update(id) { it.copy(sessionId = real) } ?: return Outcome.Skipped
-                ids.pendingWrites() > 0 -> return Outcome.Waiting
-                // The queue drained between the two reads: one more look.
-                else -> {
-                    val late = ids.resolve(job.sessionId) ?: return drop(job, "the session was never saved")
-                    job = manifest.update(id) { it.copy(sessionId = late) } ?: return Outcome.Skipped
+    /** The lowest part the server doesn't hold, or null when it holds them all. */
+    public fun nextPart(job: ClipJob): Int? {
+        val parts = job.parts ?: return null
+        if (parts <= 0) return null
+        val held = job.uploaded.toSet()
+        return (1..parts).firstOrNull { it !in held }
+    }
+
+    /**
+     * Byte range of part [part] (1-based): every part [partBytes] long but the
+     * last, which is the remainder — `partSize` in `src/lib/clips.ts`.
+     */
+    public fun partRange(sizeBytes: Long, partBytes: Long, parts: Int, part: Int): Pair<Long, Long> {
+        val offset = (part - 1) * partBytes
+        val length = if (part < parts) partBytes else sizeBytes - partBytes * (parts - 1)
+        return offset to length
+    }
+
+    /** The wait after [failures] consecutive failures: 30 s, 1 min, 2 min … 1 h. */
+    public fun backoffMs(failures: Int): Long {
+        if (failures <= 0) return 0
+        val exponent = minOf(failures - 1, 20)
+        return minOf(BACKOFF_BASE_MS shl exponent, BACKOFF_MAX_MS)
+    }
+
+    public fun apply(job: ClipJob, action: Action, response: Response, nowMs: Long): Outcome {
+        // Retryable everywhere: no answer, or an answer that says "later".
+        if (isRetryable(response)) {
+            val failures = job.failures + 1
+            return Outcome.Continue(job.copy(failures = failures, notBeforeMs = nowMs + backoffMs(failures)))
+        }
+        return when (action) {
+            is Action.Create -> when (response) {
+                is Response.Created -> {
+                    val start = response.start
+                    if (start.partBytes <= 0 || start.parts <= 0) {
+                        Outcome.Dropped(DropReason.REFUSED)
+                    } else {
+                        succeeded(
+                            job.copy(
+                                clipId = start.clipId,
+                                partBytes = start.partBytes,
+                                parts = start.parts,
+                                uploaded = start.uploaded.filter { it in 1..start.parts }.distinct().sorted(),
+                            ),
+                        )
+                    }
                 }
-            }
-        }
-        if (OfflineStore.isTemp(job.eventId)) {
-            ids.resolve(job.eventId)?.let { real -> job = manifest.update(id) { it.copy(eventId = real) } ?: job }
-        }
-
-        // 4. Create, or resume.
-        val upload = try {
-            transport.create(
-                job.sessionId,
-                ClipCreate(timeMs = job.timeMs, sizeBytes = job.sizeBytes, durationMs = job.durationMs, lapOffsetMs = job.lapOffsetMs),
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApiException) {
-            return when {
-                e.status == 409 || e.status == 400 || e.status == 402 || e.status == 404 -> drop(job, e.message)
-                else -> failure(job, e)
-            }
-        }
-        job = manifest.update(id) {
-            it.copy(clipId = upload.clipId, partBytes = upload.partBytes, parts = upload.parts, uploaded = upload.uploaded.sorted())
-        } ?: return Outcome.Skipped
-
-        // 5. Parts.
-        val partBytes = upload.partBytes
-        for (n in 1..upload.parts) {
-            if (n in job.uploaded) continue
-            val offset = (n - 1) * partBytes
-            val length = minOf(partBytes, job.sizeBytes - offset)
-            if (length <= 0) return drop(job, "the clip is smaller than its parts")
-            try {
-                transport.uploadPart(upload.clipId, n, file, offset, length)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ApiException) {
-                when (e.status) {
-                    409 -> break // already uploaded: complete answers the clip
-                    404 -> return restart(job, e.message)
-                    400 -> return drop(job, e.message)
-                    else -> return failure(job, e)
+                is Response.Status -> when {
+                    response.status == 409 && response.error == DropReason.STORAGE_FULL.rawValue -> Outcome.Dropped(DropReason.STORAGE_FULL)
+                    response.status == 409 && response.error == DropReason.ALREADY_HAS_CLIP.rawValue -> Outcome.Dropped(DropReason.ALREADY_HAS_CLIP)
+                    response.status == 402 -> Outcome.Dropped(DropReason.PRO_REQUIRED)
+                    response.status == 404 -> Outcome.Dropped(DropReason.NOT_FOUND)
+                    else -> Outcome.Dropped(DropReason.REFUSED)
                 }
+                else -> Outcome.Dropped(DropReason.REFUSED)
             }
-            job = manifest.update(id) { it.copy(uploaded = (it.uploaded + n).distinct().sorted()) } ?: return Outcome.Skipped
-        }
-
-        // 6. Complete.
-        try {
-            transport.complete(upload.clipId)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApiException) {
-            return when (e.status) {
-                404 -> restart(job, e.message)
-                // Missing parts: the next create's `uploaded` says which.
-                409 -> {
-                    manifest.update(id) { it.copy(uploaded = emptyList()) }
-                    Outcome.Retry(e.message)
+            is Action.UploadPart -> when {
+                response == Response.Ok -> succeeded(job.copy(uploaded = (job.uploaded + action.part).distinct().sorted()))
+                // The clip is already ready (a complete whose answer was lost):
+                // `complete` answers it, so go straight there.
+                response is Response.Status && response.status == 409 -> {
+                    val parts = job.parts
+                    succeeded(if (parts != null && parts > 0) job.copy(uploaded = (1..parts).toList()) else job)
                 }
-                else -> failure(job, e)
+                response is Response.Status && response.status == 404 -> restart(job)
+                else -> Outcome.Dropped(DropReason.REFUSED)
             }
-        }
-        manifest.remove(id)
-        return Outcome.Done
-    }
-
-    private fun drop(job: ClipJob, reason: String): Outcome {
-        manifest.remove(job.id)
-        return Outcome.Dropped(reason)
-    }
-
-    /** The clip row is gone server-side: forget it, so the next run creates a fresh one. */
-    private fun restart(job: ClipJob, reason: String): Outcome {
-        manifest.update(job.id) { it.copy(clipId = null, partBytes = null, parts = null, uploaded = emptyList()) }
-        return Outcome.Retry(reason)
-    }
-
-    private fun failure(job: ClipJob, e: ApiException): Outcome {
-        val counted = (e.status ?: 0) >= 500
-        if (!counted) return Outcome.Retry(e.message)
-        val next = manifest.update(job.id) { it.copy(attempts = it.attempts + 1) } ?: return Outcome.Skipped
-        return if (next.attempts >= MAX_ATTEMPTS) drop(next, e.message) else Outcome.Retry(e.message)
-    }
-
-    public companion object {
-        /** Server errors (5xx) before a clip is given up on. Transport failures never count. */
-        public const val MAX_ATTEMPTS: Int = 8
-
-        /** The real transport and id map: the app's one [ApiClient]. */
-        public fun transport(api: ApiClient): Transport = object : Transport {
-            override suspend fun create(sessionId: Int, body: ClipCreate): ClipUpload = api.createClip(sessionId, body)
-
-            override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long) =
-                api.uploadClipPart(clipId, partNumber, file, offset, length)
-
-            override suspend fun complete(clipId: Int) {
-                api.completeClip(clipId)
+            is Action.Complete -> when {
+                response == Response.Ok -> Outcome.Finished
+                response is Response.MissingParts -> {
+                    val gone = response.missing.toSet()
+                    succeeded(job.copy(uploaded = job.uploaded.filter { it !in gone }))
+                }
+                response is Response.Status && response.status == 404 -> restart(job)
+                else -> Outcome.Dropped(DropReason.REFUSED)
             }
-        }
-
-        public fun tempIds(api: ApiClient): TempIds = object : TempIds {
-            override suspend fun resolve(tempId: Int): Int? = api.resolveTempId(tempId)
-
-            override suspend fun pendingWrites(): Int = api.pendingWriteCount()
+            Action.WaitForSession, is Action.WaitUntil, is Action.Drop -> Outcome.Continue(job)
         }
     }
+
+    /**
+     * Which answers mean "try again later": nothing came back, the session
+     * token was refused (the app re-authenticates, and the job waits), the
+     * server was busy, or it failed.
+     */
+    public fun isRetryable(response: Response): Boolean = when (response) {
+        Response.Transport -> true
+        is Response.Status -> response.status == 401 || response.status == 408 || response.status == 429 || response.status >= 500
+        is Response.Created, Response.Ok, is Response.MissingParts -> false
+    }
+
+    private fun succeeded(job: ClipJob): Outcome = Outcome.Continue(job.copy(failures = 0, notBeforeMs = null))
+
+    private fun restart(job: ClipJob): Outcome {
+        val restarts = job.restarts + 1
+        if (restarts > MAX_RESTARTS) return Outcome.Dropped(DropReason.TOO_MANY_RESTARTS)
+        return succeeded(job.copy(restarts = restarts, clipId = null, partBytes = null, parts = null, uploaded = emptyList()))
+    }
+
+    // ---- What the lap page reads ------------------------------------------
+
+    /**
+     * Whether a job (or a failed cut) is for this lap: the same session —
+     * matched on either its temp or its real id — and the same time.
+     */
+    public fun isFor(jobSessionId: Int, jobTimeMs: Int, sessionId: Int, resolved: Int?, timeMs: Int): Boolean =
+        jobTimeMs == timeMs && (jobSessionId == sessionId || (resolved != null && resolved == sessionId))
+
+    /**
+     * The lap a clip with this time lands on: the lowest lap number among the
+     * session's laps with that time, the server's rule. A second lap tied on
+     * time never shows the first one's pending upload.
+     */
+    public fun clipLap(laps: List<Lap>, timeMs: Int): Lap? = laps.filter { it.timeMs == timeMs }.minByOrNull { it.lapNum }
 }

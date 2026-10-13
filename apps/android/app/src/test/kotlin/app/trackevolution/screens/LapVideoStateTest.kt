@@ -33,7 +33,8 @@ class LapVideoStateTest {
         resolve: (Int) -> Int? = { null },
         cellular: Boolean = false,
         metered: Boolean = false,
-    ) = LapVideoState.of(lap, 501, owner, viewer, jobs, resolve, cellular, metered)
+        sessionLaps: List<Lap> = listOf(lap),
+    ) = LapVideoState.of(lap, 501, sessionLaps, owner, viewer, jobs, resolve, cellular, metered)
 
     @Test
     fun `the owner plays and manages a ready clip with Pro, and sees it locked without`() {
@@ -66,6 +67,14 @@ class LapVideoStateTest {
         assertEquals(LapVideoState.None, of(without, jobs = listOf(job(sessionId = 502))))
         assertEquals(LapVideoState.None, of(without, jobs = listOf(job(sessionId = -3))))
         assertEquals(LapVideoState.Uploading, of(without, jobs = listOf(job(sessionId = -3)), resolve = { if (it == -3) 501 else null }))
+    }
+
+    @Test
+    fun `a pending upload shows on the lowest lap number with its time, never on a lap tied with it`() {
+        val tied = without.copy(id = 44, lapNum = 9)
+        val laps = listOf(tied, without)
+        assertEquals(LapVideoState.Uploading, of(without, jobs = listOf(job()), sessionLaps = laps))
+        assertEquals(LapVideoState.None, of(tied, jobs = listOf(job()), sessionLaps = laps))
     }
 
     @Test

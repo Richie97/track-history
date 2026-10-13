@@ -8,7 +8,7 @@ import app.trackevolution.core.api.Pkce
 import app.trackevolution.core.api.StaticToken
 import app.trackevolution.core.clips.ClipJob
 import app.trackevolution.core.clips.ClipManifest
-import app.trackevolution.core.clips.ClipUploadQueue
+import app.trackevolution.core.clips.ClipUploadRunner
 import app.trackevolution.core.model.EventDraft
 import app.trackevolution.core.model.SessionDraft
 import io.ktor.client.engine.okhttp.OkHttp
@@ -28,7 +28,7 @@ import java.net.URLEncoder
 import kotlin.random.Random
 
 /**
- * The whole upload against a real Worker (NS-45): `ClipUploadQueue` over the
+ * The whole upload against a real Worker (NS-45): `ClipUploadRunner` over the
  * app's own OkHttp transport, two 50 MiB-and-remainder parts with their exact
  * `Content-Length`, `complete`, the clip on the event detail, a ranged read of
  * the signed URL, and delete. Skipped unless the instrumentation is given a dev
@@ -92,8 +92,8 @@ class ClipUploadDevServerTest {
                     state = ClipJob.State.PENDING, createdAt = System.currentTimeMillis(),
                 ),
             )
-            val queue = ClipUploadQueue(manifest, ClipUploadQueue.transport(api), ClipUploadQueue.tempIds(api))
-            assertEquals(ClipUploadQueue.Outcome.Done, queue.run("dev-test"))
+            val runner = ClipUploadRunner(manifest, ClipUploadRunner.transport(api), ClipUploadRunner.tempIds(api))
+            assertEquals(ClipUploadRunner.Outcome.Done, runner.run("dev-test"))
 
             val lap = api.event(eventId).sessions.single().laps.single { it.timeMs == 95_000 }
             val clip = lap.clip

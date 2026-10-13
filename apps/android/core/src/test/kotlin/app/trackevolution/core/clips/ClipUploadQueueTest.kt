@@ -1,286 +1,264 @@
 package app.trackevolution.core.clips
 
-import app.trackevolution.core.api.ApiException
+import app.trackevolution.core.clips.ClipUploadQueue.Action
+import app.trackevolution.core.clips.ClipUploadQueue.DropReason
 import app.trackevolution.core.clips.ClipUploadQueue.Outcome
+import app.trackevolution.core.clips.ClipUploadQueue.Response
+import app.trackevolution.core.clips.ClipUploadQueue.SessionState
 import app.trackevolution.core.model.ClipCreate
 import app.trackevolution.core.model.ClipUpload
-import kotlinx.coroutines.test.runTest
+import app.trackevolution.core.model.Lap
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
-import java.io.File
 
 /**
- * Every transition of the clip upload (NS-45) against a fake server that
- * behaves like `src/routes/clips.ts`: parts of `part_bytes`, the last the
- * remainder; a create that resumes with the parts it holds; 409s that never
- * change. The manifest is a real file in a temp directory, so "resumes after
- * the worker was killed" is asserted against what a new process would read.
+ * The clip uploader's state machine (NS-45): iOS's `ClipUploadQueueTests`,
+ * ported one for one under the same names. Every row of the transition table
+ * on [ClipUploadQueue] is a test here and there, so a change to one platform's
+ * table fails the other's tests until it is made there too.
  */
 class ClipUploadQueueTest {
+    private companion object {
+        const val MiB = 1024L * 1024
+        const val NOW = 1_800_000_000_000L
 
-    @TempDir
-    lateinit var dir: File
+        /** A 120 MiB clip: three parts of 50, 50 and 20 MiB. */
+        fun job(sessionId: Int = 42) = ClipJob(
+            id = "job-1",
+            sessionId = sessionId,
+            eventId = 7,
+            timeMs = 121_345,
+            file = "job-1.mp4",
+            sizeBytes = 120 * MiB,
+            durationMs = 126_400,
+            lapOffsetMs = 3_317,
+            state = ClipJob.State.PENDING,
+            createdAt = NOW,
+        )
 
-    /** A server in miniature: one clip row per session, parts by number. */
-    private inner class FakeServer : ClipUploadQueue.Transport {
-        var partBytes = 10L
-        val creates = mutableListOf<Pair<Int, ClipCreate>>()
-        val parts = sortedMapOf<Int, Long>()
-        val calls = mutableListOf<String>()
-        var clipId = 77
-        var completed = false
-        var createError: ApiException? = null
-        var partError: (Int) -> ApiException? = { null }
-        var completeError: ApiException? = null
-
-        override suspend fun create(sessionId: Int, body: ClipCreate): ClipUpload {
-            calls += "create $sessionId"
-            createError?.let { throw it }
-            creates += sessionId to body
-            val count = ((body.sizeBytes + partBytes - 1) / partBytes).toInt()
-            return ClipUpload(clipId = clipId, partBytes = partBytes, parts = count, uploaded = parts.keys.toList())
+        /** The job once its create answered. */
+        fun started(uploaded: List<Int> = emptyList()): ClipJob {
+            val outcome = ClipUploadQueue.apply(
+                job(),
+                Action.Create(42, job().createBody),
+                Response.Created(ClipUpload(clipId = 7, partBytes = 50 * MiB, parts = 3, uploaded = uploaded)),
+                NOW,
+            )
+            return (outcome as Outcome.Continue).job
         }
 
-        override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long) {
-            calls += "part $partNumber"
-            partError(partNumber)?.let { throw it }
-            assertEquals(this.clipId, clipId)
-            assertTrue(offset + length <= file.length(), "a part never reads past the file")
-            parts[partNumber] = length
-        }
-
-        override suspend fun complete(clipId: Int) {
-            calls += "complete"
-            completeError?.let { throw it }
-            completed = true
+        fun continued(outcome: Outcome): ClipJob {
+            assertTrue(outcome is Outcome.Continue, "should continue: $outcome")
+            return (outcome as Outcome.Continue).job
         }
     }
 
-    private class FakeIds(var map: Map<Int, Int> = emptyMap(), var pending: Int = 0) : ClipUploadQueue.TempIds {
-        override suspend fun resolve(tempId: Int): Int? = map[tempId]
-        override suspend fun pendingWrites(): Int = pending
-    }
-
-    private val server = FakeServer()
-    private val ids = FakeIds()
-
-    private fun clipFile(name: String = "a.mp4", size: Int = 25): File =
-        File(dir, name).apply { writeBytes(ByteArray(size) { it.toByte() }) }
-
-    private fun job(file: File? = clipFile(), sessionId: Int = 501, eventId: Int = 7, state: ClipJob.State = ClipJob.State.PENDING) = ClipJob(
-        id = "job-1",
-        sessionId = sessionId,
-        eventId = eventId,
-        timeMs = 47_124,
-        file = file?.path,
-        sizeBytes = file?.length() ?: 0,
-        durationMs = 52_124,
-        lapOffsetMs = 3_000,
-        state = state,
-        createdAt = 1_000,
-    )
-
-    private fun queue(manifest: ClipManifest) = ClipUploadQueue(manifest, server, ids)
+    // ---- The session ------------------------------------------------------
 
     @Test
-    fun `create, every part, complete — then the job and its file are gone`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job()
-        manifest.put(j)
-
-        assertEquals(Outcome.Done, queue(manifest).run(j.id))
-
-        assertEquals(listOf("create 501", "part 1", "part 2", "part 3", "complete"), server.calls)
-        assertEquals(ClipCreate(timeMs = 47_124, sizeBytes = 25, durationMs = 52_124, lapOffsetMs = 3_000), server.creates.single().second)
-        assertEquals(mapOf(1 to 10L, 2 to 10L, 3 to 5L), server.parts, "every part is part_bytes long but the last")
-        assertTrue(manifest.all().isEmpty())
-        assertFalse(File(j.file!!).exists(), "the local file is deleted after complete")
+    fun `a real session id is used as is`() {
+        assertEquals(SessionState.Real(42), ClipUploadQueue.sessionState(42, mapped = null, queued = false))
     }
 
     @Test
-    fun `resumes from the server's uploaded list, and a new process reads the progress`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job()
-        manifest.put(j)
-        server.partError = { n -> if (n == 2) ApiException.Transport("connection reset") else null }
-
-        assertEquals(Outcome.Retry("connection reset"), queue(manifest).run(j.id))
-        val reread = ClipManifest(dir).get(j.id)!!
-        assertEquals(listOf(1), reread.uploaded, "part 1 landed and is recorded on disk")
-        assertEquals(77, reread.clipId)
-        assertEquals(0, reread.attempts, "a transport failure doesn't count")
-
-        server.partError = { null }
-        server.calls.clear()
-        assertEquals(Outcome.Done, queue(ClipManifest(dir)).run(j.id))
-        assertEquals(listOf("create 501", "part 2", "part 3", "complete"), server.calls, "part 1 is not sent twice")
+    fun `a temp session id waits while its create is queued`() {
+        assertEquals(SessionState.Waiting, ClipUploadQueue.sessionState(-3, mapped = null, queued = true))
+        assertEquals(Action.WaitForSession, ClipUploadQueue.nextAction(job(sessionId = -3), SessionState.Waiting, NOW))
     }
 
     @Test
-    fun `waits while its session is a temp id, then maps it through the id map`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job(sessionId = -3, eventId = -2)
-        manifest.put(j)
-        ids.pending = 2
-
-        assertEquals(Outcome.Waiting, queue(manifest).run(j.id))
-        assertTrue(server.calls.isEmpty(), "nothing is sent for a session the server hasn't seen")
-        assertTrue(File(j.file!!).exists())
-
-        ids.map = mapOf(-3 to 812, -2 to 40)
-        ids.pending = 0
-        assertEquals(Outcome.Done, queue(manifest).run(j.id))
-        assertEquals(812, server.creates.single().first)
+    fun `a temp session id maps to the real one once flushed`() {
+        assertEquals(SessionState.Real(42), ClipUploadQueue.sessionState(-3, mapped = 42, queued = false))
+        assertEquals(
+            Action.Create(42, job().createBody),
+            ClipUploadQueue.nextAction(job(sessionId = -3), SessionState.Real(42), NOW),
+        )
     }
 
     @Test
-    fun `a temp session whose create is gone from an empty queue is dropped`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job(sessionId = -3)
-        manifest.put(j)
-        ids.pending = 0
+    fun `a temp session the server refused drops the job`() {
+        assertEquals(SessionState.Lost, ClipUploadQueue.sessionState(-3, mapped = null, queued = false))
+        assertEquals(Action.Drop(DropReason.SESSION_LOST), ClipUploadQueue.nextAction(job(sessionId = -3), SessionState.Lost, NOW))
+    }
 
-        assertEquals(Outcome.Dropped("the session was never saved"), queue(manifest).run(j.id))
-        assertNull(manifest.get(j.id))
-        assertFalse(File(j.file!!).exists())
+    // ---- Create -----------------------------------------------------------
+
+    @Test
+    fun `a fresh job starts with the create`() {
+        val body = job().createBody
+        assertEquals(ClipCreate(timeMs = 121_345, sizeBytes = 120 * MiB, durationMs = 126_400, lapOffsetMs = 3_317), body)
+        assertEquals(Action.Create(42, body), ClipUploadQueue.nextAction(job(), SessionState.Real(42), NOW))
     }
 
     @Test
-    fun `storage full and already has a clip drop the job and delete the file`() = runTest {
-        for (message in listOf("clip storage full", "lap already has a clip")) {
-            val manifest = ClipManifest(dir)
-            val j = job(clipFile("c.mp4"))
-            manifest.put(j)
-            server.createError = ApiException.Server(409, message)
-            assertEquals(Outcome.Dropped(message), queue(manifest).run(j.id))
-            assertNull(manifest.get(j.id))
-            assertFalse(File(j.file!!).exists(), "$message: the file goes too")
+    fun `the create answer sets up the parts and the first part follows`() {
+        val job = started()
+        assertEquals(7, job.clipId)
+        assertEquals(50 * MiB, job.partBytes)
+        assertEquals(3, job.parts)
+        assertEquals(emptyList<Int>(), job.uploaded)
+        assertEquals(Action.UploadPart(7, 1, 0, 50 * MiB), ClipUploadQueue.nextAction(job, SessionState.Real(42), NOW))
+    }
+
+    @Test
+    fun `a resumed create picks up after the parts the server holds`() {
+        val job = started(uploaded = listOf(2, 1, 9))
+        assertEquals(listOf(1, 2), job.uploaded, "a part number past the count is ignored")
+        assertEquals(Action.UploadPart(7, 3, 100 * MiB, 20 * MiB), ClipUploadQueue.nextAction(job, SessionState.Real(42), NOW))
+    }
+
+    @Test
+    fun `storage full and already has a clip drop the job`() {
+        val create = Action.Create(42, job().createBody)
+        assertEquals(Outcome.Dropped(DropReason.STORAGE_FULL), ClipUploadQueue.apply(job(), create, Response.Status(409, "clip storage full"), NOW))
+        assertEquals(Outcome.Dropped(DropReason.ALREADY_HAS_CLIP), ClipUploadQueue.apply(job(), create, Response.Status(409, "lap already has a clip"), NOW))
+    }
+
+    @Test
+    fun `a create refused for any other reason drops the job`() {
+        val create = Action.Create(42, job().createBody)
+        assertEquals(Outcome.Dropped(DropReason.PRO_REQUIRED), ClipUploadQueue.apply(job(), create, Response.Status(402, "pro required"), NOW))
+        assertEquals(Outcome.Dropped(DropReason.NOT_FOUND), ClipUploadQueue.apply(job(), create, Response.Status(404, "not found"), NOW))
+        assertEquals(Outcome.Dropped(DropReason.REFUSED), ClipUploadQueue.apply(job(), create, Response.Status(400, "clip too long"), NOW))
+    }
+
+    // ---- Parts ------------------------------------------------------------
+
+    @Test
+    fun `a part uploaded moves to the next`() {
+        val action = Action.UploadPart(7, 1, 0, 50 * MiB)
+        val job = continued(ClipUploadQueue.apply(started(), action, Response.Ok, NOW))
+        assertEquals(listOf(1), job.uploaded)
+        assertEquals(Action.UploadPart(7, 2, 50 * MiB, 50 * MiB), ClipUploadQueue.nextAction(job, SessionState.Real(42), NOW))
+    }
+
+    @Test
+    fun `every part held means complete`() {
+        assertEquals(Action.Complete(7), ClipUploadQueue.nextAction(started(uploaded = listOf(1, 2, 3)), SessionState.Real(42), NOW))
+    }
+
+    @Test
+    fun `a part refused because the clip is already ready goes to complete`() {
+        val action = Action.UploadPart(7, 1, 0, 50 * MiB)
+        val job = continued(ClipUploadQueue.apply(started(), action, Response.Status(409, "clip already uploaded"), NOW))
+        assertEquals(Action.Complete(7), ClipUploadQueue.nextAction(job, SessionState.Real(42), NOW))
+    }
+
+    @Test
+    fun `a part of the wrong size drops the job`() {
+        val action = Action.UploadPart(7, 1, 0, 50 * MiB)
+        assertEquals(Outcome.Dropped(DropReason.REFUSED), ClipUploadQueue.apply(started(), action, Response.Status(400, "part 1 must be …"), NOW))
+        assertEquals(Outcome.Dropped(DropReason.REFUSED), ClipUploadQueue.apply(started(), action, Response.Status(411, null), NOW))
+    }
+
+    @Test
+    fun `a part the server lost restarts from the create and gives up eventually`() {
+        val action = Action.UploadPart(7, 2, 50 * MiB, 50 * MiB)
+        var job = started(uploaded = listOf(1))
+        for (restart in 1..ClipUploadQueue.MAX_RESTARTS) {
+            val next = continued(ClipUploadQueue.apply(job, action, Response.Status(404, "not found"), NOW))
+            assertTrue(next.clipId == null && next.uploaded.isEmpty() && next.restarts == restart, "restart $restart")
+            assertEquals(Action.Create(42, next.createBody), ClipUploadQueue.nextAction(next, SessionState.Real(42), NOW))
+            job = next.copy(clipId = 7, partBytes = 50 * MiB, parts = 3)
         }
+        assertEquals(Outcome.Dropped(DropReason.TOO_MANY_RESTARTS), ClipUploadQueue.apply(job, action, Response.Status(404, "not found"), NOW))
+    }
+
+    // ---- Complete ---------------------------------------------------------
+
+    @Test
+    fun `complete finishes the job`() {
+        assertEquals(Outcome.Finished, ClipUploadQueue.apply(started(uploaded = listOf(1, 2, 3)), Action.Complete(7), Response.Ok, NOW))
     }
 
     @Test
-    fun `a lapse, a deleted session and a refused body are dropped too`() = runTest {
-        for (error in listOf(ApiException.PaymentRequired("pro required"), ApiException.Server(404, "not found"), ApiException.Server(400, "clip too long"))) {
-            val manifest = ClipManifest(dir)
-            val j = job(clipFile("d.mp4"))
-            manifest.put(j)
-            server.createError = error
-            assertTrue(queue(manifest).run(j.id) is Outcome.Dropped, error.message)
+    fun `complete missing parts sends exactly those again`() {
+        val job = continued(ClipUploadQueue.apply(started(uploaded = listOf(1, 2, 3)), Action.Complete(7), Response.MissingParts(listOf(2)), NOW))
+        assertEquals(listOf(1, 3), job.uploaded)
+        assertEquals(Action.UploadPart(7, 2, 50 * MiB, 50 * MiB), ClipUploadQueue.nextAction(job, SessionState.Real(42), NOW))
+    }
+
+    @Test
+    fun `complete on a lost upload restarts`() {
+        val job = continued(ClipUploadQueue.apply(started(uploaded = listOf(1, 2, 3)), Action.Complete(7), Response.Status(404, "not found"), NOW))
+        assertTrue(job.clipId == null && job.restarts == 1)
+    }
+
+    // ---- Backoff ----------------------------------------------------------
+
+    @Test
+    fun `transport failures and server errors back off and never drop`() {
+        val action = Action.UploadPart(7, 1, 0, 50 * MiB)
+        var job = started()
+        val waits = mutableListOf<Long>()
+        for (response in listOf(Response.Transport, Response.Status(503, null), Response.Status(429, null), Response.Status(401, null), Response.Transport)) {
+            val next = continued(ClipUploadQueue.apply(job, action, response, NOW))
+            waits += next.notBeforeMs!! - NOW
+            job = next
         }
+        assertEquals(listOf(30_000L, 60_000L, 120_000L, 240_000L, 480_000L), waits)
+        assertEquals(Action.WaitUntil(NOW + 480_000), ClipUploadQueue.nextAction(job, SessionState.Real(42), NOW))
+        assertEquals(Action.UploadPart(7, 1, 0, 50 * MiB), ClipUploadQueue.nextAction(job, SessionState.Real(42), NOW + 480_000))
+        val recovered = continued(ClipUploadQueue.apply(job, action, Response.Ok, NOW + 480_000))
+        assertTrue(recovered.failures == 0 && recovered.notBeforeMs == null)
     }
 
     @Test
-    fun `transport failures and 5xx back off, and 5xx counts and gives up`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job()
-        manifest.put(j)
-
-        server.createError = ApiException.Transport("offline")
-        repeat(20) { assertEquals(Outcome.Retry("offline"), queue(manifest).run(j.id)) }
-        assertEquals(0, manifest.get(j.id)!!.attempts)
-
-        server.createError = ApiException.Server(503, "busy")
-        repeat(ClipUploadQueue.MAX_ATTEMPTS - 1) { assertEquals(Outcome.Retry("busy"), queue(manifest).run(j.id)) }
-        assertEquals(Outcome.Dropped("busy"), queue(manifest).run(j.id))
-        assertNull(manifest.get(j.id))
+    fun `the backoff is capped at an hour`() {
+        assertEquals(0L, ClipUploadQueue.backoffMs(0))
+        assertEquals(30_000L, ClipUploadQueue.backoffMs(1))
+        assertEquals(3_600_000L, ClipUploadQueue.backoffMs(8))
+        assertEquals(3_600_000L, ClipUploadQueue.backoffMs(500))
     }
 
     @Test
-    fun `a clip row gone mid-upload restarts with a fresh create`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job()
-        manifest.put(j)
-        server.partError = { n -> if (n == 1) ApiException.Server(404, "not found") else null }
+    fun `a temp session waits even during a backoff`() {
+        val job = job(sessionId = -3).copy(notBeforeMs = NOW + 10_000)
+        assertEquals(Action.WaitForSession, ClipUploadQueue.nextAction(job, SessionState.Waiting, NOW))
+    }
 
-        assertEquals(Outcome.Retry("not found"), queue(manifest).run(j.id))
-        assertNull(manifest.get(j.id)!!.clipId, "the dead row is forgotten")
+    // ---- Part geometry ----------------------------------------------------
 
-        server.partError = { null }
-        assertEquals(Outcome.Done, queue(manifest).run(j.id))
+    @Test
+    fun `part ranges match the server's part size`() {
+        val size = 120 * MiB
+        val part = 50 * MiB
+        assertEquals(0L to part, ClipUploadQueue.partRange(size, part, 3, 1))
+        assertEquals(100 * MiB to 20 * MiB, ClipUploadQueue.partRange(size, part, 3, 3))
+        // A clip smaller than a part is one part of its own size.
+        assertEquals(0L to 2048L, ClipUploadQueue.partRange(2048, part, 1, 1))
+    }
+
+    // ---- The lap page -----------------------------------------------------
+
+    @Test
+    fun `a job is for the lap on either its temp or its real session id`() {
+        assertTrue(ClipUploadQueue.isFor(jobSessionId = -3, jobTimeMs = 100, sessionId = -3, resolved = null, timeMs = 100))
+        assertTrue(ClipUploadQueue.isFor(jobSessionId = -3, jobTimeMs = 100, sessionId = 42, resolved = 42, timeMs = 100))
+        assertFalse(ClipUploadQueue.isFor(jobSessionId = -3, jobTimeMs = 100, sessionId = 42, resolved = null, timeMs = 100))
+        assertFalse(ClipUploadQueue.isFor(jobSessionId = 42, jobTimeMs = 100, sessionId = 42, resolved = null, timeMs = 101))
     }
 
     @Test
-    fun `missing parts at complete retry, and the next create says which`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job()
-        manifest.put(j)
-        server.completeError = ApiException.Server(409, "missing parts")
-        assertEquals(Outcome.Retry("missing parts"), queue(manifest).run(j.id))
-
-        // The server lost part 2.
-        server.parts.remove(2)
-        server.completeError = null
-        server.calls.clear()
-        assertEquals(Outcome.Done, queue(manifest).run(j.id))
-        assertEquals(listOf("create 501", "part 2", "complete"), server.calls)
+    fun `the clip lands on the lowest lap number with its time`() {
+        val laps = listOf(
+            Lap(id = 1, sessionId = 42, lapNum = 1, timeMs = 101_000),
+            Lap(id = 3, sessionId = 42, lapNum = 3, timeMs = 100_000),
+            Lap(id = 2, sessionId = 42, lapNum = 2, timeMs = 100_000),
+        )
+        assertEquals(2, ClipUploadQueue.clipLap(laps, 100_000)?.id)
+        assertNull(ClipUploadQueue.clipLap(laps, 99_000))
     }
 
     @Test
-    fun `a part already uploaded goes straight to complete`() = runTest {
-        val manifest = ClipManifest(dir)
-        val j = job()
-        manifest.put(j)
-        server.partError = { ApiException.Server(409, "clip already uploaded") }
-        assertEquals(Outcome.Done, queue(manifest).run(j.id))
-        assertEquals("complete", server.calls.last())
-    }
-
-    @Test
-    fun `a missing or resized file is a dead job`() = runTest {
-        val manifest = ClipManifest(dir)
-        val f = clipFile("gone.mp4")
-        val j = job(f)
-        manifest.put(j)
-        f.delete()
-        assertEquals(Outcome.Dropped("the cut clip is missing"), queue(manifest).run(j.id))
-
-        val g = clipFile("short.mp4")
-        manifest.put(job(g).copy(sizeBytes = 999))
-        assertTrue(queue(manifest).run("job-1") is Outcome.Dropped)
-        assertTrue(server.calls.isEmpty())
-    }
-
-    @Test
-    fun `a job still cutting, or a failed cut, is not uploaded and stays to be said`() = runTest {
-        val manifest = ClipManifest(dir)
-        manifest.put(job(file = null, state = ClipJob.State.CUTTING))
-        assertEquals(Outcome.Skipped, queue(manifest).run("job-1"))
-        manifest.put(job(file = null, state = ClipJob.State.CUT_FAILED))
-        assertEquals(Outcome.Skipped, queue(manifest).run("job-1"))
-        assertEquals(ClipJob.State.CUT_FAILED, manifest.get("job-1")!!.state)
-        assertEquals(Outcome.Skipped, queue(manifest).run("no-such-job"))
-    }
-
-    @Test
-    fun `a process death mid-cut leaves a failed cut, and stray clips are swept`() {
-        val manifest = ClipManifest(dir)
-        manifest.put(job(file = null, state = ClipJob.State.CUTTING))
-        val stray = clipFile("stray.mp4")
-        val kept = clipFile("kept.mp4")
-        manifest.put(job(kept).copy(id = "job-2"))
-
-        val next = ClipManifest(dir)
-        next.recoverInterrupted()
-        assertEquals(ClipJob.State.CUT_FAILED, next.get("job-1")!!.state)
-        assertFalse(stray.exists(), "a clip no job names is deleted")
-        assertTrue(kept.exists())
-
-        next.prune(nowMs = 1_000 + ClipManifest.FAILED_KEPT_MS + 1)
-        assertNull(next.get("job-1"), "a failed cut is said for a week, then forgotten")
-        assertTrue(next.get("job-2") != null, "a pending upload is never pruned")
-    }
-
-    @Test
-    fun `clear forgets every job and clip`() {
-        val manifest = ClipManifest(dir)
-        val f = clipFile()
-        manifest.put(job(f))
-        manifest.clear()
-        assertTrue(ClipManifest(dir).all().isEmpty())
-        assertFalse(f.exists())
+    fun `the manifest round trips in snake case`() {
+        val job = started(uploaded = listOf(1)).copy(notBeforeMs = NOW)
+        val json = Json.encodeToString(ClipJob.serializer(), job)
+        assertTrue("\"session_id\":42" in json && "\"part_bytes\"" in json && "\"not_before_ms\"" in json, json)
+        assertEquals(job, Json.decodeFromString(ClipJob.serializer(), json))
     }
 }
