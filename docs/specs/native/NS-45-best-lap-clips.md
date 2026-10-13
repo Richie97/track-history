@@ -760,6 +760,7 @@ text above, and why:
 
 - **Web upload**: a dependency-free MP4 passthrough cutter in
   `public/js/import/`, which matters most for PDR cards read on a laptop.
+  Specified in [NS-46](NS-46-web-clip-upload.md).
 - **Video synced to the trace cursor**: the lap page's channel charts and
   the player share one clock through `lap_offset_ms`. It also needs a
   distance → time mapping, which `lapTimeSeries` already provides.
