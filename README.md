@@ -219,6 +219,24 @@ your events, and re-run `npm run seed:generate`.
    doesn't parse is treated as closed, since a misconfigured cutoff must fail
    towards *not* granting lifetime Pro.
 
+7. **(Optional) Enable best-lap video clips**
+
+   Pro drivers' best-lap videos (NS-45, see
+   [Best-lap video clips](#best-lap-video-clips)) live in an R2 bucket the
+   Worker reaches over its `CLIPS` binding, and play through URLs signed with
+   `CLIP_URL_SECRET`. Without either, every clip route answers 503 and nothing
+   else changes.
+
+   ```sh
+   npx wrangler r2 bucket create track-evolution-clips
+   openssl rand -hex 32 | npx wrangler secret put CLIP_URL_SECRET
+   npm run deploy
+   ```
+
+   Leave the bucket private — no public access, no custom domain: every byte
+   goes through `/clips/*` and its signed URLs. Rotating the secret invalidates
+   every URL already handed out, which costs at most an hour of playback.
+
 Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
 empty logbook.
@@ -755,7 +773,8 @@ phone is usually where the footage already is. The parsers are ported (`PDR`,
 and pinned to the JavaScript implementation's output by
 `contracts/logic/video-parsers.json`, so the same clip yields the same lap times
 either way. The clip is read in place through a security-scoped file handle —
-never copied, never uploaded. **`.vbo` and Track Precision `.csv` import on both
+never copied, never uploaded, unless the driver saves its best-lap video, when
+only that lap is cut and uploaded (see [Best-lap video clips](#best-lap-video-clips)). **`.vbo` and Track Precision `.csv` import on both
 phones too** — Porsche Track Precision records and exports on the phone, so
 that's where its files land. `VBO` and `TrackPrecisionCsv` in the Kit and
 `:core` are the ports of `public/js/import/vbo.js` and `csv.js`, pinned by
@@ -786,7 +805,8 @@ temperature, the track's elevation range, and the car's own odometer reading)
 are stored alongside them. The per-lap figures are the channel panel's
 **Car tab** — see *Session health* below; the four session numbers are not
 drawn yet. All of it is captured at import because the video never leaves the
-device, so anything not derived at import time is gone.
+device — a best-lap clip, if saved, is the lap's footage only — so anything
+not derived at import time is gone.
 
 Two of the gridded channels are states rather than measurements and are
 sampled accordingly: `gear` holds its last value (interpolating 3 and 4 gives
@@ -1871,6 +1891,62 @@ in words; `sw.js` never caches `/api/export/`, and the coach mount can't reach
 it. The `EXPORT` rate-limit binding allows 5 exports a minute per user (the
 binding's longest window is a minute), answering 429 with `Retry-After: 60`;
 its `namespace_id` is account-scoped like the MCP ones.
+
+## Best-lap video clips
+
+A Pro driver importing a video on a phone can save a clip of each session's
+best lap (NS-45, `docs/specs/native/NS-45-best-lap-clips.md`). The phone cuts
+it — passthrough, no re-encode, video and audio only, a few seconds either
+side — and uploads it; the telemetry stays the record and a clip that fails
+never costs the session. The cut window and the review row's rules are
+`public/js/import/clip.js`, which both phones port, pinned by
+`contracts/logic/lap-clips.json`. **The web plays, downloads and deletes clips
+but doesn't upload yet** — a browser cut needs an MP4 remuxer, which is a
+follow-up — so this is the one feature that lands on the phones first.
+
+The server half is `src/routes/clips.ts` over migration 0032:
+
+- **Upload** is multipart **through the Worker**, over the R2 binding: `POST
+  /api/sessions/:id/clip` (keyed on the session and the lap's `time_ms`, since
+  a session POST never tells the phone its laps' ids; resumable — the same
+  declared size answers the parts already in), `PUT /api/clips/:id/parts/:n`
+  (raw body, exactly `CLIP_PART_BYTES` = 50 MiB except the last, streamed into
+  `uploadPart`) and `POST /api/clips/:id/complete`. **50 MiB is set by the
+  zone's 100 MB request-body cap**: a 150 MB clip can't go up in one request,
+  and R2 needs every part but the last the same size. Going through the Worker
+  rather than to pre-signed S3 URLs means no R2 access keys, no SigV4 code, no
+  CORS on the bucket and ordinary session/bearer auth on every part.
+- **Playback** is `GET /api/clips/:id/url` → `{ url, expires_at }`, a one-hour
+  HMAC-signed `https://<host>/clips/<id>.mp4?exp&sig` that `/clips/*` (in
+  `run_worker_first`) serves from R2 with ranges and no session — so AirPlay,
+  a cast receiver and `<video>` all play it. `GET /api/clips/:id/download`
+  redirects to the same URL as an attachment.
+- **Tier**: create, url and download are Pro; parts, complete and `DELETE
+  /api/clips/:id` are not, so a lapse mid-upload still finishes and a lapsed
+  driver can always delete. A lapsed account's clips are kept and shown
+  locked. `CLIP_QUOTA_BYTES` is 20 GiB per user, counting uploading clips at
+  their declared size; a create over it is a 409 and nothing is ever deleted
+  to make room.
+- **Deleting a row never deletes the object.** A trigger writes a tombstone
+  for every clip row that goes — its lap, session, event or track, and the
+  account, since `users` cascades — and `sweepClips` in the daily cron
+  deletes the object (or aborts the upload) behind it, then drops uploads
+  abandoned for a week. Account deletion needs no extra step.
+- **Who sees one**: the driver and the coaches they invited — a coach gets
+  `GET /clips/:id/url` under the mount (with the student's tier) and nothing
+  else. Never the share page, the leaderboard lap, Wrapped or the MCP tools.
+  The event detail's `lap.clip` (`{ id, duration_ms, lap_offset_ms,
+  size_bytes }`, null without a ready clip) is not Pro-stripped, so a locked
+  player can make the offer; `user.clips` on `/me` is the storage used, the
+  quota and how many coaches would see a new clip; the logbook export lists
+  clip metadata, never the bytes.
+
+The `CLIP_PARTS` rate limit allows 60 part uploads a minute per user. The web
+fetches the signed URL with `api(path, { cache: false })`, which neither reads
+nor writes the offline cache, and `sw.js` skips `/clips/` and the clip API.
+
+At ~150 MB a clip and R2's $0.015/GB-month (10 GB free, free egress), a
+driver at the full quota costs about $0.30 a month; see the spec's *Cost*.
 
 ## AI assistants (MCP)
 

@@ -507,6 +507,70 @@ models catch up.
       deletable.
 - [ ] Privacy policy, store forms and the import docs say what is uploaded.
 
+## As built (ticket 1)
+
+Server, shared logic, goldens, native model fields and web playback. Where the
+code differs from the text above, and why:
+
+- **Ids and keys.** `lap_clips.id` is `AUTOINCREMENT`: the R2 key is derived
+  from the id, and a reused id would put a new clip under a key whose tombstone
+  the cron hasn't drained yet, which would then delete the new object. The row
+  is inserted with a `pending/<uuid>` placeholder key, which the create swaps
+  for `clips/<userId>/<clipId>.mp4` once `createMultipartUpload` answers. A
+  failed create deletes the row; its tombstone names an object that never
+  existed, and deleting that is a no-op.
+- **The quota is folded into the insert** (`INSERT … SELECT … WHERE used +
+  size ≤ quota ON CONFLICT(lap_id) DO NOTHING`), so two creates at once can't
+  both slip under it, and two creates of one lap give one row.
+- **Length limits.** The 400s are `time_ms > MAX_CLIP_S × 1000` (the lap) and
+  `duration_ms > (MAX_CLIP_S + 30) × 1000` (the clip). A literal
+  `duration_ms > MAX_CLIP_S` would refuse the 605 s clip of a 600 s lap, which
+  `clipWindow` says is inclusive.
+- **Resume with a different size** (a re-cut) deletes the old uploading row,
+  whose tombstone aborts its upload, and starts again. **`complete` on a ready
+  clip answers the clip**, so a retry after a lost response is harmless.
+- **Download is a 302** to the signed URL with `&dl=1`, which isn't part of
+  the signature (it only adds `Content-Disposition`). The filename comes from
+  D1 when the file is served. A redirect lets a plain link (the web) and a
+  downloading client (the phones) use the same route. `expires_at` is ms, like
+  every other timestamp the API answers.
+- **`/me`** carries the storage as `user.clips`, which is where both native
+  `User` models read it.
+- **The web control** sits under the session's lap chips, one *▶ Lap N video*
+  button per clipped lap, rather than on the lap row itself. An imported
+  session's lap list is the channel panel's chips, which the panel owns. The
+  signed URL is read with `api(path, { cache: false })`, new in `js/api.js`,
+  which neither reads nor writes the offline cache.
+- **The goldens** upload the clip through the routes into the harness's
+  local R2 rather than inserting the row, which exercises the routes for
+  free. The upload routes themselves aren't captured: their shapes are the
+  phones' ticket, and pinning them now would make both golden suites demand
+  models for them.
+- **`clip.js`** takes review items as `{ parsed, include, fileBytes }` (the
+  native `ReviewItem`'s names plus the file size). `VIDEO_KINDS` is
+  `["pdr", "gopro"]`: PDR 2.5 resolves to `pdr`, and Track Precision's CSV
+  parses as `trackprecision`, not `csv`. It also carries the row's and
+  Settings' wording (`clipOfferText`, `clipFullText`, `clipStorageLine`,
+  `fmtClipBytes`), pinned with the rest so the phones say the same thing.
+
+**Not done in ticket 1:**
+
+- **Media-timeline alignment on real footage is unverified.** The
+  `telemetry-samples/` recordings aren't in the environment this ticket was
+  built in. The check (does the cut start the lap within a frame of the line,
+  for PDR, PDR 2.5 and GoPro) moves to ticket 2, where the cutter that needs
+  the answer gets built. Any per-format correction lands in `clipWindow` and
+  `lap-clips.json`.
+- **The user-facing how-to** (`telemetry-import.html`'s *Best-lap video*
+  section, the landing page's Pro mention, `docs/index.html`'s coaching
+  paragraph) waits for ticket 2. Until a phone offers the switch, those pages
+  would advertise a feature nobody can use. What ships now is what is already
+  true: the privacy policy, the terms, account deletion, the data model's
+  privacy list, and the web Coaching page's *what they see* sentence.
+- **The native test suites weren't run here** (no Swift toolchain; Google's
+  Maven repository is blocked, so Gradle can't configure the Android build).
+  CI runs `LapClipGoldenTest(s)` and the entitlement fixture tests on both.
+
 ## Open questions
 
 - **Per session or per review?** This spec saves each video session's best
