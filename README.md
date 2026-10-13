@@ -1941,6 +1941,42 @@ The server half is `src/routes/clips.ts` over migration 0032:
   quota and how many coaches would see a new clip; the logbook export lists
   clip metadata, never the bytes.
 
+**On iOS** (ticket 2; Android is ticket 3) the review's *Save best-lap video*
+row reads the Kit's `LapClips.clipOffer`, and saving posts each session first
+and then hands its best lap to `ClipUploader` without awaiting it:
+
+- **`ClipCutter`** (`apps/ios/App/Import/`) builds an `AVMutableComposition` of
+  the first moving-picture video track and the first audio track over
+  `clipWindow` and exports it passthrough to `Application Support/clips/`
+  (excluded from backup) with no file-level metadata. PDR 2.5 files carry an
+  MJPEG cover image as a video track, which is skipped. The lap's offset is
+  **read back from the exported file** — the source keyframe the cut started
+  on plus how far the output's edit list skips into it — because a
+  passthrough cut starts on a keyframe (every 1.475 s on the Corvette's PDR).
+  On real footage AVFoundation's edit list puts the first presented frame
+  exactly on the requested start, so the offset comes back as 3 s.
+- **The Corvette's PDR audio is invisible to AVFoundation** (an AAC track with
+  a media timescale of 440,988; `AVURLAsset` lists only the video and the
+  telemetry), so that file is cut by `ClipRemux` instead: an `AVAssetWriter`
+  fed the video by an `AVAssetReader` and the audio as raw AAC packets read
+  by AudioToolbox — still no re-encode, and the clip keeps its sound.
+- **`ClipUploader`** drives the Kit's `ClipUploadQueue` (pure, tested row by
+  row; Android ports it): a job waits while its session id is a temp id in
+  the offline queue, then goes create → parts → complete; each 50 MiB part is
+  copied to its own file and sent by a **background `URLSession`**, so it
+  survives suspension and is answered on relaunch through the app delegate.
+  Wi-Fi only unless Settings' *Upload lap videos over cellular* is on. A 409
+  for full storage or an existing clip drops the job; transport errors, 401,
+  429 and 5xx back off from 30 s to an hour. The file is deleted when
+  `complete` answers. Sign-out clears the jobs.
+- **The lap page** plays the signed URL in an AVKit player, seeked to
+  `lap_offset_ms`, with *Download* and *Delete*; a coach gets the player
+  without the menu, and the student-tier sentence when the student isn't Pro.
+
+`LapClipUITests` covers it end to end against `npm run dev` (with a
+`CLIP_URL_SECRET` in `.dev.vars`): the committed fixtures carry no picture, so
+`-syntheticClipVideo YES` gives the real cutter a generated H.264 file to cut.
+
 The `CLIP_PARTS` rate limit allows 60 part uploads a minute per user. The web
 fetches the signed URL with `api(path, { cache: false })`, which neither reads
 nor writes the offline cache, and `sw.js` skips `/clips/` and the clip API.
