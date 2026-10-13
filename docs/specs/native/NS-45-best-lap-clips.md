@@ -1,6 +1,6 @@
 # NS-45 — Best-lap video clips (Pro, on R2)
 
-**Phase:** post-rewrite · **Platform:** Server + iOS + Android, with web playback (web *upload* is a follow-up) · **Depends on:** the video importers ([NS-30](NS-30-ios-video-import.md), [NS-32](NS-32-android-video-import.md)), the shared review flow, the offline layers' temp-id maps, `requireEntitlement` · **Estimate:** server + web 4–5 days, each phone 5–6 days · **Issue:** —
+**Phase:** post-rewrite · **Platform:** Server + iOS + Android, with web playback (web *upload* is a follow-up) · **Depends on:** the video importers ([NS-30](NS-30-ios-video-import.md), [NS-32](NS-32-android-video-import.md)), the shared review flow, the offline layers' temp-id maps, `requireEntitlement` · **Estimate:** server + web 4–5 days, each phone 5–6 days · **Issue:** [#399](https://github.com/Richie97/track-history/issues/399) (tickets #400, #401, #402)
 
 ## Goal
 
@@ -506,6 +506,89 @@ models catch up.
 - [ ] A lapsed account keeps its clips. They're locked, not gone, and still
       deletable.
 - [ ] Privacy policy, store forms and the import docs say what is uploaded.
+
+## As built (ticket 1)
+
+Server, shared logic, goldens, native model fields and web playback. Where the
+code differs from the text above, and why:
+
+- **Ids and keys.** `lap_clips.id` is `AUTOINCREMENT`: the R2 key is derived
+  from the id, and a reused id would put a new clip under a key whose tombstone
+  the cron hasn't drained yet, which would then delete the new object. The row
+  is inserted with a `pending/<uuid>` placeholder key, which the create swaps
+  for `clips/<userId>/<clipId>.mp4` once `createMultipartUpload` answers. A
+  failed create deletes the row; its tombstone names an object that never
+  existed, and deleting that is a no-op.
+- **The quota is folded into the insert** (`INSERT … SELECT … WHERE used +
+  size ≤ quota ON CONFLICT(lap_id) DO NOTHING`), so two creates at once can't
+  both slip under it, and two creates of one lap give one row.
+- **Length limits.** The 400s are `time_ms > MAX_CLIP_S × 1000` (the lap) and
+  `duration_ms > (MAX_CLIP_S + 30) × 1000` (the clip). A literal
+  `duration_ms > MAX_CLIP_S` would refuse the 605 s clip of a 600 s lap, which
+  `clipWindow` says is inclusive.
+- **Resume with a different size** (a re-cut) deletes the old uploading row,
+  whose tombstone aborts its upload, and starts again. **`complete` on a ready
+  clip answers the clip**, so a retry after a lost response is harmless.
+- **Download is a 302** to the signed URL with `&dl=1`, which isn't part of
+  the signature (it only adds `Content-Disposition`). The filename comes from
+  D1 when the file is served. A redirect lets a plain link (the web) and a
+  downloading client (the phones) use the same route. `expires_at` is ms, like
+  every other timestamp the API answers.
+- **`/me`** carries the storage as `user.clips`, which is where both native
+  `User` models read it.
+- **The web control** sits under the session's lap chips, one *▶ Lap N video*
+  button per clipped lap (*Hide lap N video* while open), rather than on the
+  lap row itself. An imported session's lap list is the channel panel's
+  chips, which the panel owns. The player is `preload="metadata"`, not
+  `"none"`, and seeks as soon as the metadata is in: with `"none"` it opened
+  as an empty box at 0:00 until pressed, and the URL is fetched on the click
+  anyway. The toggle is one delegated listener bound once, so a click that
+  lands while the page re-renders still reaches the button under it. The
+  signed URL is read with `api(path, { cache: false })`, new in `js/api.js`,
+  which neither reads nor writes the offline cache.
+- **The goldens** upload the clip through the routes into the harness's
+  local R2 rather than inserting the row, which exercises the routes for
+  free. The upload routes themselves aren't captured: their shapes are the
+  phones' ticket, and pinning them now would make both golden suites demand
+  models for them.
+- **`clip.js`** takes review items as `{ parsed, include, fileBytes }` (the
+  native `ReviewItem`'s names plus the file size). `VIDEO_KINDS` is
+  `["pdr", "gopro"]`: PDR 2.5 resolves to `pdr`, and Track Precision's CSV
+  parses as `trackprecision`, not `csv`. It also carries the row's and
+  Settings' wording (`clipOfferText`, `clipFullText`, `clipStorageLine`,
+  `fmtClipBytes`), pinned with the rest so the phones say the same thing.
+
+**Not done in ticket 1:**
+
+- **Media-timeline alignment was verified on real footage after the build,
+  for PDR and PDR 2.5** (one Corvette clip, three Blackwing clips, against
+  this ticket's code; PR #403). The telemetry clock is the media timeline to
+  within about a quarter second: the Corvette's burned-in speed readout trails
+  the telemetry by a steady ~0.24 s, which is the readout's own render delay,
+  and on the Blackwing the car moves ~0.2 s after telemetry says it did and
+  stops on the same frame. That is well inside `PRE_ROLL_S`, so **no
+  per-format correction** goes into `clipWindow`. `clipCandidate` picked the
+  right lap on all four, and `estimateClipBytes` came within 1–7% of the real
+  passthrough cuts. **GoPro remains unverified on real footage**; ticket 2
+  checks it. Two facts for the cutters came out of it:
+  - **Keyframe spacing differs by recorder.** The Corvette PDR writes one
+    every 1.475 s, so a passthrough cut can start up to ~1.5 s before the
+    requested window: a cut put the lap 3.317 s in, not 3 s. The cutter must
+    report the offset it actually got, as *Window* says. PDR 2.5 has a
+    keyframe on every frame, so its cuts land exactly.
+  - **PDR 2.5 files carry a fourth stream**, an MJPEG cover image, beside
+    video, audio and the `adco` telemetry. Map only the *first* video track
+    and the first audio track, as *Cutting* says; a cutter that copies
+    "every video track" picks up the cover image.
+- **The user-facing how-to** (`telemetry-import.html`'s *Best-lap video*
+  section, the landing page's Pro mention, `docs/index.html`'s coaching
+  paragraph) waits for ticket 2. Until a phone offers the switch, those pages
+  would advertise a feature nobody can use. What ships now is what is already
+  true: the privacy policy, the terms, account deletion, the data model's
+  privacy list, and the web Coaching page's *what they see* sentence.
+- **The native test suites weren't run here** (no Swift toolchain; Google's
+  Maven repository is blocked, so Gradle can't configure the Android build).
+  CI runs `LapClipGoldenTest(s)` and the entitlement fixture tests on both.
 
 ## Open questions
 

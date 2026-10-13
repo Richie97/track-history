@@ -31,6 +31,7 @@ struct EntitlementTests {
             #expect(Entitlement.canViewYearInReview(e) == c.expected.canViewYearInReview, Comment(rawValue: c.name))
             #expect(Entitlement.canViewSpend(e) == c.expected.canViewSpend, Comment(rawValue: c.name))
             #expect(Entitlement.canCompareEvents(e) == c.expected.canCompareEvents, Comment(rawValue: c.name))
+            #expect(Entitlement.canSaveLapVideo(e) == c.expected.canSaveLapVideo, Comment(rawValue: c.name))
             #expect(Entitlement.manageUrl(e)?.absoluteString == c.expected.manageUrl, Comment(rawValue: c.name))
             #expect(Entitlement.entitlementSummary(e, fmtDate: fmt) == c.expected.summary, Comment(rawValue: c.name))
         }
@@ -242,6 +243,7 @@ struct EntitlementFixture: Decodable {
         let canViewYearInReview: Bool
         let canViewSpend: Bool
         let canCompareEvents: Bool
+        let canSaveLapVideo: Bool
         let manageUrl: String?
         let summary: String
     }

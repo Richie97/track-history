@@ -21,11 +21,12 @@
 // Shared: the lap data (events, sessions, laps, the trace, `channels` — already
 // stripped to the *student's* tier by stripProFields — and the recorded
 // conditions), the vehicle list (the car and its modifications, which live in
-// the vehicle's notes), the measured steering ratio, the driver profile and
-// the two seeded catalogs. Not shared, because they are not on this table:
-// /me (email, billing, consents), /me/connections, /garage (parts, wear, costs,
-// odometer), the setup routes, the leaderboards, Season Wrapped and anything
-// that writes.
+// the vehicle's notes), the measured steering ratio, the driver profile, the
+// best-lap videos (watch only, NS-45) and the two seeded catalogs. Not shared,
+// because they are not on this table: /me (email, billing, consents),
+// /me/connections, /garage (parts, wear, costs, odometer), the setup routes,
+// the leaderboards, Season Wrapped, downloading a video and anything that
+// writes.
 
 type Json = Record<string, unknown>;
 export type CoachView = (body: unknown) => unknown;
@@ -60,6 +61,12 @@ const EVENT_HIDDEN: Json = {
 
 export const COACH_SESSION_FIELDS = ["id", "label", "sort", "trace", "channels", "ambient_c", "elevation_m"] as const;
 export const COACH_LAP_FIELDS = ["id", "session_id", "lap_num", "time_ms"] as const;
+// A lap's best-lap video (NS-45), copied through its own allow-list so a field
+// added to the clip later stays private without an edit here. `size_bytes` is
+// the student's storage bookkeeping, not lap data.
+export const COACH_CLIP_FIELDS = ["id", "duration_ms", "lap_offset_ms"] as const;
+// What GET /clips/:id/url answers a coach: the signed URL and its expiry.
+export const COACH_CLIP_URL_FIELDS = ["url", "expires_at"] as const;
 export const COACH_TRACK_FIELDS = [
   "id", "name", "catalog_id", "goal_ms", "updated_at", "best_ms", "event_count", "track_days", "last_date", "series",
 ] as const;
@@ -89,7 +96,14 @@ function coachChannels(channels: unknown): unknown {
 }
 
 const coachEvent = (row: unknown) => pick(row, COACH_EVENT_FIELDS, EVENT_HIDDEN);
-const coachLap = (row: unknown) => pick(row, COACH_LAP_FIELDS);
+const coachLap = (row: unknown) => {
+  const out = pick(row, COACH_LAP_FIELDS);
+  if (row && typeof row === "object" && Object.hasOwn(row, "clip")) {
+    const clip = (row as Json).clip;
+    out.clip = clip && typeof clip === "object" ? pick(clip, COACH_CLIP_FIELDS) : null;
+  }
+  return out;
+};
 const coachSession = (row: unknown) => {
   const out = pick(row, COACH_SESSION_FIELDS, { notes: null });
   if (Object.hasOwn(out, "channels")) out.channels = coachChannels(out.channels);
@@ -128,6 +142,10 @@ export const COACH_ROUTES: readonly { path: RegExp; view: CoachView }[] = [
   // Per-session fits (ids, dates and two numbers) — Pro, so under the
   // student's tier it is the 402 the student would get.
   { path: /^\/vehicles\/\d+\/steering-fit$/, view: coachFits },
+  // A URL to watch one of the student's best-lap videos (NS-45). Pro, so a
+  // lapsed student's coach gets the 402 the student would. Downloading,
+  // deleting and every upload route stay off this table.
+  { path: /^\/clips\/\d+\/url$/, view: (body) => pick(body, COACH_CLIP_URL_FIELDS) },
   // The two seeded catalogs: shared reference data, nothing of the student's.
   { path: /^\/catalog$/, view: pass },
   { path: /^\/car-catalog$/, view: pass },

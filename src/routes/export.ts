@@ -91,6 +91,18 @@ exportRoutes.get("/export/events.csv", async (c) => {
 // ---------------------------------------------------------------------------
 // The whole logbook as one JSON document, streamed.
 
+type LapExportJsonRow = {
+  id: number;
+  session_id: number;
+  lap_num: number;
+  time_ms: number;
+  device_timed: number;
+  clip_duration_ms: number | null;
+  clip_lap_offset_ms: number | null;
+  clip_size_bytes: number | null;
+  clip_created_at: number | null;
+};
+
 type SessionRow = {
   id: number;
   event_id: number;
@@ -166,8 +178,11 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
       .bind(userId),
     db
       .prepare(
-        `SELECT l.id, l.session_id, l.lap_num, l.time_ms, l.device_timed
+        `SELECT l.id, l.session_id, l.lap_num, l.time_ms, l.device_timed,
+                k.duration_ms AS clip_duration_ms, k.lap_offset_ms AS clip_lap_offset_ms,
+                k.size_bytes AS clip_size_bytes, k.created_at AS clip_created_at
          FROM laps l JOIN sessions s ON s.id = l.session_id JOIN events e ON e.id = s.event_id
+         LEFT JOIN lap_clips k ON k.lap_id = l.id AND k.status = 'ready'
          WHERE e.user_id = ? ORDER BY l.session_id, l.lap_num`
       )
       .bind(userId),
@@ -203,7 +218,7 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
   const createdAt = new Map((createdRes.results as { id: number; created_at: number }[]).map((r) => [r.id, r.created_at]));
   const sessionsByEvent = groupBy(sessionRes.results as SessionRow[], (s) => s.event_id);
   const lapsBySession = groupBy(
-    lapRes.results as { id: number; session_id: number; lap_num: number; time_ms: number; device_timed: number }[],
+    lapRes.results as LapExportJsonRow[],
     (l) => l.session_id
   );
   const setupsByEvent = groupBy(
@@ -242,10 +257,24 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
     await out.begin("sessions", "[");
     for (const s of sessionsByEvent.get(event.id) ?? []) {
       const { has_channels, event_id, trace, ...sessionFields } = s;
-      const laps = (lapsBySession.get(s.id) ?? []).map(({ session_id, device_timed, ...l }) => ({
-        ...l,
-        device_timed: !!device_timed,
-      }));
+      // A lap's best-lap video (NS-45) as metadata only: the file itself is the
+      // lap page's *Download video*, since video in a JSON stream would make
+      // the export unusable.
+      const laps = (lapsBySession.get(s.id) ?? []).map(
+        ({ session_id, device_timed, clip_duration_ms, clip_lap_offset_ms, clip_size_bytes, clip_created_at, ...l }) => ({
+          ...l,
+          device_timed: !!device_timed,
+          clip:
+            clip_duration_ms == null
+              ? null
+              : {
+                  duration_ms: clip_duration_ms,
+                  lap_offset_ms: clip_lap_offset_ms,
+                  size_bytes: clip_size_bytes,
+                  created_at: clip_created_at,
+                },
+        })
+      );
       const json = JSON.stringify({ ...sessionFields, trace: parseStored(trace), laps });
       // The blob is spliced in as stored — already valid JSON, sanitized on the
       // way in — rather than parsed and re-serialized, so a megabyte of arrays

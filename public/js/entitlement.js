@@ -67,6 +67,14 @@ export const canViewSpend = (entitlement) => isPro(entitlement);
 // the two would move independently if the tier boundary ever did.
 export const canCompareEvents = (entitlement) => isPro(entitlement);
 
+// Saving a best-lap video from a video import (NS-45): the review's
+// *Save best-lap video* row, and playing or downloading a clip. Pro because
+// video is the one Pro feature with a real storage cost behind it. Deleting a
+// clip is never gated, and the server enforces the rest (requireEntitlement on
+// create, url and download) — this decides what the review and the lap page
+// draw: the switch or the locked offer, the player or the locked one.
+export const canSaveLapVideo = (entitlement) => isPro(entitlement);
+
 // Where "Manage subscription" goes, by the store that sold it. Legacy has no
 // subscription to manage; free has nothing yet — both return null.
 export const APPLE_MANAGE_URL = "https://apps.apple.com/account/subscriptions";

@@ -50,6 +50,22 @@ const toError = (r) => new ApiError(r.body?.error || `Request failed (${r.status
 
 export async function api(path, opts = {}) {
   const method = (opts.method || "GET").toUpperCase();
+  // `cache: false` — a read that must come from the server or not at all: a
+  // signed best-lap video URL (NS-45) expires in an hour, so a cached one is
+  // worse than none. Never cached, never answered from the cache, and a
+  // network failure is an OfflineError.
+  if (method === "GET" && opts.cache === false) {
+    let r;
+    try {
+      r = await send(method, path);
+    } catch {
+      offline.noteOffline();
+      throw new OfflineError();
+    }
+    offline.noteOnline();
+    if (!r.ok) throw toError(r);
+    return r.body;
+  }
   if (method === "GET") {
     // Rows created offline only exist in the cache until the queue flushes —
     // the server would 404 their temp ids.

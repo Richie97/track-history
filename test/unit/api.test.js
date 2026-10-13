@@ -40,3 +40,32 @@ describe("api GET offline", () => {
     expect(err.message).toBe("not found");
   });
 });
+
+// `cache: false` (NS-45): a signed video URL expires in an hour, so the read
+// comes from the server or not at all — never from the cache, never into it.
+describe("api GET with cache: false", () => {
+  beforeEach(async () => {
+    await resetOfflineForTests();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("ignores a cached copy when the network is gone", async () => {
+    await cachePut("/clips/1/url", { url: "https://stale.example", expires_at: 1 });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const err = await api("/clips/1/url", { cache: false }).catch((e) => e);
+    expect(err).toBeInstanceOf(OfflineError);
+  });
+
+  it("answers from the server without caching what it said", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ url: "https://x.example/clips/2.mp4", expires_at: 5 }) })
+    );
+    expect(await api("/clips/2/url", { cache: false })).toEqual({ url: "https://x.example/clips/2.mp4", expires_at: 5 });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    // A plain read of the same path finds nothing cached.
+    expect(await api("/clips/2/url").catch((e) => e)).toBeInstanceOf(OfflineError);
+  });
+});

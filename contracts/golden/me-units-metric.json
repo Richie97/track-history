@@ -19,6 +19,11 @@
         "Torque lug nuts",
         "Set tire pressures"
       ],
+      "clips": {
+        "coach_count": 0,
+        "quota_bytes": 21474836480,
+        "used_bytes": 2048
+      },
       "email": "dev@example.com",
       "id": 1,
       "leaderboard_opt_in": true,

@@ -35,12 +35,18 @@
         "label": "Session 2",
         "laps": [
           {
+            "clip": null,
             "id": 1,
             "lap_num": 1,
             "session_id": 1,
             "time_ms": 122900
           },
           {
+            "clip": {
+              "duration_ms": 126500,
+              "id": 1,
+              "lap_offset_ms": 3000
+            },
             "id": 1,
             "lap_num": 2,
             "session_id": 1,
@@ -156,6 +162,7 @@
         "label": "Session 3",
         "laps": [
           {
+            "clip": null,
             "id": 1,
             "lap_num": 1,
             "session_id": 1,
@@ -322,6 +329,7 @@
         "label": "Session 4",
         "laps": [
           {
+            "clip": null,
             "id": 1,
             "lap_num": 1,
             "session_id": 1,

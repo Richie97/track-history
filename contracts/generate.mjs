@@ -159,6 +159,15 @@ function apiClient(base, token) {
   };
   // The same account against a restarted Worker (see captureCoaching).
   client.rebase = (newBase) => apiClient(newBase, token);
+  // A raw-bytes PUT, for a clip part (NS-45), which is not JSON.
+  client.putBytes = async (apiPath, bytes) => {
+    const res = await fetch(new URL(`/api${apiPath}`, base), {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream", ...(token ? { Cookie: `session=${token}` } : {}) },
+      body: bytes,
+    });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
   return client;
 }
 
@@ -443,6 +452,28 @@ async function build(api) {
   // A session note written after the fact, through the present-keys PUT
   // (NS-40): notes alone, so the label must survive.
   await api("PUT", `/sessions/${s1.body.id}`, { notes: "Learning the line. Brake later into T5." });
+
+  // --- best-lap video (NS-45) ----------------------------------------------
+  // One ready clip on the rich event's best lap, uploaded through the routes
+  // into the harness's local R2, so the event detail carries `clip` as both an
+  // object and a null and /me's `clips` counts it. The upload routes themselves
+  // are pinned by test/api/clips.test.ts; the bytes stand for a video.
+  const richDetail = (await api("GET", `/events/${rich.body.id}`)).body;
+  const bestLap = richDetail.sessions
+    .flatMap((s) => s.laps)
+    .reduce((a, b) => (b.time_ms < a.time_ms ? b : a));
+  const clipBytes = new Uint8Array(2048).map((_, i) => i & 0xff);
+  const clip = await api("POST", `/sessions/${bestLap.session_id}/clip`, {
+    time_ms: bestLap.time_ms,
+    size_bytes: clipBytes.length,
+    duration_ms: bestLap.time_ms + 5_000,
+    lap_offset_ms: 3_000,
+  });
+  if (clip.status !== 201) throw new Error(`clip create failed: ${JSON.stringify(clip.body)}`);
+  const part = await api.putBytes(`/clips/${clip.body.clip_id}/parts/1`, clipBytes);
+  if (part.status !== 200) throw new Error(`clip part failed: ${JSON.stringify(part.body)}`);
+  const done = await api("POST", `/clips/${clip.body.clip_id}/complete`);
+  if (done.status !== 200) throw new Error(`clip complete failed: ${JSON.stringify(done.body)}`);
 
   // --- share --------------------------------------------------------------
   await api("PUT", "/share", { slug: "contract-fixture" });

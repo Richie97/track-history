@@ -11,6 +11,7 @@ import { oauth, oauthWellKnown, sweepOAuth } from "./routes/oauth";
 import { mcp } from "./routes/mcp";
 import { requireCoachGrant, sweepCoachInvites } from "./routes/coaching";
 import { reverifyExpiring } from "./cron";
+import { clipFiles, sweepClips } from "./routes/clips";
 
 export type { Env, AppContext } from "./types";
 
@@ -40,6 +41,9 @@ app.route("/mcp", mcp);
 // The share *page* (HTML with per-slug OG meta for link scrapers) — /share/*
 // is in run_worker_first (wrangler.jsonc) so these requests reach the Worker.
 app.route("/share", sharePage);
+// Signed best-lap video URLs (NS-45): the signature is the authorization, so
+// no session is consulted — /clips/* is in run_worker_first.
+app.route("/clips", clipFiles);
 // Registered before the authed /api router so GET /api/share/:slug stays public;
 // PUT/DELETE /api/share (no slug) fall through to the authed router below.
 app.route("/api/share", publicShare);
@@ -57,5 +61,7 @@ export default {
     ctx.waitUntil(sweepOAuth(env.DB, Date.now()));
     // Expired coach invite links (routes/coaching.ts).
     ctx.waitUntil(sweepCoachInvites(env.DB, Date.now()));
+    // Deleted clips' R2 objects and abandoned uploads (routes/clips.ts).
+    ctx.waitUntil(sweepClips(env, Date.now()));
   },
 } satisfies ExportedHandler<Env>;

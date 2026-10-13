@@ -18,12 +18,14 @@
     // authorization server (src/routes/mcp.ts, oauth.ts) — without these the
     // SPA fallback would answer them with index.html. /get is the store
     // redirect (src/routes/download.ts), which picks a store per User-Agent.
+    // /clips/* are the signed best-lap video URLs (src/routes/clips.ts, NS-45).
     "run_worker_first": [
       "/api/*",
       "/auth/*",
       "/share/*",
       "/billing/*",
       "/get",
+      "/clips/*",
       "/.well-known/apple-app-site-association",
       "/.well-known/openai-apps-challenge",
       "/mcp",
@@ -55,7 +57,14 @@
     // minute's normal use; a full JSON export with telemetry is the heaviest
     // read the Worker serves.
     { "name": "EXPORT", "namespace_id": "3144", "simple": { "limit": 5, "period": 60 } },
+    // Best-lap video part uploads per user (NS-45): a clip is ~3 parts of
+    // 50 MiB, so 60 a minute is a client stuck in a retry loop.
+    { "name": "CLIP_PARTS", "namespace_id": "3145", "simple": { "limit": 60, "period": 60 } },
   ],
+  // Best-lap video clips (NS-45, src/routes/clips.ts). No public access and no
+  // custom domain: every byte goes through /clips/* and its signed URLs.
+  // Create with `npx wrangler r2 bucket create track-evolution-clips`.
+  "r2_buckets": [{ "binding": "CLIPS", "bucket_name": "track-evolution-clips" }],
   "d1_databases": [
     {
       // Must match what the Worker code reads (c.env.DB in src/*.ts)

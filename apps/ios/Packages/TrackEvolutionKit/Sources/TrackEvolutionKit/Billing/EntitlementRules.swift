@@ -68,6 +68,12 @@ public extension Entitlement {
     /// reads it — the overlay is web-only (`docs/specs/native/README.md`).
     static func canCompareEvents(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
+    /// Saving a best-lap video from a video import, and playing or downloading
+    /// one (NS-45). Deleting a clip is never gated; the server enforces the
+    /// rest, so this decides only what the review's *Save best-lap video* row
+    /// and the lap page's player draw.
+    static func canSaveLapVideo(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
+
     /// Where "Manage subscription" goes, by the store that sold it.
     static let APPLE_MANAGE_URL = URL(string: "https://apps.apple.com/account/subscriptions")!
     static let GOOGLE_MANAGE_URL = URL(

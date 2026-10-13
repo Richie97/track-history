@@ -64,7 +64,7 @@
       personal track-day logbook operated by Speedshift LLC — free to use, with
       an optional Track Evolution Pro subscription. This policy explains, in
       plain language, what data the app collects and what happens to it.
-      <em>Effective October 11, 2026.</em>
+      <em>Effective October 13, 2026.</em>
     </p>
 
     <div class="callout">
@@ -72,8 +72,9 @@
       ads, and your data is never sold. The website and the iPhone and Android
       apps count visits and screen views with Google Analytics, which never
       sees what's in your logbook. Video and
-      telemetry files are parsed in your browser and <strong>never
-      uploaded</strong>. We never see your payment details. The only thing ever
+      telemetry files are read on your own device and <strong>never
+      uploaded</strong> — the one exception is a best-lap video you choose to
+      save, which is only that lap. We never see your payment details. The only thing ever
       made public is a share page you explicitly turn on, nothing reaches an AI
       assistant unless you connect one yourself, and nobody else reads your
       logbook unless you invite them as your coach.
@@ -150,13 +151,30 @@
       per-lap channel data (speed, RPM, lateral G) — as ordinary logbook entries.
       The recordings themselves are never stored.
     </p>
+    <p id="lap-video">
+      <strong>Best-lap videos (Pro).</strong> When you import a video in the
+      iPhone or Android app with Track Evolution Pro, you can choose
+      <em>Save best-lap video</em>. Then a clip of each imported session's
+      fastest lap — a few seconds either side of it, with its sound — is cut
+      on your phone and uploaded to our cloud storage. Only that lap is
+      uploaded, never the rest of the video, and the clip carries no telemetry
+      track and no location metadata. You can turn the switch off for any
+      import, and nothing is uploaded. A saved clip is visible to you and to
+      the coaches you've invited, and never appears on your share page, a
+      leaderboard or to an AI assistant you connect. It is deleted when you
+      delete it, its lap, session or event, or your account. Removing a coach
+      stops them watching your videos, but it can't take back a video they
+      already saved.
+    </p>
     <p>
       Importing a video in the iPhone app from your <strong>photo library</strong>
       asks for permission to read it. That access is used for one thing: opening
       the clip you picked so its telemetry track can be read where it sits. The
-      video is not copied, not moved and not uploaded, nothing else in your
-      library is read, and you can revoke the permission at any time in your
-      phone's settings. Importing from Files needs no permission at all.
+      video is not copied, not moved and not uploaded — unless you choose to
+      save its best-lap video, when only that lap is copied and uploaded —
+      nothing else in your library is read, and you can revoke the permission
+      at any time in your phone's settings. Importing from Files needs no
+      permission at all.
     </p>
 
     <h2 id="location">Location data (recording laps in the mobile app)</h2>
@@ -273,7 +291,8 @@
         laps immediately.</li>
       <li><strong>Coaches you invite</strong> (Pro). An invite link you send
         lets the person who opens it read your logbook — your events,
-        sessions, laps and telemetry, racing lines and conditions, your cars
+        sessions, laps and telemetry, racing lines and conditions, your
+        best-lap videos (to watch, not to download), your cars
         and their modifications, and your driver profile — along with your
         name and profile picture. They can't change anything, and they never
         see your email, notes, prep checklists, costs, setup sheets or garage
@@ -281,7 +300,9 @@
         access, so send it only to your coach. You can see who has access and
         remove them at any time from the Coaching page, and a coach who is
         removed loses access immediately — but anything they already saw or
-        wrote down is theirs, the same as a printout would be. When you accept
+        wrote down is theirs, the same as a printout would be. That includes a
+        video: a link to play one stays valid for up to an hour, and any
+        player that can play it can also save it. When you accept
         an invite yourself, the driver who sent it sees your name and profile
         picture.</li>
     </ul>
@@ -315,8 +336,11 @@
 
     <h2 id="storage">Where your data lives</h2>
     <p>
-      Your logbook is stored in a database run by our cloud hosting provider
-      and is accessed only to operate the service.
+      Your logbook is stored in a database run by our cloud hosting provider,
+      and best-lap videos in the same provider's file storage, private to the
+      service — a video is only reachable through a link the app asks for,
+      which stops working after an hour. Both are accessed only to operate the
+      service.
     </p>
 
     <h2 id="deletion">Retention and deletion</h2>
@@ -325,7 +349,8 @@
       <strong>Settings → Your data</strong> on the web: your laps and events as
       spreadsheet files, and everything — tracks, events, sessions, laps,
       telemetry, setup sheets, your garage, your profile and preferences, and
-      who you've given access to — as one file. The copy is complete whatever
+      who you've given access to — as one file, which lists your best-lap
+      videos; each video downloads from its lap's page. The copy is complete whatever
       your plan, including data only Track Evolution Pro shows in the app. It
       never contains sign-in credentials or store payment identifiers.
     </p>
@@ -344,7 +369,9 @@
     </p>
     <p>
       Deleting your account also ends every coaching connection it is part of,
-      in either direction, and deletes your driver profile.
+      in either direction, and deletes your driver profile and your best-lap
+      videos — the video files themselves are removed from storage within a
+      day.
     </p>
     <p>
       Deleting your account deletes the subscription record we hold alongside

@@ -125,6 +125,14 @@ public data class Entitlement(
         public fun canCompareEvents(entitlement: Entitlement?): Boolean = isPro(entitlement)
 
         /**
+         * Saving a best-lap video from a video import, and playing or
+         * downloading one (NS-45). Deleting a clip is never gated; the server
+         * enforces the rest, so this decides only what the review's
+         * *Save best-lap video* row and the lap page's player draw.
+         */
+        public fun canSaveLapVideo(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /**
          * Where "Manage subscription" goes, by the store that sold it. Legacy has
          * no subscription to manage and free has nothing yet — both null. A lapsed
          * subscriber keeps their source, so Manage still targets the right store.

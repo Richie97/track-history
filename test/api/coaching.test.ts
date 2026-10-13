@@ -277,7 +277,9 @@ describe("a coach reading a student's logbook", () => {
       // The recording's meta is the weather only — never the car's odometer.
       expect(keysOk(s.channels, COACH_CHANNEL_FIELDS, ["meta"])).toEqual([]);
       expect(s.channels.meta).toEqual({ ambientC: 21, elevationM: 12 });
-      for (const l of s.laps) expect(keysOk(l, COACH_LAP_FIELDS, [])).toEqual([]);
+      // `clip` rides beside the lap fields through its own allow-list (NS-45,
+      // test/api/clips.test.ts), null on a lap with no video.
+      for (const l of s.laps) expect(keysOk(l, COACH_LAP_FIELDS, ["clip"])).toEqual([]);
     }
     for (const t of tracks.body) {
       expect(keysOk(t, COACH_TRACK_FIELDS, ["notes"])).toEqual([]);

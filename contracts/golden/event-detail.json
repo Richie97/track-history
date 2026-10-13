@@ -44,30 +44,35 @@
         "label": "Session 1",
         "laps": [
           {
+            "clip": null,
             "id": 1,
             "lap_num": 1,
             "session_id": 1,
             "time_ms": 128400
           },
           {
+            "clip": null,
             "id": 1,
             "lap_num": 2,
             "session_id": 1,
             "time_ms": 125100
           },
           {
+            "clip": null,
             "id": 1,
             "lap_num": 3,
             "session_id": 1,
             "time_ms": 123800
           },
           {
+            "clip": null,
             "id": 1,
             "lap_num": 4,
             "session_id": 1,
             "time_ms": 124200
           },
           {
+            "clip": null,
             "id": 1,
             "lap_num": 5,
             "session_id": 1,
@@ -86,12 +91,19 @@
         "label": "Session 2",
         "laps": [
           {
+            "clip": null,
             "id": 1,
             "lap_num": 1,
             "session_id": 1,
             "time_ms": 122900
           },
           {
+            "clip": {
+              "duration_ms": 126500,
+              "id": 1,
+              "lap_offset_ms": 3000,
+              "size_bytes": 2048
+            },
             "id": 1,
             "lap_num": 2,
             "session_id": 1,
@@ -209,6 +221,7 @@
         "label": "Session 3",
         "laps": [
           {
+            "clip": null,
             "id": 1,
             "lap_num": 1,
             "session_id": 1,
@@ -378,6 +391,7 @@
         "label": "Session 4",
         "laps": [
           {
+            "clip": null,
             "id": 1,
             "lap_num": 1,
             "session_id": 1,

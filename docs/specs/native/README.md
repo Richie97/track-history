@@ -41,7 +41,12 @@ The three clients are deliberately **not** at parity:
   graduate to native once proven. **Exporting the logbook**
   ([NS-44](NS-44-web-export.md)) is the latest: Settings → *Your data* on the
   web, through bearer-capable routes, so a phone door later needs no server
-  change.
+  change. **Best-lap video clips ([NS-45](NS-45-best-lap-clips.md)) are the
+  one exception and land native-first**: the cut is a passthrough remux of
+  the source video at import time, which the phones get from AVFoundation and
+  MediaExtractor/MediaMuxer and the dependency-free web app would have to
+  write by hand. The web plays, downloads and deletes clips from day one;
+  web upload is a follow-up.
 - **The Mac is a fourth *surface*, not a fourth client** (2026-09, epic
   [#230](https://github.com/Richie97/track-history/issues/230)). It runs the
   iPad build as a *Designed for iPad* app — no target, no Catalyst — so it

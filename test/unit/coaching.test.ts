@@ -4,17 +4,37 @@ import { parseProfile, sanitizeProfile } from "../../src/lib/profile";
 
 describe("coachRoute", () => {
   it("allows exactly the read routes on the table, GET only", () => {
-    for (const path of ["/me/profile", "/events", "/events/12", "/tracks", "/vehicles", "/vehicles/3/steering-fit", "/catalog", "/car-catalog"]) {
+    for (const path of ["/me/profile", "/events", "/events/12", "/tracks", "/vehicles", "/vehicles/3/steering-fit", "/clips/4/url", "/catalog", "/car-catalog"]) {
       expect(coachRoute("GET", path), path).not.toBeNull();
       for (const m of ["POST", "PUT", "DELETE", "PATCH", "HEAD"]) expect(coachRoute(m, path), `${m} ${path}`).toBeNull();
     }
     for (const path of [
       "/me", "/me/connections", "/garage", "/coaching", "/share", "/wrapped/2026", "/events/1/setups/prefill",
       "/tracks/1/setups", "/tracks/1/leaderboard", "/tracks/1/leaderboard/laps/2", "/events/abc", "/events/1/", "/billing/apple",
+      // Best-lap video (NS-45): a coach watches, and never downloads, deletes or uploads.
+      "/clips/4/download", "/clips/4", "/clips/4/parts/1", "/clips/4/complete", "/sessions/1/clip", "/export/logbook.json",
     ]) {
       expect(coachRoute("GET", path), path).toBeNull();
     }
-    expect(COACH_ROUTES).toHaveLength(8);
+    expect(COACH_ROUTES).toHaveLength(9);
+  });
+
+  it("copies a lap's clip through its own allow-list, size and any new field dropped (NS-45)", () => {
+    const out = coachRoute("GET", "/events/1")!({
+      id: 1,
+      sessions: [
+        {
+          id: 2,
+          laps: [
+            { id: 3, session_id: 2, lap_num: 1, time_ms: 90_000, clip: { id: 7, duration_ms: 95_000, lap_offset_ms: 3_000, size_bytes: 9, r2_key: "x" } },
+            { id: 4, session_id: 2, lap_num: 2, time_ms: 91_000, clip: null },
+          ],
+        },
+      ],
+    }) as any;
+    expect(out.sessions[0].laps[0].clip).toEqual({ id: 7, duration_ms: 95_000, lap_offset_ms: 3_000 });
+    expect(out.sessions[0].laps[1].clip).toBeNull();
+    expect(coachRoute("GET", "/clips/7/url")!({ url: "u", expires_at: 1, extra: 2 })).toEqual({ url: "u", expires_at: 1 });
   });
 
   it("copies the allowed fields, empties the hidden ones, and drops anything else", () => {

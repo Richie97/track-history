@@ -53,6 +53,14 @@ export type Env = {
   OAUTH_TOKEN?: RateLimit; // per client id: POST /oauth/token
   OAUTH_REGISTER?: RateLimit; // per IP: POST /oauth/register
   EXPORT?: RateLimit; // per user: GET /api/export/* (NS-44)
+  CLIP_PARTS?: RateLimit; // per user: PUT /api/clips/:id/parts/:n (NS-45)
+
+  // --- Best-lap video clips (NS-45, routes/clips.ts) -------------------------
+  // The R2 bucket the clips live in (r2_buckets in wrangler.jsonc). Optional so
+  // a fork without one still runs: every clip route answers 503 instead.
+  CLIPS?: R2Bucket;
+  // HMAC key for the signed /clips/<id>.mp4 URLs (lib/clips.ts). A secret.
+  CLIP_URL_SECRET?: string;
 };
 
 export type AppContext = {
