@@ -6,6 +6,7 @@ import app.trackevolution.auth.AuthStore
 import app.trackevolution.billing.BillingController
 import app.trackevolution.billing.BillingPrefs
 import app.trackevolution.billing.ClientHeader
+import app.trackevolution.clips.ClipUploads
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.offline.OfflineStore
 import io.ktor.client.engine.okhttp.OkHttp
@@ -50,6 +51,13 @@ internal class AppServices private constructor(context: Context) {
     )
 
     val sync = SyncScheduler(context, api)
+
+    /**
+     * Best-lap video clips (NS-45): the cut, the job manifest the lap page
+     * observes and the upload worker's queue. Process-wide so the worker,
+     * which can run with no activity, reaches the manifest the UI reads.
+     */
+    val clips = ClipUploads(context, api)
 
     /**
      * Play Billing. Process-wide for the same reason as the store above: it

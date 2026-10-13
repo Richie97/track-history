@@ -1984,6 +1984,28 @@ nor writes the offline cache, and `sw.js` skips `/clips/` and the clip API.
 At ~150 MB a clip and R2's $0.015/GB-month (10 GB free, free egress), a
 driver at the full quota costs about $0.30 a month; see the spec's *Cost*.
 
+**On Android** (ticket 3, `apps/android/`): the import review draws the *Save
+best-lap video* row under its session list from `:core`'s `LapClips` (the
+port of `clip.js`) — on for every review, locked for a free account, off and
+disabled when storage is full. Saving posts each session first and then hands
+its best lap to `ClipUploads` in `:app`, which cuts it with `ClipCutter`
+(`MediaExtractor` → `MediaMuxer` passthrough from the keyframe at or before the
+window; the first H.264/HEVC track and the first audio track, never PDR 2.5's
+MJPEG cover image, never the telemetry track or any location) into
+`filesDir/clips/`, outside the save's job, and uploads it with
+`ClipUploadWorker` — unique WorkManager work per clip, on an unmetered network
+unless Settings' *Upload lap videos over cellular* is on, in the foreground as
+`dataSync`. The upload's state machine is `:core`'s `ClipUploadQueue` — the
+iOS Kit's, ported under the same names with the same tests, so both phones
+retry and give up identically — over a JSON manifest beside the clips (not a
+Room table); a clip saved offline waits for its session's create to flush and
+follows the offline queue's id map.
+`filesDir/clips/` is excluded from both backup XMLs. The lap page plays the
+clip with Media3 ExoPlayer, opened on the lap's first frame, with Download
+(through the share sheet) and Delete for the owner. `ClipCutterTest` is the
+app's one instrumented test — `./gradlew :app:connectedDebugAndroidTest` on an
+emulator; no CI job runs it — because Robolectric has no `MediaMuxer`.
+
 ## AI assistants (MCP)
 
 Pro users can connect Claude, ChatGPT, Claude Code, Cursor or any other

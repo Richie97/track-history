@@ -16,4 +16,9 @@
     <!-- %1$s elapsed time, %2$d GPS fixes captured -->
     <string name="recording_text">%1$s · %2$d fixes</string>
     <string name="recording_stop">Stop</string>
+
+    <!-- The best-lap video upload's foreground notification (NS-45). -->
+    <string name="clip_upload_channel_name">Lap video uploads</string>
+    <string name="clip_upload_channel_description">Shows while a best-lap video is uploading.</string>
+    <string name="clip_upload_title">Uploading lap video</string>
 </resources>

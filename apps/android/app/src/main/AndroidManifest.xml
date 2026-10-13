@@ -20,6 +20,9 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Best-lap video uploads (NS-45): a 150 MB clip outlasts the ordinary
+         worker window, so ClipUploadWorker runs in the foreground as dataSync. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- Android 13+ needs this granted at runtime for the recording
          notification to be *visible*. The Capacitor app never requested it,
@@ -166,5 +169,15 @@
             android:name=".recording.RecordingService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!--
+            WorkManager's own foreground service, given the type the best-lap
+            video upload (ClipUploadWorker, NS-45) runs under. Android 14+
+            refuses setForeground with a type the service doesn't declare.
+        -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
     </application>
 </manifest>

@@ -152,6 +152,22 @@ public class OfflineStore(private val db: OfflinePersistence) {
     /** The real id a temp id became, once its create flushed. */
     public suspend fun resolveId(tempId: Int): Int? = db.transaction { idMap(it)[tempId.toString()] }
 
+    /** Where a temp id stands: the real id once its create flushed, and whether that create is still queued. */
+    public data class TempIdState(val mapped: Int?, val queued: Boolean)
+
+    /**
+     * [TempIdState] for [tempId], read in one transaction — the clip queue's
+     * question (NS-45), iOS's `APIClient.tempIdState`. A temp id with neither
+     * a mapping nor a queued create was refused by the server and will never
+     * resolve. The queue is read first, as on iOS: a flush writes the map and
+     * only then deletes the queued create, so the pair can never come back as
+     * neither for a session that saved a moment ago.
+     */
+    public suspend fun tempIdState(tempId: Int): TempIdState = db.transaction { txn ->
+        val queued = txn.queueAll().any { it.tempId == tempId }
+        TempIdState(mapped = idMap(txn)[tempId.toString()], queued = queued)
+    }
+
     private suspend fun idMap(txn: OfflineTransaction): Map<String, Int> {
         val raw = txn.kvGet(KEY_ID_MAP) ?: return emptyMap()
         return runCatching { kvJson.decodeFromString(idMapSerializer, raw) }.getOrDefault(emptyMap())

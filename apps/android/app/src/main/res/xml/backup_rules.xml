@@ -16,8 +16,14 @@
     `coaching.xml` holds at most one parked coaching-invite token (NS-38,
     PendingInvite): a single-use secret for the minutes between opening a link
     signed out and signing in. It has no business in a backup.
+
+    `clips/` (files) holds best-lap video clips waiting to upload and the
+    JSON manifest of their upload jobs (NS-45, ClipManifest). A clip is
+    hundreds of MB, and a restored manifest pointing at a clip that wasn't
+    restored with it is a dead job.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="auth.xml" />
     <exclude domain="sharedpref" path="coaching.xml" />
+    <exclude domain="file" path="clips/" />
 </full-backup-content>

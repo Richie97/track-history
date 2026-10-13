@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Season Wrapped's share images (WrappedPoster): only the cache's wrapped/
-     directory is reachable through the FileProvider, and nothing else. -->
+<!-- What the FileProvider can hand another app, and nothing else:
+     - wrapped/: Season Wrapped's share images (WrappedPoster, NS-36);
+     - clip-downloads/: a best-lap video downloaded from its lap page to be
+       shared or saved (LapVideo, NS-45). The clips waiting to upload live in
+       files/clips/, which is not reachable through here. -->
 <paths>
     <cache-path name="wrapped" path="wrapped/" />
+    <cache-path name="clip-downloads" path="clip-downloads/" />
 </paths>

@@ -27,6 +27,9 @@ import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
 import app.trackevolution.core.TraceSample
 import app.trackevolution.core.Units
+import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.api.LogbookOwner
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.EventDetail
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.Session
@@ -155,6 +158,14 @@ fun LapDetailScreen(
     onSubscribe: () -> Unit = {},
     /** The empty state's next step (#342): the importer for this lap's event. Null hides it. */
     onImport: (() -> Unit)? = null,
+    /**
+     * The best-lap video's client (NS-45) — the **owner's**, so a student's
+     * URL comes through the coach mount. Null draws no video card.
+     */
+    videoApi: ApiClient? = null,
+    owner: LogbookOwner = LogbookOwner.Me,
+    /** The viewer's own tier; [owner] decides whose is read. */
+    viewer: Entitlement? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -183,6 +194,22 @@ fun LapDetailScreen(
                 ) {
                     Text(LapTime.fmtMs(view.lap.timeMs), style = TrackTheme.typography.h1, color = colors.textStrong)
                     Text(view.subtitle, style = TrackTheme.typography.sm, color = colors.textMuted)
+                }
+            }
+
+            if (videoApi != null) {
+                // Above the trace (NS-45): the video is what a debrief opens on.
+                item("video") {
+                    LapVideoCard(
+                        api = videoApi,
+                        owner = owner,
+                        viewer = viewer,
+                        sessionId = view.session.id,
+                        lap = view.lap,
+                        sessionLaps = view.session.laps,
+                        onSubscribe = onSubscribe,
+                        onDeleted = model::load,
+                    )
                 }
             }
 

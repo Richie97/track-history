@@ -669,6 +669,78 @@ code differs from the text above, and why:
 - **Owed outside the code:** the App Store privacy label (*Photos or Videos*,
   linked to the user, not used for tracking) is a Console form.
 
+## As built (ticket 3, Android)
+
+The review row, `ClipCutter`, `ClipUploadQueue` + `ClipUploadWorker`, the lap
+page's player, Settings and the Coaching copy. Where the code differs from the
+text above, and why:
+
+- **`ClipUploadQueue` is the iOS Kit's, ported.** The two phones were built
+  in parallel and first wrote two different queues; they were then made one
+  before merging: `:core`'s `ClipUploadQueue` is the Kit's state machine under
+  the same names, with `ClipUploadQueueTests` ported one for one, so both
+  phones follow the transition table on the Kit's type (summarised under
+  *As built (ticket 2)*) — create only
+  without a clip id (a held one resumes at the next part), drop on any create
+  refusal, restart from create on a 404 mid-upload at most `MAX_RESTARTS` (3)
+  times, send exactly the parts `complete`'s 409 names, and back off on
+  transport, 401, 408, 429 and 5xx from 30 s doubling to an hour, **never
+  dropping for that**. `ClipUploadRunner` is the loop that drives it, and
+  `ClipUploadWorker` re-enqueues a waiting job with the queue's own delay
+  rather than WorkManager's backoff. Two details came out of the comparison
+  and are now the same on both: a temp id's *queued* create is read **before**
+  its id map (a flush writes the map and then deletes the queued item, so the
+  other order could call a just-saved session lost), and the lap page shows a
+  pending upload only on `clipLap`'s lap — the lowest lap number with the
+  clip's time, the server's rule. What still differs is plumbing, not policy:
+  Android keeps its jobs' cut state on the job (`CUTTING` / `PENDING` /
+  `CUT_FAILED`) where iOS keeps failed cuts in a list beside them, and a
+  missing cut file is dropped before the first request rather than when a part
+  is copied out — both as `refused`.
+- **A job exists before its cut.** It is written `CUTTING` the moment the
+  review hands it over, so the lap page can say *Video uploading* at once; a
+  process that dies mid-cut leaves it `CUT_FAILED` at the next start (the
+  source's grant died with the process), which the lap page says for a week
+  before the job is pruned.
+- **The review row is a card the whole of which is the switch**, under the
+  session list. Locked, it is `TEProLocked` titled *Save best-lap video* with
+  `clipOfferText` and one sentence about who can watch; its *See Track
+  Evolution Pro* opens the paywall over the review. The size in "about N MB
+  each" is the largest included candidate's estimate. The switch is plain
+  state on `RecordingFlow`'s `ReviewUiState` (held by the activity-outliving
+  model, like the rest of the review) rather than a `rememberSaveable`: every
+  fresh review state starts it on.
+- **Drafts staged on the New Event form keep their clips.** An import begun
+  from the form, and a review's *Save to a new event*, have no session to
+  attach a clip to until the form posts the drafts, so the clips wait in
+  `RecordingFlow` and are handed over when the form reports the session ids it
+  got back (`EventFormModel.postedStagedIds`). A draft removed from the form is
+  never posted, so its clip is never cut.
+- **The cut** selects the first H.264 or HEVC track, then any other non-JPEG
+  video track, so PDR 2.5's MJPEG cover is never the video wherever it sits;
+  an audio track MPEG-4 can't hold is dropped rather than failing the cut; and
+  a window the file doesn't reach is refused rather than cut from the file's
+  last keyframe. `MediaMuxer` writes no location (and only `creation_time` and
+  `com.android.version` as file metadata).
+- **Download** goes through `GET /clips/:id/download` into the cache's
+  `clip-downloads/` — the app's FileProvider's second path, beside Wrapped's —
+  and then the share sheet (Save to Files, Drive, Photos), the counterpart of
+  iOS's `ShareLink`; nothing is written to shared storage, so no storage
+  permission is needed down to API 26.
+- **The player is tap to load**: the lap page draws the card and fetches the
+  signed URL when the driver asks to watch, so opening a lap in a paddock
+  costs no request. The player is prepared at `lap_offset_ms`, so it opens on
+  the lap's first frame.
+- **Verified on real footage**, on an emulator (API 37), through the real
+  parser, `clipCandidate` and the cut (`ClipCutterTest`'s real-footage cases):
+  the Corvette PDR's lap 6 (2:02.110 from 681.544 s) cut to 90.2 MB (estimate
+  90.9 MB) in 4.3 s with the lap at **3.317 s** — the keyframe at 678.227 s,
+  matching ticket 1's finding — and the Blackwing's `ADV_1635.mp4` lap 2
+  (1:21.345 from 283.234 s) to 78.9 MB (estimate 84.7 MB) in 1.4 s with the lap
+  at **3.026 s**, the frame at 280.208 s. `ffprobe` on both cuts: one `h264`
+  video stream and one `aac` audio stream, no data stream (`marl` / `adco`),
+  no MJPEG, no location tag. GoPro remains unverified on real footage.
+
 ## Open questions
 
 - **Per session or per review?** Settled for ticket 2: per session, as this

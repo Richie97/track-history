@@ -23,6 +23,10 @@ class TrackEvolutionApp : Application() {
         // the logbook at all.
         val services = AppServices.get(this)
         services.sync.start()
+        // Best-lap video uploads (NS-45) pick up where the last process left
+        // them, for the same reason: a clip cut in the paddock uploads at home
+        // whether or not the app is opened there.
+        services.clips.start()
         // Every cold start asks Play what this Google account owns and re-posts
         // anything the server doesn't know about or hasn't had acknowledged
         // (NS-32 req. 8). From here rather than the activity for the same

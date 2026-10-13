@@ -53,6 +53,7 @@ import app.trackevolution.navigation.Router
 import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
+import app.trackevolution.clips.LocalClipStatus
 import app.trackevolution.recording.RecordingFlow
 import app.trackevolution.navigation.rememberScreenModel
 import app.trackevolution.recording.RecordingService
@@ -184,7 +185,7 @@ class MainActivity : ComponentActivity() {
             // than the process. `viewModelScope` is cancelled when the flow is
             // actually finished with, rather than at every recreation.
             val recordingFlow = rememberScreenModel { scope, _ ->
-                RecordingFlow(scope = scope, api = api)
+                RecordingFlow(scope = scope, api = api, clips = services.clips)
             }
             val preference = remember { ThemePreference(applicationContext) }
             val choice by preference.choice.collectAsState(initial = ThemeChoice.System)
@@ -206,7 +207,7 @@ class MainActivity : ComponentActivity() {
                     // re-read from `/me` by each screen, so a change in Settings
                     // redraws the whole logbook at once, and imperial — what the
                     // app always showed — while signed out.
-                    CompositionLocalProvider(LocalUnitSystem provides state.units) {
+                    CompositionLocalProvider(LocalUnitSystem provides state.units, LocalClipStatus provides services.clips) {
                         TrackTheme(choice) {
                             when (state) {
                                 is AuthState.SignedIn -> SignedInScaffold(
@@ -231,6 +232,10 @@ class MainActivity : ComponentActivity() {
                                         router.clear()
                                         pendingInvite.clear()
                                         incomingImport = null
+                                        // Lap videos waiting to upload go with the
+                                        // logbook (NS-45): none may upload under
+                                        // the next account.
+                                        services.clips.clear()
                                         auth.signOut()
                                     },
                                     incomingImport = incomingImport,
