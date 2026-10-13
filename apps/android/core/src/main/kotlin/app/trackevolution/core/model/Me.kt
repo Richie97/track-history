@@ -51,9 +51,24 @@ public data class User(
      * [UnitSystem.IMPERIAL] (what the app always showed) via [effectiveUnits].
      */
     val units: UnitSystem? = null,
+    /**
+     * Best-lap video storage (NS-45): what counts against the quota, the quota,
+     * and how many coaches would see a new clip. Read by the import review's
+     * *Save best-lap video* row and Settings' storage line. Nullable so a `/me`
+     * cached before the field still decodes.
+     */
+    val clips: ClipStorage? = null,
 ) {
     val effectiveUnits: UnitSystem get() = units ?: UnitSystem.IMPERIAL
 }
+
+/** `user.clips` on `GET /api/me` (NS-45). Bytes are `Long`: the quota is 20 GiB. */
+@Serializable
+public data class ClipStorage(
+    @SerialName("used_bytes") val usedBytes: Long,
+    @SerialName("quota_bytes") val quotaBytes: Long,
+    @SerialName("coach_count") val coachCount: Int,
+)
 
 /** Mirrors `UNIT_SYSTEMS` in `src/lib/validate.ts` and `public/js/units.js`. */
 @Serializable

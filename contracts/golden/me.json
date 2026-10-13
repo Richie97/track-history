@@ -15,6 +15,11 @@
     },
     "user": {
       "checklist_template": null,
+      "clips": {
+        "coach_count": 0,
+        "quota_bytes": 21474836480,
+        "used_bytes": 0
+      },
       "email": "dev@example.com",
       "id": 1,
       "leaderboard_opt_in": false,

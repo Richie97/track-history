@@ -37,6 +37,11 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// `/me` cached before the field existed still decodes, with nil read as
     /// `.imperial` (what the app always showed) via `effectiveUnits`.
     public var units: UnitSystem?
+    /// Best-lap video storage (NS-45): what counts against the quota, the
+    /// quota, and how many coaches would see a new clip. Read by the import
+    /// review's *Save best-lap video* row and Settings' storage line. Optional
+    /// so a `/me` cached before the field still decodes.
+    public var clips: ClipStorage?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
@@ -45,6 +50,7 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
         case leaderboardOptIn = "leaderboard_opt_in"
         case leaderboardShareLaps = "leaderboard_share_laps"
         case units
+        case clips
     }
 
     public var effectiveUnits: UnitSystem { units ?? .imperial }
@@ -52,6 +58,19 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// The list "Use my list" actually uses.
     public var effectiveChecklistTemplate: [String] {
         checklistTemplate ?? EventDates.DEFAULT_CHECKLIST
+    }
+}
+
+/// `user.clips` on `GET /api/me` (NS-45).
+public struct ClipStorage: Codable, Hashable, Sendable {
+    public var usedBytes: Int
+    public var quotaBytes: Int
+    public var coachCount: Int
+
+    public enum CodingKeys: String, CodingKey {
+        case usedBytes = "used_bytes"
+        case quotaBytes = "quota_bytes"
+        case coachCount = "coach_count"
     }
 }
 

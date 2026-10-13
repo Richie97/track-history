@@ -16,6 +16,27 @@ public data class Lap(
     @SerialName("session_id") val sessionId: Int,
     @SerialName("lap_num") val lapNum: Int,
     @SerialName("time_ms") val timeMs: Int,
+    /**
+     * The lap's best-lap video (NS-45), or null. Present only on a ready clip;
+     * not stripped for a free account — the clip's existence is the driver's
+     * data and the locked player is the offer. Defaulted so a response cached
+     * before the field still decodes.
+     */
+    val clip: LapClip? = null,
+)
+
+/**
+ * A best-lap video's metadata, as the event detail carries it on its lap.
+ * [lapOffsetMs] is where the lap starts inside the clip (the pre-roll is one
+ * scrub back). [sizeBytes] is the owner's storage bookkeeping and is absent
+ * from a coach's view (`COACH_CLIP_FIELDS` in `src/lib/coaching.ts`).
+ */
+@Serializable
+public data class LapClip(
+    val id: Int,
+    @SerialName("duration_ms") val durationMs: Int,
+    @SerialName("lap_offset_ms") val lapOffsetMs: Int,
+    @SerialName("size_bytes") val sizeBytes: Long? = null,
 )
 
 /** A run group session within an event, with its laps. */

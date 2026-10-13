@@ -54,9 +54,10 @@ import { PROFILE_GROUPS, profileBody, profileSections } from "./js/profile.js";
 import { inviteExpiryText, lastViewedText, studentLine } from "./js/coaching.js";
 import { EXPORT_FILES, EXPORT_OFFLINE, exportErrorText, exportFilename, exportStoppedPartway, exportUrl } from "./js/export.js";
 import {
-  canCompareEvents, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
+  canCompareEvents, canSaveLapVideo, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
+import { clipStorageLine } from "./js/import/clip.js";
 
 const $app = document.getElementById("app");
 
@@ -1879,6 +1880,90 @@ const channelPanelMemory = new Map();
 // session id — a session doesn't record its day, so the driver picks.
 const healthDayBySession = new Map();
 
+// ---------- best-lap videos (NS-45) ------------------------------------------
+
+// The lap rows that carry a clip, under a session's laps: a ▶ control per
+// clip that opens an inline player. The web plays, downloads and deletes; it
+// doesn't upload yet (the phones cut and upload at import).
+function lapVideosHtml(s) {
+  const clipped = s.laps.filter((l) => l.clip);
+  if (!clipped.length) return "";
+  return `<div class="lap-videos">${clipped
+    .map(
+      (l) => `<div class="lap-video" data-lap-video="${l.clip.id}" data-lap-offset="${Number(l.clip.lap_offset_ms) || 0}">
+        <button class="btn small" data-video-toggle="${l.clip.id}" aria-expanded="false" aria-controls="lap-video-${l.clip.id}">▶ Lap ${l.lap_num} video</button>
+        <div class="lap-video-body" id="lap-video-${l.clip.id}" hidden></div>
+      </div>`
+    )
+    .join("")}</div>`;
+}
+
+const VIDEO_NEEDS_CONNECTION = "Playing a lap video needs a connection.";
+const studentVideoNote = () => `Lap videos play while ${esc(viewing?.name || "this driver")} has Pro.`;
+
+// Open one clip's player: a URL from the server every time (it expires in an
+// hour, so it is never cached), seeked to the lap on the first play so the
+// pre-roll is one scrub back.
+async function openLapVideo(box) {
+  const id = box.dataset.lapVideo;
+  const body = box.querySelector(".lap-video-body");
+  if (!canSaveLapVideo(ent())) {
+    body.innerHTML = readOnly()
+      ? `<p class="hint">${studentVideoNote()}</p>`
+      : proPanelHtml("Lap video", "Your best-lap video is kept. Pro plays it, downloads it and saves new ones from a video import.");
+    return;
+  }
+  body.innerHTML = `<p class="hint">Loading…</p>`;
+  let signed;
+  try {
+    signed = await api(`/clips/${id}/url`, { cache: false });
+  } catch (err) {
+    body.innerHTML = `<p class="hint">${
+      err instanceof OfflineError ? VIDEO_NEEDS_CONNECTION : err instanceof ApiError && err.status === 404 ? "This video has been deleted." : esc(err.message)
+    }</p>`;
+    return;
+  }
+  body.innerHTML = `<video controls preload="none" playsinline src="${esc(signed.url)}"></video>
+    ${
+      readOnly()
+        ? ""
+        : `<div class="btn-row">
+      <a class="btn small" href="/api/clips/${encodeURIComponent(id)}/download">Download video</a>
+      <button class="btn small danger" data-video-delete="${esc(id)}">Delete video</button>
+    </div>`
+    }`;
+  const video = body.querySelector("video");
+  const offsetS = Number(box.dataset.lapOffset) / 1000;
+  video.addEventListener("loadedmetadata", () => { if (offsetS > 0 && offsetS < video.duration) video.currentTime = offsetS; }, { once: true });
+  video.addEventListener("error", () => {
+    if (!navigator.onLine) body.querySelector("video")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);
+  }, { once: true });
+  body.querySelector("[data-video-delete]")?.addEventListener("click", async () => {
+    if (!confirm("Delete this lap video? The lap and its telemetry stay.")) return;
+    try {
+      await api(`/clips/${id}`, { method: "DELETE" });
+    } catch (err) {
+      alert(err instanceof OfflineError || err instanceof TypeError ? "Deleting a lap video needs a connection." : err.message);
+      return;
+    }
+    route();
+  });
+}
+
+function bindLapVideos(view) {
+  view.querySelectorAll("[data-video-toggle]").forEach((btn) => {
+    btn.onclick = () => {
+      const box = btn.closest("[data-lap-video]");
+      const body = box.querySelector(".lap-video-body");
+      const open = body.hidden;
+      body.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+      if (open) openLapVideo(box);
+      else body.innerHTML = "";
+    };
+  });
+}
+
 // "Entry $450 · Fuel $120 · Travel & lodging $300" under a cost figure — only
 // when there is more than one line item to break down; one item *is* the
 // total. `by` is an event (its own line items) or a spendSummary's by_field.
@@ -1988,6 +2073,7 @@ async function viewEvent(eventId) {
         </form>`
         }
         ${lapsHtml}
+        ${lapVideosHtml(s)}
         ${
           ro
             ? ""
@@ -2461,6 +2547,7 @@ async function viewEvent(eventId) {
     bindBalance(el, s.channels, { onHover });
   });
 
+  bindLapVideos(view);
   view.querySelectorAll("[data-del-session]").forEach((btn) => {
     btn.onclick = async () => {
       if (!confirm("Delete this session and its laps?")) return;
@@ -3015,7 +3102,8 @@ async function viewSettings() {
       <label class="dry-toggle" style="float:none;display:flex;margin-top:12px">
         <input type="checkbox" id="export-telemetry"> Include telemetry in the JSON
       </label>
-      <div class="hint" style="margin:6px 0 0">Telemetry makes the file much larger — about 1 MB per imported or recorded session. The CSVs open in any spreadsheet; the JSON holds everything, in the units the app stores.</div>
+      <div class="hint" style="margin:6px 0 0">Telemetry makes the file much larger — about 1 MB per imported or recorded session. The CSVs open in any spreadsheet; the JSON holds everything, in the units the app stores. Best-lap videos are listed, not included — download each from its lap.</div>
+      ${state.me?.clips ? `<div class="hint" style="margin:6px 0 0">${esc(clipStorageLine(state.me.clips))}</div>` : ""}
       <div id="export-status" role="status" aria-live="polite">${
         exportOffline() ? `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>` : ""
       }</div>
@@ -4389,8 +4477,12 @@ const dateOfMs = (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10));
 // made — keep it in step with COACH_ROUTES in src/lib/coaching.ts.
 const COACH_SHARES =
   "your events, sessions and laps with the full channel panel (as far as your plan includes it), your " +
-  "racing lines, the conditions, your cars and their modifications, and your driver profile. Never your " +
+  "racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your " +
   "notes, prep checklists, costs, setup sheets, parts or email — and they can't change anything.";
+
+// Removing a coach stops new viewing at once, but a video URL already handed
+// out keeps playing for up to an hour, and any player can save the file (NS-45).
+const COACH_VIDEO_REVOKE = "Removing a coach stops them watching your videos; it can't take back a video they saved.";
 
 // The driver profile as a card of labelled lines; empty when nothing is filled in.
 function profileCardHtml(profile, { empty = "" } = {}) {
@@ -4486,6 +4578,7 @@ async function viewCoaching() {
     }
     <h3 style="margin:18px 0 6px">Coaches who can see your logbook</h3>
     <div class="panel" id="coaches-panel">${coachesHtml}</div>
+    <div class="hint" style="margin:6px 0 0">${esc(COACH_VIDEO_REVOKE)}</div>
     <h2>Driver profile</h2>
     <div class="hint" style="margin:0 0 4px">What your coaches see about you — your experience, your gear and what you want to work on. Only you and the coaches you've invited can see it.</div>
     ${profileCardHtml(me.profile, { empty: `<div class="panel">${emptyHtml({ body: "Not filled in yet.", compact: true })}</div>` })}

@@ -662,6 +662,15 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   color: var(--accent-ink); font-weight: var(--weight-semibold);
 }
 
+/* Best-lap videos (NS-45): a ▶ control per clipped lap, the player under it */
+.lap-videos { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.lap-video-body { margin-top: 8px; }
+.lap-video-body video {
+  display: block; width: 100%; max-height: 70vh; border-radius: var(--radius-xs);
+  background: #000;
+}
+.lap-video-body .btn-row { margin-top: 8px; }
+
 /* Lap chips + per-lap channel graphs (imported sessions) */
 .ch-details { margin-top: 14px; }
 .ch-details summary {

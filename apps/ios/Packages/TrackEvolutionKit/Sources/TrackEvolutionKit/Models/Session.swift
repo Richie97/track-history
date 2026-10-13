@@ -6,19 +6,51 @@ public struct Lap: Codable, Hashable, Sendable, Identifiable {
     public var sessionId: Int
     public var lapNum: Int
     public var timeMs: Int
+    /// The lap's best-lap video (NS-45), or nil. Present only on a ready clip;
+    /// not stripped for a free account — the clip's existence is the driver's
+    /// data and the locked player is the offer. Optional so a response cached
+    /// before the field still decodes.
+    public var clip: LapClip?
 
     public enum CodingKeys: String, CodingKey {
         case id
         case sessionId = "session_id"
         case lapNum = "lap_num"
         case timeMs = "time_ms"
+        case clip
     }
 
-    public init(id: Int, sessionId: Int, lapNum: Int, timeMs: Int) {
+    public init(id: Int, sessionId: Int, lapNum: Int, timeMs: Int, clip: LapClip? = nil) {
         self.id = id
         self.sessionId = sessionId
         self.lapNum = lapNum
         self.timeMs = timeMs
+        self.clip = clip
+    }
+}
+
+/// A best-lap video's metadata, as the event detail carries it on its lap
+/// (NS-45). `lapOffsetMs` is where the lap starts inside the clip. `sizeBytes`
+/// is the owner's storage bookkeeping and is absent from a coach's view
+/// (`COACH_CLIP_FIELDS` in `src/lib/coaching.ts`).
+public struct LapClip: Codable, Hashable, Sendable, Identifiable {
+    public var id: Int
+    public var durationMs: Int
+    public var lapOffsetMs: Int
+    public var sizeBytes: Int?
+
+    public enum CodingKeys: String, CodingKey {
+        case id
+        case durationMs = "duration_ms"
+        case lapOffsetMs = "lap_offset_ms"
+        case sizeBytes = "size_bytes"
+    }
+
+    public init(id: Int, durationMs: Int, lapOffsetMs: Int, sizeBytes: Int? = nil) {
+        self.id = id
+        self.durationMs = durationMs
+        self.lapOffsetMs = lapOffsetMs
+        self.sizeBytes = sizeBytes
     }
 }
 
