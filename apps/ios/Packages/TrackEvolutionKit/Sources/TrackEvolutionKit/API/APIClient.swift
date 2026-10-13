@@ -594,10 +594,15 @@ public actor APIClient {
     /// Where a temp id stands, for the clip queue: the real id once its create
     /// flushed, and whether a create for it is still queued. A temp id with
     /// neither was dropped by the server and will never resolve.
+    ///
+    /// The queue is read **before** the id map. A flush writes the map and only
+    /// then deletes the queued create, so whichever side of a flush the first
+    /// read lands on, the pair can't come back as neither — which would drop a
+    /// clip whose session saved a moment ago.
     public func tempIdState(_ id: Int) async -> (mapped: Int?, queued: Bool) {
         guard let offline else { return (nil, false) }
-        let mapped = (try? await offline.resolveId(id)) ?? nil
         let queued = (try? await offline.hasQueuedCreate(tempId: id)) ?? false
+        let mapped = (try? await offline.resolveId(id)) ?? nil
         return (mapped, queued)
     }
 
