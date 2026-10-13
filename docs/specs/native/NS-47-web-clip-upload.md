@@ -1,4 +1,4 @@
-# NS-46 — Best-lap video upload from the web
+# NS-47 — Best-lap video upload from the web
 
 **Phase:** post-rewrite · **Platform:** Web (no server change; a test-only fixture for both phones) · **Depends on:** [NS-45](NS-45-best-lap-clips.md) (the clip routes, R2, `clip.js`, the phones' `ClipUploadQueue`), the web importer (`js/import/ui.js`), the offline layer's temp-id map · **Estimate:** 7–9 days over four tickets · **Issue:** —
 
@@ -312,7 +312,7 @@ fixture.
   assert against. The *Three clients* paragraph's "the one feature that
   lands native-first" becomes past tense.
 - **`docs/specs/native/README.md`**: the feature-split bullet's NS-45
-  exception says the web caught up in NS-46. Add the index row.
+  exception says the web caught up in NS-47. Add the index row.
 - **`NS-45-best-lap-clips.md`**: its *Web upload* follow-up points here.
 
 ## Tickets
