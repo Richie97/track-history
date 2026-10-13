@@ -399,7 +399,10 @@ fun SignedInScaffold(
                     stagedImports = stagedImports,
                     onConsumeStagedImports = { flow.takeStaged() },
                     stagedSpan = { flow.stagedSpan },
-                    onEventCreated = { _, posted -> flow.newEventCreated(context, posted) },
+                    onEventCreated = { eventId, posted, sessionIds ->
+                        flow.sessionsPosted(eventId, posted, sessionIds)
+                        flow.newEventCreated(context, posted)
+                    },
                     incomingImport = incomingImport,
                     onConsumedIncomingImport = onConsumedIncomingImport,
                     // At expanded width the dashboard is the pane beside this, so the
@@ -415,6 +418,10 @@ fun SignedInScaffold(
             }
             }
             if (reviewing) {
+                // *Save best-lap video* (NS-45), off the cached /me: the tier
+                // and the storage the row and the save both read.
+                val clipStorage = (authState as? AuthState.SignedIn)?.user?.clips
+                val clipOffer = review.clipOffer(entitlement, clipStorage)
                 ReviewScreen(
                     state = review,
                     onPick = flow::pick,
@@ -423,7 +430,11 @@ fun SignedInScaffold(
                     onNotesChange = flow::setNotes,
                     onSelectEvent = flow::selectEvent,
                     onRetryEvents = flow::reloadEvents,
-                    onSave = { flow.save(context, units) },
+                    onSave = { flow.save(context, units, clipOffer) },
+                    clipOffer = clipOffer,
+                    clipStorage = clipStorage,
+                    onSaveClipsChange = flow::setSaveClips,
+                    onRequirePro = { paywall = true },
                     onDiscard = { flow.discard(context); reviewing = false },
                     onSaveToNewEvent = {
                         // The form first, so it is on the back stack by the time
@@ -431,7 +442,7 @@ fun SignedInScaffold(
                         // arrival in the Events tab, so back from it is the
                         // dashboard whichever tab the review was opened over.
                         nav.show(Route.EventForm())
-                        flow.stageForNewEvent(units)
+                        flow.stageForNewEvent(units, clipOffer)
                         reviewing = false
                     },
                 )

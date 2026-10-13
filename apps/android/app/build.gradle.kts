@@ -70,6 +70,10 @@ android {
         // kept in step with Play.
         versionCode = env("TE_VERSION_CODE")?.toInt() ?: 3
         versionName = env("TE_VERSION_NAME") ?: "1.20"
+        // The one instrumented suite, ClipCutterTest (NS-45): Robolectric has
+        // no MediaMuxer. Run with `./gradlew :app:connectedDebugAndroidTest`
+        // against an emulator; no CI job does.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // Whether this build sends Google Analytics (AppAnalytics). Collection is
@@ -205,6 +209,12 @@ dependencies {
     // paddock. The encoder only; the matrix is drawn on a Compose Canvas.
     implementation(libs.zxing.core)
 
+    // Best-lap video playback on the lap page (NS-45): ExoPlayer plays the
+    // signed URL, and media3-ui's PlayerView is the controls. Media3 ships its
+    // own consumer rules, so proguard-rules.pro needs nothing for it.
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+
     // Google Analytics for Firebase: screen views by route shape, nothing else
     // (analytics/AppAnalytics.kt). The manifest switches off advertising ids,
     // ad signals and automatic screen reporting.
@@ -279,6 +289,12 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+
+    // ClipCutterTest (NS-45), on a device: the passthrough cut needs a real
+    // MediaExtractor and MediaMuxer.
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.junit4)
 }
 
 /**

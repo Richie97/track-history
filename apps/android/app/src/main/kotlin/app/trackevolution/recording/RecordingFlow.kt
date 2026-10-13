@@ -1,6 +1,9 @@
 package app.trackevolution.recording
 
 import android.content.Context
+import android.net.Uri
+import app.trackevolution.clips.ClipRequest
+import app.trackevolution.clips.ClipSink
 import app.trackevolution.core.Units
 import app.trackevolution.core.Gate
 import app.trackevolution.core.GeoTrace
@@ -15,6 +18,9 @@ import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Event
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.model.UnitSystem
+import app.trackevolution.core.model.ClipStorage
+import app.trackevolution.core.model.Entitlement
+import app.trackevolution.core.telemetry.LapClips
 import app.trackevolution.core.telemetry.ParsedTelemetry
 import app.trackevolution.core.telemetry.Telemetry
 import app.trackevolution.core.telemetry.asTelemetry
@@ -45,9 +51,20 @@ data class ReviewItem(
      */
     val includeTouched: Boolean = false,
     val label: String,
+    /**
+     * The source file, kept so its best lap can be cut at save time (NS-45).
+     * A picked `content://` URI stays readable for the activity's task, which
+     * outlives the review. Null for a recording, which has no video.
+     */
+    val uri: Uri? = null,
+    /** The source file's size, for the clip's size estimate. */
+    val fileBytes: Long? = null,
 ) {
     val laps get() = parsed?.laps.orEmpty()
     val hasLaps get() = laps.isNotEmpty()
+
+    /** This item as `clipOffer` reads it: included only if it would be saved. */
+    val offerItem: LapClips.OfferItem get() = LapClips.OfferItem(parsed, include && hasLaps, fileBytes)
 }
 
 /**
@@ -97,6 +114,12 @@ data class ReviewUiState(
     val saving: Boolean = false,
     /** The server's own message when a save failed. */
     val error: String? = null,
+    /**
+     * *Save best-lap video* (NS-45). **On for every review** — a fresh state
+     * starts it true, and nothing remembers it off — so the default the
+     * driver asked for always holds. Read only when the row is `ON`.
+     */
+    val saveClips: Boolean = true,
 ) {
     val needsLinePick: Boolean get() = pickTrace.isNotEmpty()
 
@@ -115,6 +138,23 @@ data class ReviewUiState(
 
     /** The recording's laps, for the single-item case the screen lays out simply. */
     val trace: List<TracePoint> get() = pickTrace
+
+    /**
+     * Which state the *Save best-lap video* row is in (NS-45): `clipOffer`
+     * over the items as they would be saved, the account's tier and its
+     * storage — both off the cached `/me`.
+     */
+    fun clipOffer(entitlement: Entitlement?, clips: ClipStorage?): LapClips.ClipOffer =
+        LapClips.clipOffer(items.map { it.offerItem }, entitlement, clips)
+
+    /**
+     * The row's "about N MB each": the largest candidate's estimate, so the
+     * sentence never undersells a batch.
+     */
+    val clipEstimateBytes: Long?
+        get() = items.filter { it.include && it.hasLaps }.mapNotNull { item ->
+            LapClips.clipCandidate(item.parsed)?.let { LapClips.estimateClipBytes(it.lap, item.fileBytes, item.parsed?.durationS) }
+        }.maxOrNull()
 }
 
 /**
@@ -141,6 +181,12 @@ data class ReviewUiState(
 class RecordingFlow(
     private val scope: CoroutineScope,
     private val api: ApiClient,
+    /**
+     * Where best-lap clips go once their session is saved (NS-45) —
+     * `ClipUploads`, which cuts and uploads them outside the save. Null in a
+     * test that isn't about clips.
+     */
+    private val clips: ClipSink? = null,
 ) {
     private val _state = MutableStateFlow(ReviewUiState())
     val state: StateFlow<ReviewUiState> = _state.asStateFlow()
@@ -189,6 +235,17 @@ class RecordingFlow(
     private var handedToNewEvent: List<SessionDraft> = emptyList()
 
     /**
+     * Clips for drafts staged on the New Event form (NS-45), waiting for the
+     * form to post their sessions: a clip needs a session to attach to, and
+     * the form is what creates it. Matched by the draft itself, which the form
+     * posts unchanged; dropped with the drafts if the form never posts them.
+     */
+    private var stagedClips: List<Pair<SessionDraft, PendingClip>> = emptyList()
+
+    /** A clip whose session hasn't been posted yet. */
+    private data class PendingClip(val timeMs: Int, val source: Uri, val window: LapClips.ClipWindow)
+
+    /**
      * Loads a stopped (or recovered) recording for review.
      *
      * A recording too short or too stationary to be a session yields no trace —
@@ -232,6 +289,8 @@ class RecordingFlow(
                 error = clip.error,
                 include = !clip.parsed?.laps.isNullOrEmpty(),
                 label = clip.parsed?.let { Telemetry.defaultLabel(it, clip.file) } ?: clip.file,
+                uri = clip.uri,
+                fileBytes = clip.fileBytes,
             )
         }
         _saved.value = false
@@ -362,6 +421,11 @@ class RecordingFlow(
         _state.value = _state.value.copy(notes = notes)
     }
 
+    /** The *Save best-lap video* switch (NS-45). */
+    fun setSaveClips(on: Boolean) {
+        _state.value = _state.value.copy(saveClips = on)
+    }
+
     private fun updateItem(index: Int, change: (ReviewItem) -> ReviewItem) {
         val items = _state.value.items
         if (index !in items.indices) return
@@ -377,13 +441,25 @@ class RecordingFlow(
      * still on the phone — but the same rule holds: a failed POST leaves the
      * review up with the server's message, and what was already saved stays.
      */
-    fun save(context: Context, units: UnitSystem = Units.DEFAULT_UNITS) {
+    fun save(
+        context: Context,
+        units: UnitSystem = Units.DEFAULT_UNITS,
+        /**
+         * The *Save best-lap video* row's state as the screen drew it (NS-45).
+         * Clips are cut only when it was `ON` and the switch was left on.
+         */
+        clipOffer: LapClips.ClipOffer = LapClips.ClipOffer.NONE,
+    ) {
         val current = _state.value
         if (!current.canSave) return
+        val withClips = clipOffer == LapClips.ClipOffer.ON && current.saveClips
         if (current.forNewEvent) {
             // Nothing to post onto yet. The same drafts the loop below would
-            // send go to the form, which sends them once the event exists.
-            _staged.value = draftsFor(current, units)
+            // send go to the form, which sends them once the event exists —
+            // and their clips wait for it with them ([sessionsPosted]).
+            val drafts = draftsFor(current, units)
+            if (withClips) holdClips(current, drafts)
+            _staged.value = drafts
             Haptics.confirm(context)
             _state.value = current.copy(saving = false, error = null)
             _saved.value = true
@@ -406,9 +482,15 @@ class RecordingFlow(
                     val parsed = item.parsed ?: continue
                     val best = parsed.laps.minOf { it.timeMs }
                     if (previousBest == null || best < previousBest) personalBest = true
-                    api.createSession(eventId = eventId, draft = draftFor(item, parsed, current.notes, units))
+                    val sessionId = api.createSession(eventId = eventId, draft = draftFor(item, parsed, current.notes, units))
                     // Posted: a retry after a later failure must not post it twice.
                     remaining = remaining.mapIndexed { i, r -> if (i == index) r.copy(include = false, includeTouched = true) else r }
+                    // Only now, with the session posted (or queued), is its clip
+                    // asked for — handed off, never awaited, so a cut or an
+                    // upload that fails can't cost the session (NS-45).
+                    if (withClips) {
+                        clipFor(item)?.let { clip -> enqueueClip(clip, sessionId = sessionId, eventId = eventId) }
+                    }
                 }
                 // Only now is it safe to forget: the session exists server-side.
                 if (recording != null) Recorder.consumeFinished(context)
@@ -424,6 +506,44 @@ class RecordingFlow(
         }
     }
 
+    /** The clip to cut from [item], when it is a video with a usable best lap. */
+    private fun clipFor(item: ReviewItem): PendingClip? {
+        val source = item.uri ?: return null
+        val candidate = LapClips.clipCandidate(item.parsed) ?: return null
+        val window = LapClips.clipWindow(candidate.lap, item.parsed?.durationS) ?: return null
+        return PendingClip(timeMs = candidate.lap.timeMs, source = source, window = window)
+    }
+
+    private fun enqueueClip(clip: PendingClip, sessionId: Int, eventId: Int) {
+        // A sink that throws must not reach the save: the session is posted.
+        runCatching { clips?.enqueue(ClipRequest(sessionId, eventId, clip.timeMs, clip.source, clip.window)) }
+    }
+
+    /**
+     * Staged drafts' clips, held until the New Event form posts the drafts
+     * ([sessionsPosted]). [drafts] is [draftsFor]'s output, one per included
+     * item, in order.
+     */
+    private fun holdClips(current: ReviewUiState, drafts: List<SessionDraft>) {
+        val included = current.items.filter { it.include && it.hasLaps && it.parsed != null }
+        stagedClips = stagedClips + included.zip(drafts).mapNotNull { (item, draft) -> clipFor(item)?.let { draft to it } }
+    }
+
+    /**
+     * The New Event form posted [posted] onto [eventId] as sessions
+     * [sessionIds] (NS-45): each that carried a staged clip has it cut and
+     * uploaded now. Told of every event the form creates; a draft that held
+     * no clip matches nothing.
+     */
+    fun sessionsPosted(eventId: Int, posted: List<SessionDraft>, sessionIds: List<Int>) {
+        if (stagedClips.isEmpty()) return
+        for ((draft, sessionId) in posted.zip(sessionIds)) {
+            val match = stagedClips.firstOrNull { it.first === draft } ?: stagedClips.firstOrNull { it.first == draft } ?: continue
+            stagedClips = stagedClips - match
+            enqueueClip(match.second, sessionId = sessionId, eventId = eventId)
+        }
+    }
+
     /** The included items as the bodies of `POST /events/:id/sessions`, in order. */
     private fun draftsFor(current: ReviewUiState, units: UnitSystem): List<SessionDraft> = current.items
         .filter { it.include && it.hasLaps }
@@ -434,10 +554,14 @@ class RecordingFlow(
      * [staged] — the hand-off a new-event import already uses — and the review
      * waits, intact, while the form is open. The caller navigates to the form.
      */
-    fun stageForNewEvent(units: UnitSystem = Units.DEFAULT_UNITS) {
+    fun stageForNewEvent(
+        units: UnitSystem = Units.DEFAULT_UNITS,
+        clipOffer: LapClips.ClipOffer = LapClips.ClipOffer.NONE,
+    ) {
         val current = _state.value
         if (!current.offersNewEvent || current.selectedCount == 0) return
         val drafts = draftsFor(current, units)
+        if (clipOffer == LapClips.ClipOffer.ON && current.saveClips) holdClips(current, drafts)
         handedToNewEvent = drafts
         stagedSpan = NewEventDates.span(current.items.filter { it.include && it.hasLaps }.map { it.parsed?.date })
         _staged.value = drafts
@@ -471,6 +595,8 @@ class RecordingFlow(
      */
     fun newEventAbandoned() {
         if (!_state.value.awaitingNewEvent) return
+        // Staged again on the next Save to a new event, with the switch as it is then.
+        stagedClips = stagedClips.filterNot { (draft, _) -> handedToNewEvent.any { it === draft } }
         handedToNewEvent = emptyList()
         _staged.value = emptyList()
         stagedSpan = null

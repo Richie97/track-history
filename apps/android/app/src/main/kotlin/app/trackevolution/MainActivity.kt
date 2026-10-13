@@ -184,7 +184,7 @@ class MainActivity : ComponentActivity() {
             // than the process. `viewModelScope` is cancelled when the flow is
             // actually finished with, rather than at every recreation.
             val recordingFlow = rememberScreenModel { scope, _ ->
-                RecordingFlow(scope = scope, api = api)
+                RecordingFlow(scope = scope, api = api, clips = services.clips)
             }
             val preference = remember { ThemePreference(applicationContext) }
             val choice by preference.choice.collectAsState(initial = ThemeChoice.System)
@@ -231,6 +231,10 @@ class MainActivity : ComponentActivity() {
                                         router.clear()
                                         pendingInvite.clear()
                                         incomingImport = null
+                                        // Lap videos waiting to upload go with the
+                                        // logbook (NS-45): none may upload under
+                                        // the next account.
+                                        services.clips.clear()
                                         auth.signOut()
                                     },
                                     incomingImport = incomingImport,

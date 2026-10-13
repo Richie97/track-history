@@ -139,11 +139,13 @@ fun AppNavHost(
      */
     stagedSpan: () -> NewEventDates.Span? = { null },
     /**
-     * A new event was created, with the staged drafts it posted — told to the
-     * review a *Save to a new event* came from (#344) before the form makes way
-     * for the event. Defaulted for the same reason as [onImportParsed].
+     * A new event was created, with the staged drafts it posted and the
+     * session ids they were posted as — told to the review a *Save to a new
+     * event* came from (#344) before the form makes way for the event, and to
+     * any best-lap clips those drafts carried (NS-45). Defaulted for the same
+     * reason as [onImportParsed].
      */
-    onEventCreated: (Int, List<SessionDraft>) -> Unit = { _, _ -> },
+    onEventCreated: (Int, List<SessionDraft>, List<Int>) -> Unit = { _, _, _ -> },
     /** Videos handed in by the share sheet, waiting for the import chooser. */
     incomingImport: List<Uri>? = null,
     onConsumedIncomingImport: () -> Unit = {},
@@ -364,7 +366,7 @@ fun AppNavHost(
                         // from the back stack — going "back" into a saved form is
                         // an invitation to save it twice.
                         if (route.editId == null) {
-                            onEventCreated(id, model.postedStaged)
+                            onEventCreated(id, model.postedStaged, model.postedStagedIds)
                             nav.navigate(Route.Event(id)) {
                                 popUpTo(formDestination) { inclusive = true }
                             }

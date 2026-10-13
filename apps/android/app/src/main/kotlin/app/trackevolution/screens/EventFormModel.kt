@@ -135,6 +135,13 @@ class EventFormModel(
         private set
 
     /**
+     * The session ids [postedStaged] came back as, index for index (temp ids
+     * offline) — what a staged draft's best-lap clip attaches to (NS-45).
+     */
+    var postedStagedIds: List<Int> = emptyList()
+        private set
+
+    /**
      * The event [save] already created, when a session post after it failed.
      * Null until then; the next save skips `POST /events` and posts the
      * sessions still staged.
@@ -313,10 +320,11 @@ class EventFormModel(
                     // once — a posted one leaves the staging (or empties the typed
                     // laps) before the next, so a failure leaves exactly the rest.
                     for (draft in pendingSessions) {
-                        api.createSession(id, draft)
+                        val sessionId = api.createSession(id, draft)
                         if (stagedSessions.firstOrNull() == draft) {
                             stagedSessions = stagedSessions.drop(1)
                             postedStaged = postedStaged + draft
+                            postedStagedIds = postedStagedIds + sessionId
                         } else {
                             sessionLaps = ""
                         }

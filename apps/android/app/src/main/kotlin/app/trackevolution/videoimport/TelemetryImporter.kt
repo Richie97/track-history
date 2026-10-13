@@ -24,6 +24,15 @@ data class ImportedClip(
     val file: String,
     val parsed: ParsedTelemetry?,
     val error: String? = null,
+    /**
+     * Where the file is, kept so a best-lap clip (NS-45) can be cut from it at
+     * save time. The grant on a picked `content://` URI lasts as long as the
+     * activity's task, which outlives the review; null for a file with no
+     * source left to read (the tests' in-memory clips).
+     */
+    val uri: Uri? = null,
+    /** The file's size, for the clip's size estimate ("about 150 MB each"). */
+    val fileBytes: Long? = null,
 )
 
 /**
@@ -49,7 +58,7 @@ object TelemetryImporter {
             job.ensureActive()
             val name = ContentByteSource.displayName(resolver, uri)
             clips.add(
-                parseOne(name) { ContentByteSource.open(resolver, uri) { !job.isActive } },
+                parseOne(name) { ContentByteSource.open(resolver, uri) { !job.isActive } }.copy(uri = uri),
             )
         }
         finish(clips)
@@ -82,7 +91,7 @@ object TelemetryImporter {
             // The name decides the parser, as it does on the web: a `.vbo` has no
             // registered MIME type and a `.csv` could be anything, so the
             // provider's guess at one means nothing.
-            return ImportedClip(file = name, parsed = Telemetry.parseTelemetryFile(source, name))
+            return ImportedClip(file = name, parsed = Telemetry.parseTelemetryFile(source, name), fileBytes = source.size)
         } catch (e: TelemetryParseException) {
             return ImportedClip(file = name, parsed = null, error = e.message)
         } catch (e: CancellationException) {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -18,6 +19,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,15 +32,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.LineReview
+import app.trackevolution.core.model.ClipStorage
+import app.trackevolution.core.telemetry.LapClips
 import app.trackevolution.core.telemetry.ParsedTelemetry
 import app.trackevolution.core.telemetry.Telemetry
 import app.trackevolution.ui.FormColumn
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
+import app.trackevolution.ui.TEProLocked
 import app.trackevolution.ui.TERetryButton
 import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.LocalUnitSystem
@@ -72,6 +79,17 @@ fun ReviewScreen(
     onSaveToNewEvent: (() -> Unit)? = null,
     /** Try again, after the events to save onto failed to load. */
     onRetryEvents: () -> Unit = {},
+    /**
+     * The *Save best-lap video* row's state (NS-45) — `clipOffer` over the
+     * items, the tier and the storage, worked out by the caller from the
+     * cached `/me`. `NONE` draws no row.
+     */
+    clipOffer: LapClips.ClipOffer = LapClips.ClipOffer.NONE,
+    /** `user.clips`, for the full-storage sentence and the coach note. */
+    clipStorage: ClipStorage? = null,
+    onSaveClipsChange: (Boolean) -> Unit = {},
+    /** The locked row's offer: the paywall. */
+    onRequirePro: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -180,6 +198,15 @@ fun ReviewScreen(
                         onIncludeChange = { onIncludeChange(index, it) },
                     )
                 }
+
+                ClipRow(
+                    offer = clipOffer,
+                    on = state.saveClips,
+                    estimateBytes = state.clipEstimateBytes,
+                    storage = clipStorage,
+                    onChange = onSaveClipsChange,
+                    onRequirePro = onRequirePro,
+                )
 
                 if (anyLaps && state.forNewEvent) {
                     // Started from the New Event form: the event is the one being
@@ -341,6 +368,71 @@ fun ReviewScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * *Save best-lap video* (NS-45), under the session list. Not drawn without a
+ * video to cut (a recording, a `.vbo`, a `.csv`); for a free account it is the
+ * Pro offer, **locked in place, never hidden**; with storage full it is off and
+ * disabled, saying so; otherwise a switch that starts on every review. The
+ * words are `clip.js`'s, pinned by `lap-clips.json`.
+ */
+@Composable
+private fun ClipRow(
+    offer: LapClips.ClipOffer,
+    on: Boolean,
+    estimateBytes: Long?,
+    storage: ClipStorage?,
+    onChange: (Boolean) -> Unit,
+    onRequirePro: () -> Unit,
+) {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
+    when (offer) {
+        LapClips.ClipOffer.NONE -> return
+        LapClips.ClipOffer.LOCKED -> TEProLocked(
+            title = "Save best-lap video",
+            blurb = LapClips.clipOfferText(estimateBytes) +
+                " The clip plays on the lap's page, for you and the coaches you invite.",
+            onSubscribe = onRequirePro,
+            modifier = Modifier.testTag("reviewClipRow"),
+        )
+        LapClips.ClipOffer.FULL, LapClips.ClipOffer.ON -> {
+            val full = offer == LapClips.ClipOffer.FULL
+            val checked = on && !full
+            val words = if (full) {
+                LapClips.clipFullText(storage)
+            } else {
+                listOf(LapClips.clipOfferText(estimateBytes), LapClips.clipOfferNote(storage))
+                    .filter { it.isNotEmpty() }.joinToString(" ")
+            }
+            TrackCard(
+                Modifier
+                    .fillMaxWidth()
+                    .testTag("reviewClipRow")
+                    .toggleable(value = checked, enabled = !full, role = Role.Switch, onValueChange = onChange),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Save best-lap video", style = type.bodyStrong, color = colors.textStrong)
+                        Text(words, style = type.sm, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    Switch(
+                        checked = checked,
+                        // The card is the toggle, so the whole row is one target
+                        // and one TalkBack element.
+                        onCheckedChange = null,
+                        enabled = !full,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = colors.accentInk,
+                            checkedTrackColor = colors.accentTint,
+                        ),
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
+            }
+        }
     }
 }
 

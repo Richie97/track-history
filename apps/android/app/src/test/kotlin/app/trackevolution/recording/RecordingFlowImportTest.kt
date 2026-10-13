@@ -1,13 +1,18 @@
 package app.trackevolution.recording
 
 import android.content.Context
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import app.trackevolution.clips.ClipRequest
 import app.trackevolution.core.LineReview
 import app.trackevolution.core.LocationFix
 import app.trackevolution.core.NewEventDates
 import app.trackevolution.core.RecorderCore
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.model.ClipStorage
+import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.telemetry.ByteArraySource
+import app.trackevolution.core.telemetry.LapClips
 import app.trackevolution.core.telemetry.ParsedTelemetry
 import app.trackevolution.videoimport.ImportedClip
 import app.trackevolution.videoimport.TelemetryImporter
@@ -333,6 +338,128 @@ class RecordingFlowImportTest {
         val lap = channels!!.jsonObject["laps"]!!.jsonArray[0].jsonObject
         assertTrue(lap["speed"]!!.jsonArray.size > 80)
         assertNull("the phone's GPS has no RPM", lap["rpm"])
+    }
+
+    // ---- Best-lap video clips (NS-45) ----------------------------------------
+
+    /** What happened, in order: session posts and clip hand-offs on one timeline. */
+    private val timeline = CopyOnWriteArrayList<String>()
+    private val requested = CopyOnWriteArrayList<ClipRequest>()
+
+    private fun clipApi(): ApiClient {
+        var next = 600
+        val engine = MockEngine { request ->
+            val path = request.url.encodedPath
+            val body = when {
+                request.method == HttpMethod.Post && path.matches(Regex(".*/events/\\d+/sessions$")) -> {
+                    val id = next++
+                    timeline += "post $id"
+                    posted.add(path to (request.body as TextContent).text)
+                    """{"id":$id}"""
+                }
+                path.endsWith("/events") -> EVENTS
+                else -> """{"ok":true}"""
+            }
+            respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        return ApiClient(engine, baseUrl = "https://example.test")
+    }
+
+    private fun clipFlow() = RecordingFlow(CoroutineScope(Dispatchers.Default), clipApi()) { request ->
+        timeline += "clip ${request.sessionId}"
+        requested += request
+    }
+
+    /** A picked video, as the importer hands it over: with its URI and size. */
+    private fun video(name: String): ImportedClip {
+        val bytes = fixture(name)
+        return clip(name).copy(uri = Uri.parse("content://test/$name"), fileBytes = bytes.size.toLong())
+    }
+
+    private val pro = Entitlement(tier = Entitlement.Tier.PRO)
+    private val room = ClipStorage(usedBytes = 0, quotaBytes = 20L * 1024 * 1024 * 1024, coachCount = 0)
+
+    @Test
+    fun `with the switch on, each session is posted first and then its best lap is handed off`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"), video("pdr25-laps.mp4"))), preferredEventId = 7)
+        awaitEvents(flow)
+
+        val state = flow.state.value
+        assertTrue("on for every review", state.saveClips)
+        val offer = state.clipOffer(pro, room)
+        assertEquals(LapClips.ClipOffer.ON, offer)
+
+        flow.save(context, clipOffer = offer)
+        awaitSaved(flow)
+
+        assertEquals(2, posted.size)
+        assertEquals("one clip per included video session", 2, requested.size)
+        assertEquals(
+            "a session's clip is asked for only after its POST answered",
+            listOf("post 600", "clip 600", "post 601", "clip 601"),
+            timeline.toList(),
+        )
+        for ((i, request) in requested.withIndex()) {
+            assertEquals(7, request.eventId)
+            val item = state.items.single { it.uri == request.source }
+            val candidate = LapClips.clipCandidate(item.parsed)!!
+            assertEquals("the lap the server will look up by time", candidate.lap.timeMs, request.timeMs)
+            assertEquals(LapClips.clipWindow(candidate.lap, item.parsed!!.durationS), request.window)
+            assertTrue("$i: its laps include that time", item.laps.any { it.timeMs == request.timeMs })
+        }
+    }
+
+    @Test
+    fun `with the switch off the sessions save and no clip is asked for — and the next review is on again`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"))), preferredEventId = 7)
+        awaitEvents(flow)
+        flow.setSaveClips(false)
+        flow.save(context, clipOffer = flow.state.value.clipOffer(pro, room))
+        awaitSaved(flow)
+        assertEquals(1, posted.size)
+        assertTrue(requested.isEmpty())
+
+        flow.acknowledgeSaved()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"))), preferredEventId = 7)
+        assertTrue("never remembered off", flow.state.value.saveClips)
+    }
+
+    @Test
+    fun `no clip without the row on - free, full, or nothing to cut`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"))), preferredEventId = 7)
+        awaitEvents(flow)
+        val state = flow.state.value
+        assertEquals(LapClips.ClipOffer.LOCKED, state.clipOffer(Entitlement.FREE, room))
+        assertEquals(LapClips.ClipOffer.FULL, state.clipOffer(pro, room.copy(usedBytes = room.quotaBytes)))
+
+        flow.save(context, clipOffer = LapClips.ClipOffer.LOCKED)
+        awaitSaved(flow)
+        assertEquals(1, posted.size)
+        assertTrue("a locked row saves the session and cuts nothing", requested.isEmpty())
+
+        // A recording has no video: no row at all.
+        val recording = RecorderCore.createRecording(eventId = "7", startedAtMs = 1_700_000_000_000.0)
+        flow.begin(recording)
+        assertEquals(LapClips.ClipOffer.NONE, flow.state.value.clipOffer(pro, room))
+    }
+
+    @Test
+    fun `a clip for a new event waits for the form to post its session`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"))), preferredEventId = null, forNewEvent = true)
+        flow.save(context, clipOffer = flow.state.value.clipOffer(pro, room))
+        awaitSaved(flow)
+        assertTrue("nothing to attach to yet", requested.isEmpty())
+
+        val drafts = flow.takeStaged()
+        flow.sessionsPosted(eventId = 12, posted = drafts, sessionIds = listOf(-4))
+        assertEquals("handed off with the session's id — a temp id while it is queued", -4, requested.single().sessionId)
+        assertEquals(12, requested.single().eventId)
+        flow.sessionsPosted(eventId = 12, posted = drafts, sessionIds = listOf(-4))
+        assertEquals("once", 1, requested.size)
     }
 
     private companion object {
