@@ -154,6 +154,14 @@ public actor OfflineStore {
         try idMap()[String(tempId)]
     }
 
+    /// Whether a queued create still stands behind this temp id — false once it
+    /// flushed (see ``resolveId(_:)``) or was dropped by the server.
+    public func hasQueuedCreate(tempId: Int) throws -> Bool {
+        try dbQueue.read { db in
+            try QueuedWrite.filter(QueuedWrite.Columns.tempId == tempId).fetchCount(db) > 0
+        }
+    }
+
     private func idMap() throws -> [String: Int] {
         try dbQueue.read { db in
             guard let data = try Data.fetchOne(db, sql: "SELECT value FROM kv WHERE key = 'idMap'") else {

@@ -531,6 +531,76 @@ public actor APIClient {
         enum CodingKeys: String, CodingKey { case profile }
     }
 
+    // MARK: - Best-lap video (NS-45)
+
+    /// Start — or resume — the upload of a session's best-lap clip. Pro (a 402
+    /// for a free account); a 409 says *clip storage full* or *lap already has a
+    /// clip*. Never queued: `ClipUploadQueue` is the clip's queue, and it waits
+    /// for a temp session id to become real before it gets here.
+    public func createClip(sessionId: Int, _ body: ClipCreateBody) async throws -> ClipUploadStart {
+        try await send("POST", "/sessions/\(sessionId)/clip", body: body, as: ClipUploadStart.self)
+    }
+
+    /// Stitch the parts. A 409 because parts are missing is thrown as
+    /// ``ClipMissingParts`` carrying the server's list, so exactly those go up
+    /// again; a clip already ready answers itself, so a retry is harmless.
+    public func completeClip(id: Int) async throws -> LapClip {
+        guard studentId == nil else { throw APIError.readOnly }
+        let response = try await rawSend(
+            "POST", "/clips/\(id)/complete", query: nil, body: nil, authenticated: true, prefix: "/api"
+        )
+        if response.status == 409,
+           let body = try? decoder.decode(ClipMissingPartsBody.self, from: response.data),
+           let missing = body.missing {
+            throw ClipMissingParts(missing: missing)
+        }
+        guard (200..<300).contains(response.status) else {
+            throw APIError.from(status: response.status, body: response.data)
+        }
+        do {
+            return try decoder.decode(LapClip.self, from: response.data)
+        } catch {
+            throw APIError.decoding("/clips/\(id)/complete: \(error)")
+        }
+    }
+
+    /// Free, always: a lapsed driver can remove their video. Live, never queued
+    /// — an offline delete would leave the lap page offering a clip the server
+    /// still holds.
+    public func deleteClip(id: Int) async throws {
+        _ = try await send("DELETE", "/clips/\(id)", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    /// A URL that plays for an hour. Read past the cache — a signed URL cached
+    /// offline would be an expired one by the time it was read back — and, under
+    /// a coach's scoped client, the student's clip with the student's tier.
+    public func clipURL(id: Int) async throws -> ClipURL {
+        try await get("/clips/\(id)/url", cached: false, as: ClipURL.self)
+    }
+
+    /// An authenticated request for an `/api` path, built but not sent — for the
+    /// transfers that can't go through this actor: a clip part sent by a
+    /// background `URLSession` that outlives the app, and a clip download.
+    public func authorizedRequest(_ method: String, _ path: String) async throws -> URLRequest {
+        guard studentId == nil else { throw APIError.readOnly }
+        var request = URLRequest(url: try url(for: path, query: nil, prefix: "/api"))
+        request.httpMethod = method
+        if let token = await tokens.currentToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    /// Where a temp id stands, for the clip queue: the real id once its create
+    /// flushed, and whether a create for it is still queued. A temp id with
+    /// neither was dropped by the server and will never resolve.
+    public func tempIdState(_ id: Int) async -> (mapped: Int?, queued: Bool) {
+        guard let offline else { return (nil, false) }
+        let mapped = (try? await offline.resolveId(id)) ?? nil
+        let queued = (try? await offline.hasQueuedCreate(tempId: id)) ?? false
+        return (mapped, queued)
+    }
+
     /// One path segment, percent-encoded — an invite token is opaque.
     private static func pathSegment(_ raw: String) -> String {
         var allowed = CharacterSet.urlPathAllowed
