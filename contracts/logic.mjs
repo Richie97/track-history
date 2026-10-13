@@ -32,6 +32,21 @@ import { CHANNEL_NAMES, attachLapChannels } from "../public/js/import/channels.j
 import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import { traceIndexAtFraction } from "../public/js/trackmap.js";
+import {
+  MAX_CLIP_S,
+  POST_ROLL_S,
+  PRE_ROLL_S,
+  VIDEO_KINDS,
+  clipCandidate,
+  clipFullText,
+  clipOffer,
+  clipOfferNote,
+  clipOfferText,
+  clipStorageLine,
+  clipWindow,
+  estimateClipBytes,
+  fmtClipBytes,
+} from "../public/js/import/clip.js";
 import { PROFILE_GROUPS, profileBody, profileSections } from "../public/js/profile.js";
 import { inviteExpiryText, lastViewedText, studentLine } from "../public/js/coaching.js";
 import {
@@ -217,6 +232,7 @@ import {
   canViewSpend,
   canCompareEvents,
   entitlementSummary,
+  canSaveLapVideo,
   FREE_CHANNELS,
   canViewChannel,
   isPro,
@@ -1682,6 +1698,189 @@ const anchored = batchResults
   .filter((r) => r.parsed?.lapRecovery)
   .map((r) => ({ file: r.file, expected: parsedOut(r.parsed) }));
 
+// ---------------------------------------------------------------------------
+// lap-clips.json — which lap of an imported video gets saved, and the window
+// cut around it (NS-45, public/js/import/clip.js). The inputs are written out
+// in full (kind, duration, laps, file size), so a port asserts the clip rule
+// without running its parsers; the committed video fixtures supply real lap
+// shapes — after the line pick and the batch anchor, exactly as a review holds
+// them — and the synthetic rows are the ways a port goes wrong.
+
+const clipLapIn = (l) => ({
+  timeMs: l.timeMs,
+  estimated: !!l.estimated,
+  startT: l.startT ?? null,
+  endT: l.endT ?? null,
+});
+const clipInputs = [
+  ...videoCases.map(({ entry, parsed }) => ({
+    name: entry.file,
+    kind: parsed.kind,
+    durationS: parsed.durationS,
+    fileBytes: videoFixtures.find((f) => f.file === entry.file).bytes.length,
+    laps: parsed.laps.map(clipLapIn),
+  })),
+  {
+    name: "a best lap tied on time: the lower lap number wins",
+    kind: "pdr",
+    durationS: 900,
+    fileBytes: 700_000_000,
+    laps: [
+      { timeMs: 101_500, estimated: false, startT: 100, endT: 201.5 },
+      { timeMs: 100_250, estimated: false, startT: 201.5, endT: 301.75 },
+      { timeMs: 100_250, estimated: false, startT: 301.75, endT: 402 },
+    ],
+  },
+  {
+    name: "pre-roll would start before 0",
+    kind: "gopro",
+    durationS: 400,
+    fileBytes: 1_200_000_000,
+    laps: [{ timeMs: 98_400, estimated: true, startT: 1.25, endT: 99.65 }],
+  },
+  {
+    name: "a lap ending within POST_ROLL_S of the file's end",
+    kind: "pdr",
+    durationS: 250.5,
+    fileBytes: 333_333_333,
+    laps: [
+      { timeMs: 120_000, estimated: false, startT: 10, endT: 130 },
+      { timeMs: 119_700, estimated: false, startT: 130.8, endT: 250.5 },
+    ],
+  },
+  {
+    name: "a lap at exactly MAX_CLIP_S is inclusive; one over gets no clip",
+    kind: "pdr",
+    durationS: 1500,
+    fileBytes: 900_000_000,
+    laps: [
+      { timeMs: 600_001, estimated: false, startT: 10, endT: 610.001 },
+      { timeMs: 600_000, estimated: false, startT: 700, endT: 1300 },
+    ],
+  },
+  {
+    name: "a recovered PDR session: every lap estimated, still a candidate",
+    kind: "pdr",
+    durationS: 700,
+    fileBytes: 650_000_000,
+    laps: [
+      { timeMs: 99_870, estimated: true, startT: 55.3, endT: 155.17 },
+      { timeMs: 99_120, estimated: true, startT: 155.17, endT: 254.29 },
+    ],
+  },
+  {
+    name: "the fastest lap has no window; the next best is the candidate",
+    kind: "gopro",
+    durationS: 500,
+    fileBytes: 2_000_000_000,
+    laps: [
+      { timeMs: 95_000, estimated: false, startT: null, endT: null },
+      { timeMs: 96_000, estimated: true, startT: 30, endT: 126 },
+      { timeMs: 94_000, estimated: false, startT: 450, endT: 544 },
+    ],
+  },
+  {
+    name: "a phone recording has no video",
+    kind: "live",
+    durationS: 900,
+    fileBytes: 0,
+    laps: [{ timeMs: 100_000, estimated: false, startT: 10, endT: 110 }],
+  },
+  {
+    name: "a .vbo has no video",
+    kind: "vbo",
+    durationS: 900,
+    fileBytes: 4_000_000,
+    laps: [{ timeMs: 100_000, estimated: false, startT: 10, endT: 110 }],
+  },
+  {
+    name: "a Track Precision .csv has no video",
+    kind: "trackprecision",
+    durationS: 900,
+    fileBytes: 4_000_000,
+    laps: [{ timeMs: 100_000, estimated: false, startT: 10, endT: 110 }],
+  },
+  {
+    name: "no laps at all (a clip still waiting for a line)",
+    kind: "gopro",
+    durationS: 600,
+    fileBytes: 3_000_000_000,
+    laps: [],
+  },
+];
+const clipCases = clipInputs.map((input) => {
+  const c = clipCandidate(input);
+  return {
+    input,
+    expected: {
+      candidateIndex: c ? c.index : null,
+      window: c ? clipWindow(c.lap, input.durationS) : null,
+      estimateBytes: c ? estimateClipBytes(c.lap, input.fileBytes, input.durationS) : null,
+      // Every lap's own window, so a port's clamping is checked lap by lap.
+      windows: input.laps.map((l) => clipWindow(l, input.durationS)),
+    },
+  };
+});
+
+// clipOffer over whole reviews: which items are included, which tier, how
+// full the storage is.
+const PRO = { tier: "pro", source: "apple", expires_at: 1_800_000_000_000, auto_renew: true };
+const FREE = { tier: "free", source: null, expires_at: null, auto_renew: null };
+const GiB = 1024 ** 3;
+const clipItem = (name, include) => {
+  const input = clipInputs.find((i) => i.name === name);
+  return { name, include, parsed: { kind: input.kind, durationS: input.durationS, laps: input.laps }, fileBytes: input.fileBytes };
+};
+const clipOfferCases = [
+  { name: "a Pro import with room", items: [["pdr-beacons.mp4", true], ["gopro.mp4", true]], entitlement: PRO, clips: { used_bytes: 0, quota_bytes: 20 * GiB, coach_count: 0 } },
+  { name: "the same, free: drawn locked", items: [["pdr-beacons.mp4", true]], entitlement: FREE, clips: { used_bytes: 0, quota_bytes: 20 * GiB, coach_count: 0 } },
+  { name: "nothing cached: free", items: [["pdr-beacons.mp4", true]], entitlement: null, clips: null },
+  { name: "a phone recording: no row", items: [["a phone recording has no video", true]], entitlement: PRO, clips: null },
+  { name: "a .vbo and a .csv: no row", items: [["a .vbo has no video", true], ["a Track Precision .csv has no video", true]], entitlement: PRO, clips: null },
+  { name: "the only video unticked: no row", items: [["pdr-beacons.mp4", false], ["a .vbo has no video", true]], entitlement: PRO, clips: null },
+  { name: "a clip still waiting for its line: no row yet", items: [["no laps at all (a clip still waiting for a line)", true]], entitlement: PRO, clips: null },
+  { name: "full once this review's clips are added", items: [["pre-roll would start before 0", true]], entitlement: PRO, clips: { used_bytes: 20 * GiB - 300_000_000, quota_bytes: 20 * GiB, coach_count: 2 } },
+  { name: "exactly at the quota is not over it", items: [["pdr-beacons.mp4", true]], entitlement: PRO, clips: { used_bytes: 20 * GiB, quota_bytes: 20 * GiB + 0, coach_count: 0 }, note: "estimate added" },
+  { name: "a cached /me older than the field: never full", items: [["pdr-beacons.mp4", true]], entitlement: PRO, clips: null },
+].map((c) => {
+  const items = c.items.map(([name, include]) => clipItem(name, include));
+  const clips = c.note === "estimate added"
+    ? { ...c.clips, quota_bytes: c.clips.used_bytes + estimateClipBytes(clipCandidate(items[0].parsed).lap, items[0].fileBytes, items[0].parsed.durationS) }
+    : c.clips;
+  return {
+    name: c.name,
+    items: items.map(({ name, include }) => ({ input: name, include })),
+    entitlement: c.entitlement,
+    clips,
+    expected: clipOffer(items, c.entitlement, clips),
+  };
+});
+
+// Whole byte counts, as the API answers them. 3.25 GiB and 3.35 GiB are the
+// toFixed ties: the first is exact in binary and rounds up, the second sits
+// just below its decimal and rounds down — a port formatting with %.1f gets
+// one of them wrong.
+const clipBytesSamples = [0, -5, 1, 512 * 1024, 1024 * 1024, 150_000_000, 1073741823, 1073217536, GiB, Math.round(3.2 * GiB), 3.25 * GiB, Math.round(3.35 * GiB), 20 * GiB, Math.round(20.05 * GiB)];
+const lapClipsFixture = {
+  description:
+    "Best-lap video clips (NS-45) from public/js/import/clip.js: clipCandidate, clipWindow and " +
+    "estimateClipBytes over the committed video fixtures and synthetic laps, clipOffer over whole " +
+    "reviews, and the row's and Settings' wording. Both phones' ports must match it exactly " +
+    "(windows to 1e-9). Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/import/clip.js",
+  PRE_ROLL_S,
+  POST_ROLL_S,
+  MAX_CLIP_S,
+  VIDEO_KINDS,
+  cases: clipCases,
+  offers: clipOfferCases,
+  offerNote: [null, { coach_count: 0 }, { coach_count: 1 }, { coach_count: 3 }].map((c) => [c, clipOfferNote(c)]),
+  offerText: [null, 0, 150_000_000, 2 * GiB].map((b) => [b, clipOfferText(b)]),
+  fullText: [null, { used_bytes: 20 * GiB, quota_bytes: 20 * GiB, coach_count: 0 }].map((c) => [c, clipFullText(c)]),
+  storageLine: [null, { used_bytes: 0, quota_bytes: 20 * GiB, coach_count: 0 }, { used_bytes: Math.round(3.2 * GiB), quota_bytes: 20 * GiB, coach_count: 1 }].map((c) => [c, clipStorageLine(c)]),
+  fmtClipBytes: clipBytesSamples.map((b) => [b, fmtClipBytes(b)]),
+};
+
 const videoFixture = {
   description:
     "Reference output of the video telemetry parsers (public/pdr.js, " +
@@ -2130,6 +2329,7 @@ const entitlementCases = [
     canViewYearInReview: canViewYearInReview(c.entitlement),
     canViewSpend: canViewSpend(c.entitlement),
     canCompareEvents: canCompareEvents(c.entitlement),
+    canSaveLapVideo: canSaveLapVideo(c.entitlement),
     manageUrl: manageUrl(c.entitlement),
     // The date text is locale work; the fixture pins the shape around it.
     summary: entitlementSummary(c.entitlement, (ms) => `<${ms}>`),
@@ -2459,6 +2659,7 @@ writeFileSync(path.join(OUT_DIR, "costs.json"), JSON.stringify(costsFixture, nul
 writeFileSync(path.join(OUT_DIR, "wrapped.json"), JSON.stringify(wrappedFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "lap-clips.json"), JSON.stringify(lapClipsFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "vbo-parsers.json"), JSON.stringify(vboFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "csv-parsers.json"), JSON.stringify(csvFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
@@ -2792,6 +2993,7 @@ console.log(`wrote contracts/logic/costs.json (${costsFixture.dollarsToCents.len
 console.log(`wrote contracts/logic/wrapped.json (${wrappedSeasons.length} seasons)`);
 console.log(`wrote contracts/logic/event-form.json (${eventFormCases.length} cases)`);
 console.log(`wrote contracts/logic/entitlement.json (${entitlementCases.length} cases)`);
+console.log(`wrote contracts/logic/lap-clips.json (${clipCases.length} inputs, ${clipOfferCases.length} reviews)`);
 console.log(
   `wrote contracts/logic/video-parsers.json (${videoCases.length} clips) and contracts/logic/video/*.mp4`
 );

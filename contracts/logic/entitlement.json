@@ -38,6 +38,7 @@
         "canViewYearInReview": false,
         "canViewSpend": false,
         "canCompareEvents": false,
+        "canSaveLapVideo": false,
         "manageUrl": null,
         "summary": "Free"
       }
@@ -68,6 +69,7 @@
         "canViewYearInReview": false,
         "canViewSpend": false,
         "canCompareEvents": false,
+        "canSaveLapVideo": false,
         "manageUrl": null,
         "summary": "Free"
       }
@@ -103,6 +105,7 @@
         "canViewYearInReview": true,
         "canViewSpend": true,
         "canCompareEvents": true,
+        "canSaveLapVideo": true,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Pro · renews <1800000000000>"
       }
@@ -138,6 +141,7 @@
         "canViewYearInReview": true,
         "canViewSpend": true,
         "canCompareEvents": true,
+        "canSaveLapVideo": true,
         "manageUrl": "https://play.google.com/store/account/subscriptions?package=app.trackevolution",
         "summary": "Pro · ends <1800000000000>"
       }
@@ -173,6 +177,7 @@
         "canViewYearInReview": true,
         "canViewSpend": true,
         "canCompareEvents": true,
+        "canSaveLapVideo": true,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Pro · renews <1800000000000>"
       }
@@ -208,6 +213,7 @@
         "canViewYearInReview": true,
         "canViewSpend": true,
         "canCompareEvents": true,
+        "canSaveLapVideo": true,
         "manageUrl": null,
         "summary": "Pro · lifetime"
       }
@@ -243,6 +249,7 @@
         "canViewYearInReview": false,
         "canViewSpend": false,
         "canCompareEvents": false,
+        "canSaveLapVideo": false,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Free"
       }
@@ -278,6 +285,7 @@
         "canViewYearInReview": false,
         "canViewSpend": false,
         "canCompareEvents": false,
+        "canSaveLapVideo": false,
         "manageUrl": "https://play.google.com/store/account/subscriptions?package=app.trackevolution",
         "summary": "Free"
       }
@@ -313,6 +321,7 @@
         "canViewYearInReview": true,
         "canViewSpend": true,
         "canCompareEvents": true,
+        "canSaveLapVideo": true,
         "manageUrl": "https://apps.apple.com/account/subscriptions",
         "summary": "Pro · renews <1>"
       }

@@ -1,0 +1,1120 @@
+{
+  "description": "Best-lap video clips (NS-45) from public/js/import/clip.js: clipCandidate, clipWindow and estimateClipBytes over the committed video fixtures and synthetic laps, clipOffer over whole reviews, and the row's and Settings' wording. Both phones' ports must match it exactly (windows to 1e-9). Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/import/clip.js",
+  "PRE_ROLL_S": 3,
+  "POST_ROLL_S": 2,
+  "MAX_CLIP_S": 600,
+  "VIDEO_KINDS": [
+    "pdr",
+    "gopro"
+  ],
+  "cases": [
+    {
+      "input": {
+        "name": "gopro.mp4",
+        "kind": "gopro",
+        "durationS": 156,
+        "fileBytes": 46360,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 11.8,
+            "endT": 58.923883624987575
+          },
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 58.923883624987575,
+            "endT": 106.04776755356775
+          },
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 106.04776755356775,
+            "endT": 153.17158836688546
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 8.8,
+          "endS": 60.923883624987575,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 15490,
+        "windows": [
+          {
+            "startS": 8.8,
+            "endS": 60.923883624987575,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 55.923883624987575,
+            "endS": 108.04776755356775,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 103.04776755356775,
+            "endS": 155.17158836688546,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr-beacons.mp4",
+        "kind": "pdr",
+        "durationS": 155.5,
+        "fileBytes": 50112,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 30,
+            "endT": 77.1238898
+          },
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 77.1238898,
+            "endT": 124.2477796
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 27,
+          "endS": 79.1238898,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 16798,
+        "windows": [
+          {
+            "startS": 27,
+            "endS": 79.1238898,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 74.1238898,
+            "endS": 126.2477796,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr-delta.mp4",
+        "kind": "pdr",
+        "durationS": 155.4,
+        "fileBytes": 85248,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 30,
+            "endT": 77.1238898
+          },
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 77.1238898,
+            "endT": 124.2477796
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 27,
+          "endS": 79.1238898,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 28594,
+        "windows": [
+          {
+            "startS": 27,
+            "endS": 79.1238898,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 74.1238898,
+            "endS": 126.2477796,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr-delta-nobeacon.mp4",
+        "kind": "pdr",
+        "durationS": 155.4,
+        "fileBytes": 85216,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 11.97603922242483,
+            "endT": 59.1
+          },
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 59.1,
+            "endT": 106.2239258077566
+          },
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 106.2239258077566,
+            "endT": 153.347777321359
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 8.97603922242483,
+          "endS": 61.1,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 28583,
+        "windows": [
+          {
+            "startS": 8.97603922242483,
+            "endS": 61.1,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 56.1,
+            "endS": 108.2239258077566,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 103.2239258077566,
+            "endS": 155.347777321359,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr-nobeacon.mp4",
+        "kind": "pdr",
+        "durationS": 155.5,
+        "fileBytes": 50064,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 11.8,
+            "endT": 58.923883624987575
+          },
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 58.923883624987575,
+            "endT": 106.04776755356775
+          },
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 106.04776755356775,
+            "endT": 153.17158836688546
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 8.8,
+          "endS": 60.923883624987575,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 16782,
+        "windows": [
+          {
+            "startS": 8.8,
+            "endS": 60.923883624987575,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 55.923883624987575,
+            "endS": 108.04776755356775,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 103.04776755356775,
+            "endS": 155.17158836688546,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr-real-beacons.mp4",
+        "kind": "pdr",
+        "durationS": 155.4,
+        "fileBytes": 21904,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 30,
+            "endT": 77.1238898
+          },
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 77.1238898,
+            "endT": 124.2477796
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 27,
+          "endS": 79.1238898,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 7347,
+        "windows": [
+          {
+            "startS": 27,
+            "endS": 79.1238898,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 74.1238898,
+            "endS": 126.2477796,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr25-laps.mp4",
+        "kind": "pdr",
+        "durationS": 127.2,
+        "fileBytes": 80361,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 30,
+            "endT": 77.1238898
+          },
+          {
+            "timeMs": 47124,
+            "estimated": false,
+            "startT": 77.1238898,
+            "endT": 124.2477796
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 27,
+          "endS": 79.1238898,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 32930,
+        "windows": [
+          {
+            "startS": 27,
+            "endS": 79.1238898,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 74.1238898,
+            "endS": 126.2477796,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr25-nolaps.mp4",
+        "kind": "pdr",
+        "durationS": 127.2,
+        "fileBytes": 80306,
+        "laps": [
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 13.8,
+            "endT": 60.9238670375047
+          },
+          {
+            "timeMs": 47124,
+            "estimated": true,
+            "startT": 60.9238670375047,
+            "endT": 108.0477307383094
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 10.8,
+          "endS": 62.9238670375047,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 32908,
+        "windows": [
+          {
+            "startS": 10.8,
+            "endS": 62.9238670375047,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 57.9238670375047,
+            "endS": 110.0477307383094,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pdr-real-shifted.mp4",
+        "kind": "pdr",
+        "durationS": 155.4,
+        "fileBytes": 21856,
+        "laps": [
+          {
+            "timeMs": 47125,
+            "estimated": true,
+            "startT": 22.5,
+            "endT": 69.625
+          },
+          {
+            "timeMs": 47125,
+            "estimated": true,
+            "startT": 69.625,
+            "endT": 116.75
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 19.5,
+          "endS": 71.625,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 7331,
+        "windows": [
+          {
+            "startS": 19.5,
+            "endS": 71.625,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 66.625,
+            "endS": 118.75,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "a best lap tied on time: the lower lap number wins",
+        "kind": "pdr",
+        "durationS": 900,
+        "fileBytes": 700000000,
+        "laps": [
+          {
+            "timeMs": 101500,
+            "estimated": false,
+            "startT": 100,
+            "endT": 201.5
+          },
+          {
+            "timeMs": 100250,
+            "estimated": false,
+            "startT": 201.5,
+            "endT": 301.75
+          },
+          {
+            "timeMs": 100250,
+            "estimated": false,
+            "startT": 301.75,
+            "endT": 402
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 1,
+        "window": {
+          "startS": 198.5,
+          "endS": 303.75,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 81861111,
+        "windows": [
+          {
+            "startS": 97,
+            "endS": 203.5,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 198.5,
+            "endS": 303.75,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 298.75,
+            "endS": 404,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "pre-roll would start before 0",
+        "kind": "gopro",
+        "durationS": 400,
+        "fileBytes": 1200000000,
+        "laps": [
+          {
+            "timeMs": 98400,
+            "estimated": true,
+            "startT": 1.25,
+            "endT": 99.65
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 0,
+        "window": {
+          "startS": 0,
+          "endS": 101.65,
+          "lapOffsetS": 1.25
+        },
+        "estimateBytes": 304950000,
+        "windows": [
+          {
+            "startS": 0,
+            "endS": 101.65,
+            "lapOffsetS": 1.25
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "a lap ending within POST_ROLL_S of the file's end",
+        "kind": "pdr",
+        "durationS": 250.5,
+        "fileBytes": 333333333,
+        "laps": [
+          {
+            "timeMs": 120000,
+            "estimated": false,
+            "startT": 10,
+            "endT": 130
+          },
+          {
+            "timeMs": 119700,
+            "estimated": false,
+            "startT": 130.8,
+            "endT": 250.5
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 1,
+        "window": {
+          "startS": 127.80000000000001,
+          "endS": 250.5,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 163273453,
+        "windows": [
+          {
+            "startS": 7,
+            "endS": 132,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 127.80000000000001,
+            "endS": 250.5,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "a lap at exactly MAX_CLIP_S is inclusive; one over gets no clip",
+        "kind": "pdr",
+        "durationS": 1500,
+        "fileBytes": 900000000,
+        "laps": [
+          {
+            "timeMs": 600001,
+            "estimated": false,
+            "startT": 10,
+            "endT": 610.001
+          },
+          {
+            "timeMs": 600000,
+            "estimated": false,
+            "startT": 700,
+            "endT": 1300
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 1,
+        "window": {
+          "startS": 697,
+          "endS": 1302,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 363000000,
+        "windows": [
+          null,
+          {
+            "startS": 697,
+            "endS": 1302,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "a recovered PDR session: every lap estimated, still a candidate",
+        "kind": "pdr",
+        "durationS": 700,
+        "fileBytes": 650000000,
+        "laps": [
+          {
+            "timeMs": 99870,
+            "estimated": true,
+            "startT": 55.3,
+            "endT": 155.17
+          },
+          {
+            "timeMs": 99120,
+            "estimated": true,
+            "startT": 155.17,
+            "endT": 254.29
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 1,
+        "window": {
+          "startS": 152.17,
+          "endS": 256.28999999999996,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 96682857,
+        "windows": [
+          {
+            "startS": 52.3,
+            "endS": 157.17,
+            "lapOffsetS": 3
+          },
+          {
+            "startS": 152.17,
+            "endS": 256.28999999999996,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "the fastest lap has no window; the next best is the candidate",
+        "kind": "gopro",
+        "durationS": 500,
+        "fileBytes": 2000000000,
+        "laps": [
+          {
+            "timeMs": 95000,
+            "estimated": false,
+            "startT": null,
+            "endT": null
+          },
+          {
+            "timeMs": 96000,
+            "estimated": true,
+            "startT": 30,
+            "endT": 126
+          },
+          {
+            "timeMs": 94000,
+            "estimated": false,
+            "startT": 450,
+            "endT": 544
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": 1,
+        "window": {
+          "startS": 27,
+          "endS": 128,
+          "lapOffsetS": 3
+        },
+        "estimateBytes": 404000000,
+        "windows": [
+          null,
+          {
+            "startS": 27,
+            "endS": 128,
+            "lapOffsetS": 3
+          },
+          null
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "a phone recording has no video",
+        "kind": "live",
+        "durationS": 900,
+        "fileBytes": 0,
+        "laps": [
+          {
+            "timeMs": 100000,
+            "estimated": false,
+            "startT": 10,
+            "endT": 110
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": null,
+        "window": null,
+        "estimateBytes": null,
+        "windows": [
+          {
+            "startS": 7,
+            "endS": 112,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "a .vbo has no video",
+        "kind": "vbo",
+        "durationS": 900,
+        "fileBytes": 4000000,
+        "laps": [
+          {
+            "timeMs": 100000,
+            "estimated": false,
+            "startT": 10,
+            "endT": 110
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": null,
+        "window": null,
+        "estimateBytes": null,
+        "windows": [
+          {
+            "startS": 7,
+            "endS": 112,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "a Track Precision .csv has no video",
+        "kind": "trackprecision",
+        "durationS": 900,
+        "fileBytes": 4000000,
+        "laps": [
+          {
+            "timeMs": 100000,
+            "estimated": false,
+            "startT": 10,
+            "endT": 110
+          }
+        ]
+      },
+      "expected": {
+        "candidateIndex": null,
+        "window": null,
+        "estimateBytes": null,
+        "windows": [
+          {
+            "startS": 7,
+            "endS": 112,
+            "lapOffsetS": 3
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "name": "no laps at all (a clip still waiting for a line)",
+        "kind": "gopro",
+        "durationS": 600,
+        "fileBytes": 3000000000,
+        "laps": []
+      },
+      "expected": {
+        "candidateIndex": null,
+        "window": null,
+        "estimateBytes": null,
+        "windows": []
+      }
+    }
+  ],
+  "offers": [
+    {
+      "name": "a Pro import with room",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": true
+        },
+        {
+          "input": "gopro.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": {
+        "used_bytes": 0,
+        "quota_bytes": 21474836480,
+        "coach_count": 0
+      },
+      "expected": "on"
+    },
+    {
+      "name": "the same, free: drawn locked",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "free",
+        "source": null,
+        "expires_at": null,
+        "auto_renew": null
+      },
+      "clips": {
+        "used_bytes": 0,
+        "quota_bytes": 21474836480,
+        "coach_count": 0
+      },
+      "expected": "locked"
+    },
+    {
+      "name": "nothing cached: free",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": null,
+      "clips": null,
+      "expected": "locked"
+    },
+    {
+      "name": "a phone recording: no row",
+      "items": [
+        {
+          "input": "a phone recording has no video",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": null,
+      "expected": "none"
+    },
+    {
+      "name": "a .vbo and a .csv: no row",
+      "items": [
+        {
+          "input": "a .vbo has no video",
+          "include": true
+        },
+        {
+          "input": "a Track Precision .csv has no video",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": null,
+      "expected": "none"
+    },
+    {
+      "name": "the only video unticked: no row",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": false
+        },
+        {
+          "input": "a .vbo has no video",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": null,
+      "expected": "none"
+    },
+    {
+      "name": "a clip still waiting for its line: no row yet",
+      "items": [
+        {
+          "input": "no laps at all (a clip still waiting for a line)",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": null,
+      "expected": "none"
+    },
+    {
+      "name": "full once this review's clips are added",
+      "items": [
+        {
+          "input": "pre-roll would start before 0",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": {
+        "used_bytes": 21174836480,
+        "quota_bytes": 21474836480,
+        "coach_count": 2
+      },
+      "expected": "full"
+    },
+    {
+      "name": "exactly at the quota is not over it",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": {
+        "used_bytes": 21474836480,
+        "quota_bytes": 21474853278,
+        "coach_count": 0
+      },
+      "expected": "on"
+    },
+    {
+      "name": "a cached /me older than the field: never full",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": null,
+      "expected": "on"
+    }
+  ],
+  "offerNote": [
+    [
+      null,
+      ""
+    ],
+    [
+      {
+        "coach_count": 0
+      },
+      ""
+    ],
+    [
+      {
+        "coach_count": 1
+      },
+      "Your coaches can watch it too."
+    ],
+    [
+      {
+        "coach_count": 3
+      },
+      "Your coaches can watch it too."
+    ]
+  ],
+  "offerText": [
+    [
+      null,
+      "A clip of each session's fastest lap. Uploads on Wi-Fi."
+    ],
+    [
+      0,
+      "A clip of each session's fastest lap. Uploads on Wi-Fi."
+    ],
+    [
+      150000000,
+      "A clip of each session's fastest lap, about 143 MB each. Uploads on Wi-Fi."
+    ],
+    [
+      2147483648,
+      "A clip of each session's fastest lap, about 2 GB each. Uploads on Wi-Fi."
+    ]
+  ],
+  "fullText": [
+    [
+      null,
+      "Your lap video storage is full. Delete old clips from a lap's page."
+    ],
+    [
+      {
+        "used_bytes": 21474836480,
+        "quota_bytes": 21474836480,
+        "coach_count": 0
+      },
+      "Your lap video storage is full (20 GB). Delete old clips from a lap's page."
+    ]
+  ],
+  "storageLine": [
+    [
+      null,
+      null
+    ],
+    [
+      {
+        "used_bytes": 0,
+        "quota_bytes": 21474836480,
+        "coach_count": 0
+      },
+      "Lap videos: 0 MB of 20 GB"
+    ],
+    [
+      {
+        "used_bytes": 3435973837,
+        "quota_bytes": 21474836480,
+        "coach_count": 1
+      },
+      "Lap videos: 3.2 GB of 20 GB"
+    ]
+  ],
+  "fmtClipBytes": [
+    [
+      0,
+      "0 MB"
+    ],
+    [
+      -5,
+      "0 MB"
+    ],
+    [
+      1,
+      "1 MB"
+    ],
+    [
+      524288,
+      "1 MB"
+    ],
+    [
+      1048576,
+      "1 MB"
+    ],
+    [
+      150000000,
+      "143 MB"
+    ],
+    [
+      1073741823,
+      "1 GB"
+    ],
+    [
+      1073217536,
+      "1 GB"
+    ],
+    [
+      1073741824,
+      "1 GB"
+    ],
+    [
+      3435973837,
+      "3.2 GB"
+    ],
+    [
+      3489660928,
+      "3.3 GB"
+    ],
+    [
+      3597035110,
+      "3.3 GB"
+    ],
+    [
+      21474836480,
+      "20 GB"
+    ],
+    [
+      21528523571,
+      "20 GB"
+    ]
+  ]
+}
