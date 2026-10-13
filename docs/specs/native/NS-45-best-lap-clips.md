@@ -1,6 +1,6 @@
 # NS-45 — Best-lap video clips (Pro, on R2)
 
-**Phase:** post-rewrite · **Platform:** Server + iOS + Android, with web playback (web *upload* is a follow-up) · **Depends on:** the video importers ([NS-30](NS-30-ios-video-import.md), [NS-32](NS-32-android-video-import.md)), the shared review flow, the offline layers' temp-id maps, `requireEntitlement` · **Estimate:** server + web 4–5 days, each phone 5–6 days · **Issue:** —
+**Phase:** post-rewrite · **Platform:** Server + iOS + Android, with web playback (web *upload* is a follow-up) · **Depends on:** the video importers ([NS-30](NS-30-ios-video-import.md), [NS-32](NS-32-android-video-import.md)), the shared review flow, the offline layers' temp-id maps, `requireEntitlement` · **Estimate:** server + web 4–5 days, each phone 5–6 days · **Issue:** [#399](https://github.com/Richie97/track-history/issues/399) (tickets #400, #401, #402)
 
 ## Goal
 
