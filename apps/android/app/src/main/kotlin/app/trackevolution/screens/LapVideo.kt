@@ -1,12 +1,18 @@
 package app.trackevolution.screens
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.ConnectivityManager
+import android.view.ViewGroup
+import androidx.annotation.OptIn
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
@@ -26,14 +32,25 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import app.trackevolution.clips.LocalClipStatus
@@ -219,17 +236,18 @@ private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, on
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var open by rememberSaveable(state.clip.id) { mutableStateOf(false) }
-    var url by remember(state.clip.id) { mutableStateOf<String?>(null) }
+    val appContext = context.applicationContext
+    val holder = viewModel<ClipPlayerHolder>(key = "lap-clip-player-${state.clip.id}") { ClipPlayerHolder(appContext) }
     var message by remember(state.clip.id) { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(open, state.clip.id) {
-        if (!open || url != null) return@LaunchedEffect
+        if (!open || holder.url != null) return@LaunchedEffect
         message = null
         try {
-            url = api.clipUrl(state.clip.id).url
+            holder.url = api.clipUrl(state.clip.id).url
         } catch (e: ApiException) {
             message = when {
                 e is ApiException.Transport -> LapVideoText.NEEDS_CONNECTION
@@ -272,12 +290,12 @@ private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, on
                 }
             }
         }
-        val playing = url
+        val playing = holder.url
         when {
             !open -> TextButton(onClick = { open = true }, modifier = Modifier.testTag("lapVideoPlay")) {
                 Text("▶ Play lap video", style = TrackTheme.typography.sm, color = colors.accentInk)
             }
-            playing != null -> ClipPlayer(playing, state.clip.lapOffsetMs) { message = it }
+            playing != null -> ClipPlayer(holder, playing, state.clip.lapOffsetMs) { message = it }
             message == null -> Text("Loading…", style = TrackTheme.typography.sm, color = colors.textMuted)
         }
         (busy ?: message)?.let {
@@ -306,20 +324,59 @@ private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, on
 }
 
 /**
- * ExoPlayer over the signed URL, prepared at [offsetMs] so it opens on the
- * lap's first frame, and released when the card leaves the composition.
+ * The lap video's player, held on the lap page's back-stack entry rather than
+ * `remember`ed in the card. Turning the phone sideways is how a driver watches a
+ * lap full screen, and a rotation throws the card's composition away: a
+ * `remember`ed player would be released and rebuilt from the signed URL, back at
+ * the lap's first frame. This one keeps playing through it, and is released when
+ * the lap page leaves the back stack.
+ *
+ * [url] is the signed URL, kept here for the same reason: a rotation must not
+ * spend a request on a URL that is good for an hour.
  */
-@Composable
-private fun ClipPlayer(url: String, offsetMs: Int, onError: (String) -> Unit) {
-    val context = LocalContext.current
-    val player = remember(url) {
-        ExoPlayer.Builder(context).build().apply {
+internal class ClipPlayerHolder(private val context: Context) : ViewModel() {
+    var url by mutableStateOf<String?>(null)
+    var fullscreen by mutableStateOf(false)
+    private var player: ExoPlayer? = null
+    private var playerUrl: String? = null
+
+    /** The player for [url], prepared at [offsetMs] the first time it is asked for. */
+    fun player(url: String, offsetMs: Int): ExoPlayer {
+        player?.let { if (playerUrl == url) return it else it.release() }
+        return ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
             seekTo(offsetMs.toLong())
             prepare()
             playWhenReady = true
+        }.also {
+            player = it
+            playerUrl = url
         }
     }
+
+    override fun onCleared() {
+        player?.release()
+        player = null
+    }
+}
+
+/**
+ * ExoPlayer over the signed URL, prepared at [offsetMs] so it opens on the
+ * lap's first frame, with Media3's own fullscreen button.
+ *
+ * `PlayerView` draws that button only when the app says what fullscreen means,
+ * which here is a dialog over the whole window, system bars hidden, showing the
+ * **same** player: it moves from one view to the other without stopping. The
+ * card's view lets go of the player while the dialog has it. Back, or the
+ * button again, comes out.
+ *
+ * Scrolling the card off the lap page pauses the video; a rotation does not.
+ */
+@OptIn(UnstableApi::class) // PlayerView.setFullscreenButtonState
+@Composable
+private fun ClipPlayer(holder: ClipPlayerHolder, url: String, offsetMs: Int, onError: (String) -> Unit) {
+    val context = LocalContext.current
+    val player = remember(holder, url) { holder.player(url, offsetMs) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
@@ -331,13 +388,61 @@ private fun ClipPlayer(url: String, offsetMs: Int, onError: (String) -> Unit) {
         player.addListener(listener)
         onDispose {
             player.removeListener(listener)
-            player.release()
+            if (context.findActivity()?.isChangingConfigurations != true) player.pause()
         }
     }
+    val fullscreen = holder.fullscreen
     AndroidView(
-        factory = { PlayerView(it).apply { this.player = player } },
+        factory = {
+            PlayerView(it).apply {
+                // Only the way in: `setFullscreenButtonState` below calls this
+                // listener too, and must not reopen what Back just closed.
+                setFullscreenButtonClickListener { entering -> if (entering) holder.fullscreen = true }
+            }
+        },
+        update = { view ->
+            view.player = if (fullscreen) null else player
+            view.setFullscreenButtonState(false)
+        },
+        onRelease = { it.player = null },
         modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).padding(top = 8.dp).testTag("lapVideoPlayer"),
     )
+    if (fullscreen) {
+        Dialog(
+            onDismissRequest = { holder.fullscreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+            DisposableEffect(window) {
+                window?.let { w ->
+                    w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    WindowCompat.setDecorFitsSystemWindows(w, false)
+                    WindowCompat.getInsetsController(w, w.decorView).apply {
+                        systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        hide(WindowInsetsCompat.Type.systemBars())
+                    }
+                }
+                onDispose {}
+            }
+            AndroidView(
+                factory = {
+                    PlayerView(it).apply {
+                        setFullscreenButtonState(true)
+                        setFullscreenButtonClickListener { entering -> if (!entering) holder.fullscreen = false }
+                    }
+                },
+                update = { view -> view.player = player },
+                onRelease = { it.player = null },
+                modifier = Modifier.fillMaxSize().background(Color.Black).testTag("lapVideoFullscreen"),
+            )
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private val NETWORK_ERRORS = setOf(
