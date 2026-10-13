@@ -1891,19 +1891,24 @@ function lapVideosHtml(s) {
   return `<div class="lap-videos">${clipped
     .map(
       (l) => `<div class="lap-video" data-lap-video="${l.clip.id}" data-lap-offset="${Number(l.clip.lap_offset_ms) || 0}">
-        <button class="btn small" data-video-toggle="${l.clip.id}" aria-expanded="false" aria-controls="lap-video-${l.clip.id}">▶ Lap ${l.lap_num} video</button>
+        <button class="btn small" data-video-toggle="${l.clip.id}" data-lap-num="${Number(l.lap_num) || 0}" aria-expanded="false" aria-controls="lap-video-${l.clip.id}">${videoToggleLabel(l.lap_num, false)}</button>
         <div class="lap-video-body" id="lap-video-${l.clip.id}" hidden></div>
       </div>`
     )
     .join("")}</div>`;
 }
 
+// The control says what it will do: play the lap, or put the player away.
+const videoToggleLabel = (lapNum, open) => (open ? `Hide lap ${lapNum} video` : `▶ Lap ${lapNum} video`);
+
 const VIDEO_NEEDS_CONNECTION = "Playing a lap video needs a connection.";
 const studentVideoNote = () => `Lap videos play while ${esc(viewing?.name || "this driver")} has Pro.`;
 
 // Open one clip's player: a URL from the server every time (it expires in an
-// hour, so it is never cached), seeked to the lap on the first play so the
-// pre-roll is one scrub back.
+// hour, so it is never cached), seeked to the lap once its metadata is in —
+// `preload="metadata"` so the player opens on the lap's first frame with its
+// length showing rather than as an empty box — so the pre-roll is one scrub
+// back.
 async function openLapVideo(box) {
   const id = box.dataset.lapVideo;
   const body = box.querySelector(".lap-video-body");
@@ -1918,12 +1923,15 @@ async function openLapVideo(box) {
   try {
     signed = await api(`/clips/${id}/url`, { cache: false });
   } catch (err) {
+    if (body.hidden) return;
     body.innerHTML = `<p class="hint">${
       err instanceof OfflineError ? VIDEO_NEEDS_CONNECTION : err instanceof ApiError && err.status === 404 ? "This video has been deleted." : esc(err.message)
     }</p>`;
     return;
   }
-  body.innerHTML = `<video controls preload="none" playsinline src="${esc(signed.url)}"></video>
+  // Closed again while the URL was on its way.
+  if (body.hidden) return;
+  body.innerHTML = `<video controls preload="metadata" playsinline src="${esc(signed.url)}"></video>
     ${
       readOnly()
         ? ""
@@ -1950,19 +1958,21 @@ async function openLapVideo(box) {
   });
 }
 
-function bindLapVideos(view) {
-  view.querySelectorAll("[data-video-toggle]").forEach((btn) => {
-    btn.onclick = () => {
-      const box = btn.closest("[data-lap-video]");
-      const body = box.querySelector(".lap-video-body");
-      const open = body.hidden;
-      body.hidden = !open;
-      btn.setAttribute("aria-expanded", String(open));
-      if (open) openLapVideo(box);
-      else body.innerHTML = "";
-    };
-  });
-}
+// Delegated and bound once, rather than per render: the event page re-renders
+// whole through shell(), and a click that lands while it does must still reach
+// whichever button is under it.
+document.addEventListener("click", (e) => {
+  const btn = e.target instanceof Element ? e.target.closest("[data-video-toggle]") : null;
+  const box = btn?.closest("[data-lap-video]");
+  if (!box) return;
+  const body = box.querySelector(".lap-video-body");
+  const open = body.hidden;
+  body.hidden = !open;
+  btn.setAttribute("aria-expanded", String(open));
+  btn.textContent = videoToggleLabel(btn.dataset.lapNum, open);
+  if (open) openLapVideo(box);
+  else body.innerHTML = "";
+});
 
 // "Entry $450 · Fuel $120 · Travel & lodging $300" under a cost figure — only
 // when there is more than one line item to break down; one item *is* the
@@ -2547,7 +2557,6 @@ async function viewEvent(eventId) {
     bindBalance(el, s.channels, { onHover });
   });
 
-  bindLapVideos(view);
   view.querySelectorAll("[data-del-session]").forEach((btn) => {
     btn.onclick = async () => {
       if (!confirm("Delete this session and its laps?")) return;

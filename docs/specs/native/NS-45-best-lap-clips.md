@@ -537,8 +537,13 @@ code differs from the text above, and why:
 - **`/me`** carries the storage as `user.clips`, which is where both native
   `User` models read it.
 - **The web control** sits under the session's lap chips, one *▶ Lap N video*
-  button per clipped lap, rather than on the lap row itself. An imported
-  session's lap list is the channel panel's chips, which the panel owns. The
+  button per clipped lap (*Hide lap N video* while open), rather than on the
+  lap row itself. An imported session's lap list is the channel panel's
+  chips, which the panel owns. The player is `preload="metadata"`, not
+  `"none"`, and seeks as soon as the metadata is in: with `"none"` it opened
+  as an empty box at 0:00 until pressed, and the URL is fetched on the click
+  anyway. The toggle is one delegated listener bound once, so a click that
+  lands while the page re-renders still reaches the button under it. The
   signed URL is read with `api(path, { cache: false })`, new in `js/api.js`,
   which neither reads nor writes the offline cache.
 - **The goldens** upload the clip through the routes into the harness's
@@ -555,12 +560,26 @@ code differs from the text above, and why:
 
 **Not done in ticket 1:**
 
-- **Media-timeline alignment on real footage is unverified.** The
-  `telemetry-samples/` recordings aren't in the environment this ticket was
-  built in. The check (does the cut start the lap within a frame of the line,
-  for PDR, PDR 2.5 and GoPro) moves to ticket 2, where the cutter that needs
-  the answer gets built. Any per-format correction lands in `clipWindow` and
-  `lap-clips.json`.
+- **Media-timeline alignment was verified on real footage after the build,
+  for PDR and PDR 2.5** (one Corvette clip, three Blackwing clips, against
+  this ticket's code; PR #403). The telemetry clock is the media timeline to
+  within about a quarter second: the Corvette's burned-in speed readout trails
+  the telemetry by a steady ~0.24 s, which is the readout's own render delay,
+  and on the Blackwing the car moves ~0.2 s after telemetry says it did and
+  stops on the same frame. That is well inside `PRE_ROLL_S`, so **no
+  per-format correction** goes into `clipWindow`. `clipCandidate` picked the
+  right lap on all four, and `estimateClipBytes` came within 1–7% of the real
+  passthrough cuts. **GoPro remains unverified on real footage**; ticket 2
+  checks it. Two facts for the cutters came out of it:
+  - **Keyframe spacing differs by recorder.** The Corvette PDR writes one
+    every 1.475 s, so a passthrough cut can start up to ~1.5 s before the
+    requested window: a cut put the lap 3.317 s in, not 3 s. The cutter must
+    report the offset it actually got, as *Window* says. PDR 2.5 has a
+    keyframe on every frame, so its cuts land exactly.
+  - **PDR 2.5 files carry a fourth stream**, an MJPEG cover image, beside
+    video, audio and the `adco` telemetry. Map only the *first* video track
+    and the first audio track, as *Cutting* says; a cutter that copies
+    "every video track" picks up the cover image.
 - **The user-facing how-to** (`telemetry-import.html`'s *Best-lap video*
   section, the landing page's Pro mention, `docs/index.html`'s coaching
   paragraph) waits for ticket 2. Until a phone offers the switch, those pages
