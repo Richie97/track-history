@@ -669,6 +669,69 @@ code differs from the text above, and why:
 - **Owed outside the code:** the App Store privacy label (*Photos or Videos*,
   linked to the user, not used for tracking) is a Console form.
 
+## As built (ticket 3, Android)
+
+The review row, `ClipCutter`, `ClipUploadQueue` + `ClipUploadWorker`, the lap
+page's player, Settings and the Coaching copy. Where the code differs from the
+text above, and why:
+
+- **`ClipUploadQueue` was written to this spec's contract, not ported.** iOS's
+  Kit was being built at the same time, so `:core`'s queue is its own reading
+  of *Uploader*, with every transition written out at the type for the two to
+  be reconciled by eye: wait while the session id is a temp id and follow
+  `OfflineStore`'s id map — and **drop the job when the queue drains without
+  resolving it** (the session's create was refused, so there is nothing to
+  attach to); **call create on every run**, since it is also the resume and
+  its `uploaded` list is the server's word on which parts landed; drop on the
+  409s and on a 400, 402 (a lapse between saving and uploading) or 404 (the
+  session or lap deleted since) at create; on a 404 mid-upload (the row was
+  deleted, or swept as a week-stale upload) forget the clip id and create
+  afresh; back off on transport failures, 401 and 429 without counting and on
+  5xx counted, dropping after `MAX_ATTEMPTS` (8).
+- **A job exists before its cut.** It is written `CUTTING` the moment the
+  review hands it over, so the lap page can say *Video uploading* at once; a
+  process that dies mid-cut leaves it `CUT_FAILED` at the next start (the
+  source's grant died with the process), which the lap page says for a week
+  before the job is pruned.
+- **The review row is a card the whole of which is the switch**, under the
+  session list. Locked, it is `TEProLocked` titled *Save best-lap video* with
+  `clipOfferText` and one sentence about who can watch; its *See Track
+  Evolution Pro* opens the paywall over the review. The size in "about N MB
+  each" is the largest included candidate's estimate. The switch is plain
+  state on `RecordingFlow`'s `ReviewUiState` (held by the activity-outliving
+  model, like the rest of the review) rather than a `rememberSaveable`: every
+  fresh review state starts it on.
+- **Drafts staged on the New Event form keep their clips.** An import begun
+  from the form, and a review's *Save to a new event*, have no session to
+  attach a clip to until the form posts the drafts, so the clips wait in
+  `RecordingFlow` and are handed over when the form reports the session ids it
+  got back (`EventFormModel.postedStagedIds`). A draft removed from the form is
+  never posted, so its clip is never cut.
+- **The cut** selects the first H.264 or HEVC track, then any other non-JPEG
+  video track, so PDR 2.5's MJPEG cover is never the video wherever it sits;
+  an audio track MPEG-4 can't hold is dropped rather than failing the cut; and
+  a window the file doesn't reach is refused rather than cut from the file's
+  last keyframe. `MediaMuxer` writes no location (and only `creation_time` and
+  `com.android.version` as file metadata).
+- **Download** goes through `GET /clips/:id/download` into the cache's
+  `clip-downloads/` — the app's FileProvider's second path, beside Wrapped's —
+  and then the share sheet (Save to Files, Drive, Photos), the counterpart of
+  iOS's `ShareLink`; nothing is written to shared storage, so no storage
+  permission is needed down to API 26.
+- **The player is tap to load**: the lap page draws the card and fetches the
+  signed URL when the driver asks to watch, so opening a lap in a paddock
+  costs no request. The player is prepared at `lap_offset_ms`, so it opens on
+  the lap's first frame.
+- **Verified on real footage**, on an emulator (API 37), through the real
+  parser, `clipCandidate` and the cut (`ClipCutterTest`'s real-footage cases):
+  the Corvette PDR's lap 6 (2:02.110 from 681.544 s) cut to 90.2 MB (estimate
+  90.9 MB) in 4.3 s with the lap at **3.317 s** — the keyframe at 678.227 s,
+  matching ticket 1's finding — and the Blackwing's `ADV_1635.mp4` lap 2
+  (1:21.345 from 283.234 s) to 78.9 MB (estimate 84.7 MB) in 1.4 s with the lap
+  at **3.026 s**, the frame at 280.208 s. `ffprobe` on both cuts: one `h264`
+  video stream and one `aac` audio stream, no data stream (`marl` / `adco`),
+  no MJPEG, no location tag. GoPro remains unverified on real footage.
+
 ## Open questions
 
 - **Per session or per review?** Settled for ticket 2: per session, as this
