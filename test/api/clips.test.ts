@@ -140,6 +140,19 @@ describe("uploading a clip", () => {
     expect(tomb!.upload_id).toEqual(expect.any(String));
   });
 
+  it("replaces a row whose create died before R2 answered, rather than resuming into it", async () => {
+    const user = await signedInProUser();
+    const { sessionId } = await sessionWithLaps(user.api);
+    const first = await user.api("POST", `/sessions/${sessionId}/clip`, createBody(64));
+    // What a create killed between its insert and createMultipartUpload leaves.
+    await env.DB.prepare("UPDATE lap_clips SET upload_id = NULL, r2_key = 'pending/dead' WHERE id = ?").bind(first.body.clip_id).run();
+    const again = await user.api("POST", `/sessions/${sessionId}/clip`, createBody(64));
+    expect(again.status).toBe(201);
+    expect(again.body.clip_id).not.toBe(first.body.clip_id);
+    expect((await putPart(user.token, again.body.clip_id, 1, bytes(64))).status).toBe(200);
+    expect((await user.api("POST", `/clips/${again.body.clip_id}/complete`)).status).toBe(200);
+  });
+
   it("refuses a part whose length isn't the part's size, or one with no length", async () => {
     const user = await signedInProUser();
     const { sessionId } = await sessionWithLaps(user.api);
@@ -222,6 +235,17 @@ describe("playing a clip", () => {
     expect(tail.status).toBe(206);
     expect(tail.headers.get("Content-Range")).toBe("bytes 4000-4095/4096");
     expect(tail.body).toEqual(data.slice(4000));
+  });
+
+  it("answers HEAD with the size and no body", async () => {
+    const user = await signedInProUser();
+    const { clipId } = await readyClip(user, 1500);
+    const { url } = (await user.api("GET", `/clips/${clipId}/url`)).body;
+    const res = await SELF.fetch(url, { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Length")).toBe("1500");
+    expect(res.headers.get("Accept-Ranges")).toBe("bytes");
+    expect((await res.arrayBuffer()).byteLength).toBe(0);
   });
 
   it("answers 403 to an expired or tampered signature", async () => {

@@ -89,22 +89,31 @@ clips.post("/sessions/:id/clip", requireEntitlement, async (c) => {
 
   const lapStmt = db
     .prepare(
-      `SELECT l.id AS lap_id, k.id AS clip_id, k.status, k.size_bytes
+      `SELECT l.id AS lap_id, k.id AS clip_id, k.status, k.size_bytes, k.upload_id
          FROM laps l JOIN sessions s ON s.id = l.session_id JOIN events e ON e.id = s.event_id
          LEFT JOIN lap_clips k ON k.lap_id = l.id
         WHERE s.id = ? AND e.user_id = ? AND l.time_ms = ?
         ORDER BY l.lap_num LIMIT 1`
     )
     .bind(c.req.param("id"), userId, body.time_ms);
-  let lap = await lapStmt.first<{ lap_id: number; clip_id: number | null; status: string | null; size_bytes: number | null }>();
+  type LapClipRow = {
+    lap_id: number;
+    clip_id: number | null;
+    status: string | null;
+    size_bytes: number | null;
+    upload_id: string | null;
+  };
+  let lap = await lapStmt.first<LapClipRow>();
   if (!lap) return c.json({ error: "not found" }, 404);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     if (lap.clip_id != null) {
       if (lap.status === "ready") return c.json({ error: "lap already has a clip" }, 409);
       // Resume: the same cut, declared again after the app was killed or the
-      // network dropped. Answer the row and the parts R2 already holds.
-      if (lap.size_bytes === body.size_bytes) {
+      // network dropped. Answer the row and the parts R2 already holds — unless
+      // the row never got its multipart upload (a create that died between the
+      // insert and the R2 call), which nothing could ever upload into.
+      if (lap.size_bytes === body.size_bytes && lap.upload_id) {
         const parts = await uploadedParts(db, lap.clip_id);
         return c.json({
           clip_id: lap.clip_id,
@@ -113,8 +122,8 @@ clips.post("/sessions/:id/clip", requireEntitlement, async (c) => {
           uploaded: parts.map((p) => p.part_number),
         });
       }
-      // A different cut of the same lap: the old upload is abandoned. Its
-      // tombstone aborts it on the next cron run.
+      // A different cut of the same lap, or a row with no upload behind it:
+      // the old one is abandoned. Its tombstone aborts it on the next cron run.
       await db.prepare("DELETE FROM lap_clips WHERE id = ? AND status = 'uploading'").bind(lap.clip_id).run();
     }
 
@@ -161,7 +170,7 @@ clips.post("/sessions/:id/clip", requireEntitlement, async (c) => {
 
     // No row: either the quota refused it or another create of this lap won
     // the race. Look again — a row now on the lap is the second.
-    lap = (await lapStmt.first<typeof lap>())!;
+    lap = (await lapStmt.first<LapClipRow>())!;
     if (!lap || lap.clip_id == null) return c.json({ error: "clip storage full" }, 409);
   }
   return c.json({ error: "lap already has a clip" }, 409);
