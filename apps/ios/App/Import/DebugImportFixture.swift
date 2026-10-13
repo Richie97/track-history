@@ -1,4 +1,5 @@
 #if DEBUG
+import AVFoundation
 import Foundation
 
 /// Hands the import flow one of the committed contract fixtures, so a UI test can
@@ -36,6 +37,59 @@ enum DebugImportFixture {
     static var pendingEventId: Int? {
         let id = UserDefaults.standard.integer(forKey: "importFixtureEvent")
         return id > 0 ? id : nil
+    }
+
+    /// `-syntheticClipVideo YES`: the committed fixtures carry telemetry and no
+    /// picture (they are kilobytes on purpose), so a best-lap cut (NS-45) of one
+    /// has nothing to cut. With this set, the cut is made from a small generated
+    /// H.264 file as long as the fixture instead — the real `ClipCutter`, upload
+    /// and player, on a clip a UI test can afford. The cutter itself is checked
+    /// on real footage; see NS-45's *As built*.
+    static var synthesizesClipVideo: Bool {
+        UserDefaults.standard.bool(forKey: "syntheticClipVideo")
+    }
+
+    /// A silent 160×90, 4 fps H.264 MP4 of `durationS` seconds, a different
+    /// shade each second so a player visibly moves.
+    static func syntheticVideo(durationS: Double) async throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "synthetic-clip-source.mp4")
+        try? FileManager.default.removeItem(at: url)
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        let width = 160, height = 90, fps: Int32 = 4
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
+            AVVideoCompressionPropertiesKey: [AVVideoMaxKeyFrameIntervalKey: Int(fps) * 2],
+        ])
+        input.expectsMediaDataInRealTime = false
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height,
+        ])
+        writer.add(input)
+        guard writer.startWriting() else { throw writer.error ?? CocoaError(.fileWriteUnknown) }
+        writer.startSession(atSourceTime: .zero)
+        let frames = Int((durationS * Double(fps)).rounded(.up)) + 1
+        for frame in 0..<frames {
+            while !input.isReadyForMoreMediaData { try await Task.sleep(for: .milliseconds(5)) }
+            guard let pool = adaptor.pixelBufferPool else { throw CocoaError(.fileWriteUnknown) }
+            var buffer: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
+            guard let buffer else { throw CocoaError(.fileWriteUnknown) }
+            CVPixelBufferLockBaseAddress(buffer, [])
+            let shade = UInt8(40 + (frame / Int(fps)) % 8 * 25)
+            if let base = CVPixelBufferGetBaseAddress(buffer) {
+                memset(base, Int32(shade), CVPixelBufferGetBytesPerRow(buffer) * height)
+            }
+            CVPixelBufferUnlockBaseAddress(buffer, [])
+            adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: fps))
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        guard writer.status == .completed else { throw writer.error ?? CocoaError(.fileWriteUnknown) }
+        return url
     }
 
     private static var repoRoot: URL? {

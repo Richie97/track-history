@@ -5,7 +5,9 @@ import TrackEvolutionKit
 /// A `TelemetryByteSource` over a video that stays exactly where it is.
 ///
 /// This is the load-bearing half of NS-30's first requirement: **the video is
-/// never uploaded and never copied whole.** Both parsers read the MP4 index plus
+/// never uploaded and never copied whole.** (A best-lap clip, NS-45, is a
+/// separate passthrough cut of one lap made at save — `ClipCutter` — not this
+/// read.) Both parsers read the MP4 index plus
 /// the telemetry track's own samples — a few MB for PDR, tens for a long GoPro
 /// `gpmd` track — against an essence one to two orders of magnitude larger that is
 /// never touched. A temp copy of a 4 GB clip would take minutes and may not fit in

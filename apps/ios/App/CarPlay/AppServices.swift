@@ -25,4 +25,7 @@ enum AppServices {
     /// The App Store (NS-32): one listener on `Transaction.updates` for the life of
     /// the process, started by `TrackEvolutionApp.init` rather than by any view.
     static let store = StoreController(auth: auth)
+    /// Best-lap clips (NS-45): cut at save, uploaded by a background session that
+    /// outlives every view — and the process — so it is one object for the app.
+    static let clips = ClipUploader(auth: auth)
 }

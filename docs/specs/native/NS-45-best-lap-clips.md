@@ -590,13 +590,91 @@ code differs from the text above, and why:
   Maven repository is blocked, so Gradle can't configure the Android build).
   CI runs `LapClipGoldenTest(s)` and the entitlement fixture tests on both.
 
+## As built (ticket 2, iOS)
+
+- **One clip per session**, as written; the open question below is settled.
+- **The Kit** carries `LapClips` (the port of `clip.js`, same names, pinned by
+  `lap-clips.json`; `fmtClipBytes` rounds tenths of a GiB over the integers,
+  which is `toFixed(1)` on the exact quotient) and `ClipUploadQueue`, the
+  state machine, with its transition table on the type and one test per row
+  for Android to port. Beyond the spec's rows: a 404 on a part or `complete`
+  (the clip deleted elsewhere, or swept after a week) **restarts from the
+  create**, at most `MAX_RESTARTS` (3) times; 401, 408 and 429 back off like
+  5xx; a temp session id whose create is no longer queued and never mapped is
+  *lost* and the job dropped. Backoff is 30 s doubling to an hour, and
+  nothing is dropped for being offline. `APIClient` gained `createClip`,
+  `completeClip` (its 409 carries `missing` as `ClipMissingParts`),
+  `deleteClip` (live, never queued), `clipURL` (past the cache) and
+  `authorizedRequest` for the background session; `OfflineStore` answers
+  `hasQueuedCreate(tempId:)`.
+- **The cut lands on the requested start, and the offset is measured.**
+  AVFoundation's passthrough export copies from the keyframe before the
+  window and writes an **edit list** that hides the frames before it, so a
+  Corvette clip's first presented frame is the source frame at the requested
+  start (checked frame-for-frame with `ffmpeg -f framemd5`) and its offset
+  comes back 3.000 s — not the 3.317 s an ffmpeg `-c copy` cut gives. The
+  measurement still reads it from the file (the source keyframe plus the
+  output edit list's skip), so a player or a muxer that behaves otherwise is
+  reported honestly. One trap found on the way: a sample cursor works in
+  *media* time, which an encoder with B-frames offsets from track time behind
+  its own edit list, so the source keyframe is looked up through the track's
+  segments (`ClipCutter.sourceKeyframe`); without that the phone's own H.264
+  came back 250 ms out.
+- **The Corvette's PDR audio is invisible to AVFoundation.** `AVURLAsset`
+  lists the H.264 track and the `marl` track and no audio at all (its AAC has
+  a media timescale of 440,988), while AudioToolbox reads it. A composition
+  can only copy what AVFoundation sees, so that file goes through `ClipRemux`
+  — an `AVAssetWriter` fed the video by an `AVAssetReader` and the audio as
+  raw AAC packets from `AudioFileReadPacketData`, still no re-encode, session
+  started at the window's start so the writer writes the same edit list. The
+  Blackwing's audio is visible and takes the composition path.
+- **PDR 2.5's cover image** isn't exposed by AVFoundation as a track at all
+  on these files; `firstPictureTrack` skips a JPEG video track anyway, in
+  case another recorder's is.
+- **Verified on real footage** (a macOS harness over the same source file):
+  Corvette lap 6 (`startT` 681.544 s) → 127.110 s, 86 MB, h264 + aac, offset
+  3000 ms; ADV_1635 lap 2 (`startT` 283.234 s) → 86.345 s, 75 MB, offset
+  3000 ms; ADV_1633/1640 likewise. Every output: exactly one h264 and one aac
+  stream, no data or MJPEG stream, no `udta`/`meta` (the Blackwing's `title`
+  and `grouping` tags gone). About half a second per cut. **GoPro is still
+  unverified on real footage** — no GoPro recording was to hand.
+- **Not awaited, and staged when there's no session yet.** `ReviewModel.save`
+  posts each session and then calls `ClipUploader.cutAndQueue`; a review that
+  hands its drafts to the New Event form (`forNewEvent`, or *Save to a new
+  event*) stages each cut against its draft, and `EventFormModel` calls
+  `sessionPosted` with the id once it posts it. A staged cut the form never
+  posts is held in memory until the app ends.
+- **Pending and failed states** are the owner's only: *Video uploading* (also
+  while the cut runs) or *Video waiting for Wi-Fi* when the only network is
+  expensive and cellular is off; a failed cut is remembered in the manifest
+  and said once on the lap page (*Couldn't save this lap's video*), on the
+  lap the server would attach the clip to (the lowest lap number with the
+  time). An open lap page re-reads its event when an upload finishes.
+- **A lapsed owner** sees `ProUpsellCard` *and* a *Delete video* button —
+  deleting is free, always. (The web's free state shows only the Pro panel;
+  that's ticket 1's, and worth matching.)
+- **Download** asks `/clips/:id/download` with the bearer, follows the 302,
+  keeps the server's filename and offers the file through `ShareLink`.
+- **The UI test** (`LapClipUITests`) can't cut the committed fixtures, which
+  carry no picture; DEBUG `-syntheticClipVideo YES` swaps in a generated
+  160×90 H.264 file of the same length, so the cutter, the queue, the
+  background part upload, `complete`, the signed URL and the player are all
+  the production path. It asserts the clip arrives with a 3000 ms offset and
+  the lap page's player reaches *ready*.
+- **The how-to ships with it**: `telemetry-import.html`'s *Best-lap video*
+  section (and its "never uploaded" lines, 324 among them, now say what is),
+  the landing page's Pro list and import paragraph, and `docs/index.html`'s
+  coaching paragraph — worded for the iPhone app, so the Android ticket
+  widens them rather than rewrites them.
+- **Owed outside the code:** the App Store privacy label (*Photos or Videos*,
+  linked to the user, not used for tracking) is a Console form.
+
 ## Open questions
 
-- **Per session or per review?** This spec saves each video session's best
-  lap: a day of five sessions gives five clips. The alternative is one clip
-  per review, the batch's single fastest lap. That's a fifth of the storage
-  and matches "the best lap" literally, but loses the morning-vs-afternoon
-  comparison. Decide before ticket 2.
+- **Per session or per review?** Settled for ticket 2: per session, as this
+  spec says (a day of five sessions gives five clips). The alternative was one
+  clip per review, the batch's single fastest lap — a fifth of the storage,
+  but it loses the morning-vs-afternoon comparison.
 - **Audio.** Kept, because engine and tire noise are much of why anyone
   rewatches a lap. But an in-car mic also records the instructor and any
   passenger. An *include audio* toggle would cost one more control on the

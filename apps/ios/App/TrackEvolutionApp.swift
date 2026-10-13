@@ -17,7 +17,11 @@ struct TrackEvolutionApp: App {
     @State private var recorder = AppServices.recorder
     @State private var auth = AppServices.auth
     @State private var store = AppServices.store
+    @State private var clips = AppServices.clips
     @Environment(\.scenePhase) private var scenePhase
+    /// For one UIKit callback: a best-lap clip's background upload session
+    /// waking the app to deliver its answers (NS-45).
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
         // The `Transaction.updates` listener has to exist before the first view and
@@ -28,6 +32,9 @@ struct TrackEvolutionApp: App {
         // Google Analytics: screen views by shape, release builds only. See
         // `AppAnalytics` for what is and is not sent.
         AppAnalytics.start()
+        // Best-lap clips: reattach to the background upload session before
+        // anything else can create it, and pick up where the last run stopped.
+        AppServices.clips.start()
     }
 
     var body: some Scene {
@@ -42,6 +49,7 @@ struct TrackEvolutionApp: App {
                 .environment(recorder)
                 .environment(auth)
                 .environment(store)
+                .environment(clips)
                 // The account's unit system, as one environment *value*: the
                 // charts read it without an `AuthController`, which the
                 // `-channelGraphs` launch opens them without.
@@ -56,7 +64,31 @@ struct TrackEvolutionApp: App {
             // claim that couldn't reach the App Store at launch, gets another go.
             if phase == .active {
                 Task { await store.retryPending() }
+                Task { await clips.pump() }
             }
+        }
+    }
+}
+
+// MARK: - Background uploads
+
+/// The one `UIApplicationDelegate` callback the SwiftUI lifecycle has no
+/// counterpart for: iOS relaunching the app to hand a background `URLSession`
+/// its finished transfers. The handler is kept until the session says it has
+/// delivered everything (`ClipTransport.urlSessionDidFinishEvents`).
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard identifier == ClipUploader.sessionIdentifier else {
+            completionHandler()
+            return
+        }
+        MainActor.assumeIsolated {
+            AppServices.clips.backgroundCompletion = completionHandler
+            AppServices.clips.start()
         }
     }
 }

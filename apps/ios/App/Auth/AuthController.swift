@@ -279,8 +279,9 @@ final class AuthController {
         try? await api.logout()
         tokens.clear()
         // A shared device must not retain the previous user's logbook or their
-        // unsent writes.
+        // unsent writes — nor their lap videos waiting to upload.
         await api.clearOffline()
+        AppServices.clips.clear()
         state = .signedOut
     }
 
@@ -306,6 +307,7 @@ final class AuthController {
         // Another server means another logbook: keeping the old cache would show one
         // user's data under another's account.
         await api.clearOffline()
+        AppServices.clips.clear()
         state = .signedOut
         // Another server, another set of buttons — drop to its own last known
         // answer rather than leaving the previous server's on screen.

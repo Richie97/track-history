@@ -73,6 +73,9 @@ struct ReviewScreen: View {
                     forNewEvent: forNewEvent
                 )
                 model.units = auth.units
+                model.entitlement = auth.entitlement
+                model.clipStorage = auth.me?.user.clips
+                model.clipUploader = isRecording ? nil : AppServices.clips
                 self.model = model
                 await model.load()
             }
@@ -109,6 +112,7 @@ struct ReviewScreen: View {
     private func saveToNewEvent(_ model: ReviewModel) {
         guard let router else { return }
         router.stagedSessions = model.stagedDrafts()
+        model.stageClips()
         newEventSpan = NewEventDates.span(model.stagedDates())
         creatingEvent = true
     }
@@ -154,6 +158,7 @@ struct ReviewScreen: View {
                 ForEach(Array(model.items.enumerated()), id: \.element.id) { index, item in
                     itemCard(model, index: index, item: item)
                 }
+                clipRow(model)
                 saveCard(model)
             }
 
@@ -297,6 +302,39 @@ struct ReviewScreen: View {
         }
     }
 
+    /// *Save best-lap video* (NS-45): one switch for the review, on every time
+    /// it opens; locked as the Pro offer for a free account, never hidden; off
+    /// and disabled, in words, once storage is full. Not drawn at all when no
+    /// included item is a video with a lap to cut.
+    @ViewBuilder
+    private func clipRow(_ model: ReviewModel) -> some View {
+        switch model.clipOffer {
+        case .none:
+            EmptyView()
+        case .locked:
+            ProUpsellCard(
+                title: "Save best-lap video — Pro",
+                blurb: "A clip of each session's fastest lap, kept with the lap and played on its page — for you and the coaches you've invited."
+            )
+        case .full, .on:
+            TECard {
+                Toggle(isOn: Binding(get: { model.savesVideo }, set: { model.saveVideo = $0 })) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Save best-lap video")
+                            .teStyle(.h3)
+                            .foregroundStyle(Color(.textStrong))
+                        Text(model.clipOfferWords)
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.textMuted))
+                    }
+                }
+                .tint(Color(.accent))
+                .disabled(model.clipOffer == .full)
+                .accessibilityIdentifier("reviewSaveVideo")
+            }
+        }
+    }
+
     private func saveCard(_ model: ReviewModel) -> some View {
         TECard {
             VStack(alignment: .leading, spacing: 12) {
@@ -367,6 +405,7 @@ struct ReviewScreen: View {
                             // Nothing to post onto yet: the same drafts `save()` would
                             // send go to the form, which sends them once the event exists.
                             router?.stagedSessions += model.stagedDrafts()
+                            model.stageClips()
                             Haptics.confirm()
                             if let onFinish { onFinish() } else { dismiss() }
                             return
@@ -399,6 +438,10 @@ struct ReviewItem: Identifiable {
     /// disabled checkbox defaults back to checked once there is something to save.
     var includeTouched = false
     var label: String
+    /// The video, kept readable until save or discard, for the best-lap cut
+    /// (NS-45). Nil for a recording and for a logger file.
+    var source: ClipSource?
+    var fileBytes: Int?
 }
 
 /// The review screen's state: the picked line, the laps it yields, and the save.
@@ -418,6 +461,17 @@ final class ReviewModel {
     /// the account's, set by the screen. A note is text, so the top speed in it is
     /// written once, in the system chosen at import time, like the web's.
     var units: UnitSystem = Units.DEFAULT_UNITS
+    /// The account's tier and lap-video storage, set by the screen from the
+    /// cached `/me` — what `LapClips.clipOffer` decides the video row from.
+    var entitlement: Entitlement?
+    var clipStorage: ClipStorage?
+    /// Where a saved import's best laps are cut and uploaded. Nil for a
+    /// recording, which has no video.
+    var clipUploader: ClipUploader?
+    /// *Save best-lap video*: on every time a review opens (NS-45 — the
+    /// default the driver asked for always holds, so it is never remembered
+    /// as off).
+    var saveVideo = true
 
     var items: [ReviewItem] = []
 
@@ -489,6 +543,54 @@ final class ReviewModel {
 
     private var selectedCount: Int {
         items.filter { $0.include && !($0.parsed?.laps.isEmpty ?? true) }.count
+    }
+
+    // MARK: - Best-lap video (NS-45)
+
+    private var clipItems: [LapClips.Item] {
+        items.map { LapClips.Item(parsed: $0.parsed, include: $0.include, fileBytes: $0.fileBytes) }
+    }
+
+    /// Which state the video row is in.
+    var clipOffer: LapClips.Offer {
+        LapClips.clipOffer(clipItems, entitlement, clipStorage)
+    }
+
+    /// The switch as drawn: off whenever storage is full.
+    var savesVideo: Bool {
+        clipOffer == .on && saveVideo
+    }
+
+    /// The row's sentences: the size, Wi-Fi and the coaches — or, full, why
+    /// it's off.
+    var clipOfferWords: String {
+        if clipOffer == .full { return LapClips.clipFullText(clipStorage) }
+        let estimates = items.compactMap { item -> Int? in
+            guard item.include, let parsed = item.parsed, let c = LapClips.clipCandidate(parsed) else { return nil }
+            return LapClips.estimateClipBytes(c.lap, item.fileBytes, parsed.durationS)
+        }
+        // "about N MB each": the typical clip of this review.
+        let typical = estimates.isEmpty ? nil : estimates.reduce(0, +) / estimates.count
+        let note = LapClips.clipOfferNote(clipStorage)
+        return [LapClips.clipOfferText(typical), note].filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    /// The cut for one item, when the switch is on and it has a lap to cut.
+    private func clipRequest(for item: ReviewItem) -> ClipCutRequest? {
+        guard savesVideo, item.include, let source = item.source, let parsed = item.parsed,
+              let candidate = LapClips.clipCandidate(parsed)
+        else { return nil }
+        return ClipCutRequest(source: source, lap: candidate.lap, durationS: parsed.durationS)
+    }
+
+    /// For a review that hands its drafts to the New Event form: each clip waits
+    /// with its draft until the form posts it.
+    func stageClips() {
+        guard let clipUploader else { return }
+        for item in items {
+            guard let parsed = item.parsed, !parsed.laps.isEmpty, let request = clipRequest(for: item) else { continue }
+            clipUploader.stage(request, for: sessionDraft(for: item, parsed))
+        }
     }
 
     func bestLapMs(_ item: ReviewItem) -> Int? {
@@ -565,7 +667,9 @@ final class ReviewModel {
                     parsed: clip.parsed,
                     error: clip.error,
                     include: !(clip.parsed?.laps.isEmpty ?? true),
-                    label: clip.parsed.map { Telemetry.defaultLabel($0, file: clip.file) } ?? clip.file
+                    label: clip.parsed.map { Telemetry.defaultLabel($0, file: clip.file) } ?? clip.file,
+                    source: clip.source,
+                    fileBytes: clip.fileBytes
                 )
             }
             eventId = preferredEventId
@@ -708,7 +812,13 @@ final class ReviewModel {
             guard let parsed = item.parsed else { continue }
             let draft = sessionDraft(for: item, parsed)
             do {
-                _ = try await api.createSession(eventId: eventId, draft)
+                let sessionId = try await api.createSession(eventId: eventId, draft)
+                // The session is saved; its best lap is cut and uploaded behind
+                // it, never holding the save up. A temp id (saved offline) waits
+                // in the clip queue for the offline queue to flush it.
+                if let request = clipRequest(for: item) {
+                    clipUploader?.cutAndQueue(request, sessionId: sessionId)
+                }
             } catch let error as APIError {
                 saveError = error.message
                 Haptics.warn()

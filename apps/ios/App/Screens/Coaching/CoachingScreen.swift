@@ -93,6 +93,11 @@ struct CoachingScreen: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            // A video URL already handed out keeps playing for up to an hour, and
+            // any player can save the file (NS-45) — `COACH_VIDEO_REVOKE`.
+            Text(Self.videoRevoke)
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
 
             TESectionHeader("Driver profile")
             Text("""
@@ -212,9 +217,12 @@ struct CoachingScreen: View {
     /// `src/lib/coaching.ts`.
     static let coachShares = """
         your events, sessions and laps with the full channel panel (as far as your plan includes it), your \
-        racing lines, the conditions, your cars and their modifications, and your driver profile. Never your \
+        racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your \
         notes, prep checklists, costs, setup sheets, parts or email — and they can't change anything.
         """
+
+    /// `COACH_VIDEO_REVOKE` in `public/app.js`, word for word.
+    static let videoRevoke = "Removing a coach stops them watching your videos; it can't take back a video they saved."
 
     static var nowMs: Int { Int(Date().timeIntervalSince1970 * 1000) }
 

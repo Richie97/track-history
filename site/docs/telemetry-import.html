@@ -65,7 +65,8 @@
       recordings into sessions with laps. Parsing happens entirely on your own
       device — for videos, via byte-range reads of the embedded telemetry track (a
       few MB of a multi-GB file). <strong>Files never leave your computer or
-      phone.</strong>
+      phone</strong> — the one exception is a <a href="#best-lap-video">best-lap
+      video</a>, a clip of a single lap you can choose to save with Pro.
     </p>
 
     <div class="callout">
@@ -98,8 +99,10 @@
       That is where the footage usually is first: a GoPro clip comes over Wi-Fi
       into Photos and a PDR clip lands in Files off a USB stick, both
       before the laptop is opened. The clip is read where it sits — nothing is
-      copied and nothing is uploaded, which also means a multi-gigabyte video
-      imports without needing gigabytes of free space.
+      copied and nothing is uploaded for the lap times, which also means a
+      multi-gigabyte video imports without needing gigabytes of free space.
+      (Saving a <a href="#best-lap-video">best-lap video</a> is the one thing
+      that copies any of it: just that lap.)
     </p>
     <p>
       VBO and CSV files import on the phone too. Porsche's Track Precision app
@@ -107,6 +110,55 @@
       there — share it to Track Evolution or pick it from Files. A VBOX's SD card
       works just as well in the browser.
     </p>
+
+    <h2 id="best-lap-video">Best-lap video</h2>
+    <p>
+      The telemetry is the record; the video is the part you can't get back once
+      the SD card is wiped. With <a href="./#subscription">Track Evolution
+      Pro</a>, the iPhone app keeps the lap worth rewatching (the Android app
+      is next). When you import a Corvette or Cadillac PDR clip or a GoPro clip,
+      the review has a <strong>Save best-lap video</strong> switch, and it is on
+      every time. Leave it on, and saving does one more thing for each session:
+      it cuts that session's fastest lap out of the video on your phone — the
+      lap plus a few seconds either side, at the camera's own quality and with
+      its sound — and uploads only that clip. Not the rest of the video, and
+      none of the telemetry or location data inside the file. A clip is
+      typically 100–150 MB; the switch says roughly how big this import's
+      will be.
+    </p>
+    <ul>
+      <li><strong>Wi-Fi first.</strong> Clips upload over Wi-Fi unless you turn
+        on <strong>Settings → Upload lap videos over cellular</strong> — tracks
+        rarely have Wi-Fi, so most clips go up once you're home, and until then
+        the lap says <em>Video waiting for Wi-Fi</em>. The session itself saves
+        straight away either way, and one saved with no signal at all uploads
+        its clip once it syncs. If a clip can't be cut, the session is kept and
+        the lap says so.</li>
+      <li><strong>Where it plays.</strong> Tap the lap — the event page marks
+        it ▶ — and the video sits above its racing line, starting at the line
+        (the run-up is one scrub back). The web app plays it too, from the
+        session's lap buttons on the event page. <strong>Download</strong> from
+        the player's menu saves the file, named after the track, the day and
+        the lap. Playing needs a connection.</li>
+      <li><strong>Who sees it.</strong> You, and the coaches you've invited —
+        the switch says <em>Your coaches can watch it too.</em> when you have
+        any. Coaches can watch, never download or delete. Clips are never on
+        your share page, a leaderboard or what an AI assistant can read.
+        Removing a coach stops them watching; it can't take back a video they
+        saved.</li>
+      <li><strong>Storage.</strong> Each account has 20 GB of lap videos,
+        roughly 130 clips; Settings shows how much you've used. When an import
+        would go over, the switch turns off and says so — nothing is ever
+        deleted to make room.</li>
+      <li><strong>Deleting.</strong> <strong>Delete video</strong> on the lap's
+        page removes it, and it also goes when you delete its lap, session or
+        event, or your account. Deleting is always free: if Pro lapses, your
+        clips are kept and locked, not removed, and you can still delete
+        them.</li>
+      <li>A phone recording, a VBO log and a CSV export have no video, so their
+        reviews have no switch. Saving a clip from an import in the browser is
+        planned; the web app plays, downloads and deletes clips already.</li>
+    </ul>
 
     <h2 id="sources">Supported sources</h2>
     <div class="table-scroll">
@@ -198,8 +250,10 @@
         progress chart, so a hot afternoon reads as a hot afternoon rather
         than as a bad session (see
         <a href="data-model.html#conditions">Conditions</a>). All of it is
-        saved at import because the video stays on your device and is never
-        uploaded, so a reading not taken now is gone.</li>
+        saved at import because the video stays on your device — at most one
+        lap of it is ever uploaded, as a <a href="#best-lap-video">best-lap
+        video</a> with no telemetry in it — so a reading not taken now is
+        gone.</li>
       <li>Each imported session also stores <strong>per-lap channel data</strong> —
         speed for every source, plus, from a PDR recording, RPM, lateral and
         longitudinal&nbsp;G, throttle, brake, steering angle, yaw rate, gear,
@@ -321,8 +375,9 @@
         exact reading needs can come from your own laps instead of a spec
         sheet.
         (This
-        is derived at import time; the recording itself is never uploaded, so
-        re-import a file if you delete a session.)</li>
+        is derived at import time; the recording itself is never uploaded — a
+        <a href="#best-lap-video">best-lap video</a> is a clip of one lap with
+        no telemetry in it — so re-import a file if you delete a session.)</li>
       <li>Laps from <strong>different sessions and events</strong> compare too:
         the track page's <strong>Compare two laps</strong> puts any two laps
         with channel data side by side — it opens on your latest event's best

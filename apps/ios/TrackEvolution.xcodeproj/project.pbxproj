@@ -32,6 +32,7 @@
 		397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */; };
 		3A417F07A4737536682B1B18 /* CatalogCarPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 989C8DDBBF66B13CA2A81920 /* CatalogCarPicker.swift */; };
 		3CB392477EBDCB875D78F5EE /* SetupFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CF1007FA82991E8035E172 /* SetupFormScreen.swift */; };
+		40D59DC5D0E7D6F6EAABC61E /* ClipRemux.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40811D4F9FFD4D26E3E8194 /* ClipRemux.swift */; };
 		42B03C0F1FED64CD39B3CCF6 /* AnalyticsPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3527336F7D5432ACB912FD63 /* AnalyticsPathTests.swift */; };
 		43E22091F3B55FE761C3F737 /* GarageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE19F08670203224D23A5F6F /* GarageViews.swift */; };
 		444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32AEB077B38B164C34ECD9E /* Haptics.swift */; };
@@ -74,6 +75,7 @@
 		9D607BFF1221091253373DBF /* ProfileFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F61111B892F29E5A0F42A8 /* ProfileFormScreen.swift */; };
 		AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */; };
 		B1EA74D76DE83B0DAFAD5F44 /* LegacyClaimRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E142A66C92DBCD4560C1753C /* LegacyClaimRecord.swift */; };
+		B294BAB7075E7794E1B46DD8 /* LapClipUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23273D2EED4718BC85F4E3D /* LapClipUITests.swift */; };
 		B4B78EDE7A4EB68DFF1E5B60 /* LeaderboardLapScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */; };
 		B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */; };
 		B84EE4B51B19A13263814B43 /* GarageScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03589AF363C111DDE858D9B7 /* GarageScreen.swift */; };
@@ -93,6 +95,7 @@
 		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
 		D6C3C7BA8C69F7A9AEB93473 /* EventFormDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABAAE67FE76AB66F49B1FC14 /* EventFormDraft.swift */; };
 		D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D029EFD956A7AC879046769 /* SettingsScreen.swift */; };
+		D8B55D7C2A29559830424F51 /* ClipCutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FE80BB538C7752733D030A1 /* ClipCutter.swift */; };
 		DA264BA1CC72048E06DF405D /* TelemetryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */; };
 		DAE2D0644FF52D0956D4E4B9 /* ChannelGraphsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2133654268DDDB033D753977 /* ChannelGraphsUITests.swift */; };
 		DB78BAE155E508C9C20736D1 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BB693BDA719629E82C5935 /* CarPlaySceneDelegate.swift */; };
@@ -100,6 +103,7 @@
 		DE58BE58A61787D0A296A492 /* AuthController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150A5FDFCC1A9C0324EA2622 /* AuthController.swift */; };
 		E0BC4D3BA9DC61E6F2E6F775 /* AppStoreScreenshotsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1562EF3936D5972F14ADFF /* AppStoreScreenshotsUITests.swift */; };
 		E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */; };
+		E1471B3A36468C4923482C29 /* LapVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F3B0C8BC0CA42B3EDF2EB1 /* LapVideo.swift */; };
 		E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11E4CD1582ACC54710F446D /* LapChannelChart.swift */; };
 		E9868474425C0AC1F91A7E55 /* TelemetryFileSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497D4C7291EC82131207C136 /* TelemetryFileSource.swift */; };
 		EA02A4AFE756343D8F165FFE /* BalanceScatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC13C54663EDFA0871181F8 /* BalanceScatter.swift */; };
@@ -109,6 +113,7 @@
 		EC54A5100A75C7142D406D40 /* AppAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 701AF92200EE69ABFB9FD787 /* AppAnalytics.swift */; };
 		F02E20EBBCF801FA435B857C /* DetailPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F780198483293642090CD24D /* DetailPlaceholder.swift */; };
 		F40EB2C17A7C2C9B7CF0AC4B /* ChannelPanelKeyboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F49713447F61795FB0C3F5 /* ChannelPanelKeyboardUITests.swift */; };
+		F6A2B196DBB62E65AAF43583 /* ClipUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4BCC1C97D1799A72911B052 /* ClipUploader.swift */; };
 		F87B8589AAC23215D4995227 /* DevServerSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9909D90A12012D6F62C72B /* DevServerSignIn.swift */; };
 		F8BF1DC67E401FF5B97B9614 /* CompareLapsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBA185EA22E05A952A0F1AD /* CompareLapsScreen.swift */; };
 		F903D5D339EABBC96E51A877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D10939598E67F796CA22FCE3 /* Assets.xcassets */; };
@@ -162,6 +167,7 @@
 		380D4BFFDADBA70827336888 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
 		38AB86A8712481673EF47E74 /* GearRibbon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GearRibbon.swift; sourceTree = "<group>"; };
 		3F22FFE4344257B437D803B7 /* StudentLogbook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentLogbook.swift; sourceTree = "<group>"; };
+		3FE80BB538C7752733D030A1 /* ClipCutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipCutter.swift; sourceTree = "<group>"; };
 		41D9EC7D2504A9022D639B5C /* ProgressChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressChart.swift; sourceTree = "<group>"; };
 		43C910E5711C4568839C4E16 /* PlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformTests.swift; sourceTree = "<group>"; };
 		47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureUITests.swift; sourceTree = "<group>"; };
@@ -206,6 +212,7 @@
 		9717B63A2B268C68C01FC9BC /* DroppedClipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroppedClipTests.swift; sourceTree = "<group>"; };
 		989C8DDBBF66B13CA2A81920 /* CatalogCarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogCarPicker.swift; sourceTree = "<group>"; };
 		A32AEB077B38B164C34ECD9E /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		A40811D4F9FFD4D26E3E8194 /* ClipRemux.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipRemux.swift; sourceTree = "<group>"; };
 		A9CE6FCEF23CA4222C13FF34 /* TrackEvolution.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrackEvolution.entitlements; sourceTree = "<group>"; };
 		AA2B499FC28F49DDA82A2334 /* FoldPosture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldPosture.swift; sourceTree = "<group>"; };
 		ABAAE67FE76AB66F49B1FC14 /* EventFormDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormDraft.swift; sourceTree = "<group>"; };
@@ -232,11 +239,14 @@
 		CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormScreen.swift; sourceTree = "<group>"; };
 		CF43C9F27E545AD049BEA61F /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
 		D10939598E67F796CA22FCE3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D23273D2EED4718BC85F4E3D /* LapClipUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapClipUITests.swift; sourceTree = "<group>"; };
 		DA978A264D14BAB2CBE1D837 /* CoachingRoutesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachingRoutesTests.swift; sourceTree = "<group>"; };
 		DE19F08670203224D23A5F6F /* GarageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageViews.swift; sourceTree = "<group>"; };
 		DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackEvolutionApp.swift; sourceTree = "<group>"; };
 		DF71BFD1447FEAD3D7528461 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		E0F3B0C8BC0CA42B3EDF2EB1 /* LapVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapVideo.swift; sourceTree = "<group>"; };
 		E142A66C92DBCD4560C1753C /* LegacyClaimRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyClaimRecord.swift; sourceTree = "<group>"; };
+		E4BCC1C97D1799A72911B052 /* ClipUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipUploader.swift; sourceTree = "<group>"; };
 		E7D8720DD4F67BA47FB3A473 /* TelemetryImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryImporter.swift; sourceTree = "<group>"; };
 		F06DF26F461D56CF24E50A58 /* LapChannelPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapChannelPanelTests.swift; sourceTree = "<group>"; };
 		F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackMapView.swift; sourceTree = "<group>"; };
@@ -320,6 +330,7 @@
 				03589AF363C111DDE858D9B7 /* GarageScreen.swift */,
 				DE19F08670203224D23A5F6F /* GarageViews.swift */,
 				87B0E4C546102DECE0F34F9C /* LapDetailScreen.swift */,
+				E0F3B0C8BC0CA42B3EDF2EB1 /* LapVideo.swift */,
 				85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */,
 				BA6A3D0739BB464BEAE8AE8E /* LeaderboardScreen.swift */,
 				6D029EFD956A7AC879046769 /* SettingsScreen.swift */,
@@ -337,6 +348,9 @@
 		7856111F3AF967BCD3D757E1 /* Import */ = {
 			isa = PBXGroup;
 			children = (
+				3FE80BB538C7752733D030A1 /* ClipCutter.swift */,
+				A40811D4F9FFD4D26E3E8194 /* ClipRemux.swift */,
+				E4BCC1C97D1799A72911B052 /* ClipUploader.swift */,
 				FFC506BB6A47DA40FDE9F249 /* DebugImportFixture.swift */,
 				071246A4C72D0F6070A346B9 /* DroppedClip.swift */,
 				291C87F538FC7E79CDB43160 /* ImportScreen.swift */,
@@ -412,6 +426,7 @@
 				CA9909D90A12012D6F62C72B /* DevServerSignIn.swift */,
 				93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */,
 				47E244125B7D8F3A4F6BAB44 /* GestureUITests.swift */,
+				D23273D2EED4718BC85F4E3D /* LapClipUITests.swift */,
 				6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */,
 				AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */,
 				82118910A4D7C285ABC04083 /* SignInUITests.swift */,
@@ -637,6 +652,7 @@
 				F87B8589AAC23215D4995227 /* DevServerSignIn.swift in Sources */,
 				05E3AA3580CA0FCFBB1886CD /* GarageUITests.swift in Sources */,
 				66499C8CFD338E62777C4FFE /* GestureUITests.swift in Sources */,
+				B294BAB7075E7794E1B46DD8 /* LapClipUITests.swift in Sources */,
 				B7166F1C215B677B6277F598 /* OfflineWritesUITests.swift in Sources */,
 				397937B5884853330FA725F8 /* RecordAndSaveUITests.swift in Sources */,
 				B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */,
@@ -658,6 +674,9 @@
 				499E0DD4FB9A41DF0B97A880 /* BrandMark.swift in Sources */,
 				DB78BAE155E508C9C20736D1 /* CarPlaySceneDelegate.swift in Sources */,
 				3A417F07A4737536682B1B18 /* CatalogCarPicker.swift in Sources */,
+				D8B55D7C2A29559830424F51 /* ClipCutter.swift in Sources */,
+				40D59DC5D0E7D6F6EAABC61E /* ClipRemux.swift in Sources */,
+				F6A2B196DBB62E65AAF43583 /* ClipUploader.swift in Sources */,
 				51D820BEE54907F3D0934517 /* CoachInviteScreen.swift in Sources */,
 				7B49A6D31F7C9CF7C5D56FC6 /* CoachingScreen.swift in Sources */,
 				098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */,
@@ -683,6 +702,7 @@
 				8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */,
 				E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */,
 				C4C8CBAC6E9083B30E32E599 /* LapDetailScreen.swift in Sources */,
+				E1471B3A36468C4923482C29 /* LapVideo.swift in Sources */,
 				2639E291816F71B3EB423DD9 /* LayoutClass.swift in Sources */,
 				293C075351115201DCE5537C /* LayoutTokens.generated.swift in Sources */,
 				B4B78EDE7A4EB68DFF1E5B60 /* LeaderboardLapScreen.swift in Sources */,

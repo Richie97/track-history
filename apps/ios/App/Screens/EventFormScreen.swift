@@ -713,7 +713,9 @@ final class EventFormModel {
                 // — a posted one leaves the staging (or empties the typed laps)
                 // before the next, so a failure leaves exactly the rest.
                 for session in pendingSessions {
-                    _ = try await api.createSession(eventId: id, session)
+                    let sessionId = try await api.createSession(eventId: id, session)
+                    // A staged import's best-lap video (NS-45) waited for this id.
+                    AppServices.clips.sessionPosted(session, id: sessionId)
                     if stagedSessions.first == session {
                         postedStaged.append(stagedSessions.removeFirst())
                     } else {

@@ -144,6 +144,10 @@ struct LapDetailScreen: View {
             VStack(alignment: .leading, spacing: 14) {
                 header(view)
 
+                // The best-lap video (NS-45), above the trace: the lap as it
+                // was driven, then the lap as it was measured.
+                LapVideoSection(session: view.session, lap: view.lap, reload: { await model?.reload() })
+
                 if Self.canCompare(view) {
                     CompareLapsButton(session: view.session, preselect: Self.comparePreselect(view))
                 }

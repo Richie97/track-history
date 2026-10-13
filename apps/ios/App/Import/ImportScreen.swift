@@ -88,8 +88,9 @@ struct ImportScreen: View {
                         and a Racelogic .vbo log (VBOX, or an export from an app such as \
                         Porsche Track Precision) or a Track Precision .csv export is nothing \
                         but telemetry. Pick one and the \
-                        laps come out of it here — the file never leaves this device, and a \
-                        video is never copied; only its telemetry track is read.
+                        laps come out of it here — the file stays on this device, and only \
+                        its telemetry track is read. With Pro, the review can also save each \
+                        session's best lap as a video clip: just that lap is cut and uploaded.
                         """)
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
