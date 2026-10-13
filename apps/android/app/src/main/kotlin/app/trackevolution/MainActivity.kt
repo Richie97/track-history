@@ -53,6 +53,7 @@ import app.trackevolution.navigation.Router
 import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
+import app.trackevolution.clips.LocalClipStatus
 import app.trackevolution.recording.RecordingFlow
 import app.trackevolution.navigation.rememberScreenModel
 import app.trackevolution.recording.RecordingService
@@ -206,7 +207,7 @@ class MainActivity : ComponentActivity() {
                     // re-read from `/me` by each screen, so a change in Settings
                     // redraws the whole logbook at once, and imperial — what the
                     // app always showed — while signed out.
-                    CompositionLocalProvider(LocalUnitSystem provides state.units) {
+                    CompositionLocalProvider(LocalUnitSystem provides state.units, LocalClipStatus provides services.clips) {
                         TrackTheme(choice) {
                             when (state) {
                                 is AuthState.SignedIn -> SignedInScaffold(

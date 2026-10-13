@@ -58,8 +58,16 @@ import app.trackevolution.core.model.Coaching as CoachingData
  */
 private const val COACH_SHARES =
     "your events, sessions and laps with the full channel panel (as far as your plan includes it), your " +
-        "racing lines, the conditions, your cars and their modifications, and your driver profile. Never your " +
+        "racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your " +
         "notes, prep checklists, costs, setup sheets, parts or email — and they can't change anything."
+
+/**
+ * Under the coaches list (NS-45): removing a coach stops new viewing at once,
+ * but a video URL already handed out keeps playing for up to an hour, and any
+ * player can save the file. `COACH_VIDEO_REVOKE` in `public/app.js`.
+ */
+internal const val COACH_VIDEO_REVOKE =
+    "Removing a coach stops them watching your videos; it can't take back a video they saved."
 
 /**
  * Both halves of a grant (NS-38): the students whose logbooks this account
@@ -298,6 +306,9 @@ fun CoachingScreen(
                         }
                     }
                 }
+            }
+            item("coaches-video-revoke") {
+                Text(COACH_VIDEO_REVOKE, style = TrackTheme.typography.xs, color = colors.textMuted)
             }
 
             item("profile-header") { TESectionHeader("Driver profile") }

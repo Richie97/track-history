@@ -310,6 +310,11 @@ fun AppNavHost(
                     // The importer for this lap's own event (#342) — not for a coach.
                     onImport = if (owner.readOnly) null else { { nav.navigate(Route.Import(eventId = route.eventId)) } },
                     onSubscribe = onRequirePro,
+                    // The best-lap video (NS-45), read through this owner's client
+                    // and gated by their tier.
+                    videoApi = api,
+                    owner = owner,
+                    viewer = entitlement,
                 )
                 }
             }

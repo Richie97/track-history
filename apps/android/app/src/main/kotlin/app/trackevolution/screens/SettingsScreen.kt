@@ -1,6 +1,7 @@
 package app.trackevolution.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,13 +31,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import app.trackevolution.BuildConfig
+import app.trackevolution.clips.LocalClipStatus
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.Garage
 import app.trackevolution.core.Units
 import app.trackevolution.core.model.Entitlement
+import app.trackevolution.core.telemetry.LapClips
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEConfirmDialog
@@ -48,6 +54,7 @@ import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 
 /** Where the legal pages live. The app links out; it does not embed them. */
 private const val DOCS_URL = "https://docs.trackevolution.app"
@@ -138,6 +145,9 @@ fun SettingsScreen(
 
             item("cars-header") { TESectionHeader("Cars") }
             item("cars") { CarsCard(onOpenGarage) }
+
+            item("lap-videos-header") { TESectionHeader("Lap videos") }
+            item("lap-videos") { LapVideosCard(LapClips.clipStorageLine(model.user?.clips)) }
 
             item("coaching-header") { TESectionHeader("Coaching") }
             item("coaching") { CoachingCard(onOpenCoaching) }
@@ -595,6 +605,55 @@ private fun ChecklistTemplateCard(
  * one place — its own page, reached from the Garage — so this screen no longer
  * lists, adds, renames or deletes them.
  */
+/**
+ * Best-lap videos (NS-45): the cellular switch — off by default, so a clip
+ * saved at the track uploads on Wi-Fi at home — and the storage line,
+ * `clipStorageLine` over `user.clips` ("Lap videos: 3.2 GB of 20 GB"), which
+ * a `/me` cached before the field simply doesn't draw.
+ */
+@Composable
+private fun LapVideosCard(storageLine: String?) {
+    val colors = TrackTheme.colors
+    val clips = LocalClipStatus.current
+    val scope = rememberCoroutineScope()
+    val cellular by clips.cellularAllowed.collectAsState(initial = false)
+    TrackCard(Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.testTag("clipCellular").toggleable(
+                value = cellular,
+                role = Role.Switch,
+                onValueChange = { on -> scope.launch { clips.setCellularAllowed(on) } },
+            ),
+        ) {
+            Switch(
+                checked = cellular,
+                onCheckedChange = null,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.accentInk,
+                    checkedTrackColor = colors.accentTint,
+                ),
+            )
+            Text("Upload lap videos over cellular", style = TrackTheme.typography.body, color = colors.textBody)
+        }
+        Text(
+            "Off, a best-lap video waits for Wi-Fi — about 150 MB each, so usually until you're home.",
+            style = TrackTheme.typography.xs,
+            color = colors.textFaint,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        storageLine?.let {
+            Text(
+                it,
+                style = TrackTheme.typography.sm,
+                color = colors.textMuted,
+                modifier = Modifier.padding(top = 8.dp).testTag("clipStorage"),
+            )
+        }
+    }
+}
+
 @Composable
 private fun CarsCard(onOpenGarage: () -> Unit) {
     val colors = TrackTheme.colors

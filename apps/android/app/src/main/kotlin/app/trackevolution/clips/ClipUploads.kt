@@ -48,7 +48,7 @@ import java.util.UUID
 internal class ClipUploads(
     context: Context,
     private val api: ApiClient,
-) : ClipSink {
+) : ClipSink, ClipStatus {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -60,10 +60,10 @@ internal class ClipUploads(
     val queue = ClipUploadQueue(manifest, ClipUploadQueue.transport(api), ClipUploadQueue.tempIds(api))
 
     /** Every job, for the lap page's *Video uploading* and *Couldn't save* states. */
-    val jobs: StateFlow<List<ClipJob>> get() = manifest.jobs
+    override val jobs: StateFlow<List<ClipJob>> get() = manifest.jobs
 
     /** *Upload lap videos over cellular* — off by default (Wi-Fi only). */
-    val cellularAllowed: Flow<Boolean> = appContext.settingsDataStore.data.map { it[CELLULAR_KEY] ?: false }
+    override val cellularAllowed: Flow<Boolean> = appContext.settingsDataStore.data.map { it[CELLULAR_KEY] ?: false }
 
     /**
      * At process start: a cut the last process didn't finish is a failed cut
@@ -119,7 +119,7 @@ internal class ClipUploads(
     }
 
     /** Settings' switch. Re-asks every pending upload under the new network rule. */
-    suspend fun setCellularAllowed(allowed: Boolean) {
+    override suspend fun setCellularAllowed(allowed: Boolean) {
         appContext.settingsDataStore.edit { it[CELLULAR_KEY] = allowed }
         // REPLACE: a request waiting for Wi-Fi has to be swapped for one that
         // may use cellular (and back). One mid-part is cancelled and resumes at

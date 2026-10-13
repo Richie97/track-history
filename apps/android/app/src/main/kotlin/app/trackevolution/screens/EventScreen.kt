@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -739,6 +740,8 @@ private fun SessionCard(
 private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: (() -> Unit)?) {
     val colors = TrackTheme.colors
     val label = "Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}" + if (isBest) " ★" else ""
+    // A lap with a best-lap video (NS-45) says so: a ▶ seen, "has video" heard.
+    val spoken = label + if (lap.clip != null) ", has video" else ""
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -753,8 +756,16 @@ private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: (() 
             label,
             style = TrackTheme.typography.sm,
             color = colors.textStrong,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).semantics { contentDescription = spoken },
         )
+        if (lap.clip != null) {
+            Text(
+                "▶",
+                style = TrackTheme.typography.xs,
+                color = colors.accentInk,
+                modifier = Modifier.padding(end = 6.dp).testTag("lapVideo-${lap.id}").clearAndSetSemantics { },
+            )
+        }
         Text("›", style = TrackTheme.typography.sm, color = colors.textFaint)
         if (onDelete != null) {
             TextButton(onClick = onDelete) {
