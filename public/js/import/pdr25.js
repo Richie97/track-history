@@ -55,17 +55,10 @@
 //   - There is no battery-voltage channel, and no recording odometer — so no
 //     raw latitude/odometer series for pdr-laps.js; the GPS is always there.
 
-import { boxes, series } from "../../pdr.js";
+import { series } from "../../pdr.js";
+import { boxes, bufAt, child, fourcc, readMoov } from "./mp4.js";
 
 const td = new TextDecoder("latin1");
-
-async function bufAt(blob, offset, length) {
-  const ab = await blob.slice(offset, Math.min(offset + length, blob.size)).arrayBuffer();
-  return new DataView(ab);
-}
-
-const fourcc = (dv, off) => td.decode(new Uint8Array(dv.buffer, dv.byteOffset + off, 4));
-const child = (dv, box, type) => boxes(dv, box.body, box.start + box.size).find((b) => b.type === type);
 
 // Storage code -> byte width. Anything else can't be framed.
 export const STORAGE_WIDTH = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 4, 6: 4, 9: 4 };
@@ -245,23 +238,11 @@ function parseEvents(dv, start, end) {
 
 export async function parsePdr25File(fileBlob) {
   // 1. Locate moov among top-level boxes (usually at file end).
-  let pos = 0, moovLoc = null;
-  while (pos + 16 <= fileBlob.size) {
-    const hdr = await bufAt(fileBlob, pos, 16);
-    let size = hdr.getUint32(0);
-    const type = fourcc(hdr, 4);
-    if (size === 1) size = Number(hdr.getBigUint64(8));
-    if (size === 0) size = fileBlob.size - pos;
-    if (size < 8) throw new Error("Not a valid MP4 file");
-    if (type === "moov") { moovLoc = { pos, size }; break; }
-    pos += size;
-  }
-  if (!moovLoc) throw new Error("No moov box found — is this an MP4?");
-  const moov = await bufAt(fileBlob, moovLoc.pos, moovLoc.size);
+  const { moov, size: moovSize } = await readMoov(fileBlob);
 
   // 2. Find the telemetry track (handler 'adrv').
   let stbl = null;
-  for (const trak of boxes(moov, 8, moovLoc.size).filter((b) => b.type === "trak")) {
+  for (const trak of boxes(moov, 8, moovSize).filter((b) => b.type === "trak")) {
     const mdia = child(moov, trak, "mdia");
     if (!mdia) continue;
     const hdlr = child(moov, mdia, "hdlr");

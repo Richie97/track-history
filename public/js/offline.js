@@ -209,6 +209,17 @@ export function resolveId(tempId) {
   return idMap[tempId];
 }
 
+// Where a temp id stands, for a best-lap clip waiting on its session (NS-47):
+// `queued` while its create is still in the queue, `mapped` once it flushed.
+// The queue is read **before** the id map — a flush writes the map and then
+// deletes the queued item, so the other order could see neither and call a
+// just-saved session lost (the same order both phones' OfflineStores use).
+export async function tempIdState(tempId) {
+  await ready();
+  const queued = (await backend.queueAll()).some((item) => item.tempId === tempId);
+  return { mapped: idMap[tempId] ?? null, queued };
+}
+
 async function nextTempId() {
   tempSeq += 1;
   await backend.kvPut("tempSeq", tempSeq);

@@ -30,7 +30,7 @@ import { bindWrappedStory, wrappedStoryHtml } from "./js/wrapped-story.js";
 import { downloadBlob, posterBlob, posterFileName, sharePosterBlob } from "./js/wrapped-image.js";
 import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
 import { api as apiFetch, ApiError, OfflineError } from "./js/api.js";
-import { clearFailed, clearOffline, onSyncChange, pendingCount, removeCachedPrefix, resolveId, syncStatus } from "./js/offline.js";
+import { clearFailed, clearOffline, onSyncChange, pendingCount, removeCachedPrefix, resolveId, syncStatus, tempIdState } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { DEFAULT_CHECKLIST } from "./js/checklist.js";
@@ -58,6 +58,10 @@ import {
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
 import { clipStorageLine } from "./js/import/clip.js";
+import { cutClip } from "./js/import/mp4cut.js";
+import {
+  clipBannerText, clipStatusText, createClipUploads, liveComplete, liveCreate, livePutPart,
+} from "./js/import/clip-upload.js";
 
 const $app = document.getElementById("app");
 
@@ -748,6 +752,7 @@ function shell(content) {
     </header>
     <div class="shell">
       <div id="sync-banner" class="sync-banner" hidden></div>
+      <div id="clip-banner" class="sync-banner clip-banner" role="status" hidden></div>
       ${
         viewing
           ? `<div class="student-banner" role="note">
@@ -761,6 +766,7 @@ function shell(content) {
     </div>`;
   wireThemeToggle();
   updateSyncBanner();
+  paintClipUploads();
   paintGarageBadge();
   refreshGarageBadge();
   const trigger = document.getElementById("user-trigger");
@@ -772,6 +778,8 @@ function shell(content) {
   };
   document.getElementById("logout").onclick = async () => {
     if (pendingCount() && !confirm("You have offline changes that haven't synced yet — signing out discards them. Sign out anyway?")) return;
+    if (clipUploads.active() && !confirm("Lap videos are still uploading — signing out stops them. Sign out anyway?")) return;
+    clipUploads.cancelAll();
     await fetch("/auth/logout", { method: "POST" });
     // Delete the service worker's cached API responses (named th-data-* in
     // sw.js) so the logbook doesn't linger in Cache Storage on a shared device.
@@ -817,6 +825,8 @@ function updateSyncBanner() {
 
 onSyncChange((_st, change) => {
   updateSyncBanner();
+  // A clip waiting on a session saved offline goes once the session has synced.
+  if (change.flushed) clipUploads.kick();
   // After a flush, a view parked on an offline-created row's temp URL is
   // remapped to the real id (which triggers a fresh route). Other views are
   // left alone — a form could be mid-edit — and pick up synced state on the
@@ -1880,11 +1890,88 @@ const channelPanelMemory = new Map();
 // session id — a session doesn't record its day, so the driver picks.
 const healthDayBySession = new Map();
 
+// ---------- best-lap video uploads (NS-47) ------------------------------------
+//
+// The browser's own uploader: a video import's best lap is cut with mp4cut.js
+// and sent from this tab after its session saves. It lives here, at module
+// level, so navigating the app never stops it; the shell's #clip-banner and the
+// event page's per-session lines are painted in place from its subscription,
+// the way #sync-banner is from the offline layer's.
+
+const clipUploads = createClipUploads({
+  cut: cutClip,
+  create: liveCreate,
+  putPart: livePutPart,
+  complete: liveComplete,
+  tempIdState,
+  // A finished clip shows as soon as its event page re-reads — when that page
+  // is the one on screen and nothing on it is mid-edit (a re-render would
+  // lose the typing; the next navigation shows the clip anyway).
+  onFinished: (sessionId) => {
+    const shown = [...document.querySelectorAll("[data-clip-upload]")].some((el) =>
+      clipForSession({ sessionId }, el.dataset.clipUpload)
+    );
+    const typing = document.activeElement?.matches?.("input, textarea, select");
+    if (shown && !typing) route();
+  },
+});
+
+window.addEventListener("online", () => clipUploads.kick());
+// Closing the tab stops an upload (nothing outlives it), so ask first.
+window.addEventListener("beforeunload", (e) => {
+  if (!clipUploads.active()) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
+clipUploads.subscribe(() => paintClipUploads());
+
+// The import review's clip context: who can save one, how much room is left,
+// and where a saved session's clip goes.
+function clipImportContext() {
+  return {
+    entitlement: state.entitlement,
+    storage: state.me?.clips ?? null,
+    enqueue: (job) => clipUploads.enqueue(job),
+    lockedHtml: (text) => proPanelHtml("Save best-lap video", esc(text)),
+  };
+}
+
+// Whether a running or failed upload belongs to this session: its own id, or
+// the temp id it was saved under offline.
+const clipForSession = (status, sessionId) =>
+  String(status.sessionId) === String(sessionId) || String(resolveId(status.sessionId)) === String(sessionId);
+
+function paintClipUploads() {
+  const statuses = clipUploads.statuses();
+  const banner = document.getElementById("clip-banner");
+  if (banner) {
+    const text = clipBannerText(statuses);
+    banner.hidden = !text;
+    banner.textContent = text;
+  }
+  document.querySelectorAll("[data-clip-upload]").forEach((el) => {
+    const mine = statuses.filter((st) => clipForSession(st, el.dataset.clipUpload) && clipStatusText(st));
+    el.hidden = !mine.length;
+    el.innerHTML = mine
+      .map(
+        (st) => `<div class="clip-upload-line${st.state === "failed" ? " failed" : ""}">
+          <span>${esc(clipStatusText(st))}</span>
+          ${st.state === "failed" ? `<button class="btn small ghost" type="button" data-clip-dismiss="${esc(st.key)}">Dismiss</button>` : ""}
+        </div>`
+      )
+      .join("");
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target instanceof Element ? e.target.closest("[data-clip-dismiss]") : null;
+  if (btn) clipUploads.dismiss(btn.dataset.clipDismiss);
+});
+
 // ---------- best-lap videos (NS-45) ------------------------------------------
 
 // The lap rows that carry a clip, under a session's laps: a ▶ control per
-// clip that opens an inline player. The web plays, downloads and deletes; it
-// doesn't upload yet (the phones cut and upload at import).
+// clip that opens an inline player, with Download and Delete for the owner.
 function lapVideosHtml(s) {
   const clipped = s.laps.filter((l) => l.clip);
   if (!clipped.length) return "";
@@ -2084,6 +2171,7 @@ async function viewEvent(eventId) {
         }
         ${lapsHtml}
         ${lapVideosHtml(s)}
+        ${ro ? "" : `<div class="clip-upload" data-clip-upload="${esc(s.id)}" role="status" hidden></div>`}
         ${
           ro
             ? ""
@@ -2611,7 +2699,8 @@ async function viewEvent(eventId) {
     };
   });
 
-  if (!ro) bindTelemetryImport(view, e, route);
+  if (!ro) bindTelemetryImport(view, e, route, { clips: clipImportContext() });
+  paintClipUploads();
 }
 
 // --- event form (new / edit) ---
@@ -2905,6 +2994,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
     };
     bindTelemetryImport(view, pendingEvent, () => {}, {
       confirmLabel: "Add to this event",
+      clips: clipImportContext(),
       onSessions: (bodies) => {
         staged.push(...bodies);
         renderStaged();
@@ -2962,7 +3052,10 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
       };
       const handSession = sessionsToCreate([], hand);
       while (staged.length) {
-        await api(`/events/${createdId}/sessions`, { method: "POST", body: staged[0] });
+        const saved = await api(`/events/${createdId}/sessions`, { method: "POST", body: staged[0] });
+        // A staged import's best-lap clip (NS-47) rides on the body, unsent,
+        // until the session has an id to attach it to.
+        if (staged[0].clip && saved?.id != null) clipUploads.enqueue({ sessionId: saved.id, ...staged[0].clip });
         staged.shift();
         renderStaged();
       }

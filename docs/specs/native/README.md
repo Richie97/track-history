@@ -41,12 +41,13 @@ The three clients are deliberately **not** at parity:
   graduate to native once proven. **Exporting the logbook**
   ([NS-44](NS-44-web-export.md)) is the latest: Settings → *Your data* on the
   web, through bearer-capable routes, so a phone door later needs no server
-  change. **Best-lap video clips ([NS-45](NS-45-best-lap-clips.md)) are the
-  one exception and land native-first**: the cut is a passthrough remux of
+  change. **Best-lap video clips ([NS-45](NS-45-best-lap-clips.md)) were the
+  one exception and landed native-first**: the cut is a passthrough remux of
   the source video at import time, which the phones get from AVFoundation and
-  MediaExtractor/MediaMuxer and the dependency-free web app would have to
-  write by hand. The web plays, downloads and deletes clips from day one;
-  web upload is a follow-up.
+  MediaExtractor/MediaMuxer and the dependency-free web app had to write by
+  hand. The web played, downloaded and deleted clips from day one, and
+  [NS-47](NS-47-web-clip-upload.md) gave it the remuxer and the upload, so
+  the feature is on all three clients now.
 - **The Mac is a fourth *surface*, not a fourth client** (2026-09, epic
   [#230](https://github.com/Richie97/track-history/issues/230)). It runs the
   iPad build as a *Designed for iPad* app — no target, no Catalyst — so it
@@ -662,7 +663,7 @@ change* rule does not apply — see the spec for why.
 | NS-42 | [Consistency over clean laps](NS-42-clean-lap-consistency.md) | Shared (server + the three offline mirrors; no screen change) | `withComputed`, `cleanLaps` |
 | NS-43 | [Calendar feed](NS-43-calendar-feed.md) | Shared (server, web, iOS, Android) | the events list |
 | NS-44 | [Export your logbook](NS-44-web-export.md) | Server + web (native door a follow-up) | `eventSelect`, the garage tables |
-| NS-45 | [Best-lap video clips](NS-45-best-lap-clips.md) | Server + iOS + Android, web playback (web upload a follow-up) | the video importers, the review flow, `requireEntitlement` |
+| NS-45 | [Best-lap video clips](NS-45-best-lap-clips.md) | Server + iOS + Android, web playback (web upload in NS-47) | the video importers, the review flow, `requireEntitlement` |
 | NS-46 | [Publish a best-lap video to YouTube](NS-46-youtube-upload.md) | Shared (server-side upload; web, iOS, Android forms) | NS-45, Google OAuth verification + the YouTube API audit |
 | NS-47 | [Best-lap video upload from the web](NS-47-web-clip-upload.md) | Web (no server change; phones test-only) | NS-45, the web importer |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |

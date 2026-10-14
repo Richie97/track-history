@@ -2,11 +2,10 @@
 // which lap of an imported video gets saved, the window cut around it, and what
 // the import review's *Save best-lap video* row says.
 //
-// A reference implementation in the spirit of js/record/: the web app doesn't
-// cut video in v1 (a passthrough cut in the browser means an MP4 remuxer, a
-// follow-up), so nothing in public/ imports this yet — but it is the rule the
-// iOS Kit and Android :core ports are pinned to, through
-// contracts/logic/lap-clips.json, generated from it.
+// The rule the iOS Kit and Android :core ports are pinned to, through
+// contracts/logic/lap-clips.json, generated from it — and, since NS-47, the
+// web's own: the import review offers the clip from it and mp4cut.js cuts the
+// window it names.
 //
 // Times are seconds on the telemetry clock (a lap's startT/endT), which the
 // spec takes to be the file's media timeline: the telemetry track is muxed into
@@ -120,6 +119,14 @@ export function fmtClipBytes(bytes) {
 export function clipOfferText(estimateBytes) {
   const size = finite(estimateBytes) && estimateBytes > 0 ? `, about ${fmtClipBytes(estimateBytes)} each` : "";
   return `A clip of each session's fastest lap${size}. Uploads on Wi-Fi.`;
+}
+
+// The web's first sentence (NS-47): the same offer, but a browser uploads from
+// the open tab rather than on Wi-Fi in the background. Web-only, so it isn't in
+// the lap-clips.json fixture.
+export function clipOfferTextWeb(estimateBytes) {
+  const size = finite(estimateBytes) && estimateBytes > 0 ? `, about ${fmtClipBytes(estimateBytes)} each` : "";
+  return `A clip of each session's fastest lap${size}. Uploads from this tab — keep it open until it's done.`;
 }
 
 // What the row says, switched off and disabled, once storage is full.

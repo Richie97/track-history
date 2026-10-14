@@ -140,7 +140,7 @@ private struct LapVideoPlayer: View {
                 }
 
                 if let player {
-                    VideoPlayer(player: player)
+                    LapPlayerView(player: player)
                         .aspectRatio(16 / 9, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .accessibilityIdentifier("lapVideoPlayer")
@@ -278,6 +278,27 @@ private struct LapVideoPlayer: View {
         } catch {
             actionError = error.localizedDescription
         }
+    }
+}
+
+/// AVKit's own player controller, embedded, rather than SwiftUI's `VideoPlayer`:
+/// the same controls, plus the **fullscreen** button `VideoPlayer` doesn't draw,
+/// and AirPlay and rotation with it, all AVKit's. Fullscreen is
+/// AVKit's own presentation from the hosting controller, not a SwiftUI
+/// `.sheet`, so it doesn't count against the one-modal-per-view rule. On a Mac
+/// (Designed for iPad) the same button fills the window.
+private struct LapPlayerView: UIViewControllerRepresentable {
+    let player: AVPlayer
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.exitsFullScreenWhenPlaybackEnds = true
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player { controller.player = player }
     }
 }
 

@@ -670,6 +670,23 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   background: #000;
 }
 .lap-video-body .btn-row { margin-top: 8px; }
+/* Best-lap video uploads from the browser (NS-47): the import review's
+   *Save best-lap video* row, and a session's upload line under its laps. */
+.clip-offer {
+  display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+  margin: 4px 0 14px; padding: 12px 14px;
+  border: 1px solid var(--border-hairline); border-radius: var(--radius-md);
+}
+.clip-offer input { margin-top: 3px; }
+.clip-offer .clip-offer-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.clip-offer .clip-offer-text { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.5; }
+.clip-offer.disabled { cursor: default; }
+.clip-offer.disabled strong { color: var(--text-muted); }
+.clip-offer-locked { margin: 4px 0 14px; }
+.clip-upload { margin-top: 10px; font-size: var(--fs-sm); color: var(--text-muted); }
+.clip-upload[hidden] { display: none; }
+.clip-upload-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.clip-upload-line.failed span { color: var(--text-strong); }
 
 /* Lap chips + per-lap channel graphs (imported sessions) */
 .ch-details { margin-top: 14px; }

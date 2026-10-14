@@ -15,6 +15,13 @@
 // get — and the form posts them itself once the event exists. Everything
 // between the file and the body (parsing, the line picker, labels, include
 // boxes, the notes line) is shared, which is the point.
+//
+// Best-lap videos (NS-47): with `options.clips` the review draws the *Save
+// best-lap video* row (clip.js's `clipOffer`), and saving hands each included
+// video session's best lap to `options.clips.enqueue` once the session has an
+// id. On the New Event form there is no id yet, so the body carries the clip as
+// a non-enumerable `clip` property — never serialized, never queued offline —
+// and the form enqueues it after posting the body.
 
 import { api } from "../api.js";
 import { esc, fmtMs } from "../format.js";
@@ -23,6 +30,7 @@ import { bestLapTrace, buildGate, deriveLaps, projectTrace } from "./geo.js";
 import { anchorPdrBatch } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 import { currentUnits, fmtSpeedKph } from "../units.js";
+import { clipCandidate, clipFullText, clipOffer, clipOfferNote, clipOfferTextWeb, clipWindow, estimateClipBytes } from "./clip.js";
 
 export function bindTelemetryImport(view, event, onDone, options = {}) {
   const fileInput = view.querySelector("#pdr-files");
@@ -37,7 +45,8 @@ export function bindTelemetryImport(view, event, onDone, options = {}) {
     const results = [];
     for (const f of files) {
       try {
-        results.push({ file: f.name, parsed: await parseTelemetryFile(f) });
+        // `source` stays beside the name: a best-lap clip is cut from it at save.
+        results.push({ file: f.name, source: f, parsed: await parseTelemetryFile(f) });
       } catch (err) {
         results.push({ file: f.name, error: err.message });
       }
@@ -238,6 +247,44 @@ export function importSessionBody(r, label, units = currentUnits()) {
   };
 }
 
+// The clip to save for one review item, as the handle the uploader takes, or
+// null: no source file kept, no video, or no lap with a usable window.
+export function clipHandle(r) {
+  const c = r.source ? clipCandidate(r.parsed) : null;
+  if (!c) return null;
+  return {
+    file: r.source,
+    window: clipWindow(c.lap, r.parsed.durationS),
+    timeMs: c.lap.timeMs,
+    lapStartS: c.lap.startT,
+  };
+}
+
+// The *Save best-lap video* row under the items, or "" — `offer` is
+// clipOffer's state, `wasChecked` the box's state before a re-render.
+function clipRowHtml(offer, items, ctx, wasChecked) {
+  if (offer === "none") return "";
+  const estimate = Math.max(
+    0,
+    ...items
+      .filter((it) => it.include)
+      .map((it) => {
+        const c = clipCandidate(it.parsed);
+        return c ? estimateClipBytes(c.lap, it.fileBytes, it.parsed.durationS) ?? 0 : 0;
+      })
+  );
+  const text = clipOfferTextWeb(estimate);
+  if (offer === "locked") return `<div class="clip-offer-locked">${ctx.lockedHtml(text)}</div>`;
+  const full = offer === "full";
+  const note = full ? "" : clipOfferNote(ctx.storage);
+  return `<label class="clip-offer${full ? " disabled" : ""}">
+    <input type="checkbox" id="import-clip" ${full ? "disabled" : wasChecked === false ? "" : "checked"}>
+    <span class="clip-offer-body"><strong>Save best-lap video</strong>
+      <span class="clip-offer-text">${esc(full ? clipFullText(ctx.storage) : text)}${note ? ` ${esc(note)}` : ""}</span></span>
+    <span class="pro-badge">Pro</span>
+  </label>`;
+}
+
 function renderReview(box, event, state, onDone, options) {
   const { results } = state;
 
@@ -250,6 +297,11 @@ function renderReview(box, event, state, onDone, options) {
   box.querySelectorAll("[data-import-include]").forEach((el) => {
     if (!el.disabled) prevChecks.set(el.dataset.importInclude, el.checked);
   });
+  // The clip box starts checked every time a review opens; across re-renders
+  // (a line pick, an include box) it keeps what the driver chose.
+  const clipBox = box.querySelector("#import-clip");
+  const prevClip = clipBox && !clipBox.disabled ? clipBox.checked : undefined;
+  const includes = [];
 
   const needLine = results.filter((r) => r.parsed?.needsLine && r.parsed.gps?.length);
 
@@ -276,6 +328,7 @@ function renderReview(box, event, state, onDone, options) {
           ? `<span class="hint" style="color:var(--text-muted);font-size:13px">No laps found — no beacons, and the telemetry shows no repeating lap pattern (pit/paddock footage?)</span>`
           : `<span class="hint" style="color:var(--text-muted);font-size:13px">No complete laps found (no start/finish crossings in telemetry)</span>`;
       const checked = prevChecks.has(String(i)) ? prevChecks.get(String(i)) : !!p.laps.length;
+      includes[i] = !!p.laps.length && checked;
       const label = prevLabels.get(String(i)) ?? defaultLabel(r);
       const note = estimatedNote(p, estCount);
       const metrics = metricsSummary(p);
@@ -316,9 +369,13 @@ function renderReview(box, event, state, onDone, options) {
     </div>`;
   }
 
+  const clipItems = results.map((r, i) => ({ parsed: r.parsed, include: !r.error && !!includes[i], fileBytes: r.source?.size }));
+  const offer = options.clips ? clipOffer(clipItems, options.clips.entitlement, options.clips.storage) : "none";
+
   box.innerHTML = `<div class="panel">
     <strong>${results.every((r) => r.parsed?.kind === "live") ? "Recording preview" : "Import preview"}</strong>
     <div style="margin-top:10px">${pickerHtml}${blocks}</div>
+    ${options.clips ? clipRowHtml(offer, clipItems, options.clips, prevClip) : ""}
     <div class="btn-row">
       <button class="btn primary" id="import-confirm" type="button">${esc(options.confirmLabel ?? "Add as sessions")}</button>
       <button class="btn" id="import-cancel" type="button">Cancel</button>
@@ -349,13 +406,22 @@ function renderReview(box, event, state, onDone, options) {
     });
   }
 
+  // Including or leaving out a file changes what the clip row offers.
+  box.querySelectorAll("[data-import-include]").forEach((el) => {
+    el.onchange = () => renderReview(box, event, state, onDone, options);
+  });
+
   box.querySelector("#import-cancel").onclick = () => (box.innerHTML = "");
   box.querySelector("#import-confirm").onclick = async () => {
+    const saveClips = offer === "on" && !!box.querySelector("#import-clip")?.checked;
     const bodies = [];
     for (let i = 0; i < results.length; i++) {
       const inc = box.querySelector(`[data-import-include="${i}"]`);
       if (!inc || !inc.checked) continue;
-      bodies.push(importSessionBody(results[i], box.querySelector(`[data-import-label="${i}"]`).value));
+      const body = importSessionBody(results[i], box.querySelector(`[data-import-label="${i}"]`).value);
+      const clip = saveClips ? clipHandle(results[i]) : null;
+      if (clip) Object.defineProperty(body, "clip", { value: clip, enumerable: false });
+      bodies.push(body);
     }
     if (options.onSessions) {
       // No event to post onto yet: hand the bodies to the form, which is
@@ -364,7 +430,12 @@ function renderReview(box, event, state, onDone, options) {
       if (bodies.length) options.onSessions(bodies);
       return;
     }
-    for (const body of bodies) await api(`/events/${event.id}/sessions`, { method: "POST", body });
+    for (const body of bodies) {
+      const saved = await api(`/events/${event.id}/sessions`, { method: "POST", body });
+      // The session is saved; its clip goes up in the background and never
+      // holds the review open.
+      if (body.clip && saved?.id != null) options.clips.enqueue({ sessionId: saved.id, ...body.clip });
+    }
     if (bodies.length) onDone();
     else box.innerHTML = "";
   };

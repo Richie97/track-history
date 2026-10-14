@@ -1,6 +1,6 @@
 # NS-47 — Best-lap video upload from the web
 
-**Phase:** post-rewrite · **Platform:** Web (no server change; a test-only fixture for both phones) · **Depends on:** [NS-45](NS-45-best-lap-clips.md) (the clip routes, R2, `clip.js`, the phones' `ClipUploadQueue`), the web importer (`js/import/ui.js`), the offline layer's temp-id map · **Estimate:** 7–9 days over four tickets · **Issue:** —
+**Phase:** post-rewrite · **Platform:** Web (no server change; a test-only fixture for both phones) · **Depends on:** [NS-45](NS-45-best-lap-clips.md) (the clip routes, R2, `clip.js`, the phones' `ClipUploadQueue`), the web importer (`js/import/ui.js`), the offline layer's temp-id map · **Estimate:** 7–9 days over four tickets · **Issue:** #415
 
 ## Goal
 
@@ -362,6 +362,149 @@ fixture.
       `clip-upload.json`.
 - [ ] The import guide and privacy policy say videos can be saved from the
       browser.
+
+## As built (ticket 1)
+
+`js/import/mp4.js`, `mp4cut.js`, `buildCutSourceMp4` and
+`test/unit/mp4cut.test.js`. Where the code differs from the text above, and
+why:
+
+- **`mp4.js` also owns `readMoov`.** The three parsers each had the same
+  top-level walk to find `moov`, not only the box helpers, so it moved too
+  (same error strings). `pdr.js` re-exports `boxes`, which `pdr25.js` and two
+  test files imported from it.
+- **A sixth refusal, `"malformed"`**, for sample tables that contradict each
+  other (a missing `stts`, `stsc` / `stco` covering fewer samples than `stsz`).
+  It is worded on the session like the others.
+- **Both kept tracks are written enabled.** Android's `clip-source.mp4`
+  marks its H.264 track *disabled* (`tkhd` flags 2) behind the enabled MJPEG
+  cover track, and copying that made a clip AVFoundation refused to open
+  (`-11869 Cannot Open`). The cutter sets enabled + in-movie on both.
+- **A short `stts` is carried forward, not refused.** The Corvette PDR's
+  audio `stts` covers 45,953 samples and its `stsz` 45,954. ffmpeg extends
+  the last duration; so does `sampleTable`. Pinned by
+  `buildCutSourceMp4({ audioSttsShort: true })`.
+- **The Blackwing's cover image isn't a track.** ffprobe lists it as a fourth
+  stream, but it lives in `moov/udta` (attached picture), which the cut drops
+  with the rest of `udta`. The `jpeg` / `mp4v`-with-JPEG-esds rule still
+  matters for Android's fixture, whose cover image *is* a track.
+- **`cutClip` takes a fourth `{ maxBytes }` argument**, for the `too-large`
+  test only. A gigabyte fixture isn't reasonable.
+- **`mp4v` entries are checked for a JPEG object type** (0x6C–0x6E in the
+  esds), which is how ffmpeg muxes a cover image as a track. The spec named
+  only the `jpeg` / `mjpa` / `mjpb` entries.
+
+**Real footage** (Node 24 with `fs.openAsBlob`, so the source is a
+file-backed Blob as in a browser; each file's best lap by `clipCandidate`):
+
+| Source | Lap | Clip | `estimateClipBytes` | Duration | `lapOffsetMs` | Cut |
+|---|---|---|---|---|---|---|
+| Corvette PDR, 763 MB, 17:47 | 6, 2:02.110 | 86.5 MiB | 86.7 MiB (−0.2%) | 128.272 s | 3317 | 60 ms |
+| Blackwing ADV_1633, 238 MB | 1, 1:24.582 | 91.0 MiB | 92.7 MiB (−1.8%) | 89.632 s | 3029 | 8 ms |
+| Blackwing ADV_1635, 494 MB | 2, 1:21.345 | 75.2 MiB | 80.8 MiB (−6.9%) | 86.399 s | 3026 | 20 ms |
+| Blackwing ADV_1640, 282 MB | 1, 1:22.752 | 90.1 MiB | 92.6 MiB (−2.7%) | 87.798 s | 3023 | 51 ms |
+
+- The Corvette offset is the 3.317 s NS-45 measured for an ffmpeg `-c copy`
+  cut (1.475 s keyframes). The Blackwing lands within one frame of 3.0 s.
+- Each cut read the `moov` (290–670 KB) and nothing else. RSS moved by
+  10 MB at most, and a second cut gave the same bytes.
+- **ffmpeg** decodes all four with no error (`-f null`). ffprobe shows one
+  h264 and one aac stream, no data stream, and no tag but the brands and
+  `creation_time`. On the Android fixture, every video and audio packet's MD5
+  matches the source's, and the audio's first frame sits 4.989 ms ahead of
+  the picture.
+- **AVFoundation** (Safari's player stack): all four are playable, with two
+  tracks and no metadata, and a frame decodes at 3.4 s. The Corvette's AAC,
+  which AVFoundation doesn't list as a track in the source (*As built
+  (ticket 2)* of NS-45), shows up as a track in the clip.
+- **Chromium 152** (the desktop app's browser pane, from a range-capable
+  local server): the three Blackwing clips and the fixture play, and seek to
+  the measured offset. **The Corvette clip plays audio but decodes no video
+  frames, and so does the Corvette source file**, so the problem is that
+  footage (H.264 Baseline, level 4.2, 1280×720, 100,000 timescale) in this
+  Chromium build, not the cut. The cut's packets are the source's byte for
+  byte. Desktop Chrome needs checking by hand. If it fails there too, every
+  Corvette clip, the phones' included, plays without video in Chromium. That
+  belongs to NS-45, not here.
+- **Not yet done:** desktop Chrome, Safari and Firefox by hand (no Firefox
+  on the machine this was built on), playback on a phone (needs ticket 2's
+  upload), upload timing, and the browser task-manager memory check while
+  five clips upload. All of these come with ticket 2. No GoPro footage has
+  turned up yet.
+
+## As built (ticket 2)
+
+`js/import/clip-upload.js`, `contracts/logic/clip-upload.json`, the review
+row, the New Event hand-off, the session-card lines, the banner and
+`beforeunload`, and the API round trip. Where the code differs from the text
+above, and why:
+
+- **Parts go by `XMLHttpRequest`, not `fetch`.** `fetch` reports no upload
+  progress, and a 50 MiB part is the whole of a short clip, so the banner
+  would sit at 0% and jump. XHR with a `Blob` body still sends the exact
+  `Content-Length` the route requires, and still streams from disk. Create
+  and complete are `fetch`, outside `api()`: live writes, never queued.
+- **The driver is built in `app.js`, not in `clip-upload.js`.**
+  `createClipUploads` takes every effect (the cut, the three requests,
+  `tempIdState`, the clock and timers) as an argument, so the tests run the
+  real driver with no network and the API test runs it against the Worker.
+  `app.js` holds the one instance (`clipUploads`) with the live set. The
+  module keeps no DOM and no app state.
+- **An ejected card is found by reading, not by failing.** Before each part
+  the driver reads that part's first and last byte. A `File` whose card is
+  gone, or that changed on disk, fails that read with `NotReadableError`. The
+  upload itself would only fail as a dropped connection and back off forever.
+  The read failing is the `unreadable` response, and `apply` drops the job as
+  `sourceUnreadable`. Until ticket 3's door exists, its sentence stops at
+  *"…was the card removed or the file moved?"*.
+- **A lap that already has a clip finishes quietly.** The 409 means another
+  device got there first. The page re-reads and shows that clip, with no
+  failure line.
+- **A finished clip re-renders the page only when the page is showing that
+  session and nothing on it has focus.** `route()` re-renders the whole view,
+  which would throw away a half-typed session note. Otherwise the clip shows
+  on the next navigation.
+- **`offline.js` gained `tempIdState(tempId)`**, which reads the queue before
+  the id map, the order both phones' stores use.
+- **The fixture is the JS objects**: camelCase, a `kind` tag on actions,
+  responses and outcomes, and temp ids as `"tmp-N"`, which a port reads as its
+  own temp id for N. The `unreadable` row is marked `webOnly`. Ticket 4 points
+  both phones' tests at it.
+- **Failures each have a sentence** (`clipFailureText`): storage full is
+  `clipFullText`; Pro lapsed, session never synced, session deleted and card
+  removed each have their own; everything else, cut failures included, is
+  *"Couldn't save this lap's video."* Each line carries *Dismiss*.
+
+**Verified in a browser** (headless Chromium 141 through Playwright, against
+`wrangler dev` with a local R2 bucket):
+
+- As Pro, a PDR import draws the row checked, with *"about 1 MB each. Uploads
+  from this tab"*.
+- That fixture has no picture, so saving it leaves *"Couldn't save this lap's
+  video."* on the session. That is the cut-failure path.
+- A free account sees the Pro panel in the row's place. A `.vbo` review draws
+  nothing.
+- A real cut of the synthetic camera file went through `liveCreate`,
+  `livePutPart` and `liveComplete` in the page. The clip landed on its lap,
+  the signed URL served exactly the bytes cut in the page, and the event page
+  then offered *▶ Lap 1 video*. The API test does the same through the
+  Worker, with a range request.
+
+**Not yet done:**
+
+- **The banner and `beforeunload` haven't been driven end to end in a
+  browser.** No committed fixture has both a telemetry track the importer
+  reads and a picture the cutter accepts, so the app's own review can't
+  produce a clip that uploads. `clipBannerText` is unit-tested, and the
+  painting is a few lines. Real footage covers it.
+- **The hand-run passes owed from ticket 1** are still outstanding:
+  - real footage through the web import in desktop Chrome, Safari and
+    Firefox;
+  - playback of a web-made clip on a phone;
+  - upload timing;
+  - the browser task manager's memory while five clips upload.
+
+  This build had no real footage and no desktop browsers.
 
 ## Open questions
 
