@@ -235,9 +235,9 @@ private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, on
     val colors = TrackTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var open by rememberSaveable(state.clip.id) { mutableStateOf(false) }
     val appContext = context.applicationContext
     val holder = viewModel<ClipPlayerHolder>(key = "lap-clip-player-${state.clip.id}") { ClipPlayerHolder(appContext) }
+    val open = holder.open
     var message by remember(state.clip.id) { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
@@ -292,7 +292,7 @@ private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, on
         }
         val playing = holder.url
         when {
-            !open -> TextButton(onClick = { open = true }, modifier = Modifier.testTag("lapVideoPlay")) {
+            !open -> TextButton(onClick = { holder.open = true }, modifier = Modifier.testTag("lapVideoPlay")) {
                 Text("▶ Play lap video", style = TrackTheme.typography.sm, color = colors.accentInk)
             }
             playing != null -> ClipPlayer(holder, playing, state.clip.lapOffsetMs) { message = it }
@@ -333,8 +333,16 @@ private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, on
  *
  * [url] is the signed URL, kept here for the same reason: a rotation must not
  * spend a request on a URL that is good for an hour.
+ *
+ * [open] lives here too rather than in a `rememberSaveable`: on a tablet or a
+ * phone turned sideways, the rotation also crosses the two-pane breakpoint, and
+ * the lap page's saveable state does not survive that move between panes. A card
+ * that forgot it was open while this holder kept playing left the video's sound
+ * running behind a *Play* button, with [fullscreen] stranded to reopen the dialog
+ * on the next tap. One lifetime for all four is what keeps them agreeing.
  */
 internal class ClipPlayerHolder(private val context: Context) : ViewModel() {
+    var open by mutableStateOf(false)
     var url by mutableStateOf<String?>(null)
     var fullscreen by mutableStateOf(false)
     private var player: ExoPlayer? = null
