@@ -502,3 +502,93 @@ describe("the coach mount", () => {
     expect((await again.as("GET", `/clips/${id2}/url`)).status).toBe(404);
   });
 });
+
+// NS-47: a clip cut in the browser goes through the same routes as a phone's.
+// The real cutter (mp4cut.js) over the synthetic camera file, driven by the
+// real uploader (clip-upload.js), with its transport pointed at the Worker.
+describe("a clip cut and uploaded by the web app", () => {
+  it("cuts, uploads through the routes and plays back byte for byte", async () => {
+    const { buildCutSourceMp4 } = await import("../fixtures/build.mjs");
+    const { cutClip } = await import("../../public/js/import/mp4cut.js");
+    const { createClipUploads } = await import("../../public/js/import/clip-upload.js");
+
+    const user = await signedInProUser();
+    const eventId = await createEvent(user.api, { track_name: "Web Clip Raceway", start_date: "2026-06-14" });
+    // The lap the cut is for: 5 s from 7 s into a 20 s source.
+    const saved = await user.api("POST", `/events/${eventId}/sessions`, { label: "Imported", laps: [5_000, 6_000] });
+    const sessionId = saved.body.id as number;
+
+    const source = new Blob([buildCutSourceMp4()]);
+    let cutSize = 0;
+    let cutBlob: Blob | null = null;
+    const cookie = { Cookie: `session=${user.token}` };
+    const json = async (res: Response) => ({ res, body: (await res.json().catch(() => ({}))) as any });
+    const finished: unknown[] = [];
+
+    const uploads = createClipUploads({
+      cut: async (file: Blob, window: any, lapStartS: number) => {
+        const cut = await cutClip(file, window, lapStartS);
+        cutSize = cut.sizeBytes;
+        cutBlob = cut.blob;
+        return cut;
+      },
+      tempIdState: async () => ({ mapped: null, queued: false }),
+      create: async (id: number, body: unknown) => {
+        const { res, body: out } = await json(
+          await SELF.fetch(`https://example.com/api/sessions/${id}/clip`, {
+            method: "POST",
+            headers: { ...cookie, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        );
+        return res.ok
+          ? { kind: "created", start: { clipId: out.clip_id, partBytes: out.part_bytes, parts: out.parts, uploaded: out.uploaded } }
+          : { kind: "status", status: res.status, error: out.error };
+      },
+      putPart: async (clipId: number, n: number, part: Blob) => {
+        // A Blob body, as the browser's XHR sends it: the length comes with it.
+        const data = new Uint8Array(await part.arrayBuffer());
+        const res = await SELF.fetch(`https://example.com/api/clips/${clipId}/parts/${n}`, {
+          method: "PUT",
+          headers: { ...cookie, "Content-Type": "application/octet-stream" },
+          body: data,
+        });
+        return res.ok ? { kind: "ok" } : { kind: "status", status: res.status, error: null };
+      },
+      complete: async (clipId: number) => {
+        const { res, body: out } = await json(
+          await SELF.fetch(`https://example.com/api/clips/${clipId}/complete`, { method: "POST", headers: cookie })
+        );
+        if (res.ok) return { kind: "ok" };
+        return res.status === 409 && out.missing ? { kind: "missingParts", missing: out.missing } : { kind: "status", status: res.status, error: out.error };
+      },
+      onFinished: (id: unknown) => finished.push(id),
+    });
+
+    await uploads.enqueue({
+      sessionId,
+      timeMs: 5_000,
+      file: source,
+      window: { startS: 4, endS: 14, lapOffsetS: 3 },
+      lapStartS: 7,
+    });
+    for (let i = 0; i < 50 && !finished.length; i++) await new Promise((r) => setTimeout(r, 10));
+    expect(finished).toEqual([sessionId]);
+    expect(uploads.statuses()).toEqual([]);
+
+    const lap = (await user.api("GET", `/events/${eventId}`)).body.sessions[0].laps.find((l: any) => l.time_ms === 5_000);
+    expect(lap.clip).toMatchObject({ id: expect.any(Number), size_bytes: cutSize, lap_offset_ms: expect.any(Number) });
+    expect(lap.clip.lap_offset_ms).toBeGreaterThanOrEqual(3_000);
+
+    const signed = await user.api("GET", `/clips/${lap.clip.id}/url`);
+    const whole = new Uint8Array(await cutBlob!.arrayBuffer());
+    const all = await play(signed.body.url);
+    expect(all.status).toBe(200);
+    expect(all.body).toEqual(whole);
+    const ranged = await play(signed.body.url, { Range: "bytes=0-15" });
+    expect(ranged.status).toBe(206);
+    expect(ranged.body).toEqual(whole.slice(0, 16));
+    // The cut leads with ftyp then moov, so a player gets the index first.
+    expect(new TextDecoder().decode(whole.slice(4, 8))).toBe("ftyp");
+  });
+});

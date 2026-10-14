@@ -432,6 +432,80 @@ file-backed Blob as in a browser; each file's best lap by `clipCandidate`):
   five clips upload. All of these come with ticket 2. No GoPro footage has
   turned up yet.
 
+## As built (ticket 2)
+
+`js/import/clip-upload.js`, `contracts/logic/clip-upload.json`, the review
+row, the New Event hand-off, the session-card lines, the banner and
+`beforeunload`, and the API round trip. Where the code differs from the text
+above, and why:
+
+- **Parts go by `XMLHttpRequest`, not `fetch`.** `fetch` reports no upload
+  progress, and a 50 MiB part is the whole of a short clip, so the banner
+  would sit at 0% and jump. XHR with a `Blob` body still sends the exact
+  `Content-Length` the route requires, and still streams from disk. Create
+  and complete are `fetch`, outside `api()`: live writes, never queued.
+- **The driver is built in `app.js`, not in `clip-upload.js`.**
+  `createClipUploads` takes every effect (the cut, the three requests,
+  `tempIdState`, the clock and timers) as an argument, so the tests run the
+  real driver with no network and the API test runs it against the Worker.
+  `app.js` holds the one instance (`clipUploads`) with the live set. The
+  module keeps no DOM and no app state.
+- **An ejected card is found by reading, not by failing.** Before each part
+  the driver reads that part's first and last byte. A `File` whose card is
+  gone, or that changed on disk, fails that read with `NotReadableError`. The
+  upload itself would only fail as a dropped connection and back off forever.
+  The read failing is the `unreadable` response, and `apply` drops the job as
+  `sourceUnreadable`. Until ticket 3's door exists, its sentence stops at
+  *"…was the card removed or the file moved?"*.
+- **A lap that already has a clip finishes quietly.** The 409 means another
+  device got there first. The page re-reads and shows that clip, with no
+  failure line.
+- **A finished clip re-renders the page only when the page is showing that
+  session and nothing on it has focus.** `route()` re-renders the whole view,
+  which would throw away a half-typed session note. Otherwise the clip shows
+  on the next navigation.
+- **`offline.js` gained `tempIdState(tempId)`**, which reads the queue before
+  the id map, the order both phones' stores use.
+- **The fixture is the JS objects**: camelCase, a `kind` tag on actions,
+  responses and outcomes, and temp ids as `"tmp-N"`, which a port reads as its
+  own temp id for N. The `unreadable` row is marked `webOnly`. Ticket 4 points
+  both phones' tests at it.
+- **Failures each have a sentence** (`clipFailureText`): storage full is
+  `clipFullText`; Pro lapsed, session never synced, session deleted and card
+  removed each have their own; everything else, cut failures included, is
+  *"Couldn't save this lap's video."* Each line carries *Dismiss*.
+
+**Verified in a browser** (headless Chromium 141 through Playwright, against
+`wrangler dev` with a local R2 bucket):
+
+- As Pro, a PDR import draws the row checked, with *"about 1 MB each. Uploads
+  from this tab"*.
+- That fixture has no picture, so saving it leaves *"Couldn't save this lap's
+  video."* on the session. That is the cut-failure path.
+- A free account sees the Pro panel in the row's place. A `.vbo` review draws
+  nothing.
+- A real cut of the synthetic camera file went through `liveCreate`,
+  `livePutPart` and `liveComplete` in the page. The clip landed on its lap,
+  the signed URL served exactly the bytes cut in the page, and the event page
+  then offered *▶ Lap 1 video*. The API test does the same through the
+  Worker, with a range request.
+
+**Not yet done:**
+
+- **The banner and `beforeunload` haven't been driven end to end in a
+  browser.** No committed fixture has both a telemetry track the importer
+  reads and a picture the cutter accepts, so the app's own review can't
+  produce a clip that uploads. `clipBannerText` is unit-tested, and the
+  painting is a few lines. Real footage covers it.
+- **The hand-run passes owed from ticket 1** are still outstanding:
+  - real footage through the web import in desktop Chrome, Safari and
+    Firefox;
+  - playback of a web-made clip on a phone;
+  - upload timing;
+  - the browser task manager's memory while five clips upload.
+
+  This build had no real footage and no desktop browsers.
+
 ## Open questions
 
 - **Two parts at once?** Sequential parts keep the code and the banner

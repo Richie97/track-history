@@ -1,0 +1,1836 @@
+{
+  "description": "The best-lap clip uploader's state machine (NS-47) from public/js/import/clip-upload.js, the reference both phones' ClipUploadQueue ports assert against. Jobs, actions, responses and outcomes are written as the JS objects (camelCase, a `kind` tag). Temp session ids are \"tmp-N\"; a port reads them as its own temp id for N. `webOnly` rows have no phone counterpart. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/import/clip-upload.js",
+  "BACKOFF_BASE_MS": 30000,
+  "BACKOFF_MAX_MS": 3600000,
+  "MAX_RESTARTS": 3,
+  "DropReason": {
+    "sessionLost": "session lost",
+    "storageFull": "clip storage full",
+    "alreadyHasClip": "lap already has a clip",
+    "proRequired": "pro required",
+    "notFound": "not found",
+    "refused": "refused",
+    "tooManyRestarts": "too many restarts",
+    "sourceUnreadable": "source unreadable"
+  },
+  "sessionState": [
+    {
+      "sessionId": 42,
+      "mapped": null,
+      "queued": false,
+      "state": {
+        "kind": "real",
+        "id": 42
+      }
+    },
+    {
+      "sessionId": "tmp-3",
+      "mapped": null,
+      "queued": true,
+      "state": {
+        "kind": "waiting"
+      }
+    },
+    {
+      "sessionId": "tmp-3",
+      "mapped": 42,
+      "queued": false,
+      "state": {
+        "kind": "real",
+        "id": 42
+      }
+    },
+    {
+      "sessionId": "tmp-3",
+      "mapped": 42,
+      "queued": true,
+      "state": {
+        "kind": "real",
+        "id": 42
+      }
+    },
+    {
+      "sessionId": "tmp-3",
+      "mapped": null,
+      "queued": false,
+      "state": {
+        "kind": "lost"
+      }
+    }
+  ],
+  "backoffMs": [
+    [
+      0,
+      0
+    ],
+    [
+      1,
+      30000
+    ],
+    [
+      2,
+      60000
+    ],
+    [
+      3,
+      120000
+    ],
+    [
+      7,
+      1920000
+    ],
+    [
+      8,
+      3600000
+    ],
+    [
+      9,
+      3600000
+    ],
+    [
+      21,
+      3600000
+    ],
+    [
+      500,
+      3600000
+    ]
+  ],
+  "partRange": [
+    {
+      "sizeBytes": 125829120,
+      "partBytes": 52428800,
+      "parts": 3,
+      "part": 1,
+      "offset": 0,
+      "length": 52428800
+    },
+    {
+      "sizeBytes": 125829120,
+      "partBytes": 52428800,
+      "parts": 3,
+      "part": 3,
+      "offset": 104857600,
+      "length": 20971520
+    },
+    {
+      "sizeBytes": 104857600,
+      "partBytes": 52428800,
+      "parts": 2,
+      "part": 2,
+      "offset": 52428800,
+      "length": 52428800
+    },
+    {
+      "sizeBytes": 2048,
+      "partBytes": 52428800,
+      "parts": 1,
+      "part": 1,
+      "offset": 0,
+      "length": 2048
+    }
+  ],
+  "nextAction": [
+    {
+      "name": "a fresh job starts with the create",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "real",
+        "id": 42
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      }
+    },
+    {
+      "name": "a temp session waits while its create is queued",
+      "job": {
+        "id": "job-1",
+        "sessionId": "tmp-3",
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "waiting"
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "waitForSession"
+      }
+    },
+    {
+      "name": "a temp session the server refused drops the job",
+      "job": {
+        "id": "job-1",
+        "sessionId": "tmp-3",
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "lost"
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "drop",
+        "reason": "session lost"
+      }
+    },
+    {
+      "name": "a mapped temp session creates under the real id",
+      "job": {
+        "id": "job-1",
+        "sessionId": "tmp-3",
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "real",
+        "id": 42
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      }
+    },
+    {
+      "name": "a temp session waits even during a backoff",
+      "job": {
+        "id": "job-1",
+        "sessionId": "tmp-3",
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": 1800000010000,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "waiting"
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "waitForSession"
+      }
+    },
+    {
+      "name": "after the create, the first part",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "real",
+        "id": 42
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      }
+    },
+    {
+      "name": "a resume picks up after the parts held",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1,
+          2
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "real",
+        "id": 42
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 3,
+        "offset": 104857600,
+        "length": 20971520
+      }
+    },
+    {
+      "name": "every part held means complete",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1,
+          2,
+          3
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "real",
+        "id": 42
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "complete",
+        "clipId": 7
+      }
+    },
+    {
+      "name": "a backoff waits until its time",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 1,
+        "restarts": 0,
+        "notBeforeMs": 1800000030000,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "real",
+        "id": 42
+      },
+      "nowMs": 1800000000000,
+      "action": {
+        "kind": "waitUntil",
+        "ms": 1800000030000
+      }
+    },
+    {
+      "name": "a backoff that has passed tries again",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 1,
+        "restarts": 0,
+        "notBeforeMs": 1800000030000,
+        "createdAtMs": 1800000000000
+      },
+      "session": {
+        "kind": "real",
+        "id": 42
+      },
+      "nowMs": 1800000030000,
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      }
+    }
+  ],
+  "apply": [
+    {
+      "name": "create answered",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "created",
+        "start": {
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": []
+        }
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [],
+          "failures": 0,
+          "restarts": 0,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "create answered a resume (a part number past the count is ignored)",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "created",
+        "start": {
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [
+            2,
+            1,
+            9
+          ]
+        }
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [
+            1,
+            2
+          ],
+          "failures": 0,
+          "restarts": 0,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "create answered with no parts",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "created",
+        "start": {
+          "clipId": 7,
+          "partBytes": 0,
+          "parts": 0,
+          "uploaded": []
+        }
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "refused"
+      }
+    },
+    {
+      "name": "create: storage full",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 409,
+        "error": "clip storage full"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "clip storage full"
+      }
+    },
+    {
+      "name": "create: lap already has a clip",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 409,
+        "error": "lap already has a clip"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "lap already has a clip"
+      }
+    },
+    {
+      "name": "create: another 409",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 409,
+        "error": "something else"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "refused"
+      }
+    },
+    {
+      "name": "create: 402",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 402,
+        "error": "pro required"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "pro required"
+      }
+    },
+    {
+      "name": "create: 404",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 404,
+        "error": "not found"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "not found"
+      }
+    },
+    {
+      "name": "create: 400",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": null,
+        "partBytes": null,
+        "parts": null,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "create",
+        "sessionId": 42,
+        "body": {
+          "time_ms": 121345,
+          "size_bytes": 125829120,
+          "duration_ms": 126400,
+          "lap_offset_ms": 3317
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 400,
+        "error": "clip too long"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "refused"
+      }
+    },
+    {
+      "name": "part sent",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "ok"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [
+            1
+          ],
+          "failures": 0,
+          "restarts": 0,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "part sent again (already held)",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "ok"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [
+            1
+          ],
+          "failures": 0,
+          "restarts": 0,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "part: the clip is already ready",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 409,
+        "error": "clip already uploaded"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [
+            1,
+            2,
+            3
+          ],
+          "failures": 0,
+          "restarts": 0,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "part: wrong size",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 400,
+        "error": "part 1 must be 52428800 bytes"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "refused"
+      }
+    },
+    {
+      "name": "part: no length",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 411,
+        "error": null
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "refused"
+      }
+    },
+    {
+      "name": "part: the source can't be read",
+      "webOnly": true,
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "unreadable"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "source unreadable"
+      }
+    },
+    {
+      "name": "part: the server lost the upload (restart 1)",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 2,
+        "offset": 52428800,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 404,
+        "error": "not found"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": null,
+          "partBytes": null,
+          "parts": null,
+          "uploaded": [],
+          "failures": 0,
+          "restarts": 1,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "part: the server lost the upload (restart 2)",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1
+        ],
+        "failures": 0,
+        "restarts": 1,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 2,
+        "offset": 52428800,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 404,
+        "error": "not found"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": null,
+          "partBytes": null,
+          "parts": null,
+          "uploaded": [],
+          "failures": 0,
+          "restarts": 2,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "part: the server lost the upload (restart 3)",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1
+        ],
+        "failures": 0,
+        "restarts": 2,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 2,
+        "offset": 52428800,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 404,
+        "error": "not found"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": null,
+          "partBytes": null,
+          "parts": null,
+          "uploaded": [],
+          "failures": 0,
+          "restarts": 3,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "part: the server lost the upload (restart 4)",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1
+        ],
+        "failures": 0,
+        "restarts": 3,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 2,
+        "offset": 52428800,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 404,
+        "error": "not found"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "too many restarts"
+      }
+    },
+    {
+      "name": "complete",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1,
+          2,
+          3
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "complete",
+        "clipId": 7
+      },
+      "response": {
+        "kind": "ok"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "finished"
+      }
+    },
+    {
+      "name": "complete: parts missing",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1,
+          2,
+          3
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "complete",
+        "clipId": 7
+      },
+      "response": {
+        "kind": "missingParts",
+        "missing": [
+          2
+        ]
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [
+            1,
+            3
+          ],
+          "failures": 0,
+          "restarts": 0,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "complete: the server lost the upload",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1,
+          2,
+          3
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "complete",
+        "clipId": 7
+      },
+      "response": {
+        "kind": "status",
+        "status": 404,
+        "error": "not found"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": null,
+          "partBytes": null,
+          "parts": null,
+          "uploaded": [],
+          "failures": 0,
+          "restarts": 1,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "complete: refused",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [
+          1,
+          2,
+          3
+        ],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "complete",
+        "clipId": 7
+      },
+      "response": {
+        "kind": "status",
+        "status": 400,
+        "error": "bad"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "dropped",
+        "reason": "refused"
+      }
+    },
+    {
+      "name": "retryable answer 1 backs off",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 0,
+        "restarts": 0,
+        "notBeforeMs": null,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "transport"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [],
+          "failures": 1,
+          "restarts": 0,
+          "notBeforeMs": 1800000030000,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "retryable answer 2 backs off",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 1,
+        "restarts": 0,
+        "notBeforeMs": 1800000030000,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 503,
+        "error": null
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [],
+          "failures": 2,
+          "restarts": 0,
+          "notBeforeMs": 1800000060000,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "retryable answer 3 backs off",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 2,
+        "restarts": 0,
+        "notBeforeMs": 1800000060000,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 429,
+        "error": null
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [],
+          "failures": 3,
+          "restarts": 0,
+          "notBeforeMs": 1800000120000,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "retryable answer 4 backs off",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 3,
+        "restarts": 0,
+        "notBeforeMs": 1800000120000,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 401,
+        "error": null
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [],
+          "failures": 4,
+          "restarts": 0,
+          "notBeforeMs": 1800000240000,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "retryable answer 5 backs off",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 4,
+        "restarts": 0,
+        "notBeforeMs": 1800000240000,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "status",
+        "status": 408,
+        "error": null
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [],
+          "failures": 5,
+          "restarts": 0,
+          "notBeforeMs": 1800000480000,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "retryable answer 6 backs off",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 5,
+        "restarts": 0,
+        "notBeforeMs": 1800000480000,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "transport"
+      },
+      "nowMs": 1800000000000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [],
+          "failures": 6,
+          "restarts": 0,
+          "notBeforeMs": 1800000960000,
+          "createdAtMs": 1800000000000
+        }
+      }
+    },
+    {
+      "name": "a success after a backoff resets it",
+      "job": {
+        "id": "job-1",
+        "sessionId": 42,
+        "timeMs": 121345,
+        "sizeBytes": 125829120,
+        "durationMs": 126400,
+        "lapOffsetMs": 3317,
+        "clipId": 7,
+        "partBytes": 52428800,
+        "parts": 3,
+        "uploaded": [],
+        "failures": 6,
+        "restarts": 0,
+        "notBeforeMs": 1800000960000,
+        "createdAtMs": 1800000000000
+      },
+      "action": {
+        "kind": "uploadPart",
+        "clipId": 7,
+        "part": 1,
+        "offset": 0,
+        "length": 52428800
+      },
+      "response": {
+        "kind": "ok"
+      },
+      "nowMs": 1800000960000,
+      "outcome": {
+        "kind": "continue",
+        "job": {
+          "id": "job-1",
+          "sessionId": 42,
+          "timeMs": 121345,
+          "sizeBytes": 125829120,
+          "durationMs": 126400,
+          "lapOffsetMs": 3317,
+          "clipId": 7,
+          "partBytes": 52428800,
+          "parts": 3,
+          "uploaded": [
+            1
+          ],
+          "failures": 0,
+          "restarts": 0,
+          "notBeforeMs": null,
+          "createdAtMs": 1800000000000
+        }
+      }
+    }
+  ]
+}

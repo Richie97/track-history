@@ -774,7 +774,7 @@ and pinned to the JavaScript implementation's output by
 `contracts/logic/video-parsers.json`, so the same clip yields the same lap times
 either way. The clip is read in place through a security-scoped file handle —
 never copied, never uploaded, unless the driver saves its best-lap video, when
-only that lap is cut and uploaded (see [Best-lap video clips](#best-lap-video-clips)). **`.vbo` and Track Precision `.csv` import on both
+only that lap is cut and uploaded (which the web importer does too, since NS-47) (see [Best-lap video clips](#best-lap-video-clips)). **`.vbo` and Track Precision `.csv` import on both
 phones too** — Porsche Track Precision records and exports on the phone, so
 that's where its files land. `VBO` and `TrackPrecisionCsv` in the Kit and
 `:core` are the ports of `public/js/import/vbo.js` and `csv.js`, pinned by
@@ -1894,15 +1894,14 @@ its `namespace_id` is account-scoped like the MCP ones.
 
 ## Best-lap video clips
 
-A Pro driver importing a video on a phone can save a clip of each session's
-best lap (NS-45, `docs/specs/native/NS-45-best-lap-clips.md`). The phone cuts
-it — passthrough, no re-encode, video and audio only, a few seconds either
-side — and uploads it; the telemetry stays the record and a clip that fails
-never costs the session. The cut window and the review row's rules are
-`public/js/import/clip.js`, which both phones port, pinned by
-`contracts/logic/lap-clips.json`. **The web plays, downloads and deletes clips
-but doesn't upload yet** — a browser cut needs an MP4 remuxer, which is a
-follow-up — so this is the one feature that lands on the phones first.
+A Pro driver importing a video can save a clip of each session's best lap
+(NS-45, `docs/specs/native/NS-45-best-lap-clips.md`, and for the browser
+NS-47, `NS-47-web-clip-upload.md`). The device cuts it — passthrough, no
+re-encode, video and audio only, a few seconds either side — and uploads it;
+the telemetry stays the record and a clip that fails never costs the session.
+The cut window and the review row's rules are `public/js/import/clip.js`,
+which both phones port, pinned by `contracts/logic/lap-clips.json`. It landed
+on the phones first; the web caught up in NS-47 (*In the browser* below).
 
 The server half is `src/routes/clips.ts` over migration 0032:
 
@@ -1983,6 +1982,33 @@ nor writes the offline cache, and `sw.js` skips `/clips/` and the clip API.
 
 At ~150 MB a clip and R2's $0.015/GB-month (10 GB free, free egress), a
 driver at the full quota costs about $0.30 a month; see the spec's *Cost*.
+
+**In the browser** (NS-47): the web importer's review draws the same row from
+`clipOffer` — checked every time it opens, the Pro panel for a free account,
+disabled when storage is full — with *"Uploads from this tab"* where the
+phones say Wi-Fi. Saving posts each session, then hands its best lap to the
+uploader in `public/js/import/clip-upload.js`:
+
+- **The cut is `mp4cut.js`**, a dependency-free passthrough remuxer that reads
+  only the source's `moov` and returns a `Blob` of the new header plus
+  `File.slice()` ranges of the source — so the video is never read into
+  memory, and each 50 MiB part streams from disk. The same file always cuts to
+  the same bytes, which is how a closed tab resumes: cut it again and the
+  create answers the parts already held.
+- **The upload** is a JS port of the Kit's `ClipUploadQueue` under the same
+  names (now the reference: `contracts/logic/clip-upload.json` is generated
+  from it), driven one job and one part at a time **while the tab is open**.
+  Nothing is persisted, since a `File` can't outlive the tab. Parts go by
+  `XMLHttpRequest`, for upload progress; each part's first and last byte are
+  read first, so an ejected card is a *"Couldn't read the video file"* drop
+  rather than an endless retry. A session saved offline waits for its temp id
+  to map (`tempIdState` in `offline.js`).
+- **The page**: a banner under the top bar (*"Uploading 2 lap videos — keep
+  this tab open · 40%"*), a line on each session card (progress, waiting to
+  sync, or why it failed), and a `beforeunload` prompt while anything is
+  running. Sign-out stops and forgets every job. The New Event form's staged
+  imports carry their clip as a non-enumerable property, enqueued once the
+  form has posted the session.
 
 **On Android** (ticket 3, `apps/android/`): the import review draws the *Save
 best-lap video* row under its session list from `:core`'s `LapClips` (the

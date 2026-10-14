@@ -224,6 +224,19 @@ import { COST_FIELDS, centsToDollars, dollarsToCents, fmtSpend } from "../public
 import { fmtDays, fmtGain, posterLines, trackDistance, wrappedCards, wrappedSeason } from "../public/js/wrapped.js";
 import { sessionsToCreate, stagedSummary } from "../public/js/event-form.js";
 import {
+  BACKOFF_BASE_MS,
+  BACKOFF_MAX_MS,
+  DropReason,
+  MAX_RESTARTS,
+  apply as clipApply,
+  backoffMs as clipBackoffMs,
+  createBody as clipCreateBody,
+  newJob as clipNewJob,
+  nextAction as clipNextAction,
+  partRange as clipPartRange,
+  sessionState as clipSessionState,
+} from "../public/js/import/clip-upload.js";
+import {
   canRecord,
   canUseGarage,
   canUseSetups,
@@ -2649,6 +2662,123 @@ const costsFixture = {
   fmtSpend: [0, 99, 100, 123456, 100000000, null].map((c) => [c, fmtSpend(c)]),
 };
 
+// ---------------------------------------------------------------------------
+// clip-upload.json — the best-lap clip uploader's state machine (NS-47,
+// public/js/import/clip-upload.js, the port of the iOS Kit's ClipUploadQueue
+// that is now the reference). Every row of the transition table is one or more
+// steps here: `nextAction` rows (job + session + clock → action) and `apply`
+// rows (job + action + response + clock → outcome), so a port replays the walk
+// without a network. Temp session ids are the web's "tmp-N"; a port reads
+// "tmp-N" as its own temp id for N (the phones use -N). Rows marked `webOnly`
+// (a source file that stopped being readable) have no phone counterpart.
+
+const CLIP_MiB = 1024 * 1024;
+const clipNow = 1_800_000_000_000;
+const clipJob = (sessionId = 42) =>
+  clipNewJob({
+    id: "job-1",
+    sessionId,
+    timeMs: 121_345,
+    sizeBytes: 120 * CLIP_MiB,
+    durationMs: 126_400,
+    lapOffsetMs: 3_317,
+    createdAtMs: clipNow,
+  });
+const clipCreate = { kind: "create", sessionId: 42, body: clipCreateBody(clipJob()) };
+const clipPart = (n) => {
+  const { offset, length } = clipPartRange(120 * CLIP_MiB, 50 * CLIP_MiB, 3, n);
+  return { kind: "uploadPart", clipId: 7, part: n, offset, length };
+};
+const clipStarted = (uploaded = []) =>
+  clipApply(clipJob(), clipCreate, { kind: "created", start: { clipId: 7, partBytes: 50 * CLIP_MiB, parts: 3, uploaded } }, clipNow).job;
+const clipStatus = (status, error = null) => ({ kind: "status", status, error });
+const clipReal = { kind: "real", id: 42 };
+
+const clipNextRows = [];
+const nextRow = (name, job, session, nowMs = clipNow) =>
+  clipNextRows.push({ name, job, session, nowMs, action: clipNextAction(job, session, nowMs) });
+const clipApplyRows = [];
+const applyRow = (name, job, action, response, nowMs = clipNow, extra = {}) => {
+  const outcome = clipApply(job, action, response, nowMs);
+  clipApplyRows.push({ name, ...extra, job, action, response, nowMs, outcome });
+  return outcome;
+};
+
+nextRow("a fresh job starts with the create", clipJob(), clipReal);
+nextRow("a temp session waits while its create is queued", clipJob("tmp-3"), { kind: "waiting" });
+nextRow("a temp session the server refused drops the job", clipJob("tmp-3"), { kind: "lost" });
+nextRow("a mapped temp session creates under the real id", clipJob("tmp-3"), clipReal);
+nextRow("a temp session waits even during a backoff", { ...clipJob("tmp-3"), notBeforeMs: clipNow + 10_000 }, { kind: "waiting" });
+nextRow("after the create, the first part", clipStarted(), clipReal);
+nextRow("a resume picks up after the parts held", clipStarted([2, 1, 9]), clipReal);
+nextRow("every part held means complete", clipStarted([1, 2, 3]), clipReal);
+nextRow("a backoff waits until its time", { ...clipStarted(), failures: 1, notBeforeMs: clipNow + 30_000 }, clipReal);
+nextRow("a backoff that has passed tries again", { ...clipStarted(), failures: 1, notBeforeMs: clipNow + 30_000 }, clipReal, clipNow + 30_000);
+
+applyRow("create answered", clipJob(), clipCreate, { kind: "created", start: { clipId: 7, partBytes: 50 * CLIP_MiB, parts: 3, uploaded: [] } });
+applyRow("create answered a resume (a part number past the count is ignored)", clipJob(), clipCreate, {
+  kind: "created",
+  start: { clipId: 7, partBytes: 50 * CLIP_MiB, parts: 3, uploaded: [2, 1, 9] },
+});
+applyRow("create answered with no parts", clipJob(), clipCreate, { kind: "created", start: { clipId: 7, partBytes: 0, parts: 0, uploaded: [] } });
+applyRow("create: storage full", clipJob(), clipCreate, clipStatus(409, DropReason.storageFull));
+applyRow("create: lap already has a clip", clipJob(), clipCreate, clipStatus(409, DropReason.alreadyHasClip));
+applyRow("create: another 409", clipJob(), clipCreate, clipStatus(409, "something else"));
+applyRow("create: 402", clipJob(), clipCreate, clipStatus(402, "pro required"));
+applyRow("create: 404", clipJob(), clipCreate, clipStatus(404, "not found"));
+applyRow("create: 400", clipJob(), clipCreate, clipStatus(400, "clip too long"));
+applyRow("part sent", clipStarted(), clipPart(1), { kind: "ok" });
+applyRow("part sent again (already held)", clipStarted([1]), clipPart(1), { kind: "ok" });
+applyRow("part: the clip is already ready", clipStarted(), clipPart(1), clipStatus(409, "clip already uploaded"));
+applyRow("part: wrong size", clipStarted(), clipPart(1), clipStatus(400, "part 1 must be 52428800 bytes"));
+applyRow("part: no length", clipStarted(), clipPart(1), clipStatus(411));
+applyRow("part: the source can't be read", clipStarted(), clipPart(1), { kind: "unreadable" }, clipNow, { webOnly: true });
+let lostJob = clipStarted([1]);
+for (let r = 1; r <= MAX_RESTARTS + 1; r++) {
+  const out = applyRow(`part: the server lost the upload (restart ${r})`, lostJob, clipPart(2), clipStatus(404, "not found"));
+  if (out.kind === "continue") lostJob = { ...out.job, clipId: 7, partBytes: 50 * CLIP_MiB, parts: 3, uploaded: [1] };
+}
+applyRow("complete", clipStarted([1, 2, 3]), { kind: "complete", clipId: 7 }, { kind: "ok" });
+applyRow("complete: parts missing", clipStarted([1, 2, 3]), { kind: "complete", clipId: 7 }, { kind: "missingParts", missing: [2] });
+applyRow("complete: the server lost the upload", clipStarted([1, 2, 3]), { kind: "complete", clipId: 7 }, clipStatus(404, "not found"));
+applyRow("complete: refused", clipStarted([1, 2, 3]), { kind: "complete", clipId: 7 }, clipStatus(400, "bad"));
+let backoffJob = clipStarted();
+[{ kind: "transport" }, clipStatus(503), clipStatus(429), clipStatus(401), clipStatus(408), { kind: "transport" }].forEach((resp, i) => {
+  const out = applyRow(`retryable answer ${i + 1} backs off`, backoffJob, clipPart(1), resp);
+  backoffJob = out.job;
+});
+applyRow("a success after a backoff resets it", backoffJob, clipPart(1), { kind: "ok" }, backoffJob.notBeforeMs);
+
+const clipUploadFixture = {
+  description:
+    "The best-lap clip uploader's state machine (NS-47) from public/js/import/clip-upload.js, " +
+    "the reference both phones' ClipUploadQueue ports assert against. Jobs, actions, responses " +
+    "and outcomes are written as the JS objects (camelCase, a `kind` tag). Temp session ids are " +
+    '"tmp-N"; a port reads them as its own temp id for N. `webOnly` rows have no phone counterpart. ' +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/import/clip-upload.js",
+  BACKOFF_BASE_MS,
+  BACKOFF_MAX_MS,
+  MAX_RESTARTS,
+  DropReason,
+  sessionState: [
+    [42, null, false],
+    ["tmp-3", null, true],
+    ["tmp-3", 42, false],
+    ["tmp-3", 42, true],
+    ["tmp-3", null, false],
+  ].map(([id, mapped, queued]) => ({ sessionId: id, mapped, queued, state: clipSessionState(id, mapped, queued) })),
+  backoffMs: [0, 1, 2, 3, 7, 8, 9, 21, 500].map((f) => [f, clipBackoffMs(f)]),
+  partRange: [
+    [120 * CLIP_MiB, 50 * CLIP_MiB, 3, 1],
+    [120 * CLIP_MiB, 50 * CLIP_MiB, 3, 3],
+    [100 * CLIP_MiB, 50 * CLIP_MiB, 2, 2],
+    [2048, 50 * CLIP_MiB, 1, 1],
+  ].map(([size, bytes, parts, part]) => ({ sizeBytes: size, partBytes: bytes, parts, part, ...clipPartRange(size, bytes, parts, part) })),
+  nextAction: clipNextRows,
+  apply: clipApplyRows,
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
@@ -2660,6 +2790,7 @@ writeFileSync(path.join(OUT_DIR, "wrapped.json"), JSON.stringify(wrappedFixture,
 writeFileSync(path.join(OUT_DIR, "event-form.json"), JSON.stringify(eventFormFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "video-parsers.json"), JSON.stringify(videoFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "lap-clips.json"), JSON.stringify(lapClipsFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "clip-upload.json"), JSON.stringify(clipUploadFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "vbo-parsers.json"), JSON.stringify(vboFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "csv-parsers.json"), JSON.stringify(csvFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
