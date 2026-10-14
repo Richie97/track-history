@@ -64,7 +64,9 @@ struct TrackEvolutionApp: App {
             // claim that couldn't reach the App Store at launch, gets another go.
             if phase == .active {
                 Task { await store.retryPending() }
-                Task { await clips.pump() }
+                // A clip upload that stalled or backed off on the track's
+                // network starts again now, on this one.
+                clips.becameActive()
             }
         }
     }

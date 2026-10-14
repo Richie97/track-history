@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_CLIP_S,
+  PLAYBACK_LEAD_S,
   POST_ROLL_S,
   PRE_ROLL_S,
   clipCandidate,
@@ -10,6 +11,7 @@ import {
   clipOfferText,
   clipStorageLine,
   clipWindow,
+  playbackStartMs,
   estimateClipBytes,
   fmtClipBytes,
 } from "../../public/js/import/clip.js";
@@ -22,6 +24,16 @@ const lap = (timeMs, startT, endT, estimated = false) => ({ timeMs, startT, endT
 const PRO = { tier: "pro", source: "apple", expires_at: 1_800_000_000_000, auto_renew: true };
 const FREE = { tier: "free", source: null, expires_at: null, auto_renew: null };
 const GiB = 1024 ** 3;
+
+describe("playbackStartMs", () => {
+  it("opens PLAYBACK_LEAD_S ahead of the lap, never before the clip", () => {
+    expect(playbackStartMs(3317)).toBe(3317 - PLAYBACK_LEAD_S * 1000);
+    expect(playbackStartMs(PLAYBACK_LEAD_S * 1000)).toBe(0);
+    expect(playbackStartMs(500)).toBe(0);
+    expect(playbackStartMs(0)).toBe(0);
+    expect(playbackStartMs(NaN)).toBe(0);
+  });
+});
 
 describe("clipWindow", () => {
   it("pads the lap by PRE_ROLL_S and POST_ROLL_S", () => {
@@ -81,8 +93,8 @@ describe("clipCandidate", () => {
 
 describe("estimateClipBytes", () => {
   it("is the file's bitrate over the window", () => {
-    // 1 GB over 1000 s is 1 MB/s; a 100 s lap plus 5 s padding is 105 MB.
-    expect(estimateClipBytes(lap(100_000, 100, 200), 1_000_000_000, 1000)).toBe(105_000_000);
+    // 1 GB over 1000 s is 1 MB/s; a 100 s lap plus 7 s padding is 107 MB.
+    expect(estimateClipBytes(lap(100_000, 100, 200), 1_000_000_000, 1000)).toBe(107_000_000);
     expect(estimateClipBytes(lap(100_000, 100, 200), 0, 1000)).toBeNull();
     expect(estimateClipBytes(lap(100_000, null, 200), 1e9, 1000)).toBeNull();
   });
@@ -107,8 +119,8 @@ describe("clipOffer", () => {
   });
 
   it("is full once this review's estimates would pass the quota — at it is fine", () => {
-    expect(clipOffer([video()], PRO, { ...room, used_bytes: 20 * GiB - 105_000_000 })).toBe("on");
-    expect(clipOffer([video()], PRO, { ...room, used_bytes: 20 * GiB - 104_999_999 })).toBe("full");
+    expect(clipOffer([video()], PRO, { ...room, used_bytes: 20 * GiB - 107_000_000 })).toBe("on");
+    expect(clipOffer([video()], PRO, { ...room, used_bytes: 20 * GiB - 106_999_999 })).toBe("full");
     expect(clipOffer([video(), video()], PRO, { ...room, used_bytes: 20 * GiB - 150_000_000 })).toBe("full");
     // A cached /me from before the field knows nothing is full.
     expect(clipOffer([video()], PRO, undefined)).toBe("on");

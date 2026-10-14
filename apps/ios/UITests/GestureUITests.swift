@@ -92,4 +92,46 @@ final class GestureUITests: XCTestCase {
             "an edge swipe should pop settings"
         )
     }
+
+    /// A button answers anywhere on what it draws, not only on its label.
+    ///
+    /// `TEButtonStyle`'s `.quiet` kind fills with `.clear`, which SwiftUI does not
+    /// hit-test, so the outlined button took a tap on its glyphs and its one-point
+    /// border and nothing else — every quiet button in the app looked tappable
+    /// across its width and wasn't. Tapped near its left edge, well clear of the
+    /// centred label.
+    func testAQuietButtonAnswersOffItsLabel() throws {
+        let app = try launchSignedIn(tier: .pro)
+
+        let record = app.buttons["dashboardRecord"]
+        XCTAssertTrue(record.waitForExistence(timeout: 20))
+        record.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5)).tap()
+
+        XCTAssertTrue(
+            app.buttons["Start recording"].waitForExistence(timeout: 10),
+            "a tap inside the button but off its label should still press it"
+        )
+    }
+
+    /// The session header's actions menu is a 44pt target, not the few points of
+    /// its ellipsis glyph. Tapped near a corner of that square.
+    func testTheSessionMenuAnswersAroundItsGlyph() throws {
+        let app = try launchSignedIn(tier: .free)
+        XCTAssertTrue(openADrivenEvent(app))
+
+        // The sessions sit below the event's header, tiles and notebook.
+        let menu = app.buttons["Session actions"].firstMatch
+        for _ in 0..<8 where !(menu.exists && menu.isHittable) {
+            app.collectionViews.firstMatch.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(menu.waitForExistence(timeout: 5) && menu.isHittable, "the event should have a session")
+        XCTAssertGreaterThanOrEqual(menu.frame.width, 44, "the menu's target should be at least 44pt wide")
+        XCTAssertGreaterThanOrEqual(menu.frame.height, 44, "the menu's target should be at least 44pt tall")
+        menu.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.2)).tap()
+
+        XCTAssertTrue(
+            app.buttons["Edit label & notes"].waitForExistence(timeout: 5),
+            "a tap near the edge of the menu's target should open it"
+        )
+    }
 }

@@ -87,6 +87,13 @@ class LapClipsTest {
     fun `constants match the reference`() {
         assertEquals(fixture["PRE_ROLL_S"]!!.jsonPrimitive.content.toDouble(), PRE_ROLL_S)
         assertEquals(fixture["POST_ROLL_S"]!!.jsonPrimitive.content.toDouble(), POST_ROLL_S)
+        assertEquals(fixture["PLAYBACK_LEAD_S"]!!.jsonPrimitive.content.toDouble(), LapClips.PLAYBACK_LEAD_S)
+        val rows = fixture["playbackStartMs"]!!.jsonArray
+        assertTrue(rows.isNotEmpty())
+        for (row in rows) {
+            val (offset, start) = row.jsonArray.map { it.jsonPrimitive.content.toInt() }
+            assertEquals(start, LapClips.playbackStartMs(offset), "playbackStartMs($offset)")
+        }
         assertEquals(fixture["MAX_CLIP_S"]!!.jsonPrimitive.content.toDouble(), MAX_CLIP_S)
         assertEquals(fixture["VIDEO_KINDS"]!!.jsonArray.map { it.jsonPrimitive.content }, LapClips.VIDEO_KINDS)
     }
@@ -246,8 +253,8 @@ class LapClipsTest {
 
     @Test
     fun `estimateClipBytes is the file's bitrate over the window`() {
-        // 1 GB over 1000 s is 1 MB/s; a 100 s lap plus 5 s padding is 105 MB.
-        assertEquals(105_000_000L, estimateClipBytes(lap(100_000, 100.0, 200.0), 1_000_000_000, 1000.0))
+        // 1 GB over 1000 s is 1 MB/s; a 100 s lap plus 7 s padding is 107 MB.
+        assertEquals(107_000_000L, estimateClipBytes(lap(100_000, 100.0, 200.0), 1_000_000_000, 1000.0))
         assertNull(estimateClipBytes(lap(100_000, 100.0, 200.0), 0, 1000.0))
         assertNull(estimateClipBytes(lap(100_000, null, 200.0), 1_000_000_000, 1000.0))
     }
@@ -279,8 +286,8 @@ class LapClipsTest {
 
         @Test
         fun `is full once this review's estimates would pass the quota — at it is fine`() {
-            assertEquals(ClipOffer.ON, clipOffer(listOf(video()), pro, room.copy(usedBytes = 20 * gib - 105_000_000)))
-            assertEquals(ClipOffer.FULL, clipOffer(listOf(video()), pro, room.copy(usedBytes = 20 * gib - 104_999_999)))
+            assertEquals(ClipOffer.ON, clipOffer(listOf(video()), pro, room.copy(usedBytes = 20 * gib - 107_000_000)))
+            assertEquals(ClipOffer.FULL, clipOffer(listOf(video()), pro, room.copy(usedBytes = 20 * gib - 106_999_999)))
             assertEquals(ClipOffer.FULL, clipOffer(listOf(video(), video()), pro, room.copy(usedBytes = 20 * gib - 150_000_000)))
             // A cached /me from before the field knows nothing is full.
             assertEquals(ClipOffer.ON, clipOffer(listOf(video()), pro, null))

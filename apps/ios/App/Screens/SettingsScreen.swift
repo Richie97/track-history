@@ -425,6 +425,8 @@ struct SettingsScreen: View {
                             Task { await model.moveChecklistItem(from: index, by: -1) }
                         } label: {
                             Image(systemName: "arrow.up")
+                                .frame(width: 36, height: 36)
+                                .contentShape(.rect)
                         }
                         .disabled(index == 0)
                         .accessibilityLabel("Move \(text) up")
@@ -432,6 +434,8 @@ struct SettingsScreen: View {
                             Task { await model.moveChecklistItem(from: index, by: 1) }
                         } label: {
                             Image(systemName: "arrow.down")
+                                .frame(width: 36, height: 36)
+                                .contentShape(.rect)
                         }
                         .disabled(index == auth.checklistTemplate.count - 1)
                         .accessibilityLabel("Move \(text) down")
@@ -439,6 +443,8 @@ struct SettingsScreen: View {
                             Task { await model.removeChecklistItem(at: index) }
                         } label: {
                             Image(systemName: "minus.circle")
+                                .frame(width: 36, height: 36)
+                                .contentShape(.rect)
                         }
                         .accessibilityLabel("Remove \(text)")
                     }

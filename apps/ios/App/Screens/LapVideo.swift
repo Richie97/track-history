@@ -12,10 +12,11 @@ import TrackEvolutionKit
 ///   and the offer is to play it — with *Delete* beside it, since deleting is
 ///   free, always. A coach sees the student-tier sentence instead, because the
 ///   upgrade is the student's to make (`studentFreeNote`'s rule).
-/// - **No clip yet, on its way** (the owner's own lap, never a coach's): *Video
-///   uploading* / *Video waiting for Wi-Fi*, until `ClipUploader` finishes and
-///   the page re-reads its event.
-/// - **A cut that failed**: *Couldn't save this lap's video*, once.
+/// - **No clip yet, on its way** (the owner's own lap, never a coach's): what
+///   it is waiting for, or how far it has got — `ClipUploader.Status` — until
+///   the upload finishes and the page re-reads its event. An attempt that
+///   failed says so, when it will try again, and offers *Retry now*.
+/// - **A cut that failed, or an upload given up on**: why, once.
 struct LapVideoSection: View {
     let session: Session
     let lap: Lap
@@ -25,7 +26,7 @@ struct LapVideoSection: View {
     @Environment(AuthController.self) private var auth
     @Environment(ClipUploader.self) private var clips: ClipUploader?
     @Environment(\.logbookOwner) private var owner
-    @State private var failedCut = false
+    @State private var failure: String?
 
     var body: some View {
         Group {
@@ -50,31 +51,24 @@ struct LapVideoSection: View {
                     }
                 }
             } else if !owner.isReadOnly, isClipLap {
-                if let pending = clips?.pendingText(sessionId: session.id, timeMs: lap.timeMs) {
-                    TECard {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                            Text(pending)
-                                .teStyle(.sm)
-                                .foregroundStyle(Color(.textMuted))
-                            Spacer(minLength: 0)
-                        }
+                if let clips, let status = clips.status(sessionId: session.id, timeMs: lap.timeMs) {
+                    ClipPendingCard(status: status) {
+                        clips.retry(sessionId: session.id, timeMs: lap.timeMs)
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("lapVideoPending")
-                } else if failedCut {
+                } else if let failure {
                     TECard {
-                        Text("Couldn't save this lap's video")
+                        Text(failure)
                             .teStyle(.sm)
                             .foregroundStyle(Color(.textMuted))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .accessibilityIdentifier("lapVideoFailed")
                 }
             }
         }
         .task(id: lap.id) {
             if !owner.isReadOnly, lap.clip == nil, isClipLap, let clips {
-                failedCut = clips.takeFailedCut(sessionId: session.id, timeMs: lap.timeMs)
+                failure = clips.takeFailure(sessionId: session.id, timeMs: lap.timeMs)
             }
         }
         // An upload finished somewhere: if it was this lap's, the event now
@@ -82,11 +76,84 @@ struct LapVideoSection: View {
         .onChange(of: clips?.finishedCount) { _, _ in
             if lap.clip == nil { Task { await reload() } }
         }
+        // An upload given up on while the page was open: say why now, not on
+        // the next visit.
+        .onChange(of: clips?.status(sessionId: session.id, timeMs: lap.timeMs) == nil) { _, gone in
+            if gone, lap.clip == nil, !owner.isReadOnly, isClipLap, let clips, failure == nil {
+                failure = clips.takeFailure(sessionId: session.id, timeMs: lap.timeMs)
+            }
+        }
     }
 
     /// The lap a clip with this time lands on — the lowest lap number with it.
     private var isClipLap: Bool {
         ClipUploadQueue.clipLap(session.laps, timeMs: lap.timeMs)?.id == lap.id
+    }
+}
+
+/// A clip on its way: what it's waiting for or how far it has got, and — after
+/// a failed attempt — when it tries again, with *Retry now*.
+private struct ClipPendingCard: View {
+    let status: ClipUploader.Status
+    var retry: () -> Void
+
+    var body: some View {
+        TECard {
+            // Re-drawn every few seconds so "in 2 min" counts down.
+            TimelineView(.periodic(from: .now, by: 5)) { context in
+                HStack(spacing: 10) {
+                    if isRetrying {
+                        Image(systemName: "exclamationmark.arrow.circlepath")
+                            .foregroundStyle(Color(.textMuted))
+                    } else {
+                        ProgressView()
+                    }
+                    Text(Self.text(status, now: context.date))
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if isRetrying {
+                        // A text button, not `TEButtonStyle`: that style fills
+                        // its column, and `.fixedSize()` on it is the watchdog
+                        // crash AGENTS.md lists.
+                        Button(action: retry) {
+                            Text("Retry now")
+                                .teStyle(.sm)
+                                .foregroundStyle(Color(.accentInk))
+                                .contentShape(Rectangle().inset(by: -10))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityActions {
+            if isRetrying { Button("Retry now", action: retry) }
+        }
+        .accessibilityIdentifier("lapVideoPending")
+    }
+
+    private var isRetrying: Bool {
+        if case .retrying = status { true } else { false }
+    }
+
+    static func text(_ status: ClipUploader.Status, now: Date) -> String {
+        switch status {
+        case .cutting: return "Preparing video"
+        case .waitingForSession: return "Video waiting for this session to sync"
+        case .waitingForConnection: return "Video waiting for a connection"
+        case .waitingForWiFi: return "Video waiting for Wi-Fi"
+        case .uploading(let fraction):
+            let percent = Int((fraction * 100).rounded(.down))
+            return percent > 0 ? "Video uploading · \(percent)%" : "Video uploading"
+        case .retrying(let atMs):
+            let seconds = Double(atMs) / 1000 - now.timeIntervalSince1970
+            let minutes = Int((seconds / 60).rounded(.up))
+            return seconds <= 60
+                ? "Video upload interrupted. Trying again shortly."
+                : "Video upload interrupted. Trying again in \(minutes) min."
+        }
     }
 }
 
@@ -133,7 +200,11 @@ private struct LapVideoPlayer: View {
                         } label: {
                             Image(systemName: "ellipsis.circle")
                                 .foregroundStyle(Color(.textMuted))
+                                .frame(width: 44, height: 44)
+                                .contentShape(.rect)
                         }
+                        .padding(.vertical, -12)
+                        .padding(.trailing, -12)
                         .accessibilityLabel("Video options")
                         .accessibilityIdentifier("lapVideoMenu")
                     }
@@ -204,13 +275,14 @@ private struct LapVideoPlayer: View {
         let item = AVPlayerItem(url: signed.url)
         let player = AVPlayer(playerItem: item)
         self.player = player
-        // Seek once the item can, so the first play starts at the line.
+        // Seek once the item can, so the first play starts a couple of seconds
+        // before the line and the crossing is on screen.
         while item.status == .unknown, !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(100))
         }
         switch item.status {
         case .readyToPlay:
-            let offset = CMTime(value: CMTimeValue(clip.lapOffsetMs), timescale: 1000)
+            let offset = CMTime(value: CMTimeValue(LapClips.playbackStartMs(clip.lapOffsetMs)), timescale: 1000)
             await player.seek(to: offset, toleranceBefore: .zero, toleranceAfter: .zero)
             ready = true
         case .failed:

@@ -174,6 +174,8 @@ struct MaintenanceStrip: View {
                     .rotationEffect(.degrees(expanded ? 90 : 0))
             }
         }
+        // The Spacer's gap is part of the button that wraps this header.
+        .contentShape(.rect)
     }
 
     private var chips: some View {

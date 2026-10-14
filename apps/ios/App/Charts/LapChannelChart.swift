@@ -351,6 +351,8 @@ struct LapChannelPanel: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
                         .background(on ? Color(.accent) : .clear, in: .capsule)
+                        // An unselected tab's fill is `.clear`, which isn't hit-tested.
+                        .contentShape(.capsule)
                 }
                 .buttonStyle(.plain)
                 // 1…4 on an attached keyboard (NS-34 ticket 5). Numbered by the

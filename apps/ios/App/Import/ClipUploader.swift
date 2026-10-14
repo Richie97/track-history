@@ -2,6 +2,7 @@ import Foundation
 import Network
 import OSLog
 import TrackEvolutionKit
+import UIKit
 
 /// A picked video, kept readable from the review until its clip is cut (NS-45).
 ///
@@ -50,13 +51,50 @@ struct ClipCutRequest: Sendable {
 ///
 /// A job whose session id is still a temp id waits for the offline queue to
 /// flush it; one whose session the server refused is dropped. The cut file is
-/// deleted when `complete` answers, or when the job is dropped.
+/// deleted when `complete` answers, or when the job is dropped — and a drop is
+/// told to the driver on the lap page, never swallowed.
+///
+/// **Nothing may sit in the background session forever.** A part handed over
+/// while the app is in the background is *discretionary* to iOS whatever the
+/// configuration says, and can wait hours for power and Wi-Fi; a part on a bad
+/// track-side connection can hang without failing. Both looked like *Video
+/// uploading* forever. So: a part created in the background is re-sent the
+/// moment the app is in front again; a part that sends no bytes for
+/// `stallSeconds` while the app is in front and the network is usable is
+/// cancelled and retried; and arriving on a usable network, or opening the
+/// app, ends any backoff, since the failures it was counting were the old
+/// network's.
 @MainActor
 @Observable
 final class ClipUploader {
     private static let log = Logger(subsystem: "app.trackevolution", category: "clips")
     static let cellularKey = "uploadLapVideosOverCellular"
     static let sessionIdentifier = "app.trackevolution.clips"
+    /// How long a part may send nothing, with the app in front and a usable
+    /// network, before it is treated as stuck.
+    static let stallSeconds: TimeInterval = 60
+
+    /// Where one lap's clip stands, for the lap page.
+    enum Status: Equatable {
+        case cutting
+        /// The session was saved offline and hasn't reached the server yet.
+        case waitingForSession
+        case waitingForConnection
+        case waitingForWiFi
+        /// `fraction` of the clip's bytes the server holds or is receiving.
+        case uploading(fraction: Double)
+        /// The last attempt failed; the next is at `atMs` (epoch ms).
+        case retrying(atMs: Int)
+    }
+
+    /// Why we cancelled a part ourselves.
+    private enum CancelReason {
+        /// Send it again straight away: the cellular switch moved, or the part
+        /// was handed over in the background and is being re-sent from the front.
+        case resend
+        /// It stopped moving: a failure like any other, so it backs off.
+        case stalled
+    }
 
     /// Settings' *Upload lap videos over cellular*, off by default.
     var allowsCellular: Bool {
@@ -82,6 +120,21 @@ final class ClipUploader {
     private let monitor = NWPathMonitor()
     /// Jobs with a part in the hands of the background session, by job id.
     private var inFlight: [String: Int] = [:]
+    /// Of those, the ones whose part was handed over while the app was in the
+    /// background — discretionary to iOS, so re-sent when the app comes forward.
+    private var sentInBackground: Set<String> = []
+    /// Bytes of the in-flight part sent so far, by job id.
+    private(set) var partBytesSent: [String: Int64] = [:]
+    /// When each in-flight part last sent a byte (or was last given a fresh
+    /// start), by job id — the stall watchdog's clock.
+    private var lastProgressAt: [String: Date] = [:]
+    private var cancelReasons: [String: CancelReason] = [:]
+    private var watchdog: Task<Void, Never>?
+    /// Whether the previous watchdog tick found the app in front and the
+    /// network usable; the first tick after either changes starts every clock.
+    private var watchdogWasLive = false
+    /// The network the last path update described, to notice a new one.
+    private var pathSignature = ""
     /// Temp → real session ids seen this run, so a lap page on the real id finds
     /// a job still filed under the temp one.
     private var resolvedSessions: [Int: Int] = [:]
@@ -115,6 +168,9 @@ final class ClipUploader {
             onComplete: { [weak self] description, status, body, error in
                 Task { @MainActor in self?.partFinished(description, status: status, body: body, error: error) }
             },
+            onProgress: { [weak self] description, sent in
+                Task { @MainActor in self?.partProgressed(description, sent: sent) }
+            },
             onFinishEvents: { [weak self] in
                 Task { @MainActor in
                     self?.backgroundCompletion?()
@@ -122,21 +178,46 @@ final class ClipUploader {
                 }
             }
         )
-        transport.inFlight { [weak self] described in
+        transport.inFlight { [weak self] descriptions in
             Task { @MainActor in
-                for (jobId, part) in described { self?.inFlight[jobId] = part }
-                await self?.pump()
+                guard let self else { return }
+                for description in descriptions {
+                    guard let parsed = Self.parse(description),
+                          self.manifest.jobs.contains(where: { $0.id == parsed.jobId })
+                    else { continue }
+                    self.inFlight[parsed.jobId] = parsed.part
+                    // Not known to have been sent from the front: a launch that
+                    // finds a part already handed over can't tell, so it is
+                    // treated as discretionary and re-sent once the app is active.
+                    if parsed.background || UIApplication.shared.applicationState != .active {
+                        self.sentInBackground.insert(parsed.jobId)
+                    }
+                }
+                self.startWatchdog()
+                self.resendBackgroundParts()
+                await self.pump()
             }
         }
         monitor.pathUpdateHandler = { [weak self] path in
             let online = path.status == .satisfied
             let expensive = path.isExpensive
+            let signature = "\(online) \(expensive) \(path.availableInterfaces.map(\.name))"
             Task { @MainActor in
                 guard let self else { return }
-                let changed = self.online != online || self.onExpensiveNetwork != expensive
+                let wasUsable = self.canUseNetwork
+                let changed = self.pathSignature != signature
+                self.pathSignature = signature
                 self.online = online
                 self.onExpensiveNetwork = expensive
-                if changed { await self.pump() }
+                guard changed else { return }
+                // A new, usable network: whatever the backoff was counting
+                // happened on the old one (the track's one bar of signal), so
+                // don't make the driver wait out an hour of it on home Wi-Fi.
+                if self.canUseNetwork {
+                    self.retryEverythingNow()
+                    if !wasUsable { self.resendBackgroundParts() }
+                }
+                await self.pump()
             }
         }
         monitor.start(queue: DispatchQueue(label: "app.trackevolution.clips.path"))
@@ -144,34 +225,83 @@ final class ClipUploader {
 
     // MARK: - What the lap page reads
 
-    /// *Video uploading* / *Video waiting for Wi-Fi* for a lap with a clip on its
-    /// way, or nil.
-    func pendingText(sessionId: Int, timeMs: Int) -> String? {
+    /// Where this lap's clip stands, or nil when nothing is on its way.
+    func status(sessionId: Int, timeMs: Int) -> Status? {
+        if let job = job(sessionId: sessionId, timeMs: timeMs) {
+            if inFlight[job.id] != nil {
+                if !online { return .waitingForConnection }
+                if onExpensiveNetwork && !allowsCellular { return .waitingForWiFi }
+                return .uploading(fraction: fraction(of: job))
+            }
+            if let notBefore = job.notBeforeMs, job.failures > 0, notBefore > Self.nowMs {
+                return .retrying(atMs: notBefore)
+            }
+            if OfflineStore.isTemp(job.sessionId), resolvedSessions[job.sessionId] == nil {
+                return .waitingForSession
+            }
+            if !online { return .waitingForConnection }
+            if onExpensiveNetwork && !allowsCellular { return .waitingForWiFi }
+            return .uploading(fraction: fraction(of: job))
+        }
         let cuttingNow = cutting.contains(Self.key(sessionId, timeMs))
             || resolvedSessions.contains { $0.value == sessionId && cutting.contains(Self.key($0.key, timeMs)) }
-        let queued = manifest.jobs.contains {
-            ClipUploadQueue.isFor(
-                sessionId: $0.sessionId, timeMs: $0.timeMs, sessionId: sessionId,
-                resolved: resolvedSessions[$0.sessionId], timeMs: timeMs
-            )
-        }
-        guard cuttingNow || queued else { return nil }
-        if onExpensiveNetwork && !allowsCellular { return "Video waiting for Wi-Fi" }
-        return "Video uploading"
+        return cuttingNow ? .cutting : nil
     }
 
-    /// Whether this lap's cut failed and the driver hasn't been told — true
-    /// once, then forgotten.
-    func takeFailedCut(sessionId: Int, timeMs: Int) -> Bool {
+    /// The lap page's *Retry now*: end this clip's backoff, and if a part is
+    /// sitting in the background session, send it again from here.
+    func retry(sessionId: Int, timeMs: Int) {
+        guard var job = job(sessionId: sessionId, timeMs: timeMs) else { return }
+        job.notBeforeMs = nil
+        replace(job)
+        if inFlight[job.id] != nil {
+            cancel(jobId: job.id, .resend)
+        } else {
+            Task { await pump() }
+        }
+    }
+
+    /// Why this lap's clip failed, if it did and the driver hasn't been told —
+    /// said once, then forgotten.
+    func takeFailure(sessionId: Int, timeMs: Int) -> String? {
         guard let index = manifest.failedCuts.firstIndex(where: {
             ClipUploadQueue.isFor(
                 sessionId: $0.sessionId, timeMs: $0.timeMs, sessionId: sessionId,
                 resolved: resolvedSessions[$0.sessionId], timeMs: timeMs
             )
-        }) else { return false }
-        manifest.failedCuts.remove(at: index)
+        }) else { return nil }
+        let failure = manifest.failedCuts.remove(at: index)
         persist()
-        return true
+        return Self.failureText(failure.reason)
+    }
+
+    static func failureText(_ reason: String?) -> String {
+        switch reason.flatMap(ClipUploadQueue.DropReason.init(rawValue:)) {
+        case .storageFull: "Couldn't upload this lap's video: your video storage is full."
+        case .proRequired: "Couldn't upload this lap's video: saving lap videos needs Pro."
+        case .some: "Couldn't upload this lap's video."
+        case nil: "Couldn't save this lap's video."
+        }
+    }
+
+    private func job(sessionId: Int, timeMs: Int) -> ClipUploadJob? {
+        manifest.jobs.first {
+            ClipUploadQueue.isFor(
+                sessionId: $0.sessionId, timeMs: $0.timeMs, sessionId: sessionId,
+                resolved: resolvedSessions[$0.sessionId], timeMs: timeMs
+            )
+        }
+    }
+
+    /// The share of the clip's bytes the server holds, plus what the part in
+    /// flight has sent.
+    private func fraction(of job: ClipUploadJob) -> Double {
+        guard job.sizeBytes > 0, let partBytes = job.partBytes, let parts = job.parts else { return 0 }
+        let held = job.uploaded.reduce(0) {
+            $0 + ClipUploadQueue.partRange(sizeBytes: job.sizeBytes, partBytes: partBytes, parts: parts, part: $1).length
+        }
+        let sending = inFlight[job.id] != nil ? Int(partBytesSent[job.id] ?? 0) : 0
+        return min(1, Double(held + sending) / Double(job.sizeBytes))
     }
 
     // MARK: - From the review
@@ -233,10 +363,35 @@ final class ClipUploader {
     func clear() {
         transport?.cancelAll()
         inFlight = [:]
+        sentInBackground = []
+        partBytesSent = [:]
+        lastProgressAt = [:]
         staged = [:]
         for job in manifest.jobs { deleteFiles(of: job) }
         manifest = ClipUploadManifest()
         persist()
+    }
+
+    /// The app came to the front. Every backoff ends — the driver is looking,
+    /// and whatever failed may have failed on a network they've since left —
+    /// and any part handed over while the app was in the background, which iOS
+    /// may be holding for hours as discretionary, is sent again from here.
+    func becameActive() {
+        guard started else { return }
+        retryEverythingNow()
+        resendBackgroundParts()
+        startWatchdog()
+        Task { await pump() }
+    }
+
+    /// With the app in front and a network the parts may use, send again every
+    /// part iOS may be holding as discretionary.
+    private func resendBackgroundParts() {
+        guard UIApplication.shared.applicationState == .active, canUseNetwork else { return }
+        for jobId in sentInBackground where inFlight[jobId] != nil && cancelReasons[jobId] == nil {
+            Self.log.notice("re-sending a clip part handed over in the background")
+            cancel(jobId: jobId, .resend)
+        }
     }
 
     /// Take a step on everything that can move. Safe to call often.
@@ -265,6 +420,20 @@ final class ClipUploader {
         manifest.jobs.append(job)
         persist()
         Task { await pump() }
+    }
+
+    /// Clear every job's backoff (not its failure count, so a server that is
+    /// really down still backs off after the next failure).
+    private func retryEverythingNow() {
+        var changed = false
+        for index in manifest.jobs.indices where manifest.jobs[index].notBeforeMs != nil {
+            manifest.jobs[index].notBeforeMs = nil
+            changed = true
+        }
+        if changed { persist() }
+        // Every part gets a fresh minute before the watchdog judges it.
+        let now = Date()
+        for jobId in inFlight.keys { lastProgressAt[jobId] = now }
     }
 
     private func stepAll() async {
@@ -343,29 +512,112 @@ final class ClipUploader {
         var request = try await auth.api.authorizedRequest("PUT", "/clips/\(clipId)/parts/\(part)")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.allowsCellularAccess = allowsCellular
+        let background = UIApplication.shared.applicationState == .background
         inFlight[job.id] = part
-        transport.upload(request, from: partFile, description: "\(job.id) \(part)")
+        partBytesSent[job.id] = 0
+        lastProgressAt[job.id] = Date()
+        if background { sentInBackground.insert(job.id) } else { sentInBackground.remove(job.id) }
+        transport.upload(request, from: partFile, description: "\(job.id) \(part)" + (background ? " bg" : ""))
+        startWatchdog()
+    }
+
+    /// `"<job> <part>"`, plus `" bg"` when it was handed over in the background.
+    private nonisolated static func parse(_ description: String?) -> (jobId: String, part: Int, background: Bool)? {
+        guard let fields = description?.split(separator: " "), fields.count == 2 || fields.count == 3,
+              let part = Int(fields[1])
+        else { return nil }
+        return (String(fields[0]), part, fields.count == 3 && fields[2] == "bg")
+    }
+
+    private func partProgressed(_ description: String?, sent: Int64) {
+        guard let parsed = Self.parse(description), inFlight[parsed.jobId] == parsed.part else { return }
+        partBytesSent[parsed.jobId] = sent
+        lastProgressAt[parsed.jobId] = Date()
+    }
+
+    private func cancel(jobId: String, _ reason: CancelReason) {
+        guard let part = inFlight[jobId] else { return }
+        cancelReasons[jobId] = reason
+        transport.cancel(where: { description in
+            guard let parsed = Self.parse(description) else { return false }
+            return parsed.jobId == jobId && parsed.part == part
+        }, found: { [weak self] found in
+            guard !found else { return }
+            // No such task: the session finished or lost it without a word to
+            // us. Left alone the job would wait on an answer that never comes —
+            // the very "uploading forever" this exists to end — so let it go.
+            Task { @MainActor in
+                guard let self, self.inFlight[jobId] == part else { return }
+                self.partFinished("\(jobId) \(part)", status: nil, body: Data(), error: URLError(.cancelled))
+            }
+        })
+    }
+
+    /// While a part is in flight and the app is in front, look every 15 s for
+    /// one that has stopped moving.
+    private func startWatchdog() {
+        guard watchdog == nil else { return }
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard let self, !Task.isCancelled else { return }
+                if self.inFlight.isEmpty {
+                    self.watchdog = nil
+                    self.watchdogWasLive = false
+                    return
+                }
+                self.checkForStalls()
+            }
+        }
+    }
+
+    private func checkForStalls() {
+        let live = UIApplication.shared.applicationState == .active && canUseNetwork
+        defer { watchdogWasLive = live }
+        // Suspended, or no network the parts may use: a quiet part is waiting,
+        // not stuck — and nothing was watching while the app was away.
+        guard live else { return }
+        let now = Date()
+        guard watchdogWasLive else {
+            for jobId in inFlight.keys { lastProgressAt[jobId] = now }
+            return
+        }
+        for jobId in inFlight.keys where cancelReasons[jobId] == nil {
+            let last = lastProgressAt[jobId] ?? now
+            if lastProgressAt[jobId] == nil { lastProgressAt[jobId] = now }
+            if now.timeIntervalSince(last) > Self.stallSeconds {
+                Self.log.notice("clip part stalled; cancelling to retry")
+                cancel(jobId: jobId, .stalled)
+            }
+        }
     }
 
     /// A part's answer, from the background session.
     private func partFinished(_ description: String?, status: Int?, body: Data, error: (any Error)?) {
-        guard let description else { return }
-        let fields = description.split(separator: " ")
-        guard fields.count == 2, let part = Int(fields[1]) else { return }
-        let jobId = String(fields[0])
+        guard let parsed = Self.parse(description) else { return }
+        let jobId = parsed.jobId, part = parsed.part
+        // A late answer for a part we've since replaced says nothing about the
+        // one now in flight.
+        if let current = inFlight[jobId], current != part { return }
         inFlight[jobId] = nil
+        sentInBackground.remove(jobId)
+        partBytesSent[jobId] = nil
+        lastProgressAt[jobId] = nil
+        let reason = cancelReasons.removeValue(forKey: jobId)
         if let partFile = try? Self.partURL(jobId: jobId, part: part) {
             try? FileManager.default.removeItem(at: partFile)
         }
-        // Cancelled by us (the cellular switch moved, or a sign-out): not a
-        // failure, just send it again.
-        if let error = error as? URLError, error.code == .cancelled {
+        let cancelled = (error as? URLError)?.code == .cancelled
+        // Cancelled to be sent again (the cellular switch moved, a part handed
+        // over in the background, *Retry now*), or by iOS when the app was
+        // force-quit: not a failure, just send it again.
+        if cancelled, reason != .stalled {
             Task { await pump() }
             return
         }
         guard let job = manifest.jobs.first(where: { $0.id == jobId }), let clipId = job.clipId else { return }
         let response: ClipUploadQueue.Response
-        if error != nil || status == nil {
+        if cancelled || error != nil || status == nil {
             response = .transport
         } else if let status, (200..<300).contains(status) {
             response = .ok
@@ -394,6 +646,11 @@ final class ClipUploader {
 
     private func drop(_ job: ClipUploadJob, _ reason: ClipUploadQueue.DropReason) {
         Self.log.notice("clip upload dropped: \(reason.rawValue, privacy: .public)")
+        // Say so on the lap page rather than letting the video quietly not
+        // appear. A lap that already has a clip shows it, which says enough.
+        if reason != .alreadyHasClip {
+            manifest.failedCuts.append(.init(sessionId: job.sessionId, timeMs: job.timeMs, reason: reason.rawValue))
+        }
         remove(job)
     }
 
@@ -505,11 +762,18 @@ final class ClipTransport: NSObject, URLSessionDataDelegate, @unchecked Sendable
     private let lock = NSLock()
     private var bodies: [Int: Data] = [:]
     private let onComplete: Completion
+    private let onProgress: @Sendable (_ description: String?, _ sent: Int64) -> Void
     private let onFinishEvents: @Sendable () -> Void
     private var session: URLSession!
 
-    init(identifier: String, onComplete: @escaping Completion, onFinishEvents: @escaping @Sendable () -> Void) {
+    init(
+        identifier: String,
+        onComplete: @escaping Completion,
+        onProgress: @escaping @Sendable (_ description: String?, _ sent: Int64) -> Void,
+        onFinishEvents: @escaping @Sendable () -> Void
+    ) {
         self.onComplete = onComplete
+        self.onProgress = onProgress
         self.onFinishEvents = onFinishEvents
         super.init()
         let config = URLSessionConfiguration.background(withIdentifier: identifier)
@@ -529,22 +793,37 @@ final class ClipTransport: NSObject, URLSessionDataDelegate, @unchecked Sendable
         task.resume()
     }
 
-    /// The parts already in the session's hands, as (job id, part).
-    func inFlight(_ handler: @escaping @Sendable ([(String, Int)]) -> Void) {
+    /// The descriptions of the parts already in the session's hands.
+    func inFlight(_ handler: @escaping @Sendable ([String]) -> Void) {
         session.getAllTasks { tasks in
-            let described: [(String, Int)] = tasks.compactMap { task in
-                guard task.state == .running || task.state == .suspended,
-                      let fields = task.taskDescription?.split(separator: " "), fields.count == 2,
-                      let part = Int(fields[1])
-                else { return nil }
-                return (String(fields[0]), part)
-            }
-            handler(described)
+            handler(tasks.compactMap { task in
+                task.state == .running || task.state == .suspended ? task.taskDescription : nil
+            })
         }
     }
 
     func cancelAll() {
         session.getAllTasks { tasks in tasks.forEach { $0.cancel() } }
+    }
+
+    /// Cancel the running tasks whose description matches; each answers
+    /// through `onComplete` with `URLError.cancelled`. `found` says whether
+    /// there was one.
+    func cancel(where matches: @escaping @Sendable (String?) -> Bool, found: @escaping @Sendable (Bool) -> Void) {
+        session.getAllTasks { tasks in
+            let matching = tasks.filter {
+                ($0.state == .running || $0.state == .suspended) && matches($0.taskDescription)
+            }
+            matching.forEach { $0.cancel() }
+            found(!matching.isEmpty)
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64, totalBytesExpectedToSend: Int64
+    ) {
+        onProgress(task.taskDescription, totalBytesSent)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {

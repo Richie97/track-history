@@ -34,6 +34,7 @@ import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import { traceIndexAtFraction } from "../public/js/trackmap.js";
 import {
   MAX_CLIP_S,
+  PLAYBACK_LEAD_S,
   POST_ROLL_S,
   PRE_ROLL_S,
   VIDEO_KINDS,
@@ -43,6 +44,7 @@ import {
   clipOfferNote,
   clipOfferText,
   clipStorageLine,
+  playbackStartMs,
   clipWindow,
   estimateClipBytes,
   fmtClipBytes,
@@ -1883,8 +1885,10 @@ const lapClipsFixture = {
   source: "public/js/import/clip.js",
   PRE_ROLL_S,
   POST_ROLL_S,
+  PLAYBACK_LEAD_S,
   MAX_CLIP_S,
   VIDEO_KINDS,
+  playbackStartMs: [0, 1, 1999, 2000, 2001, 3317, 5000].map((ms) => [ms, playbackStartMs(ms)]),
   cases: clipCases,
   offers: clipOfferCases,
   offerNote: [null, { coach_count: 0 }, { coach_count: 1 }, { coach_count: 3 }].map((c) => [c, clipOfferNote(c)]),

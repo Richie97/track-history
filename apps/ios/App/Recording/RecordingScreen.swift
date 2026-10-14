@@ -492,6 +492,10 @@ struct TEButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: TERadius.md)
                     .strokeBorder(kind == .quiet ? Color(.borderHairline) : .clear, lineWidth: 1)
             )
+            // The whole drawn button is the tap target. Without it a `.quiet`
+            // button — whose fill is `.clear`, which SwiftUI does not hit-test —
+            // answered only on its label's glyphs and its one-point border.
+            .contentShape(.rect(cornerRadius: TERadius.md))
             .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
             .animation(TEMotion.fast, value: configuration.isPressed)
     }
