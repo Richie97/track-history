@@ -41,36 +41,12 @@
 // can't be decoded can still have laps recovered from lat-vs-distance
 // periodicity (js/import/pdr-laps.js).
 
+import { boxes, bufAt, child, fourcc, readMoov } from "./js/import/mp4.js";
+
 const td = new TextDecoder("latin1");
 
-async function bufAt(blob, offset, length) {
-  const ab = await blob.slice(offset, Math.min(offset + length, blob.size)).arrayBuffer();
-  return new DataView(ab);
-}
-
-const fourcc = (dv, off) => td.decode(new Uint8Array(dv.buffer, dv.byteOffset + off, 4));
-
-// Exported for unit tests.
-export function boxes(dv, start, end) {
-  const out = [];
-  let p = start;
-  while (p + 8 <= end) {
-    let size = dv.getUint32(p);
-    const type = fourcc(dv, p + 4);
-    let hdr = 8;
-    if (size === 1) {
-      size = Number(dv.getBigUint64(p + 8));
-      hdr = 16;
-    }
-    if (size === 0) size = end - p;
-    if (size < 8 || p + size > end || !/^[\x20-\x7e]{4}$/.test(type)) break;
-    out.push({ type, start: p, body: p + hdr, size });
-    p += size;
-  }
-  return out;
-}
-
-const child = (dv, box, type) => boxes(dv, box.body, box.start + box.size).find((b) => b.type === type);
+// The box walker is shared with pdr25.js, gpmf.js and the clip cutter.
+export { boxes };
 
 // Decode raw Latitude/Longitude channel samples ({t, v: s32}) into a GPS trace
 // in decimal degrees. When the file's channel dictionary supplies lat/lon
@@ -275,24 +251,12 @@ export function series(arr) {
 
 export async function parsePdrFile(fileBlob) {
   // 1. Locate moov among top-level boxes (usually at file end).
-  let pos = 0, moovLoc = null;
-  while (pos + 16 <= fileBlob.size) {
-    const hdr = await bufAt(fileBlob, pos, 16);
-    let size = hdr.getUint32(0);
-    const type = fourcc(hdr, 4);
-    if (size === 1) size = Number(hdr.getBigUint64(8));
-    if (size === 0) size = fileBlob.size - pos;
-    if (size < 8) throw new Error("Not a valid MP4 file");
-    if (type === "moov") { moovLoc = { pos, size }; break; }
-    pos += size;
-  }
-  if (!moovLoc) throw new Error("No moov box found — is this an MP4?");
-  const moov = await bufAt(fileBlob, moovLoc.pos, moovLoc.size);
-  const root = { type: "moov", start: 0, body: 8, size: moovLoc.size };
+  const { moov, size: moovSize } = await readMoov(fileBlob);
+  const root = { type: "moov", start: 0, body: 8, size: moovSize };
 
   // 2. Find the telemetry track (handler 'ctbx').
   let stbl = null;
-  for (const trak of boxes(moov, root.body, moovLoc.size).filter((b) => b.type === "trak")) {
+  for (const trak of boxes(moov, root.body, moovSize).filter((b) => b.type === "trak")) {
     const mdia = child(moov, trak, "mdia");
     if (!mdia) continue;
     const hdlr = child(moov, mdia, "hdlr");

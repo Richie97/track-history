@@ -919,3 +919,235 @@ export function buildPdr25Mp4({
     samplesPerChunk: 4,
   });
 }
+
+// --- a source to cut a best-lap clip from (NS-47) ---------------------------------
+//
+// A camera-shaped MP4 for mp4cut.js: a picture track, a sound track and the
+// things the cut must leave behind — a cover-image track ahead of the picture,
+// a telemetry track, and location metadata at file and track level. The cutter
+// never decodes, so every sample is synthetic bytes that name themselves: a
+// four-letter track tag and the sample's decode index, then a pattern
+// (`cutSampleBytes`), so a test can check that every sample in the clip is
+// exactly the source sample it claims to be.
+//
+// The picture runs at `fps` with a sync sample every `gopFrames`. With
+// `bframes`, each GOP is coded I P B B P B B … (decode order differs from
+// display order) with a ctts and an edit list shifting media time by
+// `CUT_BFRAME_SHIFT` frames — the shape that put iOS's cut 250 ms out — and a
+// frame's presentation time is still exactly its display index / fps. The
+// sound is 1024-sample AAC-shaped frames at 48 kHz behind an edit list that
+// skips `audioPriming` samples. Chunks interleave every half second and the
+// `moov` sits at the end, as on a PDR card.
+
+export const CUT_VIDEO_TS = 15360;
+export const CUT_AUDIO_TS = 48000;
+export const CUT_BFRAME_SHIFT = 2;
+
+export function cutSampleBytes(tag, index, length) {
+  const out = new Uint8Array(length);
+  out.set(te.encode(tag), 0);
+  new DataView(out.buffer).setUint32(4, index);
+  for (let k = 8; k < length; k++) out[k] = (index * 31 + k * 7) & 0xff;
+  return out;
+}
+
+const cutVideoSize = (i, sync) => (sync ? 1200 + (i % 7) : 300 + ((i * 37) % 200));
+const cutAudioSize = (j) => 200 + (j % 50);
+
+// Decode order → display index within one GOP of `g` frames: I0, then each
+// anchor P(3k) followed by the two B frames it closes, then any tail as P.
+function gopDecodeOrder(g, bframes) {
+  if (!bframes) return Array.from({ length: g }, (_, i) => i);
+  const order = [0];
+  let k = 1;
+  for (; 3 * k <= g - 1; k++) order.push(3 * k, 3 * k - 2, 3 * k - 1);
+  for (let d = 3 * (k - 1) + 1; d < g; d++) order.push(d);
+  return order;
+}
+
+const visualEntry = (type, ...kids) =>
+  box(type, new Uint8Array(6), new Uint8Array([0, 1]), new Uint8Array(16), new Uint8Array([0, 160, 0, 120]), u32(0x00480000, 0x00480000, 0), new Uint8Array([0, 1]), new Uint8Array(32), new Uint8Array([0, 0x18, 0xff, 0xff]), ...kids);
+
+// An mp4v entry whose esds says JPEG (object type 0x6C): ffmpeg's cover image.
+const mp4vJpegEntry = () =>
+  visualEntry(
+    "mp4v",
+    box("esds", u32(0), new Uint8Array([0x03, 0x80, 0x80, 0x80, 0x1b, 0x00, 0x01, 0x00, 0x04, 0x80, 0x80, 0x80, 0x0d, 0x6c, 0x11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+  );
+
+const audioEntry = () =>
+  box("mp4a", new Uint8Array(6), new Uint8Array([0, 1]), new Uint8Array(8), new Uint8Array([0, 2, 0, 16, 0, 0, 0, 0]), u32(CUT_AUDIO_TS << 16), box("esds", u32(0), new Uint8Array([0x03, 0x19, 0, 2, 0, 0x04, 0x11, 0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x05, 0x02, 0x11, 0x90])));
+
+// `©xyz`, written as bytes: its first character is 0xA9, which no TextEncoder
+// gives as one byte.
+const latinBox = (type, ...parts) => {
+  const out = box("xxxx", ...parts);
+  for (let k = 0; k < 4; k++) out[4 + k] = type.charCodeAt(k);
+  return out;
+};
+
+export function buildCutSourceMp4({
+  durationS = 20,
+  fps = 30,
+  gopFrames = 45,
+  bframes = true,
+  video = "avc1", // or "hvc1", or null for no picture track
+  videoEnabled = true,
+  syncAt = null, // decode indices of the sync samples, overriding gopFrames
+  audio = true,
+  audioPriming = 2112,
+  audioDelayS = 0, // an empty edit ahead of the sound
+  audioSttsShort = false, // the Corvette's stts, one sample short of its stsz
+  lead = "jpeg", // a cover-image track ahead of the picture: "jpeg", "mp4v-jpeg" or null
+  telemetry = true,
+  location = true,
+  co64 = false,
+  fragmented = false,
+} = {}) {
+  const movieTs = 1000;
+  const d = CUT_VIDEO_TS / fps;
+  const nV = Math.round(durationS * fps);
+  const nA = Math.floor((durationS * CUT_AUDIO_TS + audioPriming) / 1024);
+
+  // Picture: decode order, display index, sync flags.
+  const disp = [];
+  for (let g = 0; g < nV; g += gopFrames) {
+    for (const k of gopDecodeOrder(Math.min(gopFrames, nV - g), bframes)) disp.push(g + k);
+  }
+  const shift = bframes ? CUT_BFRAME_SHIFT : 0;
+  const sync = disp.map((_, i) => (syncAt ? syncAt.includes(i) : i % gopFrames === 0));
+  const vSamples = disp.map((_, i) => cutSampleBytes("VIDE", i, cutVideoSize(i, sync[i])));
+  const aSamples = Array.from({ length: nA }, (_, j) => cutSampleBytes("SOUN", j, cutAudioSize(j)));
+
+  // Interleave half-second chunks: picture, sound, telemetry.
+  const ftyp = box("ftyp", te.encode("isom"), u32(0x200), te.encode("isomiso2avc1mp41"));
+  const pieces = [];
+  let pos = ftyp.length + 8;
+  const put = (bytes) => {
+    const at = pos;
+    pieces.push(bytes);
+    pos += bytes.length;
+    return at;
+  };
+  const leadOffset = lead ? put(cutSampleBytes("LEAD", 0, 900)) : 0;
+  const vChunks = [], aChunks = [], tChunks = [];
+  const perV = Math.round(fps / 2);
+  const perA = Math.round(CUT_AUDIO_TS / 1024 / 2);
+  for (let c = 0, vi = 0, ai = 0; vi < nV || ai < nA; c++) {
+    if (video && vi < nV) {
+      const n = Math.min(perV, nV - vi);
+      vChunks.push({ at: pos, n });
+      for (let k = 0; k < n; k++) put(vSamples[vi++]);
+    } else vi = nV;
+    if (audio && ai < nA) {
+      const n = Math.min(perA, nA - ai);
+      aChunks.push({ at: pos, n });
+      for (let k = 0; k < n; k++) put(aSamples[ai++]);
+    } else ai = nA;
+    if (telemetry) tChunks.push({ at: put(cutSampleBytes("TELE", c, 400)), n: 1 });
+  }
+  const mdat = box("mdat", concat(pieces));
+
+  const full = (type, ...parts) => box(type, u32(0), ...parts);
+  const chunkTables = (chunks) => {
+    const stsc = [];
+    chunks.forEach((c, i) => {
+      if (!stsc.length || stsc[stsc.length - 1][1] !== c.n) stsc.push([i + 1, c.n, 1]);
+    });
+    const offs = chunks.map((c) => c.at);
+    return [
+      full("stsc", u32(stsc.length, ...stsc.flat())),
+      co64
+        ? full("co64", u32(offs.length), ...offs.map((o) => { const b = new Uint8Array(8); new DataView(b.buffer).setBigUint64(0, BigInt(o)); return b; }))
+        : full("stco", u32(offs.length, ...offs)),
+    ];
+  };
+  const tkhd = (id, durMovie, enabled = true) =>
+    box("tkhd", u32(enabled ? 3 : 2, 0x01020304, 0x05060708, id, 0, durMovie, 0, 0, 0), u32(0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000), u32(160 << 16, 120 << 16));
+  const mdhd = (ts, dur) => full("mdhd", u32(0x01020304, 0x05060708, ts, dur), new Uint8Array([0x55, 0xc4, 0, 0]));
+  const hdlr = (h) => full("hdlr", u32(0), te.encode(h), u32(0, 0, 0), te.encode("Camera\0"));
+  const elst = (...edits) => box("edts", full("elst", u32(edits.length), ...edits.map(([dur, mt]) => u32(dur, mt >>> 0, 0x00010000))));
+  const minf = (head, stbl) => box("minf", head, box("dinf", full("dref", u32(1), box("url ", u32(1)))), stbl);
+  const trak = (...parts) => box("trak", ...parts);
+  const loc = () => latinBox("\xa9xyz", new Uint8Array([0, 18, 0x15, 0xc7]), te.encode("+36.5600-079.2000+120.000/"));
+
+  const traks = [];
+  if (lead) {
+    const entry = lead === "jpeg" ? visualEntry("jpeg") : mp4vJpegEntry();
+    traks.push(trak(
+      tkhd(traks.length + 1, durationS * movieTs),
+      box("mdia", mdhd(90000, durationS * 90000), hdlr("vide"), minf(full("vmhd", u32(0, 0)),
+        box("stbl", full("stsd", u32(1), entry), full("stts", u32(1, 1, durationS * 90000)), full("stsz", u32(0, 1, 900)), ...chunkTables([{ at: leadOffset, n: 1 }]))))
+    ));
+  }
+  if (video) {
+    const cto = disp.map((dIdx, i) => (dIdx + shift - i) * d);
+    const ctts = [];
+    for (const o of cto) {
+      const last = ctts[ctts.length - 1];
+      if (last && last[1] === o) last[0]++;
+      else ctts.push([1, o]);
+    }
+    const syncIdx = sync.flatMap((s, i) => (s ? [i + 1] : []));
+    const entry = visualEntry(video, box(video.startsWith("avc") ? "avcC" : "hvcC", new Uint8Array([1, 0x64, 0, 0x1f, 0xff, 0xe0, 0])));
+    traks.push(trak(
+      tkhd(traks.length + 1, durationS * movieTs, videoEnabled),
+      elst([durationS * movieTs, shift * d]),
+      box("mdia", mdhd(CUT_VIDEO_TS, nV * d), hdlr("vide"), minf(full("vmhd", u32(0, 0)), box(
+        "stbl",
+        full("stsd", u32(1), entry),
+        full("stts", u32(1, nV, d)),
+        ...(bframes ? [full("ctts", u32(ctts.length, ...ctts.flat()))] : []),
+        ...(syncIdx.length === nV ? [] : [full("stss", u32(syncIdx.length, ...syncIdx))]),
+        full("stsz", u32(0, nV, ...vSamples.map((s) => s.length))),
+        ...chunkTables(vChunks)
+      ))),
+      ...(location ? [box("udta", loc())] : [])
+    ));
+  }
+  if (audio) {
+    const edits = [];
+    if (audioDelayS) edits.push([audioDelayS * movieTs, -1]);
+    edits.push([durationS * movieTs, audioPriming]);
+    const sttsN = audioSttsShort ? nA - 1 : nA;
+    traks.push(trak(
+      tkhd(traks.length + 1, durationS * movieTs),
+      elst(...edits),
+      box("mdia", mdhd(CUT_AUDIO_TS, nA * 1024), hdlr("soun"), minf(full("smhd", u32(0)), box(
+        "stbl",
+        full("stsd", u32(1), audioEntry()),
+        full("stts", u32(1, sttsN, 1024)),
+        full("stsz", u32(0, nA, ...aSamples.map((s) => s.length))),
+        ...chunkTables(aChunks)
+      )))
+    ));
+  }
+  if (telemetry) {
+    traks.push(trak(
+      tkhd(traks.length + 1, durationS * movieTs),
+      box("tref", box("cdsc", u32(1))),
+      box("mdia", mdhd(1000, tChunks.length * 500), hdlr("ctbx"), minf(full("nmhd"), box(
+        "stbl",
+        full("stsd", u32(1), box("marl", new Uint8Array(8))),
+        full("stts", u32(1, tChunks.length, 500)),
+        full("stsz", u32(400, tChunks.length)),
+        ...chunkTables(tChunks)
+      )))
+    ));
+  }
+  const mvhd = full("mvhd", u32(0x01020304, 0x05060708, movieTs, durationS * movieTs, 0x00010000), new Uint8Array([1, 0]), new Uint8Array(10), u32(0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000), new Uint8Array(24), u32(traks.length + 1));
+  const moov = box(
+    "moov",
+    mvhd,
+    ...traks,
+    ...(fragmented ? [box("mvex", full("trex", u32(1, 1, 0, 0, 0)))] : []),
+    ...(location
+      ? [
+          box("udta", loc()),
+          full("meta", hdlr("mdta"), full("keys", u32(1), box("mdta", te.encode("com.apple.quicktime.location.ISO6709")))),
+          box("uuid", new Uint8Array(16), te.encode("vendor")),
+        ]
+      : [])
+  );
+  return concat([ftyp, mdat, moov]);
+}
