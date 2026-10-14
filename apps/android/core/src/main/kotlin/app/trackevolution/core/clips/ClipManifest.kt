@@ -62,15 +62,49 @@ public class ClipManifest(public val dir: File) {
     }
 
     /**
+     * Gives up on job [id] for [reason] (a `DropReason`'s raw value): its clip
+     * file is deleted, and the job stays as [ClipJob.State.DROPPED] so its lap
+     * can say so once ([acknowledge]).
+     */
+    public fun drop(id: String, reason: String, nowMs: Long) {
+        val job = get(id) ?: return
+        update(id) { it.copy(state = ClipJob.State.DROPPED, dropReason = reason, failedAt = nowMs, file = null) }
+        job.file?.let { File(it).delete() }
+    }
+
+    /** The lap page has said this failure: forget it. A job still on its way is left alone. */
+    public fun acknowledge(id: String) {
+        if (get(id)?.failed == true) remove(id)
+    }
+
+    /**
+     * Ends the backoff of job [id], or of every pending job when [id] is null —
+     * not its failure count, so a server that really is down still backs off
+     * after the next failure. Answers the pending jobs it covers.
+     */
+    public fun clearBackoff(id: String? = null): List<ClipJob> {
+        mutate { list ->
+            list.map {
+                if (it.state == ClipJob.State.PENDING && (id == null || it.id == id) && it.notBeforeMs != null) {
+                    it.copy(notBeforeMs = null)
+                } else {
+                    it
+                }
+            }
+        }
+        return all().filter { it.state == ClipJob.State.PENDING && (id == null || it.id == id) }
+    }
+
+    /**
      * At process start: a job still [ClipJob.State.CUTTING] was interrupted —
      * the cut runs in-process and the source video's grant died with it — so
      * it becomes a failed cut, said once on its lap. Also deletes any clip file
      * in the directory no job names (a cut that finished as the process died).
      */
-    public fun recoverInterrupted() {
+    public fun recoverInterrupted(nowMs: Long = System.currentTimeMillis()) {
         mutate { list ->
             list.map {
-                if (it.state == ClipJob.State.CUTTING) it.copy(state = ClipJob.State.CUT_FAILED, file = null) else it
+                if (it.state == ClipJob.State.CUTTING) it.copy(state = ClipJob.State.CUT_FAILED, file = null, failedAt = nowMs) else it
             }
         }
         val named = state.value.mapNotNull { it.file?.let(::File)?.name }.toSet()
@@ -80,12 +114,13 @@ public class ClipManifest(public val dir: File) {
     }
 
     /**
-     * Drops failed cuts older than [maxAgeMs] — long enough for the driver to
-     * have seen the lap page say so.
+     * Drops failures — failed cuts and dropped uploads — older than
+     * [maxAgeMs] that no lap page has said yet: a week is long enough for the
+     * driver to have opened the lap if they were going to.
      */
     public fun prune(nowMs: Long, maxAgeMs: Long = FAILED_KEPT_MS) {
         mutate { list ->
-            list.filterNot { it.state == ClipJob.State.CUT_FAILED && nowMs - it.createdAt > maxAgeMs }
+            list.filterNot { it.failed && nowMs - (it.failedAt ?: it.createdAt) > maxAgeMs }
         }
     }
 
@@ -119,7 +154,7 @@ public class ClipManifest(public val dir: File) {
     }
 
     public companion object {
-        /** How long a failed cut is kept to be said on its lap: a week. */
+        /** How long an unsaid failure is kept for its lap to say: a week. */
         public const val FAILED_KEPT_MS: Long = 7L * 24 * 60 * 60 * 1000
 
         private val json = Json { ignoreUnknownKeys = true }

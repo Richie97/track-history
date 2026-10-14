@@ -10,7 +10,16 @@ import app.trackevolution.core.model.ClipCreate
 import app.trackevolution.core.model.ClipUpload
 import app.trackevolution.core.offline.OfflineStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Drives one [ClipJob] through [ClipUploadQueue] (NS-45) — the loop iOS's
@@ -23,6 +32,21 @@ import java.io.File
  * `ClipUploadWorker` in `:app` is the shell: it turns [Outcome.WaitUntil] and
  * [Outcome.WaitForSession] into the next run's delay, so the backoff is the
  * Kit's 30 s … 1 h on both phones rather than WorkManager's own.
+ *
+ * Two things here exist so an upload can't sit on *Video uploading* forever
+ * after a patchy track connection — iOS's `ClipUploader` does both:
+ *
+ * - **A part that sends nothing for [STALL_MS] is cancelled** and read as a
+ *   transport failure, so it backs off and is sent again rather than hanging.
+ *   The worker only runs with a network its constraint allows, which is what
+ *   iOS's "app in front and a usable network" condition is for there.
+ * - **A dropped job is kept, with its reason** ([ClipManifest.drop]), so the
+ *   lap page says why once instead of the video silently never appearing.
+ *   *Lap already has a clip* is the exception: the lap shows that clip, which
+ *   says enough.
+ *
+ * [parts] is the bytes sent of each job's part in flight, for the lap page's
+ * percentage.
  */
 public class ClipUploadRunner(
     private val manifest: ClipManifest,
@@ -34,7 +58,8 @@ public class ClipUploadRunner(
     public interface Transport {
         public suspend fun create(sessionId: Int, body: ClipCreate): ClipUpload
 
-        public suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long)
+        /** [onProgress] is called with the part's bytes sent so far, as they go. */
+        public suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long, onProgress: (Long) -> Unit)
 
         /** Throws [ClipMissingParts] for `complete`'s 409 that names them. */
         public suspend fun complete(clipId: Int)
@@ -61,6 +86,11 @@ public class ClipUploadRunner(
         /** Not an uploadable job (still cutting, a failed cut, or gone). */
         public data object Skipped : Outcome
     }
+
+    private val sending = MutableStateFlow<Map<String, Long>>(emptyMap())
+
+    /** Bytes sent so far of the part in flight, by job id; a job with no part in flight is absent. */
+    public val parts: StateFlow<Map<String, Long>> = sending.asStateFlow()
 
     /** Drives job [id] until it finishes, is dropped, or has to wait. */
     public suspend fun run(id: String): Outcome {
@@ -97,7 +127,7 @@ public class ClipUploadRunner(
                 is Action.Drop -> return drop(job, action.reason)
                 is Action.Create -> attempt { Response.Created(transport.create(action.sessionId, action.body)) }
                 is Action.UploadPart -> attempt {
-                    transport.uploadPart(action.clipId, action.part, file, action.offset, action.length)
+                    sendPart(id, action, file)
                     Response.Ok
                 }
                 is Action.Complete -> attempt {
@@ -116,6 +146,61 @@ public class ClipUploadRunner(
         }
     }
 
+    /**
+     * One part, watched: the bytes it has sent are published to [parts], and
+     * if none move for [STALL_MS] — counted in [STALL_CHECK_MS] ticks, so a
+     * test's virtual clock drives it — the send is cancelled and thrown as a
+     * transport failure. Counting from the start means a connect that never
+     * answers is a stall too.
+     */
+    private suspend fun sendPart(id: String, action: Action.UploadPart, file: File) {
+        val sent = AtomicLong(0)
+        sending.update { it + (id to 0L) }
+        var stalled = false
+        try {
+            coroutineScope {
+                val send = async {
+                    transport.uploadPart(action.clipId, action.part, file, action.offset, action.length) { bytes ->
+                        sent.set(bytes)
+                        // A tick per 256 KiB is plenty for a percentage.
+                        if (bytes - (sending.value[id] ?: 0) >= PROGRESS_STEP_BYTES || bytes == action.length) {
+                            sending.update { it + (id to bytes) }
+                        }
+                    }
+                }
+                val watchdog = launch {
+                    var seen = -1L
+                    var quietMs = 0L
+                    while (true) {
+                        delay(STALL_CHECK_MS)
+                        val now = sent.get()
+                        if (now != seen) {
+                            seen = now
+                            quietMs = 0
+                        } else {
+                            quietMs += STALL_CHECK_MS
+                            if (quietMs >= STALL_MS) {
+                                stalled = true
+                                send.cancel()
+                                return@launch
+                            }
+                        }
+                    }
+                }
+                try {
+                    send.await()
+                } finally {
+                    watchdog.cancel()
+                }
+            }
+        } catch (e: CancellationException) {
+            if (stalled) throw ApiException.Transport("clip part ${action.part} sent nothing for ${STALL_MS / 1000} s", e)
+            throw e
+        } finally {
+            sending.update { it - id }
+        }
+    }
+
     private suspend fun sessionState(sessionId: Int): ClipUploadQueue.SessionState {
         if (!OfflineStore.isTemp(sessionId)) return ClipUploadQueue.SessionState.Real(sessionId)
         val state = ids.state(sessionId)
@@ -123,11 +208,19 @@ public class ClipUploadRunner(
     }
 
     private fun drop(job: ClipJob, reason: DropReason): Outcome {
-        manifest.remove(job.id)
+        if (reason == DropReason.ALREADY_HAS_CLIP) manifest.remove(job.id) else manifest.drop(job.id, reason.rawValue, now())
         return Outcome.Dropped(reason)
     }
 
     public companion object {
+        /** How long a part may send nothing before it is treated as stuck — iOS's `stallSeconds`. */
+        public const val STALL_MS: Long = 60_000
+
+        /** How often the stall watchdog looks. */
+        public const val STALL_CHECK_MS: Long = 5_000
+
+        private const val PROGRESS_STEP_BYTES: Long = 256 * 1024
+
         /**
          * An answer that came back as an exception, read the way iOS's
          * `ClipUploader.response(for:)` reads `APIError`: no answer (or one
@@ -154,8 +247,8 @@ public class ClipUploadRunner(
         public fun transport(api: ApiClient): Transport = object : Transport {
             override suspend fun create(sessionId: Int, body: ClipCreate): ClipUpload = api.createClip(sessionId, body)
 
-            override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long) =
-                api.uploadClipPart(clipId, partNumber, file, offset, length)
+            override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long, onProgress: (Long) -> Unit) =
+                api.uploadClipPart(clipId, partNumber, file, offset, length, onProgress)
 
             override suspend fun complete(clipId: Int) {
                 api.completeClip(clipId)

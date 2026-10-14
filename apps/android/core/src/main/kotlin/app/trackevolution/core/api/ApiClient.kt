@@ -51,6 +51,9 @@ import app.trackevolution.core.offline.OfflineJson
 import app.trackevolution.core.offline.OfflineStore
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.request
@@ -139,6 +142,9 @@ public class ApiClient private constructor(
             client = HttpClient(engine) {
                 // Non-2xx is mapped by hand below, into the server's own message.
                 expectSuccess = false
+                // No defaults: only a request that asks for its own timeouts
+                // (a clip part) gets any but the engine's.
+                install(HttpTimeout)
             },
             tokens = tokens,
             offline = offline,
@@ -499,10 +505,26 @@ public class ApiClient private constructor(
      * which the server requires to equal the part's size: R2 refuses to
      * stitch parts of unequal size, and finding that out at `complete` would
      * cost the whole upload.
+     *
+     * [onProgress] hears the bytes sent so far as they go. The socket timeout
+     * is [CLIP_PART_SOCKET_TIMEOUT_MS] rather than OkHttp's 10 s: on a track's
+     * one bar of signal a 10-second hiccup is ordinary, and failing it would
+     * throw away up to 50 MiB already sent. A minute of nothing is iOS's
+     * request timeout and the runner's stall rule, and no request timeout at
+     * all, since a part on a slow uplink takes as long as it takes.
      */
-    public suspend fun uploadClipPart(clipId: Int, partNumber: Int, file: java.io.File, offset: Long, length: Long) {
+    public suspend fun uploadClipPart(
+        clipId: Int,
+        partNumber: Int,
+        file: java.io.File,
+        offset: Long,
+        length: Long,
+        onProgress: (Long) -> Unit = {},
+    ) {
         val path = scoped("PUT", "/clips/$clipId/parts/$partNumber", API_PREFIX)
-        val (status, text) = rawSendContent("PUT", path, FileSliceContent(file, offset, length))
+        val (status, text) = rawSendContent("PUT", path, FileSliceContent(file, offset, length, onProgress)) {
+            timeout { socketTimeoutMillis = CLIP_PART_SOCKET_TIMEOUT_MS }
+        }
         if (status !in 200..299) throw ApiException.from(status, text)
     }
 
@@ -1056,7 +1078,12 @@ public class ApiClient private constructor(
      * [rawSend] for a body that isn't JSON — a clip part. The same transport,
      * auth and error rule: throws only when the network failed.
      */
-    private suspend fun rawSendContent(method: String, path: String, content: OutgoingContent): Pair<Int, String> {
+    private suspend fun rawSendContent(
+        method: String,
+        path: String,
+        content: OutgoingContent,
+        configure: HttpRequestBuilder.() -> Unit = {},
+    ): Pair<Int, String> {
         val token = tokens.currentToken()
         val response = try {
             client.request {
@@ -1065,6 +1092,7 @@ public class ApiClient private constructor(
                 defaultHeaders.forEach { (name, value) -> header(name, value) }
                 if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
                 setBody(content)
+                configure()
             }
         } catch (e: Exception) {
             if (e is ApiException) throw e
@@ -1083,6 +1111,7 @@ public class ApiClient private constructor(
         private val file: java.io.File,
         private val offset: Long,
         private val length: Long,
+        private val onProgress: (Long) -> Unit = {},
     ) : OutgoingContent.WriteChannelContent() {
         override val contentLength: Long get() = length
         override val contentType: ContentType get() = ContentType.Video.MP4
@@ -1097,12 +1126,16 @@ public class ApiClient private constructor(
                     if (n < 0) throw java.io.EOFException("${file.name} ended $left bytes early")
                     channel.writeFully(buffer, 0, n)
                     left -= n
+                    onProgress(length - left)
                 }
             }
         }
     }
 
     public companion object {
+        /** How long a clip part's socket may sit with nothing read or written. */
+        public const val CLIP_PART_SOCKET_TIMEOUT_MS: Long = 60_000
+
         /** Copy buffer for clip parts and downloads. */
         private const val DOWNLOAD_BUFFER = 64 * 1024
 
