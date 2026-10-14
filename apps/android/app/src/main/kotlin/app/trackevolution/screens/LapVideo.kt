@@ -63,6 +63,7 @@ import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapClip
 import app.trackevolution.core.offline.OfflineStore
+import app.trackevolution.core.telemetry.LapClips
 import app.trackevolution.ui.TEConfirmDialog
 import app.trackevolution.ui.TEProLocked
 import app.trackevolution.ui.theme.TrackCard
@@ -353,7 +354,8 @@ internal class ClipPlayerHolder(private val context: Context) : ViewModel() {
         player?.let { if (playerUrl == url) return it else it.release() }
         return ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
-            seekTo(offsetMs.toLong())
+            // A couple of seconds of run-up, so the crossing is on screen.
+            seekTo(LapClips.playbackStartMs(offsetMs).toLong())
             prepare()
             playWhenReady = true
         }.also {

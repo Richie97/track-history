@@ -178,7 +178,7 @@ private struct SetupDayRow: View {
                 // one `List` row, and a default-styled button there makes the whole
                 // row its hit area — one tap fired every day's button and pushed
                 // the form once per day, last day on top.
-                Button(sheet == nil ? "Log day \(day) setup" : "Edit", action: onOpen)
+                Button(action: onOpen) { Text(sheet == nil ? "Log day \(day) setup" : "Edit").padded() }
                     .buttonStyle(.plain)
                     .teStyle(.sm)
                     .foregroundStyle(Color(.accentInk))
@@ -330,12 +330,12 @@ private struct PressureLoopView: View {
                     .foregroundStyle(Color(.textFaint))
             }
             HStack(spacing: 16) {
-                Button("Record hot pressures", action: onRecord)
+                Button(action: onRecord) { Text("Record hot pressures").padded() }
                     .teStyle(.sm)
                     .foregroundStyle(Color(.accentInk))
                     .accessibilityIdentifier("loopRecord")
                 if let onSetNext, let nextDay, loop.coldSheet != nil {
-                    Button("Set day \(nextDay) cold", action: onSetNext)
+                    Button(action: onSetNext) { Text("Set day \(nextDay) cold").padded() }
                         .teStyle(.sm)
                         .foregroundStyle(Color(.accentInk))
                         .accessibilityIdentifier("loopNext")
@@ -415,5 +415,13 @@ enum SetupNotebook {
         return costed.count < past.count
             ? "\(total) spent (\(costed.count) of \(past.count) events costed)"
             : "\(total) spent"
+    }
+}
+
+private extension Text {
+    /// A text-only `.plain` button answers only on its glyphs; this widens its
+    /// target by a thumb's margin on every side without moving the text.
+    func padded() -> some View {
+        contentShape(Rectangle().inset(by: -10))
     }
 }

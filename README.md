@@ -2027,7 +2027,7 @@ retry and give up identically — over a JSON manifest beside the clips (not a
 Room table); a clip saved offline waits for its session's create to flush and
 follows the offline queue's id map.
 `filesDir/clips/` is excluded from both backup XMLs. The lap page plays the
-clip with Media3 ExoPlayer, opened on the lap's first frame, with Download
+clip with Media3 ExoPlayer, opened two seconds before the line (`playbackStartMs`), with Download
 (through the share sheet) and Delete for the owner. `ClipCutterTest` is the
 app's one instrumented test — `./gradlew :app:connectedDebugAndroidTest` on an
 emulator; no CI job runs it — because Robolectric has no `MediaMuxer`.
