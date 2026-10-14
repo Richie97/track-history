@@ -5,7 +5,6 @@ import android.content.ClipData
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
-import android.net.ConnectivityManager
 import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
@@ -36,6 +35,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -53,6 +55,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import app.trackevolution.clips.ClipNetwork
 import app.trackevolution.clips.LocalClipStatus
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
@@ -68,9 +71,12 @@ import app.trackevolution.ui.TEProLocked
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * What the lap page says about a lap's best-lap video (NS-45). Pure, so every
@@ -92,21 +98,42 @@ internal sealed interface LapVideoState {
     /** Playable. [menu] is Download and Delete — the owner's, never a coach's. */
     data class Playable(val clip: LapClip, val menu: Boolean) : LapVideoState
 
-    /** A clip being cut or uploaded from this phone. */
-    data object Uploading : LapVideoState
+    /** A clip being cut from the source video on this phone. */
+    data object Preparing : LapVideoState
 
-    /** The same, held for an unmetered network by Settings' cellular switch. */
+    /** The session was saved offline and hasn't reached the server yet. */
+    data object WaitingForSession : LapVideoState
+
+    /** No network at all. */
+    data object WaitingForConnection : LapVideoState
+
+    /** Held for an unmetered network by Settings' cellular switch. */
     data object WaitingForWifi : LapVideoState
 
-    /** The cut failed; said once on the lap until the job is pruned. The session is fine. */
-    data object CutFailed : LapVideoState
+    /** On its way: [fraction] of the clip's bytes the server holds or is receiving. */
+    data class Uploading(val fraction: Double) : LapVideoState
+
+    /** The last attempt failed; the next is at [atMs] (epoch). *Retry now* runs job [jobId] at once. */
+    data class Retrying(val atMs: Long, val jobId: String) : LapVideoState
+
+    /**
+     * The cut failed ([reason] null) or the upload was given up on ([reason] a
+     * `DropReason`'s raw value). Said once — the card acknowledges job [jobId]
+     * as it says it — and the session is fine either way.
+     */
+    data class Failed(val reason: String?, val jobId: String) : LapVideoState
 
     companion object {
         /**
          * [jobs] are this phone's upload jobs; [resolve] maps a job's temp
-         * session id to the real one where the queue has flushed it. A coach
-         * has none — jobs are the driver's own — so a student's logbook never
-         * shows a pending state.
+         * session id to the real one where the queue has flushed it; [parts]
+         * is the bytes sent of each job's part in flight. A coach has none —
+         * jobs are the driver's own — so a student's logbook never shows a
+         * pending state.
+         *
+         * The order is iOS's `ClipUploader.status`: a part in flight says how
+         * far it has got unless the network has gone; otherwise a backoff says
+         * when it tries again, then what the job is waiting for.
          */
         fun of(
             lap: Lap,
@@ -117,7 +144,9 @@ internal sealed interface LapVideoState {
             jobs: List<ClipJob>,
             resolve: (Int) -> Int?,
             cellularAllowed: Boolean,
-            metered: Boolean,
+            network: ClipNetwork,
+            parts: Map<String, Long> = emptyMap(),
+            nowMs: Long = System.currentTimeMillis(),
         ): LapVideoState {
             val clip = lap.clip
             if (clip != null) {
@@ -132,7 +161,7 @@ internal sealed interface LapVideoState {
             // a second lap tied on time never shows the first one's upload —
             // iOS's `ClipUploadQueue.clipLap` rule, under the same name here.
             if (ClipUploadQueue.clipLap(sessionLaps, lap.timeMs)?.id != lap.id) return None
-            val job = jobs.lastOrNull { job ->
+            val mine = jobs.filter { job ->
                 ClipUploadQueue.isFor(
                     jobSessionId = job.sessionId,
                     jobTimeMs = job.timeMs,
@@ -140,26 +169,85 @@ internal sealed interface LapVideoState {
                     resolved = if (OfflineStore.isTemp(job.sessionId)) resolve(job.sessionId) else null,
                     timeMs = lap.timeMs,
                 )
-            } ?: return None
-            return when (job.state) {
-                ClipJob.State.CUT_FAILED -> CutFailed
-                ClipJob.State.CUTTING -> Uploading
-                ClipJob.State.PENDING -> if (!cellularAllowed && metered) WaitingForWifi else Uploading
             }
+            // One on its way outranks an old failure for the same lap.
+            val job = mine.lastOrNull { !it.failed } ?: mine.lastOrNull() ?: return None
+            val waiting = when {
+                !network.online -> WaitingForConnection
+                network.metered && !cellularAllowed -> WaitingForWifi
+                else -> null
+            }
+            return when (job.state) {
+                ClipJob.State.CUT_FAILED -> Failed(null, job.id)
+                ClipJob.State.DROPPED -> Failed(job.dropReason ?: ClipUploadQueue.DropReason.REFUSED.rawValue, job.id)
+                ClipJob.State.CUTTING -> Preparing
+                ClipJob.State.PENDING -> {
+                    val sending = parts[job.id]
+                    val notBefore = job.notBeforeMs
+                    when {
+                        sending != null -> waiting ?: Uploading(fraction(job, sending))
+                        notBefore != null && job.failures > 0 && notBefore > nowMs -> Retrying(notBefore, job.id)
+                        OfflineStore.isTemp(job.sessionId) && resolve(job.sessionId) == null -> WaitingForSession
+                        else -> waiting ?: Uploading(fraction(job, 0))
+                    }
+                }
+            }
+        }
+
+        /** The share of [job]'s bytes the server holds, plus [sending] of the part in flight. */
+        fun fraction(job: ClipJob, sending: Long): Double {
+            val partBytes = job.partBytes
+            val parts = job.parts
+            if (job.sizeBytes <= 0 || partBytes == null || parts == null) return 0.0
+            val held = job.uploaded.sumOf { ClipUploadQueue.partRange(job.sizeBytes, partBytes, parts, it).second }
+            return minOf(1.0, (held + sending).toDouble() / job.sizeBytes)
         }
     }
 }
 
-/** The words, shared with the web where it has them. */
+/** The words, shared with the web and iOS where they have them. */
 internal object LapVideoText {
     const val NEEDS_CONNECTION = "Playing a lap video needs a connection."
     const val DELETED = "This video has been deleted."
     const val CONFIRM_DELETE = "Delete this lap video? The lap and its telemetry stay."
     const val DELETE_NEEDS_CONNECTION = "Deleting a lap video needs a connection."
-    const val UPLOADING = "Video uploading"
+    const val PREPARING = "Preparing video"
+    const val WAITING_FOR_SESSION = "Video waiting for this session to sync"
+    const val WAITING_FOR_CONNECTION = "Video waiting for a connection"
     const val WAITING_FOR_WIFI = "Video waiting for Wi-Fi"
-    const val CUT_FAILED = "Couldn't save this lap's video"
+    const val UPLOADING = "Video uploading"
+    const val RETRY_NOW = "Retry now"
+    const val CUT_FAILED = "Couldn't save this lap's video."
     const val LOCKED_BLURB = "Your best-lap video is kept. Pro plays it, downloads it and saves new ones from a video import."
+
+    /** A clip on its way, in iOS's `ClipPendingCard.text` words; null for any other state. */
+    fun pending(state: LapVideoState, nowMs: Long): String? = when (state) {
+        LapVideoState.Preparing -> PREPARING
+        LapVideoState.WaitingForSession -> WAITING_FOR_SESSION
+        LapVideoState.WaitingForConnection -> WAITING_FOR_CONNECTION
+        LapVideoState.WaitingForWifi -> WAITING_FOR_WIFI
+        is LapVideoState.Uploading -> {
+            val percent = floor(state.fraction * 100).toInt()
+            if (percent > 0) "$UPLOADING · $percent%" else UPLOADING
+        }
+        is LapVideoState.Retrying -> {
+            val seconds = (state.atMs - nowMs) / 1000.0
+            if (seconds <= 60) {
+                "Video upload interrupted. Trying again shortly."
+            } else {
+                "Video upload interrupted. Trying again in ${ceil(seconds / 60).toInt()} min."
+            }
+        }
+        else -> null
+    }
+
+    /** Why a lap has no video after all — iOS's `ClipUploader.failureText`. */
+    fun failure(reason: String?): String = when (ClipUploadQueue.DropReason.entries.firstOrNull { it.rawValue == reason }) {
+        ClipUploadQueue.DropReason.STORAGE_FULL -> "Couldn't upload this lap's video: your video storage is full."
+        ClipUploadQueue.DropReason.PRO_REQUIRED -> "Couldn't upload this lap's video: saving lap videos needs Pro."
+        null -> CUT_FAILED
+        else -> "Couldn't upload this lap's video."
+    }
 }
 
 /**
@@ -186,14 +274,22 @@ internal fun LapVideoCard(
     onDeleted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val clips = LocalClipStatus.current
     val jobs by clips.jobs.collectAsState()
+    val parts by clips.parts.collectAsState()
+    val network by clips.network.collectAsState()
     val cellular by clips.cellularAllowed.collectAsState(initial = false)
     // Temp session ids on this lap's jobs, resolved once each through the id map.
     val resolved by produceState(emptyMap<Int, Int>(), jobs) {
         value = jobs.map { it.sessionId }.filter { OfflineStore.isTemp(it) }.distinct()
             .mapNotNull { temp -> api.resolveTempId(temp)?.let { temp to it } }.toMap()
+    }
+    // Ticks while anything is on its way, so "Trying again in 2 min" counts down.
+    val now by produceState(System.currentTimeMillis(), jobs.isNotEmpty()) {
+        while (jobs.isNotEmpty()) {
+            delay(TICK_MS)
+            value = System.currentTimeMillis()
+        }
     }
     val state = LapVideoState.of(
         lap = lap,
@@ -204,11 +300,23 @@ internal fun LapVideoCard(
         jobs = jobs,
         resolve = { resolved[it] },
         cellularAllowed = cellular,
-        metered = remember(jobs) { isMetered(context) },
+        network = network,
+        parts = parts,
+        nowMs = now,
     )
+    // A failure is said once: kept here (through a rotation) once seen, and
+    // forgotten by the manifest, so the next visit to the lap is quiet.
+    var said by rememberSaveable(lap.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(state) {
+        if (state is LapVideoState.Failed) {
+            said = LapVideoText.failure(state.reason)
+            clips.acknowledge(state.jobId)
+        }
+    }
 
     when (state) {
-        LapVideoState.None -> Unit
+        LapVideoState.None, is LapVideoState.Failed ->
+            said?.let { Note(it, modifier.testTag("lapVideoFailed")) }
         LapVideoState.Locked -> TEProLocked(
             title = "Lap video",
             blurb = LapVideoText.LOCKED_BLURB,
@@ -216,10 +324,39 @@ internal fun LapVideoCard(
             modifier = modifier.testTag("lapVideoLocked"),
         )
         is LapVideoState.StudentLocked -> Note(state.text, modifier.testTag("lapVideoStudentLocked"))
-        LapVideoState.Uploading -> Note(LapVideoText.UPLOADING, modifier.testTag("lapVideoPending"))
-        LapVideoState.WaitingForWifi -> Note(LapVideoText.WAITING_FOR_WIFI, modifier.testTag("lapVideoPending"))
-        LapVideoState.CutFailed -> Note(LapVideoText.CUT_FAILED, modifier.testTag("lapVideoFailed"))
+        is LapVideoState.Retrying -> Pending(
+            LapVideoText.pending(state, now).orEmpty(),
+            onRetry = { clips.retryNow(state.jobId) },
+            modifier = modifier,
+        )
+        LapVideoState.Preparing,
+        LapVideoState.WaitingForSession,
+        LapVideoState.WaitingForConnection,
+        LapVideoState.WaitingForWifi,
+        is LapVideoState.Uploading,
+        -> Pending(LapVideoText.pending(state, now).orEmpty(), onRetry = null, modifier = modifier)
         is LapVideoState.Playable -> Playable(api, state, lap, onDeleted, modifier)
+    }
+}
+
+/** A clip on its way, and — after a failed attempt — *Retry now*, also offered as the card's accessibility action. */
+@Composable
+private fun Pending(text: String, onRetry: (() -> Unit)?, modifier: Modifier) {
+    TrackCard(
+        modifier.fillMaxWidth().testTag("lapVideoPending").semantics {
+            if (onRetry != null) {
+                customActions = listOf(CustomAccessibilityAction(LapVideoText.RETRY_NOW) { onRetry(); true })
+            }
+        },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text, style = TrackTheme.typography.sm, color = TrackTheme.colors.textMuted, modifier = Modifier.weight(1f))
+            if (onRetry != null) {
+                TextButton(onClick = onRetry, modifier = Modifier.testTag("lapVideoRetry")) {
+                    Text(LapVideoText.RETRY_NOW, style = TrackTheme.typography.sm, color = TrackTheme.colors.accentInk)
+                }
+            }
+        }
     }
 }
 
@@ -490,6 +627,5 @@ private suspend fun download(context: Context, api: ApiClient, clipId: Int): Str
     return null
 }
 
-/** Whether the active network is metered (cellular, a metered hotspot) — or there is none. */
-private fun isMetered(context: Context): Boolean =
-    context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered ?: true
+/** How often a pending card re-reads the clock, for its countdown. */
+private const val TICK_MS = 5_000L

@@ -52,6 +52,13 @@ public data class ClipJob(
     @SerialName("not_before_ms") val notBeforeMs: Long? = null,
     /** Epoch ms, for pruning failed jobs a while after they have been said. */
     @SerialName("created_at") val createdAt: Long,
+    /**
+     * Why the upload was given up on — a [ClipUploadQueue.DropReason]'s raw
+     * value, the strings iOS's manifest keeps — for a [State.DROPPED] job.
+     */
+    @SerialName("drop_reason") val dropReason: String? = null,
+    /** Epoch ms the cut failed or the upload was dropped; the week a failure is kept counts from here. */
+    @SerialName("failed_at") val failedAt: Long? = null,
 ) {
     /** The body of `POST /sessions/:id/clip` for this job — iOS's `createBody`. */
     val createBody: ClipCreate
@@ -67,8 +74,19 @@ public data class ClipJob(
 
         /**
          * The cut failed: nothing was written, and the lap page says *"Couldn't
-         * save this lap's video"* until the job is pruned. The session is fine.
+         * save this lap's video."* once. The session is fine.
          */
         @SerialName("cut_failed") CUT_FAILED,
+
+        /**
+         * The upload was given up on ([dropReason] says why) and its clip file
+         * deleted: kept only so the lap page can say so once, rather than the
+         * video quietly never appearing — iOS's `failedCuts` entry with a
+         * `reason`. The session is fine.
+         */
+        @SerialName("dropped") DROPPED,
     }
+
+    /** A cut that failed or an upload given up on, waiting to be said on its lap. */
+    val failed: Boolean get() = state == State.CUT_FAILED || state == State.DROPPED
 }

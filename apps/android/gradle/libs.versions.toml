@@ -126,6 +126,8 @@ androidx-activity-compose = { module = "androidx.activity:activity-compose", ver
 # Backs the persisted theme override (NS-07) and, later, any other small setting.
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+# ProcessLifecycleOwner: the clip uploader's "the app came to the front" (NS-45).
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }
 # Scopes a screen's model to its NavBackStackEntry (NS-26), so rotation and a
 # theme change don't re-fetch the screen or drop a half-typed form.
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }

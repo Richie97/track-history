@@ -1,9 +1,15 @@
 package app.trackevolution.clips
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -22,7 +28,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -43,8 +51,18 @@ import java.util.UUID
  * request arrives here; the cut runs on [Dispatchers.IO] in this object's own
  * scope, **outside the save's job**, so a slow or failing cut can't hold up or
  * fail the save; the job is written `CUTTING` first so the lap page can say
- * *Video uploading* from the moment the review closes; and only a finished
+ * *Preparing video* from the moment the review closes; and only a finished
  * cut is handed to WorkManager.
+ *
+ * **Nothing may sit on *Video uploading* forever** — iOS's `ClipUploader` rule,
+ * after a patchy track connection left uploads stuck. The queue backs off up
+ * to an hour, and a driver home on good Wi-Fi was waiting out failures counted
+ * on the track's network. So the app coming to the front ([becameActive], off
+ * [ProcessLifecycleOwner]) and a new usable network (a default-network
+ * callback) both end every job's backoff and run it now; a part that stops
+ * moving is the runner's to cancel (`ClipUploadRunner.STALL_MS`); and a job
+ * the queue gives up on stays in the manifest with its reason, said once on
+ * its lap.
  */
 internal class ClipUploads(
     context: Context,
@@ -61,8 +79,16 @@ internal class ClipUploads(
     /** Drives a job through `:core`'s [ClipUploadQueue] — the same state machine as iOS's. */
     val runner = ClipUploadRunner(manifest, ClipUploadRunner.transport(api), ClipUploadRunner.tempIds(api))
 
-    /** Every job, for the lap page's *Video uploading* and *Couldn't save* states. */
+    /** Every job, for the lap page's pending and failed states. */
     override val jobs: StateFlow<List<ClipJob>> get() = manifest.jobs
+
+    override val parts: StateFlow<Map<String, Long>> get() = runner.parts
+
+    private val networkState = MutableStateFlow(ClipNetwork.UNKNOWN)
+    override val network: StateFlow<ClipNetwork> = networkState.asStateFlow()
+
+    /** The network the last callback described — its id and the two facts — to notice a new one. */
+    private var networkSignature: String? = null
 
     /** *Upload lap videos over cellular* — off by default (Wi-Fi only). */
     override val cellularAllowed: Flow<Boolean> = appContext.settingsDataStore.data.map { it[CELLULAR_KEY] ?: false }
@@ -79,6 +105,86 @@ internal class ClipUploads(
             manifest.prune(System.currentTimeMillis())
             val cellular = cellularAllowed.first()
             manifest.all().filter { it.state == ClipJob.State.PENDING }.forEach { schedule(it.id, cellular, ExistingWorkPolicy.KEEP) }
+        }
+        watchNetwork()
+        // Off the process's lifecycle, not an activity's: a rotation is not
+        // the app coming back, and must not restart anything.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) = becameActive()
+            },
+        )
+    }
+
+    /**
+     * The app came to the front: every backoff ends and every waiting job runs
+     * now. The driver is looking, and whatever failed may well have failed on
+     * a network they have since left.
+     */
+    fun becameActive() {
+        runNow(null)
+    }
+
+    override fun retryNow(jobId: String) {
+        runNow(jobId)
+    }
+
+    override fun acknowledge(jobId: String) {
+        scope.launch { manifest.acknowledge(jobId) }
+    }
+
+    /**
+     * Ends the backoff of [jobId] (every job when null) and replaces its
+     * waiting work with work that runs at once. A job with a part in flight is
+     * left alone — it is moving, and replacing its worker would throw the part
+     * away; if it isn't moving, the runner's stall rule ends it.
+     */
+    private fun runNow(jobId: String?) {
+        scope.launch {
+            val cellular = cellularAllowed.first()
+            val inFlight = runner.parts.value.keys
+            manifest.clearBackoff(jobId)
+                .filter { it.id !in inFlight }
+                .forEach { schedule(it.id, cellular, ExistingWorkPolicy.REPLACE) }
+        }
+    }
+
+    /**
+     * Follows the default network for the lap page's *waiting for a
+     * connection* / *Wi-Fi*, and on arriving at a **new** usable one — another
+     * network, or the same one turning unmetered — ends every backoff, as
+     * iOS's path monitor does. Signal-strength updates, which re-deliver the
+     * capabilities constantly on cellular, don't change the signature.
+     * Registered for the life of the process, as `SyncScheduler`'s is.
+     */
+    private fun watchNetwork() {
+        val manager = appContext.getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                networkChanged(
+                    "$network",
+                    ClipNetwork(
+                        online = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                        metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
+                    ),
+                )
+            }
+
+            override fun onLost(network: Network) {
+                networkChanged(null, networkState.value.copy(online = false))
+            }
+        }
+        runCatching { manager.registerDefaultNetworkCallback(callback) }
+    }
+
+    @Synchronized
+    private fun networkChanged(id: String?, now: ClipNetwork) {
+        val signature = id?.let { "$it ${now.online} ${now.metered}" } ?: "none"
+        networkState.value = now
+        if (signature == networkSignature) return
+        networkSignature = signature
+        scope.launch {
+            if (now.usable(cellularAllowed.first())) runNow(null)
         }
     }
 
@@ -98,9 +204,9 @@ internal class ClipUploads(
                 ClipCutter.cut(appContext.contentResolver, request.source, request.window, out)
             } catch (e: Exception) {
                 // Nothing was written, and the session is already saved. The lap
-                // page says so once: "Couldn't save this lap's video".
+                // page says so once: "Couldn't save this lap's video."
                 Log.w(TAG, "couldn't cut the best lap from ${request.source}", e)
-                manifest.update(job.id) { it.copy(state = ClipJob.State.CUT_FAILED, file = null) }
+                manifest.update(job.id) { it.copy(state = ClipJob.State.CUT_FAILED, file = null, failedAt = System.currentTimeMillis()) }
                 return@launch
             }
             manifest.update(job.id) {

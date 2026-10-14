@@ -7,6 +7,9 @@ import app.trackevolution.core.clips.ClipUploadRunner.Outcome
 import app.trackevolution.core.model.ClipCreate
 import app.trackevolution.core.model.ClipUpload
 import app.trackevolution.core.offline.OfflineStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -38,6 +41,8 @@ class ClipUploadRunnerTest {
         var clipId = 77
         var createError: Exception? = null
         var partError: (Int) -> Exception? = { null }
+        /** Parts that, once sent this far, never answer — a track-side connection gone quiet. */
+        val hangAfter = mutableMapOf<Int, Long>()
         val completeErrors = ArrayDeque<Exception>()
 
         override suspend fun create(sessionId: Int, body: ClipCreate): ClipUpload {
@@ -48,9 +53,15 @@ class ClipUploadRunnerTest {
             return ClipUpload(clipId = clipId, partBytes = partBytes, parts = count, uploaded = parts.keys.toList())
         }
 
-        override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long) {
+        override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long, onProgress: (Long) -> Unit) {
             calls += "part $partNumber"
+            hangAfter[partNumber]?.let { sent ->
+                onProgress(sent)
+                hangAfter.remove(partNumber)
+                awaitCancellation()
+            }
             partError(partNumber)?.let { throw it }
+            onProgress(length)
             assertEquals(this.clipId, clipId)
             assertTrue(offset + length <= file.length(), "a part never reads past the file")
             parts[partNumber] = length
@@ -145,27 +156,150 @@ class ClipUploadRunnerTest {
     }
 
     @Test
-    fun `a temp session whose create is gone and never mapped is dropped`() = runTest {
+    fun `a temp session whose create is gone and never mapped is dropped, and kept to be said`() = runTest {
         val manifest = ClipManifest(dir)
         val j = job(sessionId = -3)
         manifest.put(j)
 
         assertEquals(Outcome.Dropped(DropReason.SESSION_LOST), runner(manifest).run(j.id))
-        assertNull(manifest.get(j.id))
+        val dropped = ClipManifest(dir).get(j.id)!!
+        assertEquals(ClipJob.State.DROPPED, dropped.state)
+        assertEquals("session lost", dropped.dropReason)
+        assertEquals(clock, dropped.failedAt)
+        assertNull(dropped.file)
         assertFalse(File(j.file!!).exists())
     }
 
     @Test
-    fun `storage full and already has a clip drop the job and delete the file`() = runTest {
+    fun `storage full is kept with its reason, and already has a clip just goes since the lap shows that clip`() = runTest {
         for ((message, reason) in listOf("clip storage full" to DropReason.STORAGE_FULL, "lap already has a clip" to DropReason.ALREADY_HAS_CLIP)) {
             val manifest = ClipManifest(dir)
+            manifest.clear()
             val j = job(clipFile("c.mp4"))
             manifest.put(j)
             server.createError = ApiException.Server(409, message)
             assertEquals(Outcome.Dropped(reason), runner(manifest).run(j.id))
-            assertNull(manifest.get(j.id))
-            assertFalse(File(j.file!!).exists(), "$message: the file goes too")
+            if (reason == DropReason.ALREADY_HAS_CLIP) {
+                assertNull(manifest.get(j.id))
+            } else {
+                assertEquals(ClipJob.State.DROPPED to message, manifest.get(j.id)!!.let { it.state to it.dropReason })
+            }
+            assertFalse(File(j.file!!).exists(), "$message: the file goes either way")
         }
+    }
+
+    @Test
+    fun `a dropped job is never uploaded, is said once, and is otherwise forgotten after a week`() = runTest {
+        val manifest = ClipManifest(dir)
+        manifest.put(job(sessionId = -3))
+        runner(manifest).run("job-1")
+        server.calls.clear()
+        assertEquals(Outcome.Skipped, runner(manifest).run("job-1"))
+        assertTrue(server.calls.isEmpty())
+
+        // Unseen, it outlives a prune counted from its creation, not its drop.
+        manifest.prune(nowMs = clock + ClipManifest.FAILED_KEPT_MS)
+        assertTrue(manifest.get("job-1") != null)
+        manifest.prune(nowMs = clock + ClipManifest.FAILED_KEPT_MS + 1)
+        assertNull(manifest.get("job-1"))
+
+        manifest.put(job(clipFile("b.mp4"), sessionId = -3))
+        runner(manifest).run("job-1")
+        manifest.acknowledge("job-1")
+        assertNull(manifest.get("job-1"), "said on the lap page: forgotten")
+    }
+
+    @Test
+    fun `acknowledging leaves a job still on its way alone`() {
+        val manifest = ClipManifest(dir)
+        manifest.put(job())
+        manifest.acknowledge("job-1")
+        assertTrue(manifest.get("job-1") != null)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a part that sends nothing for a minute is cancelled and backs off like any transport failure`() = runTest {
+        val manifest = ClipManifest(dir)
+        manifest.put(job())
+        server.hangAfter[2] = 4
+        val runner = runner(manifest)
+        val started = currentTime
+
+        assertEquals(Outcome.WaitUntil(clock + 30_000), runner.run("job-1"))
+        assertTrue(currentTime - started in ClipUploadRunner.STALL_MS..ClipUploadRunner.STALL_MS + ClipUploadRunner.STALL_CHECK_MS)
+        val after = manifest.get("job-1")!!
+        assertEquals(listOf(1), after.uploaded, "part 1 is kept; part 2 is sent again")
+        assertEquals(1, after.failures)
+        assertTrue(runner.parts.value.isEmpty(), "nothing is in flight once it gave up")
+
+        clock += 30_000
+        assertEquals(Outcome.Done, runner.run("job-1"))
+        assertEquals(listOf("create 501", "part 1", "part 2", "part 2", "part 3", "complete"), server.calls)
+    }
+
+    @Test
+    fun `a slow part that keeps moving is never judged stalled`() = runTest {
+        val manifest = ClipManifest(dir)
+        manifest.put(job())
+        val slow = object : ClipUploadRunner.Transport by server {
+            override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long, onProgress: (Long) -> Unit) {
+                // Two minutes for ten bytes, one every 12 s: never a quiet minute.
+                for (b in 1..length) {
+                    kotlinx.coroutines.delay(12_000)
+                    onProgress(b)
+                }
+                server.uploadPart(clipId, partNumber, file, offset, length, onProgress)
+            }
+        }
+        val runner = ClipUploadRunner(manifest, slow, ids, now = { clock })
+        assertEquals(Outcome.Done, runner.run("job-1"))
+    }
+
+    @Test
+    fun `the bytes of the part in flight are published while it is sent`() = runTest {
+        val manifest = ClipManifest(dir)
+        manifest.put(job())
+        val seen = mutableListOf<Map<String, Long>>()
+        lateinit var runner: ClipUploadRunner
+        val watching = object : ClipUploadRunner.Transport by server {
+            override suspend fun uploadPart(clipId: Int, partNumber: Int, file: File, offset: Long, length: Long, onProgress: (Long) -> Unit) {
+                seen += runner.parts.value
+                server.uploadPart(clipId, partNumber, file, offset, length, onProgress)
+                seen += runner.parts.value
+            }
+        }
+        runner = ClipUploadRunner(manifest, watching, ids, now = { clock })
+        assertEquals(Outcome.Done, runner.run("job-1"))
+        assertEquals(
+            listOf(mapOf("job-1" to 0L), mapOf("job-1" to 10L), mapOf("job-1" to 0L), mapOf("job-1" to 10L), mapOf("job-1" to 0L), mapOf("job-1" to 5L)),
+            seen,
+            "the last of each part is always published, however small",
+        )
+        assertTrue(runner.parts.value.isEmpty())
+    }
+
+    @Test
+    fun `clearing the backoff lets the next run go at once, and keeps the failure count`() = runTest {
+        val manifest = ClipManifest(dir)
+        manifest.put(job())
+        server.createError = ApiException.Transport("offline")
+        repeat(3) { clock = (runner(manifest).run("job-1") as Outcome.WaitUntil).ms }
+        clock -= 1
+        assertEquals(3, manifest.get("job-1")!!.failures)
+        assertTrue(manifest.get("job-1")!!.notBeforeMs!! > clock)
+
+        manifest.put(job(clipFile("other.mp4")).copy(id = "job-2", notBeforeMs = clock + 99_000))
+        manifest.put(job(file = null, state = ClipJob.State.CUT_FAILED).copy(id = "job-3"))
+        assertEquals(listOf("job-1"), manifest.clearBackoff("job-1").map { it.id })
+        assertNull(manifest.get("job-1")!!.notBeforeMs)
+        assertEquals(clock + 99_000, manifest.get("job-2")!!.notBeforeMs, "one job's retry is that job's")
+        assertEquals(listOf("job-1", "job-2"), manifest.clearBackoff().map { it.id }, "every pending job, never a failure")
+        assertNull(manifest.get("job-2")!!.notBeforeMs)
+        assertEquals(3, manifest.get("job-1")!!.failures)
+
+        server.createError = ApiException.Transport("still offline")
+        assertEquals(Outcome.WaitUntil(clock + ClipUploadQueue.backoffMs(4)), runner(manifest).run("job-1"), "the next failure backs off further")
     }
 
     @Test
@@ -261,14 +395,27 @@ class ClipUploadRunnerTest {
         manifest.put(job(kept).copy(id = "job-2"))
 
         val next = ClipManifest(dir)
-        next.recoverInterrupted()
+        next.recoverInterrupted(nowMs = 1_000)
         assertEquals(ClipJob.State.CUT_FAILED, next.get("job-1")!!.state)
         assertFalse(stray.exists(), "a clip no job names is deleted")
         assertTrue(kept.exists())
 
         next.prune(nowMs = 1_000 + ClipManifest.FAILED_KEPT_MS + 1)
-        assertNull(next.get("job-1"), "a failed cut is said for a week, then forgotten")
+        assertNull(next.get("job-1"), "an unsaid failed cut is kept a week, then forgotten")
         assertTrue(next.get("job-2") != null, "a pending upload is never pruned")
+    }
+
+    @Test
+    fun `a manifest written before failures kept their reason still reads`() {
+        dir.mkdirs()
+        File(dir, "manifest.json").writeText(
+            """[{"id":"old","session_id":7,"event_id":3,"time_ms":1,"state":"cut_failed","created_at":5}]""",
+        )
+        val old = ClipManifest(dir).get("old")!!
+        assertEquals(ClipJob.State.CUT_FAILED, old.state)
+        assertNull(old.dropReason)
+        assertNull(old.failedAt)
+        assertTrue(old.failed)
     }
 
     @Test
