@@ -27,8 +27,21 @@ public object LapClips {
     /** Seconds kept before the lap starts, clamped to the file. */
     public const val PRE_ROLL_S: Double = 3.0
 
-    /** Seconds kept after the lap ends, clamped to the file. */
-    public const val POST_ROLL_S: Double = 2.0
+    /**
+     * Seconds kept after the lap ends, clamped to the file. The longer of the two:
+     * a lap's `endT` can sit a beat early of the car crossing the line on video,
+     * and a clip that stops on the line looks cut off.
+     */
+    public const val POST_ROLL_S: Double = 4.0
+
+    /**
+     * Seconds of run-up a player shows before the line: it opens this far ahead
+     * of `lapOffsetMs`, so the crossing is seen.
+     */
+    public const val PLAYBACK_LEAD_S: Double = 2.0
+
+    /** Where a player opens a clip, in ms: [PLAYBACK_LEAD_S] ahead of the lap's start inside it, never before 0. */
+    public fun playbackStartMs(lapOffsetMs: Int): Int = maxOf(0, lapOffsetMs - (PLAYBACK_LEAD_S * 1000).toInt())
 
     /** A lap longer than this gets no clip (inclusive: exactly 600 s still does). */
     public const val MAX_CLIP_S: Double = 600.0

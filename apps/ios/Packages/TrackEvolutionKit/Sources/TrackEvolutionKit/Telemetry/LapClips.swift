@@ -13,8 +13,19 @@ import Foundation
 /// inside the clip it made.
 public enum LapClips {
     /// Seconds kept before the lap starts and after it ends, clamped to the file.
+    /// The tail is the longer: a lap's `endT` can sit a beat early of the car
+    /// crossing the line on video, and a clip that stops on the line looks cut off.
     public static let PRE_ROLL_S: Double = 3
-    public static let POST_ROLL_S: Double = 2
+    public static let POST_ROLL_S: Double = 4
+    /// Seconds of run-up a player shows before the line: it opens this far ahead
+    /// of `lapOffsetMs`, so the crossing is seen.
+    public static let PLAYBACK_LEAD_S: Double = 2
+
+    /// Where a player opens a clip, in ms: `PLAYBACK_LEAD_S` ahead of the lap's
+    /// start inside it, never before the clip's own start.
+    public static func playbackStartMs(_ lapOffsetMs: Int) -> Int {
+        max(0, lapOffsetMs - Int(PLAYBACK_LEAD_S * 1000))
+    }
     /// A lap longer than this gets no clip (inclusive: exactly 600 s still does).
     public static let MAX_CLIP_S: Double = 600
 

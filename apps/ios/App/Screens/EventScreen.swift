@@ -436,6 +436,7 @@ struct EventScreen: View {
                                     .strikethrough(item.done, color: Color(.textFaint))
                                 Spacer()
                             }
+                            .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                     }
@@ -728,10 +729,20 @@ struct EventScreen: View {
                             Label("Delete session", systemImage: "trash")
                         }
                     } label: {
+                        // A 44pt square (the HIG minimum) around a bare glyph that
+                        // is a few points tall: the target is what a thumb has to
+                        // find, not what the eye does. Centred on the title's text
+                        // rather than sitting on its baseline, and pulled back in
+                        // vertically so the header doesn't grow by the difference.
                         Image(systemName: "ellipsis")
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(Color(.textMuted))
-                            .padding(.leading, 6)
+                            .frame(width: 44, height: 44)
+                            .contentShape(.rect)
                     }
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 6 }
+                    .padding(.vertical, -10)
+                    .padding(.trailing, -10)
                     .accessibilityLabel("Session actions")
                 }
             }

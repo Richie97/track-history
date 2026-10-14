@@ -76,9 +76,10 @@ public struct ClipUploadJob: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// The uploader's whole persisted state: the jobs, and the cuts that failed and
-/// haven't yet been told to the driver (the lap row says *"Couldn't save this
-/// lap's video"* once).
+/// The uploader's whole persisted state: the jobs, and the clips that failed —
+/// a cut that couldn't be made, or an upload the server refused — and haven't
+/// yet been told to the driver (the lap row says *"Couldn't save this lap's
+/// video"* once).
 public struct ClipUploadManifest: Codable, Hashable, Sendable {
     public var jobs: [ClipUploadJob]
     public var failedCuts: [FailedCut]
@@ -91,15 +92,20 @@ public struct ClipUploadManifest: Codable, Hashable, Sendable {
     public struct FailedCut: Codable, Hashable, Sendable {
         public var sessionId: Int
         public var timeMs: Int
+        /// Why an *upload* was given up on — a `DropReason`'s raw value — or nil
+        /// for a cut that failed. Absent in a manifest written before it existed.
+        public var reason: String?
 
-        public init(sessionId: Int, timeMs: Int) {
+        public init(sessionId: Int, timeMs: Int, reason: String? = nil) {
             self.sessionId = sessionId
             self.timeMs = timeMs
+            self.reason = reason
         }
 
         public enum CodingKeys: String, CodingKey {
             case sessionId = "session_id"
             case timeMs = "time_ms"
+            case reason
         }
     }
 

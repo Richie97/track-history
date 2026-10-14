@@ -57,7 +57,7 @@ import {
   canCompareEvents, canSaveLapVideo, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
-import { clipStorageLine } from "./js/import/clip.js";
+import { clipStorageLine, playbackStartMs } from "./js/import/clip.js";
 import { cutClip } from "./js/import/mp4cut.js";
 import {
   clipBannerText, clipStatusText, createClipUploads, liveComplete, liveCreate, livePutPart,
@@ -2028,7 +2028,8 @@ async function openLapVideo(box) {
     </div>`
     }`;
   const video = body.querySelector("video");
-  const offsetS = Number(box.dataset.lapOffset) / 1000;
+  // A couple of seconds of run-up, so the crossing is on screen.
+  const offsetS = playbackStartMs(Number(box.dataset.lapOffset)) / 1000;
   video.addEventListener("loadedmetadata", () => { if (offsetS > 0 && offsetS < video.duration) video.currentTime = offsetS; }, { once: true });
   video.addEventListener("error", () => {
     if (!navigator.onLine) body.querySelector("video")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);

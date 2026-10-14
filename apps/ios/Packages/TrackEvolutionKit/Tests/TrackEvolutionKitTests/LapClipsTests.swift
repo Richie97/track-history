@@ -13,6 +13,11 @@ struct LapClipsTests {
         let f = try LapClipsFixture.load()
         #expect(LapClips.PRE_ROLL_S == f.PRE_ROLL_S)
         #expect(LapClips.POST_ROLL_S == f.POST_ROLL_S)
+        #expect(LapClips.PLAYBACK_LEAD_S == f.PLAYBACK_LEAD_S)
+        #expect(!f.playbackStartMs.isEmpty)
+        for row in f.playbackStartMs {
+            #expect(LapClips.playbackStartMs(row[0]) == row[1], "playbackStartMs(\(row[0]))")
+        }
         #expect(LapClips.MAX_CLIP_S == f.MAX_CLIP_S)
         #expect(LapClips.VIDEO_KINDS.map(\.rawValue) == f.VIDEO_KINDS)
     }
@@ -140,7 +145,7 @@ struct LapClipsTests {
     }
 
     @Test func estimateClipBytesIsTheFilesBitrateOverTheWindow() {
-        #expect(LapClips.estimateClipBytes(Self.lap(100_000, 100, 200), 1_000_000_000, 1000) == 105_000_000)
+        #expect(LapClips.estimateClipBytes(Self.lap(100_000, 100, 200), 1_000_000_000, 1000) == 107_000_000)
         #expect(LapClips.estimateClipBytes(Self.lap(100_000, 100, 200), 0, 1000) == nil)
         #expect(LapClips.estimateClipBytes(Self.lap(100_000, nil, 200), 1_000_000_000, 1000) == nil)
     }
@@ -170,8 +175,8 @@ struct LapClipsTests {
     }
 
     @Test func clipOfferIsFullOnceThisReviewsEstimatesPassTheQuota() {
-        #expect(LapClips.clipOffer([Self.video()], Self.PRO, Self.storage(used: 20 * Self.GiB - 105_000_000)) == .on)
-        #expect(LapClips.clipOffer([Self.video()], Self.PRO, Self.storage(used: 20 * Self.GiB - 104_999_999)) == .full)
+        #expect(LapClips.clipOffer([Self.video()], Self.PRO, Self.storage(used: 20 * Self.GiB - 107_000_000)) == .on)
+        #expect(LapClips.clipOffer([Self.video()], Self.PRO, Self.storage(used: 20 * Self.GiB - 106_999_999)) == .full)
         #expect(LapClips.clipOffer([Self.video(), Self.video()], Self.PRO, Self.storage(used: 20 * Self.GiB - 150_000_000)) == .full)
         #expect(LapClips.clipOffer([Self.video()], Self.PRO, nil) == .on)
     }
@@ -206,6 +211,8 @@ struct LapClipsTests {
 struct LapClipsFixture: Decodable {
     let PRE_ROLL_S: Double
     let POST_ROLL_S: Double
+    let PLAYBACK_LEAD_S: Double
+    let playbackStartMs: [[Int]]
     let MAX_CLIP_S: Double
     let VIDEO_KINDS: [String]
     let cases: [Case]

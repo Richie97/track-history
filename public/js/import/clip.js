@@ -16,8 +16,14 @@
 import { canSaveLapVideo } from "../entitlement.js";
 
 // Seconds kept before the lap starts and after it ends, clamped to the file.
+// The tail is the longer of the two: a lap's endT can sit a beat early of the
+// car crossing the line on video, and a clip that stops on the line looks cut
+// off.
 export const PRE_ROLL_S = 3;
-export const POST_ROLL_S = 2;
+export const POST_ROLL_S = 4;
+// Seconds of run-up a player shows before the line: it opens this far ahead of
+// lap_offset_ms rather than on the lap's first frame, so the crossing is seen.
+export const PLAYBACK_LEAD_S = 2;
 // A lap longer than this gets no clip (inclusive: exactly 600 s still does).
 export const MAX_CLIP_S = 600;
 
@@ -39,6 +45,13 @@ export function clipWindow(lap, durationS) {
   const startS = Math.max(0, startT - PRE_ROLL_S);
   const endS = Math.min(durationS, endT + POST_ROLL_S);
   return { startS, endS, lapOffsetS: startT - startS };
+}
+
+// Where a player opens a clip, in ms: PLAYBACK_LEAD_S ahead of the lap's
+// start inside it, never before the clip's own start.
+export function playbackStartMs(lapOffsetMs) {
+  const offset = Number.isFinite(lapOffsetMs) ? Math.round(lapOffsetMs) : 0;
+  return Math.max(0, offset - PLAYBACK_LEAD_S * 1000);
 }
 
 // The lap to save from one parsed video, as { lap, index } into parsed.laps, or

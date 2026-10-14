@@ -2,11 +2,42 @@
   "description": "Best-lap video clips (NS-45) from public/js/import/clip.js: clipCandidate, clipWindow and estimateClipBytes over the committed video fixtures and synthetic laps, clipOffer over whole reviews, and the row's and Settings' wording. Both phones' ports must match it exactly (windows to 1e-9). Regenerate with `npm run contracts:logic`; never hand-edit.",
   "source": "public/js/import/clip.js",
   "PRE_ROLL_S": 3,
-  "POST_ROLL_S": 2,
+  "POST_ROLL_S": 4,
+  "PLAYBACK_LEAD_S": 2,
   "MAX_CLIP_S": 600,
   "VIDEO_KINDS": [
     "pdr",
     "gopro"
+  ],
+  "playbackStartMs": [
+    [
+      0,
+      0
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1999,
+      0
+    ],
+    [
+      2000,
+      0
+    ],
+    [
+      2001,
+      1
+    ],
+    [
+      3317,
+      1317
+    ],
+    [
+      5000,
+      3000
+    ]
   ],
   "cases": [
     {
@@ -40,24 +71,24 @@
         "candidateIndex": 0,
         "window": {
           "startS": 8.8,
-          "endS": 60.923883624987575,
+          "endS": 62.923883624987575,
           "lapOffsetS": 3
         },
-        "estimateBytes": 15490,
+        "estimateBytes": 16085,
         "windows": [
           {
             "startS": 8.8,
-            "endS": 60.923883624987575,
+            "endS": 62.923883624987575,
             "lapOffsetS": 3
           },
           {
             "startS": 55.923883624987575,
-            "endS": 108.04776755356775,
+            "endS": 110.04776755356775,
             "lapOffsetS": 3
           },
           {
             "startS": 103.04776755356775,
-            "endS": 155.17158836688546,
+            "endS": 156,
             "lapOffsetS": 3
           }
         ]
@@ -88,19 +119,19 @@
         "candidateIndex": 0,
         "window": {
           "startS": 27,
-          "endS": 79.1238898,
+          "endS": 81.1238898,
           "lapOffsetS": 3
         },
-        "estimateBytes": 16798,
+        "estimateBytes": 17442,
         "windows": [
           {
             "startS": 27,
-            "endS": 79.1238898,
+            "endS": 81.1238898,
             "lapOffsetS": 3
           },
           {
             "startS": 74.1238898,
-            "endS": 126.2477796,
+            "endS": 128.2477796,
             "lapOffsetS": 3
           }
         ]
@@ -131,19 +162,19 @@
         "candidateIndex": 0,
         "window": {
           "startS": 27,
-          "endS": 79.1238898,
+          "endS": 81.1238898,
           "lapOffsetS": 3
         },
-        "estimateBytes": 28594,
+        "estimateBytes": 29691,
         "windows": [
           {
             "startS": 27,
-            "endS": 79.1238898,
+            "endS": 81.1238898,
             "lapOffsetS": 3
           },
           {
             "startS": 74.1238898,
-            "endS": 126.2477796,
+            "endS": 128.2477796,
             "lapOffsetS": 3
           }
         ]
@@ -180,24 +211,24 @@
         "candidateIndex": 0,
         "window": {
           "startS": 8.97603922242483,
-          "endS": 61.1,
+          "endS": 63.1,
           "lapOffsetS": 3
         },
-        "estimateBytes": 28583,
+        "estimateBytes": 29680,
         "windows": [
           {
             "startS": 8.97603922242483,
-            "endS": 61.1,
+            "endS": 63.1,
             "lapOffsetS": 3
           },
           {
             "startS": 56.1,
-            "endS": 108.2239258077566,
+            "endS": 110.2239258077566,
             "lapOffsetS": 3
           },
           {
             "startS": 103.2239258077566,
-            "endS": 155.347777321359,
+            "endS": 155.4,
             "lapOffsetS": 3
           }
         ]
@@ -234,24 +265,24 @@
         "candidateIndex": 0,
         "window": {
           "startS": 8.8,
-          "endS": 60.923883624987575,
+          "endS": 62.923883624987575,
           "lapOffsetS": 3
         },
-        "estimateBytes": 16782,
+        "estimateBytes": 17425,
         "windows": [
           {
             "startS": 8.8,
-            "endS": 60.923883624987575,
+            "endS": 62.923883624987575,
             "lapOffsetS": 3
           },
           {
             "startS": 55.923883624987575,
-            "endS": 108.04776755356775,
+            "endS": 110.04776755356775,
             "lapOffsetS": 3
           },
           {
             "startS": 103.04776755356775,
-            "endS": 155.17158836688546,
+            "endS": 155.5,
             "lapOffsetS": 3
           }
         ]
@@ -282,19 +313,19 @@
         "candidateIndex": 0,
         "window": {
           "startS": 27,
-          "endS": 79.1238898,
+          "endS": 81.1238898,
           "lapOffsetS": 3
         },
-        "estimateBytes": 7347,
+        "estimateBytes": 7629,
         "windows": [
           {
             "startS": 27,
-            "endS": 79.1238898,
+            "endS": 81.1238898,
             "lapOffsetS": 3
           },
           {
             "startS": 74.1238898,
-            "endS": 126.2477796,
+            "endS": 128.2477796,
             "lapOffsetS": 3
           }
         ]
@@ -325,19 +356,19 @@
         "candidateIndex": 0,
         "window": {
           "startS": 27,
-          "endS": 79.1238898,
+          "endS": 81.1238898,
           "lapOffsetS": 3
         },
-        "estimateBytes": 32930,
+        "estimateBytes": 34194,
         "windows": [
           {
             "startS": 27,
-            "endS": 79.1238898,
+            "endS": 81.1238898,
             "lapOffsetS": 3
           },
           {
             "startS": 74.1238898,
-            "endS": 126.2477796,
+            "endS": 127.2,
             "lapOffsetS": 3
           }
         ]
@@ -368,19 +399,19 @@
         "candidateIndex": 0,
         "window": {
           "startS": 10.8,
-          "endS": 62.9238670375047,
+          "endS": 64.92386703750469,
           "lapOffsetS": 3
         },
-        "estimateBytes": 32908,
+        "estimateBytes": 34170,
         "windows": [
           {
             "startS": 10.8,
-            "endS": 62.9238670375047,
+            "endS": 64.92386703750469,
             "lapOffsetS": 3
           },
           {
             "startS": 57.9238670375047,
-            "endS": 110.0477307383094,
+            "endS": 112.0477307383094,
             "lapOffsetS": 3
           }
         ]
@@ -411,19 +442,19 @@
         "candidateIndex": 0,
         "window": {
           "startS": 19.5,
-          "endS": 71.625,
+          "endS": 73.625,
           "lapOffsetS": 3
         },
-        "estimateBytes": 7331,
+        "estimateBytes": 7612,
         "windows": [
           {
             "startS": 19.5,
-            "endS": 71.625,
+            "endS": 73.625,
             "lapOffsetS": 3
           },
           {
             "startS": 66.625,
-            "endS": 118.75,
+            "endS": 120.75,
             "lapOffsetS": 3
           }
         ]
@@ -460,24 +491,24 @@
         "candidateIndex": 1,
         "window": {
           "startS": 198.5,
-          "endS": 303.75,
+          "endS": 305.75,
           "lapOffsetS": 3
         },
-        "estimateBytes": 81861111,
+        "estimateBytes": 83416667,
         "windows": [
           {
             "startS": 97,
-            "endS": 203.5,
+            "endS": 205.5,
             "lapOffsetS": 3
           },
           {
             "startS": 198.5,
-            "endS": 303.75,
+            "endS": 305.75,
             "lapOffsetS": 3
           },
           {
             "startS": 298.75,
-            "endS": 404,
+            "endS": 406,
             "lapOffsetS": 3
           }
         ]
@@ -502,14 +533,14 @@
         "candidateIndex": 0,
         "window": {
           "startS": 0,
-          "endS": 101.65,
+          "endS": 103.65,
           "lapOffsetS": 1.25
         },
-        "estimateBytes": 304950000,
+        "estimateBytes": 310950000,
         "windows": [
           {
             "startS": 0,
-            "endS": 101.65,
+            "endS": 103.65,
             "lapOffsetS": 1.25
           }
         ]
@@ -547,7 +578,7 @@
         "windows": [
           {
             "startS": 7,
-            "endS": 132,
+            "endS": 134,
             "lapOffsetS": 3
           },
           {
@@ -583,15 +614,15 @@
         "candidateIndex": 1,
         "window": {
           "startS": 697,
-          "endS": 1302,
+          "endS": 1304,
           "lapOffsetS": 3
         },
-        "estimateBytes": 363000000,
+        "estimateBytes": 364200000,
         "windows": [
           null,
           {
             "startS": 697,
-            "endS": 1302,
+            "endS": 1304,
             "lapOffsetS": 3
           }
         ]
@@ -622,19 +653,19 @@
         "candidateIndex": 1,
         "window": {
           "startS": 152.17,
-          "endS": 256.28999999999996,
+          "endS": 258.28999999999996,
           "lapOffsetS": 3
         },
-        "estimateBytes": 96682857,
+        "estimateBytes": 98540000,
         "windows": [
           {
             "startS": 52.3,
-            "endS": 157.17,
+            "endS": 159.17,
             "lapOffsetS": 3
           },
           {
             "startS": 152.17,
-            "endS": 256.28999999999996,
+            "endS": 258.28999999999996,
             "lapOffsetS": 3
           }
         ]
@@ -671,15 +702,15 @@
         "candidateIndex": 1,
         "window": {
           "startS": 27,
-          "endS": 128,
+          "endS": 130,
           "lapOffsetS": 3
         },
-        "estimateBytes": 404000000,
+        "estimateBytes": 412000000,
         "windows": [
           null,
           {
             "startS": 27,
-            "endS": 128,
+            "endS": 130,
             "lapOffsetS": 3
           },
           null
@@ -708,7 +739,7 @@
         "windows": [
           {
             "startS": 7,
-            "endS": 112,
+            "endS": 114,
             "lapOffsetS": 3
           }
         ]
@@ -736,7 +767,7 @@
         "windows": [
           {
             "startS": 7,
-            "endS": 112,
+            "endS": 114,
             "lapOffsetS": 3
           }
         ]
@@ -764,7 +795,7 @@
         "windows": [
           {
             "startS": 7,
-            "endS": 112,
+            "endS": 114,
             "lapOffsetS": 3
           }
         ]
@@ -958,7 +989,7 @@
       },
       "clips": {
         "used_bytes": 21474836480,
-        "quota_bytes": 21474853278,
+        "quota_bytes": 21474853922,
         "coach_count": 0
       },
       "expected": "on"

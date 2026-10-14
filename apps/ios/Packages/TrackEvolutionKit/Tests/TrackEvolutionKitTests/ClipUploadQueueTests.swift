@@ -263,4 +263,15 @@ struct ClipUploadQueueTests {
         #expect(json.contains("\"session_id\":42") && json.contains("\"failed_cuts\"") && json.contains("\"part_bytes\""))
         #expect(try JSONDecoder().decode(ClipUploadManifest.self, from: data) == manifest)
     }
+
+    @Test func aFailedUploadKeepsItsReasonAndAnOldManifestStillReads() throws {
+        let manifest = ClipUploadManifest(failedCuts: [
+            .init(sessionId: 7, timeMs: 1, reason: ClipUploadQueue.DropReason.storageFull.rawValue),
+        ])
+        let data = try JSONEncoder().encode(manifest)
+        #expect(try JSONDecoder().decode(ClipUploadManifest.self, from: data) == manifest)
+        let old = Data(#"{"jobs":[],"failed_cuts":[{"session_id":7,"time_ms":1}]}"#.utf8)
+        let decoded = try JSONDecoder().decode(ClipUploadManifest.self, from: old)
+        #expect(decoded.failedCuts == [.init(sessionId: 7, timeMs: 1)])
+    }
 }
