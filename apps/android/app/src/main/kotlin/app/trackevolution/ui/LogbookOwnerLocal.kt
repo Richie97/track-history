@@ -21,3 +21,11 @@ fun studentFreeNote(name: String?): String =
     "${name ?: "This driver"} is on the free plan, so you see their lap times, racing lines and the " +
         "speed, throttle and brake traces. Steering, RPM, lateral G, sector splits, the friction circle and the " +
         "rest of the analysis show here once they have Pro."
+
+/**
+ * What the channel panel says where the free half ends on a shared event or
+ * session's page (NS-48) — the **owner's** tier, which the viewer, who may have
+ * no account, has nothing to buy for. Null everywhere else, where the panel
+ * offers Pro (or, for a coach, says [studentFreeNote]).
+ */
+val LocalChannelFreeNote = staticCompositionLocalOf<String?> { null }

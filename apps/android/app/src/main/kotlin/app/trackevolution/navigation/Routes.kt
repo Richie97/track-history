@@ -1,6 +1,7 @@
 package app.trackevolution.navigation
 
 import app.trackevolution.core.DeepLink
+import app.trackevolution.core.model.ItemShareKind
 import kotlinx.serialization.Serializable
 
 /**
@@ -122,6 +123,19 @@ public sealed interface Route {
     public data class Shared(val slug: String) : Route
 
     /**
+     * One shared event or session (NS-48), where a `/share/e/<token>` or
+     * `/share/s/<token>` App Link lands. [kind] is the link's one-letter
+     * prefix (`ItemShareKind.prefix`) rather than the enum, so the argument is a
+     * plain string. The token is the link's whole permission: it rides the back
+     * stack's saved state and never reaches analytics.
+     */
+    @Serializable
+    public data class SharedItem(val kind: String, val token: String) : Route {
+        /** The link's kind; an unknown prefix (never produced by `DeepLink`) reads as an event. */
+        val itemKind: ItemShareKind get() = ItemShareKind.forPrefix(kind) ?: ItemShareKind.EVENT
+    }
+
+    /**
      * One lap of one session, from its row on the event page (#268). Carries
      * the event id because the screen reads the event detail — the same cached
      * read the page made — and finds the session and lap in it. Not a
@@ -225,6 +239,7 @@ public fun routeFor(link: DeepLink): Route? = when (link) {
     is DeepLink.Track -> Route.Track(link.id)
     is DeepLink.Settings -> Route.Settings
     is DeepLink.Shared -> Route.Shared(link.slug)
+    is DeepLink.SharedItem -> Route.SharedItem(link.kind.prefix, link.token)
     is DeepLink.Vehicle -> Route.Vehicle(link.id)
     // Parked until sign-in by `PendingInvite` before it ever gets here; mapped
     // anyway so the table has no hole.

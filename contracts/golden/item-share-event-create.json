@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "path": "/events/:id/share",
+  "status": 201,
+  "body": {
+    "created_at": 0,
+    "kind": "event",
+    "token": "AAAAAAAAAAAAAAAAAAAAAA",
+    "url": "https://trackevolution.app/share/e/AAAAAAAAAAAAAAAAAAAAAA"
+  }
+}

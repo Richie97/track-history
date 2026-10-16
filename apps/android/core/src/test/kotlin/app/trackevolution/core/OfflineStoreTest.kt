@@ -135,6 +135,11 @@ class OfflineStoreTest {
         assertFalse(OfflineStore.isQueueable("POST", "/coaching/invites/abc/accept"))
         assertFalse(OfflineStore.isQueueable("DELETE", "/coaching/coaches/3"))
         assertFalse(OfflineStore.isQueueable("DELETE", "/coaching/students/3"))
+        // Share one event or session (NS-48): the link is the server's answer.
+        assertFalse(OfflineStore.isQueueable("POST", "/events/12/share"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/events/12/share"))
+        assertFalse(OfflineStore.isQueueable("POST", "/sessions/4/share"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/sessions/4/share"))
         // …and nothing under a student's prefix can match the owner's patterns.
         assertFalse(OfflineStore.isQueueable("POST", "/students/3/events"))
         assertFalse(OfflineStore.isQueueable("PUT", "/students/3/events/12"))

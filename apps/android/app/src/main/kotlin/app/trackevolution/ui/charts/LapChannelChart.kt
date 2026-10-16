@@ -55,6 +55,7 @@ import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import app.trackevolution.core.api.LogbookOwner
+import app.trackevolution.ui.LocalChannelFreeNote
 import app.trackevolution.ui.LocalLogbookOwner
 import app.trackevolution.ui.studentFreeNote
 import app.trackevolution.ui.LocalUnitSystem
@@ -289,6 +290,13 @@ fun LapChannelChart(
 @Composable
 private fun ChannelProCard(onSubscribe: () -> Unit) {
     val colors = TrackTheme.colors
+    // A shared link (NS-48): the tier is the owner's, and there is nothing to buy.
+    LocalChannelFreeNote.current?.let { note ->
+        TrackCard(Modifier.fillMaxWidth().semantics { testTag = "channelSharedFreeNote" }) {
+            Text(note, style = TrackTheme.typography.sm, color = colors.textMuted)
+        }
+        return
+    }
     val owner = LocalLogbookOwner.current
     if (owner is LogbookOwner.Student) {
         TrackCard(Modifier.fillMaxWidth().semantics { testTag = "channelStudentFreeNote" }) {

@@ -71,6 +71,8 @@ import app.trackevolution.screens.SettingsScreen
 import app.trackevolution.screens.TrackDaysGuideScreen
 import app.trackevolution.screens.SharedLogbookModel
 import app.trackevolution.screens.SharedLogbookScreen
+import app.trackevolution.screens.SharedItemModel
+import app.trackevolution.screens.SharedItemScreen
 import app.trackevolution.screens.TrackModel
 import app.trackevolution.screens.TrackScreen
 import app.trackevolution.screens.VehicleModel
@@ -653,6 +655,16 @@ fun AppNavHost(
                 val route = entry.toRoute<Route.Shared>()
                 val model = rememberScreenModel { scope, _ -> SharedLogbookModel(scope, api, route.slug) }
                 SharedLogbookScreen(model = model)
+            }
+
+            // One shared event or session (NS-48): read through its link, never
+            // through the viewer's logbook — the root client, unscoped.
+            pageComposable<Route.SharedItem> { entry ->
+                val route = entry.toRoute<Route.SharedItem>()
+                val model = rememberScreenModel { scope, _ ->
+                    SharedItemModel(scope, api, route.itemKind, route.token)
+                }
+                SharedItemScreen(model = model, api = api)
             }
         }
 

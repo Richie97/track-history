@@ -50,6 +50,8 @@ struct LapChannelChart: View {
     var preselect: [Int]? = nil
     /// Whether the account gets the Pro half of the panel — see `LapChannelPanel.pro`.
     var pro = true
+    /// Said in place of the upsell under a free panel — see `LapChannelPanel.freeNote`.
+    var freeNote: String? = nil
     /// Where the panel is currently pointing, for whatever is drawn beside it.
     var onHit: (ChannelHit?) -> Void = { _ in }
 
@@ -62,7 +64,9 @@ struct LapChannelChart: View {
                 )
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
-                LapChannelPanel(channels: channels, laps: laps, preselect: preselect, pro: pro, onHit: onHit)
+                LapChannelPanel(
+                    channels: channels, laps: laps, preselect: preselect, pro: pro, freeNote: freeNote, onHit: onHit
+                )
             }
             .padding(TESpacing.pageGutter)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -89,6 +93,12 @@ struct LapChannelPanel: View {
     /// `pro == false` none of them draw, and an upsell card under the charts
     /// says what the rest of the recording would show.
     var pro = true
+    /// What a free panel says under its charts **instead of the upsell**, when
+    /// the tier being read is not the viewer's to change — a shared event or
+    /// session (NS-48) opens to its *owner's* tier, and a viewer with no account
+    /// is offered nothing. Nil for the panel's own rules (the upsell, or a
+    /// coach's `studentFreeNote`).
+    var freeNote: String? = nil
     /// Where the panel is currently pointing (NS-34 ticket 3). Defaulted to a
     /// no-op, because everywhere the panel is a *sheet* there is nothing beside
     /// it to answer.
@@ -184,7 +194,15 @@ struct LapChannelPanel: View {
                     tabContent(tabKey)
                 }
             }
-            if !pro, owner.isReadOnly {
+            if !pro, let freeNote {
+                TECard {
+                    Text(freeNote)
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityIdentifier("sharedFreeNote")
+            } else if !pro, owner.isReadOnly {
                 // A coach reading a free student's session (NS-38): the paywall is
                 // the student's to answer, not theirs, so the panel says what is
                 // missing and why instead of offering to sell it.

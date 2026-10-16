@@ -12,6 +12,7 @@ import { billing } from "./routes/billing";
 import { coaching } from "./routes/coaching";
 import { exportRoutes } from "./routes/export";
 import { clips } from "./routes/clips";
+import { itemShare } from "./routes/itemShare";
 
 // The authed /api surface, built around whichever middleware says who the
 // caller is. index.ts mounts it behind requireSession; the MCP tools
@@ -22,7 +23,7 @@ import { clips } from "./routes/clips";
 export function apiApp(auth: MiddlewareHandler<AppContext>) {
   const api = new Hono<AppContext>();
   api.use("*", auth);
-  for (const routes of [me, tracks, events, sessions, vehicles, carCatalog, share, wrapped, billing, coaching, exportRoutes, clips]) {
+  for (const routes of [me, tracks, events, sessions, vehicles, carCatalog, share, wrapped, billing, coaching, exportRoutes, clips, itemShare]) {
     api.route("/", routes);
   }
   return api;

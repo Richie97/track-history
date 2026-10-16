@@ -368,8 +368,33 @@ private fun Note(text: String, modifier: Modifier) {
     }
 }
 
+/**
+ * A best-lap video on a shared event or session's page (NS-48): the player
+ * alone — no menu, no upload state, no locked card. The server sends a `clip`
+ * only while the owner has Pro, so a lap without one draws nothing; [signedUrl]
+ * is the link's own `GET /api/share/(e|s)/:token/clips/:id/url`.
+ */
 @Composable
-private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, onDeleted: () -> Unit, modifier: Modifier) {
+internal fun SharedLapVideoCard(
+    api: ApiClient,
+    lap: Lap,
+    signedUrl: suspend (clipId: Int) -> String,
+    modifier: Modifier = Modifier,
+) {
+    val clip = lap.clip ?: return
+    Playable(api, LapVideoState.Playable(clip, menu = false), lap, onDeleted = {}, modifier, signedUrl)
+}
+
+@Composable
+private fun Playable(
+    api: ApiClient,
+    state: LapVideoState.Playable,
+    lap: Lap,
+    onDeleted: () -> Unit,
+    modifier: Modifier,
+    /** Where the signed URL comes from: the owner's clip route, or a share link's (NS-48). */
+    signedUrl: suspend (clipId: Int) -> String = { api.clipUrl(it).url },
+) {
     val colors = TrackTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -385,7 +410,7 @@ private fun Playable(api: ApiClient, state: LapVideoState.Playable, lap: Lap, on
         if (!open || holder.url != null) return@LaunchedEffect
         message = null
         try {
-            holder.url = api.clipUrl(state.clip.id).url
+            holder.url = signedUrl(state.clip.id)
         } catch (e: ApiException) {
             message = when {
                 e is ApiException.Transport -> LapVideoText.NEEDS_CONNECTION

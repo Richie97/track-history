@@ -26,6 +26,9 @@ public enum DeepLink: Hashable, Sendable {
     case settings
     /// Someone's public logbook — including your own, when you tap your own link.
     case shared(slug: String)
+    /// One shared event or session (NS-48): `https://<host>/share/e/<token>` or
+    /// `/share/s/<token>`. Opens read-only, like a shared logbook.
+    case sharedItem(kind: ItemShareKind, token: String)
     /// A coaching invite (NS-38): `https://<host>/coach/<token>`, the link a
     /// driver sends their coach. The accept screen previews it; nothing is
     /// accepted by opening it.
@@ -49,6 +52,15 @@ public enum DeepLink: Hashable, Sendable {
 
         guard url.scheme == "https" || url.scheme == "http" else { return nil }
         let segments = pathSegments(components.path)
+        // /share/e/<token> and /share/s/<token> (NS-48): one event or one
+        // session. Ahead of the slug rule, which would otherwise read the
+        // letter as a slug — and a slug is three characters at least, so a
+        // one-letter segment is never a logbook. A malformed token is nobody's
+        // link: the dashboard, rather than a request bound to 404.
+        if segments.first == "share", segments.count >= 2, let kind = ItemShareKind(pathLetter: segments[1]) {
+            guard segments.count == 3, ItemShareKind.isToken(segments[2]) else { return .dashboard }
+            return .sharedItem(kind: kind, token: segments[2])
+        }
         // /share/<slug>, with anything deeper (the web app's hash routes live in the
         // fragment, not the path) resolving to the logbook's root.
         if segments.first == "share", segments.count >= 2, !segments[1].isEmpty {

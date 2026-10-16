@@ -10,7 +10,8 @@ import androidx.navigation.toRoute
  * Spelled as the web app's own path for the same page — `analyticsPath` in
  * `public/js/analytics.js` reports `#/event/12` as `"/event/:id"` — so one GA
  * report counts a screen across the web, iOS (`Route.analyticsPath`, under the
- * same name) and here. Every id becomes `:id`, a share page is `/share/:slug`
+ * same name) and here. Every id becomes `:id`, a share page is `/share/:slug`,
+ * a shared event or session `/share/e/:token` or `/share/s/:token` (NS-48),
  * and an invite is `/coach`, never its token; the one value kept is Wrapped's
  * year, as on the web. The screens the web doesn't have — the recorder, the
  * importer, a lap, a session's overlay — get paths in the same idiom.
@@ -34,6 +35,8 @@ public val Route.analyticsPath: String
         is Route.Record -> "/record"
         is Route.Import -> "/import"
         is Route.Shared -> "/share/:slug"
+        // The web's shape for the same page: which kind, never the token.
+        is Route.SharedItem -> "/share/${itemKind.prefix}/:token"
         is Route.Lap -> student(student) + "/event/:id/lap/:id"
         is Route.SessionCompare -> student(student) + "/event/:id/session/:id/compare"
         is Route.Wrapped -> "/wrapped/$year"
@@ -74,6 +77,7 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.Record::class) -> toRoute<Route.Record>()
         d.hasRoute(Route.Import::class) -> toRoute<Route.Import>()
         d.hasRoute(Route.Shared::class) -> toRoute<Route.Shared>()
+        d.hasRoute(Route.SharedItem::class) -> toRoute<Route.SharedItem>()
         d.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
         d.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
         d.hasRoute(Route.Wrapped::class) -> toRoute<Route.Wrapped>()

@@ -29,6 +29,9 @@ import app.trackevolution.core.model.SetupPrefill
 import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
+import app.trackevolution.core.model.ItemShareKind
+import app.trackevolution.core.model.ItemShareLink
+import app.trackevolution.core.model.SharedItem
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackPatch
@@ -806,6 +809,53 @@ public class ApiClient private constructor(
     /** The public share page. Unauthenticated on purpose — no token is sent. */
     public suspend fun sharedLogbook(slug: String): ShareData =
         get("/share/$slug", ShareData.serializer(), authenticated = false)
+
+    // ---- Share one event or session (NS-48) -------------------------------
+    //
+    // Live, every one: the link is the server's answer, so none of these is on
+    // the offline queue (`OfflineStoreTest` pins that) and none reads the cache
+    // — a cached link could be one the owner has since stopped sharing, and a
+    // cached token is a secret kept for no reason. Offline they throw
+    // Transport, which the dialog words as "Sharing needs a connection."
+
+    private fun itemSharePath(kind: ItemShareKind, id: Int): String = when (kind) {
+        ItemShareKind.EVENT -> "/events/$id/share"
+        ItemShareKind.SESSION -> "/sessions/$id/share"
+    }
+
+    /** The item's link, minted on first use (201) and answered again after (200). Free. */
+    public suspend fun shareItem(kind: ItemShareKind, id: Int): ItemShareLink = send(
+        "POST", itemSharePath(kind, id), buildJsonObject { }, ItemShareLink.serializer(), cached = false,
+    )
+
+    /** The item's link if it has one; a 404 ([ApiException.isNotFound]) when it isn't shared. */
+    public suspend fun itemShare(kind: ItemShareKind, id: Int): ItemShareLink =
+        send("GET", itemSharePath(kind, id), null, ItemShareLink.serializer(), cached = false)
+
+    /** Stops sharing: the link answers 404 from now on, and a later share mints a new one. */
+    public suspend fun stopSharingItem(kind: ItemShareKind, id: Int) {
+        send("DELETE", itemSharePath(kind, id), null, OkResponse.serializer(), cached = false)
+    }
+
+    /**
+     * A shared event or session, as anyone with the link sees it. Unauthenticated
+     * on purpose, like [sharedLogbook]; a token that doesn't resolve — unknown,
+     * revoked, or its item deleted — is a 404 that says nothing more.
+     */
+    public suspend fun sharedItem(kind: ItemShareKind, token: String): SharedItem = send(
+        "GET", "/share/${kind.prefix}/${token.urlEncoded()}", null, SharedItem.serializer(),
+        authenticated = false, cached = false,
+    )
+
+    /**
+     * A signed URL for a best-lap video on a lap the link shows — the owner's
+     * tier decides whether there is one (the server nulls every `clip` for a
+     * free owner). Read past the cache, as [clipUrl] is.
+     */
+    public suspend fun sharedClipUrl(kind: ItemShareKind, token: String, clipId: Int): ClipUrl = send(
+        "GET", "/share/${kind.prefix}/${token.urlEncoded()}/clips/$clipId/url", null, ClipUrl.serializer(),
+        authenticated = false, cached = false,
+    )
 
     // ---- Billing (NS-32) --------------------------------------------------
     //

@@ -25,6 +25,8 @@ import app.trackevolution.core.model.ServerErrorBody
 import app.trackevolution.core.model.SetupPrefill
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
+import app.trackevolution.core.model.ItemShareLink
+import app.trackevolution.core.model.SharedItem
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackLeaderboard
 import app.trackevolution.core.model.TrackSetupRow
@@ -119,6 +121,11 @@ class GoldenContractTest {
             "part-equip" -> roundTrip(entry.name, PartEquip.serializer())
             "part-mount-edit" -> roundTrip(entry.name, app.trackevolution.core.model.PartMountMove.serializer())
             "share-set" -> roundTrip(entry.name, ShareSlug.serializer())
+            // Share one event or session (NS-48). The shared item's `event` is the
+            // ordinary EventDetail, hidden fields null — the coach mount's rule.
+            "item-share-event-create", "item-share-event", "item-share-session-create", "item-share-session" ->
+                roundTrip(entry.name, ItemShareLink.serializer())
+            "shared-event", "shared-session" -> roundTrip(entry.name, SharedItem.serializer())
             "event-create", "session-create", "part-create", "measurement-create" ->
                 roundTrip(entry.name, CreatedId.serializer())
             "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
@@ -126,6 +133,7 @@ class GoldenContractTest {
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
             "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
             "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
+            "item-share-event-delete",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(
@@ -202,5 +210,21 @@ class GoldenContractTest {
         val body = Goldens.body("me").toString().replaceFirst("{", """{"surprise":1,""")
         val failure = runCatching { Goldens.strict.decodeFromString(Me.serializer(), body) }
         assertTrue(failure.isFailure, "ignoreUnknownKeys must stay off — this is the drift alarm")
+    }
+
+    /** A shared item's narrowing (NS-48): the private fields arrive null or empty. */
+    @Test
+    fun `a shared item carries no notes, costs, setups or garage link`() {
+        for (name in listOf("shared-event", "shared-session")) {
+            val item = Goldens.decode(name, SharedItem.serializer())
+            assertNull(item.event.event.notes, name)
+            assertNull(item.event.event.costCents, name)
+            assertNull(item.event.event.vehicleId, name)
+            assertTrue(item.event.setups.isEmpty(), name)
+            assertTrue(item.event.sessions.all { it.notes == null }, name)
+        }
+        val session = Goldens.decode("shared-session", SharedItem.serializer())
+        assertEquals(1, session.event.sessions.size)
+        assertEquals(session.sessionId, session.event.sessions.single().id)
     }
 }

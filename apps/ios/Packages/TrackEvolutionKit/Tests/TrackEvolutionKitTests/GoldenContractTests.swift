@@ -58,13 +58,17 @@ struct GoldenContractTests {
         case "part-equip": try roundTrip(PartEquip.self, entry.name)
         case "part-mount-edit": try roundTrip(PartMountEdit.self, entry.name)
         case "share-set": try roundTrip(ShareSlug.self, entry.name)
+        case "item-share-event-create", "item-share-event", "item-share-session-create", "item-share-session":
+            try roundTrip(ItemShareLink.self, entry.name)
+        case "shared-event", "shared-session": try roundTrip(SharedItem.self, entry.name)
         case "event-create", "session-create", "part-create", "measurement-create":
             try roundTrip(CreatedID.self, entry.name)
         case "event-update", "session-update", "laps-append", "track-update", "vehicle-update",
              "part-update", "setup-upsert", "setup-delete", "lap-delete", "session-delete",
              "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
              "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
-             "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete":
+             "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
+             "item-share-event-delete", "item-share-session-delete":
             try roundTrip(OKResponse.self, entry.name)
         default:
             Issue.record("""

@@ -1,0 +1,8 @@
+{
+  "method": "DELETE",
+  "path": "/sessions/:id/share",
+  "status": 404,
+  "body": {
+    "error": "not shared"
+  }
+}

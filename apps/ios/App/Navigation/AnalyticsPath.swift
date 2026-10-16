@@ -6,7 +6,8 @@ import Foundation
 /// `public/js/analytics.js` reports `#/event/12` as `"/event/:id"` — so one GA
 /// report counts a screen across the web, Android (`Route.analyticsPath`, under
 /// the same name) and here. Every id becomes `:id`, a share page is
-/// `/share/:slug` and an invite is `/coach`, never its token; the one value kept
+/// `/share/:slug`, a shared event or session `/share/e/:token` or
+/// `/share/s/:token`, and an invite is `/coach`, never its token; the one value kept
 /// is Wrapped's year, as on the web. The screens the web doesn't have — the
 /// recorder, the importer, a lap — get paths in the same idiom.
 ///
@@ -24,6 +25,10 @@ extension Route {
         case .record: "/record"
         case .importVideo: "/import"
         case .shared: "/share/:slug"
+        // The web's shape for the same page; the token is the link's whole
+        // permission and never leaves the device.
+        case .sharedItem(.event, _): "/share/e/:token"
+        case .sharedItem(.session, _): "/share/s/:token"
         case .lap: "/event/:id/lap/:id"
         case .wrapped(let year): "/wrapped/\(year)"
         case .coaching: "/coaching"

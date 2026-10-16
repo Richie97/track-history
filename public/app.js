@@ -29,7 +29,7 @@ import { posterLines, wrappedSeason } from "./js/wrapped.js";
 import { bindWrappedStory, wrappedStoryHtml } from "./js/wrapped-story.js";
 import { downloadBlob, posterBlob, posterFileName, sharePosterBlob } from "./js/wrapped-image.js";
 import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
-import { api as apiFetch, ApiError, OfflineError } from "./js/api.js";
+import { api as apiFetch, ApiError, OFFLINE_UNCACHED, OfflineError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, removeCachedPrefix, resolveId, syncStatus, tempIdState } from "./js/offline.js";
 import { scheduleWarm } from "./js/prefetch.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
@@ -86,9 +86,20 @@ const CHART_WAITS = "The chart starts once two events here have a lap time.";
 //   - ent() is the entitlement the channel panel opens by: the student's tier,
 //     not the coach's, because the student is the one who paid for it.
 let viewing = null;
-const readOnly = () => viewing != null;
+// One shared event or session (NS-48), opened from /share/(e|s)/<token> by
+// anyone with the link: the same event page, read-only, rendered from the
+// public payload — { kind, prefix, token, name, pro, event } — rather than
+// from /api, with the *owner's* tier opening the channel panel as a student's
+// does for their coach. Null everywhere else.
+let sharedView = null;
+const readOnly = () => viewing != null || sharedView != null;
 const L = (hash) => (viewing ? `#/student/${viewing.id}${hash.slice(1)}` : hash);
-const ent = () => (viewing ? { tier: viewing.pro ? "pro" : "free" } : state.entitlement);
+const ent = () =>
+  viewing
+    ? { tier: viewing.pro ? "pro" : "free" }
+    : sharedView
+      ? { tier: sharedView.pro ? "pro" : "free" }
+      : state.entitlement;
 
 // What a coach is told where the student's channels stop at the free half —
 // in place of the paywall, which is the student's to answer, not theirs.
@@ -96,6 +107,13 @@ const studentFreeNote = () =>
   `${esc(viewing?.name || "This driver")} is on the free plan, so you see their lap times, racing lines and the ` +
   "speed, throttle and brake traces. Steering, RPM, lateral G, sector splits, the friction circle and the rest " +
   "of the analysis show here once they have Pro.";
+
+// The same sentence for anyone opening a shared event or session (NS-48) —
+// a statement about the driver's plan, never an offer to the reader.
+const sharedFreeNote = () =>
+  `${esc(sharedView?.name || "This driver")} is on the free plan, so this link shows the lap times, the racing ` +
+  "line and the speed, throttle and brake traces.";
+const readOnlyFreeNote = () => (sharedView ? sharedFreeNote() : studentFreeNote());
 
 // API wrapper: a 401 anywhere means the session is gone — show the login view.
 async function api(path, opts) {
@@ -2008,7 +2026,7 @@ async function openLapVideo(box) {
   body.innerHTML = `<p class="hint">Loading…</p>`;
   let signed;
   try {
-    signed = await api(`/clips/${id}/url`, { cache: false });
+    signed = sharedView ? await sharedClipUrl(id) : await api(`/clips/${id}/url`, { cache: false });
   } catch (err) {
     if (body.hidden) return;
     body.innerHTML = `<p class="hint">${
@@ -2073,11 +2091,11 @@ function costBreakdownHtml(by) {
 }
 
 async function viewEvent(eventId) {
-  const [e, tracks, garage] = await Promise.all([
-    api(`/events/${eventId}`),
-    api("/tracks"),
-    api("/garage").catch(() => []),
-  ]);
+  // A shared event or session (NS-48) arrives whole in the public payload;
+  // there is no track list or garage to read behind it.
+  const [e, tracks, garage] = sharedView
+    ? [sharedView.event, [], []]
+    : await Promise.all([api(`/events/${eventId}`), api("/tracks"), api("/garage").catch(() => [])]);
   const track = tracks.find((t) => t.id === e.track_id);
   // Read-only is a coach reading a student's event (NS-38): no writes, no
   // setup notebook or checklist (neither is shared), and no personal-best
@@ -2150,9 +2168,11 @@ async function viewEvent(eventId) {
             ro
               ? ""
               : `<button class="btn small" data-edit-session="${s.id}" aria-expanded="false">Edit</button>
+          <button class="btn small" data-share-session="${s.id}" aria-expanded="false" aria-controls="share-panel-${s.id}">Share</button>
           <button class="btn small danger" data-del-session="${s.id}">Delete</button>`
           }
         </div>
+        ${ro ? "" : `<div class="panel share-item" id="share-panel-${s.id}" data-share-panel="${s.id}" hidden></div>`}
         ${stats.length ? `<div class="s-stats">${stats.join(" · ")}</div>` : ""}
         ${s.notes ? `<div class="notes-block" data-session-notes="${s.id}">${esc(s.notes)}</div>` : ""}
         ${
@@ -2330,11 +2350,12 @@ async function viewEvent(eventId) {
       ? `<a href="${L(`#/vehicle/${e.vehicle_id}`)}">${esc(e.car)}</a>`
       : esc(e.car)
     : "";
-  const view = shell(`
+  const view = (sharedView ? shareShell : shell)(`
     <h1>${esc(e.track_name)} — ${fmtDate(e.start_date)}</h1>
     <p class="sub">${[esc([e.club, e.run_group].filter(Boolean).join(" · ") || ""), carHtml, fmtConditions(e)]
       .filter(Boolean)
       .join(" · ")}</p>
+    ${sharedView ? `<p class="hint shared-by">${sharedView.kind === "session" ? "A session" : "A track day"} shared by ${esc(sharedView.name || "a driver")}.</p>` : ""}
     ${pbBanner}
     ${upcoming ? `<div class="panel countdown-banner"><strong>${fmtCountdown(e.start_date)}</strong> — ${ro ? "sessions show up here once they're logged." : "log sessions here once you're back from the track."}</div>` : ""}
     <div class="tiles">
@@ -2351,8 +2372,10 @@ async function viewEvent(eventId) {
         ? ""
         : `<div class="btn-row">
       <a class="btn" href="#/event/${e.id}/edit">Edit event</a>
+      <button class="btn" id="share-event" aria-expanded="false" aria-controls="share-panel-event">Share</button>
       <button class="btn danger" id="del-event">Delete event</button>
     </div>
+    <div class="panel share-item" id="share-panel-event" hidden></div>
     ${setupNotebookHtml}`
     }
     ${checklistHtml}
@@ -2575,7 +2598,7 @@ async function viewEvent(eventId) {
       // says what the rest of the file would show — to a coach, in words
       // about the student's plan rather than an offer to subscribe.
       pro: pro(),
-      lockedHtml: pro() ? "" : ro ? `<p class="hint">${studentFreeNote()}</p>` : proNoteHtml(PRO_CHANNELS_NOTE),
+      lockedHtml: pro() ? "" : ro ? `<p class="hint">${readOnlyFreeNote()}</p>` : proNoteHtml(PRO_CHANNELS_NOTE),
     });
     // The loop's actions, delegated from the panel container because the
     // Car tab re-renders with every chip toggle. Saves go through route() —
@@ -2700,8 +2723,100 @@ async function viewEvent(eventId) {
     };
   });
 
+  if (!ro) bindItemShare(view, e);
   if (!ro) bindTelemetryImport(view, e, route, { clips: clipImportContext() });
   paintClipUploads();
+}
+
+// ---------- share one event or session (NS-48) -------------------------------
+
+// What every client says above the link — the same words on all three.
+const SHARE_ITEM_TEXT = {
+  event:
+    "Anyone with this link can see this track day — its laps, racing line, telemetry and video. " +
+    "Notes, costs and setup sheets stay private.",
+  session:
+    "Anyone with this link can see this session — its laps, racing line, telemetry and video. " +
+    "Notes, costs and setup sheets stay private.",
+};
+const SHARE_NEEDS_CONNECTION = "Sharing needs a connection.";
+const isNetworkError = (err) => err instanceof OfflineError || err instanceof TypeError;
+
+function shareItemPanelHtml(kind, link) {
+  return `<p class="hint" style="margin:0 0 8px">${SHARE_ITEM_TEXT[kind]}</p>
+    <div class="btn-row">
+      <input class="share-item-url" readonly value="${esc(link.url)}" aria-label="Share link" data-share-url>
+      <button class="btn small primary" type="button" data-share-copy>Copy</button>
+      ${typeof navigator.share === "function" ? `<button class="btn small" type="button" data-share-system>Share…</button>` : ""}
+      <button class="btn small danger" type="button" data-share-stop>Stop sharing</button>
+      <span class="goal-msg" data-share-msg role="status"></span>
+    </div>`;
+}
+
+// The event's Share and each session's: a toggle that opens a panel under it.
+// Opening asks for the link — POST answers the one already out there, so this
+// never mints a second — and Stop sharing deletes it. Live writes: the offline
+// queue doesn't carry them, so with no connection the panel says so.
+function bindItemShare(view, e) {
+  const targets = [
+    { btn: view.querySelector("#share-event"), panel: view.querySelector("#share-panel-event"), kind: "event", path: `/events/${e.id}/share` },
+    ...[...view.querySelectorAll("[data-share-session]")].map((btn) => ({
+      btn,
+      panel: view.querySelector(`[data-share-panel="${btn.dataset.shareSession}"]`),
+      kind: "session",
+      path: `/sessions/${btn.dataset.shareSession}/share`,
+    })),
+  ].filter((t) => t.btn && t.panel);
+  const close = (t) => {
+    t.panel.hidden = true;
+    t.panel.innerHTML = "";
+    t.btn.setAttribute("aria-expanded", "false");
+  };
+  for (const t of targets) {
+    t.btn.onclick = async () => {
+      if (!t.panel.hidden) return close(t);
+      t.panel.hidden = false;
+      t.btn.setAttribute("aria-expanded", "true");
+      t.panel.innerHTML = `<p class="hint">Getting the link…</p>`;
+      let link;
+      try {
+        link = await api(t.path, { method: "POST" });
+      } catch (err) {
+        if (!t.panel.hidden) t.panel.innerHTML = `<p class="hint">${esc(isNetworkError(err) ? SHARE_NEEDS_CONNECTION : err.message)}</p>`;
+        return;
+      }
+      if (t.panel.hidden) return;
+      t.panel.innerHTML = shareItemPanelHtml(t.kind, link);
+      const msg = t.panel.querySelector("[data-share-msg]");
+      const input = t.panel.querySelector("[data-share-url]");
+      input.onfocus = () => input.select();
+      t.panel.querySelector("[data-share-copy]").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(link.url);
+          msg.textContent = "Copied.";
+        } catch {
+          input.focus();
+          msg.textContent = "Selected — copy it with ⌘C or Ctrl+C.";
+        }
+      };
+      t.panel.querySelector("[data-share-system]")?.addEventListener("click", () => {
+        navigator.share({ title: `${e.track_name} — ${fmtDate(e.start_date)}`, url: link.url }).catch(() => {});
+      });
+      t.panel.querySelector("[data-share-stop]").onclick = async () => {
+        if (!confirm("Stop sharing? The link stops working for everyone who has it.")) return;
+        try {
+          await api(t.path, { method: "DELETE" });
+        } catch (err) {
+          // Already stopped (from another device) is what was asked for.
+          if (!(err instanceof ApiError && err.status === 404)) {
+            msg.textContent = isNetworkError(err) ? SHARE_NEEDS_CONNECTION : err.message;
+            return;
+          }
+        }
+        close(t);
+      };
+    };
+  }
 }
 
 // --- event form (new / edit) ---
@@ -5325,6 +5440,44 @@ async function shareRoute() {
   shareDashboard();
 }
 
+// ---------- one shared event or session (NS-48) -----------------------------
+// /share/e/<token> is a track day and /share/s/<token> one session of it,
+// opened by anyone with the link. The page is viewEvent itself, read-only,
+// over the public payload (see `sharedView`), in the share page's own shell.
+const ITEM_SHARE_MATCH = location.pathname.match(/^\/share\/([es])\/([A-Za-z0-9_-]+)\/?$/) || [];
+
+// A URL to play a best-lap video on the shared item — outside api(), which
+// would send the visitor's own session (if any) and cache the answer.
+async function sharedClipUrl(id) {
+  const res = await fetch(
+    `/api/share/${sharedView.prefix}/${encodeURIComponent(sharedView.token)}/clips/${encodeURIComponent(id)}/url`
+  );
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(body?.error || `request failed (${res.status})`, res.status);
+  return body;
+}
+
+async function shareItemRoute() {
+  const [, prefix, token] = ITEM_SHARE_MATCH;
+  let res;
+  try {
+    res = await fetch(`/api/share/${prefix}/${encodeURIComponent(token)}`);
+  } catch {
+    shareNotFound("Couldn't load this", OFFLINE_UNCACHED);
+    return;
+  }
+  if (!res.ok) {
+    sharedView = null;
+    shareNotFound("Link not found", "This link doesn't exist or has been turned off.");
+    return;
+  }
+  const data = await res.json();
+  sharedView = { ...data, prefix, token };
+  const e = data.event;
+  document.title = `${data.name || "A driver"}'s ${data.kind === "session" ? "session" : "track day"} at ${e.track_name} — Track Evolution`;
+  await viewEvent(e.id);
+}
+
 // ---------- router ----------------------------------------------------------
 
 // Skeleton placeholder while the next route's data loads. Only rendered on
@@ -5428,7 +5581,10 @@ initAnalytics();
 trackPageView();
 window.addEventListener("hashchange", () => trackPageView());
 
-if (SHARE_SLUG) {
+if (ITEM_SHARE_MATCH.length) {
+  // One page, no hash routes: nothing to listen for.
+  shareItemRoute();
+} else if (SHARE_SLUG) {
   window.addEventListener("hashchange", shareRoute);
   shareRoute();
 } else {
@@ -5445,6 +5601,7 @@ if (SHARE_SLUG) {
 initPullRefresh({
   chevronHtml: ssBars("", "var(--accent-ink)"),
   onRefresh: () => {
+    if (ITEM_SHARE_MATCH.length) return shareItemRoute();
     if (SHARE_SLUG) {
       shareData = null;
       return shareRoute();

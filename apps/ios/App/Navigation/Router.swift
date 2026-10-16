@@ -30,6 +30,11 @@ enum Route: Hashable {
     case importVideo(eventId: Int?, incoming: URL?, forNewEvent: Bool = false)
     /// Someone's public logbook, read-only.
     case shared(slug: String)
+    /// One shared event or session (NS-48), read-only: where a
+    /// `/share/e/<token>` or `/share/s/<token>` link lands. Its own screen
+    /// rather than an `EventScreen` under an owner, because nothing about it is
+    /// the viewer's — not the read, not the tier, not a single link out of it.
+    case sharedItem(kind: ItemShareKind, token: String)
     /// One lap of one session, from its row on the event page (#267). Carries the
     /// event id because the screen reads the event detail — the same cached read
     /// the page made — and finds the session and lap in it. Not a `DeepLink`:
@@ -94,7 +99,7 @@ extension LogbookOwner {
         case .lap(let eventId, let sessionId, let lapId):
             .student(id: id, page: .lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
         case .student: route
-        case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .wrapped,
+        case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .sharedItem, .wrapped,
              .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm:
             .student(id: id, page: .home)
         }
@@ -119,7 +124,7 @@ extension Route {
     var ownsTheWindow: Bool {
         switch self {
         case .record, .importVideo, .wrapped: true
-        case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .lap,
+        case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .lap,
              .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm: false
         }
     }
@@ -166,8 +171,8 @@ extension Route {
         // A student's logbook is a pushed destination on the Events tab, never a
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
-        case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .lap, .wrapped,
-             .coachInvite, .student, .setupForm: .events
+        case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .sharedItem, .lap,
+             .wrapped, .coachInvite, .student, .setupForm: .events
         }
     }
 }
@@ -489,6 +494,7 @@ final class AppRouter {
         case .vehicle(let id): .vehicle(id)
         case .settings: .settings
         case .shared(let slug): .shared(slug: slug)
+        case .sharedItem(let kind, let token): .sharedItem(kind: kind, token: token)
         case .coachInvite(let token): .coachInvite(token: token)
         }
     }
@@ -547,7 +553,8 @@ final class AppRouter {
             // vehicle only ever exists once the server has given it a real id.
             // A student's ids are never temp either: a coach cannot write to the
             // logbook, so every row in it came from the server.
-            case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
+            // A shared item is someone else's, read by its token: no id in it is ours.
+            case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
                  .coaching, .profile, .coachInvite, .student, .trackDaysGuide:
                 return route
             }
