@@ -49,6 +49,7 @@ import app.trackevolution.core.Limits
 import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.Units
 import app.trackevolution.core.model.ChecklistItem
+import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.model.SetupSheet
@@ -122,6 +123,10 @@ fun EventScreen(
     val listState = rememberLazyListState()
     var confirmDeleteEvent by remember { mutableStateOf(false) }
     var confirmDeleteSession by remember { mutableStateOf<Int?>(null) }
+    // Which item's share dialog is open (NS-48) — by id, saveable, so a
+    // rotation reopens the same dialog (which re-asks, and gets the same link).
+    var sharingEvent by rememberSaveable { mutableStateOf(false) }
+    var sharingSession by rememberSaveable { mutableStateOf<Int?>(null) }
 
     // Two columns, and which session the right one is showing (NS-34 ticket 3).
     //
@@ -240,6 +245,10 @@ fun EventScreen(
                     TextButton(onClick = { onEdit(model.eventId) }) {
                         Text("Edit event", style = TrackTheme.typography.sm, color = colors.accentInk)
                     }
+                    // Share one track day as a public link (NS-48). Free.
+                    TextButton(onClick = { sharingEvent = true }, modifier = Modifier.testTag("shareEvent")) {
+                        Text("Share…", style = TrackTheme.typography.sm, color = colors.accentInk)
+                    }
                     TextButton(onClick = { confirmDeleteEvent = true }) {
                         Text("Delete event", style = TrackTheme.typography.sm, color = colors.danger)
                     }
@@ -324,6 +333,7 @@ fun EventScreen(
                             onOpenLap = { lapId -> onOpenLap(session.id, lapId) },
                             onCompare = { onCompareLaps(session.id) },
                             onSave = { label, notes -> model.updateSession(session.id, label, notes) },
+                            onShare = { sharingSession = session.id },
                             readOnly = readOnly,
                         )
                     }
@@ -368,6 +378,19 @@ fun EventScreen(
         )
     }
 
+    // The open dialog follows the saveable choice, so a recreate reopens it.
+    val shareTarget = when {
+        readOnly -> null
+        sharingEvent -> ItemShareKind.EVENT to model.eventId
+        else -> sharingSession?.let { ItemShareKind.SESSION to it }
+    }
+    LaunchedEffect(shareTarget) {
+        if (shareTarget == null) model.sharing.close() else model.sharing.open(shareTarget.first, shareTarget.second)
+    }
+    if (shareTarget != null && model.sharing.target == shareTarget) {
+        ItemShareDialog(model.sharing, onDismiss = { sharingEvent = false; sharingSession = null })
+    }
+
     confirmDeleteSession?.let { id ->
         TEConfirmDialog(
             text = "Delete this session and its laps?",
@@ -410,7 +433,7 @@ internal fun costBreakdown(event: app.trackevolution.core.model.Event): String? 
  * Ten points is `TrackMap`'s floor — below that it is a GPS glitch rather than a
  * lap, and drawing it would claim more than we know.
  */
-private fun bestLapTrace(sessions: List<Session>): TracedLap? {
+internal fun bestLapTrace(sessions: List<Session>): TracedLap? {
     val candidate = sessions
         .filter { (it.trace?.size ?: 0) >= 10 && it.laps.isNotEmpty() }
         .minByOrNull { it.bestLapMs ?: Int.MAX_VALUE }
@@ -421,7 +444,7 @@ private fun bestLapTrace(sessions: List<Session>): TracedLap? {
 }
 
 /** The trace to draw, its lap time, and where that lap hit its limit (#188). */
-private data class TracedLap(
+internal data class TracedLap(
     val trace: List<TraceSample>,
     val lapMs: Int,
     val markers: List<Limits.Marker>,
@@ -550,6 +573,8 @@ private fun SessionCard(
     onCompare: () -> Unit = {},
     /** A session's label and notes edited after the fact (NS-40): `(label, notes)`. */
     onSave: (String?, String?) -> Unit = { _, _ -> },
+    /** *Share…* (NS-48): opens the session's share dialog. */
+    onShare: () -> Unit = {},
     readOnly: Boolean = false,
 ) {
     val colors = TrackTheme.colors
@@ -620,6 +645,9 @@ private fun SessionCard(
                     modifier = Modifier.testTag("editSession-${session.id}"),
                 ) {
                     Text("Edit", style = TrackTheme.typography.xs, color = colors.accentInk)
+                }
+                TextButton(onClick = onShare, modifier = Modifier.testTag("shareSession-${session.id}")) {
+                    Text("Share…", style = TrackTheme.typography.xs, color = colors.accentInk)
                 }
                 TextButton(onClick = onDelete) {
                     Text("Delete", style = TrackTheme.typography.xs, color = colors.danger)
@@ -735,9 +763,13 @@ private fun SessionCard(
     }
 }
 
-/** A lap as a row: number, time, ★ for the session's best, and a way in (#268). */
+/**
+ * A lap as a row: number, time, ★ for the session's best, and a way in (#268).
+ * A shared item's page (NS-48) passes no [onOpen]: its laps are rows, not doors
+ * into anyone's logbook.
+ */
 @Composable
-private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: (() -> Unit)?) {
+internal fun LapRow(lap: Lap, isBest: Boolean, onOpen: (() -> Unit)?, onDelete: (() -> Unit)?) {
     val colors = TrackTheme.colors
     val label = "Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}" + if (isBest) " ★" else ""
     // A lap with a best-lap video (NS-45) says so: a ▶ seen, "has video" heard.
@@ -746,7 +778,7 @@ private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: (() 
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(TrackTheme.radii.sm))
-            .clickable(onClick = onOpen)
+            .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier)
             .padding(top = 2.dp)
             .testTag("lap-${lap.id}"),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -766,7 +798,7 @@ private fun LapRow(lap: Lap, isBest: Boolean, onOpen: () -> Unit, onDelete: (() 
                 modifier = Modifier.padding(end = 6.dp).testTag("lapVideo-${lap.id}").clearAndSetSemantics { },
             )
         }
-        Text("›", style = TrackTheme.typography.sm, color = colors.textFaint)
+        if (onOpen != null) Text("›", style = TrackTheme.typography.sm, color = colors.textFaint)
         if (onDelete != null) {
             TextButton(onClick = onDelete) {
                 Text("✕", style = TrackTheme.typography.xs, color = colors.textFaint)

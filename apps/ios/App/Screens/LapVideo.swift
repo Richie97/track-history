@@ -159,10 +159,17 @@ private struct ClipPendingCard: View {
 
 /// The player: a signed URL that plays for an hour, opened on the lap's first
 /// frame — the pre-roll is one scrub back.
-private struct LapVideoPlayer: View {
+///
+/// Also the shared-item page's player (NS-48), which hands it `signedURL`: the
+/// link's own public clip endpoint, signed exactly as the owner's is, so a
+/// viewer with no account plays the owner's video with nothing of theirs.
+struct LapVideoPlayer: View {
     let clip: LapClip
     let readOnly: Bool
-    var onDeleted: () async -> Void
+    var onDeleted: () async -> Void = {}
+    /// Where the signed URL comes from, when not the signed-in owner's
+    /// `GET /clips/:id/url` (under a coach's scoped client, the student's).
+    var signedURL: (() async throws -> ClipURL)? = nil
 
     @Environment(AuthController.self) private var auth
     @Environment(\.logbookOwner) private var owner
@@ -264,7 +271,11 @@ private struct LapVideoPlayer: View {
         ready = false
         let signed: ClipURL
         do {
-            signed = try await auth.api.scoped(to: owner).clipURL(id: clip.id)
+            if let signedURL {
+                signed = try await signedURL()
+            } else {
+                signed = try await auth.api.scoped(to: owner).clipURL(id: clip.id)
+            }
         } catch let error as APIError {
             problem = Self.words(for: error)
             return

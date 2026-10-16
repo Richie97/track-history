@@ -1,0 +1,2 @@
+- Share a single track day or session: tap Share in its menu to get a link anyone can open, no account needed. It shows the laps, racing line, telemetry and best-lap video, while your notes, costs and setup sheets stay private. Stop sharing turns the link off.
+- Open a shared day or session link and it opens right in the app.

@@ -340,6 +340,8 @@ struct RootView: View {
             ImportScreen(eventId: eventId, incoming: incoming, forNewEvent: forNewEvent)
         case .shared(let slug):
             SharedLogbookScreen(slug: slug)
+        case .sharedItem(let kind, let token):
+            SharedItemScreen(kind: kind, token: token)
         case .lap(let eventId, let sessionId, let lapId):
             LapDetailScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
         case .wrapped(let year):
@@ -391,7 +393,7 @@ struct RootView: View {
         // next one on its next pass, which is soon enough.
         case .lap(let eventId, let sessionId, let lapId):
             [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
-        case .track, .leaderboard, .vehicle, .settings, .shared, .eventForm(.new), .wrapped,
+        case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
              .coaching, .profile, .coachInvite, .student, .trackDaysGuide: nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }

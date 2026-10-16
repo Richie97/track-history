@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "path": "/sessions/:id/share",
+  "status": 201,
+  "body": {
+    "created_at": 0,
+    "kind": "session",
+    "token": "AAAAAAAAAAAAAAAAAAAAAA",
+    "url": "https://trackevolution.app/share/s/AAAAAAAAAAAAAAAAAAAAAA"
+  }
+}

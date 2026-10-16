@@ -51,11 +51,11 @@ share.delete("/share", async (c) => {
 // human visitors exactly as before. Only already-public share data is used:
 // the owner's name and the same aggregates GET /api/share/:slug returns.
 
-const escHtml = (s: string) =>
+export const escHtml = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 
 // Mirrors fmtMs in public/js/format.js — "2:01.24", trailing zeros trimmed.
-function fmtMsShare(ms: number): string {
+export function fmtMsShare(ms: number): string {
   const total = Math.round(ms);
   const m = Math.floor(total / 60000);
   const s = Math.floor((total % 60000) / 1000);
@@ -67,7 +67,7 @@ function fmtMsShare(ms: number): string {
 // Swap one meta tag's content attribute. The shell is our own file, so a
 // miss means index.html changed shape — the tag is left as-is rather than
 // breaking the page.
-function setMeta(html: string, attr: "name" | "property", key: string, value: string): string {
+export function setMeta(html: string, attr: "name" | "property", key: string, value: string): string {
   const re = new RegExp(`(<meta ${attr}="${key}" content=")[^"]*(")`);
   return html.replace(re, `$1${escHtml(value)}$2`);
 }

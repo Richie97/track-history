@@ -1,5 +1,6 @@
 package app.trackevolution.core
 
+import app.trackevolution.core.model.ItemShareKind
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -102,5 +103,38 @@ class DeepLinkTest {
         assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/coach/abc/accept"))
         // The web app's own hash route is the page, never the token.
         assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/#/coach"))
+    }
+
+    @Test
+    fun `an item share link resolves ahead of the slug rule (NS-48)`() {
+        val token = "k3Jx9_-AbCdEfGhIjKlMnO"
+        assertEquals(
+            DeepLink.SharedItem(ItemShareKind.EVENT, token),
+            DeepLink.parse("https://trackevolution.app/share/e/$token"),
+        )
+        assertEquals(
+            DeepLink.SharedItem(ItemShareKind.SESSION, token),
+            DeepLink.parse("https://trackevolution.app/share/s/$token"),
+        )
+        // The web's own hash route lives in the fragment and changes nothing.
+        assertEquals(
+            DeepLink.SharedItem(ItemShareKind.SESSION, token),
+            DeepLink.parse("https://trackevolution.app/share/s/$token#/event/1"),
+        )
+    }
+
+    @Test
+    fun `a one-letter prefix is never read as a logbook slug`() {
+        // Slugs are three characters minimum, so `/share/e/…` is always an item
+        // link — and a malformed one is no link at all, never `Shared("e")`.
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/share/e/x"))
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/share/s/"))
+        assertEquals(
+            DeepLink.Dashboard,
+            DeepLink.parse("https://trackevolution.app/share/e/k3Jx9_-AbCdEfGhIjKlMnO/more"),
+        )
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/share/e/has.dots.in.it.0123456"))
+        // Any other single segment is still a slug.
+        assertEquals(DeepLink.Shared("eric"), DeepLink.parse("https://trackevolution.app/share/eric"))
     }
 }

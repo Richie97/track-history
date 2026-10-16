@@ -19,6 +19,27 @@ struct DeepLinkTests {
     }
 
     @Test
+    func sharedItemLinksResolveAheadOfTheSlugRule() {
+        // NS-48: one event or one session. Before this rule `/share/e/<token>`
+        // parsed as the logbook with slug "e".
+        let token = "k3Jx9_AbCdEfGhIjKlMn-o"
+        #expect(parse("https://trackevolution.app/share/e/\(token)") == .sharedItem(kind: .event, token: token))
+        #expect(parse("https://trackevolution.app/share/s/\(token)") == .sharedItem(kind: .session, token: token))
+        #expect(parse("https://trackevolution.app/share/s/\(token)/") == .sharedItem(kind: .session, token: token))
+        // A one-letter segment is never a slug (three characters minimum), so a
+        // malformed token — short, long, a stray character, or none — is nobody's
+        // link rather than someone's logbook.
+        #expect(parse("https://trackevolution.app/share/e") == .dashboard)
+        #expect(parse("https://trackevolution.app/share/e/short") == .dashboard)
+        #expect(parse("https://trackevolution.app/share/e/\(token)x") == .dashboard)
+        #expect(parse("https://trackevolution.app/share/e/k3Jx9.AbCdEfGhIjKlMn-o") == .dashboard)
+        #expect(parse("https://trackevolution.app/share/s/\(token)/more") == .dashboard)
+        // Another letter is a slug as it always was; so is a slug starting with one.
+        #expect(parse("https://trackevolution.app/share/eric") == .shared(slug: "eric"))
+        #expect(parse("https://trackevolution.app/share/sam/\(token)") == .shared(slug: "sam"))
+    }
+
+    @Test
     func coachInvitesResolveToTheirToken() {
         // NS-38: the link a driver sends their coach, advertised in the
         // association file beside /share/*.

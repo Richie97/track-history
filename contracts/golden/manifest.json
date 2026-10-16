@@ -200,6 +200,60 @@
       "source": "src/routes/share.ts"
     },
     {
+      "name": "item-share-event-create",
+      "file": "item-share-event-create.json",
+      "method": "POST",
+      "path": "/events/:id/share",
+      "status": 201,
+      "description": "Share one event: its link, minted on first use and answered again after (200). Free.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-event",
+      "file": "item-share-event.json",
+      "method": "GET",
+      "path": "/events/:id/share",
+      "status": 200,
+      "description": "The event's share link if there is one; 404 when it isn't shared.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-session-create",
+      "file": "item-share-session-create.json",
+      "method": "POST",
+      "path": "/sessions/:id/share",
+      "status": 201,
+      "description": "Share one session: the same shape with kind \"session\" and a /share/s/ link.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-session",
+      "file": "item-share-session.json",
+      "method": "GET",
+      "path": "/sessions/:id/share",
+      "status": 200,
+      "description": "The session's share link if there is one; 404 when it isn't shared.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "shared-event",
+      "file": "shared-event.json",
+      "method": "GET",
+      "path": "/share/e/:token",
+      "status": 200,
+      "description": "A shared event (unauthenticated): the event detail as the owner reads it, narrowed to the lap data — notes, checklist, costs, setups and the garage link null or empty — with `pro` the owner's tier and `clip` only while the owner has Pro.",
+      "source": "src/routes/itemSharePublic.ts"
+    },
+    {
+      "name": "shared-session",
+      "file": "shared-session.json",
+      "method": "GET",
+      "path": "/share/s/:token",
+      "status": 200,
+      "description": "A shared session (unauthenticated): the same shape with the one session, and the header's best, lap count, consistency and weather worked out from it alone.",
+      "source": "src/routes/itemSharePublic.ts"
+    },
+    {
       "name": "event-create",
       "file": "event-create.json",
       "method": "POST",
@@ -441,6 +495,24 @@
       "status": 200,
       "description": "Disable sharing.",
       "source": "src/routes/share.ts"
+    },
+    {
+      "name": "item-share-event-delete",
+      "file": "item-share-event-delete.json",
+      "method": "DELETE",
+      "path": "/events/:id/share",
+      "status": 200,
+      "description": "Stop sharing an event: its link answers 404 from now on.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-session-delete",
+      "file": "item-share-session-delete.json",
+      "method": "DELETE",
+      "path": "/sessions/:id/share",
+      "status": 404,
+      "description": "Stop sharing a session.",
+      "source": "src/routes/itemShare.ts"
     },
     {
       "name": "error-400",

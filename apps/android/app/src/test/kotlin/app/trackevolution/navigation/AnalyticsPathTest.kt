@@ -31,6 +31,8 @@ class AnalyticsPathTest {
         Route.Import(12) to "/import",
         Route.Import(forNewEvent = true) to "/import",
         Route.Shared("eric-r") to "/share/:slug",
+        Route.SharedItem("e", "s3cr3tAAAAAAAAAAAAAAAA") to "/share/e/:token",
+        Route.SharedItem("s", "s3cr3tAAAAAAAAAAAAAAAA") to "/share/s/:token",
         Route.Lap(12, 40, 991) to "/event/:id/lap/:id",
         Route.SessionCompare(12, 40) to "/event/:id/session/:id/compare",
         Route.Wrapped(2026) to "/wrapped/2026",

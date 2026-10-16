@@ -11,6 +11,7 @@ import { billing } from "../../src/routes/billing";
 import { coaching } from "../../src/routes/coaching";
 import { exportRoutes } from "../../src/routes/export";
 import { clips } from "../../src/routes/clips";
+import { itemShare } from "../../src/routes/itemShare";
 import { LEGACY_ENTITLED_UNTIL_MS } from "../../src/lib/entitlement";
 import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
@@ -22,7 +23,7 @@ import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
 // Every router mounted under /api (src/index.ts). Kept explicit so a new
 // router has to be added here, at which point its gates are enumerated too.
-const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes, clips };
+const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes, clips, itemShare };
 
 const guardedRoutes = () =>
   Object.values(API_ROUTERS)

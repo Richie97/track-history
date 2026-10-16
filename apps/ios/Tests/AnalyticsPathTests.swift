@@ -23,6 +23,8 @@ final class AnalyticsPathTests: XCTestCase {
         (.importVideo(eventId: 12, incoming: nil), "/import"),
         (.importVideo(eventId: nil, incoming: URL(fileURLWithPath: "/tmp/clip-2026.mp4")), "/import"),
         (.shared(slug: "eric-r"), "/share/:slug"),
+        (.sharedItem(kind: .event, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/e/:token"),
+        (.sharedItem(kind: .session, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/s/:token"),
         (.lap(eventId: 12, sessionId: 40, lapId: 991), "/event/:id/lap/:id"),
         (.wrapped(year: 2026), "/wrapped/2026"),
         (.coaching, "/coaching"),

@@ -179,6 +179,13 @@ class EventModel(
         api.updateEvent(eventId, EventPatch(checklist = Patch.Set(items.ifEmpty { null })))
     }
 
+    // ---- Share one event or session (NS-48) ----------------------------------
+    //
+    // Live, never queued: the link is the server's answer. The dialog words a
+    // Transport failure as "Sharing needs a connection." (`ItemShareText`).
+
+    val sharing = ItemShareState(scope, api::shareItem, api::stopSharingItem)
+
     fun deleteEvent() {
         scope.launch {
             try {

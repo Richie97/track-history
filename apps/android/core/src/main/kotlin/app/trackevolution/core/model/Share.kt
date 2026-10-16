@@ -75,3 +75,62 @@ public data class SharedTrack(
 public data class ShareSlug(
     val slug: String,
 )
+
+/**
+ * Which kind of thing one share link carries (NS-48): a whole track day, or a
+ * single session of one.
+ */
+@Serializable
+public enum class ItemShareKind(
+    /** The one-letter path prefix: `/share/e/<token>`, `/share/s/<token>`. */
+    public val prefix: String,
+) {
+    @SerialName("event") EVENT("e"),
+    @SerialName("session") SESSION("s"),
+    ;
+
+    public companion object {
+        /** `"e"` → [EVENT], `"s"` → [SESSION], anything else null. */
+        public fun forPrefix(prefix: String): ItemShareKind? = entries.firstOrNull { it.prefix == prefix }
+    }
+}
+
+/**
+ * `POST` / `GET /api/events/:id/share` and `/api/sessions/:id/share` — the one
+ * link an item has (NS-48). Separate from the logbook's [ShareSlug]: sharing one
+ * day exposes nothing else.
+ */
+@Serializable
+public data class ItemShareLink(
+    val kind: ItemShareKind,
+    /** 128 bits, base64url — `[A-Za-z0-9_-]{22}`. */
+    val token: String,
+    /** The absolute link to hand to someone: `https://<host>/share/e/<token>`. */
+    val url: String,
+    @SerialName("created_at") val createdAt: Long,
+)
+
+/**
+ * `GET /api/share/(e|s)/:token` — **unauthenticated**: one shared event or one
+ * shared session (NS-48).
+ *
+ * Unlike [ShareData], [event] is the ordinary [EventDetail] the event page
+ * decodes: the server sends `GET /events/:id`'s shape with every hidden field —
+ * notes, checklist, costs, setups, the garage link — null or `[]`, so a coach's
+ * and a link's reads share one model. A session link's event carries that one
+ * session, with the header's figures worked out from it alone.
+ */
+@Serializable
+public data class SharedItem(
+    val kind: ItemShareKind,
+    /** The owner's display name. */
+    val name: String? = null,
+    /**
+     * The **owner's** tier — what the channel panel and the video open to. The
+     * server has already stripped `channels` and `clip` by it.
+     */
+    val pro: Boolean,
+    /** The shared session's id, for a session link; null for an event link. */
+    @SerialName("session_id") val sessionId: Int? = null,
+    val event: EventDetail,
+)

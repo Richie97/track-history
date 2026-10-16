@@ -1741,6 +1741,27 @@ Wrapped, which is free.
   so a link pasted into iMessage/Slack previews with the driver's name, event
   count and headline bests instead of the generic app card. Only data the
   public share payload already exposes is used.
+- **Share one event or one session** (NS-48,
+  `docs/specs/native/NS-48-share-event-session.md`): *Share* on the event page
+  and on each session card (in the overflow menu on the phones) mints a link —
+  `/share/e/<token>` for a day, `/share/s/<token>` for a session — that anyone
+  can open without signing in. One `item_shares` row per item (migration 0033;
+  the token is 128 random bits, stored in the clear like `share_slug` so the
+  owner can copy it again), deleted by *Stop sharing* and cascaded away with
+  its event, session or account. `GET /api/share/(e|s)/:token` reads the event
+  **as its owner** through a private copy of the `/api` router — so ownership,
+  `withComputed` and `stripProFields` at the *owner's* tier are the API's own —
+  then narrows it with `sharedEvent` in `src/lib/itemShare.ts`, which starts
+  from the coach allow-list (`coachEventDetail`) and also nulls the garage link
+  (`vehicle_id`, `track_hours`), drops best-lap clips unless the owner has Pro,
+  and for a session link keeps that session alone with the header's best, lap
+  count, consistency and weather worked out from it. Its best-lap video plays
+  through `GET /api/share/(e|s)/:token/clips/:id/url`, which signs only a clip
+  on a lap the link shows. `GET /share/(e|s)/:token` serves the shell with the
+  item's own Open Graph title ("Eric's track day at VIR") and description. On
+  the web the page is `viewEvent` itself, read-only, through the `sharedView`
+  seam in `app.js`. Sharing is free; `no-store` everywhere so *Stop sharing*
+  takes effect on the next load.
 - **Per-track leaderboards** are strictly **opt-in** (Settings → Leaderboards,
   or the join button on the leaderboard itself; `users.leaderboard_opt_in`).
   The board is **its own page behind a *Leaderboard* button on the track page**

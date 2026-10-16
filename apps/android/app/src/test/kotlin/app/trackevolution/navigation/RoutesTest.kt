@@ -22,6 +22,11 @@ class RoutesTest {
         assertEquals(Route.Track(3), routeFor(DeepLink.Track(3)))
         assertEquals(Route.Settings, routeFor(DeepLink.Settings))
         assertEquals(Route.Shared("eric"), routeFor(DeepLink.Shared("eric")))
+        // One shared event or session (NS-48): the kind travels as its prefix.
+        assertEquals(
+            Route.SharedItem("s", "AAAAAAAAAAAAAAAAAAAAAA"),
+            routeFor(DeepLink.SharedItem(app.trackevolution.core.model.ItemShareKind.SESSION, "AAAAAAAAAAAAAAAAAAAAAA")),
+        )
     }
 
     @Test

@@ -298,6 +298,8 @@ final class RouterTests: XCTestCase {
         let cases: [(String, Route?)] = [
             ("https://trackevolution.app/", nil),
             ("https://trackevolution.app/share/slug", .shared(slug: "slug")),
+            ("https://trackevolution.app/share/s/AAAAAAAAAAAAAAAAAAAAAA",
+             .sharedItem(kind: .session, token: "AAAAAAAAAAAAAAAAAAAAAA")),
             ("trackevolution://event/12", .event(12)),
         ]
         for (url, expected) in cases {

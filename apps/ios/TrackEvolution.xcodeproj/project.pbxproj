@@ -70,6 +70,7 @@
 		8956AB4D920BC0AFC8FFE7C4 /* ChecklistTemplateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE53488843E1D73126026F6 /* ChecklistTemplateUITests.swift */; };
 		8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */; };
 		8A611773FB3670E0A503600B /* SetupNotebook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7158D5E8CACC0DA1E1C11866 /* SetupNotebook.swift */; };
+		8BB1A99727A615E1004F4C13 /* SharedItemScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7634E1ACF86C3A5F2801478B /* SharedItemScreen.swift */; };
 		8DEED3F28EB9E00E7B8F691F /* ShiftTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFB105961C2E3614671E7B7 /* ShiftTable.swift */; };
 		99384036CC3B4CB5D05BD649 /* EventFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA44AA2D607E65A52B5F107 /* EventFormScreen.swift */; };
 		9D607BFF1221091253373DBF /* ProfileFormScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F61111B892F29E5A0F42A8 /* ProfileFormScreen.swift */; };
@@ -84,6 +85,7 @@
 		B98EEDCCD74302D9CD967182 /* SignInUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82118910A4D7C285ABC04083 /* SignInUITests.swift */; };
 		BFACEC004A16805D3D2645B8 /* LapChannelPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06DF26F461D56CF24E50A58 /* LapChannelPanelTests.swift */; };
 		C142D7B4B7E675F7AAD53880 /* StoreController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB900AB8D4C1B65D30BBF43A /* StoreController.swift */; };
+		C25B4B85F41658C345C35D44 /* ItemShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF9EE05978A6F820028BF8AC /* ItemShareSheet.swift */; };
 		C45A78866892412A7C5E72C7 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = C84E5707190F30217B8EDEB9 /* GoogleService-Info.plist */; };
 		C4C8CBAC6E9083B30E32E599 /* LapDetailScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B0E4C546102DECE0F34F9C /* LapDetailScreen.swift */; };
 		C509C29CBCCDFCAD0911F20F /* CoachingRoutesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA978A264D14BAB2CBE1D837 /* CoachingRoutesTests.swift */; };
@@ -105,6 +107,7 @@
 		E105E001CFDE0E8E7CC4914B /* SyncBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04230CAFDCE1FE313B80FF77 /* SyncBanner.swift */; };
 		E1471B3A36468C4923482C29 /* LapVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F3B0C8BC0CA42B3EDF2EB1 /* LapVideo.swift */; };
 		E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11E4CD1582ACC54710F446D /* LapChannelChart.swift */; };
+		E7D2C2003D96875883FE90E5 /* ItemShareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB86532EC2352982F4BBBF83 /* ItemShareTests.swift */; };
 		E9868474425C0AC1F91A7E55 /* TelemetryFileSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497D4C7291EC82131207C136 /* TelemetryFileSource.swift */; };
 		EA02A4AFE756343D8F165FFE /* BalanceScatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC13C54663EDFA0871181F8 /* BalanceScatter.swift */; };
 		EA3F9D1F511A6E44D075381A /* TrackDaysGuideScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD27BA2FE7B8EDF9053012F /* TrackDaysGuideScreen.swift */; };
@@ -192,6 +195,7 @@
 		6F66DCA3EEAAB9B7AB63C634 /* OfflineWritesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineWritesUITests.swift; sourceTree = "<group>"; };
 		701AF92200EE69ABFB9FD787 /* AppAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAnalytics.swift; sourceTree = "<group>"; };
 		7158D5E8CACC0DA1E1C11866 /* SetupNotebook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupNotebook.swift; sourceTree = "<group>"; };
+		7634E1ACF86C3A5F2801478B /* SharedItemScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedItemScreen.swift; sourceTree = "<group>"; };
 		77AAF51B0B3269B08721385C /* ThemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreference.swift; sourceTree = "<group>"; };
 		78F6C833C2E45EF6248BB416 /* RouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterTests.swift; sourceTree = "<group>"; };
 		79F49713447F61795FB0C3F5 /* ChannelPanelKeyboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPanelKeyboardUITests.swift; sourceTree = "<group>"; };
@@ -221,6 +225,7 @@
 		AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLogbookScreen.swift; sourceTree = "<group>"; };
 		AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordAndSaveUITests.swift; sourceTree = "<group>"; };
 		AEA2FA46EA9E691B024C2097 /* CoachingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachingScreen.swift; sourceTree = "<group>"; };
+		AF9EE05978A6F820028BF8AC /* ItemShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemShareSheet.swift; sourceTree = "<group>"; };
 		B3FF04EE56EF96EE2E8F5283 /* PaywallSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheet.swift; sourceTree = "<group>"; };
 		B4630A11194CA0906744BD96 /* TrackEvolutionUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrackEvolutionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B84545EEFA513CC785A84F2E /* RecordingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingScreen.swift; sourceTree = "<group>"; };
@@ -241,6 +246,7 @@
 		D10939598E67F796CA22FCE3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D23273D2EED4718BC85F4E3D /* LapClipUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapClipUITests.swift; sourceTree = "<group>"; };
 		DA978A264D14BAB2CBE1D837 /* CoachingRoutesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachingRoutesTests.swift; sourceTree = "<group>"; };
+		DB86532EC2352982F4BBBF83 /* ItemShareTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemShareTests.swift; sourceTree = "<group>"; };
 		DE19F08670203224D23A5F6F /* GarageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageViews.swift; sourceTree = "<group>"; };
 		DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackEvolutionApp.swift; sourceTree = "<group>"; };
 		DF71BFD1447FEAD3D7528461 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
@@ -329,6 +335,7 @@
 				5D136E4DE2F395728D4F10F3 /* EventScreen.swift */,
 				03589AF363C111DDE858D9B7 /* GarageScreen.swift */,
 				DE19F08670203224D23A5F6F /* GarageViews.swift */,
+				AF9EE05978A6F820028BF8AC /* ItemShareSheet.swift */,
 				87B0E4C546102DECE0F34F9C /* LapDetailScreen.swift */,
 				E0F3B0C8BC0CA42B3EDF2EB1 /* LapVideo.swift */,
 				85C6CC2B7C5DBF44AD5C3CA6 /* LeaderboardLapScreen.swift */,
@@ -336,6 +343,7 @@
 				6D029EFD956A7AC879046769 /* SettingsScreen.swift */,
 				95CF1007FA82991E8035E172 /* SetupFormScreen.swift */,
 				7158D5E8CACC0DA1E1C11866 /* SetupNotebook.swift */,
+				7634E1ACF86C3A5F2801478B /* SharedItemScreen.swift */,
 				AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */,
 				ACD27BA2FE7B8EDF9053012F /* TrackDaysGuideScreen.swift */,
 				6C37B0DDB941D4C18A32BA87 /* TrackScreen.swift */,
@@ -394,6 +402,7 @@
 				320D4C9538F7FD94EC183091 /* EmptyStateTests.swift */,
 				8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */,
 				5BF84F10C31053C93F89BAFB /* FoldsTests.swift */,
+				DB86532EC2352982F4BBBF83 /* ItemShareTests.swift */,
 				F06DF26F461D56CF24E50A58 /* LapChannelPanelTests.swift */,
 				C118EA13E96C32F439CD6A0F /* LapDetailTests.swift */,
 				B8DBFF02978726AA4E08D545 /* LayoutClassTests.swift */,
@@ -699,6 +708,7 @@
 				444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */,
 				5E2DF50080E0F859027298D5 /* HealthStrip.swift in Sources */,
 				449B69CF28F00455EFE6F6DA /* ImportScreen.swift in Sources */,
+				C25B4B85F41658C345C35D44 /* ItemShareSheet.swift in Sources */,
 				8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */,
 				E455177C72CEF449BDEDF9CD /* LapChannelChart.swift in Sources */,
 				C4C8CBAC6E9083B30E32E599 /* LapDetailScreen.swift in Sources */,
@@ -727,6 +737,7 @@
 				3CB392477EBDCB875D78F5EE /* SetupFormScreen.swift in Sources */,
 				8A611773FB3670E0A503600B /* SetupNotebook.swift in Sources */,
 				4F0879E87B4D8BE767CC34B6 /* Shape.swift in Sources */,
+				8BB1A99727A615E1004F4C13 /* SharedItemScreen.swift in Sources */,
 				48D153C4F58B8B1A62F7A616 /* SharedLogbookScreen.swift in Sources */,
 				8DEED3F28EB9E00E7B8F691F /* ShiftTable.swift in Sources */,
 				7660D016CC7A4B8466794DD5 /* SignInScreen.swift in Sources */,
@@ -758,6 +769,7 @@
 				347D218F9A9F02DE1799BE84 /* EmptyStateTests.swift in Sources */,
 				59C8927C18AEAFDA0A97F1DE /* EventFormDraftTests.swift in Sources */,
 				075C42EC5206B481B395638E /* FoldsTests.swift in Sources */,
+				E7D2C2003D96875883FE90E5 /* ItemShareTests.swift in Sources */,
 				BFACEC004A16805D3D2645B8 /* LapChannelPanelTests.swift in Sources */,
 				68767EDE7AD832F838E39040 /* LapDetailTests.swift in Sources */,
 				EB1D1E92428310BA3AAE7BAD /* LayoutClassTests.swift in Sources */,
@@ -838,7 +850,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.20;
+				MARKETING_VERSION = 1.21;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -926,7 +938,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.20;
+				MARKETING_VERSION = 1.21;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

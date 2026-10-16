@@ -75,6 +75,12 @@ function normalize(value, key) {
   // every client models it as optional, and the null branch is the route
   // tests' to pin.
   if (key === "through") return "2026-01-01";
+  // A one-item share link (NS-48) carries a fresh random token and the
+  // harness's port.
+  if (key === "token" && typeof value === "string" && /^[A-Za-z0-9_-]{22}$/.test(value)) return "AAAAAAAAAAAAAAAAAAAAAA";
+  if (key === "url" && typeof value === "string" && /\/share\/[es]\//.test(value)) {
+    return value.replace(/^https?:\/\/[^/]+(\/share\/[es]\/).*$/, "https://trackevolution.app$1AAAAAAAAAAAAAAAAAAAAAA");
+  }
   // A coach invite link carries a fresh random token and the harness's port.
   if (key === "url" && typeof value === "string" && value.includes("/coach/")) {
     return "https://trackevolution.app/coach/0000000000000000000000000000000000000000000000000000000000000000";
@@ -601,6 +607,32 @@ async function captureAll(api, anon, f) {
     "Public share page data. Deliberately reduced: no notes, email, per-lap data or garage/setup linkage.",
     "src/routes/share.ts", await anon("GET", `/share/${f.slug}`));
 
+  // --- share one event or session (NS-48) ----------------------------------
+  // The rich event carries the ready clip from above, so the shared views pin
+  // `clip` as both an object and a null; the fixture account is Pro, so `pro`
+  // is true and the channels are whole.
+  const evShare = record("item-share-event-create", "POST", "/events/:id/share",
+    "Share one event: its link, minted on first use and answered again after (200). Free.",
+    "src/routes/itemShare.ts", await api("POST", `/events/${ev}/share`));
+  record("item-share-event", "GET", "/events/:id/share",
+    "The event's share link if there is one; 404 when it isn't shared.",
+    "src/routes/itemShare.ts", await api("GET", `/events/${ev}/share`));
+  const sessShare = record("item-share-session-create", "POST", "/sessions/:id/share",
+    "Share one session: the same shape with kind \"session\" and a /share/s/ link.",
+    "src/routes/itemShare.ts", await api("POST", `/sessions/${sess}/share`));
+  record("item-share-session", "GET", "/sessions/:id/share",
+    "The session's share link if there is one; 404 when it isn't shared.",
+    "src/routes/itemShare.ts", await api("GET", `/sessions/${sess}/share`));
+  record("shared-event", "GET", "/share/e/:token",
+    "A shared event (unauthenticated): the event detail as the owner reads it, narrowed to " +
+    "the lap data — notes, checklist, costs, setups and the garage link null or empty — " +
+    "with `pro` the owner's tier and `clip` only while the owner has Pro.",
+    "src/routes/itemSharePublic.ts", await anon("GET", `/share/e/${evShare.body.token}`));
+  record("shared-session", "GET", "/share/s/:token",
+    "A shared session (unauthenticated): the same shape with the one session, and the " +
+    "header's best, lap count, consistency and weather worked out from it alone.",
+    "src/routes/itemSharePublic.ts", await anon("GET", `/share/s/${sessShare.body.token}`));
+
   // --- writes -------------------------------------------------------------
   record("event-create", "POST", "/events", "Create an event.", "src/routes/events.ts",
     await api("POST", "/events", { track_name: "Watkins Glen", start_date: "2026-07-04" }));
@@ -697,6 +729,12 @@ async function captureAll(api, anon, f) {
 
   record("share-clear", "DELETE", "/share", "Disable sharing.", "src/routes/share.ts",
     await api("DELETE", "/share"));
+  record("item-share-event-delete", "DELETE", "/events/:id/share",
+    "Stop sharing an event: its link answers 404 from now on.",
+    "src/routes/itemShare.ts", await api("DELETE", `/events/${ev}/share`));
+  record("item-share-session-delete", "DELETE", "/sessions/:id/share",
+    "Stop sharing a session.",
+    "src/routes/itemShare.ts", await api("DELETE", `/sessions/${sess}/share`));
 
   // --- errors -------------------------------------------------------------
   // Every client surfaces err.message from these, so the { error: string }
@@ -877,6 +915,10 @@ const EXPECTED_ROUTES = [
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug", "GET /share/:slug/wrapped/:year",
   "GET /wrapped/:year",
+  // Share one event or session (NS-48).
+  "POST /events/:id/share", "GET /events/:id/share", "DELETE /events/:id/share",
+  "POST /sessions/:id/share", "GET /sessions/:id/share", "DELETE /sessions/:id/share",
+  "GET /share/e/:token", "GET /share/s/:token",
   // Share with a coach (NS-38).
   "GET /me/profile", "PUT /me/profile",
   "GET /coaching", "POST /coaching/invites", "DELETE /coaching/invites/:id",

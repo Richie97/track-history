@@ -453,6 +453,54 @@ public actor APIClient {
         var slug: String
     }
 
+    // MARK: - Sharing one event or session (NS-48)
+
+    /// Share an event or a session: the existing link if there is one (200),
+    /// else a new one (201). Free. A live write, **never queued**: a link minted
+    /// later by a replay would be a link nobody was shown — the sheet says
+    /// *Sharing needs a connection* instead.
+    public func createItemShare(_ kind: ItemShareKind, id: Int) async throws -> ItemShareLink {
+        try await send("POST", "/\(kind.ownerCollection)/\(id)/share", body: NoBody?.none, as: ItemShareLink.self)
+    }
+
+    /// The item's link, or nil when it isn't shared (the server's 404
+    /// `not shared`). Read past the cache: a link that was stopped elsewhere
+    /// must not come back from an offline copy.
+    public func itemShare(_ kind: ItemShareKind, id: Int) async throws -> ItemShareLink? {
+        do {
+            return try await get("/\(kind.ownerCollection)/\(id)/share", cached: false, as: ItemShareLink.self)
+        } catch let error as APIError where error.status == 404 {
+            return nil
+        }
+    }
+
+    /// *Stop sharing*: the link answers 404 from now on. Live, never queued.
+    public func deleteItemShare(_ kind: ItemShareKind, id: Int) async throws {
+        _ = try await send("DELETE", "/\(kind.ownerCollection)/\(id)/share", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    /// What a `/share/e/<token>` or `/share/s/<token>` link shows. Unauthenticated
+    /// — no token is sent — and read past the cache like the coach invite's
+    /// preview, since the path carries the link's whole permission and a copy
+    /// kept offline would outlive *Stop sharing*.
+    public func sharedItem(kind: ItemShareKind, token: String) async throws -> SharedItem {
+        if let parent { return try await parent.sharedItem(kind: kind, token: token) }
+        return try await get(
+            "/share/\(kind.pathLetter)/\(Self.pathSegment(token))",
+            authenticated: false, cached: false, as: SharedItem.self
+        )
+    }
+
+    /// A signed URL for a best-lap video on a shared item, for an hour — present
+    /// only while the owner has Pro. Unauthenticated and uncached, as above.
+    public func sharedClipURL(kind: ItemShareKind, token: String, clipId: Int) async throws -> ClipURL {
+        if let parent { return try await parent.sharedClipURL(kind: kind, token: token, clipId: clipId) }
+        return try await get(
+            "/share/\(kind.pathLetter)/\(Self.pathSegment(token))/clips/\(clipId)/url",
+            authenticated: false, cached: false, as: ClipURL.self
+        )
+    }
+
     // MARK: - Coaching (NS-38)
 
     /// Both directions of the grant in one read: the coaches reading your

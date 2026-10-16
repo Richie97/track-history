@@ -38,6 +38,9 @@ describe("analyticsPath", () => {
     expect(analyticsPath("/share/eric-r", "")).toBe("/share/:slug");
     expect(analyticsPath("/share/eric-r/", "#/track/3")).toBe("/share/:slug/track/:id");
     expect(analyticsPath("/share/eric-r/wrapped/2025", "")).toBe("/share/:slug/wrapped/2025");
+    // A one-item share's token is never sent either (NS-48).
+    expect(analyticsPath("/share/e/k3Jx9AbCdEfGhIjKlMnOpQ", "")).toBe("/share/e/:token");
+    expect(analyticsPath("/share/s/k3Jx9AbCdEfGhIjKlMnOpQ/", "")).toBe("/share/s/:token");
   });
 
   it("never reports another path, an invite token's included", () => {

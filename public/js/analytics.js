@@ -79,6 +79,10 @@ export function analyticsPath(pathname, hash) {
   let prefix = "";
   const share = (pathname || "").match(/^\/share\/[^/]+(?:\/wrapped\/(\d{4}))?\/?$/);
   if (share) prefix = share[1] ? `/share/:slug/wrapped/${share[1]}` : "/share/:slug";
+  // One shared event or session (NS-48): the prefix says which, the token
+  // stays out — it is the whole of the link's permission.
+  const item = (pathname || "").match(/^\/share\/([es])\/[^/]+\/?$/);
+  if (item) prefix = `/share/${item[1]}/:token`;
   const route = (hash || "").replace(/^#/, "").split("?")[0];
   const parts = route.split("/").filter(Boolean);
   const shaped = parts.map((p, i) => (parts[i - 1] === "wrapped" && /^\d{4}$/.test(p) ? p : ID_SEGMENT.test(p) ? ":id" : p));

@@ -111,7 +111,9 @@ const coachSession = (row: unknown) => {
   out.laps = Array.isArray(laps) ? laps.map(coachLap) : [];
   return out;
 };
-const coachEventDetail: CoachView = (body) => {
+// Exported for the one-item share (lib/itemShare.ts, NS-48), which starts
+// from exactly a coach's view of the event and narrows it further.
+export const coachEventDetail: CoachView = (body) => {
   const out = coachEvent(body);
   const sessions = (body as Json | null)?.sessions;
   out.sessions = Array.isArray(sessions) ? sessions.map(coachSession) : [];

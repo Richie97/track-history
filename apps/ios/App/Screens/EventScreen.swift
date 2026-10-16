@@ -30,7 +30,23 @@ struct EventScreen: View {
     @Environment(\.logbookOwner) private var owner
 
     @State private var model: EventModel?
-    @State private var editingSession: Session?
+    /// The page's one form sheet: a session's label and notes, or the share
+    /// sheet for the event or one session (NS-48). One `.sheet` for all of them,
+    /// because a second `.sheet` on this view beside the channel panel's is the
+    /// watchdog crash AGENTS.md lists.
+    @State private var formSheet: FormSheet?
+
+    private enum FormSheet: Identifiable {
+        case editSession(Session)
+        case share(ItemShareKind, id: Int)
+
+        var id: String {
+            switch self {
+            case .editSession(let session): "edit-\(session.id)"
+            case .share(let kind, let id): "share-\(kind.rawValue)-\(id)"
+            }
+        }
+    }
     @State private var confirmingDeleteEvent = false
     /// The session whose lap overlay is open **as a sheet**, if any.
     ///
@@ -121,6 +137,12 @@ struct EventScreen: View {
                         } label: {
                             Label("Edit event", systemImage: "pencil")
                         }
+                        Button {
+                            formSheet = .share(.event, id: model.eventId)
+                        } label: {
+                            Label("Share…", systemImage: "square.and.arrow.up")
+                        }
+                        .accessibilityIdentifier("shareEvent")
                         Button(role: .destructive) {
                             confirmingDeleteEvent = true
                         } label: {
@@ -182,9 +204,14 @@ struct EventScreen: View {
                     }
             }
         }
-        .sheet(item: $editingSession) { session in
-            SessionEditSheet(session: session) { label, notes in
-                await model?.updateSession(id: session.id, label: label, notes: notes) ?? false
+        .sheet(item: $formSheet) { sheet in
+            switch sheet {
+            case .editSession(let session):
+                SessionEditSheet(session: session) { label, notes in
+                    await model?.updateSession(id: session.id, label: label, notes: notes) ?? false
+                }
+            case .share(let kind, let id):
+                ItemShareSheet(kind: kind, id: id)
             }
         }
     }
@@ -401,11 +428,16 @@ struct EventScreen: View {
         }
     }
 
-    /// Temperature and conditions read as one phrase, like `fmtConditions`.
     private func conditionsText(_ event: Event) -> String? {
+        Self.conditionsText(event, units: auth.units)
+    }
+
+    /// Temperature and conditions read as one phrase, like `fmtConditions`.
+    /// Static so the shared-item page (NS-48) words its header the same way.
+    static func conditionsText(_ event: Event, units: UnitSystem) -> String? {
         let condition = event.conditions?.label
         // Stored whole °F, shown in the account's system.
-        let temp: String? = event.tempF == nil ? nil : Units.fmtTemp(event.tempF, auth.units)
+        let temp: String? = event.tempF == nil ? nil : Units.fmtTemp(event.tempF, units)
         let parts = [condition, temp].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
@@ -719,9 +751,14 @@ struct EventScreen: View {
                 if !owner.isReadOnly {
                     Menu {
                         Button {
-                            editingSession = session
+                            formSheet = .editSession(session)
                         } label: {
                             Label("Edit label & notes", systemImage: "pencil")
+                        }
+                        Button {
+                            formSheet = .share(.session, id: session.id)
+                        } label: {
+                            Label("Share…", systemImage: "square.and.arrow.up")
                         }
                         Button(role: .destructive) {
                             Task { await model.deleteSession(id: session.id) }
