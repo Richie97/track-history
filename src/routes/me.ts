@@ -6,6 +6,7 @@ import { entitlementResponse, isEntitled, type SubscriptionRow } from "../lib/en
 import { parseProfile, sanitizeProfile } from "../lib/profile";
 import { subscriptionsForUserStmt } from "../lib/billing/store";
 import { CLIP_QUOTA_BYTES } from "../lib/clips";
+import { youtubeAvailable } from "../lib/youtube";
 
 export const me = new Hono<AppContext>();
 
@@ -26,7 +27,7 @@ me.get("/me", async (c) => {
   const userId = c.get("userId");
   // The user row, the totals and the subscription rows are independent — one
   // batched round trip.
-  const [userRes, totalsRes, subsRes, clipsRes] = await c.env.DB.batch([
+  const [userRes, totalsRes, subsRes, clipsRes, youtubeRes] = await c.env.DB.batch([
     c.env.DB.prepare(
       "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in, leaderboard_share_laps, units FROM users WHERE id = ?"
     ).bind(userId),
@@ -40,8 +41,11 @@ me.get("/me", async (c) => {
       `SELECT (SELECT COALESCE(SUM(size_bytes), 0) FROM lap_clips WHERE user_id = ?1) AS used_bytes,
               (SELECT COUNT(*) FROM coach_grants WHERE student_id = ?1) AS coach_count`
     ).bind(userId),
+    // YouTube (NS-46): the connection, if any, for Settings and the lap page.
+    c.env.DB.prepare("SELECT status, email, channel_title FROM youtube_connections WHERE user_id = ?").bind(userId),
   ]);
   const clips = clipsRes.results[0] as { used_bytes: number; coach_count: number };
+  const yt = (youtubeRes.results[0] ?? null) as { status: string; email: string | null; channel_title: string | null } | null;
   const row = (userRes.results[0] ?? null) as Record<string, unknown> | null;
   const user = row && {
     ...row,
@@ -53,6 +57,15 @@ me.get("/me", async (c) => {
     // on what "unset" means.
     units: isValidUnits(row.units) ? row.units : DEFAULT_UNITS,
     clips: { used_bytes: clips.used_bytes, quota_bytes: CLIP_QUOTA_BYTES, coach_count: clips.coach_count },
+    // `available` is the one switch every client reads: false draws nothing at
+    // all. `connected` is false for a revoked grant, which Settings words as
+    // "Reconnect YouTube"; `account` stays so it can say which one.
+    youtube: {
+      available: youtubeAvailable(c.env, typeof row.email === "string" ? row.email : null),
+      connected: yt?.status === "ok",
+      account: yt?.email ?? null,
+      channel_title: yt?.channel_title ?? null,
+    },
   };
   // Tier comes from entitled_until as loaded with the session; the rows only
   // say where it came from (NS-32 requirement 1).

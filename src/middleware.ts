@@ -27,14 +27,17 @@ export const requireSession = createMiddleware<AppContext>(async (c, next) => {
 // maps to its paywall (NS-32 rule 5).
 //
 // It guards GET /garage, the parts/measurements routes, the setups routes,
-// inviting a coach and saving / playing a best-lap video, and nothing else —
+// inviting a coach, saving / playing a best-lap video and drafting / starting
+// a YouTube upload of one, and nothing else —
 // `test/api/entitlement-gates.test.ts` enumerates them, so an accidental
 // addition fails there. It must never sit in front of a POST/PUT/DELETE on
 // events, sessions, laps or tracks: the offline layer drops rejected writes,
 // and a recording made under Pro and replayed after a lapse would be deleted.
 // The stated exceptions are the setups writes (rule 5) — a dropped setup sheet
-// is a form, not a session — the coach invite (NS-38) and creating a clip
-// (POST /sessions/:id/clip, NS-45), whose session has already saved without it.
+// is a form, not a session — the coach invite (NS-38), creating a clip
+// (POST /sessions/:id/clip, NS-45), whose session has already saved without it,
+// and starting a YouTube upload of one (POST /clips/:id/youtube, NS-46), which
+// writes nothing to the logbook at all.
 export const requireEntitlement = createMiddleware<AppContext>(async (c, next) => {
   if (!isEntitled(c.get("entitledUntil"), Date.now())) return c.json({ error: "pro required" }, 402);
   return next();

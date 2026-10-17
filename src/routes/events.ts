@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { clipYouTube } from "../lib/youtube";
 import type { AppContext } from "../types";
 import { eventSelect, listEvents, ownedEvent, resolveTrack, vehicleIdForCar } from "../db";
 import { type EventRow, withComputed } from "../lib/stats";
@@ -103,9 +104,11 @@ events.get("/events/:id", async (c) => {
     db
       .prepare(
         `SELECT l.id, l.session_id, l.lap_num, l.time_ms,
-                k.id AS clip_id, k.duration_ms AS clip_duration_ms, k.lap_offset_ms AS clip_lap_offset_ms, k.size_bytes AS clip_size_bytes
+                k.id AS clip_id, k.duration_ms AS clip_duration_ms, k.lap_offset_ms AS clip_lap_offset_ms, k.size_bytes AS clip_size_bytes,
+                y.status AS yt_status, y.privacy AS yt_privacy, y.video_id AS yt_video_id
            FROM laps l JOIN sessions s ON s.id = l.session_id
            LEFT JOIN lap_clips k ON k.lap_id = l.id AND k.status = 'ready'
+           LEFT JOIN youtube_uploads y ON y.clip_id = k.id
           WHERE s.event_id = ? ORDER BY l.session_id, l.lap_num`
       )
       .bind(id),
@@ -144,7 +147,9 @@ events.get("/events/:id", async (c) => {
   );
   // `clip` (NS-45): a ready best-lap video, or null. Not stripped for a free
   // account — the clip's existence is the driver's data, and the locked player
-  // is the offer; only the URL to play it is Pro.
+  // is the offer; only the URL to play it is Pro. Its `youtube` (NS-46) is the
+  // upload of it, or null — not stripped either: the link is the driver's. The
+  // coach mount's COACH_CLIP_FIELDS allow-list drops it without an edit.
   const laps = (
     lapRes.results as {
       id: number;
@@ -155,13 +160,22 @@ events.get("/events/:id", async (c) => {
       clip_duration_ms: number | null;
       clip_lap_offset_ms: number | null;
       clip_size_bytes: number | null;
+      yt_status: "queued" | "uploading" | "done" | "failed" | null;
+      yt_privacy: "private" | "unlisted" | "public" | null;
+      yt_video_id: string | null;
     }[]
-  ).map(({ clip_id, clip_duration_ms, clip_lap_offset_ms, clip_size_bytes, ...l }) => ({
+  ).map(({ clip_id, clip_duration_ms, clip_lap_offset_ms, clip_size_bytes, yt_status, yt_privacy, yt_video_id, ...l }) => ({
     ...l,
     clip:
       clip_id == null
         ? null
-        : { id: clip_id, duration_ms: clip_duration_ms, lap_offset_ms: clip_lap_offset_ms, size_bytes: clip_size_bytes },
+        : {
+            id: clip_id,
+            duration_ms: clip_duration_ms,
+            lap_offset_ms: clip_lap_offset_ms,
+            size_bytes: clip_size_bytes,
+            youtube: yt_status ? clipYouTube({ status: yt_status, privacy: yt_privacy!, video_id: yt_video_id }) : null,
+          },
   }));
 
   const sessionsWithLaps = sessions.map((s) => ({

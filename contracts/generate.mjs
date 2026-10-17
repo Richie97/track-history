@@ -125,6 +125,12 @@ async function startWorker({ email = DEV_EMAIL, name = "Dev User", fresh = true 
     DEV_USER_NAME: name,
     GOOGLE_CLIENT_ID: "contract-harness",
     GOOGLE_CLIENT_SECRET: "contract-harness",
+    // YouTube (NS-46): present so `user.youtube.available` is true and the
+    // draft answers. Nothing here ever reaches Google — the one upload is
+    // written straight into D1 (see build()), so no queue message is sent.
+    YOUTUBE_CLIENT_ID: "contract-harness",
+    YOUTUBE_CLIENT_SECRET: "contract-harness",
+    YOUTUBE_TOKEN_KEY: Buffer.alloc(32, 1).toString("base64"),
   };
 
   return unstable_startWorker({
@@ -140,6 +146,19 @@ async function startWorker({ email = DEV_EMAIL, name = "Dev User", fresh = true 
       Object.entries(env).map(([k, v]) => [k, { type: "plain_text", value: v }])
     ),
   });
+}
+
+// A statement straight into the scratch D1 the running Worker reads — for
+// state no route can make without a third party (a YouTube upload, NS-46).
+function d1(sql) {
+  execFileSync(
+    process.execPath,
+    [
+      path.join(ROOT, "node_modules", "wrangler", "bin", "wrangler.js"),
+      "d1", "execute", "track-history", "--local", "--persist-to", PERSIST, "--command", sql,
+    ],
+    { cwd: ROOT, stdio: "pipe" }
+  );
 }
 
 // Sign in through the DEV_MODE bypass and keep the session cookie.
@@ -481,6 +500,33 @@ async function build(api) {
   const done = await api("POST", `/clips/${clip.body.clip_id}/complete`);
   if (done.status !== 200) throw new Error(`clip complete failed: ${JSON.stringify(done.body)}`);
 
+  // --- YouTube (NS-46) -------------------------------------------------------
+  // That clip is on YouTube; a second, on another session's best lap, is not —
+  // so the event detail pins `clip.youtube` as an object and as a null. The
+  // connection and the upload are written straight into D1, because the
+  // goldens are about shapes and an upload is Google's to finish; the tokens
+  // are placeholders nothing decrypts. Every /me after this carries the
+  // connected account; the fresh-account `me` above pins the nulls.
+  const otherBest = richDetail.sessions
+    .filter((s) => s.id !== bestLap.session_id && s.laps.length)
+    .map((s) => s.laps.reduce((a, b) => (b.time_ms < a.time_ms ? b : a)))[0];
+  const clip2 = await api("POST", `/sessions/${otherBest.session_id}/clip`, {
+    time_ms: otherBest.time_ms,
+    size_bytes: clipBytes.length,
+    duration_ms: otherBest.time_ms + 5_000,
+    lap_offset_ms: 2_000,
+  });
+  if (clip2.status !== 201) throw new Error(`second clip create failed: ${JSON.stringify(clip2.body)}`);
+  await api.putBytes(`/clips/${clip2.body.clip_id}/parts/1`, clipBytes);
+  await api("POST", `/clips/${clip2.body.clip_id}/complete`);
+  const userId = (await api("GET", "/me")).body.user.id;
+  d1(
+    `INSERT INTO youtube_connections (user_id, google_sub, email, channel_title, refresh_token_enc, status, connected_at, verified_at, updated_at)
+       VALUES (${userId}, 'golden-sub', 'driver@channel.example', 'Fast Laps', 'placeholder', 'ok', 0, 0, 0);
+     INSERT INTO youtube_uploads (user_id, clip_id, status, title, description, privacy, bytes_sent, video_id, created_at, verified_at, updated_at)
+       VALUES (${userId}, ${clip.body.clip_id}, 'done', 'VIR · best lap', 'Best lap.', 'unlisted', ${clipBytes.length}, 'goldenVid01', 0, 0, 0);`
+  );
+
   // --- share --------------------------------------------------------------
   await api("PUT", "/share", { slug: "contract-fixture" });
 
@@ -490,7 +536,10 @@ async function build(api) {
   const trackId = tracks.find((t) => t.name === FIXTURE.richEvent.track_name)?.id;
   if (!trackId) throw new Error("fixture track not found — did resolveTrack change?");
 
-  return { rich, patriot, bare, s1, vehicle, pads, spareRears, trackId, slug: "contract-fixture" };
+  return {
+    rich, patriot, bare, s1, vehicle, pads, spareRears, trackId, slug: "contract-fixture",
+    clipId: clip.body.clip_id,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -562,6 +611,18 @@ async function captureAll(api, anon, f) {
   record("event-detail", "GET", "/events/:id",
     "One event with its sessions, laps and setup sheets. Populated stats branch.",
     "src/routes/events.ts", await api("GET", `/events/${ev}`));
+
+  // Publishing a best-lap video to YouTube (NS-46): the form's pre-filled
+  // words, and the status the lap page polls. The upload routes themselves
+  // (POST, connect, disconnect) need Google and are test/api/youtube.test.ts's.
+  record("youtube-draft", "GET", "/clips/:id/youtube/draft",
+    "The upload form's pre-filled title, description and visibility (Pro), and the connected " +
+    "account it uploads to (null when none).",
+    "src/routes/youtube.ts", await api("GET", `/clips/${f.clipId}/youtube/draft`));
+  record("youtube-upload", "GET", "/clips/:id/youtube",
+    "A clip's YouTube upload as the lap page draws it: status, progress 0…1, privacy, the " +
+    "youtu.be link once done, and the words for a failure or a wait.",
+    "src/routes/youtube.ts", await api("GET", `/clips/${f.clipId}/youtube`));
 
   record("event-detail-no-laps", "GET", "/events/:id",
     "Event with no laps: best_ms and consistency are both null.",
@@ -915,6 +976,10 @@ const EXPECTED_ROUTES = [
   "POST /parts/:id/measurements", "DELETE /parts/:id/measurements/:mid",
   "PUT /share", "DELETE /share", "GET /share/:slug", "GET /share/:slug/wrapped/:year",
   "GET /wrapped/:year",
+  // Publish a best-lap video to YouTube (NS-46). POST /clips/:id/youtube,
+  // POST /youtube/connect and DELETE /youtube need Google (or mint a single-use
+  // ticket) and are test/api/youtube.test.ts's.
+  "GET /clips/:id/youtube/draft", "GET /clips/:id/youtube",
   // Share one event or session (NS-48).
   "POST /events/:id/share", "GET /events/:id/share", "DELETE /events/:id/share",
   "POST /sessions/:id/share", "GET /sessions/:id/share", "DELETE /sessions/:id/share",

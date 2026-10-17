@@ -237,6 +237,50 @@ your events, and re-run `npm run seed:generate`.
    goes through `/clips/*` and its signed URLs. Rotating the secret invalidates
    every URL already handed out, which costs at most an hour of playback.
 
+8. **Create the YouTube upload queues — required before deploying — and
+   (optionally) enable publishing to YouTube**
+
+   `wrangler.jsonc` declares the queue that copies a best-lap clip to YouTube
+   (NS-46, see [Publishing best-lap videos to YouTube](#publishing-best-lap-videos-to-youtube))
+   and its dead-letter queue. `wrangler deploy` refuses a consumer for a queue
+   that doesn't exist, so create both once even if the feature stays off.
+   Queues need the Workers Paid plan, which R2 and the rate-limit bindings
+   already imply.
+
+   ```sh
+   npx wrangler queues create track-evolution-youtube
+   npx wrangler queues create track-evolution-youtube-dlq
+   ```
+
+   The feature itself is off until three secrets exist, from a **separate
+   Google Cloud project** ("Track Evolution YouTube") — not the sign-in one, so
+   the YouTube audit never touches the sign-in consent screen. Enable the
+   YouTube Data API v3, create a *Web application* OAuth client, and give it the
+   redirect URIs `https://trackevolution.app/youtube/callback` and
+   `http://localhost:8787/youtube/callback`. Its consent screen asks for
+   `youtube.upload`, `openid` and `email`, nothing more.
+
+   ```sh
+   npx wrangler secret put YOUTUBE_CLIENT_ID
+   npx wrangler secret put YOUTUBE_CLIENT_SECRET
+   openssl rand -base64 32 | npx wrangler secret put YOUTUBE_TOKEN_KEY
+   echo "you@example.com,reviewer@example.com" | npx wrangler secret put YOUTUBE_ALLOWLIST
+   npm run deploy
+   ```
+
+   **Set the allowlist before the client secrets, and keep it until Google's
+   YouTube API Services audit has passed.** Videos uploaded by an unaudited
+   project are locked to *private* whatever visibility was asked for, and
+   passing the audit later doesn't unlock them — so before then every upload is
+   ours. The allowlist is a secret rather than a `wrangler.jsonc` var because a
+   deploy replaces every var with the file's: an allowlist kept anywhere else
+   would be wiped, opening the feature to everyone. Delete the secret to
+   launch. `YOUTUBE_DAILY_BUDGET` (a var in `wrangler.jsonc`, uploads per
+   Pacific day for the whole project) comes from the project's quota page once
+   the audit has settled it; empty means no budget. Rotating `YOUTUBE_TOKEN_KEY`
+   makes every stored grant unreadable, which reads as *revoked* and asks each
+   driver to reconnect.
+
 Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
 empty logbook.
@@ -2052,6 +2096,84 @@ clip with Media3 ExoPlayer, opened two seconds before the line (`playbackStartMs
 (through the share sheet) and Delete for the owner. `ClipCutterTest` is the
 app's one instrumented test — `./gradlew :app:connectedDebugAndroidTest` on an
 emulator; no CI job runs it — because Robolectric has no `MediaMuxer`.
+
+## Publishing best-lap videos to YouTube
+
+A Pro driver's stored best-lap clip (above) can be published to their YouTube
+channel from its lap (NS-46, `docs/specs/native/NS-46-youtube-upload.md`). The
+**server** does the upload — R2 to YouTube's resumable endpoint — so it works
+from every client, the phone can close, and nothing goes over cellular. A
+client is a form and a status line. Ticket 1 (this server, the shared logic
+and the web) has landed; the phones are tickets 2 and 3, and launch waits on
+Google's review (ticket 0, see deploy step 8).
+
+- **Connecting** is its own Google grant, separate from sign-in — so Apple
+  sign-ins can use it and the channel can be a different or brand account —
+  limited to `youtube.upload` plus `openid email` (so Settings can say which
+  account). The web goes to `/youtube/connect` with its cookie; a phone first
+  trades its bearer token for a single-use, 5-minute ticket (`POST
+  /api/youtube/connect` → `{ url }`) and opens that in the system browser. The
+  consent round trip's state, PKCE verifier and return target ride in one
+  AES-GCM-sealed `SameSite=Lax` cookie on `/youtube`, so no D1 row carries
+  them. `/youtube/callback` comes back to `trackevolution://youtube?result=…`
+  for a phone or `/#/<page>?youtube=…` for the web; a declined consent, or one
+  that unticked the upload scope, is `denied`. Both routes are in
+  `run_worker_first`.
+- **Tokens are encrypted, not hashed** (`encryptSecret` in
+  `src/lib/youtube.ts`, AES-GCM under `YOUTUBE_TOKEN_KEY`, a fresh IV per
+  value): unlike a session token they have to be sent back to Google. The
+  resumable session URL is a capability, so it is encrypted too. The API test
+  walks every table in D1 after a connect and an upload for the plaintext.
+- **The upload** is `POST /api/clips/:id/youtube` (Pro, 202) — a row in
+  `youtube_uploads` and a message on the `YOUTUBE_QUEUE`, consumed by the same
+  Worker (`src/youtube/step.ts`). Each message does one thing — mint the
+  resumable session, or send one 32 MiB chunk read from R2 by range and piped
+  through a `FixedLengthStream` — then enqueues the next. A **lease** on the
+  row makes a duplicate delivery harmless, and every write the step makes is
+  conditional on still holding it. **The offset after a chunk is the one
+  YouTube reports** in its 308's `Range`, never our own sum. A forgotten
+  session (404/410) restarts from byte 0 at most twice; a 5xx or a dropped
+  connection asks YouTube where it got to (an empty `PUT` with `bytes */total`)
+  and retries with a backoff from 30 s to an hour; after `max_retries` the
+  dead-letter queue's consumer fails the row in words. The Google calls take
+  their `fetch` as an argument, which is how `test/api/youtube.test.ts` scripts
+  a resumable server byte by byte.
+- **Quota.** YouTube's quota is the project's, so a driver gets
+  `MAX_DAILY_UPLOADS_PER_USER` (10) in any 24 hours (429), and the project has
+  `YOUTUBE_DAILY_BUDGET` per Pacific day, counted in `youtube_daily`. A spent
+  budget, YouTube's `quotaExceeded` or the channel's `uploadLimitExceeded`
+  sends the next step for Pacific midnight (`secondsToPacificMidnight`) as a
+  *new* message, so waiting a day doesn't spend the retries; Queues delays a
+  message by at most 12 hours, so a long wait simply waits twice.
+- **What the clients read**: `GET /api/clips/:id/youtube/draft` (Pro — the
+  title, description and visibility, built once on the server so no client
+  ports the words), `GET /api/clips/:id/youtube` (free — status, progress,
+  privacy, the `youtu.be` link and the error, polled every 5 s while on its
+  way), the event detail's `lap.clip.youtube` and `/me`'s `user.youtube` —
+  `available` is the one switch every client reads. Which control a lap's
+  panel offers, the status line and every sentence the feature says are
+  `public/js/youtube.js`, which the phones port as `YouTubeUpload`, pinned by
+  `contracts/logic/youtube.json`.
+- **Never deleted, never shared.** We never delete a YouTube video, and
+  `youtube.upload` couldn't: deleting a clip deletes our record and leaves the
+  video, and the app says so. A coach gets a 404 on every route here and no
+  `youtube` on the clip (`COACH_CLIP_FIELDS`); the share page, leaderboard and
+  MCP tools carry no clip at all.
+- **Revocation and the 30-day rule.** Disconnecting (`DELETE /api/youtube`,
+  never gated) revokes at Google first; deleting the connection any other way
+  — including the account, through the `users` cascade — leaves a
+  `youtube_revocations` row that `sweepYouTube` in the daily cron sends. The
+  same sweep re-checks every grant and every `done` upload older than 25 days
+  (YouTube's developer policies allow 30): a video gone from YouTube, or one
+  with no usable grant behind it, has its record deleted and the lap offers
+  the upload again; a connection revoked 25 days ago is deleted. It also fails
+  uploads stuck for two days and re-sends a message for a row untouched for 13
+  hours (longer than the longest quota wait, so a waiting row never gets two).
+
+Locally, the feature needs the three secrets in `.dev.vars` (and
+`CLIP_URL_SECRET`, for a clip to exist); `wrangler dev` runs the queue and its
+consumer in-process. Without a real Google project the connect step ends at
+Google's error page, so a UI pass inserts a `youtube_connections` row directly.
 
 ## AI assistants (MCP)
 

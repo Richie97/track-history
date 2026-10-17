@@ -27,7 +27,13 @@
       "name": "Dev User",
       "picture": null,
       "share_slug": null,
-      "units": "imperial"
+      "units": "imperial",
+      "youtube": {
+        "account": null,
+        "available": true,
+        "channel_title": null,
+        "connected": false
+      }
     }
   }
 }

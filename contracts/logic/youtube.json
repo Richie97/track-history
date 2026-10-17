@@ -1,0 +1,794 @@
+{
+  "description": "NS-46 (public/js/youtube.js): which control a lap's video panel offers (youtubeOffer), the status line under it (youtubeStatusLine, youtubeIsPending), the request refusals and Settings' account line in words, and every fixed sentence. Ports (YouTubeUpload in the iOS Kit and Android :core) must match each value exactly. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/youtube.js",
+  "privacy": [
+    {
+      "value": "private",
+      "label": "Private"
+    },
+    {
+      "value": "unlisted",
+      "label": "Unlisted"
+    },
+    {
+      "value": "public",
+      "label": "Public"
+    }
+  ],
+  "defaultPrivacy": "unlisted",
+  "connectText": "Track Evolution will ask Google for permission to upload videos to your YouTube channel. It uploads only the videos you choose, and can't see, change or delete anything else on your channel. Uses YouTube API Services: YouTube Terms of Service · Google Privacy Policy.",
+  "links": [
+    {
+      "label": "YouTube Terms of Service",
+      "url": "https://www.youtube.com/t/terms"
+    },
+    {
+      "label": "Google Privacy Policy",
+      "url": "https://policies.google.com/privacy"
+    }
+  ],
+  "permissionsUrl": "https://myaccount.google.com/permissions",
+  "kidsText": "Not made for kids",
+  "deleteNote": "The copy on YouTube stays. Delete it in YouTube Studio.",
+  "disconnectNote": "Videos you've uploaded stay on YouTube.",
+  "offline": "Uploading to YouTube needs a connection.",
+  "resultText": {
+    "connected": "YouTube is connected.",
+    "denied": "YouTube wasn't connected — Google's permission was declined.",
+    "error": "Couldn't connect YouTube. Try again."
+  },
+  "offers": [
+    {
+      "name": "pro, connected, no upload",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": null
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "upload"
+    },
+    {
+      "name": "pro, never connected",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": null
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": false,
+          "account": null,
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "connect"
+    },
+    {
+      "name": "pro, revoked connection",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": null
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": false,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "connect"
+    },
+    {
+      "name": "pro, revoked connection, failed upload",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "failed",
+          "video_id": null,
+          "url": null,
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": false,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "connect"
+    },
+    {
+      "name": "pro, queued",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "queued",
+          "video_id": null,
+          "url": null,
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "pending"
+    },
+    {
+      "name": "pro, uploading",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "uploading",
+          "video_id": null,
+          "url": null,
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "pending"
+    },
+    {
+      "name": "pro, done",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "done",
+          "video_id": "abc",
+          "url": "https://youtu.be/abc",
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "done"
+    },
+    {
+      "name": "pro, failed",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "failed",
+          "video_id": null,
+          "url": null,
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "failed"
+    },
+    {
+      "name": "free, no upload",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": null
+      },
+      "entitlement": {
+        "tier": "free",
+        "source": null,
+        "expires_at": null,
+        "auto_renew": null
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "locked"
+    },
+    {
+      "name": "free, not connected",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": null
+      },
+      "entitlement": {
+        "tier": "free",
+        "source": null,
+        "expires_at": null,
+        "auto_renew": null
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": false,
+          "account": null,
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "locked"
+    },
+    {
+      "name": "lapsed, done",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "done",
+          "video_id": "abc",
+          "url": "https://youtu.be/abc",
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "free",
+        "source": "apple",
+        "expires_at": 1700000000000,
+        "auto_renew": false
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "done"
+    },
+    {
+      "name": "lapsed, uploading",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "uploading",
+          "video_id": null,
+          "url": null,
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "free",
+        "source": "apple",
+        "expires_at": 1700000000000,
+        "auto_renew": false
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "pending"
+    },
+    {
+      "name": "lapsed, failed",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "failed",
+          "video_id": null,
+          "url": null,
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "free",
+        "source": "apple",
+        "expires_at": 1700000000000,
+        "auto_renew": false
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "locked"
+    },
+    {
+      "name": "feature unavailable",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "done",
+          "video_id": "abc",
+          "url": "https://youtu.be/abc",
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": false,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "none"
+    },
+    {
+      "name": "no /me cached",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": null
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": null,
+      "readOnly": false,
+      "offer": "none"
+    },
+    {
+      "name": "no clip",
+      "clip": null,
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": false,
+      "offer": "none"
+    },
+    {
+      "name": "coach, done",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "done",
+          "video_id": "abc",
+          "url": "https://youtu.be/abc",
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": true,
+      "offer": "none"
+    },
+    {
+      "name": "coach, uploading",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": {
+          "status": "uploading",
+          "video_id": null,
+          "url": null,
+          "privacy": "unlisted"
+        }
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": true,
+      "offer": "none"
+    },
+    {
+      "name": "coach, nothing",
+      "clip": {
+        "id": 7,
+        "duration_ms": 108000,
+        "lap_offset_ms": 3317,
+        "youtube": null
+      },
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "me": {
+        "youtube": {
+          "available": true,
+          "connected": true,
+          "account": "me@example.com",
+          "channel_title": null
+        }
+      },
+      "readOnly": true,
+      "offer": "none"
+    }
+  ],
+  "statusLines": [
+    {
+      "upload": {
+        "status": "queued",
+        "progress": 0,
+        "privacy": "unlisted",
+        "url": null,
+        "error": null
+      },
+      "line": "Waiting to upload to YouTube",
+      "pending": true
+    },
+    {
+      "upload": {
+        "status": "queued",
+        "progress": 0,
+        "privacy": "unlisted",
+        "url": null,
+        "error": "Waiting for YouTube — uploads continue tomorrow."
+      },
+      "line": "Waiting for YouTube — uploads continue tomorrow.",
+      "pending": true
+    },
+    {
+      "upload": {
+        "status": "uploading",
+        "progress": 0.4,
+        "privacy": "unlisted",
+        "url": null,
+        "error": null
+      },
+      "line": "Uploading to YouTube · 40%",
+      "pending": true
+    },
+    {
+      "upload": {
+        "status": "uploading",
+        "progress": 0.996,
+        "privacy": "public",
+        "url": null,
+        "error": null
+      },
+      "line": "Uploading to YouTube · 99%",
+      "pending": true
+    },
+    {
+      "upload": {
+        "status": "uploading",
+        "progress": 1,
+        "privacy": "public",
+        "url": null,
+        "error": null
+      },
+      "line": "Uploading to YouTube · 99%",
+      "pending": true
+    },
+    {
+      "upload": {
+        "status": "uploading",
+        "progress": 0.0049,
+        "privacy": "private",
+        "url": null,
+        "error": null
+      },
+      "line": "Uploading to YouTube · 0%",
+      "pending": true
+    },
+    {
+      "upload": {
+        "status": "uploading",
+        "progress": 0.5,
+        "privacy": "private",
+        "url": null,
+        "error": "Waiting for YouTube — uploads continue tomorrow."
+      },
+      "line": "Waiting for YouTube — uploads continue tomorrow.",
+      "pending": true
+    },
+    {
+      "upload": {
+        "status": "done",
+        "progress": 1,
+        "privacy": "unlisted",
+        "url": "https://youtu.be/abc",
+        "error": null
+      },
+      "line": "On YouTube · Unlisted",
+      "pending": false
+    },
+    {
+      "upload": {
+        "status": "done",
+        "progress": 1,
+        "privacy": "public",
+        "url": "https://youtu.be/abc",
+        "error": null
+      },
+      "line": "On YouTube · Public",
+      "pending": false
+    },
+    {
+      "upload": {
+        "status": "done",
+        "progress": 1,
+        "privacy": "private",
+        "url": "https://youtu.be/abc",
+        "error": null
+      },
+      "line": "On YouTube · Private",
+      "pending": false
+    },
+    {
+      "upload": {
+        "status": "failed",
+        "progress": 0.2,
+        "privacy": "unlisted",
+        "url": null,
+        "error": "YouTube was disconnected."
+      },
+      "line": "YouTube was disconnected.",
+      "pending": false
+    },
+    {
+      "upload": {
+        "status": "failed",
+        "progress": 0,
+        "privacy": "unlisted",
+        "url": null,
+        "error": null
+      },
+      "line": "YouTube didn't accept the upload. Try again.",
+      "pending": false
+    },
+    {
+      "upload": {
+        "status": "uploading",
+        "video_id": null,
+        "url": null,
+        "privacy": "unlisted"
+      },
+      "line": "Uploading to YouTube · 0%",
+      "pending": true
+    }
+  ],
+  "requestErrors": [
+    {
+      "message": "youtube upload limit",
+      "text": "You can upload 10 videos to YouTube a day."
+    },
+    {
+      "message": "youtube not connected",
+      "text": "Connect YouTube in Settings first."
+    },
+    {
+      "message": "already on youtube",
+      "text": "This video is already on YouTube."
+    },
+    {
+      "message": "youtube upload in progress",
+      "text": "This video is already uploading to YouTube."
+    },
+    {
+      "message": "clip not ready",
+      "text": "This video is still uploading to Track Evolution."
+    },
+    {
+      "message": "pro required",
+      "text": "Uploading to YouTube is part of Pro."
+    },
+    {
+      "message": "title must be at most 100 characters",
+      "text": "title must be at most 100 characters"
+    },
+    {
+      "message": "",
+      "text": "YouTube didn't accept the upload. Try again."
+    }
+  ],
+  "accountLines": [
+    {
+      "youtube": {
+        "available": false,
+        "connected": false,
+        "account": null,
+        "channel_title": null
+      },
+      "line": ""
+    },
+    {
+      "youtube": {
+        "available": true,
+        "connected": false,
+        "account": null,
+        "channel_title": null
+      },
+      "line": "Not connected."
+    },
+    {
+      "youtube": {
+        "available": true,
+        "connected": false,
+        "account": "me@example.com",
+        "channel_title": "Fast Laps"
+      },
+      "line": "YouTube access for me@example.com was removed. Reconnect to upload again."
+    },
+    {
+      "youtube": {
+        "available": true,
+        "connected": true,
+        "account": "me@example.com",
+        "channel_title": null
+      },
+      "line": "Connected as me@example.com"
+    },
+    {
+      "youtube": {
+        "available": true,
+        "connected": true,
+        "account": "me@example.com",
+        "channel_title": "Fast Laps"
+      },
+      "line": "Connected as me@example.com · Fast Laps"
+    },
+    {
+      "youtube": {
+        "available": true,
+        "connected": true,
+        "account": null,
+        "channel_title": null
+      },
+      "line": "Connected"
+    }
+  ]
+}

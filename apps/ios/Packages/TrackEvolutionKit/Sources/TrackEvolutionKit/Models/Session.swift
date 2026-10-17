@@ -38,19 +38,24 @@ public struct LapClip: Codable, Hashable, Sendable, Identifiable {
     public var durationMs: Int
     public var lapOffsetMs: Int
     public var sizeBytes: Int?
+    /// Its YouTube upload (NS-46), or nil. Optional so a response cached
+    /// before the field still decodes; absent from a coach's view.
+    public var youtube: LapClipYouTube?
 
     public enum CodingKeys: String, CodingKey {
         case id
         case durationMs = "duration_ms"
         case lapOffsetMs = "lap_offset_ms"
         case sizeBytes = "size_bytes"
+        case youtube
     }
 
-    public init(id: Int, durationMs: Int, lapOffsetMs: Int, sizeBytes: Int? = nil) {
+    public init(id: Int, durationMs: Int, lapOffsetMs: Int, sizeBytes: Int? = nil, youtube: LapClipYouTube? = nil) {
         self.id = id
         self.durationMs = durationMs
         self.lapOffsetMs = lapOffsetMs
         self.sizeBytes = sizeBytes
+        self.youtube = youtube
     }
 }
 
