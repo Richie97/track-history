@@ -61,6 +61,25 @@ export type Env = {
   CLIPS?: R2Bucket;
   // HMAC key for the signed /clips/<id>.mp4 URLs (lib/clips.ts). A secret.
   CLIP_URL_SECRET?: string;
+
+  // --- Publish a best-lap video to YouTube (NS-46, routes/youtube.ts) --------
+  // The feature is on only with all three secrets and the queue
+  // (youtubeConfigured in lib/youtube.ts). The OAuth client belongs to a
+  // separate Google Cloud project from sign-in's.
+  YOUTUBE_CLIENT_ID?: string;
+  YOUTUBE_CLIENT_SECRET?: string;
+  // 32 random bytes, base64: the AES-GCM key the grant's tokens and each
+  // upload's resumable session URL are encrypted under.
+  YOUTUBE_TOKEN_KEY?: string;
+  // Uploads per Pacific day for the whole project (a var). Unset: no budget.
+  YOUTUBE_DAILY_BUDGET?: string;
+  // Comma-separated emails. While set, only these accounts see the feature —
+  // the audit reviewers and our own testing before launch. A secret rather
+  // than a var, because a deploy replaces vars (see wrangler.jsonc).
+  YOUTUBE_ALLOWLIST?: string;
+  // The upload queue (queues.producers in wrangler.jsonc). Optional so the
+  // test pool can supply its own and a fork without Queues still runs.
+  YOUTUBE_QUEUE?: Queue<{ upload_id: number }>;
 };
 
 export type AppContext = {

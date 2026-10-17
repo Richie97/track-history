@@ -110,6 +110,24 @@
       "source": "src/routes/events.ts"
     },
     {
+      "name": "youtube-draft",
+      "file": "youtube-draft.json",
+      "method": "GET",
+      "path": "/clips/:id/youtube/draft",
+      "status": 200,
+      "description": "The upload form's pre-filled title, description and visibility (Pro), and the connected account it uploads to (null when none).",
+      "source": "src/routes/youtube.ts"
+    },
+    {
+      "name": "youtube-upload",
+      "file": "youtube-upload.json",
+      "method": "GET",
+      "path": "/clips/:id/youtube",
+      "status": 200,
+      "description": "A clip's YouTube upload as the lap page draws it: status, progress 0…1, privacy, the youtu.be link once done, and the words for a failure or a wait.",
+      "source": "src/routes/youtube.ts"
+    },
+    {
       "name": "event-detail-no-laps",
       "file": "event-detail-no-laps.json",
       "method": "GET",

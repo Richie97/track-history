@@ -1,0 +1,11 @@
+{
+  "method": "GET",
+  "path": "/clips/:id/youtube/draft",
+  "status": 200,
+  "body": {
+    "account": "driver@channel.example",
+    "description": "Best lap of Session 2 at Virginia International Raceway (Full), 10 April 2026.\nLap starts at 0:03.\n\nLogged with Track Evolution — https://trackevolution.app",
+    "privacy": "unlisted",
+    "title": "Virginia International Raceway (Full) · 2:01.500 · Corvette C7"
+  }
+}

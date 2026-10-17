@@ -159,9 +159,15 @@ export function authorizationServerMetadata(origin: string) {
   };
 }
 
-// The only post-login destination the sign-in routes accept through `next`:
-// back to an authorization request on this origin. Anything else is an open
-// redirect.
+// The only post-login destinations the sign-in routes accept through `next`:
+// back to an authorization request on this origin, or back to connecting
+// YouTube (NS-46, routes/youtube.ts — a signed-out web user who tapped
+// Connect). Anything else is an open redirect.
 export function isSafeNext(next: unknown): next is string {
-  return typeof next === "string" && next.startsWith("/oauth/authorize?") && !next.includes("\\") && next.length < 4000;
+  return (
+    typeof next === "string" &&
+    (next.startsWith("/oauth/authorize?") || next === "/youtube/connect" || next.startsWith("/youtube/connect?")) &&
+    !next.includes("\\") &&
+    next.length < 4000
+  );
 }

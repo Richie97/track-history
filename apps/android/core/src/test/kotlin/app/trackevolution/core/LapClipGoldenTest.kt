@@ -13,19 +13,28 @@ import org.junit.jupiter.api.Test
  * object and as a null on the same event, the coach's cut without
  * `size_bytes`, and `user.clips` on `/me`. The strict decode in
  * [GoldenContractTest] is what makes the models carry the fields at all; this
- * checks they land where the screens will read them.
+ * checks they land where the screens will read them — and the clip's YouTube
+ * upload (NS-46) as an object and as a null, and never on a coach's cut.
  */
 class LapClipGoldenTest {
 
     @Test
-    fun `the event detail carries one clip and nulls`() {
+    fun `the event detail carries two clips and nulls`() {
         val laps = Goldens.decode("event-detail", EventDetail.serializer()).sessions.flatMap { it.laps }
         val clipped = laps.filter { it.clip != null }
-        assertEquals(1, clipped.size, "the fixture saves one clip, on the rich event's best lap")
+        assertEquals(2, clipped.size, "the fixture saves two clips: the rich event's best lap and another session's")
         assertTrue(laps.size > clipped.size, "and the other laps carry null")
         val best = laps.minBy { it.timeMs }
         assertEquals(3000, best.clip?.lapOffsetMs)
         assertEquals(2048L, best.clip?.sizeBytes)
+        // The best lap's clip is on YouTube; the other's is not.
+        val youtube = best.clip?.youtube
+        assertNotNull(youtube)
+        assertEquals("done", youtube!!.status)
+        assertEquals("unlisted", youtube.privacy)
+        assertEquals("https://youtu.be/${youtube.videoId}", youtube.url)
+        // Ids are normalized to 1 in the goldens, so the other clip is told apart by its lap time.
+        assertNull(clipped.first { it.timeMs != best.timeMs }.clip!!.youtube)
     }
 
     @Test
@@ -34,7 +43,18 @@ class LapClipGoldenTest {
         val clip = laps.firstNotNullOfOrNull { it.clip }
         assertNotNull(clip)
         assertNull(clip!!.sizeBytes, "size_bytes is the student's bookkeeping (COACH_CLIP_FIELDS)")
+        assertNull(clip.youtube, "the YouTube link is the driver's to hand out (NS-46)")
         assertTrue(clip.durationMs > clip.lapOffsetMs)
+    }
+
+    @Test
+    fun `me carries the YouTube connection`() {
+        val fresh = Goldens.decode("me", Me.serializer()).user.youtube
+        assertNotNull(fresh)
+        assertTrue(fresh!!.available && !fresh.connected && fresh.account == null)
+        val connected = Goldens.decode("me-pro-legacy", Me.serializer()).user.youtube
+        assertNotNull(connected)
+        assertTrue(connected!!.connected && connected.account != null && connected.channelTitle != null)
     }
 
     @Test
