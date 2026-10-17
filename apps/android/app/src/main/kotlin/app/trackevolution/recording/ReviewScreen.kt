@@ -1,5 +1,9 @@
 package app.trackevolution.recording
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,10 +31,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -96,6 +103,40 @@ fun ReviewScreen(
     val type = TrackTheme.typography
     var confirmingDiscard by remember { mutableStateOf(false) }
     val anyLaps = state.items.any { it.hasLaps }
+
+    // A best-lap video uploads as a data-sync foreground service (NS-45), and
+    // its notification is the only sign the upload is running once the app is
+    // left — invisible on API 33+ without POST_NOTIFICATIONS. The recorder asks
+    // when recording starts, but someone who only imports would never be asked,
+    // so the save that hands a clip to the uploader asks first, in context.
+    // The answer gates nothing: the save goes ahead either way. Which button
+    // was tapped is saveable, so a recreate while the system dialog is up
+    // still saves.
+    val context = LocalContext.current
+    val currentSave by rememberUpdatedState(onSave)
+    val currentSaveToNewEvent by rememberUpdatedState(onSaveToNewEvent)
+    var savingAfterAsk by rememberSaveable { mutableStateOf<String?>(null) }
+    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        when (savingAfterAsk) {
+            SAVE -> currentSave()
+            SAVE_TO_NEW_EVENT -> currentSaveToNewEvent?.invoke()
+        }
+        savingAfterAsk = null
+    }
+    val saveWith: (String, () -> Unit) -> Unit = { which, save ->
+        if (ClipNotificationAsk.shouldAsk(
+                offer = clipOffer,
+                saveClips = state.saveClips,
+                sdkInt = Build.VERSION.SDK_INT,
+                granted = RecorderPermissions.hasNotifications(context),
+            )
+        ) {
+            savingAfterAsk = which
+            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            save()
+        }
+    }
 
     // How tall to draw the start/finish picker (NS-34).
     //
@@ -293,7 +334,7 @@ fun ReviewScreen(
                 if (state.offersNewEvent && onSaveToNewEvent != null) {
                     // In place of a Save with nowhere to save to (#344).
                     Button(
-                        onClick = onSaveToNewEvent,
+                        onClick = { saveWith(SAVE_TO_NEW_EVENT, onSaveToNewEvent) },
                         enabled = state.selectedCount > 0,
                         modifier = Modifier.fillMaxWidth().testTag("reviewSaveToNewEvent"),
                         colors = ButtonDefaults.buttonColors(
@@ -305,7 +346,7 @@ fun ReviewScreen(
                     }
                 } else {
                     Button(
-                        onClick = onSave,
+                        onClick = { saveWith(SAVE, onSave) },
                         enabled = state.canSave,
                         modifier = Modifier.fillMaxWidth().testTag("reviewSave"),
                         colors = ButtonDefaults.buttonColors(
