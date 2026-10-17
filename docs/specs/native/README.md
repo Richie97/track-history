@@ -664,6 +664,7 @@ change* rule does not apply — see the spec for why.
 | NS-43 | [Calendar feed](NS-43-calendar-feed.md) | Shared (server, web, iOS, Android) | the events list |
 | NS-44 | [Export your logbook](NS-44-web-export.md) | Server + web (native door a follow-up) | `eventSelect`, the garage tables |
 | NS-45 | [Best-lap video clips](NS-45-best-lap-clips.md) | Server + iOS + Android, web playback (web upload in NS-47) | the video importers, the review flow, `requireEntitlement` |
+| NS-46 | [Publish a best-lap video to YouTube](NS-46-youtube-upload.md) | Shared (server-side upload; web, iOS, Android forms) | NS-45, Google OAuth verification + the YouTube API audit |
 | NS-47 | [Best-lap video upload from the web](NS-47-web-clip-upload.md) | Web (no server change; phones test-only) | NS-45, the web importer |
 | NS-48 | [Share one event or one session](NS-48-share-event-session.md) | Server + web + iOS + Android | the coach allow-lists (NS-38), NS-45 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
