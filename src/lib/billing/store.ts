@@ -32,7 +32,7 @@ export type SubscriptionUpsert = {
   environment: string | null;
   raw: unknown;
   // The store payload's own signing instant, for Apple's ordering guard. Null
-  // for Google and legacy, whose writes are never replayed from an old payload.
+  // for Google, Stripe and legacy, whose writes are never replayed from an old payload.
   signedDate?: number | null;
 };
 
@@ -178,7 +178,7 @@ export async function subscriptionsToReverify(
     .prepare(
       `SELECT id, user_id, provider, product_id, external_id, status, expires_at, auto_renew, environment
        FROM subscriptions
-       WHERE provider IN ('apple', 'google') AND status <> 'revoked' 
+       WHERE provider IN ('apple', 'google', 'stripe') AND status <> 'revoked'
          AND expires_at IS NOT NULL AND expires_at BETWEEN ? AND ?
        ORDER BY expires_at`
     )

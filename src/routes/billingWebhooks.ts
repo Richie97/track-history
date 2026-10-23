@@ -1,19 +1,31 @@
 // Store webhooks — public routes outside /api (no session; the store is the
-// caller). Both verify the sender before touching the database: Apple by the
-// signature on its payload, Google by the OIDC token on Pub/Sub's push. A
-// request that doesn't verify is a 401 and nothing else happens.
+// caller). All three verify the sender before touching the database: Apple by
+// the signature on its payload, Google by the OIDC token on Pub/Sub's push,
+// Stripe by the HMAC on its delivery. A request that doesn't verify is a 401
+// and nothing else happens.
 //
-// Both are idempotent and re-derive state from the store's own payload (Apple)
-// or a fresh API read (Google) rather than from the notification's type: the
-// type says something changed, the payload says what.
+// All are idempotent and re-derive state from the store's own payload (Apple)
+// or a fresh API read (Google, Stripe) rather than from the notification's
+// type: the type says something changed, the payload says what.
 
 import { Hono } from "hono";
 import type { AppContext, Env } from "../types";
 import { JwsError, peekJwsPayload, verifyX5cJws } from "../lib/billing/jws";
 import { APPLE_HANDLED_NOTIFICATIONS, appleBundleId, appleRootsDer } from "../lib/billing/apple";
 import { decodePubSubMessage, parseServiceAccount, verifyGoogleOidcToken } from "../lib/billing/google";
-import { syncAppleRow, syncGoogleRow } from "../lib/billing/sync";
-import { findSubscription } from "../lib/billing/store";
+import { adoptStripeSubscription, syncAppleRow, syncGoogleRow, syncStripeRow } from "../lib/billing/sync";
+import { SubscriptionConflict, findSubscription } from "../lib/billing/store";
+import {
+  STRIPE_HANDLED_EVENTS,
+  type StripeEvent,
+  fetchStripeSubscription,
+  idOf,
+  resolveStripeSubscriptionId,
+  stripeConfig,
+  stripeEventRef,
+  verifyStripeSignature,
+} from "../lib/billing/stripe";
+import { isDevHost } from "../lib/dev";
 import { bearerToken } from "../lib/session";
 
 export const billingWebhooks = new Hono<AppContext>();
@@ -102,6 +114,78 @@ billingWebhooks.post("/billing/google/rtdn", async (c) => {
     tag: { notificationType: note.subscriptionNotification?.notificationType },
   });
   return c.json({ ok: true, handled: outcome === "updated" });
+});
+
+// Stripe webhook events (NS-49). Every handled event resolves to a
+// subscription id and then does one thing — re-reads that subscription and
+// applies it — because Stripe delivers out of order and an event's embedded
+// object can be older than the row. The one way this differs from the store
+// webhooks: a subscription with no row yet is inserted, since its customer is
+// ours and it carries our user id; when the two disagree it is never guessed.
+//
+// A D1 failure is left to throw a 500 on purpose: Stripe retries for three
+// days, and a retry is cheaper than a customer who paid and reads free.
+billingWebhooks.post("/billing/stripe/webhook", async (c) => {
+  const cfg = stripeConfig(c.env);
+  const secret = c.env.STRIPE_WEBHOOK_SECRET?.trim();
+  if (!cfg || !secret) return c.json({ error: "billing not configured" }, 503);
+  const nowMs = Date.now();
+  // The signature is over the bytes, so the body is read as text first.
+  const raw = await c.req.text();
+  if (!(await verifyStripeSignature(c.req.header("Stripe-Signature"), raw, secret, nowMs))) {
+    console.warn("stripe webhook rejected: bad or stale signature");
+    return c.json({ error: "unverified" }, 401);
+  }
+  let event: StripeEvent;
+  try {
+    event = JSON.parse(raw) as StripeEvent;
+  } catch {
+    return c.json({ error: "not a Stripe event" }, 400);
+  }
+  if (!event || typeof event.type !== "string") return c.json({ error: "not a Stripe event" }, 400);
+  if (!STRIPE_HANDLED_EVENTS.has(event.type)) {
+    console.log("stripe event ignored:", event.type);
+    return c.json({ ok: true, handled: false });
+  }
+
+  const subscriptionId = await resolveStripeSubscriptionId(cfg, stripeEventRef(event));
+  if (!subscriptionId) {
+    console.log("stripe event with no subscription:", event.type, event.id);
+    return c.json({ ok: true, handled: false });
+  }
+  const tag = { event: event.type, event_id: event.id };
+  const row = await findSubscription(c.env.DB, "stripe", subscriptionId);
+  if (row) {
+    const outcome = await syncStripeRow(c.env.DB, row, cfg, { nowMs, tag });
+    return c.json({ ok: true, handled: outcome === "updated" });
+  }
+
+  // No row: the webhook beat the return leg, or the user never came back to
+  // Settings. Insert only when our customer and the subscription's own
+  // metadata name the same account.
+  const sub = await fetchStripeSubscription(cfg, subscriptionId);
+  if (!sub) return c.json({ ok: true, handled: false });
+  const customerId = idOf(sub.customer);
+  const owner = customerId
+    ? await c.env.DB.prepare("SELECT id FROM users WHERE stripe_customer_id = ?").bind(customerId).first<{ id: number }>()
+    : null;
+  if (!owner || sub.metadata?.user_id !== String(owner.id)) {
+    // A live event reaching a dev database, or a subscription made by hand in
+    // the dashboard: nobody to attach it to.
+    console.log("stripe subscription with no matching account:", event.type, subscriptionId);
+    return c.json({ ok: true, handled: false });
+  }
+  if (!sub.livemode && !isDevHost(c.env, c.req.url)) {
+    console.log("stripe test-mode subscription ignored:", subscriptionId);
+    return c.json({ ok: true, handled: false });
+  }
+  try {
+    await adoptStripeSubscription(c.env.DB, owner.id, sub, nowMs, tag);
+  } catch (err) {
+    if (err instanceof SubscriptionConflict) return c.json({ ok: true, handled: false });
+    throw err;
+  }
+  return c.json({ ok: true, handled: true });
 });
 
 // The OIDC audience Pub/Sub was configured with is this route's public URL.

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { userTotalsStmt } from "../db";
 import { DEFAULT_UNITS, isValidUnits, sanitizeChecklistTemplate } from "../lib/validate";
-import { entitlementResponse, isEntitled, type SubscriptionRow } from "../lib/entitlement";
+import { entitlementResponse, isEntitled, maskEntitlementSource, type SubscriptionRow } from "../lib/entitlement";
 import { parseProfile, sanitizeProfile } from "../lib/profile";
 import { subscriptionsForUserStmt } from "../lib/billing/store";
 import { CLIP_QUOTA_BYTES } from "../lib/clips";
@@ -55,8 +55,12 @@ me.get("/me", async (c) => {
     clips: { used_bytes: clips.used_bytes, quota_bytes: CLIP_QUOTA_BYTES, coach_count: clips.coach_count },
   };
   // Tier comes from entitled_until as loaded with the session; the rows only
-  // say where it came from (NS-32 requirement 1).
-  const entitlement = entitlementResponse(c.get("entitledUntil"), subsRes.results as SubscriptionRow[], Date.now());
+  // say where it came from (NS-32 requirement 1) — and a web subscription's
+  // "where" is said only to the web (NS-49 rule 4).
+  const entitlement = maskEntitlementSource(
+    entitlementResponse(c.get("entitledUntil"), subsRes.results as SubscriptionRow[], Date.now()),
+    c.get("authTransport")
+  );
   return c.json({ user, totals: totalsRes.results[0], entitlement });
 });
 

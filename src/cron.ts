@@ -6,7 +6,8 @@
 import type { Env } from "./types";
 import { appleIapConfig, appleServerApiToken, appleStoreApiRootsDer } from "./lib/billing/apple";
 import { googleAccessToken, parseServiceAccount } from "./lib/billing/google";
-import { reverifyAppleRow, syncGoogleRow } from "./lib/billing/sync";
+import { stripeConfig } from "./lib/billing/stripe";
+import { reverifyAppleRow, syncGoogleRow, syncStripeRow } from "./lib/billing/sync";
 import { subscriptionsToReverify } from "./lib/billing/store";
 
 export const REVERIFY_AHEAD_MS = 48 * 60 * 60 * 1000;
@@ -25,6 +26,7 @@ export async function reverifyExpiring(env: Env, nowMs: number): Promise<Reverif
 
   const apple = appleIapConfig(env);
   const google = parseServiceAccount(env.GOOGLE_PLAY_SERVICE_ACCOUNT);
+  const stripe = stripeConfig(env);
   // Payloads here come from Apple's Server API, not from a request body — see
   // appleStoreApiRootsDer for why that changes which anchors are safe.
   const rootsDer = appleStoreApiRootsDer(env);
@@ -45,7 +47,11 @@ export async function reverifyExpiring(env: Env, nowMs: number): Promise<Reverif
             ? google
               ? await syncGoogleRow(env.DB, row, google, { nowMs, accessToken: googleToken })
               : "unknown"
-            : "unknown";
+            : row.provider === "stripe"
+              ? stripe
+                ? await syncStripeRow(env.DB, row, stripe, { nowMs, tag: { cron: true } })
+                : "unknown"
+              : "unknown";
       if (outcome === "updated") report.updated++;
       else report.skipped++;
     } catch (err) {

@@ -13,7 +13,8 @@ import {
 } from "./apple";
 import type { ServiceAccount } from "./google";
 import { fetchGoogleSubscription, googleSubscriptionState } from "./google";
-import { applyStoreState, retireSubscription, type StoredSubscription } from "./store";
+import { type StripeConfig, type StripeSubscription, fetchStripeSubscription, stripeSubscriptionState } from "./stripe";
+import { applyStoreState, retireSubscription, upsertSubscription, type StoredSubscription } from "./store";
 
 export type SyncOutcome = "updated" | "stale" | "unknown";
 
@@ -75,4 +76,56 @@ export async function syncGoogleRow(
   // entitling, whichever account holds it.
   if (state.linkedPurchaseToken) await retireSubscription(db, "google", state.linkedPurchaseToken, opts.nowMs);
   return "updated";
+}
+
+// Stripe: like Google, always a live read. The webhook and the cron end here
+// for a row we hold, and the return leg and the webhook end in
+// adoptStripeSubscription below for one we don't — so an event's embedded
+// object never decides a row.
+export async function syncStripeRow(
+  db: D1Database,
+  row: RowRef,
+  cfg: StripeConfig,
+  opts: { nowMs: number; tag?: Record<string, unknown> }
+): Promise<SyncOutcome> {
+  const sub = await fetchStripeSubscription(cfg, row.external_id);
+  if (!sub) return "unknown";
+  const { status, expiresAt, autoRenew, productId } = stripeSubscriptionState(sub);
+  await applyStoreState(
+    db,
+    row,
+    { status, expiresAt, autoRenew, productId, raw: { subscription: sub, ...(opts.tag ?? {}) } },
+    opts.nowMs
+  );
+  return "updated";
+}
+
+// A subscription read just now from the API, recorded for the user it was
+// bound to — the return leg's write, and the webhook's for a subscription with
+// no row yet. The caller has already checked the binding (the session's
+// client_reference_id, or the customer and metadata agreeing); a row held by
+// another user is still a SubscriptionConflict, never a transfer.
+export async function adoptStripeSubscription(
+  db: D1Database,
+  userId: number,
+  sub: StripeSubscription,
+  nowMs: number,
+  tag: Record<string, unknown> = {}
+): Promise<void> {
+  const state = stripeSubscriptionState(sub);
+  await upsertSubscription(
+    db,
+    {
+      userId,
+      provider: "stripe",
+      productId: state.productId,
+      externalId: sub.id,
+      status: state.status,
+      expiresAt: state.expiresAt,
+      autoRenew: state.autoRenew,
+      environment: state.environment,
+      raw: { subscription: sub, ...tag },
+    },
+    nowMs
+  );
 }

@@ -56,6 +56,7 @@ export const FORBIDDEN_EXPORT_KEYS = [
   "google_sub",
   "apple_sub",
   "entitled_until",
+  "stripe_customer_id",
   "redirect_uris",
   "metadata_document",
 ] as const;
