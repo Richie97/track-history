@@ -79,3 +79,22 @@ describe("entitlementSummary", () => {
     expect(entitlementSummary(pro({ source: "legacy", expires_at: null, auto_renew: null }), d)).toBe("Pro · lifetime");
   });
 });
+
+describe("a web subscription (NS-49)", () => {
+  const web = pro({ source: "stripe" });
+  it("is Pro like any other source and has no constant Manage URL — its portal is minted per visit", () => {
+    expect(isPro(web)).toBe(true);
+    expect(canUseGarage(web)).toBe(true);
+    expect(manageUrl(web)).toBeNull();
+    expect(manageUrl({ ...web, tier: "free" })).toBeNull();
+  });
+  it("is summarised by its expiry and renewal, never as lifetime", () => {
+    expect(entitlementSummary(web, (ms) => `<${ms}>`)).toBe("Pro · renews <1800000000000>");
+    expect(entitlementSummary({ ...web, auto_renew: false }, (ms) => `<${ms}>`)).toBe("Pro · ends <1800000000000>");
+  });
+  it("reads the same with its source withheld, which is how the phones see it", () => {
+    const withheld = { ...web, source: null };
+    expect(entitlementSummary(withheld, (ms) => `<${ms}>`)).toBe("Pro · renews <1800000000000>");
+    expect(manageUrl(withheld)).toBeNull();
+  });
+});

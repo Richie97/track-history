@@ -1102,6 +1102,11 @@ button.footer-link { background: none; border: 0; padding: 0; font-family: inher
   border: 1px solid var(--danger-ink); border-radius: var(--radius-md);
   padding: 10px 14px; margin: 12px 0; font-size: var(--fs-sm);
 }
+/* Its good-news twin — Settings' "Welcome to Pro" after a web checkout. */
+.success-banner {
+  color: var(--accent-ink); border: 1px solid var(--accent-ink); border-radius: var(--radius-md);
+  padding: 10px 14px; margin: 0 0 12px; font-size: var(--fs-sm);
+}
 
 /* Offline / pending-sync status strip (updated in place by app.js) */
 .sync-banner {

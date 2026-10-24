@@ -104,6 +104,9 @@ self.addEventListener("fetch", (e) => {
     // A logbook export (NS-44) is a download, not data: network-first would
     // copy the whole file — telemetry and all — into th-data-*.
     if (url.pathname.startsWith("/api/export/")) return;
+    // Web billing (NS-49): a price or a trial answered from a cache is one the
+    // checkout behind it may not honour — the plans are live or not shown.
+    if (url.pathname.startsWith("/api/billing/")) return;
     // Best-lap video (NS-45): the file is a ranged stream a cache would copy
     // whole, and its signed URL expires in an hour — neither belongs in a cache.
     if (url.pathname.startsWith("/clips/") || /^\/api\/(students\/\d+\/)?clips\//.test(url.pathname)) return;

@@ -573,6 +573,18 @@ Features added after the rewrite shipped, and where they landed:
   in `src/` first. The gates went live in phase D: `requireEntitlement` on the
   garage consumables and the setups routes, `stripProFields` on the one field
   (`sessions.channels`), and the client gates on the recorder and the importer.
+- **Web checkout** (2026-10, [NS-49](NS-49-stripe-web-checkout.md)) — **web
+  only, on purpose.** The web, the one client with no store, sells the same
+  Pro through Stripe Checkout and the Stripe portal, as a fourth `provider` on
+  the same server-owned entitlement. Neither phone app links to it, mentions
+  it, or can tell a web subscription from any other: the server reports a
+  `stripe` source to a bearer token as `null`, because both apps decode the
+  source as a closed enum (a new value would break `/me` on every installed
+  build) and because App Review forbids an app pointing at an outside
+  purchase. A phone shows a web subscriber *Pro · renews …* and nothing to
+  manage. Opening the phones to it would mean an unknown-tolerant decoder in
+  both apps, an adoption wait, and only then lifting the mask — a spec of its
+  own, since it has a rollout.
   Since 2026-09 ([#264](https://github.com/Richie97/track-history/issues/264))
   the strip keeps the **speed, throttle and brake** traces for a free account
   on all three clients — `FREE_CHANNELS`, the same allow-list in the server,
@@ -667,7 +679,7 @@ change* rule does not apply — see the spec for why.
 | NS-46 | [Publish a best-lap video to YouTube](NS-46-youtube-upload.md) | Shared (server-side upload; web, iOS, Android forms) | NS-45, Google OAuth verification + the YouTube API audit |
 | NS-47 | [Best-lap video upload from the web](NS-47-web-clip-upload.md) | Web (no server change; phones test-only) | NS-45, the web importer |
 | NS-48 | [Share one event or one session](NS-48-share-event-session.md) | Server + web + iOS + Android | the coach allow-lists (NS-38), NS-45 |
-| NS-49 | [Stripe: Track Evolution Pro on the web](NS-49-stripe-web-checkout.md) — phase A (server, ships dark) landed; phase B is the web checkout | Server + web (the phones deliberately untouched) | NS-32 |
+| NS-49 | [Stripe: Track Evolution Pro on the web](NS-49-stripe-web-checkout.md) — both phases landed; ships dark until the Stripe secrets are set | Server + web (the phones deliberately untouched) | NS-32 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into

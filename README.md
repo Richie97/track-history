@@ -1562,8 +1562,10 @@ analysis — the GPS lap recorder, the rest of the per-lap `channels` an import
 writes (steering, RPM, lateral G, gear, the limit marks, the Car tab) with the
 delta chart and sector splits, garage consumables, the setup notebook and
 year in review. Pro is
-**$1.99/month or $19.99/year**, sold through the App Store and Google Play; the
-web app shows the tier and points at the phone apps to subscribe. Anyone who
+**$1.99/month or $19.99/year**, sold through the App Store and Google Play and,
+once Stripe is configured, in the web app's Settings (see
+[Stripe](#stripe--pro-on-the-web)); without Stripe the web app shows the tier
+and points at the phone apps to subscribe. Anyone who
 bought the $1 app before subscriptions is **Pro for life**. The full tier table,
 and the reasoning, is `docs/specs/native/NS-32-subscriptions.md`.
 
@@ -1684,9 +1686,26 @@ mocks the Apple and Google APIs in `vitest.workers.config.mts`.
 The web app is the one client with no store, so it sells Pro through **Stripe
 Checkout** and the **Stripe customer portal** — the same prices, the same
 server-owned entitlement, a fourth `provider` on the same `subscriptions`
-table (`docs/specs/native/NS-49-stripe-web-checkout.md`). **Phase A, the
-server, has landed and ships dark**; phase B, the web's plan chooser and
-*Manage billing*, is what users will see, and needs the dashboard below first.
+table (`docs/specs/native/NS-49-stripe-web-checkout.md`). Both phases have
+landed and **the whole thing ships dark**: until the four Stripe secrets are
+set, the server answers 503 and the web renders exactly as it did before.
+With them set, the web sells:
+
+- **Settings → Subscription** offers the two plans with Stripe's price, the
+  trial line when the account still has one, and both legal links; a click
+  posts to `/checkout` and goes to Stripe Checkout. A web subscriber's card
+  says *Billed on the web* with **Manage billing** (the portal); a store
+  subscriber's card is unchanged; a lapsed web subscriber gets the plans again.
+- **The return leg**: Stripe sends a completed checkout back to
+  `#/settings?checkout=<id>`, which posts the id to `POST /api/billing/stripe`
+  and reads Pro at once, before any webhook. The query never reaches analytics
+  (`analyticsPath` drops it).
+- **Every gated surface** (`proPanelHtml`, the compare gates, Wrapped's locked
+  cards) leads with *Subscribe — from $1.99/month*, linking to Settings, with the
+  phone apps beneath; without Stripe they show the store buttons as before.
+
+The pure half is `public/js/billing.js` (`test/unit/billing-client.test.js`) —
+web-only, since neither phone app knows web billing exists.
 No npm dependency: the REST API is form-encoded HTTPS and the webhook
 signature is one HMAC (`src/lib/billing/stripe.ts`).
 
