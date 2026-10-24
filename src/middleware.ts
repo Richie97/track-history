@@ -8,14 +8,17 @@ import { isEntitled } from "./lib/entitlement";
 // arrives either as the same-origin cookie (web) or as an Authorization:
 // Bearer header (the native apps, which call cross-origin) — both point at
 // the same auth_sessions rows. The user's entitlement rides along in the
-// same statement (see sessionUser).
+// same statement (see sessionUser), and so does which of the two it was,
+// which GET /me needs to keep a web subscription's source off the phones.
 export const requireSession = createMiddleware<AppContext>(async (c, next) => {
-  const token = bearerToken(c.req.header("Authorization")) || getCookie(c, SESSION_COOKIE);
+  const bearer = bearerToken(c.req.header("Authorization"));
+  const token = bearer || getCookie(c, SESSION_COOKIE);
   if (token) {
     const user = await sessionUser(c.env.DB, token);
     if (user) {
       c.set("userId", user.userId);
       c.set("entitledUntil", user.entitledUntil);
+      c.set("authTransport", bearer ? "bearer" : "cookie");
       return next();
     }
   }

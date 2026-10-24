@@ -46,6 +46,17 @@ export type Env = {
   // this instant (ISO date or epoch ms). Unset ⇒ every claim succeeds; set it
   // to the flip date at phase D.
   LEGACY_CUTOFF?: string;
+  // Stripe, the web's purchase surface (NS-49, lib/billing/stripe.ts). A
+  // restricted key (write: Checkout Sessions, Customers, Billing Portal
+  // sessions; read: Subscriptions, Prices, Invoices, Charges), the webhook
+  // endpoint's signing secret, and the two price ids — secrets rather than
+  // vars because they differ between test and live mode and belong with the
+  // key that picks the mode. Without the key and both prices every Stripe
+  // route is a 503 and `/billing/stripe/plans` says `{ enabled: false }`.
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_MONTHLY?: string;
+  STRIPE_PRICE_YEARLY?: string;
 
   // --- MCP rate limits (lib/ratelimit.ts; `ratelimits` in wrangler.jsonc) ---
   // Optional so a fork without them still runs unlimited.
@@ -63,6 +74,8 @@ export type Env = {
   CLIP_URL_SECRET?: string;
 };
 
+export type AuthTransport = "cookie" | "bearer";
+
 export type AppContext = {
   Bindings: Env;
   Variables: {
@@ -70,6 +83,11 @@ export type AppContext = {
     // users.entitled_until, read in the same statement as the session (no
     // extra round trip). null is free.
     entitledUntil: number | null;
+    // Which credential requireSession accepted: the web's `session` cookie or
+    // a native app's bearer token. GET /me masks a Stripe entitlement source
+    // on anything but the cookie (lib/entitlement.ts maskEntitlementSource);
+    // unset — the coach mount, the MCP tools' private copy — masks too.
+    authTransport?: AuthTransport;
   };
 };
 
