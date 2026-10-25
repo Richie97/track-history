@@ -42,6 +42,10 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// review's *Save best-lap video* row and Settings' storage line. Optional
     /// so a `/me` cached before the field still decodes.
     public var clips: ClipStorage?
+    /// Publishing a best-lap video to YouTube (NS-46): whether the feature is
+    /// on for this account, and the connection. Optional so a `/me` cached
+    /// before the field still decodes — read as unavailable.
+    public var youtube: YouTubeAccount?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
@@ -51,6 +55,7 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
         case leaderboardShareLaps = "leaderboard_share_laps"
         case units
         case clips
+        case youtube
     }
 
     public var effectiveUnits: UnitSystem { units ?? .imperial }

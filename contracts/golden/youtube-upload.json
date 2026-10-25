@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "path": "/clips/:id/youtube",
+  "status": 200,
+  "body": {
+    "error": null,
+    "privacy": "unlisted",
+    "progress": 1,
+    "status": "done",
+    "url": "https://youtu.be/goldenVid01"
+  }
+}

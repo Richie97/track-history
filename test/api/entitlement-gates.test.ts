@@ -12,6 +12,7 @@ import { coaching } from "../../src/routes/coaching";
 import { exportRoutes } from "../../src/routes/export";
 import { clips } from "../../src/routes/clips";
 import { itemShare } from "../../src/routes/itemShare";
+import { youtube } from "../../src/routes/youtube";
 import { LEGACY_ENTITLED_UNTIL_MS } from "../../src/lib/entitlement";
 import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
@@ -23,7 +24,7 @@ import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
 // Every router mounted under /api (src/index.ts). Kept explicit so a new
 // router has to be added here, at which point its gates are enumerated too.
-const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes, clips, itemShare };
+const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes, clips, itemShare, youtube };
 
 const guardedRoutes = () =>
   Object.values(API_ROUTERS)
@@ -63,6 +64,10 @@ const EXPECTED_GATES = [
   "POST /sessions/:id/clip",
   "GET /clips/:id/url",
   "GET /clips/:id/download",
+  // Publishing one to YouTube (NS-46): the draft and the upload. Connecting,
+  // disconnecting and reading an upload's status stay free.
+  "GET /clips/:id/youtube/draft",
+  "POST /clips/:id/youtube",
 ].sort();
 
 // A recording is the one irreplaceable thing in the system, and the offline

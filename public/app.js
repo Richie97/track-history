@@ -63,6 +63,11 @@ import {
 import { clipStorageLine, playbackStartMs } from "./js/import/clip.js";
 import { cutClip } from "./js/import/mp4cut.js";
 import {
+  GOOGLE_PERMISSIONS_URL, YOUTUBE_CONNECT_TEXT, YOUTUBE_DEFAULT_PRIVACY, YOUTUBE_DELETE_NOTE, YOUTUBE_DISCONNECT_NOTE,
+  YOUTUBE_KIDS_TEXT, YOUTUBE_LINKS, YOUTUBE_OFFLINE, YOUTUBE_PRIVACY, YOUTUBE_RESULT_TEXT, youtubeAccountLine,
+  youtubeIsPending, youtubeOffer, youtubeRequestError, youtubeStatusLine,
+} from "./js/youtube.js";
+import {
   clipBannerText, clipStatusText, createClipUploads, liveComplete, liveCreate, livePutPart,
 } from "./js/import/clip-upload.js";
 
@@ -784,6 +789,7 @@ function shell(content) {
     <div class="shell">
       <div id="sync-banner" class="sync-banner" hidden></div>
       <div id="clip-banner" class="sync-banner clip-banner" role="status" hidden></div>
+      <div id="yt-result" class="sync-banner" role="status" hidden></div>
       ${
         viewing
           ? `<div class="student-banner" role="note">
@@ -2025,6 +2031,7 @@ document.addEventListener("click", (e) => {
 // clip that opens an inline player, with Download and Delete for the owner.
 function lapVideosHtml(s) {
   const clipped = s.laps.filter((l) => l.clip);
+  for (const l of clipped) renderedClips.set(String(l.clip.id), l.clip);
   if (!clipped.length) return "";
   return `<div class="lap-videos">${clipped
     .map(
@@ -2035,6 +2042,10 @@ function lapVideosHtml(s) {
     )
     .join("")}</div>`;
 }
+
+// The clips the event page last drew, by id — what the YouTube panel (NS-46)
+// reads `clip.youtube` from when a player opens.
+const renderedClips = new Map();
 
 // The control says what it will do: play the lap, or put the player away.
 const videoToggleLabel = (lapNum, open) => (open ? `Hide lap ${lapNum} video` : `▶ Lap ${lapNum} video`);
@@ -2054,6 +2065,8 @@ async function openLapVideo(box) {
     body.innerHTML = readOnly()
       ? `<p class="hint">${studentVideoNote()}</p>`
       : proPanelHtml("Lap video", "Your best-lap video is kept. Pro plays it, downloads it and saves new ones from a video import.");
+    // A link to a copy already on YouTube isn't Pro (NS-46).
+    if (!readOnly()) youtubePanel(body, id);
     return;
   }
   body.innerHTML = `<p class="hint">Loading…</p>`;
@@ -2078,6 +2091,7 @@ async function openLapVideo(box) {
       <button class="btn small danger" data-video-delete="${esc(id)}">Delete video</button>
     </div>`
     }`;
+  youtubePanel(body, id);
   const video = body.querySelector("video");
   // A couple of seconds of run-up, so the crossing is on screen.
   const offsetS = playbackStartMs(Number(box.dataset.lapOffset)) / 1000;
@@ -2086,7 +2100,8 @@ async function openLapVideo(box) {
     if (!navigator.onLine) body.querySelector("video")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);
   }, { once: true });
   body.querySelector("[data-video-delete]")?.addEventListener("click", async () => {
-    if (!confirm("Delete this lap video? The lap and its telemetry stay.")) return;
+    const onYouTube = renderedClips.get(String(id))?.youtube?.status === "done";
+    if (!confirm(`Delete this lap video? The lap and its telemetry stay.${onYouTube ? ` ${YOUTUBE_DELETE_NOTE}` : ""}`)) return;
     try {
       await api(`/clips/${id}`, { method: "DELETE" });
     } catch (err) {
@@ -2095,6 +2110,248 @@ async function openLapVideo(box) {
     }
     route();
   });
+}
+
+// ---------- publishing a best-lap video to YouTube (NS-46) -------------------
+
+// The consent explanation with its two documents linked, the same words on
+// every client.
+function youtubeConnectHtml() {
+  let html = esc(YOUTUBE_CONNECT_TEXT);
+  for (const l of YOUTUBE_LINKS)
+    html = html.replace(esc(l.label), `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`);
+  return html;
+}
+
+// Where a web connect comes back to: this page's route, without its query.
+const youtubeConnectHref = () => `/youtube/connect?next=${encodeURIComponent((location.hash || "#/settings").split("?")[0])}`;
+
+// The values a driver last sent, per clip, so Try again reopens the form with
+// them rather than the draft.
+const youtubeLastSent = new Map();
+// One poll per clip panel; a re-render (the panel's body replaced) ends it.
+const YOUTUBE_POLL_MS = 5000;
+
+// Under a lap's player: the control `youtubeOffer` picks.
+function youtubePanel(body, id) {
+  const clip = renderedClips.get(String(id));
+  const offer = youtubeOffer(clip, ent(), state.me, readOnly());
+  if (offer === "none" || offer === "locked") return;
+  const panel = document.createElement("div");
+  panel.className = "yt-panel";
+  panel.dataset.ytClip = String(id);
+  body.append(panel);
+  paintYouTube(panel, id, offer, clip.youtube);
+}
+
+function paintYouTube(panel, id, offer, upload) {
+  if (!panel.isConnected) return;
+  if (offer === "connect") {
+    const offline = navigator.onLine === false;
+    panel.innerHTML = `<p class="hint">${youtubeConnectHtml()}</p>
+      <div class="btn-row">${
+        offline
+          ? `<button class="btn small" type="button" disabled>Connect YouTube…</button>`
+          : `<a class="btn small" href="${esc(youtubeConnectHref())}">Connect YouTube…</a>`
+      }</div>
+      ${offline ? `<p class="hint">${YOUTUBE_OFFLINE}</p>` : ""}`;
+    return;
+  }
+  if (offer === "upload") {
+    panel.innerHTML = `<div class="btn-row"><button class="btn small" type="button" data-yt-open>Upload to YouTube…</button></div>`;
+    panel.querySelector("[data-yt-open]").onclick = () => openYouTubeDialog(panel, id);
+    return;
+  }
+  if (offer === "done") {
+    panel.innerHTML = `<div class="yt-line">
+      <span>${esc(youtubeStatusLine(upload))}</span>
+      ${upload?.url ? `<a class="btn small" href="${esc(upload.url)}" target="_blank" rel="noopener">Open ↗</a>` : ""}
+    </div>`;
+    return;
+  }
+  // pending / failed: the full row (progress, the error) is the status route's.
+  panel.innerHTML = `<div class="yt-line" role="status"><span>${esc(youtubeStatusLine(upload))}</span></div>`;
+  refreshYouTube(panel, id, offer);
+}
+
+async function refreshYouTube(panel, id, offer) {
+  let upload;
+  try {
+    upload = await api(`/clips/${id}/youtube`, { cache: false });
+  } catch (err) {
+    if (!panel.isConnected) return;
+    if (err instanceof OfflineError) {
+      panel.querySelector(".yt-line span").textContent = YOUTUBE_OFFLINE;
+      setTimeout(() => panel.isConnected && refreshYouTube(panel, id, offer), YOUTUBE_POLL_MS);
+    }
+    // A 404: the upload is gone (the cron deleted it, or the clip went).
+    return;
+  }
+  if (!panel.isConnected) return;
+  // A failure may have been the grant going (revoked at Google): re-read /me
+  // so the line offers Reconnect rather than a Try again that can't work.
+  if (upload.status === "failed") await ensureMe().catch(() => {});
+  if (!panel.isConnected) return;
+  const clip = renderedClips.get(String(id));
+  if (clip) clip.youtube = { status: upload.status, video_id: null, url: upload.url, privacy: upload.privacy };
+  const now = youtubeOffer(clip, ent(), state.me, readOnly());
+  if (now === "done") return paintYouTube(panel, id, now, upload);
+  if (upload.status === "failed") {
+    panel.innerHTML = `<div class="yt-line failed" role="status">
+      <span>${esc(youtubeStatusLine(upload))}</span>
+      ${now === "failed" ? `<button class="btn small" type="button" data-yt-retry>Try again</button>` : ""}
+      ${now === "connect" ? `<a class="btn small" href="${esc(youtubeConnectHref())}">Reconnect YouTube…</a>` : ""}
+    </div>`;
+    panel.querySelector("[data-yt-retry]")?.addEventListener("click", () => openYouTubeDialog(panel, id));
+    return;
+  }
+  panel.querySelector(".yt-line span").textContent = youtubeStatusLine(upload);
+  if (youtubeIsPending(upload)) {
+    setTimeout(() => {
+      if (!panel.isConnected) return;
+      if (document.hidden) document.addEventListener("visibilitychange", () => refreshYouTube(panel, id, offer), { once: true });
+      else refreshYouTube(panel, id, offer);
+    }, YOUTUBE_POLL_MS);
+  }
+}
+
+// The form: pre-filled from the server's draft (or what was last sent), the
+// title counted, the visibility a three-way choice defaulting to Unlisted.
+async function openYouTubeDialog(panel, id) {
+  const dialog = document.createElement("dialog");
+  dialog.className = "modal yt-dialog";
+  dialog.setAttribute("aria-labelledby", `yt-title-${id}`);
+  dialog.innerHTML = `<div class="modal-head">
+      <h2 id="yt-title-${id}">Upload to YouTube</h2>
+      <button class="btn small" type="button" data-modal-close>Cancel</button>
+    </div>
+    <p class="hint">Loading…</p>`;
+  document.body.append(dialog);
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.querySelector("[data-modal-close]").onclick = () => dialog.close();
+  dialog.showModal();
+
+  let draft;
+  try {
+    draft = await api(`/clips/${id}/youtube/draft`, { cache: false });
+  } catch (err) {
+    dialog.querySelector(".hint").textContent =
+      err instanceof OfflineError ? YOUTUBE_OFFLINE : youtubeRequestError(err.message);
+    return;
+  }
+  const values = { ...draft, ...(youtubeLastSent.get(String(id)) || {}) };
+  const privacy = values.privacy || YOUTUBE_DEFAULT_PRIVACY;
+  dialog.querySelector(".hint").remove();
+  dialog.insertAdjacentHTML(
+    "beforeend",
+    `<form class="yt-form">
+      <div class="field"><label for="yt-t-${id}">Title</label>
+        <input id="yt-t-${id}" name="title" maxlength="100" required value="${esc(values.title)}">
+        <div class="hint" data-yt-count></div></div>
+      <div class="field"><label for="yt-d-${id}">Description</label>
+        <textarea id="yt-d-${id}" name="description" rows="6">${esc(values.description)}</textarea></div>
+      <fieldset class="field yt-privacy"><legend>Visibility</legend>
+        <div class="btn-row">${YOUTUBE_PRIVACY.map(
+          (p) => `<label class="dry-toggle"><input type="radio" name="privacy" value="${p.value}" ${p.value === privacy ? "checked" : ""}> ${p.label}</label>`
+        ).join("")}</div>
+      </fieldset>
+      <p class="hint">${draft.account ? `Uploading to ${esc(draft.account)} · ` : ""}${YOUTUBE_KIDS_TEXT}</p>
+      <div data-yt-error role="alert"></div>
+      <div class="btn-row"><button class="btn primary" type="submit">Upload</button></div>
+    </form>`
+  );
+  const form = dialog.querySelector("form");
+  const title = form.elements.title;
+  const count = form.querySelector("[data-yt-count]");
+  const recount = () => (count.textContent = `${[...title.value].length} / 100`);
+  title.addEventListener("input", recount);
+  recount();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = {
+      title: title.value,
+      description: form.elements.description.value,
+      privacy: form.elements.privacy.value,
+    };
+    const errorEl = form.querySelector("[data-yt-error]");
+    const submit = form.querySelector("[type=submit]");
+    errorEl.textContent = "";
+    submit.disabled = true;
+    try {
+      const upload = await api(`/clips/${id}/youtube`, { method: "POST", body });
+      youtubeLastSent.set(String(id), body);
+      const clip = renderedClips.get(String(id));
+      if (clip) clip.youtube = { status: upload.status, video_id: null, url: null, privacy: upload.privacy };
+      dialog.close();
+      paintYouTube(panel, id, "pending", upload);
+    } catch (err) {
+      submit.disabled = false;
+      errorEl.innerHTML = `<div class="error-banner">${esc(
+        err instanceof OfflineError || err instanceof TypeError ? YOUTUBE_OFFLINE : youtubeRequestError(err.message)
+      )}</div>`;
+    }
+  };
+}
+
+// Settings → YouTube, only while the feature is available to this account.
+function youtubeSettingsHtml() {
+  const yt = state.me?.youtube;
+  if (!yt?.available) return "";
+  return `<h2>YouTube</h2>
+    <div class="hint" style="margin:0 0 4px">With Pro, upload a best-lap video to your YouTube channel from its lap. The upload runs on our server, so you can close the app while it goes.</div>
+    <div class="panel" id="yt-settings">
+      <p style="margin:0 0 10px">${esc(youtubeAccountLine(yt))}</p>
+      ${
+        yt.connected
+          ? `<div class="btn-row">
+              <button class="btn small danger" type="button" id="yt-disconnect">Disconnect YouTube</button>
+              <a class="btn small" href="${GOOGLE_PERMISSIONS_URL}" target="_blank" rel="noopener">Google account permissions ↗</a>
+            </div>
+            <div class="hint" style="margin:8px 0 0">${YOUTUBE_DISCONNECT_NOTE} You can also remove Track Evolution's access from your Google account's permissions page.</div>`
+          : `<p class="hint">${youtubeConnectHtml()}</p>
+            <div class="btn-row"><a class="btn small" href="/youtube/connect?next=${encodeURIComponent("#/settings")}">${
+              yt.account ? "Reconnect YouTube…" : "Connect YouTube…"
+            }</a></div>`
+      }
+      <div id="yt-settings-error"></div>
+    </div>`;
+}
+
+function bindYouTubeSettings(view) {
+  const btn = view.querySelector("#yt-disconnect");
+  if (!btn) return;
+  btn.onclick = async () => {
+    if (!confirm(`Disconnect YouTube? ${YOUTUBE_DISCONNECT_NOTE}`)) return;
+    btn.disabled = true;
+    try {
+      await api("/youtube", { method: "DELETE" });
+    } catch (err) {
+      btn.disabled = false;
+      view.querySelector("#yt-settings-error").innerHTML = `<div class="error-banner">${esc(
+        err instanceof OfflineError || err instanceof TypeError ? "Disconnecting YouTube needs a connection." : err.message
+      )}</div>`;
+      return;
+    }
+    state.me.youtube = { ...state.me.youtube, connected: false, account: null, channel_title: null };
+    route();
+  };
+}
+
+// A connect round trip comes back as …?youtube=connected|denied|error: say so
+// once, then take the query off so a reload doesn't say it again.
+function showYouTubeResult(params) {
+  const result = params.get("youtube");
+  const text = result && YOUTUBE_RESULT_TEXT[result];
+  if (!text) return;
+  const banner = document.getElementById("yt-result");
+  if (banner) {
+    banner.textContent = text;
+    banner.hidden = false;
+  }
+  params.delete("youtube");
+  const [path] = (location.hash || "#/").split("?");
+  const rest = params.toString();
+  history.replaceState(null, "", `${location.pathname}${path}${rest ? `?${rest}` : ""}`);
 }
 
 // Delegated and bound once, rather than per render: the event page re-renders
@@ -3439,6 +3696,7 @@ async function viewSettings(params = new URLSearchParams()) {
       <div class="hint" style="margin:8px 0 0">A second, separate choice, off unless you turn it on. It publishes one lap per track — the ranked one already on the board — as its racing line and telemetry traces, so a driver ranked at the same track can compare corner for corner. It never publishes any other lap, your notes, your session labels, your car, the conditions you typed, your setup sheets or your garage. Leaving the leaderboards turns it off.</div>
       <div id="lb-error"></div>
     </div>
+    ${youtubeSettingsHtml()}
     <h2>AI assistants</h2>
     <div class="hint" style="margin:0 0 4px">With Pro, you can connect Claude, ChatGPT or another AI assistant to your logbook and ask it about your laps, sessions and garage. It can read your data and can't change anything. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
     <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
@@ -3477,6 +3735,7 @@ async function viewSettings(params = new URLSearchParams()) {
       <div class="hint" style="margin:10px 0 0">© ${new Date().getFullYear()} Speedshift LLC</div>
     </div>
   `);
+  bindYouTubeSettings(view);
 
   bindSubscriptionPanel(view);
   if (subNotice) view.querySelector("#sub-panel")?.scrollIntoView({ block: "center" });
@@ -5638,6 +5897,12 @@ function showSkeleton() {
 }
 
 async function route() {
+  await routeView();
+  // After the page has drawn: a YouTube connect's result, said once (NS-46).
+  showYouTubeResult(new URLSearchParams((location.hash || "").split("?")[1] || ""));
+}
+
+async function routeView() {
   const hash = location.hash || "#/";
   // Every navigation starts as the signed-in driver; only a #/student/<id>
   // route turns the read-only view back on (routeStudent).

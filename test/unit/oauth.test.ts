@@ -121,4 +121,11 @@ describe("isSafeNext", () => {
     for (const n of ["/", "/oauth/authorize", "https://evil.example", "//evil.example", "/oauth/authorize?\\evil", undefined])
       expect(isSafeNext(n)).toBe(false);
   });
+
+  it("also allows a way back into connecting YouTube (NS-46), and nothing beside it", () => {
+    expect(isSafeNext("/youtube/connect")).toBe(true);
+    expect(isSafeNext("/youtube/connect?next=%23%2Fsettings")).toBe(true);
+    for (const n of ["/youtube/callback", "/youtube/connectx", "/youtube/connect/../../evil", "/youtube/connect?\\evil"])
+      expect(isSafeNext(n)).toBe(false);
+  });
 });

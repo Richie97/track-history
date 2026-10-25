@@ -69,6 +69,15 @@ struct OfflineStoreTests {
 
     // MARK: - The whitelist
 
+    /// Publishing a best-lap video to YouTube (NS-46) needs a live answer — a
+    /// ticket to open in the browser, or the upload's 202 — so none of its
+    /// writes ever waits in the queue.
+    @Test func neverQueuesAYouTubeWrite() {
+        for (method, path) in [("POST", "/clips/7/youtube"), ("POST", "/youtube/connect"), ("DELETE", "/youtube")] {
+            #expect(!OfflineStore.isQueueable(method: method, path: path), "\(method) \(path)")
+        }
+    }
+
     @Test func whitelistsOnlyMirrorableMutations() {
         #expect(OfflineStore.isQueueable(method: "POST", path: "/events"))
         #expect(OfflineStore.isQueueable(method: "PUT", path: "/events/3"))

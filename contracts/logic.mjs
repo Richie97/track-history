@@ -254,6 +254,23 @@ import {
   manageUrl,
 } from "../public/js/entitlement.js";
 import {
+  GOOGLE_PERMISSIONS_URL,
+  YOUTUBE_CONNECT_TEXT,
+  YOUTUBE_DEFAULT_PRIVACY,
+  YOUTUBE_DELETE_NOTE,
+  YOUTUBE_DISCONNECT_NOTE,
+  YOUTUBE_KIDS_TEXT,
+  YOUTUBE_LINKS,
+  YOUTUBE_OFFLINE,
+  YOUTUBE_PRIVACY,
+  YOUTUBE_RESULT_TEXT,
+  youtubeAccountLine,
+  youtubeIsPending,
+  youtubeOffer,
+  youtubeRequestError,
+  youtubeStatusLine,
+} from "../public/js/youtube.js";
+import {
   LAP_S,
   buildGpmfMp4,
   buildPdrDeltaMp4,
@@ -3140,3 +3157,101 @@ console.log(
 );
 console.log(`wrote contracts/logic/vbo-parsers.json (${vboCases.length} files) and contracts/logic/vbo/*.vbo`);
 console.log(`wrote contracts/logic/csv-parsers.json (${csvCases.length} files) and contracts/logic/csv/*.csv`);
+
+// ---- YouTube (NS-46): which control a lap's video panel offers --------------
+//
+// youtubeOffer over clip × entitlement × me × read-only, youtubeStatusLine over
+// the GET /api/clips/:id/youtube shape, and every sentence the feature says.
+// The rows are chosen for the ways a port goes wrong: 99.6% reads 99 (floored,
+// and never 100 before done), a revoked connection reads `connect` rather than
+// `upload`, a lapsed owner with a `done` upload reads `done` (the link isn't
+// Pro) and with one on its way reads `pending`, a coach reads `none` whatever
+// the upload's state, and a waiting note wins over the percentage.
+const ytPro = { tier: "pro", source: "apple", expires_at: FIXED_EXPIRY, auto_renew: true };
+const ytFree = { tier: "free", source: null, expires_at: null, auto_renew: null };
+const ytLapsed = { tier: "free", source: "apple", expires_at: 1_700_000_000_000, auto_renew: false };
+const ytMe = (o = {}) => ({ youtube: { available: true, connected: true, account: "me@example.com", channel_title: null, ...o } });
+const ytClip = (status, o = {}) => ({
+  id: 7,
+  duration_ms: 108_000,
+  lap_offset_ms: 3_317,
+  youtube: status ? { status, video_id: status === "done" ? "abc" : null, url: status === "done" ? "https://youtu.be/abc" : null, privacy: "unlisted", ...o } : null,
+});
+const offerCases = [
+  ["pro, connected, no upload", ytClip(null), ytPro, ytMe(), false],
+  ["pro, never connected", ytClip(null), ytPro, ytMe({ connected: false, account: null }), false],
+  ["pro, revoked connection", ytClip(null), ytPro, ytMe({ connected: false }), false],
+  ["pro, revoked connection, failed upload", ytClip("failed"), ytPro, ytMe({ connected: false }), false],
+  ["pro, queued", ytClip("queued"), ytPro, ytMe(), false],
+  ["pro, uploading", ytClip("uploading"), ytPro, ytMe(), false],
+  ["pro, done", ytClip("done"), ytPro, ytMe(), false],
+  ["pro, failed", ytClip("failed"), ytPro, ytMe(), false],
+  ["free, no upload", ytClip(null), ytFree, ytMe(), false],
+  ["free, not connected", ytClip(null), ytFree, ytMe({ connected: false, account: null }), false],
+  ["lapsed, done", ytClip("done"), ytLapsed, ytMe(), false],
+  ["lapsed, uploading", ytClip("uploading"), ytLapsed, ytMe(), false],
+  ["lapsed, failed", ytClip("failed"), ytLapsed, ytMe(), false],
+  ["feature unavailable", ytClip("done"), ytPro, ytMe({ available: false }), false],
+  ["no /me cached", ytClip(null), ytPro, null, false],
+  ["no clip", null, ytPro, ytMe(), false],
+  ["coach, done", ytClip("done"), ytPro, ytMe(), true],
+  ["coach, uploading", ytClip("uploading"), ytPro, ytMe(), true],
+  ["coach, nothing", ytClip(null), ytPro, ytMe(), true],
+].map(([name, clip, entitlement, me, readOnly]) => ({
+  name,
+  clip,
+  entitlement,
+  me,
+  readOnly,
+  offer: youtubeOffer(clip, entitlement, me, readOnly),
+}));
+const statusCases = [
+  { status: "queued", progress: 0, privacy: "unlisted", url: null, error: null },
+  { status: "queued", progress: 0, privacy: "unlisted", url: null, error: "Waiting for YouTube — uploads continue tomorrow." },
+  { status: "uploading", progress: 0.4, privacy: "unlisted", url: null, error: null },
+  { status: "uploading", progress: 0.996, privacy: "public", url: null, error: null },
+  { status: "uploading", progress: 1, privacy: "public", url: null, error: null },
+  { status: "uploading", progress: 0.0049, privacy: "private", url: null, error: null },
+  { status: "uploading", progress: 0.5, privacy: "private", url: null, error: "Waiting for YouTube — uploads continue tomorrow." },
+  { status: "done", progress: 1, privacy: "unlisted", url: "https://youtu.be/abc", error: null },
+  { status: "done", progress: 1, privacy: "public", url: "https://youtu.be/abc", error: null },
+  { status: "done", progress: 1, privacy: "private", url: "https://youtu.be/abc", error: null },
+  { status: "failed", progress: 0.2, privacy: "unlisted", url: null, error: "YouTube was disconnected." },
+  { status: "failed", progress: 0, privacy: "unlisted", url: null, error: null },
+  // The event detail's shape: no progress.
+  { status: "uploading", video_id: null, url: null, privacy: "unlisted" },
+].map((upload) => ({ upload, line: youtubeStatusLine(upload), pending: youtubeIsPending(upload) }));
+const youtubeFixture = {
+  description:
+    "NS-46 (public/js/youtube.js): which control a lap's video panel offers (youtubeOffer), the status " +
+    "line under it (youtubeStatusLine, youtubeIsPending), the request refusals and Settings' account line " +
+    "in words, and every fixed sentence. Ports (YouTubeUpload in the iOS Kit and Android :core) must match " +
+    "each value exactly. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/youtube.js",
+  privacy: YOUTUBE_PRIVACY,
+  defaultPrivacy: YOUTUBE_DEFAULT_PRIVACY,
+  connectText: YOUTUBE_CONNECT_TEXT,
+  links: YOUTUBE_LINKS,
+  permissionsUrl: GOOGLE_PERMISSIONS_URL,
+  kidsText: YOUTUBE_KIDS_TEXT,
+  deleteNote: YOUTUBE_DELETE_NOTE,
+  disconnectNote: YOUTUBE_DISCONNECT_NOTE,
+  offline: YOUTUBE_OFFLINE,
+  resultText: YOUTUBE_RESULT_TEXT,
+  offers: offerCases,
+  statusLines: statusCases,
+  requestErrors: [
+    "youtube upload limit", "youtube not connected", "already on youtube", "youtube upload in progress",
+    "clip not ready", "pro required", "title must be at most 100 characters", "",
+  ].map((message) => ({ message, text: youtubeRequestError(message) })),
+  accountLines: [
+    { available: false, connected: false, account: null, channel_title: null },
+    { available: true, connected: false, account: null, channel_title: null },
+    { available: true, connected: false, account: "me@example.com", channel_title: "Fast Laps" },
+    { available: true, connected: true, account: "me@example.com", channel_title: null },
+    { available: true, connected: true, account: "me@example.com", channel_title: "Fast Laps" },
+    { available: true, connected: true, account: null, channel_title: null },
+  ].map((youtube) => ({ youtube, line: youtubeAccountLine(youtube) })),
+};
+writeFileSync(path.join(OUT_DIR, "youtube.json"), JSON.stringify(youtubeFixture, null, 2) + "\n");
+console.log(`wrote contracts/logic/youtube.json (${offerCases.length} offers, ${statusCases.length} status lines)`);
