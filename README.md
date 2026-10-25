@@ -283,16 +283,24 @@ your events, and re-run `npm run seed:generate`.
    npm run deploy
    ```
 
-   **Set the allowlist before the client secrets, and keep it until Google's
-   YouTube API Services audit has passed.** Videos uploaded by an unaudited
-   project are locked to *private* whatever visibility was asked for, and
-   passing the audit later doesn't unlock them — so before then every upload is
-   ours. The allowlist is a secret rather than a `wrangler.jsonc` var because a
-   deploy replaces every var with the file's: an allowlist kept anywhere else
-   would be wiped, opening the feature to everyone. Delete the secret to
-   launch. `YOUTUBE_DAILY_BUDGET` (a var in `wrangler.jsonc`, uploads per
-   Pacific day for the whole project) comes from the project's quota page once
-   the audit has settled it; empty means no budget. Rotating `YOUTUBE_TOKEN_KEY`
+   **Set the allowlist before the client secrets, and keep it until Google
+   has verified the app** (the consent screen's sensitive-scope review) — and,
+   if it still applies, until the YouTube API Services audit has passed. Since
+   July 2020 videos uploaded by an unaudited project were locked to *private*
+   whatever visibility was asked for, and passing the audit later didn't unlock
+   them; as of October 2026 the `videos.insert` reference says that restriction
+   no longer applies, while the API's revision history records no change. One
+   *Public* test upload on an allowlisted account settles it. The allowlist is
+   a secret rather than a `wrangler.jsonc` var because a deploy replaces every
+   var with the file's: an allowlist kept anywhere else would be wiped, opening
+   the feature to everyone. Delete the secret to launch. While the consent
+   screen is still in *Testing*, Google expires refresh tokens after 7 days,
+   so a test connection reads as revoked a week after it was made.
+   `YOUTUBE_DAILY_BUDGET` (a var in `wrangler.jsonc`, uploads per Pacific day
+   for the whole project) is set a little under the project's *Video Uploads*
+   quota — 100 a day by default since June 2026, one per `videos.insert`, on
+   the project's IAM & Admin → Quotas page — since a restarted upload counts
+   twice; empty means no budget. Rotating `YOUTUBE_TOKEN_KEY`
    makes every stored grant unreadable, which reads as *revoked* and asks each
    driver to reconnect.
 

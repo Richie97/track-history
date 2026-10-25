@@ -674,6 +674,20 @@ forced. Tickets 0, 2 and 3 are still open, so production has no secrets and
   injected `fetch` (`FakeYouTube`). undici's mock can't vary a status by
   request body, so the route-level Google mocks answer 200 only. The error
   statuses are covered through the step and the cron.
+- **Google moved since this spec was written** (checked 25 October 2026;
+  ticket 0 confirms both on the real project). *Quota*: the API's revision
+  history records an upload's cost falling from about 1,600 units to about 100
+  in December 2025, and from June 2026 `videos.insert` draws on its own
+  *Video Uploads* bucket — the reference now says 1 unit, 100 calls a day by
+  default. So the project budget is roughly 100 uploads a day rather than the
+  six the spec feared, and `MAX_DAILY_UPLOADS_PER_USER` (10) is the tighter
+  limit for any one driver. *The private-only lock*: the `videos.insert`
+  reference now says uploads from unverified projects are **not** restricted
+  to private, while the revision history still carries the July 2020 entry
+  that they are and records no reversal. Nothing in the code depends on
+  either answer — the allowlist stays on until Google has verified the app,
+  and one *Public* test upload on an allowlisted account settles whether the
+  audit is also needed (README, deploy step 8).
 - **Not yet**: the quota figure and the open questions are ticket 0's, and the
   landing page's Pro line waits for launch. The iOS UI test's stub upload
   server (`YOUTUBE_API_BASE` under `DEV_MODE`) is ticket 2's: the injected

@@ -75,6 +75,16 @@ describe("response cache", () => {
     }
   });
 
+  it("never queues a YouTube write — connecting and uploading need a live answer (NS-46)", () => {
+    for (const [method, path] of [
+      ["POST", "/clips/7/youtube"],
+      ["POST", "/youtube/connect"],
+      ["DELETE", "/youtube"],
+    ]) {
+      expect(isQueueable(method, path), `${method} ${path}`).toBe(false);
+    }
+  });
+
   it("derives a track-filtered events list from the cached full list", async () => {
     await cachePut("/events", [listRow(detail({ id: 1, track_id: 3 })), listRow(detail({ id: 2, track_id: 4 }))]);
     expect((await cachedGet("/events?track_id=4")).map((e) => e.id)).toEqual([2]);

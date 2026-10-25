@@ -43,8 +43,9 @@
     // <Apple Team ID>.<bundle id> for iOS Universal Links (mobile/ apps).
     // Override for self-hosted forks.
     "IOS_APP_ID": "L3NS86NMXZ.app.trackevolution",
-    // YouTube (NS-46): the project's uploads per Pacific day, set from the
-    // quota the Google project's page shows (ticket 0). Empty: no budget.
+    // YouTube (NS-46): the project's uploads per Pacific day, set a little
+    // under the Google project's Video Uploads quota (100 a day by default
+    // since June 2026; IAM & Admin → Quotas). Empty: no budget.
     // YOUTUBE_ALLOWLIST is deliberately NOT a var here: a deploy replaces every
     // var with this file's, so an allowlist set anywhere else would be wiped
     // and the feature opened to everyone. It is a secret, which survives.
