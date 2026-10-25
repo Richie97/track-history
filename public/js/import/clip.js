@@ -1,6 +1,8 @@
 // Best-lap video clips (NS-45, docs/specs/native/NS-45-best-lap-clips.md):
 // which lap of an imported video gets saved, the window cut around it, and what
-// the import review's *Save best-lap video* row says.
+// the import review's *Save best-lap video* row says. Since NS-50
+// (docs/specs/native/NS-50-every-lap-clips.md) a PDR import can save every full
+// lap instead: the row then carries a Best lap / Every lap choice, the scope.
 //
 // The rule the iOS Kit and Android :core ports are pinned to, through
 // contracts/logic/lap-clips.json, generated from it — and, since NS-47, the
@@ -30,6 +32,12 @@ export const MAX_CLIP_S = 600;
 // The parsers whose source is a video file. A phone recording ("live"), a
 // .vbo and a Track Precision .csv have no video to cut.
 export const VIDEO_KINDS = Object.freeze(["pdr", "gopro"]);
+// The sources whose every lap can be saved (NS-50). A PDR lap runs from one
+// start/finish crossing to the next, so every lap is a full lap; any other
+// video in the same review keeps its best lap whichever scope is picked.
+export const EVERY_LAP_KINDS = Object.freeze(["pdr"]);
+// The review's two choices. "best" is NS-45's one clip per session.
+export const CLIP_SCOPES = Object.freeze(["best", "every"]);
 
 const finite = (v) => typeof v === "number" && Number.isFinite(v);
 
@@ -54,20 +62,67 @@ export function playbackStartMs(lapOffsetMs) {
   return Math.max(0, offset - PLAYBACK_LEAD_S * 1000);
 }
 
-// The lap to save from one parsed video, as { lap, index } into parsed.laps, or
-// null. The best lap that has a usable window; a tie on time goes to the lower
-// lap number (the earlier index), which is also the lap the server attaches the
-// clip to (POST /sessions/:id/clip keys on the time, lowest lap_num first). An
+// Whether one lap of a parsed video can be clipped: a time and a usable window.
+const clippable = (lap, parsed) => !!lap && finite(lap.timeMs) && !!clipWindow(lap, parsed.durationS);
+
+// The lap to save from one parsed video, as { lap, index, lapNum } into
+// parsed.laps, or null. The best lap that has a usable window; a tie on time
+// goes to the lower lap number (the earlier index). `lapNum` is the lap's place
+// in the posted session — index + 1, since every client posts parsed.laps in
+// order — which POST /sessions/:id/clip takes as `lap_num` beside the time. An
 // `estimated` lap — a PDR recording's recovered laps — still counts: an
 // estimated boundary is still a boundary, and the padding absorbs the error.
 export function clipCandidate(parsed) {
   if (!parsed || !VIDEO_KINDS.includes(parsed.kind) || !Array.isArray(parsed.laps)) return null;
   let best = null;
   parsed.laps.forEach((lap, index) => {
-    if (!lap || !finite(lap.timeMs) || !clipWindow(lap, parsed.durationS)) return;
-    if (!best || lap.timeMs < best.lap.timeMs) best = { lap, index };
+    if (!clippable(lap, parsed)) return;
+    if (!best || lap.timeMs < best.lap.timeMs) best = { lap, index, lapNum: index + 1 };
   });
   return best;
+}
+
+// Every lap to save from one parsed video under `scope`, in lap order, each as
+// clipCandidate's { lap, index, lapNum }. "best" is clipCandidate's one lap or
+// none; "every" is every clippable lap of an EVERY_LAP_KINDS source, and the
+// best lap of any other video.
+export function clipCandidates(parsed, scope = "best") {
+  if (scope === "every" && parsed && EVERY_LAP_KINDS.includes(parsed.kind) && Array.isArray(parsed.laps)) {
+    const out = [];
+    parsed.laps.forEach((lap, index) => {
+      if (clippable(lap, parsed)) out.push({ lap, index, lapNum: index + 1 });
+    });
+    return out;
+  }
+  const c = clipCandidate(parsed);
+  return c ? [c] : [];
+}
+
+const included = (items) => (items ?? []).filter((it) => it && it.include);
+
+// How many clips a review saves under `scope`, over its included items.
+export function reviewClipCount(items, scope = "best") {
+  return included(items).reduce((n, it) => n + clipCandidates(it.parsed, scope).length, 0);
+}
+
+// Their estimated total size: estimateClipBytes summed, a lap with nothing to
+// estimate from counting 0.
+export function reviewClipBytes(items, scope = "best") {
+  return included(items).reduce(
+    (sum, it) =>
+      sum +
+      clipCandidates(it.parsed, scope).reduce(
+        (s, c) => s + (estimateClipBytes(c.lap, it.fileBytes, it.parsed.durationS) ?? 0),
+        0
+      ),
+    0
+  );
+}
+
+// Whether the review draws the Best lap / Every lap choice: only when Every lap
+// would save more clips than Best lap does.
+export function offersEveryLap(items) {
+  return reviewClipCount(items, "every") > reviewClipCount(items, "best");
 }
 
 // Roughly how big the cut will be: the file's average bitrate over the window.
@@ -89,20 +144,14 @@ export function estimateClipBytes(lap, fileBytes, durationS) {
 //   "on"     offered (the switch itself starts on, every review)
 // `clips` is user.clips from GET /api/me — { used_bytes, quota_bytes,
 // coach_count } — and may be missing from a cached /me older than the field,
-// in which case nothing is known to be full.
-export function clipOffer(items, entitlement, clips) {
-  const candidates = (items ?? [])
-    .filter((it) => it && it.include)
-    .map((it) => ({ it, c: clipCandidate(it.parsed) }))
-    .filter((x) => x.c);
-  if (!candidates.length) return "none";
+// in which case nothing is known to be full. `scope` (NS-50) is the review's
+// choice: "full" is decided against what that scope would add, so Every lap can
+// be full while Best lap is not.
+export function clipOffer(items, entitlement, clips, scope = "best") {
+  if (!reviewClipCount(items, scope)) return "none";
   if (!canSaveLapVideo(entitlement)) return "locked";
   if (clips && finite(clips.used_bytes) && finite(clips.quota_bytes)) {
-    const adding = candidates.reduce(
-      (sum, { it, c }) => sum + (estimateClipBytes(c.lap, it.fileBytes, it.parsed.durationS) ?? 0),
-      0
-    );
-    if (clips.used_bytes + adding > clips.quota_bytes) return "full";
+    if (clips.used_bytes + reviewClipBytes(items, scope) > clips.quota_bytes) return "full";
   }
   return "on";
 }
@@ -117,7 +166,7 @@ export function clipOfferNote(clips) {
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
 
-// "150 MB", "3.2 GB", "20 GB": binary units, as the quota is set, with GB to
+// "150 MB", "3.2 GB", "50 GB": binary units, as the quota is set, with GB to
 // one decimal and a whole number left whole. Pinned for the ports, whose
 // fixed-decimal formatting rounds differently from toFixed on a binary tie.
 export function fmtClipBytes(bytes) {
@@ -142,13 +191,69 @@ export function clipOfferTextWeb(estimateBytes) {
   return `A clip of each session's fastest lap${size}. Uploads from this tab — keep it open until it's done.`;
 }
 
+// The row's first sentence with Every lap picked (NS-50): how many clips the
+// scope saves — a GoPro's best lap in the same review included — and their
+// estimated total.
+export function everyLapOfferText(count, bytes) {
+  return `${everyLapLead(count, bytes)} Uploads on Wi-Fi.`;
+}
+
+// The web's: a browser uploads from the open tab. Web-only, outside the fixture.
+export function everyLapOfferTextWeb(count, bytes) {
+  return `${everyLapLead(count, bytes)} Uploads from this tab — keep it open until it's done.`;
+}
+
+function everyLapLead(count, bytes) {
+  const n = finite(count) && count > 0 ? Math.round(count) : 0;
+  const clips = `${n} clip${n === 1 ? "" : "s"}`;
+  const size = finite(bytes) && bytes > 0 ? `, about ${fmtClipBytes(bytes)} in all` : "";
+  return `A clip of every full lap in each PDR session — ${clips}${size}.`;
+}
+
+// What the Every lap choice says, disabled, when it alone would go over.
+export function everyLapFullText(clips) {
+  const quota = clips && finite(clips.quota_bytes) ? ` (${fmtClipBytes(clips.quota_bytes)})` : "";
+  return `Every lap would go over your lap video storage${quota}.`;
+}
+
+// The row's title: NS-45's when there is no choice to make.
+export function clipRowTitle(everyOffered) {
+  return everyOffered ? "Save lap videos" : "Save best-lap video";
+}
+
+// The web's session player (NS-50): a session's lap videos in lap order, as
+// { clipId, lapNum, timeMs, offsetMs, best } — `best` marks the session's
+// fastest lap, as the lap list's ★ does — and the lap a step of `dir` (-1 / +1)
+// from `clipId` lands on, or null at either end. Web-only (the phones step
+// between lap pages), so outside the lap-clips.json fixture.
+export function lapVideoList(laps) {
+  const all = (laps ?? []).filter((l) => l && finite(l.time_ms));
+  const bestMs = all.length ? Math.min(...all.map((l) => l.time_ms)) : null;
+  return all
+    .filter((l) => l.clip && l.clip.id != null)
+    .sort((a, b) => a.lap_num - b.lap_num)
+    .map((l) => ({
+      clipId: l.clip.id,
+      lapNum: l.lap_num,
+      timeMs: l.time_ms,
+      offsetMs: finite(l.clip.lap_offset_ms) ? l.clip.lap_offset_ms : 0,
+      best: l.time_ms === bestMs,
+    }));
+}
+
+export function lapVideoStep(list, clipId, dir) {
+  const i = (list ?? []).findIndex((v) => String(v.clipId) === String(clipId));
+  if (i < 0) return null;
+  return list[i + dir] ?? null;
+}
+
 // What the row says, switched off and disabled, once storage is full.
 export function clipFullText(clips) {
   const quota = clips && finite(clips.quota_bytes) ? ` (${fmtClipBytes(clips.quota_bytes)})` : "";
   return `Your lap video storage is full${quota}. Delete old clips from a lap's page.`;
 }
 
-// Settings' storage line: "Lap videos: 3.2 GB of 20 GB".
+// Settings' storage line: "Lap videos: 3.2 GB of 50 GB".
 export function clipStorageLine(clips) {
   if (!clips || !finite(clips.quota_bytes)) return null;
   return `Lap videos: ${fmtClipBytes(clips.used_bytes)} of ${fmtClipBytes(clips.quota_bytes)}`;

@@ -9,7 +9,9 @@ import kotlin.math.min
 /**
  * Best-lap video clips (NS-45): which lap of an imported video gets saved, the
  * window cut around it, and what the import review's *Save best-lap video* row
- * and Settings' storage line say.
+ * and Settings' storage line say. Since NS-50 a PDR import can save every full
+ * lap instead: the row then carries a Best lap / Every lap choice, the
+ * [ClipScope].
  *
  * The port of `public/js/import/clip.js` under the same names, pinned case for
  * case by `contracts/logic/lap-clips.json` — the fixture the iOS Kit asserts
@@ -53,11 +55,32 @@ public object LapClips {
      */
     public val VIDEO_KINDS: List<String> = listOf("pdr", "gopro")
 
+    /**
+     * The sources whose every lap can be saved (NS-50). A PDR lap runs from one
+     * start/finish crossing to the next, so every lap is a full lap; any other
+     * video in the same review keeps its best lap whichever scope is picked.
+     */
+    public val EVERY_LAP_KINDS: List<String> = listOf("pdr")
+
+    /** The review's two choices, as the JS strings. `best` is NS-45's one clip per session. */
+    public val CLIP_SCOPES: List<String> = ClipScope.entries.map { it.rawValue }
+
+    /** Which laps the review saves (NS-50). [rawValue] is the JS string in `CLIP_SCOPES`. */
+    public enum class ClipScope(public val rawValue: String) {
+        BEST("best"),
+        EVERY("every"),
+    }
+
     /** `{ startS, endS, lapOffsetS }` — the padded window and where the lap starts in it. */
     public data class ClipWindow(val startS: Double, val endS: Double, val lapOffsetS: Double)
 
-    /** `{ lap, index }` — the lap to save and its index into `parsed.laps`. */
-    public data class ClipCandidate(val lap: ParsedLap, val index: Int)
+    /**
+     * `{ lap, index, lapNum }` — the lap to save, its index into `parsed.laps`,
+     * and its place in the posted session: `index + 1`, since every client
+     * posts `parsed.laps` in order. `POST /sessions/:id/clip` takes it as
+     * `lap_num` beside the time (NS-50), so a tie on time reaches the right lap.
+     */
+    public data class ClipCandidate(val lap: ParsedLap, val index: Int, val lapNum: Int = index + 1)
 
     /**
      * A review item as [clipOffer] reads it — the native `ReviewItem`'s names
@@ -99,24 +122,59 @@ public object LapClips {
         return ClipWindow(startS = startS, endS = endS, lapOffsetS = startT - startS)
     }
 
+    /** Whether one lap of a parsed video can be clipped: a usable window. */
+    private fun clippable(lap: ParsedLap, parsed: ParsedTelemetry): Boolean = clipWindow(lap, parsed.durationS) != null
+
     /**
      * The lap to save from one parsed video, or null. The best lap that has a
      * usable window; a tie on time goes to the earlier index (the lower lap
-     * number), which is also the lap the server attaches the clip to
-     * (`POST /sessions/:id/clip` keys on the time, lowest `lap_num` first). An
-     * `estimated` lap still counts: an estimated boundary is still a boundary,
-     * and the padding absorbs the error.
+     * number). [ClipCandidate.lapNum] is sent with the time, so the server
+     * attaches the clip to exactly this lap. An `estimated` lap still counts:
+     * an estimated boundary is still a boundary, and the padding absorbs the
+     * error.
      */
     public fun clipCandidate(parsed: ParsedTelemetry?): ClipCandidate? {
         if (parsed == null || parsed.kind.rawValue !in VIDEO_KINDS) return null
         var best: ClipCandidate? = null
         parsed.laps.forEachIndexed { index, lap ->
-            if (clipWindow(lap, parsed.durationS) == null) return@forEachIndexed
+            if (!clippable(lap, parsed)) return@forEachIndexed
             val current = best
             if (current == null || lap.timeMs < current.lap.timeMs) best = ClipCandidate(lap, index)
         }
         return best
     }
+
+    /**
+     * Every lap to save from one parsed video under [scope], in lap order.
+     * [ClipScope.BEST] is [clipCandidate]'s one lap or none; [ClipScope.EVERY]
+     * is every clippable lap of an [EVERY_LAP_KINDS] source, and the best lap
+     * of any other video.
+     */
+    public fun clipCandidates(parsed: ParsedTelemetry?, scope: ClipScope = ClipScope.BEST): List<ClipCandidate> {
+        if (scope == ClipScope.EVERY && parsed != null && parsed.kind.rawValue in EVERY_LAP_KINDS) {
+            return parsed.laps.withIndex().filter { (_, lap) -> clippable(lap, parsed) }.map { (index, lap) -> ClipCandidate(lap, index) }
+        }
+        return listOfNotNull(clipCandidate(parsed))
+    }
+
+    private fun included(items: List<OfferItem>): List<OfferItem> = items.filter { it.include }
+
+    /** How many clips a review saves under [scope], over its included items. */
+    public fun reviewClipCount(items: List<OfferItem>, scope: ClipScope = ClipScope.BEST): Int =
+        included(items).sumOf { clipCandidates(it.parsed, scope).size }
+
+    /**
+     * Their estimated total size: [estimateClipBytes] summed, a lap with
+     * nothing to estimate from counting 0.
+     */
+    public fun reviewClipBytes(items: List<OfferItem>, scope: ClipScope = ClipScope.BEST): Long =
+        included(items).sumOf { item ->
+            clipCandidates(item.parsed, scope).sumOf { estimateClipBytes(it.lap, item.fileBytes, item.parsed?.durationS) ?: 0L }
+        }
+
+    /** Whether the review draws the Best lap / Every lap choice: only when Every lap would save more clips. */
+    public fun offersEveryLap(items: List<OfferItem>): Boolean =
+        reviewClipCount(items, ClipScope.EVERY) > reviewClipCount(items, ClipScope.BEST)
 
     /**
      * Roughly how big the cut will be: the file's average bitrate over the
@@ -135,19 +193,18 @@ public object LapClips {
      * Which state the review row is in, over the review's items. [clips] is
      * `user.clips` from `GET /api/me`, and may be missing from a cached `/me`
      * older than the field — in which case nothing is known to be full.
+     * [scope] (NS-50) is the review's choice: `FULL` is decided against what
+     * that scope would add, so Every lap can be full while Best lap is not.
      */
-    public fun clipOffer(items: List<OfferItem>, entitlement: Entitlement?, clips: ClipStorage?): ClipOffer {
-        val candidates = items
-            .filter { it.include }
-            .mapNotNull { item -> clipCandidate(item.parsed)?.let { item to it } }
-        if (candidates.isEmpty()) return ClipOffer.NONE
+    public fun clipOffer(
+        items: List<OfferItem>,
+        entitlement: Entitlement?,
+        clips: ClipStorage?,
+        scope: ClipScope = ClipScope.BEST,
+    ): ClipOffer {
+        if (reviewClipCount(items, scope) == 0) return ClipOffer.NONE
         if (!Entitlement.canSaveLapVideo(entitlement)) return ClipOffer.LOCKED
-        if (clips != null) {
-            val adding = candidates.sumOf { (item, c) ->
-                estimateClipBytes(c.lap, item.fileBytes, item.parsed?.durationS) ?: 0L
-            }
-            if (clips.usedBytes + adding > clips.quotaBytes) return ClipOffer.FULL
-        }
+        if (clips != null && clips.usedBytes + reviewClipBytes(items, scope) > clips.quotaBytes) return ClipOffer.FULL
         return ClipOffer.ON
     }
 
@@ -163,7 +220,7 @@ public object LapClips {
     private const val GiB: Double = 1024.0 * MiB
 
     /**
-     * "150 MB", "3.2 GB", "20 GB": binary units, as the quota is set, with GB
+     * "150 MB", "3.2 GB", "50 GB": binary units, as the quota is set, with GB
      * to one decimal and a whole number left whole. The tenth is rounded the
      * way `toFixed` rounds — on the double's exact binary value, half up — so
      * 3.25 GiB (exact) is "3.3" and 3.35 GiB (just under, in binary) is "3.3";
@@ -185,13 +242,34 @@ public object LapClips {
         return "A clip of each session's fastest lap$size. Uploads on Wi-Fi."
     }
 
+    /**
+     * The row's first sentence with Every lap picked (NS-50): how many clips
+     * the scope saves — a GoPro's best lap in the same review included — and
+     * their estimated total.
+     */
+    public fun everyLapOfferText(count: Int, bytes: Long?): String {
+        val n = maxOf(0, count)
+        val clips = "$n clip${if (n == 1) "" else "s"}"
+        val size = if (bytes != null && bytes > 0) ", about ${fmtClipBytes(bytes)} in all" else ""
+        return "A clip of every full lap in each PDR session — $clips$size. Uploads on Wi-Fi."
+    }
+
+    /** What the Every lap choice says, disabled, when it alone would go over. */
+    public fun everyLapFullText(clips: ClipStorage?): String {
+        val quota = if (clips != null) " (${fmtClipBytes(clips.quotaBytes)})" else ""
+        return "Every lap would go over your lap video storage$quota."
+    }
+
+    /** The row's title: NS-45's when there is no choice to make. */
+    public fun clipRowTitle(everyOffered: Boolean): String = if (everyOffered) "Save lap videos" else "Save best-lap video"
+
     /** What the row says, switched off and disabled, once storage is full. */
     public fun clipFullText(clips: ClipStorage?): String {
         val quota = if (clips != null) " (${fmtClipBytes(clips.quotaBytes)})" else ""
         return "Your lap video storage is full$quota. Delete old clips from a lap's page."
     }
 
-    /** Settings' storage line: "Lap videos: 3.2 GB of 20 GB". Null without the field. */
+    /** Settings' storage line: "Lap videos: 3.2 GB of 50 GB". Null without the field. */
     public fun clipStorageLine(clips: ClipStorage?): String? {
         if (clips == null) return null
         return "Lap videos: ${fmtClipBytes(clips.usedBytes)} of ${fmtClipBytes(clips.quotaBytes)}"

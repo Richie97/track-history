@@ -1,7 +1,8 @@
 import Foundation
 
-/// One best-lap clip on its way to the server (NS-45), persisted as JSON in the
-/// app's clips directory beside the file it names.
+/// One lap's clip on its way to the server (NS-45; one per lap since NS-50's
+/// *Every lap*), persisted as JSON in the app's clips directory beside the file
+/// it names.
 ///
 /// `sessionId` is the id the session `POST` answered — a **temp** (negative) id
 /// when the save was queued offline, rewritten to the real one once the offline
@@ -13,6 +14,10 @@ public struct ClipUploadJob: Codable, Hashable, Sendable, Identifiable {
     /// The lap's time, which is how the server finds the lap (lowest lap number
     /// on a tie), since a session `POST` never answers its laps' ids.
     public var timeMs: Int
+    /// The lap's place in the session (NS-50), sent as `lap_num` beside the
+    /// time; nil on a job from a manifest written before it existed, which then
+    /// posts without it and is matched on its time alone.
+    public var lapNum: Int?
     /// The cut's file name inside the clips directory.
     public var file: String
     public var sizeBytes: Int
@@ -35,12 +40,13 @@ public struct ClipUploadJob: Codable, Hashable, Sendable, Identifiable {
     public var createdAtMs: Int
 
     public init(
-        id: String, sessionId: Int, timeMs: Int, file: String, sizeBytes: Int, durationMs: Int,
-        lapOffsetMs: Int, createdAtMs: Int
+        id: String, sessionId: Int, timeMs: Int, lapNum: Int? = nil, file: String, sizeBytes: Int,
+        durationMs: Int, lapOffsetMs: Int, createdAtMs: Int
     ) {
         self.id = id
         self.sessionId = sessionId
         self.timeMs = timeMs
+        self.lapNum = lapNum
         self.file = file
         self.sizeBytes = sizeBytes
         self.durationMs = durationMs
@@ -59,6 +65,7 @@ public struct ClipUploadJob: Codable, Hashable, Sendable, Identifiable {
         case id
         case sessionId = "session_id"
         case timeMs = "time_ms"
+        case lapNum = "lap_num"
         case file
         case sizeBytes = "size_bytes"
         case durationMs = "duration_ms"
@@ -72,7 +79,7 @@ public struct ClipUploadJob: Codable, Hashable, Sendable, Identifiable {
 
     /// The body of `POST /sessions/:id/clip` for this job.
     public var createBody: ClipCreateBody {
-        ClipCreateBody(timeMs: timeMs, sizeBytes: sizeBytes, durationMs: durationMs, lapOffsetMs: lapOffsetMs)
+        ClipCreateBody(timeMs: timeMs, lapNum: lapNum, sizeBytes: sizeBytes, durationMs: durationMs, lapOffsetMs: lapOffsetMs)
     }
 }
 
@@ -92,19 +99,24 @@ public struct ClipUploadManifest: Codable, Hashable, Sendable {
     public struct FailedCut: Codable, Hashable, Sendable {
         public var sessionId: Int
         public var timeMs: Int
+        /// The lap's place in the session, as on the job; nil for a failure
+        /// recorded before NS-50, matched on its time alone.
+        public var lapNum: Int?
         /// Why an *upload* was given up on — a `DropReason`'s raw value — or nil
         /// for a cut that failed. Absent in a manifest written before it existed.
         public var reason: String?
 
-        public init(sessionId: Int, timeMs: Int, reason: String? = nil) {
+        public init(sessionId: Int, timeMs: Int, lapNum: Int? = nil, reason: String? = nil) {
             self.sessionId = sessionId
             self.timeMs = timeMs
+            self.lapNum = lapNum
             self.reason = reason
         }
 
         public enum CodingKeys: String, CodingKey {
             case sessionId = "session_id"
             case timeMs = "time_ms"
+            case lapNum = "lap_num"
             case reason
         }
     }
@@ -354,15 +366,27 @@ public enum ClipUploadQueue {
     // MARK: - What the lap page reads
 
     /// Whether a job (or a failed cut) is for this lap: the same session —
-    /// matched on either its temp or its real id — and the same time.
-    public static func isFor(sessionId jobSession: Int, timeMs jobTime: Int, sessionId: Int, resolved: Int?, timeMs: Int) -> Bool {
-        jobTime == timeMs && (jobSession == sessionId || (resolved != nil && resolved == sessionId))
+    /// matched on either its temp or its real id — and the same time, and then
+    /// (NS-50) the same lap number when the job has one. A job from before lap
+    /// numbers falls back to the time alone, and so is for this lap only when it
+    /// is the lap the server attached such a clip to — `isClipLap`, the lowest
+    /// lap number with that time (`clipLap` without a number).
+    public static func isFor(
+        sessionId jobSession: Int, timeMs jobTime: Int, lapNum jobLap: Int?,
+        sessionId: Int, resolved: Int?, timeMs: Int, lapNum: Int, isClipLap: Bool
+    ) -> Bool {
+        guard jobTime == timeMs, jobSession == sessionId || (resolved != nil && resolved == sessionId) else { return false }
+        if let jobLap { return jobLap == lapNum }
+        return isClipLap
     }
 
-    /// The lap a clip with this time lands on: the lowest lap number among the
-    /// session's laps with that time, the server's rule. A second lap tied on
-    /// time never shows the first one's pending upload.
-    public static func clipLap(_ laps: [Lap], timeMs: Int) -> Lap? {
-        laps.filter { $0.timeMs == timeMs }.min { $0.lapNum < $1.lapNum }
+    /// The lap a clip lands on. With a lap number (NS-50), the lap with that
+    /// number and time — the server's rule when `lap_num` is sent. Without one,
+    /// the lowest lap number among the session's laps with that time, the rule
+    /// for a create without it; a second lap tied on time never shows the first
+    /// one's pending upload.
+    public static func clipLap(_ laps: [Lap], timeMs: Int, lapNum: Int? = nil) -> Lap? {
+        if let lapNum { return laps.first { $0.lapNum == lapNum && $0.timeMs == timeMs } }
+        return laps.filter { $0.timeMs == timeMs }.min { $0.lapNum < $1.lapNum }
     }
 }

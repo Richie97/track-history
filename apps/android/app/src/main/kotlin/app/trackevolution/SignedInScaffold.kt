@@ -422,6 +422,9 @@ fun SignedInScaffold(
                 // and the storage the row and the save both read.
                 val clipStorage = (authState as? AuthState.SignedIn)?.user?.clips
                 val clipOffer = review.clipOffer(entitlement, clipStorage)
+                // NS-50's Best lap / Every lap choice, and the scope a save uses.
+                val everyLapOffer = review.everyLapOffer(entitlement, clipStorage)
+                val clipScope = review.effectiveClipScope(entitlement, clipStorage)
                 ReviewScreen(
                     state = review,
                     onPick = flow::pick,
@@ -430,10 +433,13 @@ fun SignedInScaffold(
                     onNotesChange = flow::setNotes,
                     onSelectEvent = flow::selectEvent,
                     onRetryEvents = flow::reloadEvents,
-                    onSave = { flow.save(context, units, clipOffer) },
+                    onSave = { flow.save(context, units, clipOffer, clipScope) },
                     clipOffer = clipOffer,
                     clipStorage = clipStorage,
                     onSaveClipsChange = flow::setSaveClips,
+                    everyLapOffer = everyLapOffer,
+                    clipScope = clipScope,
+                    onClipScopeChange = flow::setClipScope,
                     onRequirePro = { paywall = true },
                     onDiscard = { flow.discard(context); reviewing = false },
                     onSaveToNewEvent = {
@@ -442,7 +448,7 @@ fun SignedInScaffold(
                         // arrival in the Events tab, so back from it is the
                         // dashboard whichever tab the review was opened over.
                         nav.show(Route.EventForm())
-                        flow.stageForNewEvent(units, clipOffer)
+                        flow.stageForNewEvent(units, clipOffer, clipScope)
                         reviewing = false
                     },
                 )

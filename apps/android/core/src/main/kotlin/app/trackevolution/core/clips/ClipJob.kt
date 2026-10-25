@@ -5,8 +5,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * One best-lap clip on its way to the server (NS-45): `{ session id (temp or
- * real), time_ms, file, size, duration, offset, clip id?, uploaded parts }`,
+ * One lap's clip on its way to the server (NS-45; one per lap since NS-50):
+ * `{ session id (temp or real), time_ms, lap_num?, file, size, duration, offset, clip id?, uploaded parts }`,
  * the shape the spec fixes for both phones, plus what this side needs to say
  * where it is (the lap page's *Video uploading* / *Couldn't save this lap's
  * video*) and to give up honestly.
@@ -26,8 +26,15 @@ public data class ClipJob(
     @SerialName("session_id") val sessionId: Int,
     /** The event the session is on, for the lap page to find its pending jobs. Temp too, until it isn't. */
     @SerialName("event_id") val eventId: Int,
-    /** The best lap's time: how `POST /sessions/:id/clip` finds the lap. */
+    /** The lap's time: how `POST /sessions/:id/clip` finds the lap. */
     @SerialName("time_ms") val timeMs: Int,
+    /**
+     * The lap's place in its session (NS-50), sent beside [timeMs] so a tie on
+     * time reaches the right lap, and how the lap page finds its own job when
+     * a session saves every lap. Null on a job from a manifest written before
+     * it existed, which then posts without it and is matched by time.
+     */
+    @SerialName("lap_num") val lapNum: Int? = null,
     /** The cut clip, in app-private storage. Null until the cut has finished. */
     val file: String? = null,
     @SerialName("size_bytes") val sizeBytes: Long = 0,
@@ -62,7 +69,7 @@ public data class ClipJob(
 ) {
     /** The body of `POST /sessions/:id/clip` for this job — iOS's `createBody`. */
     val createBody: ClipCreate
-        get() = ClipCreate(timeMs = timeMs, sizeBytes = sizeBytes, durationMs = durationMs, lapOffsetMs = lapOffsetMs)
+        get() = ClipCreate(timeMs = timeMs, sizeBytes = sizeBytes, durationMs = durationMs, lapOffsetMs = lapOffsetMs, lapNum = lapNum)
 
     @Serializable
     public enum class State {

@@ -19,9 +19,11 @@
 // Best-lap videos (NS-47): with `options.clips` the review draws the *Save
 // best-lap video* row (clip.js's `clipOffer`), and saving hands each included
 // video session's best lap to `options.clips.enqueue` once the session has an
-// id. On the New Event form there is no id yet, so the body carries the clip as
-// a non-enumerable `clip` property — never serialized, never queued offline —
-// and the form enqueues it after posting the body.
+// id. Since NS-50 a PDR review also offers *Every lap*, and then each of the
+// session's laps is its own enqueue. On the New Event form there is no id yet,
+// so the body carries its laps as a non-enumerable `clips` array — never
+// serialized, never queued offline — and the form enqueues them after posting
+// the body.
 
 import { api } from "../api.js";
 import { esc, fmtMs } from "../format.js";
@@ -30,7 +32,21 @@ import { bestLapTrace, buildGate, deriveLaps, projectTrace } from "./geo.js";
 import { anchorPdrBatch } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 import { currentUnits, fmtSpeedKph } from "../units.js";
-import { clipCandidate, clipFullText, clipOffer, clipOfferNote, clipOfferTextWeb, clipWindow, estimateClipBytes } from "./clip.js";
+import {
+  clipCandidates,
+  clipFullText,
+  clipOffer,
+  clipOfferNote,
+  clipOfferTextWeb,
+  clipRowTitle,
+  clipWindow,
+  estimateClipBytes,
+  everyLapFullText,
+  everyLapOfferTextWeb,
+  offersEveryLap,
+  reviewClipBytes,
+  reviewClipCount,
+} from "./clip.js";
 
 export function bindTelemetryImport(view, event, onDone, options = {}) {
   const fileInput = view.querySelector("#pdr-files");
@@ -247,42 +263,57 @@ export function importSessionBody(r, label, units = currentUnits()) {
   };
 }
 
-// The clip to save for one review item, as the handle the uploader takes, or
-// null: no source file kept, no video, or no lap with a usable window.
-export function clipHandle(r) {
-  const c = r.source ? clipCandidate(r.parsed) : null;
-  if (!c) return null;
-  return {
+// The clips to save for one review item under `scope` ("best" or "every"), as
+// the handles the uploader takes: none without a kept source file, a video or a
+// lap with a usable window. Each names its lap (`lapNum`) for the create.
+export function clipHandles(r, scope = "best") {
+  if (!r.source) return [];
+  return clipCandidates(r.parsed, scope).map((c) => ({
     file: r.source,
     window: clipWindow(c.lap, r.parsed.durationS),
     timeMs: c.lap.timeMs,
+    lapNum: c.lapNum,
     lapStartS: c.lap.startT,
-  };
+  }));
 }
 
-// The *Save best-lap video* row under the items, or "" — `offer` is
-// clipOffer's state, `wasChecked` the box's state before a re-render.
-function clipRowHtml(offer, items, ctx, wasChecked) {
+// The clip row under the items, or "". `offer` is clipOffer's state for the
+// best lap, `everyOffer` for every lap (null when the review offers no choice),
+// `scope` the choice and `wasChecked` the box's state before a re-render.
+function clipRowHtml(offer, everyOffer, scope, items, ctx, wasChecked) {
   if (offer === "none") return "";
   const estimate = Math.max(
     0,
     ...items
       .filter((it) => it.include)
-      .map((it) => {
-        const c = clipCandidate(it.parsed);
-        return c ? estimateClipBytes(c.lap, it.fileBytes, it.parsed.durationS) ?? 0 : 0;
-      })
+      .flatMap((it) => clipCandidates(it.parsed, "best").map((c) => estimateClipBytes(c.lap, it.fileBytes, it.parsed.durationS) ?? 0))
   );
-  const text = clipOfferTextWeb(estimate);
-  if (offer === "locked") return `<div class="clip-offer-locked">${ctx.lockedHtml(text)}</div>`;
+  const bestText = clipOfferTextWeb(estimate);
+  if (offer === "locked") return `<div class="clip-offer-locked">${ctx.lockedHtml(bestText)}</div>`;
   const full = offer === "full";
+  const choice = !full && everyOffer != null;
+  const everyFull = everyOffer === "full";
+  const picked = choice && scope === "every" && !everyFull ? "every" : "best";
+  const text = full
+    ? clipFullText(ctx.storage)
+    : picked === "every"
+      ? everyLapOfferTextWeb(reviewClipCount(items, "every"), reviewClipBytes(items, "every"))
+      : bestText;
   const note = full ? "" : clipOfferNote(ctx.storage);
-  return `<label class="clip-offer${full ? " disabled" : ""}">
+  const seg = (value, label, disabled) =>
+    `<label class="${picked === value ? "active" : ""}${disabled ? " disabled" : ""}"><input type="radio" name="import-clip-scope" value="${value}" ${picked === value ? "checked" : ""} ${disabled ? "disabled" : ""}>${label}</label>`;
+  return `<div class="clip-offer${full ? " disabled" : ""}">
     <input type="checkbox" id="import-clip" ${full ? "disabled" : wasChecked === false ? "" : "checked"}>
-    <span class="clip-offer-body"><strong>Save best-lap video</strong>
-      <span class="clip-offer-text">${esc(full ? clipFullText(ctx.storage) : text)}${note ? ` ${esc(note)}` : ""}</span></span>
+    <span class="clip-offer-body"><label for="import-clip"><strong>${esc(clipRowTitle(choice))}</strong></label>
+      ${
+        choice
+          ? `<span class="clip-scope" role="radiogroup" aria-label="Which laps">${seg("best", "Best lap", false)}${seg("every", "Every lap", everyFull)}</span>`
+          : ""
+      }
+      <span class="clip-offer-text">${esc(text)}${note ? ` ${esc(note)}` : ""}</span>
+      ${choice && everyFull ? `<span class="clip-offer-text">${esc(everyLapFullText(ctx.storage))}</span>` : ""}</span>
     <span class="pro-badge">Pro</span>
-  </label>`;
+  </div>`;
 }
 
 function renderReview(box, event, state, onDone, options) {
@@ -301,6 +332,8 @@ function renderReview(box, event, state, onDone, options) {
   // (a line pick, an include box) it keeps what the driver chose.
   const clipBox = box.querySelector("#import-clip");
   const prevClip = clipBox && !clipBox.disabled ? clipBox.checked : undefined;
+  // So does the Best lap / Every lap choice, which starts on Best lap (NS-50).
+  const prevScope = box.querySelector('input[name="import-clip-scope"]:checked')?.value ?? "best";
   const includes = [];
 
   const needLine = results.filter((r) => r.parsed?.needsLine && r.parsed.gps?.length);
@@ -371,11 +404,16 @@ function renderReview(box, event, state, onDone, options) {
 
   const clipItems = results.map((r, i) => ({ parsed: r.parsed, include: !r.error && !!includes[i], fileBytes: r.source?.size }));
   const offer = options.clips ? clipOffer(clipItems, options.clips.entitlement, options.clips.storage) : "none";
+  const everyOffer =
+    options.clips && offer === "on" && offersEveryLap(clipItems)
+      ? clipOffer(clipItems, options.clips.entitlement, options.clips.storage, "every")
+      : null;
+  const scope = everyOffer === "on" && prevScope === "every" ? "every" : "best";
 
   box.innerHTML = `<div class="panel">
     <strong>${results.every((r) => r.parsed?.kind === "live") ? "Recording preview" : "Import preview"}</strong>
     <div style="margin-top:10px">${pickerHtml}${blocks}</div>
-    ${options.clips ? clipRowHtml(offer, clipItems, options.clips, prevClip) : ""}
+    ${options.clips ? clipRowHtml(offer, everyOffer, scope, clipItems, options.clips, prevClip) : ""}
     <div class="btn-row">
       <button class="btn primary" id="import-confirm" type="button">${esc(options.confirmLabel ?? "Add as sessions")}</button>
       <button class="btn" id="import-cancel" type="button">Cancel</button>
@@ -406,8 +444,9 @@ function renderReview(box, event, state, onDone, options) {
     });
   }
 
-  // Including or leaving out a file changes what the clip row offers.
-  box.querySelectorAll("[data-import-include]").forEach((el) => {
+  // Including or leaving out a file changes what the clip row offers, and the
+  // scope changes what it says.
+  box.querySelectorAll("[data-import-include], input[name='import-clip-scope']").forEach((el) => {
     el.onchange = () => renderReview(box, event, state, onDone, options);
   });
 
@@ -419,8 +458,8 @@ function renderReview(box, event, state, onDone, options) {
       const inc = box.querySelector(`[data-import-include="${i}"]`);
       if (!inc || !inc.checked) continue;
       const body = importSessionBody(results[i], box.querySelector(`[data-import-label="${i}"]`).value);
-      const clip = saveClips ? clipHandle(results[i]) : null;
-      if (clip) Object.defineProperty(body, "clip", { value: clip, enumerable: false });
+      const clips = saveClips ? clipHandles(results[i], scope) : [];
+      if (clips.length) Object.defineProperty(body, "clips", { value: clips, enumerable: false });
       bodies.push(body);
     }
     if (options.onSessions) {
@@ -434,7 +473,7 @@ function renderReview(box, event, state, onDone, options) {
       const saved = await api(`/events/${event.id}/sessions`, { method: "POST", body });
       // The session is saved; its clip goes up in the background and never
       // holds the review open.
-      if (body.clip && saved?.id != null) options.clips.enqueue({ sessionId: saved.id, ...body.clip });
+      if (saved?.id != null) for (const clip of body.clips ?? []) options.clips.enqueue({ sessionId: saved.id, ...clip });
     }
     if (bodies.length) onDone();
     else box.innerHTML = "";

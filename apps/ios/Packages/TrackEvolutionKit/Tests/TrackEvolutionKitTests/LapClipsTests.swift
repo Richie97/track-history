@@ -20,6 +20,8 @@ struct LapClipsTests {
         }
         #expect(LapClips.MAX_CLIP_S == f.MAX_CLIP_S)
         #expect(LapClips.VIDEO_KINDS.map(\.rawValue) == f.VIDEO_KINDS)
+        #expect(LapClips.EVERY_LAP_KINDS.map(\.rawValue) == f.EVERY_LAP_KINDS)
+        #expect(LapClips.CLIP_SCOPES.map(\.rawValue) == f.CLIP_SCOPES)
     }
 
     @Test func everyCaseMatchesTheReference() throws {
@@ -30,6 +32,9 @@ struct LapClipsTests {
             let candidate = LapClips.clipCandidate(parsed)
             let name = Comment(rawValue: c.input.name)
             #expect(candidate?.index == c.expected.candidateIndex, name)
+            #expect(candidate?.lapNum == c.expected.candidateLapNum, name)
+            #expect(LapClips.clipCandidates(parsed, .best).map(\.lapNum) == (candidate.map { [$0.lapNum] } ?? []), name)
+            #expect(LapClips.clipCandidates(parsed, .every).map(\.lapNum) == c.expected.everyLapNums, name)
             Self.expectWindow(candidate.flatMap { LapClips.clipWindow($0.lap, parsed?.durationS ?? 0) }, c.expected.window.window, name)
             #expect(
                 candidate.flatMap { LapClips.estimateClipBytes($0.lap, c.input.fileBytes, c.input.durationS) }
@@ -51,10 +56,17 @@ struct LapClipsTests {
                 let input = f.cases.first { $0.input.name == ref.input }!.input
                 return LapClips.Item(parsed: input.parsed, include: ref.include, fileBytes: input.fileBytes)
             }
-            #expect(
-                LapClips.clipOffer(items, offer.entitlement, offer.clips).rawValue == offer.expected,
-                Comment(rawValue: offer.name)
-            )
+            let name = Comment(rawValue: offer.name)
+            let scope = try #require(LapClips.Scope(rawValue: offer.scope), name)
+            #expect(LapClips.clipOffer(items, offer.entitlement, offer.clips, scope).rawValue == offer.expected, name)
+            if scope == .best {
+                #expect(LapClips.clipOffer(items, offer.entitlement, offer.clips).rawValue == offer.expected, name)
+            }
+            #expect(LapClips.offersEveryLap(items) == offer.offersEveryLap, name)
+            #expect(LapClips.reviewClipCount(items, .best) == offer.count.best, name)
+            #expect(LapClips.reviewClipCount(items, .every) == offer.count.every, name)
+            #expect(LapClips.reviewClipBytes(items, .best) == offer.bytes.best, name)
+            #expect(LapClips.reviewClipBytes(items, .every) == offer.bytes.every, name)
         }
     }
 
@@ -67,6 +79,12 @@ struct LapClipsTests {
         for row in f.offerText { #expect(LapClips.clipOfferText(row.input) == row.output) }
         for row in f.fullText { #expect(LapClips.clipFullText(row.input) == row.output) }
         for row in f.storageLine { #expect(LapClips.clipStorageLine(row.input) == row.output) }
+        #expect(!f.everyLapOfferText.isEmpty)
+        for row in f.everyLapOfferText {
+            #expect(LapClips.everyLapOfferText(row.count, row.bytes) == row.output, "everyLapOfferText(\(row.count), \(row.bytes))")
+        }
+        for row in f.everyLapFullText { #expect(LapClips.everyLapFullText(row.input) == row.output) }
+        for row in f.clipRowTitle { #expect(LapClips.clipRowTitle(row.input) == row.output) }
         for row in f.fmtClipBytes {
             #expect(LapClips.fmtClipBytes(row.input) == row.output, "fmtClipBytes(\(String(describing: row.input)))")
         }
@@ -205,6 +223,79 @@ struct LapClipsTests {
         #expect(LapClips.fmtClipBytes(Self.GiB * 13 / 4) == "3.3 GB")
         #expect(LapClips.fmtClipBytes(20 * Self.GiB) == "20 GB")
     }
+
+    // MARK: - test/unit/clip.test.js: every-lap clips (NS-50)
+
+    private static func pdr(_ laps: [ParsedLap]) -> ParsedTelemetry {
+        ParsedTelemetry(kind: .pdr, durationS: 1000, laps: laps)
+    }
+
+    private static func item(_ parsed: ParsedTelemetry?, _ include: Bool = true, _ fileBytes: Int = 1000 * 5_000_000) -> LapClips.Item {
+        LapClips.Item(parsed: parsed, include: include, fileBytes: fileBytes)
+    }
+
+    private static let everyLaps = [lap(101_000, 10, 111), lap(100_000, 111, 211), lap(100_000, 211, 311), lap(102_000, 990, 1092)]
+
+    @Test func namesEachLapByItsPlaceInTheSession() {
+        let candidate = LapClips.clipCandidate(Self.pdr(Self.everyLaps))
+        #expect(candidate?.index == 1 && candidate?.lapNum == 2)
+        #expect(LapClips.clipCandidates(Self.pdr(Self.everyLaps), .best).map(\.lapNum) == [2])
+        // The last lap runs past the file: no window, no clip.
+        #expect(LapClips.clipCandidates(Self.pdr(Self.everyLaps), .every).map(\.lapNum) == [1, 2, 3])
+    }
+
+    @Test func isPDROnlyAGoProKeepsItsBestLap() {
+        #expect(LapClips.EVERY_LAP_KINDS == [.pdr])
+        let gopro = ParsedTelemetry(kind: .gopro, durationS: 1000, laps: Self.everyLaps)
+        #expect(LapClips.clipCandidates(gopro, .every).map(\.lapNum) == [2])
+        #expect(LapClips.clipCandidates(ParsedTelemetry(kind: .vbo, durationS: 1000, laps: Self.everyLaps), .every).isEmpty)
+        #expect(LapClips.clipCandidates(nil, .every).isEmpty)
+    }
+
+    @Test func offersTheChoiceOnlyWhenItSavesMore() {
+        #expect(LapClips.offersEveryLap([Self.item(Self.pdr(Self.everyLaps))]))
+        #expect(!LapClips.offersEveryLap([Self.item(Self.pdr(Self.everyLaps), false)]))
+        #expect(!LapClips.offersEveryLap([Self.item(Self.pdr([Self.lap(100_000, 10, 110)]))]))
+        #expect(!LapClips.offersEveryLap([Self.item(ParsedTelemetry(kind: .gopro, durationS: 1000, laps: Self.everyLaps))]))
+    }
+
+    @Test func countsAndSizesTheReviewPerScope() {
+        let items = [
+            Self.item(Self.pdr(Self.everyLaps)),
+            Self.item(ParsedTelemetry(kind: .gopro, durationS: 1000, laps: Self.everyLaps)),
+            Self.item(Self.pdr(Self.everyLaps), false),
+        ]
+        #expect(LapClips.reviewClipCount(items, .best) == 2)
+        #expect(LapClips.reviewClipCount(items, .every) == 4)
+        // 5 MB/s over 101 + 7, 100 + 7 and 100 + 7 seconds, plus the GoPro's 107.
+        #expect(LapClips.reviewClipBytes(items, .every) == 5_000_000 * (108 + 107 + 107 + 107))
+        #expect(LapClips.reviewClipBytes(items, .best) == 5_000_000 * (107 + 107))
+    }
+
+    @Test func decidesFullAgainstThePickedScope() {
+        let items = [Self.item(Self.pdr(Self.everyLaps))]
+        let room = ClipStorage(usedBytes: 0, quotaBytes: 5_000_000 * 200, coachCount: 0)
+        #expect(LapClips.clipOffer(items, Self.PRO, room) == .on)
+        #expect(LapClips.clipOffer(items, Self.PRO, room, .best) == .on)
+        #expect(LapClips.clipOffer(items, Self.PRO, room, .every) == .full)
+        #expect(LapClips.clipOffer(items, Self.FREE, room, .every) == .locked)
+        #expect(LapClips.clipOffer([], Self.PRO, room, .every) == .none)
+    }
+
+    @Test func wordsTheChoice() {
+        #expect(
+            LapClips.everyLapOfferText(14, Int(1.3 * Double(Self.GiB)))
+                == "A clip of every full lap in each PDR session — 14 clips, about 1.3 GB in all. Uploads on Wi-Fi."
+        )
+        #expect(LapClips.everyLapOfferText(1, 0) == "A clip of every full lap in each PDR session — 1 clip. Uploads on Wi-Fi.")
+        #expect(
+            LapClips.everyLapFullText(ClipStorage(usedBytes: 0, quotaBytes: 50 * Self.GiB, coachCount: 0))
+                == "Every lap would go over your lap video storage (50 GB)."
+        )
+        #expect(LapClips.everyLapFullText(nil) == "Every lap would go over your lap video storage.")
+        #expect(LapClips.clipRowTitle(true) == "Save lap videos")
+        #expect(LapClips.clipRowTitle(false) == "Save best-lap video")
+    }
 }
 
 /// `contracts/logic/lap-clips.json`.
@@ -215,6 +306,8 @@ struct LapClipsFixture: Decodable {
     let playbackStartMs: [[Int]]
     let MAX_CLIP_S: Double
     let VIDEO_KINDS: [String]
+    let EVERY_LAP_KINDS: [String]
+    let CLIP_SCOPES: [String]
     let cases: [Case]
     let offers: [OfferCase]
     let offerNote: [Row<CoachesOnly?, String>]
@@ -222,6 +315,9 @@ struct LapClipsFixture: Decodable {
     let fullText: [Row<ClipStorage?, String>]
     let storageLine: [Row<ClipStorage?, String?>]
     let fmtClipBytes: [Row<Int?, String>]
+    let everyLapOfferText: [EveryLapOfferRow]
+    let everyLapFullText: [Row<ClipStorage?, String>]
+    let clipRowTitle: [Row<Bool, String>]
 
     static func load() throws -> LapClipsFixture {
         let data = try Data(contentsOf: RepoRoot.path("contracts/logic/lap-clips.json"))
@@ -260,6 +356,8 @@ struct LapClipsFixture: Decodable {
 
     struct Expected: Decodable {
         let candidateIndex: Int?
+        let candidateLapNum: Int?
+        let everyLapNums: [Int]
         let window: WindowIn?
         let estimateBytes: Int?
         let windows: [WindowIn?]
@@ -277,6 +375,29 @@ struct LapClipsFixture: Decodable {
         let entitlement: Entitlement?
         let clips: ClipStorage?
         let expected: String
+        let scope: String
+        let offersEveryLap: Bool
+        let count: PerScope
+        let bytes: PerScope
+    }
+
+    struct PerScope: Decodable {
+        let best: Int
+        let every: Int
+    }
+
+    /// A `[count, bytes, text]` triple.
+    struct EveryLapOfferRow: Decodable {
+        let count: Int
+        let bytes: Int
+        let output: String
+
+        init(from decoder: any Decoder) throws {
+            var c = try decoder.unkeyedContainer()
+            count = try c.decode(Int.self)
+            bytes = try c.decode(Int.self)
+            output = try c.decode(String.self)
+        }
     }
 
     /// `offerNote`'s inputs carry only the count.

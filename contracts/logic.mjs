@@ -38,7 +38,16 @@ import {
   POST_ROLL_S,
   PRE_ROLL_S,
   VIDEO_KINDS,
+  EVERY_LAP_KINDS,
+  CLIP_SCOPES,
   clipCandidate,
+  clipCandidates,
+  clipRowTitle,
+  everyLapFullText,
+  everyLapOfferText,
+  offersEveryLap,
+  reviewClipBytes,
+  reviewClipCount,
   clipFullText,
   clipOffer,
   clipOfferNote,
@@ -1829,7 +1838,11 @@ const clipCases = clipInputs.map((input) => {
     input,
     expected: {
       candidateIndex: c ? c.index : null,
+      candidateLapNum: c ? c.lapNum : null,
       window: c ? clipWindow(c.lap, input.durationS) : null,
+      // NS-50: what "every" saves from this file alone — every windowed lap of
+      // a PDR, the best lap of any other video.
+      everyLapNums: clipCandidates(input, "every").map((x) => x.lapNum),
       estimateBytes: c ? estimateClipBytes(c.lap, input.fileBytes, input.durationS) : null,
       // Every lap's own window, so a port's clamping is checked lap by lap.
       windows: input.laps.map((l) => clipWindow(l, input.durationS)),
@@ -1857,17 +1870,28 @@ const clipOfferCases = [
   { name: "full once this review's clips are added", items: [["pre-roll would start before 0", true]], entitlement: PRO, clips: { used_bytes: 20 * GiB - 300_000_000, quota_bytes: 20 * GiB, coach_count: 2 } },
   { name: "exactly at the quota is not over it", items: [["pdr-beacons.mp4", true]], entitlement: PRO, clips: { used_bytes: 20 * GiB, quota_bytes: 20 * GiB + 0, coach_count: 0 }, note: "estimate added" },
   { name: "a cached /me older than the field: never full", items: [["pdr-beacons.mp4", true]], entitlement: PRO, clips: null },
+  // NS-50: the every-lap scope over the same reviews.
+  { name: "every lap, with room", scope: "every", items: [["pdr-beacons.mp4", true], ["gopro.mp4", true]], entitlement: PRO, clips: { used_bytes: 0, quota_bytes: 50 * GiB, coach_count: 0 } },
+  { name: "every lap, free: drawn locked", scope: "every", items: [["pdr-beacons.mp4", true]], entitlement: FREE, clips: null },
+  { name: "every lap of a GoPro is its best lap", scope: "every", items: [["gopro.mp4", true]], entitlement: PRO, clips: null },
+  { name: "every lap full while the best lap fits", scope: "every", items: [["a best lap tied on time: the lower lap number wins", true]], entitlement: PRO, clips: { used_bytes: 50 * GiB - 120_000_000, quota_bytes: 50 * GiB, coach_count: 0 } },
+  { name: "the same review, best lap", scope: "best", items: [["a best lap tied on time: the lower lap number wins", true]], entitlement: PRO, clips: { used_bytes: 50 * GiB - 120_000_000, quota_bytes: 50 * GiB, coach_count: 0 } },
 ].map((c) => {
   const items = c.items.map(([name, include]) => clipItem(name, include));
   const clips = c.note === "estimate added"
     ? { ...c.clips, quota_bytes: c.clips.used_bytes + estimateClipBytes(clipCandidate(items[0].parsed).lap, items[0].fileBytes, items[0].parsed.durationS) }
     : c.clips;
+  const scope = c.scope ?? "best";
   return {
     name: c.name,
+    scope,
     items: items.map(({ name, include }) => ({ input: name, include })),
     entitlement: c.entitlement,
     clips,
-    expected: clipOffer(items, c.entitlement, clips),
+    expected: clipOffer(items, c.entitlement, clips, scope),
+    offersEveryLap: offersEveryLap(items),
+    count: { best: reviewClipCount(items, "best"), every: reviewClipCount(items, "every") },
+    bytes: { best: reviewClipBytes(items, "best"), every: reviewClipBytes(items, "every") },
   };
 });
 
@@ -1888,6 +1912,8 @@ const lapClipsFixture = {
   PLAYBACK_LEAD_S,
   MAX_CLIP_S,
   VIDEO_KINDS,
+  EVERY_LAP_KINDS,
+  CLIP_SCOPES,
   playbackStartMs: [0, 1, 1999, 2000, 2001, 3317, 5000].map((ms) => [ms, playbackStartMs(ms)]),
   cases: clipCases,
   offers: clipOfferCases,
@@ -1896,6 +1922,9 @@ const lapClipsFixture = {
   fullText: [null, { used_bytes: 20 * GiB, quota_bytes: 20 * GiB, coach_count: 0 }].map((c) => [c, clipFullText(c)]),
   storageLine: [null, { used_bytes: 0, quota_bytes: 20 * GiB, coach_count: 0 }, { used_bytes: Math.round(3.2 * GiB), quota_bytes: 20 * GiB, coach_count: 1 }].map((c) => [c, clipStorageLine(c)]),
   fmtClipBytes: clipBytesSamples.map((b) => [b, fmtClipBytes(b)]),
+  everyLapOfferText: [[0, 0], [1, 0], [1, 95_000_000], [14, Math.round(1.3 * GiB)], [65, 6 * GiB]].map(([n, b]) => [n, b, everyLapOfferText(n, b)]),
+  everyLapFullText: [null, { used_bytes: 49 * GiB, quota_bytes: 50 * GiB, coach_count: 0 }].map((c) => [c, everyLapFullText(c)]),
+  clipRowTitle: [false, true].map((v) => [v, clipRowTitle(v)]),
 };
 
 const videoFixture = {
@@ -2689,6 +2718,7 @@ const clipJob = (sessionId = 42) =>
     id: "job-1",
     sessionId,
     timeMs: 121_345,
+    lapNum: 4,
     sizeBytes: 120 * CLIP_MiB,
     durationMs: 126_400,
     lapOffsetMs: 3_317,
@@ -2715,6 +2745,7 @@ const applyRow = (name, job, action, response, nowMs = clipNow, extra = {}) => {
 };
 
 nextRow("a fresh job starts with the create", clipJob(), clipReal);
+nextRow("a job from before lap numbers posts without lap_num", { ...clipJob(), lapNum: null }, clipReal);
 nextRow("a temp session waits while its create is queued", clipJob("tmp-3"), { kind: "waiting" });
 nextRow("a temp session the server refused drops the job", clipJob("tmp-3"), { kind: "lost" });
 nextRow("a mapped temp session creates under the real id", clipJob("tmp-3"), clipReal);

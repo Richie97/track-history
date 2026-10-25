@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -95,6 +97,15 @@ fun ReviewScreen(
     /** `user.clips`, for the full-storage sentence and the coach note. */
     clipStorage: ClipStorage? = null,
     onSaveClipsChange: (Boolean) -> Unit = {},
+    /**
+     * The row's Every lap choice (NS-50): `ReviewUiState.everyLapOffer` — `NONE`
+     * draws no choice (the row is NS-45's), `ON` an enabled one, `FULL` one
+     * drawn disabled with `everyLapFullText`.
+     */
+    everyLapOffer: LapClips.ClipOffer = LapClips.ClipOffer.NONE,
+    /** The scope the choice shows picked: `ReviewUiState.effectiveClipScope`. */
+    clipScope: LapClips.ClipScope = LapClips.ClipScope.BEST,
+    onClipScopeChange: (LapClips.ClipScope) -> Unit = {},
     /** The locked row's offer: the paywall. */
     onRequirePro: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -247,6 +258,11 @@ fun ReviewScreen(
                     storage = clipStorage,
                     onChange = onSaveClipsChange,
                     onRequirePro = onRequirePro,
+                    everyLapOffer = everyLapOffer,
+                    scope = clipScope,
+                    everyCount = state.clipCount(LapClips.ClipScope.EVERY),
+                    everyBytes = state.clipBytes(LapClips.ClipScope.EVERY),
+                    onScopeChange = onClipScopeChange,
                 )
 
                 if (anyLaps && state.forNewEvent) {
@@ -418,6 +434,12 @@ fun ReviewScreen(
  * Pro offer, **locked in place, never hidden**; with storage full it is off and
  * disabled, saying so; otherwise a switch that starts on every review. The
  * words are `clip.js`'s, pinned by `lap-clips.json`.
+ *
+ * Since NS-50, when a PDR session has more than one windowed lap
+ * ([everyLapOffer] not `NONE`), the row is *Save lap videos* with a Best lap /
+ * Every lap choice under the switch — Best lap in every review, Every lap
+ * disabled with `everyLapFullText` when it alone would go over the quota. The
+ * choice is never drawn locked or full: those rows are NS-45's.
  */
 @Composable
 private fun ClipRow(
@@ -427,6 +449,11 @@ private fun ClipRow(
     storage: ClipStorage?,
     onChange: (Boolean) -> Unit,
     onRequirePro: () -> Unit,
+    everyLapOffer: LapClips.ClipOffer = LapClips.ClipOffer.NONE,
+    scope: LapClips.ClipScope = LapClips.ClipScope.BEST,
+    everyCount: Int = 0,
+    everyBytes: Long = 0,
+    onScopeChange: (LapClips.ClipScope) -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val type = TrackTheme.typography
@@ -442,21 +469,29 @@ private fun ClipRow(
         LapClips.ClipOffer.FULL, LapClips.ClipOffer.ON -> {
             val full = offer == LapClips.ClipOffer.FULL
             val checked = on && !full
+            val choice = !full && everyLapOffer != LapClips.ClipOffer.NONE
+            val every = choice && scope == LapClips.ClipScope.EVERY
             val words = if (full) {
                 LapClips.clipFullText(storage)
             } else {
-                listOf(LapClips.clipOfferText(estimateBytes), LapClips.clipOfferNote(storage))
-                    .filter { it.isNotEmpty() }.joinToString(" ")
+                val lead = if (every) LapClips.everyLapOfferText(everyCount, everyBytes) else LapClips.clipOfferText(estimateBytes)
+                listOf(lead, LapClips.clipOfferNote(storage)).filter { it.isNotEmpty() }.joinToString(" ")
             }
             TrackCard(
                 Modifier
                     .fillMaxWidth()
-                    .testTag("reviewClipRow")
-                    .toggleable(value = checked, enabled = !full, role = Role.Switch, onValueChange = onChange),
+                    .testTag("reviewClipRow"),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The title row is the toggle, so the switch and its words are
+                // one target and one TalkBack element; the choice is its own.
+                Row(
+                    Modifier
+                        .testTag("reviewClipToggle")
+                        .toggleable(value = checked, enabled = !full, role = Role.Switch, onValueChange = onChange),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Save best-lap video", style = type.bodyStrong, color = colors.textStrong)
+                        Text(LapClips.clipRowTitle(choice), style = type.bodyStrong, color = colors.textStrong)
                         Text(words, style = type.sm, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
                     }
                     Switch(
@@ -472,8 +507,66 @@ private fun ClipRow(
                         modifier = Modifier.padding(start = 12.dp),
                     )
                 }
+                if (choice) {
+                    val everyEnabled = checked && everyLapOffer == LapClips.ClipOffer.ON
+                    Row(
+                        Modifier
+                            .padding(top = 12.dp)
+                            .selectableGroup(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ScopeChip(
+                            label = "Best lap",
+                            selected = !every,
+                            enabled = checked,
+                            tag = "reviewClipScopeBest",
+                            onClick = { onScopeChange(LapClips.ClipScope.BEST) },
+                        )
+                        ScopeChip(
+                            label = "Every lap",
+                            selected = every,
+                            enabled = everyEnabled,
+                            tag = "reviewClipScopeEvery",
+                            onClick = { onScopeChange(LapClips.ClipScope.EVERY) },
+                        )
+                    }
+                    if (everyLapOffer == LapClips.ClipOffer.FULL) {
+                        Text(
+                            LapClips.everyLapFullText(storage),
+                            style = type.sm,
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
             }
         }
+    }
+}
+
+/** One side of the Best lap / Every lap choice — marked by border *and* the selected state, never colour alone. */
+@Composable
+private fun ScopeChip(label: String, selected: Boolean, enabled: Boolean, tag: String, onClick: () -> Unit) {
+    val colors = TrackTheme.colors
+    TrackCard(
+        modifier = Modifier
+            .testTag(tag)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick),
+        // Filled with the accent when picked, as the web's pill and iOS's
+        // segment are: an outline alone read as two equal chips.
+        color = if (selected) colors.accent else null,
+        border = if (selected) colors.accent else colors.borderHairline,
+        contentPadding = 8.dp,
+    ) {
+        Text(
+            label,
+            style = TrackTheme.typography.sm,
+            color = when {
+                !enabled -> colors.textFaint
+                selected -> colors.accentContrast
+                else -> colors.textMuted
+            },
+        )
     }
 }
 

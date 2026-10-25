@@ -93,10 +93,14 @@ describe("validateClipCreate", () => {
   const ok = { time_ms: 100_000, size_bytes: 150_000_000, duration_ms: 105_000, lap_offset_ms: 3_000 };
 
   it("passes a lap-sized clip through", () => {
-    expect(validateClipCreate(ok)).toEqual(ok);
+    expect(validateClipCreate(ok)).toEqual({ ...ok, lap_num: null });
+    // NS-50: the lap's place in its session, when the client names it.
+    expect(validateClipCreate({ ...ok, lap_num: 3 })).toEqual({ ...ok, lap_num: 3 });
+    expect(validateClipCreate({ ...ok, lap_num: null })).toEqual({ ...ok, lap_num: null });
     // A 600 s lap is inclusive, and its padding may take the clip past 600 s.
     expect(validateClipCreate({ ...ok, time_ms: 600_000, duration_ms: 605_000 })).toEqual({
       ...ok,
+      lap_num: null,
       time_ms: 600_000,
       duration_ms: 605_000,
     });
@@ -109,5 +113,6 @@ describe("validateClipCreate", () => {
     expect(validateClipCreate({ ...ok, size_bytes: 1.5 })).toEqual({ error: "invalid size_bytes" });
     expect(validateClipCreate({ ...ok, lap_offset_ms: 105_000 })).toEqual({ error: "invalid lap_offset_ms" });
     expect(validateClipCreate({ ...ok, duration_ms: 0 })).toEqual({ error: "invalid duration_ms" });
+    for (const lap_num of [0, -2, 1.5, "2"]) expect(validateClipCreate({ ...ok, lap_num })).toEqual({ error: "invalid lap_num" });
   });
 });

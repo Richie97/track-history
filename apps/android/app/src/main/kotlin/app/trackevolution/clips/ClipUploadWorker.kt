@@ -14,6 +14,10 @@ import androidx.work.WorkerParameters
 import app.trackevolution.R
 import app.trackevolution.core.clips.ClipUploadRunner.Outcome
 import app.trackevolution.data.AppServices
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 /**
  * Uploads one best-lap clip (NS-45): unique work per job, constrained to an
@@ -39,8 +43,25 @@ internal class ClipUploadWorker(
         // the app is in the background may not be allowed to promote itself
         // (Android 12+); it then uploads within the ordinary worker window and
         // resumes on its next run.
-        runCatching { setForeground(foregroundInfo()) }
-        when (val outcome = clips.runner.run(jobId)) {
+        runCatching { setForeground(foregroundInfo(title(clips))) }
+        // One job at a time (NS-50): a session saved lap by lap has a job per
+        // lap, each its own work, and they take turns here. While this one
+        // runs, the one notification says every job on its way.
+        val outcome = clips.oneAtATime {
+            coroutineScope {
+                val progress = launch {
+                    combine(clips.jobs, clips.parts) { jobs, parts -> ClipUploadText.notificationTitle(jobs, parts) }
+                        .distinctUntilChanged()
+                        .collect { runCatching { setForeground(foregroundInfo(it)) } }
+                }
+                try {
+                    clips.runner.run(jobId)
+                } finally {
+                    progress.cancel()
+                }
+            }
+        }
+        when (outcome) {
             Outcome.Done, Outcome.Skipped -> Unit
             is Outcome.Dropped -> Log.i(TAG, "clip $jobId dropped: ${outcome.reason.rawValue}")
             // The waits are the queue's, as on iOS: half a minute while the
@@ -52,10 +73,13 @@ internal class ClipUploadWorker(
         return Result.success()
     }
 
-    override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo()
+    override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo(title(AppServices.get(applicationContext).clips))
 
-    private fun foregroundInfo(): ForegroundInfo {
-        val notification = notification(applicationContext)
+    private fun title(clips: ClipUploads): String? = ClipUploadText.notificationTitle(clips.jobs.value, clips.parts.value)
+
+    /** [title] null is the one-job title, the string resource. */
+    private fun foregroundInfo(title: String?): ForegroundInfo {
+        val notification = notification(applicationContext, title)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -73,7 +97,7 @@ internal class ClipUploadWorker(
         private const val NOTIFICATION_ID = 1002
 
         /** Silent and low: it says an upload is running, nothing more. */
-        fun notification(context: Context): Notification {
+        fun notification(context: Context, title: String? = null): Notification {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val manager = context.getSystemService(NotificationManager::class.java)
                 if (manager?.getNotificationChannel(CHANNEL_ID) == null) {
@@ -91,7 +115,7 @@ internal class ClipUploadWorker(
             }
             return NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_upload)
-                .setContentTitle(context.getString(R.string.clip_upload_title))
+                .setContentTitle(title ?: context.getString(R.string.clip_upload_title))
                 .setOngoing(true)
                 .setSilent(true)
                 .setProgress(0, 0, true)

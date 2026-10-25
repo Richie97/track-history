@@ -120,6 +120,14 @@ data class ReviewUiState(
      * driver asked for always holds. Read only when the row is `ON`.
      */
     val saveClips: Boolean = true,
+    /**
+     * The row's Best lap / Every lap choice (NS-50). **Best lap in every
+     * review** — a fresh state starts here and nothing remembers Every lap, so
+     * nobody fills their storage by accident. Held here, above the view tree,
+     * so a rotation keeps the pick. Read through [effectiveClipScope], which
+     * falls back to Best lap whenever Every lap isn't on offer.
+     */
+    val clipScope: LapClips.ClipScope = LapClips.ClipScope.BEST,
 ) {
     val needsLinePick: Boolean get() = pickTrace.isNotEmpty()
 
@@ -144,8 +152,39 @@ data class ReviewUiState(
      * over the items as they would be saved, the account's tier and its
      * storage — both off the cached `/me`.
      */
-    fun clipOffer(entitlement: Entitlement?, clips: ClipStorage?): LapClips.ClipOffer =
-        LapClips.clipOffer(items.map { it.offerItem }, entitlement, clips)
+    fun clipOffer(
+        entitlement: Entitlement?,
+        clips: ClipStorage?,
+        scope: LapClips.ClipScope = LapClips.ClipScope.BEST,
+    ): LapClips.ClipOffer = LapClips.clipOffer(offerItems, entitlement, clips, scope)
+
+    private val offerItems: List<LapClips.OfferItem> get() = items.map { it.offerItem }
+
+    /**
+     * The Every lap choice's state (NS-50), or `NONE` when the row draws no
+     * choice: Best lap must be on offer (`ON` — the choice is never drawn
+     * locked or full) and some included PDR session must have more than one
+     * windowed lap. `ON` is the choice enabled; `FULL` is it drawn disabled,
+     * with `everyLapFullText`.
+     */
+    fun everyLapOffer(entitlement: Entitlement?, clips: ClipStorage?): LapClips.ClipOffer {
+        if (clipOffer(entitlement, clips) != LapClips.ClipOffer.ON || !LapClips.offersEveryLap(offerItems)) return LapClips.ClipOffer.NONE
+        return clipOffer(entitlement, clips, LapClips.ClipScope.EVERY)
+    }
+
+    /** The scope a save uses: [clipScope], unless Every lap isn't on offer (any more), then Best lap. */
+    fun effectiveClipScope(entitlement: Entitlement?, clips: ClipStorage?): LapClips.ClipScope =
+        if (clipScope == LapClips.ClipScope.EVERY && everyLapOffer(entitlement, clips) == LapClips.ClipOffer.ON) {
+            LapClips.ClipScope.EVERY
+        } else {
+            LapClips.ClipScope.BEST
+        }
+
+    /** How many clips [scope] saves, a GoPro's best lap in the same review included — the Every lap sentence's count. */
+    fun clipCount(scope: LapClips.ClipScope): Int = LapClips.reviewClipCount(offerItems, scope)
+
+    /** Their estimated total — the Every lap sentence's "about N in all". */
+    fun clipBytes(scope: LapClips.ClipScope): Long = LapClips.reviewClipBytes(offerItems, scope)
 
     /**
      * The row's "about N MB each": the largest candidate's estimate, so the
@@ -240,10 +279,13 @@ class RecordingFlow(
      * the form is what creates it. Matched by the draft itself, which the form
      * posts unchanged; dropped with the drafts if the form never posts them.
      */
-    private var stagedClips: List<Pair<SessionDraft, PendingClip>> = emptyList()
+    private var stagedClips: List<Pair<SessionDraft, List<PendingClip>>> = emptyList()
 
-    /** A clip whose session hasn't been posted yet. */
-    private data class PendingClip(val timeMs: Int, val source: Uri, val window: LapClips.ClipWindow)
+    /**
+     * A clip whose session hasn't been posted yet. [lapNum] is the lap's place
+     * in that session (NS-50), sent with the time so a tie reaches the right lap.
+     */
+    private data class PendingClip(val timeMs: Int, val lapNum: Int, val source: Uri, val window: LapClips.ClipWindow)
 
     /**
      * Loads a stopped (or recovered) recording for review.
@@ -426,6 +468,11 @@ class RecordingFlow(
         _state.value = _state.value.copy(saveClips = on)
     }
 
+    /** The row's Best lap / Every lap choice (NS-50). */
+    fun setClipScope(scope: LapClips.ClipScope) {
+        _state.value = _state.value.copy(clipScope = scope)
+    }
+
     private fun updateItem(index: Int, change: (ReviewItem) -> ReviewItem) {
         val items = _state.value.items
         if (index !in items.indices) return
@@ -449,6 +496,11 @@ class RecordingFlow(
          * Clips are cut only when it was `ON` and the switch was left on.
          */
         clipOffer: LapClips.ClipOffer = LapClips.ClipOffer.NONE,
+        /**
+         * Which laps get a clip (NS-50) — [ReviewUiState.effectiveClipScope]
+         * as the screen drew it. Best lap unless Every lap was picked and on offer.
+         */
+        clipScope: LapClips.ClipScope = LapClips.ClipScope.BEST,
     ) {
         val current = _state.value
         if (!current.canSave) return
@@ -458,7 +510,7 @@ class RecordingFlow(
             // send go to the form, which sends them once the event exists —
             // and their clips wait for it with them ([sessionsPosted]).
             val drafts = draftsFor(current, units)
-            if (withClips) holdClips(current, drafts)
+            if (withClips) holdClips(current, drafts, clipScope)
             _staged.value = drafts
             Haptics.confirm(context)
             _state.value = current.copy(saving = false, error = null)
@@ -485,11 +537,12 @@ class RecordingFlow(
                     val sessionId = api.createSession(eventId = eventId, draft = draftFor(item, parsed, current.notes, units))
                     // Posted: a retry after a later failure must not post it twice.
                     remaining = remaining.mapIndexed { i, r -> if (i == index) r.copy(include = false, includeTouched = true) else r }
-                    // Only now, with the session posted (or queued), is its clip
+                    // Only now, with the session posted (or queued), are its clips
                     // asked for — handed off, never awaited, so a cut or an
-                    // upload that fails can't cost the session (NS-45).
+                    // upload that fails can't cost the session (NS-45). One job
+                    // per lap, in lap order (NS-50).
                     if (withClips) {
-                        clipFor(item)?.let { clip -> enqueueClip(clip, sessionId = sessionId, eventId = eventId) }
+                        clipsFor(item, clipScope).forEach { clip -> enqueueClip(clip, sessionId = sessionId, eventId = eventId) }
                     }
                 }
                 // Only now is it safe to forget: the session exists server-side.
@@ -506,17 +559,22 @@ class RecordingFlow(
         }
     }
 
-    /** The clip to cut from [item], when it is a video with a usable best lap. */
-    private fun clipFor(item: ReviewItem): PendingClip? {
-        val source = item.uri ?: return null
-        val candidate = LapClips.clipCandidate(item.parsed) ?: return null
-        val window = LapClips.clipWindow(candidate.lap, item.parsed?.durationS) ?: return null
-        return PendingClip(timeMs = candidate.lap.timeMs, source = source, window = window)
+    /**
+     * The clips to cut from [item] under [scope], in lap order: its usable best
+     * lap, or (NS-50) every windowed lap of a PDR session. Empty for anything
+     * that isn't a video.
+     */
+    private fun clipsFor(item: ReviewItem, scope: LapClips.ClipScope): List<PendingClip> {
+        val source = item.uri ?: return emptyList()
+        return LapClips.clipCandidates(item.parsed, scope).mapNotNull { candidate ->
+            val window = LapClips.clipWindow(candidate.lap, item.parsed?.durationS) ?: return@mapNotNull null
+            PendingClip(timeMs = candidate.lap.timeMs, lapNum = candidate.lapNum, source = source, window = window)
+        }
     }
 
     private fun enqueueClip(clip: PendingClip, sessionId: Int, eventId: Int) {
         // A sink that throws must not reach the save: the session is posted.
-        runCatching { clips?.enqueue(ClipRequest(sessionId, eventId, clip.timeMs, clip.source, clip.window)) }
+        runCatching { clips?.enqueue(ClipRequest(sessionId, eventId, clip.timeMs, clip.source, clip.window, lapNum = clip.lapNum)) }
     }
 
     /**
@@ -524,9 +582,11 @@ class RecordingFlow(
      * ([sessionsPosted]). [drafts] is [draftsFor]'s output, one per included
      * item, in order.
      */
-    private fun holdClips(current: ReviewUiState, drafts: List<SessionDraft>) {
+    private fun holdClips(current: ReviewUiState, drafts: List<SessionDraft>, scope: LapClips.ClipScope) {
         val included = current.items.filter { it.include && it.hasLaps && it.parsed != null }
-        stagedClips = stagedClips + included.zip(drafts).mapNotNull { (item, draft) -> clipFor(item)?.let { draft to it } }
+        stagedClips = stagedClips + included.zip(drafts).mapNotNull { (item, draft) ->
+            clipsFor(item, scope).takeIf { it.isNotEmpty() }?.let { draft to it }
+        }
     }
 
     /**
@@ -540,7 +600,7 @@ class RecordingFlow(
         for ((draft, sessionId) in posted.zip(sessionIds)) {
             val match = stagedClips.firstOrNull { it.first === draft } ?: stagedClips.firstOrNull { it.first == draft } ?: continue
             stagedClips = stagedClips - match
-            enqueueClip(match.second, sessionId = sessionId, eventId = eventId)
+            match.second.forEach { enqueueClip(it, sessionId = sessionId, eventId = eventId) }
         }
     }
 
@@ -557,11 +617,12 @@ class RecordingFlow(
     fun stageForNewEvent(
         units: UnitSystem = Units.DEFAULT_UNITS,
         clipOffer: LapClips.ClipOffer = LapClips.ClipOffer.NONE,
+        clipScope: LapClips.ClipScope = LapClips.ClipScope.BEST,
     ) {
         val current = _state.value
         if (!current.offersNewEvent || current.selectedCount == 0) return
         val drafts = draftsFor(current, units)
-        if (clipOffer == LapClips.ClipOffer.ON && current.saveClips) holdClips(current, drafts)
+        if (clipOffer == LapClips.ClipOffer.ON && current.saveClips) holdClips(current, drafts, clipScope)
         handedToNewEvent = drafts
         stagedSpan = NewEventDates.span(current.items.filter { it.include && it.hasLaps }.map { it.parsed?.date })
         _staged.value = drafts

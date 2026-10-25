@@ -306,6 +306,11 @@ struct ReviewScreen: View {
     /// it opens; locked as the Pro offer for a free account, never hidden; off
     /// and disabled, in words, once storage is full. Not drawn at all when no
     /// included item is a video with a lap to cut.
+    ///
+    /// With a PDR whose every lap would save more than its best (NS-50) the row
+    /// is *Save lap videos* and carries a Best lap / Every lap choice, starting
+    /// on Best lap in every review; Every lap is drawn disabled, in words, when
+    /// it alone would go over the storage.
     @ViewBuilder
     private func clipRow(_ model: ReviewModel) -> some View {
         switch model.clipOffer {
@@ -318,19 +323,43 @@ struct ReviewScreen: View {
             )
         case .full, .on:
             TECard {
-                Toggle(isOn: Binding(get: { model.savesVideo }, set: { model.saveVideo = $0 })) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Save best-lap video")
-                            .teStyle(.h3)
-                            .foregroundStyle(Color(.textStrong))
-                        Text(model.clipOfferWords)
-                            .teStyle(.sm)
-                            .foregroundStyle(Color(.textMuted))
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle(isOn: Binding(get: { model.savesVideo }, set: { model.saveVideo = $0 })) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(LapClips.clipRowTitle(model.offersEveryLap))
+                                .teStyle(.h3)
+                                .foregroundStyle(Color(.textStrong))
+                            Text(model.clipOfferWords)
+                                .teStyle(.sm)
+                                .foregroundStyle(Color(.textMuted))
+                        }
+                    }
+                    .tint(Color(.accent))
+                    .disabled(model.clipOffer == .full)
+                    .accessibilityIdentifier("reviewSaveVideo")
+
+                    // A segmented picker can't draw one segment disabled (SwiftUI
+                    // ignores `.disabled` on a segment), so when Every lap alone
+                    // would go over the storage there is no choice to draw: the
+                    // row says why instead.
+                    if model.everyLapFull {
+                        Text(LapClips.everyLapFullText(model.clipStorage))
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textFaint))
+                            .accessibilityIdentifier("reviewEveryLapFull")
+                    } else if model.offersEveryLap, model.clipOffer == .on {
+                        Picker(
+                            "Which laps",
+                            selection: Binding(get: { model.clipScope }, set: { model.pickClipScope($0) })
+                        ) {
+                            Text("Best lap").tag(LapClips.Scope.best)
+                            Text("Every lap").tag(LapClips.Scope.every)
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(!model.savesVideo)
+                        .accessibilityIdentifier("reviewClipScope")
                     }
                 }
-                .tint(Color(.accent))
-                .disabled(model.clipOffer == .full)
-                .accessibilityIdentifier("reviewSaveVideo")
             }
         }
     }
@@ -472,6 +501,9 @@ final class ReviewModel {
     /// default the driver asked for always holds, so it is never remembered
     /// as off).
     var saveVideo = true
+    /// Best lap / Every lap (NS-50): Best lap every time a review opens, and
+    /// never remembered, so nobody fills their storage by accident.
+    private(set) var clipScope: LapClips.Scope = .best
 
     var items: [ReviewItem] = []
 
@@ -551,9 +583,32 @@ final class ReviewModel {
         items.map { LapClips.Item(parsed: $0.parsed, include: $0.include, fileBytes: $0.fileBytes) }
     }
 
-    /// Which state the video row is in.
+    /// Which state the video row is in: Best lap's, since that is NS-45's row —
+    /// locked, full (Every lap would be full too) or on.
     var clipOffer: LapClips.Offer {
-        LapClips.clipOffer(clipItems, entitlement, clipStorage)
+        LapClips.clipOffer(clipItems, entitlement, clipStorage, .best)
+    }
+
+    /// Whether the row carries the Best lap / Every lap choice.
+    var offersEveryLap: Bool {
+        LapClips.offersEveryLap(clipItems)
+    }
+
+    /// Every lap alone would go over the storage: its choice is drawn disabled.
+    var everyLapFull: Bool {
+        offersEveryLap && clipOffer != .full
+            && LapClips.clipOffer(clipItems, entitlement, clipStorage, .every) == .full
+    }
+
+    /// The scope a save uses: the pick, unless there is no choice or Every lap
+    /// no longer fits (an item was ticked back in since it was picked).
+    var effectiveClipScope: LapClips.Scope {
+        offersEveryLap && !everyLapFull ? clipScope : .best
+    }
+
+    func pickClipScope(_ scope: LapClips.Scope) {
+        if scope == .every && everyLapFull { return }
+        clipScope = scope
     }
 
     /// The switch as drawn: off whenever storage is full.
@@ -565,22 +620,30 @@ final class ReviewModel {
     /// it's off.
     var clipOfferWords: String {
         if clipOffer == .full { return LapClips.clipFullText(clipStorage) }
+        let note = LapClips.clipOfferNote(clipStorage)
+        if effectiveClipScope == .every {
+            let text = LapClips.everyLapOfferText(
+                LapClips.reviewClipCount(clipItems, .every), LapClips.reviewClipBytes(clipItems, .every)
+            )
+            return [text, note].filter { !$0.isEmpty }.joined(separator: " ")
+        }
         let estimates = items.compactMap { item -> Int? in
             guard item.include, let parsed = item.parsed, let c = LapClips.clipCandidate(parsed) else { return nil }
             return LapClips.estimateClipBytes(c.lap, item.fileBytes, parsed.durationS)
         }
         // "about N MB each": the typical clip of this review.
         let typical = estimates.isEmpty ? nil : estimates.reduce(0, +) / estimates.count
-        let note = LapClips.clipOfferNote(clipStorage)
         return [LapClips.clipOfferText(typical), note].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
-    /// The cut for one item, when the switch is on and it has a lap to cut.
-    private func clipRequest(for item: ReviewItem) -> ClipCutRequest? {
-        guard savesVideo, item.include, let source = item.source, let parsed = item.parsed,
-              let candidate = LapClips.clipCandidate(parsed)
-        else { return nil }
-        return ClipCutRequest(source: source, lap: candidate.lap, durationS: parsed.durationS)
+    /// The cuts for one item, when the switch is on: its best lap, or with
+    /// Every lap (NS-50) each of a PDR's windowed laps, in lap order, each with
+    /// its lap number.
+    private func clipRequests(for item: ReviewItem) -> [ClipCutRequest] {
+        guard savesVideo, item.include, let source = item.source, let parsed = item.parsed else { return [] }
+        return LapClips.clipCandidates(parsed, effectiveClipScope).map {
+            ClipCutRequest(source: source, lap: $0.lap, lapNum: $0.lapNum, durationS: parsed.durationS)
+        }
     }
 
     /// For a review that hands its drafts to the New Event form: each clip waits
@@ -588,8 +651,10 @@ final class ReviewModel {
     func stageClips() {
         guard let clipUploader else { return }
         for item in items {
-            guard let parsed = item.parsed, !parsed.laps.isEmpty, let request = clipRequest(for: item) else { continue }
-            clipUploader.stage(request, for: sessionDraft(for: item, parsed))
+            guard let parsed = item.parsed, !parsed.laps.isEmpty else { continue }
+            let requests = clipRequests(for: item)
+            guard !requests.isEmpty else { continue }
+            clipUploader.stage(requests, for: sessionDraft(for: item, parsed))
         }
     }
 
@@ -813,10 +878,10 @@ final class ReviewModel {
             let draft = sessionDraft(for: item, parsed)
             do {
                 let sessionId = try await api.createSession(eventId: eventId, draft)
-                // The session is saved; its best lap is cut and uploaded behind
+                // The session is saved; its lap clips are cut and uploaded behind
                 // it, never holding the save up. A temp id (saved offline) waits
                 // in the clip queue for the offline queue to flush it.
-                if let request = clipRequest(for: item) {
+                for request in clipRequests(for: item) {
                     clipUploader?.cutAndQueue(request, sessionId: sessionId)
                 }
             } catch let error as APIError {

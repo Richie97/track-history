@@ -17,7 +17,7 @@
       "checklist_template": null,
       "clips": {
         "coach_count": 0,
-        "quota_bytes": 21474836480,
+        "quota_bytes": 53687091200,
         "used_bytes": 0
       },
       "email": "dev@example.com",

@@ -309,13 +309,19 @@ const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "input
 // — for a caller whose extras depend on state the panel doesn't own.
 // `units` — the unit system to label speed and distance in (defaults to the
 // account's cached choice).
+// `chipAfter(lap)` — markup joined to the end of a session lap's chip (the
+// lap's ▶ video control, NS-50), re-run with every chip re-render; a chip
+// with something after it is wrapped in a `.lap-group`. `afterChips` — markup
+// placed once between the chips and the charts (the session's lap video
+// player, so it opens next to the ▶ that asked for it); the chips' re-renders
+// never touch it.
 // `pro` — whether the account gets the Pro half of the panel (#264). A free
 // account's `channels` already arrive with only the free traces (the server
 // strips the rest), but the delta chart and the caller's extras — sectors,
 // shift points, the friction circle, the Car tab — derive from what is left,
 // so they are the panel's own gate; with `pro: false` none of them render and
 // `lockedHtml` (the caller's Pro note) is appended under the charts instead.
-export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits(), pro = true, lockedHtml = "" } = {}) {
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits(), pro = true, lockedHtml = "", chipAfter, afterChips = "" } = {}) {
   const CHANNEL_DEFS = channelDefs(units);
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
@@ -341,6 +347,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     .join(" · ");
   container.innerHTML = `
     <div class="laps ch-chips"></div>
+    ${afterChips}
     <details class="ch-details"${memory?.open ? " open" : ""}>
       <summary>Channel graphs <span class="hint">${chanNames} vs distance</span></summary>
       <div class="hint" style="margin:2px 0 6px">Laps on a shared distance axis — tap laps to compare (up to 3).${
@@ -361,11 +368,13 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     chipsEl.innerHTML = rows
       .map(({ lap, chIdx }) => {
         const label = `Lap ${lap.lap_num} · ${fmtMs(lap.time_ms)}${lap.time_ms === bestMs ? " ★" : ""}`;
-        if (chIdx < 0) return `<span class="lap">${label}</span>`;
+        const after = chipAfter?.(lap) ?? "";
+        const group = (chip) => (after ? `<span class="lap-group">${chip}${after}</span>` : chip);
+        if (chIdx < 0) return group(`<span class="lap">${label}</span>`);
         const color = lit.get(chIdx);
-        return `<button type="button" class="lap ch-chip${color ? " on" : ""}" data-ch-lap="${chIdx}" ${color ? `style="border-color:${color}"` : ""}>
+        return group(`<button type="button" class="lap ch-chip${color ? " on" : ""}" data-ch-lap="${chIdx}" ${color ? `style="border-color:${color}"` : ""}>
           <span class="dot" style="background:${color ?? "var(--chart-dim)"}"></span>${label}
-        </button>`;
+        </button>`);
       })
       .join("");
 

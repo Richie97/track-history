@@ -9,6 +9,13 @@
     "pdr",
     "gopro"
   ],
+  "EVERY_LAP_KINDS": [
+    "pdr"
+  ],
+  "CLIP_SCOPES": [
+    "best",
+    "every"
+  ],
   "playbackStartMs": [
     [
       0,
@@ -69,11 +76,15 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 8.8,
           "endS": 62.923883624987575,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1
+        ],
         "estimateBytes": 16085,
         "windows": [
           {
@@ -117,11 +128,16 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 27,
           "endS": 81.1238898,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 17442,
         "windows": [
           {
@@ -160,11 +176,16 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 27,
           "endS": 81.1238898,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 29691,
         "windows": [
           {
@@ -209,11 +230,17 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 8.97603922242483,
           "endS": 63.1,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2,
+          3
+        ],
         "estimateBytes": 29680,
         "windows": [
           {
@@ -263,11 +290,17 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 8.8,
           "endS": 62.923883624987575,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2,
+          3
+        ],
         "estimateBytes": 17425,
         "windows": [
           {
@@ -311,11 +344,16 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 27,
           "endS": 81.1238898,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 7629,
         "windows": [
           {
@@ -354,11 +392,16 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 27,
           "endS": 81.1238898,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 34194,
         "windows": [
           {
@@ -397,11 +440,16 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 10.8,
           "endS": 64.92386703750469,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 34170,
         "windows": [
           {
@@ -440,11 +488,16 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 19.5,
           "endS": 73.625,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 7612,
         "windows": [
           {
@@ -489,11 +542,17 @@
       },
       "expected": {
         "candidateIndex": 1,
+        "candidateLapNum": 2,
         "window": {
           "startS": 198.5,
           "endS": 305.75,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2,
+          3
+        ],
         "estimateBytes": 83416667,
         "windows": [
           {
@@ -531,11 +590,15 @@
       },
       "expected": {
         "candidateIndex": 0,
+        "candidateLapNum": 1,
         "window": {
           "startS": 0,
           "endS": 103.65,
           "lapOffsetS": 1.25
         },
+        "everyLapNums": [
+          1
+        ],
         "estimateBytes": 310950000,
         "windows": [
           {
@@ -569,11 +632,16 @@
       },
       "expected": {
         "candidateIndex": 1,
+        "candidateLapNum": 2,
         "window": {
           "startS": 127.80000000000001,
           "endS": 250.5,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 163273453,
         "windows": [
           {
@@ -612,11 +680,15 @@
       },
       "expected": {
         "candidateIndex": 1,
+        "candidateLapNum": 2,
         "window": {
           "startS": 697,
           "endS": 1304,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          2
+        ],
         "estimateBytes": 364200000,
         "windows": [
           null,
@@ -651,11 +723,16 @@
       },
       "expected": {
         "candidateIndex": 1,
+        "candidateLapNum": 2,
         "window": {
           "startS": 152.17,
           "endS": 258.28999999999996,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          1,
+          2
+        ],
         "estimateBytes": 98540000,
         "windows": [
           {
@@ -700,11 +777,15 @@
       },
       "expected": {
         "candidateIndex": 1,
+        "candidateLapNum": 2,
         "window": {
           "startS": 27,
           "endS": 130,
           "lapOffsetS": 3
         },
+        "everyLapNums": [
+          2
+        ],
         "estimateBytes": 412000000,
         "windows": [
           null,
@@ -734,7 +815,9 @@
       },
       "expected": {
         "candidateIndex": null,
+        "candidateLapNum": null,
         "window": null,
+        "everyLapNums": [],
         "estimateBytes": null,
         "windows": [
           {
@@ -762,7 +845,9 @@
       },
       "expected": {
         "candidateIndex": null,
+        "candidateLapNum": null,
         "window": null,
+        "everyLapNums": [],
         "estimateBytes": null,
         "windows": [
           {
@@ -790,7 +875,9 @@
       },
       "expected": {
         "candidateIndex": null,
+        "candidateLapNum": null,
         "window": null,
+        "everyLapNums": [],
         "estimateBytes": null,
         "windows": [
           {
@@ -811,7 +898,9 @@
       },
       "expected": {
         "candidateIndex": null,
+        "candidateLapNum": null,
         "window": null,
+        "everyLapNums": [],
         "estimateBytes": null,
         "windows": []
       }
@@ -820,6 +909,7 @@
   "offers": [
     {
       "name": "a Pro import with room",
+      "scope": "best",
       "items": [
         {
           "input": "pdr-beacons.mp4",
@@ -841,10 +931,20 @@
         "quota_bytes": 21474836480,
         "coach_count": 0
       },
-      "expected": "on"
+      "expected": "on",
+      "offersEveryLap": true,
+      "count": {
+        "best": 2,
+        "every": 3
+      },
+      "bytes": {
+        "best": 33527,
+        "every": 50969
+      }
     },
     {
       "name": "the same, free: drawn locked",
+      "scope": "best",
       "items": [
         {
           "input": "pdr-beacons.mp4",
@@ -862,10 +962,20 @@
         "quota_bytes": 21474836480,
         "coach_count": 0
       },
-      "expected": "locked"
+      "expected": "locked",
+      "offersEveryLap": true,
+      "count": {
+        "best": 1,
+        "every": 2
+      },
+      "bytes": {
+        "best": 17442,
+        "every": 34884
+      }
     },
     {
       "name": "nothing cached: free",
+      "scope": "best",
       "items": [
         {
           "input": "pdr-beacons.mp4",
@@ -874,10 +984,20 @@
       ],
       "entitlement": null,
       "clips": null,
-      "expected": "locked"
+      "expected": "locked",
+      "offersEveryLap": true,
+      "count": {
+        "best": 1,
+        "every": 2
+      },
+      "bytes": {
+        "best": 17442,
+        "every": 34884
+      }
     },
     {
       "name": "a phone recording: no row",
+      "scope": "best",
       "items": [
         {
           "input": "a phone recording has no video",
@@ -891,10 +1011,20 @@
         "auto_renew": true
       },
       "clips": null,
-      "expected": "none"
+      "expected": "none",
+      "offersEveryLap": false,
+      "count": {
+        "best": 0,
+        "every": 0
+      },
+      "bytes": {
+        "best": 0,
+        "every": 0
+      }
     },
     {
       "name": "a .vbo and a .csv: no row",
+      "scope": "best",
       "items": [
         {
           "input": "a .vbo has no video",
@@ -912,10 +1042,20 @@
         "auto_renew": true
       },
       "clips": null,
-      "expected": "none"
+      "expected": "none",
+      "offersEveryLap": false,
+      "count": {
+        "best": 0,
+        "every": 0
+      },
+      "bytes": {
+        "best": 0,
+        "every": 0
+      }
     },
     {
       "name": "the only video unticked: no row",
+      "scope": "best",
       "items": [
         {
           "input": "pdr-beacons.mp4",
@@ -933,10 +1073,20 @@
         "auto_renew": true
       },
       "clips": null,
-      "expected": "none"
+      "expected": "none",
+      "offersEveryLap": false,
+      "count": {
+        "best": 0,
+        "every": 0
+      },
+      "bytes": {
+        "best": 0,
+        "every": 0
+      }
     },
     {
       "name": "a clip still waiting for its line: no row yet",
+      "scope": "best",
       "items": [
         {
           "input": "no laps at all (a clip still waiting for a line)",
@@ -950,10 +1100,20 @@
         "auto_renew": true
       },
       "clips": null,
-      "expected": "none"
+      "expected": "none",
+      "offersEveryLap": false,
+      "count": {
+        "best": 0,
+        "every": 0
+      },
+      "bytes": {
+        "best": 0,
+        "every": 0
+      }
     },
     {
       "name": "full once this review's clips are added",
+      "scope": "best",
       "items": [
         {
           "input": "pre-roll would start before 0",
@@ -971,10 +1131,20 @@
         "quota_bytes": 21474836480,
         "coach_count": 2
       },
-      "expected": "full"
+      "expected": "full",
+      "offersEveryLap": false,
+      "count": {
+        "best": 1,
+        "every": 1
+      },
+      "bytes": {
+        "best": 310950000,
+        "every": 310950000
+      }
     },
     {
       "name": "exactly at the quota is not over it",
+      "scope": "best",
       "items": [
         {
           "input": "pdr-beacons.mp4",
@@ -992,10 +1162,20 @@
         "quota_bytes": 21474853922,
         "coach_count": 0
       },
-      "expected": "on"
+      "expected": "on",
+      "offersEveryLap": true,
+      "count": {
+        "best": 1,
+        "every": 2
+      },
+      "bytes": {
+        "best": 17442,
+        "every": 34884
+      }
     },
     {
       "name": "a cached /me older than the field: never full",
+      "scope": "best",
       "items": [
         {
           "input": "pdr-beacons.mp4",
@@ -1009,7 +1189,167 @@
         "auto_renew": true
       },
       "clips": null,
-      "expected": "on"
+      "expected": "on",
+      "offersEveryLap": true,
+      "count": {
+        "best": 1,
+        "every": 2
+      },
+      "bytes": {
+        "best": 17442,
+        "every": 34884
+      }
+    },
+    {
+      "name": "every lap, with room",
+      "scope": "every",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": true
+        },
+        {
+          "input": "gopro.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": {
+        "used_bytes": 0,
+        "quota_bytes": 53687091200,
+        "coach_count": 0
+      },
+      "expected": "on",
+      "offersEveryLap": true,
+      "count": {
+        "best": 2,
+        "every": 3
+      },
+      "bytes": {
+        "best": 33527,
+        "every": 50969
+      }
+    },
+    {
+      "name": "every lap, free: drawn locked",
+      "scope": "every",
+      "items": [
+        {
+          "input": "pdr-beacons.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "free",
+        "source": null,
+        "expires_at": null,
+        "auto_renew": null
+      },
+      "clips": null,
+      "expected": "locked",
+      "offersEveryLap": true,
+      "count": {
+        "best": 1,
+        "every": 2
+      },
+      "bytes": {
+        "best": 17442,
+        "every": 34884
+      }
+    },
+    {
+      "name": "every lap of a GoPro is its best lap",
+      "scope": "every",
+      "items": [
+        {
+          "input": "gopro.mp4",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": null,
+      "expected": "on",
+      "offersEveryLap": false,
+      "count": {
+        "best": 1,
+        "every": 1
+      },
+      "bytes": {
+        "best": 16085,
+        "every": 16085
+      }
+    },
+    {
+      "name": "every lap full while the best lap fits",
+      "scope": "every",
+      "items": [
+        {
+          "input": "a best lap tied on time: the lower lap number wins",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": {
+        "used_bytes": 53567091200,
+        "quota_bytes": 53687091200,
+        "coach_count": 0
+      },
+      "expected": "full",
+      "offersEveryLap": true,
+      "count": {
+        "best": 1,
+        "every": 3
+      },
+      "bytes": {
+        "best": 83416667,
+        "every": 251222223
+      }
+    },
+    {
+      "name": "the same review, best lap",
+      "scope": "best",
+      "items": [
+        {
+          "input": "a best lap tied on time: the lower lap number wins",
+          "include": true
+        }
+      ],
+      "entitlement": {
+        "tier": "pro",
+        "source": "apple",
+        "expires_at": 1800000000000,
+        "auto_renew": true
+      },
+      "clips": {
+        "used_bytes": 53567091200,
+        "quota_bytes": 53687091200,
+        "coach_count": 0
+      },
+      "expected": "on",
+      "offersEveryLap": true,
+      "count": {
+        "best": 1,
+        "every": 3
+      },
+      "bytes": {
+        "best": 83416667,
+        "every": 251222223
+      }
     }
   ],
   "offerNote": [
@@ -1146,6 +1486,57 @@
     [
       21528523571,
       "20 GB"
+    ]
+  ],
+  "everyLapOfferText": [
+    [
+      0,
+      0,
+      "A clip of every full lap in each PDR session — 0 clips. Uploads on Wi-Fi."
+    ],
+    [
+      1,
+      0,
+      "A clip of every full lap in each PDR session — 1 clip. Uploads on Wi-Fi."
+    ],
+    [
+      1,
+      95000000,
+      "A clip of every full lap in each PDR session — 1 clip, about 91 MB in all. Uploads on Wi-Fi."
+    ],
+    [
+      14,
+      1395864371,
+      "A clip of every full lap in each PDR session — 14 clips, about 1.3 GB in all. Uploads on Wi-Fi."
+    ],
+    [
+      65,
+      6442450944,
+      "A clip of every full lap in each PDR session — 65 clips, about 6 GB in all. Uploads on Wi-Fi."
+    ]
+  ],
+  "everyLapFullText": [
+    [
+      null,
+      "Every lap would go over your lap video storage."
+    ],
+    [
+      {
+        "used_bytes": 52613349376,
+        "quota_bytes": 53687091200,
+        "coach_count": 0
+      },
+      "Every lap would go over your lap video storage (50 GB)."
+    ]
+  ],
+  "clipRowTitle": [
+    [
+      false,
+      "Save best-lap video"
+    ],
+    [
+      true,
+      "Save lap videos"
     ]
   ]
 }

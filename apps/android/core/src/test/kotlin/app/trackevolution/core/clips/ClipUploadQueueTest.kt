@@ -1,5 +1,7 @@
 package app.trackevolution.core.clips
 
+import app.trackevolution.core.RepoRoot
+import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.clips.ClipUploadQueue.Action
 import app.trackevolution.core.clips.ClipUploadQueue.DropReason
 import app.trackevolution.core.clips.ClipUploadQueue.Outcome
@@ -9,6 +11,16 @@ import app.trackevolution.core.model.ClipCreate
 import app.trackevolution.core.model.ClipUpload
 import app.trackevolution.core.model.Lap
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -244,6 +256,38 @@ class ClipUploadQueueTest {
     }
 
     @Test
+    fun `a job with a lap number is for that lap only (NS-50)`() {
+        // Two laps tied on time: each has its own job, told apart by number.
+        assertTrue(ClipUploadQueue.isFor(42, 100, 42, null, 100, jobLapNum = 3, lapNum = 3))
+        assertFalse(ClipUploadQueue.isFor(42, 100, 42, null, 100, jobLapNum = 3, lapNum = 2))
+        assertFalse(ClipUploadQueue.isFor(42, 100, 42, null, 101, jobLapNum = 3, lapNum = 3), "the time still has to match")
+        // A job from before lap numbers falls back to the time.
+        assertTrue(ClipUploadQueue.isFor(42, 100, 42, null, 100, jobLapNum = null, lapNum = 2))
+    }
+
+    @Test
+    fun `a lap number picks its lap, a tie included (NS-50)`() {
+        val laps = listOf(
+            Lap(id = 1, sessionId = 42, lapNum = 1, timeMs = 101_000),
+            Lap(id = 3, sessionId = 42, lapNum = 3, timeMs = 100_000),
+            Lap(id = 2, sessionId = 42, lapNum = 2, timeMs = 100_000),
+        )
+        assertEquals(3, ClipUploadQueue.clipLap(laps, 100_000, lapNum = 3)?.id)
+        assertEquals(2, ClipUploadQueue.clipLap(laps, 100_000, lapNum = 2)?.id)
+        assertNull(ClipUploadQueue.clipLap(laps, 100_000, lapNum = 1), "a mismatch is no lap, as the server's 404")
+    }
+
+    @Test
+    fun `a job's lap number goes in the create body, and an older job's doesn't`() {
+        assertEquals(4, job().copy(lapNum = 4).createBody.lapNum)
+        assertNull(job().createBody.lapNum)
+        // An older manifest, written before the field, still decodes.
+        val old = Json.encodeToString(ClipJob.serializer(), job()).replace(Regex(",?\"lap_num\":null"), "")
+        assertFalse("lap_num" in old)
+        assertEquals(job(), Json.decodeFromString(ClipJob.serializer(), old))
+    }
+
+    @Test
     fun `the clip lands on the lowest lap number with its time`() {
         val laps = listOf(
             Lap(id = 1, sessionId = 42, lapNum = 1, timeMs = 101_000),
@@ -260,5 +304,169 @@ class ClipUploadQueueTest {
         val json = Json.encodeToString(ClipJob.serializer(), job)
         assertTrue("\"session_id\":42" in json && "\"part_bytes\"" in json && "\"not_before_ms\"" in json, json)
         assertEquals(job, Json.decodeFromString(ClipJob.serializer(), json))
+    }
+
+    // ---- contracts/logic/clip-upload.json -----------------------------------
+
+    /**
+     * The transition table as the web reference wrote it (NS-47, NS-50):
+     * every row of `contracts/logic/clip-upload.json` but the web-only ones,
+     * the jobs read with their `lapNum` and temp ids `"tmp-N"` as this side's
+     * negative `-N`.
+     */
+    @org.junit.jupiter.api.Nested
+    inner class Fixture {
+        private val fixture = Json.parseToJsonElement(RepoRoot.path("contracts/logic/clip-upload.json").readText()).jsonObject
+        private val strict = Json { ignoreUnknownKeys = false }
+
+        private fun id(raw: JsonElement): Int {
+            val p = raw.jsonPrimitive
+            return p.intOrNull ?: -p.content.removePrefix("tmp-").toInt()
+        }
+
+        private fun JsonElement?.intOrNull(): Int? = if (this == null || this is JsonNull) null else jsonPrimitive.int
+        private fun JsonElement?.longOrNull(): Long? = if (this == null || this is JsonNull) null else jsonPrimitive.long
+
+        private fun jobOf(o: JsonObject) = ClipJob(
+            id = o["id"]!!.jsonPrimitive.content,
+            sessionId = id(o["sessionId"]!!),
+            eventId = 7,
+            timeMs = o["timeMs"]!!.jsonPrimitive.int,
+            lapNum = o["lapNum"].intOrNull(),
+            file = "job-1.mp4",
+            sizeBytes = o["sizeBytes"]!!.jsonPrimitive.long,
+            durationMs = o["durationMs"]!!.jsonPrimitive.int,
+            lapOffsetMs = o["lapOffsetMs"]!!.jsonPrimitive.int,
+            clipId = o["clipId"].intOrNull(),
+            partBytes = o["partBytes"].longOrNull(),
+            parts = o["parts"].intOrNull(),
+            uploaded = o["uploaded"]!!.jsonArray.map { it.jsonPrimitive.int },
+            state = ClipJob.State.PENDING,
+            failures = o["failures"]!!.jsonPrimitive.int,
+            restarts = o["restarts"]!!.jsonPrimitive.int,
+            notBeforeMs = o["notBeforeMs"].longOrNull(),
+            createdAt = o["createdAtMs"]!!.jsonPrimitive.long,
+        )
+
+        private fun sessionOf(o: JsonObject): SessionState = when (val kind = o["kind"]!!.jsonPrimitive.content) {
+            "real" -> SessionState.Real(o["id"]!!.jsonPrimitive.int)
+            "waiting" -> SessionState.Waiting
+            "lost" -> SessionState.Lost
+            else -> error("session kind $kind")
+        }
+
+        private fun reason(raw: String) = DropReason.entries.single { it.rawValue == raw }
+
+        private fun actionOf(o: JsonObject): Action = when (val kind = o["kind"]!!.jsonPrimitive.content) {
+            "create" -> Action.Create(o["sessionId"]!!.jsonPrimitive.int, strict.decodeFromJsonElement(ClipCreate.serializer(), o["body"]!!))
+            "uploadPart" -> Action.UploadPart(
+                o["clipId"]!!.jsonPrimitive.int,
+                o["part"]!!.jsonPrimitive.int,
+                o["offset"]!!.jsonPrimitive.long,
+                o["length"]!!.jsonPrimitive.long,
+            )
+            "complete" -> Action.Complete(o["clipId"]!!.jsonPrimitive.int)
+            "waitForSession" -> Action.WaitForSession
+            "waitUntil" -> Action.WaitUntil(o["ms"]!!.jsonPrimitive.long)
+            "drop" -> Action.Drop(reason(o["reason"]!!.jsonPrimitive.content))
+            else -> error("action kind $kind")
+        }
+
+        private fun responseOf(o: JsonObject): Response = when (val kind = o["kind"]!!.jsonPrimitive.content) {
+            "created" -> o["start"]!!.jsonObject.let { s ->
+                Response.Created(
+                    ClipUpload(
+                        clipId = s["clipId"]!!.jsonPrimitive.int,
+                        partBytes = s["partBytes"]!!.jsonPrimitive.long,
+                        parts = s["parts"]!!.jsonPrimitive.int,
+                        uploaded = s["uploaded"]!!.jsonArray.map { it.jsonPrimitive.int },
+                    ),
+                )
+            }
+            "ok" -> Response.Ok
+            "missingParts" -> Response.MissingParts(o["missing"]!!.jsonArray.map { it.jsonPrimitive.int })
+            "status" -> Response.Status(o["status"]!!.jsonPrimitive.int, o["error"]!!.let { if (it is JsonNull) null else it.jsonPrimitive.content })
+            "transport" -> Response.Transport
+            else -> error("response kind $kind")
+        }
+
+        private fun outcomeOf(o: JsonObject): Outcome = when (val kind = o["kind"]!!.jsonPrimitive.content) {
+            "continue" -> Outcome.Continue(jobOf(o["job"]!!.jsonObject))
+            "finished" -> Outcome.Finished
+            "dropped" -> Outcome.Dropped(reason(o["reason"]!!.jsonPrimitive.content))
+            else -> error("outcome kind $kind")
+        }
+
+        private fun phoneRows(key: String) = fixture[key]!!.jsonArray.map { it.jsonObject }
+            .filter { it["webOnly"]?.jsonPrimitive?.booleanOrNull != true }
+
+        @Test
+        fun `constants and drop reasons match`() {
+            assertEquals(fixture["BACKOFF_BASE_MS"]!!.jsonPrimitive.long, ClipUploadQueue.BACKOFF_BASE_MS)
+            assertEquals(fixture["BACKOFF_MAX_MS"]!!.jsonPrimitive.long, ClipUploadQueue.BACKOFF_MAX_MS)
+            assertEquals(fixture["MAX_RESTARTS"]!!.jsonPrimitive.int, ClipUploadQueue.MAX_RESTARTS)
+            val web = fixture["DropReason"]!!.jsonObject.values.map { it.jsonPrimitive.content }.toSet()
+            // `source unreadable` is the web's alone: an ejected card has no phone counterpart.
+            assertEquals(web - "source unreadable", DropReason.entries.map { it.rawValue }.toSet())
+        }
+
+        @Test
+        fun `sessionState, backoffMs and partRange match`() {
+            for (row in phoneRows("sessionState")) {
+                assertEquals(
+                    sessionOf(row["state"]!!.jsonObject),
+                    ClipUploadQueue.sessionState(id(row["sessionId"]!!), row["mapped"].intOrNull(), row["queued"]!!.jsonPrimitive.booleanOrNull!!),
+                    "$row",
+                )
+            }
+            for (row in fixture["backoffMs"]!!.jsonArray) {
+                val (failures, wait) = row.jsonArray.map { it.jsonPrimitive.long }
+                assertEquals(wait, ClipUploadQueue.backoffMs(failures.toInt()), "backoffMs($failures)")
+            }
+            for (row in phoneRows("partRange")) {
+                val range = ClipUploadQueue.partRange(
+                    row["sizeBytes"]!!.jsonPrimitive.long,
+                    row["partBytes"]!!.jsonPrimitive.long,
+                    row["parts"]!!.jsonPrimitive.int,
+                    row["part"]!!.jsonPrimitive.int,
+                )
+                assertEquals(row["offset"]!!.jsonPrimitive.long to row["length"]!!.jsonPrimitive.long, range, "$row")
+            }
+        }
+
+        @Test
+        fun `every nextAction row, the create body byte for byte`() {
+            val rows = phoneRows("nextAction")
+            assertTrue(rows.any { it["job"]!!.jsonObject["lapNum"] is JsonNull }, "the row for a job from before lap numbers")
+            for (row in rows) {
+                val name = row["name"]!!.jsonPrimitive.content
+                val want = row["action"]!!.jsonObject
+                val got = ClipUploadQueue.nextAction(jobOf(row["job"]!!.jsonObject), sessionOf(row["session"]!!.jsonObject), row["nowMs"]!!.jsonPrimitive.long)
+                assertEquals(actionOf(want), got, name)
+                if (got is Action.Create) {
+                    // What goes on the wire: `lap_num` only when the job has one.
+                    assertEquals(want["body"], ApiClient.requestJson.encodeToJsonElement(ClipCreate.serializer(), got.body), "$name: body")
+                }
+            }
+        }
+
+        @Test
+        fun `every apply row`() {
+            val rows = phoneRows("apply")
+            assertTrue(rows.size >= 25)
+            for (row in rows) {
+                val name = row["name"]!!.jsonPrimitive.content
+                assertEquals(
+                    outcomeOf(row["outcome"]!!.jsonObject),
+                    ClipUploadQueue.apply(
+                        jobOf(row["job"]!!.jsonObject),
+                        actionOf(row["action"]!!.jsonObject),
+                        responseOf(row["response"]!!.jsonObject),
+                        row["nowMs"]!!.jsonPrimitive.long,
+                    ),
+                    name,
+                )
+            }
+        }
     }
 }

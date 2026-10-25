@@ -56,6 +56,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import app.trackevolution.clips.ClipNetwork
+import app.trackevolution.clips.ClipUploadText
 import app.trackevolution.clips.LocalClipStatus
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
@@ -158,10 +159,12 @@ internal sealed interface LapVideoState {
                 }
             }
             if (owner.readOnly) return None
-            // The server puts a clip on the lowest lap number with its time, so
-            // a second lap tied on time never shows the first one's upload —
-            // iOS's `ClipUploadQueue.clipLap` rule, under the same name here.
-            if (ClipUploadQueue.clipLap(sessionLaps, lap.timeMs)?.id != lap.id) return None
+            // A job lands on the lap it names (NS-50: one job per lap when a
+            // session saves every lap, each with its lap number); one from
+            // before lap numbers lands on the lowest lap number with its time,
+            // the server's old rule, so a second lap tied on time never shows
+            // the first one's upload — iOS's `ClipUploadQueue.clipLap`, under
+            // the same name here.
             val mine = jobs.filter { job ->
                 ClipUploadQueue.isFor(
                     jobSessionId = job.sessionId,
@@ -169,7 +172,9 @@ internal sealed interface LapVideoState {
                     sessionId = sessionId,
                     resolved = if (OfflineStore.isTemp(job.sessionId)) resolve(job.sessionId) else null,
                     timeMs = lap.timeMs,
-                )
+                    jobLapNum = job.lapNum,
+                    lapNum = lap.lapNum,
+                ) && ClipUploadQueue.clipLap(sessionLaps, job.timeMs, job.lapNum)?.id == lap.id
             }
             // One on its way outranks an old failure for the same lap.
             val job = mine.lastOrNull { !it.failed } ?: mine.lastOrNull() ?: return None
@@ -196,13 +201,7 @@ internal sealed interface LapVideoState {
         }
 
         /** The share of [job]'s bytes the server holds, plus [sending] of the part in flight. */
-        fun fraction(job: ClipJob, sending: Long): Double {
-            val partBytes = job.partBytes
-            val parts = job.parts
-            if (job.sizeBytes <= 0 || partBytes == null || parts == null) return 0.0
-            val held = job.uploaded.sumOf { ClipUploadQueue.partRange(job.sizeBytes, partBytes, parts, it).second }
-            return minOf(1.0, (held + sending).toDouble() / job.sizeBytes)
-        }
+        fun fraction(job: ClipJob, sending: Long): Double = ClipUploadText.fraction(job, sending)
     }
 }
 
@@ -219,7 +218,7 @@ internal object LapVideoText {
     const val UPLOADING = "Video uploading"
     const val RETRY_NOW = "Retry now"
     const val CUT_FAILED = "Couldn't save this lap's video."
-    const val LOCKED_BLURB = "Your best-lap video is kept. Pro plays it, downloads it and saves new ones from a video import."
+    const val LOCKED_BLURB = "Your lap video is kept. Pro plays it, downloads it and saves new ones from a video import."
 
     /** A clip on its way, in iOS's `ClipPendingCard.text` words; null for any other state. */
     fun pending(state: LapVideoState, nowMs: Long): String? = when (state) {

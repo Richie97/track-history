@@ -21,7 +21,7 @@
       ],
       "clips": {
         "coach_count": 0,
-        "quota_bytes": 21474836480,
+        "quota_bytes": 53687091200,
         "used_bytes": 2048
       },
       "email": "dev@example.com",

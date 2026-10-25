@@ -6,7 +6,11 @@ import kotlinx.serialization.Serializable
 /**
  * `POST /api/sessions/:id/clip` (NS-45): start, or resume, the upload of a
  * session's best-lap clip. Keyed on the session and the lap's time rather than
- * a lap id, because a session `POST` answers only the session's id.
+ * a lap id, because a session `POST` answers only the session's id. Since
+ * NS-50 [lapNum] — the lap's place in the posted session — goes beside the
+ * time, so a tie on time reaches the right lap; null (a job from an older
+ * manifest) leaves the key out of the body and the server keeps NS-45's
+ * lowest-`lap_num` rule.
  * [lapOffsetMs] is where the lap starts inside the cut — measured from the
  * cut, never assumed (a passthrough cut starts at the keyframe before the
  * requested window).
@@ -17,6 +21,8 @@ public data class ClipCreate(
     @SerialName("size_bytes") val sizeBytes: Long,
     @SerialName("duration_ms") val durationMs: Int,
     @SerialName("lap_offset_ms") val lapOffsetMs: Int,
+    /** Omitted from the body when null — the request encoder drops nulls and defaults. */
+    @SerialName("lap_num") val lapNum: Int? = null,
 )
 
 /**

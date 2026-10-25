@@ -4,8 +4,19 @@ import {
   PLAYBACK_LEAD_S,
   POST_ROLL_S,
   PRE_ROLL_S,
+  EVERY_LAP_KINDS,
   clipCandidate,
+  clipCandidates,
   clipFullText,
+  clipRowTitle,
+  everyLapFullText,
+  everyLapOfferText,
+  everyLapOfferTextWeb,
+  lapVideoList,
+  lapVideoStep,
+  offersEveryLap,
+  reviewClipBytes,
+  reviewClipCount,
   clipOffer,
   clipOfferNote,
   clipOfferText,
@@ -160,5 +171,100 @@ describe("the row's words", () => {
     expect(fmtClipBytes(GiB - 1)).toBe("1 GB");
     expect(fmtClipBytes(3.25 * GiB)).toBe("3.3 GB");
     expect(fmtClipBytes(20 * GiB)).toBe("20 GB");
+  });
+});
+
+// NS-50: every full lap of a PDR import.
+describe("every-lap clips", () => {
+  const pdr = (laps, extra = {}) => ({ kind: "pdr", durationS: 1000, laps, ...extra });
+  const item = (parsed, include = true, fileBytes = 1000 * 5_000_000) => ({ parsed, include, fileBytes });
+  const laps = [lap(101_000, 10, 111), lap(100_000, 111, 211), lap(100_000, 211, 311), lap(102_000, 990, 1092)];
+
+  it("names each lap by its place in the session", () => {
+    expect(clipCandidate(pdr(laps))).toMatchObject({ index: 1, lapNum: 2 });
+    expect(clipCandidates(pdr(laps), "best").map((c) => c.lapNum)).toEqual([2]);
+    // The last lap runs past the file: no window, no clip.
+    expect(clipCandidates(pdr(laps), "every").map((c) => c.lapNum)).toEqual([1, 2, 3]);
+  });
+
+  it("is PDR only: a GoPro keeps its best lap", () => {
+    expect(EVERY_LAP_KINDS).toEqual(["pdr"]);
+    const gopro = { kind: "gopro", durationS: 1000, laps };
+    expect(clipCandidates(gopro, "every").map((c) => c.lapNum)).toEqual([2]);
+    expect(clipCandidates({ kind: "vbo", durationS: 1000, laps }, "every")).toEqual([]);
+    expect(clipCandidates(null, "every")).toEqual([]);
+  });
+
+  it("offers the choice only when it saves more", () => {
+    expect(offersEveryLap([item(pdr(laps))])).toBe(true);
+    expect(offersEveryLap([item(pdr(laps), false)])).toBe(false);
+    expect(offersEveryLap([item(pdr([lap(100_000, 10, 110)]))])).toBe(false);
+    expect(offersEveryLap([item({ kind: "gopro", durationS: 1000, laps })])).toBe(false);
+  });
+
+  it("counts and sizes the review per scope", () => {
+    const items = [item(pdr(laps)), item({ kind: "gopro", durationS: 1000, laps }), item(pdr(laps), false)];
+    expect(reviewClipCount(items, "best")).toBe(2);
+    expect(reviewClipCount(items, "every")).toBe(4);
+    // 5 MB/s over 101 + 7, 100 + 7 and 100 + 7 seconds, plus the GoPro's 107.
+    expect(reviewClipBytes(items, "every")).toBe(5_000_000 * (108 + 107 + 107 + 107));
+    expect(reviewClipBytes(items, "best")).toBe(5_000_000 * (107 + 107));
+  });
+
+  it("decides full against the picked scope", () => {
+    const items = [item(pdr(laps))];
+    const room = { used_bytes: 0, quota_bytes: 5_000_000 * 200, coach_count: 0 };
+    expect(clipOffer(items, PRO, room)).toBe("on");
+    expect(clipOffer(items, PRO, room, "best")).toBe("on");
+    expect(clipOffer(items, PRO, room, "every")).toBe("full");
+    expect(clipOffer(items, FREE, room, "every")).toBe("locked");
+    expect(clipOffer([], PRO, room, "every")).toBe("none");
+  });
+
+  it("words the choice", () => {
+    expect(everyLapOfferText(14, 1.3 * GiB)).toBe(
+      "A clip of every full lap in each PDR session — 14 clips, about 1.3 GB in all. Uploads on Wi-Fi."
+    );
+    expect(everyLapOfferText(1, 0)).toBe("A clip of every full lap in each PDR session — 1 clip. Uploads on Wi-Fi.");
+    expect(everyLapOfferTextWeb(3, 300 * 1024 * 1024)).toBe(
+      "A clip of every full lap in each PDR session — 3 clips, about 300 MB in all. Uploads from this tab — keep it open until it's done."
+    );
+    expect(everyLapFullText({ used_bytes: 0, quota_bytes: 50 * GiB, coach_count: 0 })).toBe(
+      "Every lap would go over your lap video storage (50 GB)."
+    );
+    expect(everyLapFullText(null)).toBe("Every lap would go over your lap video storage.");
+    expect(clipRowTitle(true)).toBe("Save lap videos");
+    expect(clipRowTitle(false)).toBe("Save best-lap video");
+  });
+});
+
+// NS-50: the web's one player per session, stepping lap to lap.
+describe("lapVideoList / lapVideoStep", () => {
+  const laps = [
+    { lap_num: 3, time_ms: 122_950, clip: { id: 13, lap_offset_ms: 4211 } },
+    { lap_num: 1, time_ms: 157_240, clip: { id: 11, lap_offset_ms: 3929 } },
+    { lap_num: 2, time_ms: 126_130, clip: null },
+    { lap_num: 4, time_ms: 122_110, clip: { id: 14 } },
+  ];
+
+  it("lists the clipped laps in lap order and marks the session's best", () => {
+    expect(lapVideoList(laps)).toEqual([
+      { clipId: 11, lapNum: 1, timeMs: 157_240, offsetMs: 3929, best: false },
+      { clipId: 13, lapNum: 3, timeMs: 122_950, offsetMs: 4211, best: false },
+      { clipId: 14, lapNum: 4, timeMs: 122_110, offsetMs: 0, best: true },
+    ]);
+    // The best is the session's, even when that lap has no video.
+    expect(lapVideoList([{ lap_num: 1, time_ms: 100, clip: null }, { lap_num: 2, time_ms: 200, clip: { id: 2 } }])[0].best).toBe(false);
+    expect(lapVideoList([])).toEqual([]);
+    expect(lapVideoList(null)).toEqual([]);
+  });
+
+  it("steps to the neighbouring lap with a video, null at the ends", () => {
+    const list = lapVideoList(laps);
+    expect(lapVideoStep(list, 13, -1).lapNum).toBe(1);
+    expect(lapVideoStep(list, 13, 1).lapNum).toBe(4);
+    expect(lapVideoStep(list, "11", -1)).toBeNull();
+    expect(lapVideoStep(list, 14, 1)).toBeNull();
+    expect(lapVideoStep(list, 99, 1)).toBeNull();
   });
 });

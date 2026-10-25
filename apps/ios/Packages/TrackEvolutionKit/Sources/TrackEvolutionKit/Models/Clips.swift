@@ -6,16 +6,21 @@ import Foundation
 
 /// `POST /api/sessions/:id/clip`: keyed on the session and the lap's time
 /// rather than a lap id, because a session `POST` answers only the session's
-/// id. `lapOffsetMs` is where the lap starts inside the cut, measured from the
-/// file the cutter made rather than assumed.
+/// id. `lapNum` (NS-50) is the lap's place in the session, sent beside the time
+/// so a tie on time reaches the right lap; nil — and absent from the body — for
+/// a job made before it existed, which the server matches on time alone.
+/// `lapOffsetMs` is where the lap starts inside the cut, measured from the file
+/// the cutter made rather than assumed.
 public struct ClipCreateBody: Codable, Hashable, Sendable {
     public var timeMs: Int
+    public var lapNum: Int?
     public var sizeBytes: Int
     public var durationMs: Int
     public var lapOffsetMs: Int
 
-    public init(timeMs: Int, sizeBytes: Int, durationMs: Int, lapOffsetMs: Int) {
+    public init(timeMs: Int, lapNum: Int? = nil, sizeBytes: Int, durationMs: Int, lapOffsetMs: Int) {
         self.timeMs = timeMs
+        self.lapNum = lapNum
         self.sizeBytes = sizeBytes
         self.durationMs = durationMs
         self.lapOffsetMs = lapOffsetMs
@@ -23,6 +28,7 @@ public struct ClipCreateBody: Codable, Hashable, Sendable {
 
     public enum CodingKeys: String, CodingKey {
         case timeMs = "time_ms"
+        case lapNum = "lap_num"
         case sizeBytes = "size_bytes"
         case durationMs = "duration_ms"
         case lapOffsetMs = "lap_offset_ms"

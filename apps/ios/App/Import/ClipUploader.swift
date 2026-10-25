@@ -26,20 +26,25 @@ final class ClipSource: @unchecked Sendable {
     }
 }
 
-/// What the review hands over for one included video: where to cut from, and
-/// which lap.
+/// What the review hands over for one lap of an included video: where to cut
+/// from, and which lap — `lapNum` its place in the posted session, which the
+/// create sends as `lap_num` (NS-50).
 struct ClipCutRequest: Sendable {
     var source: ClipSource
     var lap: ParsedLap
+    var lapNum: Int
     var durationS: Double
 }
 
-/// Cuts best-lap clips and uploads them in the background (NS-45).
+/// Cuts lap clips — each session's best lap, or with NS-50's *Every lap* every
+/// full lap of a PDR session, one job per lap — and uploads them in the
+/// background (NS-45).
 ///
 /// The state machine is the Kit's `ClipUploadQueue`; this is its driver: the
 /// manifest on disk (`Application Support/clips/manifest.json`, beside the cut
 /// files, excluded from backup), the cutter, the requests, and the timers. One
-/// job runs at a time, oldest first:
+/// cut and one job run at a time, oldest first — so a session saved lap by lap
+/// cuts and uploads in lap order rather than a dozen at once:
 ///
 /// - **Create and complete** are small JSON calls through `APIClient`.
 /// - **Each part** is copied to a file of its own and sent by a *background*
@@ -73,6 +78,16 @@ final class ClipUploader {
     /// How long a part may send nothing, with the app in front and a usable
     /// network, before it is treated as stuck.
     static let stallSeconds: TimeInterval = 60
+
+    /// The lap a page asks about. `isClipLap` is whether it is the lap a clip
+    /// matched on time alone lands on (the lowest lap number with its time) —
+    /// what a job from before lap numbers is matched by.
+    struct LapKey: Equatable {
+        var sessionId: Int
+        var timeMs: Int
+        var lapNum: Int
+        var isClipLap: Bool
+    }
 
     /// Where one lap's clip stands, for the lap page.
     enum Status: Equatable {
@@ -138,12 +153,15 @@ final class ClipUploader {
     /// Temp → real session ids seen this run, so a lap page on the real id finds
     /// a job still filed under the temp one.
     private var resolvedSessions: [Int: Int] = [:]
-    /// Cuts under way, as "<session>/<time>".
+    /// Cuts under way or waiting their turn, as "<session>/<time>/<lap>".
     private var cutting: Set<String> = []
+    /// The cut before the newest, which the next waits for: one cut at a time,
+    /// since each reads the source and writes a file the size of a lap.
+    private var cutChain: Task<Void, Never>?
     /// Cuts waiting for a session id: a review that saved onto the New Event
     /// form hands its drafts over before the event exists (#344), and the form
     /// posts them later. Held in memory — with their sources — until then.
-    private var staged: [SessionDraft: ClipCutRequest] = [:]
+    private var staged: [SessionDraft: [ClipCutRequest]] = [:]
     private var pumping = false
     private var pumpAgain = false
     private var wake: Task<Void, Never>?
@@ -226,8 +244,8 @@ final class ClipUploader {
     // MARK: - What the lap page reads
 
     /// Where this lap's clip stands, or nil when nothing is on its way.
-    func status(sessionId: Int, timeMs: Int) -> Status? {
-        if let job = job(sessionId: sessionId, timeMs: timeMs) {
+    func status(_ lap: LapKey) -> Status? {
+        if let job = job(lap) {
             if inFlight[job.id] != nil {
                 if !online { return .waitingForConnection }
                 if onExpensiveNetwork && !allowsCellular { return .waitingForWiFi }
@@ -243,15 +261,17 @@ final class ClipUploader {
             if onExpensiveNetwork && !allowsCellular { return .waitingForWiFi }
             return .uploading(fraction: fraction(of: job))
         }
-        let cuttingNow = cutting.contains(Self.key(sessionId, timeMs))
-            || resolvedSessions.contains { $0.value == sessionId && cutting.contains(Self.key($0.key, timeMs)) }
+        let cuttingNow = cutting.contains(Self.key(lap.sessionId, lap.timeMs, lap.lapNum))
+            || resolvedSessions.contains {
+                $0.value == lap.sessionId && cutting.contains(Self.key($0.key, lap.timeMs, lap.lapNum))
+            }
         return cuttingNow ? .cutting : nil
     }
 
     /// The lap page's *Retry now*: end this clip's backoff, and if a part is
     /// sitting in the background session, send it again from here.
-    func retry(sessionId: Int, timeMs: Int) {
-        guard var job = job(sessionId: sessionId, timeMs: timeMs) else { return }
+    func retry(_ lap: LapKey) {
+        guard var job = job(lap) else { return }
         job.notBeforeMs = nil
         replace(job)
         if inFlight[job.id] != nil {
@@ -263,11 +283,12 @@ final class ClipUploader {
 
     /// Why this lap's clip failed, if it did and the driver hasn't been told —
     /// said once, then forgotten.
-    func takeFailure(sessionId: Int, timeMs: Int) -> String? {
+    func takeFailure(_ lap: LapKey) -> String? {
         guard let index = manifest.failedCuts.firstIndex(where: {
             ClipUploadQueue.isFor(
-                sessionId: $0.sessionId, timeMs: $0.timeMs, sessionId: sessionId,
-                resolved: resolvedSessions[$0.sessionId], timeMs: timeMs
+                sessionId: $0.sessionId, timeMs: $0.timeMs, lapNum: $0.lapNum,
+                sessionId: lap.sessionId, resolved: resolvedSessions[$0.sessionId], timeMs: lap.timeMs,
+                lapNum: lap.lapNum, isClipLap: lap.isClipLap
             )
         }) else { return nil }
         let failure = manifest.failedCuts.remove(at: index)
@@ -284,11 +305,12 @@ final class ClipUploader {
         }
     }
 
-    private func job(sessionId: Int, timeMs: Int) -> ClipUploadJob? {
+    private func job(_ lap: LapKey) -> ClipUploadJob? {
         manifest.jobs.first {
             ClipUploadQueue.isFor(
-                sessionId: $0.sessionId, timeMs: $0.timeMs, sessionId: sessionId,
-                resolved: resolvedSessions[$0.sessionId], timeMs: timeMs
+                sessionId: $0.sessionId, timeMs: $0.timeMs, lapNum: $0.lapNum,
+                sessionId: lap.sessionId, resolved: resolvedSessions[$0.sessionId], timeMs: lap.timeMs,
+                lapNum: lap.lapNum, isClipLap: lap.isClipLap
             )
         }
     }
@@ -306,16 +328,19 @@ final class ClipUploader {
 
     // MARK: - From the review
 
-    /// Cut a clip for a session the review just posted, then queue its upload.
-    /// Not awaited by the save: the review closes when the sessions are saved,
-    /// and a cut that fails costs the clip, never the session.
+    /// Cut one lap's clip for a session the review just posted, then queue its
+    /// upload. Not awaited by the save: the review closes when the sessions are
+    /// saved, and a cut that fails costs that lap's clip, never the session or
+    /// another lap's. Cuts run one after another, in the order handed over.
     func cutAndQueue(_ request: ClipCutRequest, sessionId: Int) {
         guard let window = LapClips.clipWindow(request.lap, request.durationS),
               let lapStartS = request.lap.startT
         else { return }
-        let key = Self.key(sessionId, request.lap.timeMs)
+        let key = Self.key(sessionId, request.lap.timeMs, request.lapNum)
         cutting.insert(key)
-        Task {
+        let previous = cutChain
+        cutChain = Task {
+            await previous?.value
             defer { cutting.remove(key) }
             let id = UUID().uuidString
             do {
@@ -333,27 +358,27 @@ final class ClipUploader {
                     return try await ClipCutter.cut(source: from, window: window, lapStartS: lapStartS, to: output)
                 }.value
                 enqueue(ClipUploadJob(
-                    id: id, sessionId: sessionId, timeMs: request.lap.timeMs, file: output.lastPathComponent,
-                    sizeBytes: cut.sizeBytes, durationMs: cut.durationMs, lapOffsetMs: cut.lapOffsetMs,
-                    createdAtMs: Self.nowMs
+                    id: id, sessionId: sessionId, timeMs: request.lap.timeMs, lapNum: request.lapNum,
+                    file: output.lastPathComponent, sizeBytes: cut.sizeBytes, durationMs: cut.durationMs,
+                    lapOffsetMs: cut.lapOffsetMs, createdAtMs: Self.nowMs
                 ))
             } catch {
                 Self.log.error("clip cut failed: \(error.localizedDescription, privacy: .public)")
-                manifest.failedCuts.append(.init(sessionId: sessionId, timeMs: request.lap.timeMs))
+                manifest.failedCuts.append(.init(sessionId: sessionId, timeMs: request.lap.timeMs, lapNum: request.lapNum))
                 persist()
             }
         }
     }
 
-    /// Hold a cut for a draft the New Event form will post.
-    func stage(_ request: ClipCutRequest, for draft: SessionDraft) {
-        staged[draft] = request
+    /// Hold a draft's cuts — one per lap it saves — for the New Event form to post.
+    func stage(_ requests: [ClipCutRequest], for draft: SessionDraft) {
+        staged[draft] = requests
     }
 
-    /// The form posted a staged draft: cut its clip now.
+    /// The form posted a staged draft: cut its clips now.
     func sessionPosted(_ draft: SessionDraft, id: Int) {
-        guard let request = staged.removeValue(forKey: draft) else { return }
-        cutAndQueue(request, sessionId: id)
+        guard let requests = staged.removeValue(forKey: draft) else { return }
+        for request in requests { cutAndQueue(request, sessionId: id) }
     }
 
     // MARK: - Lifecycle
@@ -436,6 +461,10 @@ final class ClipUploader {
         for jobId in inFlight.keys { lastProgressAt[jobId] = now }
     }
 
+    /// Every job with no part in flight takes its next step. A session saved
+    /// lap by lap (NS-50) is a job per lap, all in the background session at
+    /// once: one part each, so the system can carry them all while the app is
+    /// suspended rather than waking it for every part in turn.
     private func stepAll() async {
         guard auth.isSignedIn else { return }
         for id in manifest.jobs.map(\.id) where inFlight[id] == nil {
@@ -649,7 +678,9 @@ final class ClipUploader {
         // Say so on the lap page rather than letting the video quietly not
         // appear. A lap that already has a clip shows it, which says enough.
         if reason != .alreadyHasClip {
-            manifest.failedCuts.append(.init(sessionId: job.sessionId, timeMs: job.timeMs, reason: reason.rawValue))
+            manifest.failedCuts.append(.init(
+                sessionId: job.sessionId, timeMs: job.timeMs, lapNum: job.lapNum, reason: reason.rawValue
+            ))
         }
         remove(job)
     }
@@ -705,7 +736,7 @@ final class ClipUploader {
 
     private static var nowMs: Int { Int(Date().timeIntervalSince1970 * 1000) }
 
-    private static func key(_ sessionId: Int, _ timeMs: Int) -> String { "\(sessionId)/\(timeMs)" }
+    private static func key(_ sessionId: Int, _ timeMs: Int, _ lapNum: Int) -> String { "\(sessionId)/\(timeMs)/\(lapNum)" }
 
     private static func partURL(jobId: String, part: Int) throws -> URL {
         let dir = try ClipCutter.directory().appending(path: "parts", directoryHint: .isDirectory)
