@@ -19,6 +19,8 @@
     // SPA fallback would answer them with index.html. /get is the store
     // redirect (src/routes/download.ts), which picks a store per User-Agent.
     // /clips/* are the signed best-lap video URLs (src/routes/clips.ts, NS-45).
+    // /youtube/* is connecting YouTube (src/routes/youtube.ts, NS-46): the
+    // consent round trip with Google, which must not get the SPA shell.
     "run_worker_first": [
       "/api/*",
       "/auth/*",
@@ -26,6 +28,7 @@
       "/billing/*",
       "/get",
       "/clips/*",
+      "/youtube/*",
       "/.well-known/apple-app-site-association",
       "/.well-known/openai-apps-challenge",
       "/mcp",
@@ -40,6 +43,13 @@
     // <Apple Team ID>.<bundle id> for iOS Universal Links (mobile/ apps).
     // Override for self-hosted forks.
     "IOS_APP_ID": "L3NS86NMXZ.app.trackevolution",
+    // YouTube (NS-46): the project's uploads per Pacific day, set a little
+    // under the Google project's Video Uploads quota (100 a day by default
+    // since June 2026; IAM & Admin → Quotas). Empty: no budget.
+    // YOUTUBE_ALLOWLIST is deliberately NOT a var here: a deploy replaces every
+    // var with this file's, so an allowlist set anywhere else would be wiped
+    // and the feature opened to everyone. It is a secret, which survives.
+    "YOUTUBE_DAILY_BUDGET": "",
   },
   // Rate limits (src/lib/ratelimit.ts) — the MCP surface's, and the logbook
   // export's. namespace_id is account-scoped:
@@ -64,6 +74,25 @@
   // Best-lap video clips (NS-45, src/routes/clips.ts). No public access and no
   // custom domain: every byte goes through /clips/* and its signed URLs.
   // Create with `npx wrangler r2 bucket create track-evolution-clips`.
+  // Publish a best-lap video to YouTube (NS-46, src/youtube/step.ts): the
+  // server copies the clip from R2 to YouTube one 32 MiB chunk per message.
+  // One message at a time per invocation; after max_retries a message goes to
+  // the dead-letter queue, whose consumer (the same Worker) fails its row in
+  // words. Create both with `npx wrangler queues create track-evolution-youtube`
+  // and `… track-evolution-youtube-dlq` before deploying. Queues need the
+  // Workers Paid plan.
+  "queues": {
+    "producers": [{ "binding": "YOUTUBE_QUEUE", "queue": "track-evolution-youtube" }],
+    "consumers": [
+      {
+        "queue": "track-evolution-youtube",
+        "max_batch_size": 1,
+        "max_retries": 10,
+        "dead_letter_queue": "track-evolution-youtube-dlq",
+      },
+      { "queue": "track-evolution-youtube-dlq", "max_batch_size": 10 },
+    ],
+  },
   "r2_buckets": [{ "binding": "CLIPS", "bucket_name": "track-evolution-clips" }],
   "d1_databases": [
     {

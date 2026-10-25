@@ -110,6 +110,9 @@ self.addEventListener("fetch", (e) => {
     // Best-lap video (NS-45): the file is a ranged stream a cache would copy
     // whole, and its signed URL expires in an hour — neither belongs in a cache.
     if (url.pathname.startsWith("/clips/") || /^\/api\/(students\/\d+\/)?clips\//.test(url.pathname)) return;
+    // Connecting YouTube (NS-46) is a redirect round trip with Google, never
+    // a page to cache or to answer with the shell offline.
+    if (url.pathname.startsWith("/youtube/")) return;
     if (url.pathname.startsWith("/api/")) {
       e.respondWith(networkFirst(req, DATA_CACHE));
       return;

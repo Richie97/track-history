@@ -110,6 +110,18 @@ class OfflineStoreTest {
 
     // ---- offline mutation queue -------------------------------------------
 
+    /**
+     * Publishing a best-lap video to YouTube (NS-46) needs a live answer —
+     * a ticket to open in the browser, or the upload's 202 — so none of its
+     * writes ever waits in the queue.
+     */
+    @Test
+    fun `never queues a YouTube write`() {
+        assertFalse(OfflineStore.isQueueable("POST", "/clips/7/youtube"))
+        assertFalse(OfflineStore.isQueueable("POST", "/youtube/connect"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/youtube"))
+    }
+
     @Test
     fun `whitelists only mirrorable mutations`() {
         assertTrue(OfflineStore.isQueueable("POST", "/events"))

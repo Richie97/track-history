@@ -75,7 +75,8 @@
       telemetry files are read on your own device and <strong>never
       uploaded</strong> — the one exception is a lap video you choose to
       save, which is only that lap. We never see your payment details. The only thing ever
-      made public is a share page or a shared event or session you explicitly turn on, nothing reaches an AI
+      made public is a share page or a shared event or session you explicitly turn on, or a
+      best-lap video you upload to your own YouTube channel. Nothing reaches an AI
       assistant unless you connect one yourself, and nobody else reads your
       logbook unless you invite them as your coach.
     </div>
@@ -112,6 +113,11 @@
         started and when the coach last looked. An invite link's code is stored
         only in a scrambled (hashed) form and stops working when it is used or
         after seven days.</li>
+      <li><strong>A YouTube connection, if you make one.</strong> If you
+        connect YouTube to upload best-lap videos, we store the permission
+        Google grants, encrypted, the connected account's email address, the
+        channel's name, and a record of each upload — see
+        <a href="#youtube">YouTube</a> below.</li>
       <li><strong>Location, only while recording laps.</strong> The mobile
         app's lap recorder uses your phone's GPS during a recording you start
         yourself — see <a href="#location">location data</a> below for exactly
@@ -171,8 +177,10 @@
       track and no location metadata. You can turn the switch off for any
       import, and nothing is uploaded. A saved clip is visible to you and to
       the coaches you've invited, and never appears on your share page, a
-      leaderboard or to an AI assistant you connect. It is deleted when you
-      delete it, its lap, session or event, or your account. Removing a coach
+      leaderboard or to an AI assistant you connect. You can also upload it to
+      your own YouTube channel — see <a href="#youtube">YouTube</a>. It is
+      deleted when you delete it, its lap, session or event, or your account;
+      a copy you uploaded to YouTube stays there. Removing a coach
       stops them watching your videos, but it can't take back a video they
       already saved.
     </p>
@@ -268,8 +276,9 @@
         provider that stores it so the service can run, Stripe when you
         subscribe on the web, Google for the
         website's and the apps' <a href="#analytics">visit counts</a>, an
-        <a href="#ai">AI assistant you connect yourself</a>, or if the law
-        requires it.</li>
+        <a href="#ai">AI assistant you connect yourself</a>, a
+        <a href="#youtube">video you upload to YouTube yourself</a>, or if the
+        law requires it.</li>
       <li>We never see, handle or store payment details — Apple, Google and,
         for web subscriptions, Stripe take payment and tell us only whether a
         subscription is active.</li>
@@ -324,6 +333,10 @@
         player that can play it can also save it. When you accept
         an invite yourself, the driver who sent it sees your name and profile
         picture.</li>
+      <li><strong>A best-lap video you upload to YouTube.</strong> Who can
+        watch it there is the visibility you choose — Private, Unlisted or
+        Public — and YouTube's own settings. See <a href="#youtube">YouTube</a>
+        below.</li>
     </ul>
 
     <h2 id="ai">AI assistants you connect</h2>
@@ -351,6 +364,65 @@
         <strong>Settings → AI assistants</strong> in the web app; it loses
         access immediately. Its access also ends on its own if it goes unused
         for 90 days, and pauses while you don't have Pro.</li>
+    </ul>
+
+    <h2 id="youtube">YouTube</h2>
+    <p>
+      With Track Evolution Pro you can upload a saved best-lap video to your
+      own YouTube channel (see
+      <a href="./telemetry-import.html#youtube">Upload to YouTube</a>). This is
+      off unless you set it up, and every upload is one you start yourself.
+      Track Evolution uses <strong>YouTube API Services</strong> to do it.
+      Uploading means you agree to the
+      <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>,
+      and Google handles the video and your YouTube account under the
+      <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.
+    </p>
+    <ul>
+      <li><strong>Connecting.</strong> <em>Connect YouTube</em> opens Google's
+        permission screen in your browser. It asks for permission to upload
+        videos to your channel, and for that Google account's email address
+        so Settings can show which account is connected — nothing more. Track
+        Evolution can't see, change or delete anything on your channel. This
+        is a separate permission from signing in, so it works if you sign in
+        with Apple, and the channel can belong to a different Google account
+        from the one you sign in with.</li>
+      <li><strong>What we store.</strong> The permission Google grants,
+        stored encrypted; the connected account's email address; and the
+        channel's name, once the first upload reports it. For each upload: the
+        title, description and visibility you approved, how far the upload has
+        got, and the YouTube video's ID, so the lap can link to it.</li>
+      <li><strong>What we send YouTube.</strong> Only the clip itself and the
+        title, description and visibility you approved, plus the category
+        <em>Autos &amp; Vehicles</em>, a few tags (track day, HPDE, the track's
+        name and your car) and that the video is not made for kids. No
+        location is ever sent, and the clip carries none. The upload goes from
+        our server to YouTube, not from your phone.</li>
+      <li><strong>A transfer you start.</strong> An upload is a transfer you
+        start yourself, of a video you picked, to a service you sign in to
+        yourself. We never upload anything on our own, and nothing else from
+        your logbook goes to YouTube. Once a video is there, YouTube holds it
+        under its own terms, not ours.</li>
+      <li><strong>Who sees the link in the app.</strong> Only you. Coaches you
+        invite never see it, and it isn't on your share page, a leaderboard or
+        what an AI assistant you connect can read.</li>
+      <li><strong>Kept up to date.</strong> The YouTube data we keep is
+        re-checked with Google, or deleted, at least every 30 days. The permission is
+        checked; a video that is no longer on YouTube has its record deleted,
+        and its lap offers the upload again; and if the permission has been
+        removed, the data we hold about the connection is deleted.</li>
+      <li><strong>Disconnecting.</strong> <strong>Settings → YouTube →
+        Disconnect YouTube</strong>, on any plan, withdraws the permission at
+        Google and deletes the connection. You can also remove Track
+        Evolution's access yourself on Google's
+        <a href="https://myaccount.google.com/permissions">permissions
+        page</a>. Deleting your Track Evolution account withdraws the
+        permission too, within a day.</li>
+      <li><strong>We never delete a YouTube video</strong>, and the permission
+        doesn't allow it. Disconnecting leaves the videos you've uploaded on
+        YouTube. Deleting the clip in the app, or its lap, session or event,
+        or your account, deletes our record of the upload and leaves the copy
+        on YouTube; delete it in YouTube Studio.</li>
     </ul>
 
     <h2 id="storage">Where your data lives</h2>
@@ -384,13 +456,18 @@
       <a href="https://myaccount.google.com/connections">Google account
       settings</a>, or to your Apple account from
       <a href="https://account.apple.com">account.apple.com</a> under
-      <em>Sign in with Apple</em>.
+      <em>Sign in with Apple</em>. A YouTube connection is a separate Google
+      permission, removed on Google's
+      <a href="https://myaccount.google.com/permissions">permissions page</a>
+      or in Settings.
     </p>
     <p>
       Deleting your account also ends every coaching connection it is part of,
       in either direction, and deletes your driver profile and your best-lap
       videos — the video files themselves are removed from storage within a
-      day.
+      day. If you connected YouTube, the permission is withdrawn at Google
+      within a day and our records of your uploads are deleted; videos already
+      on YouTube stay there, and you delete those in YouTube Studio.
     </p>
     <p>
       Deleting your account deletes the subscription record we hold alongside

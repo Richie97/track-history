@@ -37,6 +37,11 @@ public data class LapClip(
     @SerialName("duration_ms") val durationMs: Int,
     @SerialName("lap_offset_ms") val lapOffsetMs: Int,
     @SerialName("size_bytes") val sizeBytes: Long? = null,
+    /**
+     * Its YouTube upload (NS-46), or null. Defaulted so a response cached
+     * before the field still decodes; absent from a coach's view.
+     */
+    val youtube: LapClipYouTube? = null,
 )
 
 /** A run group session within an event, with its laps. */

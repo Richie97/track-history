@@ -58,6 +58,16 @@ const TEST_BUNDLE_ID = "app.trackevolution";
 // code "apple-error" answers with no id_token, simulating an Apple-side
 // failure. The request body arrives as a ReadableStream, hence the async
 // data handler (the options-callback reply form must stay synchronous).
+// A mocked request's body arrives as a ReadableStream (or already a string).
+async function bodyText(raw: unknown): Promise<string> {
+  if (raw && typeof raw === "object" && "getReader" in raw) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of raw as AsyncIterable<Uint8Array>) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks).toString();
+  }
+  return String(raw ?? "");
+}
+
 function appleFetchMock(googleJwk: object) {
   const fetchMock = createFetchMock();
   fetchMock.disableNetConnect();
@@ -87,10 +97,42 @@ function appleFetchMock(googleJwk: object) {
   // purchase token that is base64url JSON is echoed back as the body;
   // "google-404" is a token Play never issued) and the OIDC JWKS the RTDN route
   // verifies push tokens against.
+  // The token endpoint answers two callers. The Play service account's JWT
+  // exchange gets a fixed token. The YouTube connect tests (NS-46,
+  // test/api/youtube.test.ts) drive it through the authorization code, which
+  // is base64url JSON of the id_token payload plus an optional `scope` (the
+  // scopes granted) and `noRefresh`, echoed back as a token response the way
+  // the Apple mock echoes its code; "yt-bad" answers without a token. The
+  // status is always 200: undici's mock can only compute the *body* from the
+  // async request body, so the error statuses (invalid_grant, outages) are the
+  // queue and cron tests', which inject their own fetch.
   fetchMock
     .get("https://oauth2.googleapis.com")
     .intercept({ method: "POST", path: "/token" })
-    .reply(200, { access_token: "test-access-token", expires_in: 3600, token_type: "Bearer" })
+    .reply(200, async (opts) => {
+      const form = new URLSearchParams(await bodyText(opts.body));
+      if (form.get("grant_type") === "authorization_code") {
+        const code = form.get("code") ?? "";
+        if (code === "yt-bad") return { error: "invalid_grant" };
+        const payload = JSON.parse(Buffer.from(code, "base64url").toString());
+        const { scope = "openid email https://www.googleapis.com/auth/youtube.upload", noRefresh, ...claims } = payload;
+        return {
+          access_token: `yt-access-${claims.sub}`,
+          ...(noRefresh ? {} : { refresh_token: `yt-refresh-${claims.sub}` }),
+          expires_in: 3600,
+          scope,
+          token_type: "Bearer",
+          id_token: `${b64Url('{"alg":"RS256"}')}.${b64Url(JSON.stringify(claims))}.fake-signature`,
+        };
+      }
+      return { access_token: "test-access-token", expires_in: 3600, token_type: "Bearer" };
+    })
+    .persist();
+  // Google's revoke endpoint (disconnecting YouTube).
+  fetchMock
+    .get("https://oauth2.googleapis.com")
+    .intercept({ method: "POST", path: "/revoke" })
+    .reply(200, {})
     .persist();
   fetchMock
     .get("https://androidpublisher.googleapis.com")
@@ -224,6 +266,10 @@ export default defineConfig(async () => {
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
           fetchMock: appleFetchMock(rsa.jwk),
+          // The upload queue goes to a queue nothing consumes, so a test's
+          // POST never races a real consumer reaching for Google: the tests
+          // step uploads themselves (test/api/youtube.test.ts).
+          queueProducers: { YOUTUBE_QUEUE: { queueName: "test-youtube-unconsumed" } },
           bindings: {
             TEST_MIGRATIONS: migrations,
             DEV_MODE: "1",
@@ -239,6 +285,12 @@ export default defineConfig(async () => {
             // Best-lap video URLs (NS-45). CLIPS itself comes from
             // wrangler.jsonc's r2_buckets, which miniflare serves locally.
             CLIP_URL_SECRET: "test-clip-url-secret",
+            // YouTube (NS-46). The token key is a fixed 32 bytes so a test can
+            // decrypt what the Worker stored; the allowlist stays unset (every
+            // account), and the tests that need it narrow it per request.
+            YOUTUBE_CLIENT_ID: "test-youtube-client-id",
+            YOUTUBE_CLIENT_SECRET: "test-youtube-client-secret",
+            YOUTUBE_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64"),
             // Billing (NS-32). The App Store Server API key is only ever used
             // to sign requests the mock doesn't verify, so the sign-in key
             // stands in. APPLE_IAP_TEST_ROOT_PEM is honoured under DEV_MODE so

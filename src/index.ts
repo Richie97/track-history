@@ -13,6 +13,8 @@ import { requireCoachGrant, sweepCoachInvites } from "./routes/coaching";
 import { reverifyExpiring } from "./cron";
 import { clipFiles, sweepClips } from "./routes/clips";
 import { itemSharePage, itemSharePublic } from "./routes/itemSharePublic";
+import { youtubeConnect } from "./routes/youtube";
+import { sweepYouTube, youtubeQueue } from "./youtube/step";
 
 export type { Env, AppContext } from "./types";
 
@@ -48,6 +50,9 @@ app.route("/share", sharePage);
 // Signed best-lap video URLs (NS-45): the signature is the authorization, so
 // no session is consulted — /clips/* is in run_worker_first.
 app.route("/clips", clipFiles);
+// Connecting YouTube (NS-46): the consent round trip with Google, opened in
+// the system browser by the phones — /youtube/* is in run_worker_first.
+app.route("/youtube", youtubeConnect);
 // Registered before the authed /api router so GET /api/share/:slug stays public;
 // PUT/DELETE /api/share (no slug) fall through to the authed router below.
 app.route("/api/share", itemSharePublic);
@@ -68,5 +73,12 @@ export default {
     ctx.waitUntil(sweepCoachInvites(env.DB, Date.now()));
     // Deleted clips' R2 objects and abandoned uploads (routes/clips.ts).
     ctx.waitUntil(sweepClips(env, Date.now()));
+    // YouTube (NS-46): revocations, the 30-day re-check, lost queue messages.
+    ctx.waitUntil(sweepYouTube(env, Date.now()));
   },
-} satisfies ExportedHandler<Env>;
+  // The YouTube upload queue and its dead-letter queue (wrangler.jsonc
+  // queues.consumers; youtube/step.ts).
+  queue(batch: MessageBatch<{ upload_id: number }>, env: Env) {
+    return youtubeQueue(batch, env);
+  },
+} satisfies ExportedHandler<Env, { upload_id: number }>;

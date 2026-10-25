@@ -580,6 +580,119 @@ models gain an optional `youtube` and both `User`s an optional `youtube`.
   is the driver's to hand out. If coaches ask, it's one field added to
   `COACH_CLIP_FIELDS` and one sentence in the Coaching copy.
 
+## As built (ticket 1: server, shared logic, web)
+
+Landed as specified, with these decisions the spec left open or that the code
+forced. Tickets 0, 2 and 3 are still open, so production has no secrets and
+`available` is false everywhere.
+
+- **Migration `0035_youtube.sql`**, as the spec's schema plus two indexes
+  (`youtube_uploads(user_id, created_at)` for the daily limit and
+  `(status, updated_at)` for the sweep). The `updated_at` trigger fires on a
+  change of status, video id or privacy and **not** on `bytes_sent`: the lap
+  page polls `GET /clips/:id/youtube` for progress, so a chunk doesn't refetch
+  every client's event detail.
+- **The consent round trip carries no D1 row.** The spec's "state, PKCE and
+  return-target cookies" are one AES-GCM-sealed cookie (`yt_connect`, path
+  `/youtube`, `SameSite=Lax`, 10 minutes) holding the user, the state, the
+  verifier and where to come back. It also carries the user across a ticket
+  flow, where the system browser has no session cookie. A web `next` must be a
+  bare hash route (`#/event/12`), so it can't be an open redirect.
+- **A grant without the upload scope is `denied`.** Google's granular consent
+  lets a user untick `youtube.upload` and still approve. The callback revokes
+  what it was given and says `denied`, rather than storing a connection that
+  can't upload.
+- **Reconnecting the same Google account updates in place; a different
+  account replaces.** Revoking a Google token revokes the whole grant, so
+  tombstoning the old refresh token on a same-account reconnect would kill the
+  grant just made. A different `sub` deletes and re-inserts, and the trigger
+  queues the old account's revocation.
+- **`DELETE /youtube` drops the revocation row it made redundant.** When the
+  synchronous revoke succeeds, the trigger's row goes in the same batch rather
+  than waiting for the cron's `invalid_token`.
+- **`YOUTUBE_ALLOWLIST` is a secret, not a var.** `wrangler deploy` replaces
+  every var with `wrangler.jsonc`'s. An allowlist set anywhere else would be
+  wiped on the next deploy and open the feature to everyone. A secret
+  survives. `YOUTUBE_DAILY_BUDGET` stays a var (empty: no budget) until ticket
+  0 fixes the figure.
+- **`available` also requires the queue binding**, beside the three secrets.
+  A server that could take an upload and never send it is worse than one that
+  offers none.
+- **Waits are new messages, not retries.** The spec's quota case says
+  `message.retry({ delaySeconds })`. That would count a day's wait toward
+  `max_retries` and the dead-letter queue, and Queues caps a delay at 12 hours
+  anyway. So a spent budget, `quotaExceeded` or `uploadLimitExceeded` acks and
+  sends a fresh message for `min(secondsToPacificMidnight, 12 h)`. A wait past
+  12 hours just waits twice. Transport failures and 5xx still `retry`, with
+  the 30 s → 1 h backoff, and do reach the DLQ.
+- **Every write a step makes is conditional on still holding the lease**, not
+  only the lease itself. So a disconnect or a Try again landing mid-step is
+  never overwritten by the step's own later write.
+- **The waiting note is the row's `error` while it's `queued`.** *"Waiting for
+  YouTube — uploads continue tomorrow."* is stored there and cleared when the
+  step proceeds. `youtubeStatusLine` lets a queued or uploading row's `error`
+  win over the default line.
+- **The cron's "untouched for an hour" is 13 hours** (`STALE_STEP_MS`). A row
+  waiting for the quota is legitimately untouched for up to 12. With one hour,
+  the cron would give a waiting row a second message every day, and the two
+  chains would step it in turn until it finished. 13 hours also covers lost
+  messages on `uploading` rows, not only `queued` ones, before the two-day
+  failure.
+- **Deletions at 25 days, not 30.** The cron runs daily, so it re-checks
+  grants and `done` uploads, and deletes revoked connections, at 25 days to
+  stay inside YouTube's 30. A disconnected driver's `done` rows go at the next
+  re-check, because there's no usable grant to check them with. The video
+  stays on YouTube, and the lap offers the upload again.
+- **A `failed` row is retried by the same `POST`**, which resets the row
+  in place. The per-user limit counts `created_at`, which the reset moves, so
+  a retry counts as an upload.
+- **`youtube.js` grew past the spec's list**: `youtubeIsPending`,
+  `youtubeRequestError` (the server's refusals in words, including *"You can
+  upload 10 videos to YouTube a day."*), `youtubeAccountLine` (Settings), and
+  every fixed sentence (`YOUTUBE_LINKS`, `GOOGLE_PERMISSIONS_URL`,
+  `YOUTUBE_KIDS_TEXT`, `YOUTUBE_DELETE_NOTE`, `YOUTUBE_DISCONNECT_NOTE`,
+  `YOUTUBE_OFFLINE`, `YOUTUBE_RESULT_TEXT`). All are in
+  `contracts/logic/youtube.json`, so the phones port the words rather than
+  retyping them. `youtubeOffer` checks `done` / `pending` before the tier, so a
+  lapsed owner keeps both, and a revoked connection with a failed upload reads
+  `connect`.
+- **Web**: the panel sits under the lap's player, and also under NS-45's
+  locked panel for a lapsed owner, so a `done` link stays visible. A failure
+  re-reads `/me` before drawing its control, so a grant revoked mid-upload
+  offers *Reconnect YouTube…* rather than a Try again that would 409. The
+  connect result (`?youtube=`) shows once in a shell banner and is then taken
+  off the hash.
+- **Goldens**: the fixture gets a second clip, on another session's best lap,
+  so `clip.youtube` is pinned as an object and as a null on one event detail.
+  The connection and the `done` upload are written straight into the
+  harness's scratch D1 (`d1()` in `contracts/generate.mjs`), so no queue
+  message is ever sent there. Both native models' fields are strings for
+  status and privacy, not enums, so a value the server adds later doesn't fail
+  the whole event detail.
+- **Tests** step uploads in 256 KiB chunks. The test pool points
+  `YOUTUBE_QUEUE` at a queue nothing consumes, and Google's calls take an
+  injected `fetch` (`FakeYouTube`). undici's mock can't vary a status by
+  request body, so the route-level Google mocks answer 200 only. The error
+  statuses are covered through the step and the cron.
+- **Google moved since this spec was written** (checked 25 October 2026;
+  ticket 0 confirms both on the real project). *Quota*: the API's revision
+  history records an upload's cost falling from about 1,600 units to about 100
+  in December 2025, and from June 2026 `videos.insert` draws on its own
+  *Video Uploads* bucket — the reference now says 1 unit, 100 calls a day by
+  default. So the project budget is roughly 100 uploads a day rather than the
+  six the spec feared, and `MAX_DAILY_UPLOADS_PER_USER` (10) is the tighter
+  limit for any one driver. *The private-only lock*: the `videos.insert`
+  reference now says uploads from unverified projects are **not** restricted
+  to private, while the revision history still carries the July 2020 entry
+  that they are and records no reversal. Nothing in the code depends on
+  either answer — the allowlist stays on until Google has verified the app,
+  and one *Public* test upload on an allowlisted account settles whether the
+  audit is also needed (README, deploy step 8).
+- **Not yet**: the quota figure and the open questions are ticket 0's, and the
+  landing page's Pro line waits for launch. The iOS UI test's stub upload
+  server (`YOUTUBE_API_BASE` under `DEV_MODE`) is ticket 2's: the injected
+  `fetch` covers the server's own tests.
+
 ## Follow-ups, deliberately not here
 
 - **Public videos on the share page**, embedded on the share page's best-lap

@@ -88,7 +88,8 @@ describe("uploading a clip", () => {
     const laps = after.body.sessions[0].laps;
     // The lap with that time — lap 2 — and no other.
     expect(laps.map((l: any) => l.clip && l.clip.id)).toEqual([null, clipId, null]);
-    expect(laps[1].clip).toEqual({ id: clipId, duration_ms: LAP_MS + 5_000, lap_offset_ms: 3_000, size_bytes: 2048 });
+    // `youtube` (NS-46) is null until the clip is uploaded there.
+    expect(laps[1].clip).toEqual({ id: clipId, duration_ms: LAP_MS + 5_000, lap_offset_ms: 3_000, size_bytes: 2048, youtube: null });
     expect(after.body.updated_at).toBeGreaterThanOrEqual(before.updated_at);
 
     // The parts' bookkeeping goes once the clip is ready.

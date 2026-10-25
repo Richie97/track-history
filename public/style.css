@@ -690,6 +690,14 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   background: #000;
 }
 .lap-video-body .btn-row { margin-top: 8px; }
+/* Publishing a best-lap video to YouTube (NS-46): the line under the player. */
+.yt-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-hairline); }
+.yt-panel .hint { margin: 0 0 8px; }
+.yt-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.yt-line.failed span { color: var(--text-strong); }
+.yt-dialog .yt-privacy { border: 0; padding: 0; margin: 0 0 12px; }
+.yt-dialog .yt-privacy legend { font-size: var(--fs-xs); font-weight: var(--weight-medium); color: var(--text-muted); margin-bottom: 6px; padding: 0; }
+.yt-dialog .yt-privacy .dry-toggle { float: none; display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 0 0; }
 /* Best-lap video uploads from the browser (NS-47): the import review's
    *Save best-lap video* row, and a session's upload line under its laps. */
 .clip-offer {

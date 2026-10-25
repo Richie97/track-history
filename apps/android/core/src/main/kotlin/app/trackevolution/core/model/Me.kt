@@ -58,6 +58,12 @@ public data class User(
      * cached before the field still decodes.
      */
     val clips: ClipStorage? = null,
+    /**
+     * Publishing a best-lap video to YouTube (NS-46): whether the feature is on
+     * for this account, and the connection. Nullable so a `/me` cached before
+     * the field still decodes — read as unavailable.
+     */
+    val youtube: YouTubeAccount? = null,
 ) {
     val effectiveUnits: UnitSystem get() = units ?: UnitSystem.IMPERIAL
 }

@@ -50,7 +50,11 @@
               "time_ms": 125100
             },
             {
-              "clip": null,
+              "clip": {
+                "duration_ms": 128800,
+                "id": 1,
+                "lap_offset_ms": 2000
+              },
               "id": 1,
               "lap_num": 3,
               "session_id": 1,
