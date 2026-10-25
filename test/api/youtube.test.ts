@@ -33,7 +33,23 @@ const LAP_MS = 101_234;
 
 const b64Url = (s: string) =>
   btoa(String.fromCharCode(...new TextEncoder().encode(s))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-const bytes = (n: number, seed = 7) => Uint8Array.from({ length: n }, (_, i) => (i * 31 + seed) & 0xff);
+// Megabytes of clip, made and compared in plain loops: a callback per byte,
+// or vitest's element-by-element deep equality, is what pushed the
+// multi-chunk tests past 5 s on CI's slower runner.
+function bytes(n: number, seed = 7): Uint8Array {
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = (i * 31 + seed) & 0xff;
+  return out;
+}
+// The index of the first byte that differs, or -1 when the two are the same.
+function firstDifference(a: Uint8Array, b: Uint8Array): number {
+  if (a.length !== b.length) return Math.min(a.length, b.length);
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return i;
+  return -1;
+}
+// The upload steps a real clip through R2 chunk by chunk, which is seconds
+// on a slow runner; well past the default 5 s, well short of a hang.
+const MULTI_CHUNK_TIMEOUT_MS = 30_000;
 
 // ---------- fixtures --------------------------------------------------------------
 
@@ -575,7 +591,7 @@ describe("the upload, step by step", () => {
       `bytes ${3 * CHUNK}-${4 * CHUNK - 1}/${size}`,
       `bytes ${4 * CHUNK}-${size - 1}/${size}`,
     ]);
-    expect(fake.uploaded()).toEqual(data);
+    expect(firstDifference(fake.uploaded(), data)).toBe(-1);
 
     const row = await uploadRow(id);
     expect(row).toMatchObject({ status: "done", video_id: "vid-123", session_url_enc: null, error: null, lease_until: null });
@@ -595,7 +611,7 @@ describe("the upload, step by step", () => {
     expect((await user.api("GET", `/clips/${clipId}/youtube`)).body.url).toBe("https://youtu.be/vid-123");
     expect((await user.api("GET", `/events/${eventId}`)).body.sessions[0].laps[1].clip.youtube.status).toBe("done");
     expect((await user.api("GET", "/me")).body.user.youtube.channel_title).toBe("Fast Laps");
-  });
+  }, MULTI_CHUNK_TIMEOUT_MS);
 
   it("reports progress as YouTube acknowledges it", async () => {
     const user = await signedInProUser();
@@ -636,7 +652,7 @@ describe("the upload, step by step", () => {
     const { last } = await drive(id, fake);
     expect(last.action).toBe("ack");
     expect(fake.initCalls).toHaveLength(2);
-    expect(fake.uploaded()).toEqual(data);
+    expect(firstDifference(fake.uploaded(), data)).toBe(-1);
     expect((await uploadRow(id))!.status).toBe("done");
 
     // A row already restarted twice fails instead.
@@ -648,7 +664,7 @@ describe("the upload, step by step", () => {
     fake2.script.push(() => new Response("", { status: 410 }));
     expect(await stepUpload(env, id2, { fetch: fake2.fetch, now: Date.now(), chunkBytes: CHUNK })).toEqual({ action: "ack" });
     expect(await uploadRow(id2)).toMatchObject({ status: "failed", error: TEXT.restarts });
-  });
+  }, MULTI_CHUNK_TIMEOUT_MS);
 
   it("asks where YouTube got to after a 5xx or a dropped connection, then retries with backoff", async () => {
     const user = await signedInProUser();
@@ -684,8 +700,8 @@ describe("the upload, step by step", () => {
     expect((await uploadRow(id))!.lease_until).toBeNull();
     const { last } = await drive(id, fake);
     expect(last.action).toBe("ack");
-    expect(fake.uploaded()).toEqual(data);
-  });
+    expect(firstDifference(fake.uploaded(), data)).toBe(-1);
+  }, MULTI_CHUNK_TIMEOUT_MS);
 
   it("waits for Pacific midnight on YouTube's quotaExceeded, and on a spent project budget", async () => {
     const user = await signedInProUser();
