@@ -3,7 +3,15 @@ import { fileURLToPath } from "node:url";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { createFetchMock } from "miniflare";
 import { defineConfig } from "vitest/config";
-import { TEST_PLAY_SERVICE_ACCOUNT_EMAIL, appleMockResponse } from "./test/billing-helpers";
+import {
+  TEST_PLAY_SERVICE_ACCOUNT_EMAIL,
+  TEST_STRIPE_PRICE_MONTHLY,
+  TEST_STRIPE_PRICE_YEARLY,
+  TEST_STRIPE_SECRET_KEY,
+  TEST_STRIPE_WEBHOOK_SECRET,
+  appleMockResponse,
+  b64urlDecodeJson,
+} from "./test/billing-helpers";
 import { chain as appleTestChain } from "./test/fixtures/billing/pems.mjs";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -145,6 +153,68 @@ function appleFetchMock(googleJwk: object) {
     .reply(200, { keys: [googleJwk] })
     .persist();
 
+  // Stripe (NS-49; the contract is in test/billing-helpers.ts). Requests that
+  // don't carry the test key and a pinned API version are refused, so a route
+  // that forgot either fails its test.
+  const header = (opts: { headers?: unknown }, name: string): string | undefined => {
+    const h = opts.headers as Record<string, string> | string[] | undefined;
+    if (Array.isArray(h)) {
+      for (let i = 0; i < h.length; i += 2) if (String(h[i]).toLowerCase() === name) return String(h[i + 1]);
+      return undefined;
+    }
+    for (const [k, v] of Object.entries(h ?? {})) if (k.toLowerCase() === name) return String(v);
+    return undefined;
+  };
+  const stripeAuthorized = (opts: { headers?: unknown }) =>
+    header(opts, "authorization") === `Bearer ${TEST_STRIPE_SECRET_KEY}` && /^\d{4}-\d{2}-\d{2}\./.test(header(opts, "stripe-version") ?? "");
+  const unauthorized = { error: { type: "invalid_request_error", message: "mock: missing test key or Stripe-Version" } };
+  const readBody = async (raw: unknown) => {
+    if (raw && typeof raw === "object" && "getReader" in raw) {
+      const chunks: Buffer[] = [];
+      for await (const chunk of raw as AsyncIterable<Uint8Array>) chunks.push(Buffer.from(chunk));
+      return Buffer.concat(chunks).toString();
+    }
+    return String(raw ?? "");
+  };
+  fetchMock
+    .get("https://api.stripe.com")
+    .intercept({ method: "GET", path: /^\/v1\/(subscriptions|checkout\/sessions|prices|invoices|charges)\/[^/?]*missing(\?.*)?$/ })
+    .reply(404, { error: { type: "invalid_request_error", code: "resource_missing", message: "No such object" } })
+    .persist();
+  fetchMock
+    .get("https://api.stripe.com")
+    .intercept({ method: "GET", path: /^\/v1\/(subscriptions|checkout\/sessions|prices|invoices|charges)\/(?![^/?]*missing(\?|$))[^/?]+(\?.*)?$/ })
+    .reply((opts) => {
+      if (!stripeAuthorized(opts)) return { statusCode: 401, data: unauthorized };
+      const id = decodeURIComponent(String(opts.path).split("?")[0].split("/").pop() ?? "");
+      const prefix = /^(sub|cs|price|in|ch)_/.exec(id)?.[0] ?? "";
+      return { statusCode: 200, data: { ...b64urlDecodeJson(id.slice(prefix.length)), id } };
+    })
+    .persist();
+  fetchMock
+    .get("https://api.stripe.com")
+    .intercept({ method: "POST", path: "/v1/customers" })
+    .reply(200, async (opts) => {
+      const form = new URLSearchParams(await readBody(opts.body));
+      if (!stripeAuthorized(opts)) return { ...unauthorized, id: null };
+      return { id: `cus_test_${form.get("metadata[user_id]")}`, email: form.get("email") };
+    })
+    .persist();
+  for (const [path, base] of [
+    ["/v1/checkout/sessions", "https://checkout.stripe.com/c/pay/cs_test"],
+    ["/v1/billing_portal/sessions", "https://billing.stripe.com/p/session/test"],
+  ]) {
+    fetchMock
+      .get("https://api.stripe.com")
+      .intercept({ method: "POST", path })
+      .reply(200, async (opts) => {
+        const body = await readBody(opts.body);
+        if (!stripeAuthorized(opts)) return { ...unauthorized, url: null };
+        return { id: "cs_test_created", url: `${base}#${Buffer.from(body).toString("base64url")}` };
+      })
+      .persist();
+  }
+
   fetchMock
     .get("https://appleid.apple.com")
     .intercept({ method: "POST", path: "/auth/token" })
@@ -237,6 +307,11 @@ export default defineConfig(async () => {
               token_uri: "https://oauth2.googleapis.com/token",
             }),
             TEST_GOOGLE_RSA_PRIVATE_KEY_PEM: rsa.pem,
+            // Stripe (NS-49): api.stripe.com is the mock above.
+            STRIPE_SECRET_KEY: TEST_STRIPE_SECRET_KEY,
+            STRIPE_WEBHOOK_SECRET: TEST_STRIPE_WEBHOOK_SECRET,
+            STRIPE_PRICE_MONTHLY: TEST_STRIPE_PRICE_MONTHLY,
+            STRIPE_PRICE_YEARLY: TEST_STRIPE_PRICE_YEARLY,
           },
         },
       }),

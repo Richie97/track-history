@@ -8,6 +8,7 @@ import {
   freeChannels,
   isEntitled,
   legacyClaimOpen,
+  maskEntitlementSource,
   parseClientHeader,
   stripProFields,
 } from "../../src/lib/entitlement";
@@ -217,5 +218,32 @@ describe("compareVersions", () => {
     expect(compareVersions("1.4.2", "2")).toBeLessThan(0);
     expect(compareVersions("10", "9.9")).toBeGreaterThan(0);
     expect(compareVersions("3.0", "3")).toBe(0);
+  });
+});
+
+describe("maskEntitlementSource (NS-49 rule 4)", () => {
+  const stripe = { tier: "pro", source: "stripe", expires_at: NOW + DAY, auto_renew: true } as const;
+  it("says stripe only over the web's cookie", () => {
+    expect(maskEntitlementSource(stripe, "cookie")).toEqual(stripe);
+    expect(maskEntitlementSource(stripe, "bearer")).toEqual({ ...stripe, source: null });
+    // An unknown transport (the coach mount, the MCP tools' copy) masks too.
+    expect(maskEntitlementSource(stripe, undefined)).toEqual({ ...stripe, source: null });
+  });
+  it("leaves every store source alone", () => {
+    for (const source of ["apple", "google", "legacy"] as const) {
+      const e = { tier: "pro" as const, source, expires_at: null, auto_renew: null };
+      expect(maskEntitlementSource(e, "bearer")).toBe(e);
+    }
+  });
+  it("ranks a stripe row as a store row, above legacy", () => {
+    const res = entitlementResponse(
+      LEGACY_ENTITLED_UNTIL_MS,
+      [
+        { provider: "legacy", status: "legacy", expires_at: null, auto_renew: null },
+        { provider: "stripe", status: "active", expires_at: NOW + DAY, auto_renew: 1 },
+      ],
+      NOW
+    );
+    expect(res).toEqual({ tier: "pro", source: "stripe", expires_at: NOW + DAY, auto_renew: true });
   });
 });

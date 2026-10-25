@@ -586,7 +586,7 @@ Landed as specified, with these decisions the spec left open or that the code
 forced. Tickets 0, 2 and 3 are still open, so production has no secrets and
 `available` is false everywhere.
 
-- **Migration `0034_youtube.sql`**, as the spec's schema plus two indexes
+- **Migration `0035_youtube.sql`**, as the spec's schema plus two indexes
   (`youtube_uploads(user_id, created_at)` for the daily limit and
   `(status, updated_at)` for the sweep). The `updated_at` trigger fires on a
   change of status, video id or privacy and **not** on `bytes_sent`: the lap

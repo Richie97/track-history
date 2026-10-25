@@ -69,6 +69,12 @@ describe("response cache", () => {
     expect(isQueueable("POST", "/students/5/events/1/sessions")).toBe(false);
   });
 
+  it("never queues a billing write — Stripe checkout needs a live answer (NS-49)", () => {
+    for (const path of ["/billing/stripe/checkout", "/billing/stripe", "/billing/stripe/portal", "/billing/apple", "/billing/google"]) {
+      expect(isQueueable("POST", path), path).toBe(false);
+    }
+  });
+
   it("derives a track-filtered events list from the cached full list", async () => {
     await cachePut("/events", [listRow(detail({ id: 1, track_id: 3 })), listRow(detail({ id: 2, track_id: 4 }))]);
     expect((await cachedGet("/events?track_id=4")).map((e) => e.id)).toEqual([2]);

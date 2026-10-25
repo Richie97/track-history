@@ -13,7 +13,7 @@ export const LEGACY_ENTITLED_UNTIL_MS = 4_102_444_800_000;
 // took an hour.
 export const ENTITLEMENT_SLACK_MS = 3 * 24 * 60 * 60 * 1000;
 
-export type Provider = "apple" | "google" | "legacy";
+export type Provider = "apple" | "google" | "legacy" | "stripe";
 
 // Normalised across stores. Only the first three entitle:
 //   active        paid up, expires_at in the future (or recently past — slack)
@@ -104,6 +104,23 @@ export function entitlementResponse(
     expires_at: legacy ? null : winner.expires_at,
     auto_renew: legacy || winner.auto_renew == null ? null : Boolean(winner.auto_renew),
   };
+}
+
+// The phones never learn the word "stripe" (NS-49 rule 4). Both native
+// clients decode `entitlement.source` as a closed enum (legacy / apple /
+// google), so a fourth value would make /me fail to decode — and an app that
+// cannot load /me cannot sign in — on every build already installed, which no
+// new release can fix. It is the App Store rule too: guideline 3.1.3(b) lets
+// an app honour a web subscription but not point at one, and an app that
+// cannot tell a web subscription from any other cannot mention it.
+//
+// So anything but the web's cookie reads a Stripe source as null, with tier,
+// expiry and renewal intact — which both native summaries already say as
+// "Pro · renews <date>" with no Manage control, as for a legacy grant. An
+// unknown transport masks: the default is the safe answer.
+export function maskEntitlementSource(e: EntitlementResponse, transport: "cookie" | "bearer" | undefined): EntitlementResponse {
+  if (e.source !== "stripe" || transport === "cookie") return e;
+  return { ...e, source: null };
 }
 
 // The Pro field (NS-32 rule 4, revised 2026-09 — #264): a free account keeps

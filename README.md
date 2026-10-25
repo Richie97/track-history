@@ -219,6 +219,21 @@ your events, and re-run `npm run seed:generate`.
    doesn't parse is treated as closed, since a misconfigured cutoff must fail
    towards *not* granting lifetime Pro.
 
+   Selling Pro **on the web** through Stripe (NS-49, see
+   [Stripe](#stripe--pro-on-the-web)) is four more secrets, and ships dark the
+   same way: without the key and both price ids every Stripe route answers 503.
+
+   ```sh
+   npx wrangler secret put STRIPE_SECRET_KEY      # a restricted key (permissions under Stripe below)
+   npx wrangler secret put STRIPE_WEBHOOK_SECRET  # the webhook endpoint's signing secret, whsec_…
+   npx wrangler secret put STRIPE_PRICE_MONTHLY   # price_… for $1.99/month
+   npx wrangler secret put STRIPE_PRICE_YEARLY    # price_… for $19.99/year
+   npm run deploy
+   ```
+
+   The price ids are secrets rather than vars because they differ between test
+   and live mode and belong with the key that picks the mode.
+
 7. **(Optional) Enable best-lap video clips**
 
    Pro drivers' best-lap videos (NS-45, see
@@ -1613,7 +1628,9 @@ a Pro gate costs no extra round trip.
 | `POST /api/billing/google/legacy` (header `X-TE-Client: android/<versionCode>`) | the Android transitional release, once per install | Play can't tell a client whether the app was bought, so the claim is trusted until `LEGACY_CUTOFF` (an env var, set to the flip date). Unset ⇒ every claim succeeds. |
 | `POST /billing/apple/notifications` | App Store Server Notifications V2 | Public, outside `/api`. Signature-verified like a purchase; re-derives the row's state from the signed transaction + renewal info inside. Unknown types are acked and logged. |
 | `POST /billing/google/rtdn` | Real-Time Developer Notifications, as a Pub/Sub **push** subscription | Public. Verifies the push's OIDC bearer (Google's JWKS; `aud` = this URL; `email` = the service account) before decoding anything, then re-reads the token from the API — RTDN says *something* changed, the API says *what*. |
-| cron `17 9 * * *` | Cloudflare | Re-verifies every Apple/Google row expiring in the next 48 h or expired in the last 7 days against its store, so a missed webhook costs a day, not a customer. |
+| `GET /api/billing/stripe/plans`, `POST /api/billing/stripe/checkout`, `POST /api/billing/stripe`, `POST /api/billing/stripe/portal` | the web app | Stripe — see [Stripe](#stripe--pro-on-the-web). |
+| `POST /billing/stripe/webhook` | Stripe | Public. `Stripe-Signature` verified before D1; every event re-reads its subscription from the API. |
+| cron `17 9 * * *` | Cloudflare | Re-verifies every Apple/Google/Stripe row expiring in the next 48 h or expired in the last 7 days against its store, so a missed webhook costs a day, not a customer. |
 
 Every billing route answers `{ ok, entitlement }` so the client can update at
 once. The same purchase posted from a second device updates the row; posted
@@ -1705,6 +1722,72 @@ Local testing needs no store: `test/api/billing.test.ts` signs payloads with a
 synthetic certificate chain (`test/fixtures/billing/`, rebuilt by `build.sh`)
 that the Worker trusts only under `DEV_MODE` via `APPLE_IAP_TEST_ROOT_PEM`, and
 mocks the Apple and Google APIs in `vitest.workers.config.mts`.
+
+### Stripe — Pro on the web
+
+The web app is the one client with no store, so it sells Pro through **Stripe
+Checkout** and the **Stripe customer portal** — the same prices, the same
+server-owned entitlement, a fourth `provider` on the same `subscriptions`
+table (`docs/specs/native/NS-49-stripe-web-checkout.md`). **Phase A, the
+server, has landed and ships dark**; phase B, the web's plan chooser and
+*Manage billing*, is what users will see, and needs the dashboard below first.
+No npm dependency: the REST API is form-encoded HTTPS and the webhook
+signature is one HMAC (`src/lib/billing/stripe.ts`).
+
+| Route | What it does |
+|---|---|
+| `GET /api/billing/stripe/plans` | `{ enabled: false }` until configured, else both plans with **Stripe's** price and interval, and `trial_days` — 14 for an account that has never had a web subscription, 0 after, so cancel-and-resubscribe is not a free Pro loop. |
+| `POST /api/billing/stripe/checkout` `{ plan }` | Creates the account's Stripe customer on first use (stored in `users.stripe_customer_id`) and a Checkout Session **bound to the signed-in user before payment**; answers `{ url }`. A **409** for an account already entitled by any row — Stripe would sell a second subscription to someone paying Apple. |
+| `POST /api/billing/stripe` `{ checkout_session_id }` | The return leg from `#/settings?checkout=<id>`: re-reads the session and its subscription, requires both to name the caller (else 409), refuses a test-mode object off a dev host, and records the row — Pro the moment the user lands back, not whenever the webhook arrives. |
+| `POST /api/billing/stripe/portal` | `{ url }` of a portal session (cancel at period end, switch plans, card, invoices); 404 with no customer. |
+| `POST /billing/stripe/webhook` | Handles checkout completion, the subscription lifecycle, `invoice.paid` / `payment_failed` and `charge.refunded` — each resolved to a subscription and **re-read from the API**, since Stripe doesn't deliver in order. A subscription with no row is inserted only when our customer and its `metadata.user_id` name the same account. |
+
+State: `active`/`trialing` → active; `past_due` → grace, **at most 7 days past
+the period start** (a failed renewal has already advanced the period, and a
+yearly subscriber must not get a year on a dead card); `unpaid` →
+billing_retry; `canceled` → expired; a **full refund** of the latest invoice →
+revoked at once (a partial one changes nothing).
+
+**The phones never see the word.** Both native apps decode
+`entitlement.source` as a closed enum, so a `stripe` value would break `/me` on
+every installed build — and App Review forbids an app pointing at an outside
+purchase. `GET /api/me` (and every billing route's answer) therefore reports a
+Stripe source as `null` to a bearer token, with tier, expiry and renewal
+intact: the phones show *Pro · renews …* and no Manage control, as for a
+legacy grant. The web, on its cookie, sees `stripe`.
+
+**Stripe dashboard checklist** (test mode first, pointed at the dev origin,
+then live):
+
+- One product, *Track Evolution Pro*, with two recurring prices — $1.99/month
+  and $19.99/year — whose ids go in `STRIPE_PRICE_MONTHLY` / `_YEARLY`.
+- **Stripe Tax** enabled and the home-state registration made; further
+  registrations are threshold-driven bookkeeping, not code.
+- The **customer portal**: cancel at period end, switch between the two prices,
+  update the payment method, invoice history, business name *Speedshift LLC*.
+- **Smart Retries** set to *cancel the subscription* once retries are exhausted,
+  **within 7 days** — the grace bound above assumes it.
+- A **webhook endpoint** at `https://trackevolution.app/billing/stripe/webhook`
+  for `checkout.session.completed`, `customer.subscription.created`,
+  `.updated`, `.deleted`, `.paused`, `.resumed`, `invoice.paid`,
+  `invoice.payment_failed` and `charge.refunded`; its signing secret is
+  `STRIPE_WEBHOOK_SECRET`.
+- A **restricted key**: write on Checkout Sessions, Customers and Billing
+  Portal sessions; read on Subscriptions, Prices, Invoices and Charges —
+  nothing else.
+- Locally: `stripe listen --forward-to localhost:8787/billing/stripe/webhook`
+  with the test-mode secrets in `.dev.vars`.
+
+**Refunds** are ours, from the dashboard, for web subscriptions only — tick
+*cancel subscription* so the customer isn't charged again for what was just
+refunded. **Deleting an account** cancels a web subscription, unlike a store
+one: delete the Stripe customer (which cancels its subscriptions at once)
+*before* deleting the user row; `ON DELETE CASCADE` removes the rows.
+
+**Fees.** Stripe takes 2.9% + 30¢ plus 0.5% for Stripe Tax — about
+$1.62/month and $18.94/year net, against $1.69 and $17.00 through the stores at
+15%. And unlike the stores, Stripe is not the merchant of record: sales tax is
+ours to register for and remit.
 
 ## Season Wrapped
 

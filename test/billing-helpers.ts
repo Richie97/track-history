@@ -120,3 +120,34 @@ export async function appleMockResponse(id: string, chain: Chain, bundleId: stri
 // base64url of a subscriptionsv2 response body is answered with that body;
 // the literal "google-404" answers 404.
 export const googleMockToken = (body: Record<string, unknown>) => b64urlJson(body);
+
+// The Stripe API mock's contract (vitest.workers.config.mts). An id of the form
+// "<prefix>_<base64url JSON>" — a subscription, checkout session, price,
+// invoice or charge — is answered on GET with that JSON plus the id; one that
+// ends in "missing" answers 404. The creates echo what they were sent:
+// POST /v1/customers answers `cus_test_<metadata[user_id]>`, and the checkout
+// and portal sessions answer a URL whose fragment is the base64url of the form
+// body, so a test can read back exactly what the Worker asked Stripe for.
+// Every request must carry the test key and a pinned Stripe-Version, or the
+// mock answers 401.
+export const TEST_STRIPE_SECRET_KEY = "sk_test_track_evolution";
+export const TEST_STRIPE_WEBHOOK_SECRET = "whsec_track_evolution_test";
+export const stripeMockId = (prefix: string, body: Record<string, unknown>) => `${prefix}_${b64urlJson(body)}`;
+export const TEST_STRIPE_PRICE_MONTHLY = stripeMockId("price", {
+  active: true,
+  unit_amount: 199,
+  currency: "usd",
+  recurring: { interval: "month", interval_count: 1 },
+});
+export const TEST_STRIPE_PRICE_YEARLY = stripeMockId("price", {
+  active: true,
+  unit_amount: 1999,
+  currency: "usd",
+  recurring: { interval: "year", interval_count: 1 },
+});
+// Reads back the form a mocked create was sent (see the contract above).
+export function stripeEchoedForm(url: string): URLSearchParams {
+  const fragment = url.slice(url.indexOf("#") + 1);
+  const b64 = fragment.replaceAll("-", "+").replaceAll("_", "/");
+  return new URLSearchParams(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)));
+}
