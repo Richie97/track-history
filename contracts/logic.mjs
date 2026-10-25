@@ -2332,6 +2332,12 @@ const entitlementCases = [
   { name: "lapsed apple subscriber", entitlement: { tier: "free", source: "apple", expires_at: 1_700_000_000_000, auto_renew: false } },
   { name: "lapsed google subscriber", entitlement: { tier: "free", source: "google", expires_at: 1_700_000_000_000, auto_renew: false } },
   { name: "stale cached pro — expires_at already past on the client's clock", entitlement: { tier: "pro", source: "apple", expires_at: 1, auto_renew: true } },
+  // A web subscription as a phone sees it (NS-49 rule 4): the server withholds
+  // `source: "stripe"` from a bearer token, since both ports' Source enums are
+  // closed, and keeps tier, expiry and renewal. So it reads "Pro · renews …"
+  // with nothing to manage. There is deliberately no `source: "stripe"` case:
+  // the ports could not decode it, and they never receive one.
+  { name: "pro, source withheld (a web subscription, as the phones see it)", entitlement: { tier: "pro", source: null, expires_at: FIXED_EXPIRY, auto_renew: true } },
 ].map((c) => ({
   ...c,
   expected: {

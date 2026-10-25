@@ -37,7 +37,9 @@ class EntitlementTest {
     @Test
     fun `matches the JavaScript implementation on every fixture case`() {
         val cases = fixture["cases"]!!.jsonArray
-        assertEquals(9, cases.size, "the fixture grew — port the new case's expectation too")
+        // 10 since NS-49 added "pro, source withheld" — a web subscription as the
+        // server reports it to a phone: Pro, renewing, with no source to manage.
+        assertEquals(10, cases.size, "the fixture grew — port the new case's expectation too")
         for (element in cases) {
             val case = element.jsonObject
             val name = case["name"]!!.jsonPrimitive.content

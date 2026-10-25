@@ -64,7 +64,7 @@
       personal track-day logbook operated by Speedshift LLC — free to use, with
       an optional Track Evolution Pro subscription. This policy explains, in
       plain language, what data the app collects and what happens to it.
-      <em>Effective October 16, 2026.</em>
+      <em>Effective October 24, 2026.</em>
     </p>
 
     <div class="callout">
@@ -129,10 +129,17 @@
         was made and we store the store's own transaction identifier for it,
         which product and plan it is, whether it is active, when it renews or
         expires, and whether auto-renew is on. That is what lets one
-        subscription work across the web, iPhone and Android. <strong>We never
-        receive or store your card, bank or payment details</strong> — the
-        store handles payment entirely, and the identifier we keep is
-        meaningless outside it.</li>
+        subscription work across the web, iPhone and Android. If you subscribe
+        on the web, the payment is handled by <strong>Stripe</strong>, our
+        payment processor: Stripe receives your email address, the billing
+        address you enter at checkout (used to work out sales tax) and your
+        payment details, under
+        <a href="https://stripe.com/privacy">Stripe's privacy policy</a>, and
+        we store the Stripe customer and subscription identifiers it gives us,
+        which plan you're on, whether it is active, and when it renews or
+        ends. <strong>We never receive or store your card, bank or payment
+        details</strong> — the store or Stripe handles payment entirely, and
+        the identifiers we keep are meaningless outside it.</li>
       <li><strong>On your device only.</strong> Your theme preference, and a
         cache of pages and recently viewed logbook data so things work
         offline. Changes you make offline are also held on the device until
@@ -255,12 +262,14 @@
         <a href="#analytics">Google Analytics</a>.</li>
       <li>We never sell or rent your data.</li>
       <li>We don't share your data with anyone, except the cloud hosting
-        provider that stores it so the service can run, Google for the
+        provider that stores it so the service can run, Stripe when you
+        subscribe on the web, Google for the
         website's and the apps' <a href="#analytics">visit counts</a>, an
         <a href="#ai">AI assistant you connect yourself</a>, or if the law
         requires it.</li>
-      <li>We never see, handle or store payment details — Apple and Google
-        take payment and tell us only whether a subscription is active.</li>
+      <li>We never see, handle or store payment details — Apple, Google and,
+        for web subscriptions, Stripe take payment and tell us only whether a
+        subscription is active.</li>
     </ul>
 
     <h2 id="visibility">Who can see your logbook</h2>
@@ -382,9 +391,11 @@
     </p>
     <p>
       Deleting your account deletes the subscription record we hold alongside
-      the rest of your data. It does <strong>not</strong> cancel the
-      subscription itself, which lives with the App Store or Google Play —
-      cancel that separately, before you ask for deletion.
+      the rest of your data. A subscription bought on the web is cancelled
+      immediately and your customer record at Stripe is deleted; Stripe keeps
+      only the records of past payments that the law requires it to. A store
+      subscription is <strong>not</strong> cancelled — it lives with the App
+      Store or Google Play, so cancel it there before you ask for deletion.
     </p>
 
     <h2 id="children">Children</h2>

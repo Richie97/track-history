@@ -76,7 +76,11 @@ export const canCompareEvents = (entitlement) => isPro(entitlement);
 export const canSaveLapVideo = (entitlement) => isPro(entitlement);
 
 // Where "Manage subscription" goes, by the store that sold it. Legacy has no
-// subscription to manage; free has nothing yet — both return null.
+// subscription to manage; free has nothing yet — both return null. So does a
+// web subscription (`stripe`, NS-49): its portal is a session the server mints
+// per visit (POST /api/billing/stripe/portal), not a constant URL, and Settings
+// draws its own *Manage billing* button for it. The phones never see `stripe`
+// — the server reports it to them as `source: null` — so the ports need no case.
 export const APPLE_MANAGE_URL = "https://apps.apple.com/account/subscriptions";
 export const GOOGLE_MANAGE_URL =
   "https://play.google.com/store/account/subscriptions?package=app.trackevolution";
