@@ -1750,8 +1750,14 @@ then live):
 - A **restricted key**: write on Checkout Sessions, Customers and Billing
   Portal sessions; read on Subscriptions, Prices, Invoices and Charges —
   nothing else.
-- Locally: `stripe listen --forward-to localhost:8787/billing/stripe/webhook`
-  with the test-mode secrets in `.dev.vars`.
+- Locally, with the test-mode secrets in `.dev.vars` — and the secret this
+  prints as `STRIPE_WEBHOOK_SECRET` there. Current CLIs refuse to forward
+  without naming the events; these are the nine the webhook handles:
+
+  ```sh
+  stripe listen --forward-to localhost:8787/billing/stripe/webhook \
+    --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,customer.subscription.paused,customer.subscription.resumed,invoice.paid,invoice.payment_failed,charge.refunded
+  ```
 
 **Refunds** are ours, from the dashboard, for web subscriptions only — tick
 *cancel subscription* so the customer isn't charged again for what was just
