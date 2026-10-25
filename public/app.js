@@ -57,6 +57,9 @@ import {
   canCompareEvents, canSaveLapVideo, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
+import {
+  PLANS_DISABLED, billedText, checkoutIdFrom, endedText, fmtPlanPrice, plansEnabled, subscribeLabel, trialLine,
+} from "./js/billing.js";
 import { clipStorageLine, playbackStartMs } from "./js/import/clip.js";
 import { cutClip } from "./js/import/mp4cut.js";
 import {
@@ -164,24 +167,34 @@ const pro = () => isPro(ent());
 
 const PRO_PRICE = "$1.99/month or $19.99/year";
 
-// The web app has no purchase surface on purpose (NS-32 fixed decisions): it
-// is the one client with no store behind it, so every paywall here points at
-// the phone apps rather than offering a button that cannot charge anyone.
-// `underHeading` is for the whole-page gates, where the route's own <h1>
-// already names the feature and a second heading just says it twice.
+// Every paywall on the web. With Stripe selling (NS-49) its primary action is
+// Subscribe, which goes to Settings — the one place that mints a checkout, so
+// the plan chooser lives only there — and the phone apps are the second way
+// in. Without it, the phone apps are the only way in, as before. `underHeading`
+// is for the whole-page gates, where the route's own <h1> already names the
+// feature and a second heading just says it twice.
 function proPanelHtml(heading, what, { underHeading = false } = {}) {
+  const subscribe = subscribeLabel(state.plans);
   return `<div class="panel pro-panel">
     <div class="pro-badge">Pro</div>
     ${underHeading ? "" : `<h3>${esc(heading)}</h3>`}
     <p>${what}</p>
     <p class="hint">Track Evolution Pro is ${PRO_PRICE}, and it covers all three apps and this
       site — your logbook, sharing, lap times and telemetry import stay free forever.</p>
-    <div class="btn-row">
-      <a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
-      <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>
-    </div>
-    <p class="hint" style="margin-top:8px">Already subscribed? Sign in to the app with this
-      account — the subscription follows the account, not the device.</p>
+    ${
+      subscribe
+        ? `<div class="btn-row"><a class="btn small primary" href="#/settings">${esc(subscribe)}</a></div>
+           <p class="hint" style="margin-top:8px">Or subscribe in the
+             <a href="${APP_STORE_URL}" target="_blank" rel="noopener">iPhone</a> or
+             <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android</a> app — the
+             subscription follows your account, not the device.</p>`
+        : `<div class="btn-row">
+             <a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
+             <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>
+           </div>
+           <p class="hint" style="margin-top:8px">Already subscribed? Sign in to the app with this
+             account — the subscription follows the account, not the device.</p>`
+    }
   </div>`;
 }
 
@@ -819,7 +832,10 @@ function shell(content) {
   return document.getElementById("view");
 }
 
-const state = { me: null, totals: null, entitlement: null };
+// `plans` is GET /api/billing/stripe/plans (NS-49): `{ enabled: false }` until
+// Stripe is configured — and whenever it can't be reached — which renders the
+// web exactly as before it could sell anything.
+const state = { me: null, totals: null, entitlement: null, plans: PLANS_DISABLED };
 
 // ---------- offline / sync status --------------------------------------------
 
@@ -879,8 +895,25 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeUserMenu();
 });
 
+// The web's plans, read once per page load beside the first /me and again
+// after anything that changes the answer (a purchase spends the trial). Never
+// from the offline cache: a price or a trial shown offline is one the checkout
+// can't honour, and a failure is just "not selling right now".
+let plansRequest = null;
+function loadPlans() {
+  plansRequest ??= api("/billing/stripe/plans", { cache: false }).then(
+    (plans) => (plansEnabled(plans) ? plans : PLANS_DISABLED),
+    () => {
+      plansRequest = null;
+      return PLANS_DISABLED;
+    }
+  );
+  return plansRequest;
+}
+
 async function ensureMe() {
-  const data = await api("/me");
+  const [data, plans] = await Promise.all([api("/me"), loadPlans()]);
+  state.plans = plans;
   state.me = data.user;
   state.totals = data.totals;
   // The account's unit system; cached so share pages and the import review
@@ -3447,55 +3480,155 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
 
 // --- settings (garage + legal) ---
 
-// Settings' tier card: what the account has, where it came from, and the one
-// action that makes sense for it. There is no Subscribe button here on
-// purpose — the web app has no store behind it, so the honest control is a
-// pointer at the app that sold, or can sell, the subscription.
-function subscriptionPanelHtml() {
+// Settings' tier card: what the account has, where it came from, and the
+// action that makes sense for it. With Stripe selling (NS-49) a free account
+// gets the two plans here — the one place on the web that mints a checkout —
+// a web subscriber gets *Manage billing* (the Stripe portal), and a store
+// subscriber's card is what it always was. Without Stripe, the card points at
+// the phone apps as before.
+//
+// `notice` is the return leg's outcome: `{ ok: true }` after a checkout that
+// came back Pro, `{ error }` when it didn't.
+function subscriptionPanelHtml(notice = null) {
   const e = state.entitlement;
+  const pro = isPro(e);
+  const plans = state.plans;
+  const selling = plansEnabled(plans);
+  const web = e?.source === "stripe";
   const manage = manageUrl(e);
   const summary = entitlementSummary(e, (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10)));
-  const detail = !isPro(e)
-    ? e?.source
-      ? `Your ${e.source === "apple" ? "App Store" : "Google Play"} subscription has ended. Resubscribe in the app to turn Pro back on — nothing was deleted.`
+  const detail = !pro
+    ? e?.source && e.source !== "legacy"
+      ? endedText(e.source)
       : "The logbook, your lap times, charts, sharing and telemetry import are free and stay that way. Pro adds the lap recorder, the channel graphs and sector splits inside an imported session, the garage's consumables, the setup notebook and year in review."
     : e.source === "legacy"
       ? "You bought the app before it became a subscription, so Pro is yours for life. There is nothing to renew and nothing to cancel."
-      : `Billed through ${e.source === "apple" ? "the App Store" : "Google Play"}.${
-          e.auto_renew === false ? " Auto-renew is off — Pro runs until the date above." : ""
-        }`;
-  return `<div class="panel sub-panel">
+      : `${billedText(e.source) ?? ""}${e.auto_renew === false ? " Auto-renew is off — Pro runs until the date above." : ""}`;
+  const legal = `<a href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms of use</a> ·
+    <a href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy policy</a>`;
+  const trial = selling ? trialLine(plans) : null;
+  // The web's chooser, for a free account. A store subscriber who lapsed gets
+  // it too: Stripe is a second way in, not a replacement for their store.
+  const chooser =
+    !pro && selling
+      ? `<div class="btn-row" style="margin-top:12px" id="sub-plans">
+           ${plans.plans
+             .map(
+               (p) =>
+                 `<button type="button" class="btn small primary" data-plan="${esc(p.plan)}">${
+                   p.plan === "yearly" ? "Yearly" : "Monthly"
+                 } · ${esc(fmtPlanPrice(p))}</button>`
+             )
+             .join("")}
+         </div>
+         ${trial ? `<div class="hint" style="margin:8px 0 0">${esc(trial)}</div>` : ""}
+         <div class="hint" style="margin:8px 0 0">Checkout is on Stripe's secure page; we never see your card.
+           Cancel or switch plans any time from <em>Manage billing</em> here. ${legal}</div>`
+      : "";
+  const storeHint = pro
+    ? ""
+    : selling
+      ? `<div class="hint" style="margin:10px 0 0">Or subscribe in the
+           <a href="${APP_STORE_URL}" target="_blank" rel="noopener">iPhone</a> or
+           <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android</a> app — the subscription follows
+           this account, not the device.</div>`
+      : `<div class="hint" style="margin:10px 0 0">Subscriptions are sold in the phone apps —
+           ${PRO_PRICE}, covering all three apps and this site. Sign in there with this account
+           and Pro appears here within a minute.</div>`;
+  const banner = notice?.ok
+    ? `<div class="success-banner" role="status">Welcome to Pro — it's on for this account in the web app and both phone apps.</div>`
+    : notice?.error
+      ? `<div class="error-banner" role="alert">${esc(notice.error)}</div>`
+      : "";
+  return `<div class="panel sub-panel" id="sub-panel">
+    ${banner}
     <div class="sub-head">
-      <span class="sub-tier${isPro(e) ? " pro" : ""}">${esc(summary)}</span>
+      <span class="sub-tier${pro ? " pro" : ""}">${esc(summary)}</span>
     </div>
     <div class="hint" style="margin:8px 0 0">${esc(detail)}</div>
+    ${chooser}
     <div class="btn-row" style="margin-top:12px">
+      ${web && (pro || !selling) ? `<button type="button" class="btn small" id="sub-portal">Manage billing ↗</button>` : ""}
       ${
         manage
           ? `<a class="btn small" href="${manage}" target="_blank" rel="noopener">Manage subscription ↗</a>`
           : ""
       }
       ${
-        isPro(e) && e.source === "legacy"
+        (pro && (e.source === "legacy" || web)) || (!pro && selling)
           ? ""
-          : `<a class="btn small${isPro(e) ? "" : " primary"}" href="${APP_STORE_URL}" target="_blank" rel="noopener">iPhone app ↗</a>
-             <a class="btn small${isPro(e) ? "" : " primary"}" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android app ↗</a>`
+          : `<a class="btn small${pro ? "" : " primary"}" href="${APP_STORE_URL}" target="_blank" rel="noopener">iPhone app ↗</a>
+             <a class="btn small${pro ? "" : " primary"}" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android app ↗</a>`
       }
     </div>
-    ${
-      isPro(e)
-        ? ""
-        : `<div class="hint" style="margin:10px 0 0">Subscriptions are sold in the phone apps —
-             ${PRO_PRICE}, covering all three apps and this site. Sign in there with this account
-             and Pro appears here within a minute.</div>`
-    }
+    ${storeHint}
+    <div id="sub-error" role="alert"></div>
   </div>`;
+}
+
+// The card's two buttons that go to Stripe. Both are a server-minted URL —
+// a checkout bound to this account, or a portal session for its customer —
+// fetched live (neither is queueable offline) and then navigated to.
+function bindSubscriptionPanel(view) {
+  const errorBox = view.querySelector("#sub-error");
+  const fail = (err, buttons) => {
+    buttons.forEach((b) => (b.disabled = false));
+    errorBox.innerHTML = `<div class="error-banner">${esc(err.message)}</div>`;
+  };
+  const planButtons = [...view.querySelectorAll("[data-plan]")];
+  planButtons.forEach((btn) => {
+    btn.onclick = async () => {
+      planButtons.forEach((b) => (b.disabled = true));
+      errorBox.innerHTML = "";
+      try {
+        const { url } = await api("/billing/stripe/checkout", { method: "POST", body: { plan: btn.dataset.plan } });
+        location.href = url;
+      } catch (err) {
+        fail(err, planButtons);
+      }
+    };
+  });
+  const portal = view.querySelector("#sub-portal");
+  if (portal)
+    portal.onclick = async () => {
+      portal.disabled = true;
+      errorBox.innerHTML = "";
+      try {
+        const { url } = await api("/billing/stripe/portal", { method: "POST" });
+        location.href = url;
+      } catch (err) {
+        fail(err, [portal]);
+      }
+    };
+}
+
+// The return leg (NS-49 rule 5): Stripe sends a completed checkout back to
+// `#/settings?checkout=<id>`, and the id is posted so the server can read the
+// subscription from Stripe and record it — Pro the moment the page loads,
+// rather than whenever the webhook arrives. The parameter is dropped from the
+// address once the server has answered either way, so a reload doesn't post it
+// again; on a network failure it stays, so a reload retries.
+async function completeCheckout(sessionId) {
+  try {
+    const res = await api("/billing/stripe", { method: "POST", body: { checkout_session_id: sessionId } });
+    history.replaceState(null, "", "#/settings");
+    // The purchase spent the trial, so the plans the chooser shows have changed.
+    plansRequest = null;
+    await ensureMe().catch(() => {});
+    if (res.entitlement) state.entitlement = res.entitlement;
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ApiError) history.replaceState(null, "", "#/settings");
+    return { error: err instanceof ApiError ? err.message : `Your payment went through, but this page couldn't confirm it: ${err.message}. Reload to try again.` };
+  }
 }
 
 // Whether the browser says it is offline — an export needs the server.
 const exportOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
 
-async function viewSettings() {
+async function viewSettings(params = new URLSearchParams()) {
+  const checkoutId = checkoutIdFrom(params);
+  const subNotice = checkoutId ? await completeCheckout(checkoutId) : null;
   // The user's own list, or the built-in one shown as the starting point.
   const template = checklistTemplate();
   const isCustom = !!state.me?.checklist_template;
@@ -3585,7 +3718,7 @@ async function viewSettings() {
       }</div>
     </div>
     <h2>Subscription</h2>
-    ${subscriptionPanelHtml()}
+    ${subscriptionPanelHtml(subNotice)}
     <h2>New to track days?</h2>
     <div class="panel">
       <div class="hint" style="margin:0 0 10px">What a track day is, what you and the car need, where to find an event near you, and what happens on the day.</div>
@@ -3603,6 +3736,9 @@ async function viewSettings() {
     </div>
   `);
   bindYouTubeSettings(view);
+
+  bindSubscriptionPanel(view);
+  if (subNotice) view.querySelector("#sub-panel")?.scrollIntoView({ block: "center" });
 
   // --- units ---
   view.querySelectorAll("[data-units]").forEach((btn) => {
@@ -4836,13 +4972,19 @@ function wrappedYearPicker(years, current, hrefFor) {
     .join("")}</div>`;
 }
 
-// The two Pro cards' store links on a free account — proPanelHtml's buttons,
-// without the panel, since the card is already the panel's shape.
-const wrappedLockedHtml = () => `<div class="btn-row">
-    <a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
-    <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>
-  </div>
+// The two Pro cards' way in on a free account — proPanelHtml's buttons,
+// without the panel, since the card is already the panel's shape: Subscribe
+// (to Settings' plan chooser) while the web sells, else the phone apps.
+const wrappedLockedHtml = () => {
+  const subscribe = subscribeLabel(state.plans);
+  return `<div class="btn-row">${
+    subscribe
+      ? `<a class="btn small primary" href="#/settings">${esc(subscribe)}</a>`
+      : `<a class="btn small primary" href="${APP_STORE_URL}" target="_blank" rel="noopener">Subscribe on iPhone ↗</a>
+         <a class="btn small primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Subscribe on Android ↗</a>`
+  }</div>
   <p class="hint">Track Evolution Pro is ${PRO_PRICE}. Wrapped itself is free.</p>`;
+};
 
 // A finished season with no track days won't get one; only the running year
 // (or a later one) is "— yet". The same rule on all three clients.
@@ -5803,7 +5945,7 @@ async function routeView() {
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"), params.get("car"));
     if (parts[0] === "year") return await viewYear(params);
     if (parts[0] === "wrapped") return await viewWrapped(parts[1]);
-    if (parts[0] === "settings") return await viewSettings();
+    if (parts[0] === "settings") return await viewSettings(params);
     viewNotFound();
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {

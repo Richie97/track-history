@@ -420,7 +420,8 @@ npm test                                  # stripe routes, signature verificatio
 npm run contracts:check                   # golden /me captures unchanged; entitlement fixture gains the withheld case
 cd apps/ios/Packages/TrackEvolutionKit && swift test          # zero native diffs, fixture still passes
 cd apps/android && ./gradlew :core:check :app:testDebugUnitTest
-stripe listen --forward-to localhost:8787/billing/stripe/webhook
+stripe listen --forward-to localhost:8787/billing/stripe/webhook \
+  --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,customer.subscription.paused,customer.subscription.resumed,invoice.paid,invoice.payment_failed,charge.refunded
 ```
 
 Then by hand, on one account across all three clients: subscribe on the web
