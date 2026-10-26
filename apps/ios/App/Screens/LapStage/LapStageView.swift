@@ -32,8 +32,16 @@ struct LapStageView<Header: View, Content: View>: View {
     /// Why the full-bleed cover is up, if it is: a phone turned on its side
     /// (turning back dismisses it), or the fullscreen button (its back chip does).
     @State private var fullBleed: FullBleedReason?
-    /// The compact player shrunk to its mini bar.
+    /// Whether a phone's stage has scrolled out, so its mini bar shows.
+    ///
+    /// The compact stage is **not pinned**, and the mini bar is an overlay, so
+    /// collapsing never changes the page's height. It did once — a pinned
+    /// ~380pt stage shrinking to a 64pt bar made the page that much shorter, so
+    /// near the bottom the scroll offset was clamped back under the threshold,
+    /// the stage grew again, and the page was thrown back up: the bottom of the
+    /// panel could not be reached. The web's stage made the same call.
     @State private var collapsed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visibleHeight: CGFloat = 800
 
     private enum FullBleedReason { case rotation, button }
@@ -104,6 +112,18 @@ struct LapStageView<Header: View, Content: View>: View {
                     if case .medium = stage {
                         mediumTop.padding(.horizontal, gutter)
                     }
+                    if stage == .compact {
+                        // Not pinned, unlike the other layouts: see `collapsed`.
+                        compactStage
+                            .onGeometryChange(for: Bool.self) { proxy in
+                                // Past once the transport has slid under the top of
+                                // the scroll view. A Bool, so the stage re-renders
+                                // at the crossing and not on every scrolled frame.
+                                proxy.frame(in: .scrollView).maxY < 40
+                            } action: { past in
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { collapsed = past }
+                            }
+                    }
                     Section {
                         content()
                             .padding(.horizontal, gutter)
@@ -115,7 +135,15 @@ struct LapStageView<Header: View, Content: View>: View {
                     }
                 }
             }
-            .modifier(CollapseOnScroll(enabled: stage == .compact, collapsed: $collapsed))
+            .overlay(alignment: .top) {
+                if stage == .compact, collapsed {
+                    miniBar {
+                        withAnimation(nil) { reader.scrollTo("stageTop", anchor: .top) }
+                    }
+                    .background(Color(.bgPage))
+                    .transition(.opacity)
+                }
+            }
         }
     }
 
@@ -129,14 +157,8 @@ struct LapStageView<Header: View, Content: View>: View {
                 .padding(.horizontal, gutter)
                 .padding(.vertical, 8)
         case .compact, .tabletop:
-            if collapsed {
-                miniBar {
-                    withAnimation(nil) { reader.scrollTo("stageTop", anchor: .top) }
-                    collapsed = false
-                }
-            } else {
-                compactStage
-            }
+            // The compact stage scrolls with the page; nothing pins.
+            EmptyView()
         }
     }
 
@@ -325,31 +347,6 @@ struct LapStageView<Header: View, Content: View>: View {
                     }
                 }
             }
-        }
-    }
-}
-
-// MARK: - Collapsing the compact player
-
-/// Shrinks the compact player to its mini bar once the page has scrolled past
-/// the stage's own height (the spec's ~120pt of charts). iOS 18's scroll
-/// geometry; on 17 the player simply stays full size. Reduce Motion makes the
-/// change a cut.
-private struct CollapseOnScroll: ViewModifier {
-    let enabled: Bool
-    @Binding var collapsed: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *), enabled {
-            content.onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y > 200
-            } action: { _, past in
-                guard past != collapsed else { return }
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { collapsed = past }
-            }
-        } else {
-            content
         }
     }
 }

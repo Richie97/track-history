@@ -944,9 +944,13 @@ instead of in `channel-graphs.test.js`.
   title. **Not yet**: the ring on the friction circle and balance scatter,
   the lit sector in the sector table, and the gear ribbon's line. Their taps
   do seek. Follow-up.
-- **The mini bar** needs iOS 18's `onScrollGeometryChange`. On iOS 17 the
-  compact player stays full size. It collapses after 200 pt of page scroll.
-  The header scrolls first, so that is roughly the spec's 120 pt of charts.
+- **Compact isn't sticky**, as on the web. The stage scrolls with the page.
+  Once its transport has slid under the top, the mini bar appears as an
+  overlay (thumbnail, play/pause, scrubber), and a tap on the thumbnail
+  scrolls back. The first build pinned the whole stage and shrank it to the
+  bar in place. That made the page ~300 pt shorter, so near the bottom the
+  clamped scroll offset fell back under the threshold, the stage grew again,
+  and the page jumped back up. An overlay never changes the page's height.
 - **Medium** pins the transport as a `LazyVStack` section header, so the
   transport sits *under* the videos and map, as on the web.
 - **Tabletop** puts the charts below the crease one per row, not two. On a
