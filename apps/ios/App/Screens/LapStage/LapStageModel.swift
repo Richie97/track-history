@@ -90,7 +90,7 @@ final class StageVideo {
 /// asks for: the panel can't tell a video clock from a replay one.
 @MainActor
 @Observable
-final class LapStageModel {
+final class LapStageModel: HeldOnRouter {
     let playhead = LapPlayhead()
     /// How a stage fetches a clip's signed URL — the owner's scoped client, a
     /// shared link's own endpoint, or (DEBUG) a local file.
@@ -127,6 +127,12 @@ final class LapStageModel {
     private(set) var state: VideoSync.Playhead?
     /// Whether the scrubber is being dragged.
     private(set) var scrubbing = false
+    /// The page's channel panel's tab and lit laps, kept with the stage so a
+    /// rebuilt page reopens them (`LapChannelPanel.memory`).
+    @ObservationIgnored let panelMemory = PanelMemory()
+    /// How far the page under the stage was scrolled, so a rebuilt page lands
+    /// back near where it was rather than at the top (iOS 18 and later).
+    @ObservationIgnored var scrollY: CGFloat = 0
     /// What the scrubber's track draws — rebuilt when the sides or the master
     /// change, never per frame.
     private(set) var scrub = ScrubGeometry()
@@ -143,6 +149,12 @@ final class LapStageModel {
         self.mode = mode
         self.store = store
         self.urlFor = urlFor
+    }
+
+    /// Its page has left both stacks (`AppRouter.held`): stop for good.
+    func released() {
+        pendingPause?.cancel()
+        teardown()
     }
 
     // MARK: - Sides
@@ -451,6 +463,49 @@ final class LapStageModel {
     func teardown() {
         pause(announce: false)
         stopLink()
+    }
+
+    // MARK: - Continuity
+
+    /// How many stage views are showing this model right now.
+    @ObservationIgnored private var viewers = 0
+    @ObservationIgnored private var pendingPause: Task<Void, Never>?
+
+    /// How long a stage may be gone before playback pauses. A resize that swaps
+    /// the shell — an iPhone Duo opening sideways, an iPad mini rotating —
+    /// removes the stage and builds it again in the same pass, so the gap is a
+    /// frame or two; a page pushed over it, or a tab switched away, is gone for
+    /// longer. Half a second tells the two apart without a visible stall.
+    static let REAPPEAR_GRACE: Duration = .milliseconds(500)
+
+    /// A stage view showing this model appeared.
+    func viewerAppeared() {
+        viewers += 1
+        pendingPause?.cancel()
+        pendingPause = nil
+    }
+
+    /// A stage view showing this model went away. **Not** a pause on the spot:
+    /// a resize that rebuilds the page reuses this model (`AppRouter.held`),
+    /// and the video must carry on across it. Only if no view has come back
+    /// within the grace does it pause.
+    func viewerDisappeared() {
+        viewers = max(0, viewers - 1)
+        guard viewers == 0 else { return }
+        pendingPause?.cancel()
+        pendingPause = Task { [weak self] in
+            try? await Task.sleep(for: Self.REAPPEAR_GRACE)
+            guard !Task.isCancelled, let self, self.viewers == 0 else { return }
+            self.pause(announce: false)
+            self.stopLink()
+        }
+    }
+
+    /// The scene went to the background: pause. Only `.background` — a fold,
+    /// a rotation, Control Center or a notification passes through `.inactive`,
+    /// and none of those should stop the video.
+    static func pausesFor(_ phase: ScenePhase) -> Bool {
+        phase == .background
     }
 
     fileprivate func tick() {

@@ -115,6 +115,12 @@ struct LapChannelPanel: View {
     /// Which laps are lit, in slot order, whenever that changes — the session
     /// compare picks its stage's sides from it (`VideoSync.stageSides`).
     var onLitChange: (([Int]) -> Void)? = nil
+    /// Where the panel's tab and lit laps outlive the panel (NS-51) — the web's
+    /// `bindChannelGraphs` `memory` option. A resize that rebuilds the page (a
+    /// Duo unfolding sideways, a rotation across 840 pt) would otherwise put a
+    /// driver reading the Grip tab back on Time with the default laps lit. nil:
+    /// the panel's own `@State`, as before.
+    var memory: PanelMemory? = nil
 
     /// The account's unit system — the speed axis and the distance ticks follow it.
     @Environment(\.unitSystem) private var units
@@ -242,10 +248,22 @@ struct LapChannelPanel: View {
         }
         .background { keyboardCommands }
         .onAppear {
-            if lit.isEmpty { lit = preselect ?? ChannelGraphs.initialSelection(matches) }
+            if lit.isEmpty {
+                if let memory, let remembered = memory.lit,
+                   remembered.allSatisfy({ channels.laps.indices.contains($0) }) {
+                    lit = remembered
+                    tab = memory.tab.flatMap(Tab.init(rawValue:))
+                } else {
+                    lit = preselect ?? ChannelGraphs.initialSelection(matches)
+                }
+            }
             onLitChange?(lit)
         }
-        .onChange(of: lit) { _, lit in onLitChange?(lit) }
+        .onChange(of: lit) { _, lit in
+            memory?.lit = lit
+            onLitChange?(lit)
+        }
+        .onChange(of: tab) { _, tab in memory?.tab = tab?.rawValue }
     }
 
     // MARK: - Keyboard (NS-34 ticket 5)
@@ -1067,6 +1085,15 @@ struct LapChannelPanel: View {
     private func fmtValue(_ value: Double, _ channel: ChannelGraphs.Channel) -> String {
         String(format: "%.\(channel.decimals)f", value)
     }
+}
+
+/// A channel panel's tab and lit laps, kept by its owner so they outlive the
+/// panel's view (see `LapChannelPanel.memory`). Not observed: the panel reads it
+/// once, when it is built, and writes it as it changes.
+@MainActor
+final class PanelMemory {
+    var lit: [Int]?
+    var tab: String?
 }
 
 /// The stage's playhead over one chart (NS-51): a line at the playhead's

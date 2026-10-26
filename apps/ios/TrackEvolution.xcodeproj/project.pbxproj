@@ -98,6 +98,7 @@
 		C509C29CBCCDFCAD0911F20F /* CoachingRoutesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA978A264D14BAB2CBE1D837 /* CoachingRoutesTests.swift */; };
 		C79E68610F3F0CC012D94722 /* DroppedClipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9717B63A2B268C68C01FC9BC /* DroppedClipTests.swift */; };
 		C86CDD5858BF84A51F9E8DFF /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = DDA377329928A5B98461061C /* FirebaseAnalytics */; };
+		CB5BE31C3FC1F59277D16225 /* StageContinuityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE2F6B38983A3D79840630E /* StageContinuityTests.swift */; };
 		D234842001F72AFD889C8DA2 /* TwoPaneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042BCD94857B93C69F6E4953 /* TwoPaneUITests.swift */; };
 		D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF458BC0BC4540AA03653819 /* TrackEvolutionApp.swift */; };
 		D51EB8770639D12CEEE9B9F0 /* PaywallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3FF04EE56EF96EE2E8F5283 /* PaywallSheet.swift */; };
@@ -276,6 +277,7 @@
 		F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackMapView.swift; sourceTree = "<group>"; };
 		F48AE0050A975A2D2C847DDB /* RecordingBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingBanner.swift; sourceTree = "<group>"; };
 		F780198483293642090CD24D /* DetailPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailPlaceholder.swift; sourceTree = "<group>"; };
+		FCE2F6B38983A3D79840630E /* StageContinuityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageContinuityTests.swift; sourceTree = "<group>"; };
 		FF9570CFC110307BABC907C9 /* WrappedScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WrappedScreen.swift; sourceTree = "<group>"; };
 		FFC506BB6A47DA40FDE9F249 /* DebugImportFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugImportFixture.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -442,6 +444,7 @@
 				43C910E5711C4568839C4E16 /* PlatformTests.swift */,
 				78F6C833C2E45EF6248BB416 /* RouterTests.swift */,
 				15CB5BD5A978768E69931470 /* SetupNotebookTests.swift */,
+				FCE2F6B38983A3D79840630E /* StageContinuityTests.swift */,
 				24D9BCE7CA1674A655852C55 /* StageLayoutTests.swift */,
 			);
 			path = Tests;
@@ -819,6 +822,7 @@
 				6BC3D2B49F8F35A46F7CF8E5 /* PlatformTests.swift in Sources */,
 				1F8CC9EE19DF817203CC8DE4 /* RouterTests.swift in Sources */,
 				EBE358C8B49D452A68EEE40E /* SetupNotebookTests.swift in Sources */,
+				CB5BE31C3FC1F59277D16225 /* StageContinuityTests.swift in Sources */,
 				5EF9C64FB364CB3642ED4988 /* StageLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

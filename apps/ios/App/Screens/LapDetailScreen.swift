@@ -62,13 +62,20 @@ struct LapDetailScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
+                // Held on the router, keyed by this page's route, so a resize
+                // that rebuilds the page — an iPhone Duo opening sideways, a
+                // rotation across 840 pt — finds the same models and the video
+                // carries on (NS-51; `AppRouter.held`).
                 let api = auth.api.scoped(to: owner)
-                let model = EventModel(api: api, eventId: eventId)
+                let route = owner.link(.lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
+                let model = router.held(route, "event") { EventModel(api: api, eventId: eventId) }
                 self.model = model
-                stage = LapStageModel(mode: syncMode.mode, store: syncMode) { clip in
-                    try await api.clipURL(id: clip.id).url
+                stage = router.held(route, "stage") {
+                    LapStageModel(mode: syncMode.mode, store: syncMode) { clip in
+                        try await api.clipURL(id: clip.id).url
+                    }
                 }
-                await model.load()
+                if model.detail == nil { await model.load() }
             }
         }
     }
@@ -227,7 +234,8 @@ struct LapDetailScreen: View {
                         preselect: [0],
                         pro: pro,
                         playhead: stage.playhead,
-                        onSeek: { stage.seek(toGridA: $0) }
+                        onSeek: { stage.seek(toGridA: $0) },
+                        memory: stage.panelMemory
                     )
                     if let entry = view.channels?.laps.first {
                         facts(CompareLaps.lapMetrics(entry))
