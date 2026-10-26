@@ -48,7 +48,8 @@ The three clients are deliberately **not** at parity:
   hand. The web played, downloaded and deleted clips from day one, and
   [NS-47](NS-47-web-clip-upload.md) gave it the remuxer and the upload, so
   the feature is on all three clients now. Saving **every lap** of a PDR
-  import ([NS-50](NS-50-every-lap-clips.md)) landed on all three at once.
+  import ([NS-50](NS-50-every-lap-clips.md)) landed on all three at once. **Watching** a lap with the charts in step
+  ([NS-51](NS-51-video-synced-laps.md)) is specified for all three at once too.
 - **The Mac is a fourth *surface*, not a fourth client** (2026-09, epic
   [#230](https://github.com/Richie97/track-history/issues/230)). It runs the
   iPad build as a *Designed for iPad* app — no target, no Catalyst — so it
@@ -682,6 +683,7 @@ change* rule does not apply — see the spec for why.
 | NS-48 | [Share one event or one session](NS-48-share-event-session.md) | Server + web + iOS + Android | the coach allow-lists (NS-38), NS-45 |
 | NS-49 | [Stripe: Track Evolution Pro on the web](NS-49-stripe-web-checkout.md) — both phases landed; ships dark until the Stripe secrets are set | Server + web (the phones deliberately untouched) | NS-32 |
 | NS-50 | [Every-lap video clips from a PDR import](NS-50-every-lap-clips.md) | Server + web + iOS + Android | NS-45, NS-47 |
+| NS-51 | [Video-synced lap analysis (the lap stage)](NS-51-video-synced-laps.md) | Web + iOS + Android (no server change) | NS-45, NS-50, NS-34, #165, NS-35 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
