@@ -18,6 +18,7 @@ struct SessionCompareScreen: View {
 
     @Environment(AuthController.self) private var auth
     @Environment(\.logbookOwner) private var owner
+    @Environment(AppRouter.self) private var router
     @Environment(SyncModeStore.self) private var syncMode
     @State private var model: EventModel?
     @State private var stage: LapStageModel?
@@ -41,13 +42,26 @@ struct SessionCompareScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
+                // Held on the router, keyed by this page's route, so a resize
+                // that rebuilds the page — an iPhone Duo opening sideways, a
+                // rotation across 840 pt — finds the same models and the video
+                // carries on (NS-51; `AppRouter.held`).
                 let api = auth.api.scoped(to: owner)
-                let model = EventModel(api: api, eventId: eventId)
+                let route = owner.link(.sessionCompare(eventId: eventId, sessionId: sessionId, lapId: lapId))
+                let model = router.held(route, "event") { EventModel(api: api, eventId: eventId) }
                 self.model = model
-                stage = LapStageModel(mode: syncMode.mode, store: syncMode) { clip in
-                    try await api.clipURL(id: clip.id).url
+                let stage = router.held(route, "stage") {
+                    LapStageModel(mode: syncMode.mode, store: syncMode) { clip in
+                        try await api.clipURL(id: clip.id).url
+                    }
                 }
-                await model.load()
+                // A rebuilt page starts from the laps it had lit, not from
+                // none: configuring the held stage with no sides would drop its
+                // players before the panel reported the remembered laps, and the
+                // video would stop and jump back to the run-up.
+                if let remembered = stage.panelMemory.lit { lit = remembered }
+                self.stage = stage
+                if model.detail == nil { await model.load() }
             }
         }
     }
@@ -78,10 +92,14 @@ struct SessionCompareScreen: View {
                 pro: pro,
                 playhead: stage.playhead,
                 onSeek: { stage.seek(toGridA: $0) },
-                onLitChange: { lit = $0 }
+                onLitChange: { lit = $0 },
+                memory: stage.panelMemory
             )
         }
         .task(id: StageKey(lit: lit, clips: session.laps.map(\.clip), playsVideo: playsVideo, pro: pro)) {
+            // Nothing lit yet — the panel hasn't reported — is not "show
+            // nothing": a held stage keeps its sides until it has.
+            guard !lit.isEmpty || stage.inputs.isEmpty else { return }
             stage.configure(
                 Self.inputs(
                     session: session, channels: channels, matched: matched, lit: lit, opened: opened,

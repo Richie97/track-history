@@ -971,6 +971,52 @@ instead of in `channel-graphs.test.js`.
   after an hour paused with the item still healthy is not re-signed.
 - **Deleting a clip** from the stage's menu re-reads the page, as on the web.
 
+### Continuity across a resize
+
+Apple's iPhone Duo guidance says a fold **resizes** the app, and the
+experience should stay continuous. The SDK has no continuity API beyond
+that: `onHingeChange` / `UIHingeInteraction` report the hinge, and reserved
+regions and `ArrangementView` handle layout. So keeping playback going is the
+app's job.
+
+On iOS three things stopped the video whenever the window crossed 840 pt.
+That covers rotating an open Duo, unfolding it held sideways, and an iPad
+mini turning.
+
+- **The shell swap rebuilt the page**, and its `LapStageModel` with it, so the
+  new one opened at the run-up, paused. The lap page and the session compare
+  now take their `EventModel` and `LapStageModel` from
+  **`AppRouter.held(route, key)`**. It keeps a page's live objects while its
+  route is on a stack, beside `heldFields`. It releases them (`HeldOnRouter`)
+  the moment the route leaves, which is what stops the video on Back.
+- **`onDisappear` tore the stage down.** The stage now counts its views and
+  pauses only if none has come back within `REAPPEAR_GRACE` (0.5 s). A
+  rebuild is a frame or two; a page pushed over it is longer.
+- **Any non-`.active` scene phase paused it.** A fold and a rotation pass
+  through `.inactive`, so only `.background` pauses now
+  (`LapStageModel.pausesFor`).
+
+Two smaller things now come back with the page:
+
+- **The channel panel's tab and lit laps**, through
+  `LapChannelPanel(memory:)` — a `PanelMemory` the stage holds, the web's
+  `memory` option.
+- **The scroll position**, through `ScrollPosition` on iOS 18 and later. It is
+  approximate, since the stage's own height changes with its layout.
+
+The session compare also seeds its lit laps from that memory. Configuring a
+held stage with nothing lit would drop its players before the panel reported
+them.
+
+On the iPhone Duo simulator (iOS 27.1), against real PDR footage, a
+two-video compare kept playing, in step, on the same tab, across rotations
+in both directions. Opening and closing the Duo is the same resize, but it
+was not exercised: `simctl` has no fold control, and the Device Hub's is
+manual. The simulator's "open" pose reports the hinge as `partiallyOpen` at
+about 128°, so it draws the tabletop stage. That is correct for that pose.
+The tabletop row now gives *Same place / Same time* its own line; beside
+the now-strip it was squeezed to nothing.
+
 ### Verified
 
 Built with Xcode 27.1, against `npm run dev`:

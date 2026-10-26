@@ -71,11 +71,15 @@ struct LapStageView<Header: View, Content: View>: View {
         .onChange(of: verticalSizeClass, initial: true) { _, size in autoFullBleed(size) }
         .onChange(of: model.hasAnyVideo) { _, _ in autoFullBleed(verticalSizeClass) }
         // Backgrounded mid-play: pause. Picture-in-picture is out of scope.
+        // `.background` only: a fold or a rotation passes through `.inactive`.
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { model.pause(announce: false) }
+            if LapStageModel.pausesFor(phase) { model.pause(announce: false) }
         }
         .onChange(of: units, initial: true) { _, units in model.units = units }
-        .onDisappear { model.teardown() }
+        // Counted rather than torn down: a resize rebuilds this view around the
+        // same model, and the video carries on (`viewerDisappeared`).
+        .onAppear { model.viewerAppeared() }
+        .onDisappear { model.viewerDisappeared() }
         // The stage's one presentation. A host must present nothing else from
         // this view: two modal presentations on one view is the watchdog crash
         // AGENTS.md lists.
@@ -135,6 +139,7 @@ struct LapStageView<Header: View, Content: View>: View {
                     }
                 }
             }
+            .modifier(RememberScroll(model: model))
             .overlay(alignment: .top) {
                 if stage == .compact, collapsed {
                     miniBar {
@@ -305,9 +310,14 @@ struct LapStageView<Header: View, Content: View>: View {
                         } header: {
                             Group {
                                 if roomy {
-                                    HStack(alignment: .center, spacing: 12) {
-                                        StageTransport(model: model, compare: compare, large: true)
-                                        NowStrip(model: model, row: true).frame(maxWidth: 380)
+                                    VStack(spacing: 8) {
+                                        HStack(alignment: .center, spacing: 12) {
+                                            // The mode gets its own row: beside the
+                                            // now-strip it was squeezed to "S S".
+                                            StageTransport(model: model, compare: false, large: true)
+                                            NowStrip(model: model, row: true).frame(maxWidth: 380)
+                                        }
+                                        if compare, model.isTwoSided { ModeControl(model: model) }
                                     }
                                 } else {
                                     VStack(spacing: 8) {
@@ -348,6 +358,43 @@ struct LapStageView<Header: View, Content: View>: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Continuity
+
+/// Lands a rebuilt page back near where it was scrolled (iOS 18's
+/// `ScrollPosition`): a resize that swaps the shell builds a new scroll view,
+/// which would otherwise open at the top. Approximate by design — the stage's
+/// own height can change with the layout — and on iOS 17 the page simply opens
+/// at the top, as before.
+private struct RememberScroll: ViewModifier {
+    let model: LapStageModel
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            RestoringScroll(model: model, content: content)
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 18.0, *)
+private struct RestoringScroll<Content: View>: View {
+    let model: LapStageModel
+    let content: Content
+    @State private var position = ScrollPosition(edge: .top)
+
+    var body: some View {
+        content
+            .scrollPosition($position)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
+                model.scrollY = y
+            }
+            .onAppear {
+                if model.scrollY > 1 { position.scrollTo(y: model.scrollY) }
+            }
     }
 }
 
