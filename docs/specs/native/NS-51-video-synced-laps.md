@@ -1010,9 +1010,9 @@ them.
 
 On the iPhone Duo simulator (iOS 27.1), against real PDR footage, a
 two-video compare kept playing, in step, on the same tab, across rotations
-in both directions. Opening and closing the Duo is the same resize, but it
-was not exercised: `simctl` has no fold control, and the Device Hub's is
-manual. The simulator's "open" pose reports the hinge as `partiallyOpen` at
+in both directions. Opening and closing it was checked by hand in the
+Device Hub, since `simctl` has no fold control, and playback carried on
+there too. The simulator's "open" pose reports the hinge as `partiallyOpen` at
 about 128°, so it draws the tabletop stage. That is correct for that pose.
 The tabletop row now gives *Same place / Same time* its own line; beside
 the now-strip it was squeezed to nothing.
