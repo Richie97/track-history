@@ -5,6 +5,14 @@ import TrackEvolutionKit
 /// session's trace was drawn from, its channel traces, and a door to the
 /// multi-lap compare (#267).
 ///
+/// **Video-first since NS-51.** A lap with a channel entry opens on the lap
+/// stage — its video (or a replay on the map), the transport and the
+/// now-strip, pinned — with the panel inline under it carrying the playhead,
+/// and the facts at the end. The stage is one-sided: the delta is measured
+/// against a quiet **reference lap** (`VideoSync.referenceLap` — the session
+/// best, or the next-best when this lap is the best), whose speed trace sits
+/// dim in the panel under this lap's own.
+///
 /// Reached from a lap row on the event page. Reads the event detail through
 /// `EventModel` — the same offline-cached read the page made — and finds its
 /// session and lap in it, so a lap opened in a paddock costs no request.
@@ -17,10 +25,9 @@ import TrackEvolutionKit
 /// line; any other lap would be drawn on a line it never took. The channel
 /// traces are per lap and every lap that has an entry gets its own.
 ///
-/// The compare sheet hangs off its *button*, the way `ProUpsellCard`'s paywall
-/// does: a second `.sheet` on a view that already presents one is the SwiftUI
-/// hazard documented on `VehicleScreen`, and the panel below carries an upsell
-/// of its own on a free account.
+/// *Compare laps* is a push now (`Route.sessionCompare`), not the sheet it was:
+/// the page presents one thing — the stage's full-bleed cover — and nothing
+/// else, which is the one-modal-per-view rule AGENTS.md lists.
 struct LapDetailScreen: View {
     let eventId: Int
     let sessionId: Int
@@ -32,7 +39,9 @@ struct LapDetailScreen: View {
     /// Whose logbook: the student's in a coach's view (NS-38), which decides both
     /// where the reads go and whose tier the channel panel opens by.
     @Environment(\.logbookOwner) private var owner
+    @Environment(SyncModeStore.self) private var syncMode
     @State private var model: EventModel?
+    @State private var stage: LapStageModel?
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -53,8 +62,12 @@ struct LapDetailScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if model == nil {
-                let model = EventModel(api: auth.api.scoped(to: owner), eventId: eventId)
+                let api = auth.api.scoped(to: owner)
+                let model = EventModel(api: api, eventId: eventId)
                 self.model = model
+                stage = LapStageModel(mode: syncMode.mode, store: syncMode) { clip in
+                    try await api.clipURL(id: clip.id).url
+                }
                 await model.load()
             }
         }
@@ -80,6 +93,9 @@ struct LapDetailScreen: View {
         /// The racing line — only when this is the lap it was drawn from.
         var trace: [TracePoint]?
         var markers: [Limits.Marker]
+        /// The stage's reference (NS-51): the session best, or the next-best
+        /// when this lap is the best — nil alone, or for a lap with no entry.
+        var reference: ChannelGraphs.LapMatch?
     }
 
     static func build(_ detail: EventDetail, sessionId: Int, lapId: Int) -> Detail? {
@@ -90,11 +106,14 @@ struct LapDetailScreen: View {
         let isBest = lap.timeMs == best
         var chIdx: Int?
         var channels: SessionChannels?
-        if let stored = session.channels, !stored.laps.isEmpty,
-           let match = ChannelGraphs.matchLapsToChannels(session.laps, stored.laps).first(where: { $0.lap.id == lap.id }),
-           match.hasChannels {
-            chIdx = match.chIdx
-            channels = SessionChannels(v: 1, dStepM: stored.dStepM, laps: [stored.laps[match.chIdx]])
+        var reference: ChannelGraphs.LapMatch?
+        if let stored = session.channels, !stored.laps.isEmpty {
+            let matched = ChannelGraphs.matchLapsToChannels(session.laps, stored.laps)
+            if let match = matched.first(where: { $0.lap.id == lap.id }), match.hasChannels {
+                chIdx = match.chIdx
+                channels = SessionChannels(v: 1, dStepM: stored.dStepM, laps: [stored.laps[match.chIdx]])
+                reference = VideoSync.referenceLap(matched, match.chIdx)
+            }
         }
         // Ten points is `TrackMapView`'s floor, as on the event page.
         let traced = isBest && (session.trace?.count ?? 0) >= 10
@@ -106,7 +125,8 @@ struct LapDetailScreen: View {
             isBest: isBest,
             gapMs: lap.timeMs - best,
             trace: traced ? session.trace : nil,
-            markers: traced ? EventScreen.limitMarkers(session) : []
+            markers: traced ? EventScreen.limitMarkers(session) : [],
+            reference: reference
         )
     }
 
@@ -136,10 +156,182 @@ struct LapDetailScreen: View {
         !(view.session.channels?.laps.isEmpty ?? true)
     }
 
+    /// The panel's channels on the stage: this lap's entry, then the
+    /// reference's — lit is this lap alone, so the reference draws dim under it.
+    /// `pro == false` leaves the reference out: the delta and B are Pro.
+    static func stageChannels(_ view: Detail, pro: Bool) -> (channels: SessionChannels, laps: [Lap])? {
+        guard let own = view.channels, let entry = own.laps.first else { return nil }
+        if pro, let reference = view.reference, let stored = view.session.channels,
+           stored.laps.indices.contains(reference.chIdx) {
+            return (
+                SessionChannels(v: 1, dStepM: own.dStepM, laps: [entry, stored.laps[reference.chIdx]]),
+                [view.lap, reference.lap]
+            )
+        }
+        return (own, [view.lap])
+    }
+
+    /// The neighbouring laps of the session that have a clip, for the stage's
+    /// lap stepper (NS-50 every-lap sessions): the previous and the next by lap
+    /// number, nil at either end.
+    static func clipNeighbours(_ view: Detail) -> (previous: Lap?, next: Lap?) {
+        let withClips = view.session.laps.filter { $0.clip != nil }.sorted { $0.lapNum < $1.lapNum }
+        return (
+            withClips.last { $0.lapNum < view.lap.lapNum },
+            withClips.first { $0.lapNum > view.lap.lapNum }
+        )
+    }
+
     // MARK: - Content
+
+    /// Whether this viewer plays the lap's clip on the stage: the owner's tier,
+    /// or in a coach's view the student's (NS-45's rule).
+    private var playsVideo: Bool {
+        Entitlement.canSaveLapVideo(owner.channelEntitlement(viewer: auth.entitlement))
+    }
+
+    private var pro: Bool { owner.canViewChannels(viewer: auth.entitlement) }
 
     @ViewBuilder
     private func content(_ view: Detail) -> some View {
+        if let stage, let staged = Self.stageChannels(view, pro: pro) {
+            LapStageView(model: stage, compare: false) {
+                VStack(alignment: .leading, spacing: 10) {
+                    header(view)
+                    lapStepper(view)
+                    // Everything about the clip the stage doesn't play: locked,
+                    // on its way, failed — today's card, which says nothing when
+                    // there is nothing to say.
+                    if !(view.lap.clip != nil && playsVideo) {
+                        LapVideoSection(session: view.session, lap: view.lap, reload: { await model?.reload() })
+                    } else if let clip = view.lap.clip, !owner.isReadOnly {
+                        HStack {
+                            Spacer()
+                            LapClipMenu(clip: clip, onDeleted: { await model?.reload() }) {
+                                stage.pause(announce: false)
+                            }
+                        }
+                    }
+                }
+            } content: {
+                VStack(alignment: .leading, spacing: 14) {
+                    if Self.canCompare(view) {
+                        compareButton(view)
+                    }
+                    Text("Tap a chart to move the video there.")
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textFaint))
+                    LapChannelPanel(
+                        channels: staged.channels,
+                        laps: staged.laps,
+                        preselect: [0],
+                        pro: pro,
+                        playhead: stage.playhead,
+                        onSeek: { stage.seek(toGridA: $0) }
+                    )
+                    if let entry = view.channels?.laps.first {
+                        facts(CompareLaps.lapMetrics(entry))
+                    }
+                }
+            }
+            .task(id: StageKey(view, playsVideo: playsVideo, pro: pro)) {
+                stage.configure(
+                    stageInputs(view, staged: staged),
+                    trace: view.session.trace.flatMap { $0.count >= 10 ? $0 : nil },
+                    corners: Corners.sessionCorners(view.session.channels)
+                )
+            }
+        } else {
+            plainContent(view)
+        }
+    }
+
+    /// What the stage is built from — the `.task`'s key, so a reload that
+    /// changes the clip or the tier rebuilds it and nothing else does.
+    private struct StageKey: Hashable {
+        var lapId: Int
+        var clip: LapClip?
+        var referenceId: Int?
+        var playsVideo: Bool
+        var pro: Bool
+
+        init(_ view: Detail, playsVideo: Bool, pro: Bool) {
+            lapId = view.lap.id
+            clip = view.lap.clip
+            referenceId = view.reference?.lap.id
+            self.playsVideo = playsVideo
+            self.pro = pro
+        }
+    }
+
+    private func stageInputs(_ view: Detail, staged: (channels: SessionChannels, laps: [Lap])) -> [StageSideInput] {
+        let best = view.session.laps.map(\.timeMs).min()
+        var inputs = [
+            StageSideInput(
+                key: .A, entry: staged.channels.laps[0], dStepM: staged.channels.dStepM,
+                clip: playsVideo ? view.lap.clip : nil, chIdx: 0,
+                lapNum: view.lap.lapNum, timeMs: view.lap.timeMs, isBest: view.isBest
+            ),
+        ]
+        if staged.channels.laps.count > 1, staged.laps.count > 1 {
+            let ref = staged.laps[1]
+            // The reference has no slot, so no player: it is the delta's zero.
+            inputs.append(
+                StageSideInput(
+                    key: .B, entry: staged.channels.laps[1], dStepM: staged.channels.dStepM, clip: nil, chIdx: 1,
+                    lapNum: ref.lapNum, timeMs: ref.timeMs, isBest: ref.timeMs == best
+                )
+            )
+        }
+        return inputs
+    }
+
+    /// "‹ Lap 4" and "Lap 6 ›": the neighbouring laps with a clip. A step
+    /// **replaces** this page rather than pushing, so Back still returns to the
+    /// event.
+    @ViewBuilder
+    private func lapStepper(_ view: Detail) -> some View {
+        let near = Self.clipNeighbours(view)
+        if near.previous != nil || near.next != nil {
+            HStack {
+                if let previous = near.previous {
+                    Button("‹ Lap \(String(previous.lapNum))") { replace(with: previous) }
+                        .accessibilityLabel("Previous lap with video, lap \(String(previous.lapNum))")
+                }
+                Spacer()
+                if let next = near.next {
+                    Button("Lap \(String(next.lapNum)) ›") { replace(with: next) }
+                        .accessibilityLabel("Next lap with video, lap \(String(next.lapNum))")
+                }
+            }
+            .teStyle(.sm)
+            .tint(Color(.accentInk))
+        }
+    }
+
+    private func replace(with lap: Lap) {
+        let route = owner.link(.lap(eventId: eventId, sessionId: sessionId, lapId: lap.id))
+        if router.path.isEmpty {
+            router.push(route)
+        } else {
+            router.path[router.path.count - 1] = route
+        }
+    }
+
+    /// *Compare laps*: this lap against its reference, on the two-sided stage.
+    private func compareButton(_ view: Detail) -> some View {
+        Button {
+            router.push(owner.link(.sessionCompare(eventId: eventId, sessionId: sessionId, lapId: lapId)))
+        } label: {
+            Label("Compare laps", systemImage: "chart.xyaxis.line")
+        }
+        .buttonStyle(TEButtonStyle(kind: .quiet))
+        .accessibilityIdentifier("compareLaps")
+    }
+
+    /// A lap with no channel entry: its time and a sentence, today's player for
+    /// a clip, and the best lap's line when this is the best.
+    private func plainContent(_ view: Detail) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header(view)
@@ -149,7 +341,7 @@ struct LapDetailScreen: View {
                 LapVideoSection(session: view.session, lap: view.lap, reload: { await model?.reload() })
 
                 if Self.canCompare(view) {
-                    CompareLapsButton(session: view.session, preselect: Self.comparePreselect(view))
+                    compareButton(view)
                 }
 
                 if let trace = view.trace {
@@ -163,20 +355,7 @@ struct LapDetailScreen: View {
                             LimitLegend(markers: view.markers)
                         }
                     }
-                }
-
-                if let channels = view.channels, let entry = channels.laps.first {
-                    facts(CompareLaps.lapMetrics(entry))
-                    Text("Tap a chart to read values.")
-                        .teStyle(.xs)
-                        .foregroundStyle(Color(.textFaint))
-                    LapChannelPanel(
-                        channels: channels,
-                        laps: [view.lap],
-                        preselect: [0],
-                        pro: owner.canViewChannels(viewer: auth.entitlement)
-                    )
-                } else if view.trace == nil {
+                } else {
                     TEEmpty(
                         "No telemetry for this lap. Import a session, or record laps with the app, and its racing line and traces land here.",
                         // The importer for this lap's own event (#342) — the
@@ -242,45 +421,5 @@ struct LapDetailScreen: View {
     /// Speed in the account's unit system, as the rest of the app shows it.
     private func mph(_ kph: Double) -> String {
         Units.fmtSpeedKph(kph, auth.units)
-    }
-}
-
-/// The door to the session's multi-lap overlay — the same sheet the event page's
-/// *Compare laps* control presents — with this lap lit first.
-private struct CompareLapsButton: View {
-    let session: Session
-    let preselect: [Int]?
-
-    @Environment(AuthController.self) private var auth
-    /// Whose logbook: the student's in a coach's view (NS-38), which decides both
-    /// where the reads go and whose tier the channel panel opens by.
-    @Environment(\.logbookOwner) private var owner
-    @State private var comparing = false
-
-    var body: some View {
-        Button {
-            comparing = true
-        } label: {
-            Label("Compare laps", systemImage: "chart.xyaxis.line")
-        }
-        .buttonStyle(TEButtonStyle(kind: .quiet))
-        .accessibilityIdentifier("compareLaps")
-        .sheet(isPresented: $comparing) {
-            NavigationStack {
-                LapChannelChart(
-                    channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []),
-                    laps: session.laps,
-                    preselect: preselect,
-                    pro: owner.canViewChannels(viewer: auth.entitlement)
-                )
-                .navigationTitle(session.label ?? "Compare laps")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { comparing = false }
-                    }
-                }
-            }
-        }
     }
 }

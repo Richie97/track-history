@@ -26,6 +26,8 @@ final class AnalyticsPathTests: XCTestCase {
         (.sharedItem(kind: .event, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/e/:token"),
         (.sharedItem(kind: .session, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/s/:token"),
         (.lap(eventId: 12, sessionId: 40, lapId: 991), "/event/:id/lap/:id"),
+        (.sessionCompare(eventId: 12, sessionId: 40, lapId: 991), "/event/:id/session/:id/compare"),
+        (.sessionCompare(eventId: 12, sessionId: 40, lapId: nil), "/event/:id/session/:id/compare"),
         (.wrapped(year: 2026), "/wrapped/2026"),
         (.coaching, "/coaching"),
         (.profile, "/profile"),
@@ -35,6 +37,10 @@ final class AnalyticsPathTests: XCTestCase {
         (.student(id: 8, page: .track(3)), "/student/:id/track/:id"),
         (.student(id: 8, page: .lap(eventId: 12, sessionId: 40, lapId: 991)), "/student/:id/event/:id/lap/:id"),
         (.student(id: 8, page: .vehicle(4)), "/student/:id/vehicle/:id"),
+        (
+            .student(id: 8, page: .sessionCompare(eventId: 12, sessionId: 40, lapId: nil)),
+            "/student/:id/event/:id/session/:id/compare"
+        ),
         (.trackDaysGuide, "/guide/track-days"),
         (.setupForm(eventId: 12, day: 2, startFrom: nil), "/event/:id/setup/:day"),
         (.setupForm(eventId: 12, day: 3, startFrom: SetupSheet()), "/event/:id/setup/:day"),

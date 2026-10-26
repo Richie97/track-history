@@ -2269,6 +2269,16 @@ there. No server change: the sync is derived from what is already stored.
   compare and the leaderboard lap, so also the student and shared-item views.
   Tiers follow the parts: the video is `canSaveLapVideo`, the second lap and
   the delta `canViewChannels`.
+- **iOS** (ticket 2) ports the pure half as `VideoSync` in the Kit, pinned by
+  the same fixture, and builds its stage in `apps/ios/App/Screens/LapStage/`:
+  the lap page opens video-first on a one-sided stage measured against a
+  reference lap (the session best, or the next-best for the best), and its
+  *Compare laps* — like the event page's below expanded width — is now a
+  pushed two-lap stage (`Route.sessionCompare`) rather than a sheet; the
+  track compare and the leaderboard lap carry the stage too. Phone landscape
+  goes full-bleed, a half-open iPhone Duo splits the stage at the crease, and
+  an iPad keyboard drives it. `-lapStage` opens it on synthetic data with no
+  server.
 
 ## Publishing best-lap videos to YouTube
 

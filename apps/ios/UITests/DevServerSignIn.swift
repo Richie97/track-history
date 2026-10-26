@@ -52,6 +52,26 @@ extension XCTestCase {
     /// - **Wait for `isHittable`, not `exists`.** A `List` builds rows lazily, so an
     ///   off-screen row may not exist yet — but once it does exist it can still be
     ///   off-screen, and `tap()` on it fails. Hittable is the property that matters.
+    /// Back to the top of a page carrying the lap stage (NS-51). Once the
+    /// charts scroll, a phone's player shrinks to its mini bar, pinned over
+    /// what scrolled past — a tab bar, a button — so a tap aimed at those lands
+    /// on the bar. Its thumbnail scrolls back; with no bar, a few swipes down.
+    func backToTheStage(_ app: XCUIApplication) {
+        let show = app.buttons["Show the video"]
+        if show.exists, show.isHittable {
+            show.tap()
+            return
+        }
+        // A drag in the lower part of the screen, under the pinned stage: a
+        // swipe from the middle starts on the stage itself, and
+        // `scrollViews.firstMatch` can be the lap chips' horizontal scroller.
+        for _ in 0..<8 {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72))
+            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98))
+            from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .fast, thenHoldForDuration: 0)
+        }
+    }
+
     @discardableResult
     func scrollTo(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 12) -> Bool {
         let scroller =

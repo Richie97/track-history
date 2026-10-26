@@ -63,6 +63,11 @@ final class CoachingRoutesTests: XCTestCase {
             student.link(.lap(eventId: 5, sessionId: 6, lapId: 8)),
             .student(id: 7, page: .lap(eventId: 5, sessionId: 6, lapId: 8))
         )
+        // The lap stage's session compare (NS-51) is a page a coach reads too.
+        XCTAssertEqual(
+            student.link(.sessionCompare(eventId: 5, sessionId: 6, lapId: nil)),
+            .student(id: 7, page: .sessionCompare(eventId: 5, sessionId: 6, lapId: nil))
+        )
         for door: Route in [
             .eventForm(.new(presetTrack: nil)), .eventForm(.edit(5)), .leaderboard(trackId: 2),
             .record(eventId: 5), .importVideo(eventId: 5, incoming: nil), .wrapped(year: 2026)

@@ -210,7 +210,8 @@ final class CoachingUITests: XCTestCase {
             "the Grip tab is open: the friction circle draws"
         )
         attach(app, named: "coaching-student-grip")
-        app.buttons["Done"].tap()
+        // A pushed page since NS-51 (it was a sheet): back to the event.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
     // MARK: - Helpers

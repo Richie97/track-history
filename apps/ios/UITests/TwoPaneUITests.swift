@@ -274,6 +274,58 @@ final class TwoPaneUITests: XCTestCase {
         )
     }
 
+    /// The lap stage (NS-51) ends where the window ends, at both orientations.
+    ///
+    /// The stage picks its layout from the **pane's** width — an iPad with the
+    /// sidebar showing gets Medium, not Wide — and pins over the charts. Both are
+    /// the kind of arithmetic that passes every unit test and is wrong only once
+    /// something lays it out, which is what put the analysis column off the side
+    /// of the screen; this is that column's invariant, applied to the stage.
+    func testTheLapStageEndsWhereTheWindowEnds() throws {
+        try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
+        seededEventId = try seedImportedSession(track: Self.track)
+
+        let app = try launchSignedIn(tier: .pro)
+        let card = app.buttons.matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "trackCard", "Two Pane Test")
+        ).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 20))
+        scrollTo(card, in: app)
+        card.tap()
+        let event = app.buttons["trackEventCard"].firstMatch
+        XCTAssertTrue(event.waitForExistence(timeout: 15))
+        event.tap()
+        XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 20))
+        let lap = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Lap 1 ·")).firstMatch
+        XCTAssertTrue(scrollTo(lap, in: app), "the seeded session lists its laps")
+        lap.tap()
+
+        let play = app.buttons["stagePlay"]
+        XCTAssertTrue(play.waitForExistence(timeout: 20), "a lap with channels opens on its stage")
+        for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+            XCUIDevice.shared.orientation = orientation
+            waitForWindow(app, landscape: orientation == .landscapeLeft)
+            let window = app.windows.firstMatch.frame
+            let named = "lap-stage-\(orientation == .portrait ? "portrait" : "landscape")"
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = named
+            shot.lifetime = .keepAlways
+            add(shot)
+            // The transport row's two ends: the play button on the left, the
+            // scrubber beside it. Neither may sit past the window.
+            for element in [play, app.descendants(matching: .any)["stageScrubber"]] {
+                XCTAssertTrue(element.exists, "\(named): the transport is on screen")
+                XCTAssertLessThanOrEqual(
+                    element.frame.maxX, window.maxX + 1,
+                    "\(named): the stage runs off the side of the window — window \(Int(window.width))pt, "
+                        + "element ends at \(Int(element.frame.maxX))"
+                )
+                XCTAssertGreaterThanOrEqual(element.frame.minX, window.minX - 1, "\(named): nor off the left")
+            }
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+    }
+
     /// A half-typed event survives the rotation that swaps the shells (epic #277,
     /// ticket 1).
     ///

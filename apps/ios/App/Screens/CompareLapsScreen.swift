@@ -21,7 +21,10 @@ struct CompareLapsScreen: View {
     /// Whose logbook: the student's in a coach's view (NS-38), which decides both
     /// where the reads go and whose tier the channel panel opens by.
     @Environment(\.logbookOwner) private var owner
+    @Environment(SyncModeStore.self) private var syncMode
+    @Environment(\.layout) private var layout
     @State private var model: CompareLapsModel?
+    @State private var stage: LapStageModel?
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -32,17 +35,51 @@ struct CompareLapsScreen: View {
         .background(Color(.bgPage))
         .task {
             if model == nil {
-                let model = CompareLapsModel(api: auth.api.scoped(to: owner), trackId: trackId)
+                let api = auth.api.scoped(to: owner)
+                let model = CompareLapsModel(api: api, trackId: trackId)
                 self.model = model
+                stage = LapStageModel(mode: syncMode.mode, store: syncMode) { clip in
+                    try await api.clipURL(id: clip.id).url
+                }
                 await model.load()
             }
+        }
+        // The stage's tabletop shape (NS-51) on a half-open Duo.
+        .publishingFoldGeometry()
+    }
+
+    private var playsVideo: Bool {
+        Entitlement.canSaveLapVideo(owner.channelEntitlement(viewer: auth.entitlement))
+    }
+
+    private struct StageKey: Hashable {
+        var selA: Int
+        var selB: Int
+        var clipA: LapClip?
+        var clipB: LapClip?
+        var playsVideo: Bool
+    }
+
+    /// The pair on the stage: A and B are the picks, on the aligned grid.
+    private func stageInputs(_ pair: CompareLapsModel.Pair) -> [StageSideInput] {
+        let best = min(pair.laps[0].timeMs, pair.laps[1].timeMs)
+        return pair.aligned.laps.indices.prefix(2).map { i in
+            StageSideInput(
+                key: i == 0 ? .A : .B, entry: pair.aligned.laps[i], dStepM: pair.aligned.dStepM,
+                clip: playsVideo ? (i == 0 ? pair.clipA : pair.clipB) : nil, chIdx: i,
+                lapNum: pair.laps[i].lapNum, timeMs: pair.laps[i].timeMs, isBest: pair.laps[i].timeMs == best
+            )
         }
     }
 
     @ViewBuilder
     private func content(_ model: CompareLapsModel) -> some View {
-        if let pair = model.pair {
-            ScrollView {
+        if let pair = model.pair, let stage {
+            // Pickers, then the stage (A and B are the picks), then the
+            // head-to-head and the panel — the head-to-head after the charts on
+            // a phone, where the stage already pins the top of the screen.
+            let phone = layout.contentWidth < StageLayout.MEDIUM_MIN
+            LapStageView(model: stage, compare: true) {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Compare two laps")
                         .teStyle(.h1)
@@ -54,18 +91,26 @@ struct CompareLapsScreen: View {
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textMuted))
                     }
-                    headToHead(pair)
-                    Text("The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to read values.")
+                }
+            } content: {
+                VStack(alignment: .leading, spacing: 14) {
+                    if !phone { headToHead(pair) }
+                    Text("The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to move the videos there.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
-                    LapChannelPanel(channels: pair.aligned, laps: pair.laps, preselect: [0, 1])
-                        // Recreate the panel when the picks change: its highlight
-                        // selection is @State seeded on appear, and a stale selection
-                        // against new channel data would highlight the wrong laps.
-                        .id("\(model.selA)-\(model.selB)")
+                    LapChannelPanel(
+                        channels: pair.aligned, laps: pair.laps, preselect: [0, 1],
+                        playhead: stage.playhead, onSeek: { stage.seek(toGridA: $0) }
+                    )
+                    // Recreate the panel when the picks change: its highlight
+                    // selection is @State seeded on appear, and a stale selection
+                    // against new channel data would highlight the wrong laps.
+                    .id("\(model.selA)-\(model.selB)")
+                    if phone { headToHead(pair) }
                 }
-                .padding(TESpacing.pageGutter)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .task(id: StageKey(selA: model.selA, selB: model.selB, clipA: pair.clipA, clipB: pair.clipB, playsVideo: playsVideo)) {
+                stage.configure(stageInputs(pair), trace: pair.trace, corners: Corners.sessionCorners(pair.aligned))
             }
         } else {
             TEPage {
@@ -240,6 +285,12 @@ final class CompareLapsModel {
     private(set) var events: [Event] = []
     /// `sessions.channels` by session id, so a picked row finds its entry.
     private var channelsBySession: [Int: SessionChannels] = [:]
+    /// Each session's laps and best-lap trace, kept from the event details the
+    /// rows were built from: a pick's real `Lap` carries its `clip` (NS-51),
+    /// and side A's session trace is what the stage's map draws. `Row` is pinned
+    /// and stays as it is.
+    private var lapsBySession: [Int: [Lap]] = [:]
+    private var traceBySession: [Int: [TracePoint]] = [:]
 
     /// Indexes into `rows` — seeded by `CompareLaps.defaultComparePicks`.
     var selA = 0
@@ -263,6 +314,10 @@ final class CompareLapsModel {
                 for session in detail.sessions {
                     acc[session.id] = session.channels
                 }
+            }
+            for session in details.flatMap(\.sessions) {
+                lapsBySession[session.id] = session.laps
+                traceBySession[session.id] = session.trace
             }
             if let picks = CompareLaps.defaultComparePicks(rows) {
                 selA = picks.a
@@ -306,6 +361,15 @@ final class CompareLapsModel {
         var metricsA: CompareLaps.Metrics
         var metricsB: CompareLaps.Metrics
         var mismatch: Double
+        /// Each pick's clip, resolved by `(sessionId, lapNum)` — nil without one.
+        var clipA: LapClip?
+        var clipB: LapClip?
+        /// Side A's session trace, for the stage's map.
+        var trace: [TracePoint]?
+    }
+
+    private func clip(_ row: CompareLaps.Row) -> LapClip? {
+        lapsBySession[row.sessionId]?.first { $0.lapNum == row.lapNum }?.clip
     }
 
     var pair: Pair? {
@@ -327,7 +391,10 @@ final class CompareLapsModel {
             ],
             metricsA: CompareLaps.lapMetrics(entryA),
             metricsB: CompareLaps.lapMetrics(entryB),
-            mismatch: CompareLaps.lengthMismatchRatio(entryA, chanA.dStepM, entryB, chanB.dStepM)
+            mismatch: CompareLaps.lengthMismatchRatio(entryA, chanA.dStepM, entryB, chanB.dStepM),
+            clipA: clip(rows[selA]),
+            clipB: clip(rows[selB]),
+            trace: traceBySession[rows[selA].sessionId].flatMap { $0.count >= 10 ? $0 : nil }
         )
     }
 }

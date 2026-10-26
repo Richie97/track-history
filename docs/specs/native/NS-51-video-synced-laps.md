@@ -895,6 +895,123 @@ the mini bar's scroll-back. The DOM half has no unit tests — the unit suite
 has no DOM — so `onRender` after a chip toggle was checked in the browser
 instead of in `channel-graphs.test.js`.
 
+## As built — ticket 2 (iOS)
+
+### What landed
+
+- **Kit**: `Analysis/VideoSync.swift`, every export of `video-sync.js` under
+  its name — the spec's list and ticket 1's extras (`scrubRange`,
+  `matchByFraction`, `cornerPlace`, `fmtStageTime`, `fmtDeltaS`, `fmtGap`,
+  `BRAKING_WORD_PCT`) — with the A/B-relative signs and the out-of-lap rule.
+  `VideoSyncTests` asserts every row of `video-sync.json` (numbers to 1e-9,
+  strings exactly) and carries the JS cases.
+- **`App/Screens/LapStage/`**: `LapStageModel`, `LapStageView` (a container
+  the page hands its `header` and scrolling `content`), `StageLayout.choose`
+  (`apps/ios/Tests/StageLayoutTests.swift`), `StageVideoView` over an
+  `AVPlayerLayer`, the transport, scrubber, now-strip and map card,
+  `SyncModeStore`, `SessionCompareScreen` and the `-lapStage` demo.
+- **The panel**: `LapChannelPanel(…, playhead:, onSeek:, onLitChange:)`. The
+  playhead is a `LapPlayhead` (its own `@Observable`) read only by
+  `PlayheadLayer` in each chart's `.chartOverlay` and by `PlayheadReadout` in
+  its title, so a frame never touches the samples array.
+- **Routes**: `Route.sessionCompare(eventId:sessionId:lapId:)` and
+  `StudentPage.sessionCompare`, analytics `/event/:id/session/:id/compare`,
+  `remapTempIds` and the temp-id follower over all three ids. The lap page's
+  *Compare laps* sheet and the event page's overlay sheet are gone (the event
+  page keeps one `.sheet`, its form sheet).
+- **Surfaces**: the lap page, the session compare, the track compare (inside
+  its sheet or column) and the leaderboard lap (inside its sheet). The
+  student view reuses them. The expanded event page's analysis column gains a
+  *Watch* button when the session has a lap video.
+
+### Deviations from the spec
+
+- **One clock, a display link.** The spec asks for
+  `addPeriodicTimeObserver` on the master plus a `CADisplayLink` for replay.
+  One `CADisplayLink` (30 Hz) does both: each tick reads the master player's
+  `currentTime()` while it is playing, else advances by the wall clock. A
+  master that leaves its clip mid-play (a late cut) becomes replay without a
+  second mechanism, and the panel can't tell the two apart.
+- **No `setRate(_:time:atHostTime:)`.** It needs
+  `automaticallyWaitsToMinimizeStalling = false`, which on a streamed clip
+  trades a start a few frames apart for stalls. The players seek exactly and
+  start, and the follower's `RESYNC_MS` re-seek closes any start skew.
+- **The single lap's reference is in the panel**, as a second lap that isn't
+  lit — so it draws dim under the lap's own trace, as the spec says, and its
+  chip can be lit to bring up the delta chart.
+- **What the playhead draws**: the line and a dot per lit lap on every
+  distance-axis line chart and the delta chart, and the values in each
+  title. **Not yet**: the ring on the friction circle and balance scatter,
+  the lit sector in the sector table, and the gear ribbon's line. Their taps
+  do seek. Follow-up.
+- **Compact isn't sticky**, as on the web. The stage scrolls with the page.
+  Once its transport has slid under the top, the mini bar appears as an
+  overlay (thumbnail, play/pause, scrubber), and a tap on the thumbnail
+  scrolls back. The first build pinned the whole stage and shrank it to the
+  bar in place. That made the page ~300 pt shorter, so near the bottom the
+  clamped scroll offset fell back under the threshold, the stage grew again,
+  and the page jumped back up. An overlay never changes the page's height.
+- **Medium** pins the transport as a `LazyVStack` section header, so the
+  transport sits *under* the videos and map, as on the web.
+- **Tabletop** puts the charts below the crease one per row, not two. On a
+  narrow window (under 600 pt) the map card leaves the top half to the
+  pictures, and the now-strip and mode stack under the transport. Side by
+  side there, the scrubber gets no width at all.
+- **The track compare's head-to-head** sits above the panel at Medium and
+  wider, and after it on a phone.
+- **Medium caps the slots row** at 45 % of the visible height, as Wide does.
+  A lone replay map across a whole iPad pane is otherwise taller than the
+  screen.
+- **Lap stepping** replaces the destination but does not carry `k` across.
+  The new lap opens at its run-up.
+- **The shared item page** (NS-48) keeps its sheet panel with no stage, as
+  the iOS section allows. The **event page's analysis column** draws no
+  playhead (it has no stage). It opens the session compare instead.
+- **An expired URL** is fetched again once, on the item's failure. A resume
+  after an hour paused with the item still healthy is not re-signed.
+- **Deleting a clip** from the stage's menu re-reads the page, as on the web.
+
+### Verified
+
+Built with Xcode 27.1, against `npm run dev`:
+
+- `swift test`: all 670 Kit tests pass, `VideoSyncTests` included.
+- The app target's unit tests: 129 pass, with `StageLayoutTests` and the new
+  `LapDetailTests`, `RouterTests`, `AnalyticsPathTests` and
+  `CoachingRoutesTests` rows.
+- On an iPhone 17 Pro simulator (iOS 26.4.1):
+  - `LapStageUITests` passes. A lap with a clip opens video-first, play
+    moves the playhead, a tap on the speed chart pauses the video and parks
+    the playhead at that distance, and *Compare laps* opens the two-sided
+    stage whose mode toggles.
+  - `LapClipUITests`, `ChannelGraphsUITests` (now through the pushed
+    compare) and `ChannelPanelKeyboardUITests` pass, the last including the
+    stage's Space / ← / →.
+- On an iPad Pro 13-inch: `TwoPaneUITests` passes, including the new
+  `testTheLapStageEndsWhereTheWindowEnds` at both orientations.
+- By hand:
+  - `-lapStage`: two videos playing from one transport, the line and dot
+    moving on the charts, the mini bar, and a replay stage with one map.
+  - Rotating the iPhone to landscape enters full-bleed, and turning back
+    leaves it at the same place.
+  - On the iPhone Duo simulator (iOS 27.1), `-tabletop 0.55` splits the
+    stage at the crease.
+
+**Not verified**:
+
+- A real PDR every-lap session and a GoPro clip on a device: the spec's
+  braking-marker check.
+- A real fold, the Mac (*Designed for iPad*), VoiceOver's corner stepping
+  and announcements, and the 1-hour URL expiry.
+- A free account, a lapsed one, and the coach and shared-link cases. Those
+  paths reuse each screen's existing tier reads; no UI test covers them on
+  the stage.
+- `CoachingUITests`' coach half needs `TEST_RUNNER_TE_COACH_TOKEN`, which
+  wasn't set here.
+- `CoreScreensUITests.testEventLogsLapsAndShowsTheirStats` fails, but it
+  fails identically on `main` (checked in a scratch worktree), so it
+  predates this ticket.
+
 ## Open questions
 
 - **Exact timing** — store each grid point's elapsed time at import, or keep

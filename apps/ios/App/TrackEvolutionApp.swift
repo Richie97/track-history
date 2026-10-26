@@ -13,6 +13,8 @@ struct TrackEvolutionApp: App {
     /// The theme override (system/light/dark), persisted. Owned here because the
     /// root scene applies it and Settings writes it.
     @State private var theme = AppServices.theme
+    /// The lap stage's *Same place* / *Same time*, remembered per device (NS-51).
+    @State private var syncMode = AppServices.syncMode
     /// One recorder for the whole app: navigating away must not end a recording.
     @State private var recorder = AppServices.recorder
     @State private var auth = AppServices.auth
@@ -46,6 +48,7 @@ struct TrackEvolutionApp: App {
                 // body. Everything below shares this one measurement.
                 .measuringLayoutClass()
                 .environment(theme)
+                .environment(syncMode)
                 .environment(recorder)
                 .environment(auth)
                 .environment(store)

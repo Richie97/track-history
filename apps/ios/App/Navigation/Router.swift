@@ -40,6 +40,12 @@ enum Route: Hashable {
     /// the page made — and finds the session and lap in it. Not a `DeepLink`:
     /// a lap id means nothing away from the page it came from.
     case lap(eventId: Int, sessionId: Int, lapId: Int)
+    /// A session's laps against each other on the two-sided lap stage (NS-51):
+    /// the lap page's *Compare laps*, and the event page's below expanded
+    /// width, where it used to be a sheet. `lapId` is the lap the view was
+    /// opened for — side A while it is lit — or nil for the session's own
+    /// default. Android's `Route.SessionCompare`, the same shape.
+    case sessionCompare(eventId: Int, sessionId: Int, lapId: Int?)
     /// Season Wrapped (NS-36): one calendar year as a story of cards, opened from
     /// the dashboard's November banner. Not a `DeepLink` — the web's
     /// `#/wrapped/:year` is a web route, and the app's door is the banner.
@@ -80,6 +86,7 @@ enum StudentPage: Hashable {
     case event(Int)
     case track(Int)
     case lap(eventId: Int, sessionId: Int, lapId: Int)
+    case sessionCompare(eventId: Int, sessionId: Int, lapId: Int?)
     case vehicle(Int)
 }
 
@@ -98,6 +105,8 @@ extension LogbookOwner {
         case .vehicle(let vehicleId): .student(id: id, page: .vehicle(vehicleId))
         case .lap(let eventId, let sessionId, let lapId):
             .student(id: id, page: .lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
+        case .sessionCompare(let eventId, let sessionId, let lapId):
+            .student(id: id, page: .sessionCompare(eventId: eventId, sessionId: sessionId, lapId: lapId))
         case .student: route
         case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .sharedItem, .wrapped,
              .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm:
@@ -125,7 +134,7 @@ extension Route {
         switch self {
         case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .lap,
-             .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm: false
+             .sessionCompare, .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm: false
         }
     }
 }
@@ -172,7 +181,7 @@ extension Route {
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
         case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .sharedItem, .lap,
-             .wrapped, .coachInvite, .student, .setupForm: .events
+             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm: .events
         }
     }
 }
@@ -548,6 +557,12 @@ final class AppRouter {
                     eventId: Self.followed(eventId, resolve),
                     sessionId: Self.followed(sessionId, resolve),
                     lapId: Self.followed(lapId, resolve)
+                )
+            case .sessionCompare(let eventId, let sessionId, let lapId):
+                return .sessionCompare(
+                    eventId: Self.followed(eventId, resolve),
+                    sessionId: Self.followed(sessionId, resolve),
+                    lapId: lapId.map { Self.followed($0, resolve) }
                 )
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.

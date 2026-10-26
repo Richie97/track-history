@@ -31,7 +31,9 @@ struct LeaderboardLapScreen: View {
 
     @Environment(AuthController.self) private var auth
     @Environment(\.logbookOwner) private var owner
+    @Environment(SyncModeStore.self) private var syncMode
     @State private var model: LeaderboardLapModel?
+    @State private var stage: LapStageModel?
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -42,8 +44,12 @@ struct LeaderboardLapScreen: View {
         .background(Color(.bgPage))
         .task {
             if model == nil {
-                let model = LeaderboardLapModel(api: auth.api, trackId: trackId, lapId: lapId)
+                let api = auth.api
+                let model = LeaderboardLapModel(api: api, trackId: trackId, lapId: lapId)
                 self.model = model
+                stage = LapStageModel(mode: syncMode.mode, store: syncMode) { clip in
+                    try await api.clipURL(id: clip.id).url
+                }
                 await model.load()
             }
         }
@@ -53,68 +59,114 @@ struct LeaderboardLapScreen: View {
 
     @ViewBuilder
     private func content(_ model: LeaderboardLapModel, _ lap: LeaderboardLap) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                header(lap)
-
-                // The racing line is free, and so are the speed, throttle and
-                // brake traces (#264): the server strips the rest of `channels`
-                // for a free account (NS-32 rule 4), and the panel's upsell sits
-                // under what is drawn rather than over the screen.
-                if let trace = lap.trace, trace.count > 1 {
-                    TECard {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Racing line — brighter is faster")
-                                .teStyle(.xs)
-                                .foregroundStyle(Color(.textFaint))
-                            TrackMapView(trace: trace)
-                                .frame(height: 220)
+        if lap.entry != nil, let view = model.panel, let stage {
+            staged(model, lap, view, stage)
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    header(lap)
+                    // The racing line is free (#264), and with no entry it is
+                    // all there is.
+                    if let trace = lap.trace, trace.count > 1 {
+                        TECard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Racing line — brighter is faster")
+                                    .teStyle(.xs)
+                                    .foregroundStyle(Color(.textFaint))
+                                TrackMapView(trace: trace)
+                                    .frame(height: 220)
+                            }
                         }
                     }
-                }
-
-                if lap.entry == nil {
                     // Every stored lap carries a speed trace and a free account
                     // keeps it, so an absent entry is a lap with no telemetry
                     // rather than one with telemetry withheld.
                     TEEmpty("This lap's telemetry isn't available.")
-                } else if let view = model.panel {
-                    if view.mine == nil {
-                        TEEmpty(
-                            "You have no lap with telemetry at this track yet, so there's nothing to overlay. "
-                                + "Import a session, or record laps with the app, and this screen will put the two side by side.",
-                            action: owner.isReadOnly ? nil : noTelemetryAction(model)
-                        )
-                    } else {
-                        minePicker(model, view)
-                        if view.mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
-                            Text("⚠️ These laps cover driven distances \(Int((view.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line, so the distance alignment may be off.")
-                                .teStyle(.xs)
-                                .foregroundStyle(Color(.textMuted))
-                        }
-                    }
-                    headToHead(view)
-                    let pro = Entitlement.canViewChannels(auth.entitlement)
-                    Text(view.mine == nil || !pro
-                        ? "Tap a chart to read values."
-                        : "The delta chart shows where you gain or lose against this lap; the channels below show why. Tap a chart to read values.")
-                        .teStyle(.xs)
-                        .foregroundStyle(Color(.textFaint))
-                    LapChannelPanel(
-                        channels: view.aligned,
-                        laps: view.laps,
-                        preselect: view.mine == nil ? [0] : [0, 1],
-                        pro: pro
+                }
+                .padding(TESpacing.pageGutter)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// Their lap and yours on the lap stage (NS-51). **Their side is always
+    /// replay** — no clip ever reaches the leaderboard (NS-45) — and yours plays
+    /// your lap's video when it has one. The map is their line: side A's.
+    private func staged(
+        _ model: LeaderboardLapModel, _ lap: LeaderboardLap, _ view: LeaderboardLapModel.Panel, _ stage: LapStageModel
+    ) -> some View {
+        // The free speed, throttle and brake traces carry the playhead for a
+        // free account; the delta and your side are Pro (`canViewChannels`).
+        let pro = Entitlement.canViewChannels(auth.entitlement)
+        return LapStageView(model: stage, compare: true) {
+            VStack(alignment: .leading, spacing: 14) {
+                header(lap)
+                if view.mine == nil {
+                    TEEmpty(
+                        "You have no lap with telemetry at this track yet, so there's nothing to overlay. "
+                            + "Import a session, or record laps with the app, and this screen will put the two side by side.",
+                        action: owner.isReadOnly ? nil : noTelemetryAction(model)
                     )
-                    // Recreate the panel when the pick changes: its highlight
-                    // selection is @State seeded on appear, and a stale selection
-                    // against new channel data would light the wrong laps.
-                    .id(model.selectedMine ?? -1)
+                } else {
+                    minePicker(model, view)
+                    if view.mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
+                        Text("⚠️ These laps cover driven distances \(Int((view.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line, so the distance alignment may be off.")
+                            .teStyle(.xs)
+                            .foregroundStyle(Color(.textMuted))
+                    }
                 }
             }
-            .padding(TESpacing.pageGutter)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        } content: {
+            VStack(alignment: .leading, spacing: 14) {
+                headToHead(view)
+                Text(view.mine == nil || !pro
+                    ? "Tap a chart to move the playhead there."
+                    : "The delta chart shows where you gain or lose against this lap; the channels below show why. Tap a chart to move the playhead there.")
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+                LapChannelPanel(
+                    channels: view.aligned,
+                    laps: view.laps,
+                    preselect: view.mine == nil ? [0] : [0, 1],
+                    pro: pro,
+                    playhead: stage.playhead,
+                    onSeek: { stage.seek(toGridA: $0) }
+                )
+                // Recreate the panel when the pick changes: its highlight
+                // selection is @State seeded on appear, and a stale selection
+                // against new channel data would light the wrong laps.
+                .id(model.selectedMine ?? -1)
+            }
         }
+        .task(id: StageKey(mine: model.selectedMine, myClip: view.myClip, pro: pro)) {
+            stage.configure(
+                stageInputs(view, pro: pro),
+                trace: lap.trace.flatMap { $0.count >= 10 ? $0 : nil },
+                corners: Corners.sessionCorners(view.aligned)
+            )
+        }
+    }
+
+    private struct StageKey: Hashable {
+        var mine: Int?
+        var myClip: LapClip?
+        var pro: Bool
+    }
+
+    private func stageInputs(_ view: LeaderboardLapModel.Panel, pro: Bool) -> [StageSideInput] {
+        let best = view.laps.map(\.timeMs).min()
+        var inputs: [StageSideInput] = []
+        for (i, entry) in view.aligned.laps.enumerated().prefix(pro ? 2 : 1) where view.laps.indices.contains(i) {
+            let lap = view.laps[i]
+            inputs.append(
+                StageSideInput(
+                    key: i == 0 ? .A : .B, entry: entry, dStepM: view.aligned.dStepM,
+                    clip: i == 1 && Entitlement.canSaveLapVideo(auth.entitlement) ? view.myClip : nil,
+                    chIdx: i, lapNum: lap.lapNum, timeMs: lap.timeMs, isBest: lap.timeMs == best
+                )
+            )
+        }
+        return inputs
     }
 
     /// `CompareLapsScreen`'s next step when there is nothing to compare
@@ -312,6 +364,9 @@ final class LeaderboardLapModel {
     /// two-lap compare does, so the pick list reads identically.
     private(set) var rows: [CompareLaps.Row] = []
     private var channelsBySession: [Int: SessionChannels] = [:]
+    /// The viewer's laps by session, so their side's real `Lap` — and its
+    /// `clip` (NS-51) — is found by `(sessionId, lapNum)`.
+    private var lapsBySession: [Int: [Lap]] = [:]
     /// The viewer's events at this track, for the empty state's next step.
     private(set) var events: [Event] = []
     /// Index into ``rows``, defaulted to the viewer's own fastest: the comparison
@@ -351,6 +406,7 @@ final class LeaderboardLapModel {
             channelsBySession = details.reduce(into: [:]) { acc, detail in
                 for session in detail.sessions { acc[session.id] = session.channels }
             }
+            for session in details.flatMap(\.sessions) { lapsBySession[session.id] = session.laps }
             selectedMine = rows.indices.min { rows[$0].timeMs < rows[$1].timeMs }
         } catch {
             rows = []
@@ -377,6 +433,9 @@ final class LeaderboardLapModel {
         var myMetrics: CompareLaps.Metrics?
         var mine: CompareLaps.Row?
         var mismatch: Double
+        /// The viewer's own lap's clip, when it has one. Never theirs: no clip
+        /// ever reaches the leaderboard (NS-45).
+        var myClip: LapClip?
     }
 
     var panel: Panel? {
@@ -403,7 +462,8 @@ final class LeaderboardLapModel {
             theirMetrics: CompareLaps.lapMetrics(theirs),
             myMetrics: CompareLaps.lapMetrics(mine),
             mine: row,
-            mismatch: CompareLaps.lengthMismatchRatio(theirs, step, mine, channels.dStepM)
+            mismatch: CompareLaps.lengthMismatchRatio(theirs, step, mine, channels.dStepM),
+            myClip: lapsBySession[row.sessionId]?.first { $0.lapNum == row.lapNum }?.clip
         )
     }
 }

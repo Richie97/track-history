@@ -30,6 +30,8 @@ extension Route {
         case .sharedItem(.event, _): "/share/e/:token"
         case .sharedItem(.session, _): "/share/s/:token"
         case .lap: "/event/:id/lap/:id"
+        // Android's shape for the same screen; the web's is the event page.
+        case .sessionCompare: "/event/:id/session/:id/compare"
         case .wrapped(let year): "/wrapped/\(year)"
         case .coaching: "/coaching"
         case .profile: "/profile"
@@ -55,6 +57,7 @@ extension StudentPage {
         case .event: "/event/:id"
         case .track: "/track/:id"
         case .lap: "/event/:id/lap/:id"
+        case .sessionCompare: "/event/:id/session/:id/compare"
         case .vehicle: "/vehicle/:id"
         }
     }
