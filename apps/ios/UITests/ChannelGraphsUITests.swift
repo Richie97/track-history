@@ -109,18 +109,26 @@ final class ChannelGraphsUITests: XCTestCase {
         // shift points are one tap away, not stacked under the speed trace.
         let inputs = app.buttons["Inputs"]
         XCTAssertTrue(inputs.exists, "a session with pedal traces offers the Inputs tab")
+        // The tab bar has scrolled under the lap stage (NS-51) by now.
+        backToTheStage(app)
+        XCTAssertTrue(scrollTo(inputs, in: app))
         inputs.tap()
+        attach(app, named: "channel-graphs-inputs")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["shiftTable"].waitForExistence(timeout: 10),
+            "the shift points are tabulated above the traces"
+        )
+        // The page is longer under the lap stage (NS-51): the ribbon is scrolled
+        // to rather than waited for.
         let ribbon = app.descendants(matching: .any)["gearRibbon"]
         XCTAssertTrue(
-            ribbon.waitForExistence(timeout: 10),
+            scrollTo(ribbon, in: app),
             "the gear ribbon draws under the RPM trace for a session that stored gear (#187)"
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["shiftTable"].exists,
-            "and the shift points are tabulated above the traces"
         )
         attach(app, named: "channel-graphs-gears")
 
+        backToTheStage(app)
+        XCTAssertTrue(scrollTo(app.buttons["Grip"], in: app))
         app.buttons["Grip"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["Lateral G by driven distance, per lap"].waitForExistence(timeout: 10),
@@ -144,6 +152,8 @@ final class ChannelGraphsUITests: XCTestCase {
 
         // The Car tab (#190): the per-lap scalars as cards with sparklines, the
         // tab that was reserved and empty until this session carried scalars.
+        backToTheStage(app)
+        XCTAssertTrue(scrollTo(app.buttons["Car"], in: app))
         app.buttons["Car"].tap()
         let health = app.descendants(matching: .any)["healthStrip"]
         XCTAssertTrue(
@@ -152,7 +162,8 @@ final class ChannelGraphsUITests: XCTestCase {
         )
         attach(app, named: "channel-graphs-health")
 
-        app.buttons["Done"].tap()
+        // A pushed page since NS-51 (it was a sheet): back to the event.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
         deleteEventFromMenu(app)
     }
 

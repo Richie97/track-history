@@ -40,6 +40,12 @@ enum Route: Hashable {
     /// the page made — and finds the session and lap in it. Not a `DeepLink`:
     /// a lap id means nothing away from the page it came from.
     case lap(eventId: Int, sessionId: Int, lapId: Int)
+    /// A session's laps against each other on the two-sided lap stage (NS-51):
+    /// the lap page's *Compare laps*, and the event page's below expanded
+    /// width, where it used to be a sheet. `lapId` is the lap the view was
+    /// opened for — side A while it is lit — or nil for the session's own
+    /// default. Android's `Route.SessionCompare`, the same shape.
+    case sessionCompare(eventId: Int, sessionId: Int, lapId: Int?)
     /// Season Wrapped (NS-36): one calendar year as a story of cards, opened from
     /// the dashboard's November banner. Not a `DeepLink` — the web's
     /// `#/wrapped/:year` is a web route, and the app's door is the banner.
@@ -80,6 +86,7 @@ enum StudentPage: Hashable {
     case event(Int)
     case track(Int)
     case lap(eventId: Int, sessionId: Int, lapId: Int)
+    case sessionCompare(eventId: Int, sessionId: Int, lapId: Int?)
     case vehicle(Int)
 }
 
@@ -98,6 +105,8 @@ extension LogbookOwner {
         case .vehicle(let vehicleId): .student(id: id, page: .vehicle(vehicleId))
         case .lap(let eventId, let sessionId, let lapId):
             .student(id: id, page: .lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
+        case .sessionCompare(let eventId, let sessionId, let lapId):
+            .student(id: id, page: .sessionCompare(eventId: eventId, sessionId: sessionId, lapId: lapId))
         case .student: route
         case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .sharedItem, .wrapped,
              .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm:
@@ -125,7 +134,7 @@ extension Route {
         switch self {
         case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .lap,
-             .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm: false
+             .sessionCompare, .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm: false
         }
     }
 }
@@ -172,7 +181,7 @@ extension Route {
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
         case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .sharedItem, .lap,
-             .wrapped, .coachInvite, .student, .setupForm: .events
+             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm: .events
         }
     }
 }
@@ -190,6 +199,13 @@ enum EventFormTarget: Hashable {
     /// "+ Add event at …") or in a known car (a car page's "Add an event", #342).
     case new(presetTrack: String?, presetCar: String? = nil)
     case edit(Int)
+}
+
+/// An object ``AppRouter/held(_:_:make:)`` keeps for a page, told when its page
+/// has gone for good.
+@MainActor
+protocol HeldOnRouter: AnyObject {
+    func released()
 }
 
 /// Owns the navigation path, and turns outside links into pushes.
@@ -305,6 +321,33 @@ final class AppRouter {
         }
     }
 
+    /// A page's **live objects**, held above the shell swap the way
+    /// ``heldFields`` holds its typing — keyed by the page's route and a name
+    /// the page chooses.
+    ///
+    /// For what cannot simply be re-fetched without the person noticing: the
+    /// lap stage's model (NS-51) owns its `AVPlayer`s, and rebuilding it on a
+    /// resize meant the video stopped and jumped back to the run-up whenever the
+    /// window crossed 840 pt — unfolding an iPhone Duo held sideways, or
+    /// rotating it open. Apple's guidance for the Duo is that a fold *resizes*
+    /// the app and the experience stays continuous; continuity of what is
+    /// playing is the app's to keep.
+    ///
+    /// Not observed: holding an object is bookkeeping, not state a view draws.
+    /// Released (``HeldOnRouter/released()``) the moment its route leaves both
+    /// stacks, which is what stops a video when you go Back.
+    @ObservationIgnored private var heldObjects: [Route: [String: AnyObject]] = [:]
+
+    /// The object held for `key` on `route`, made on first ask. A route on
+    /// neither stack — a preview, a `-lapStage` launch — gets a fresh object
+    /// that is not held, which the caller keeps in its own `@State`.
+    func held<T: AnyObject>(_ route: Route, _ key: String, make: () -> T) -> T {
+        if let existing = heldObjects[route]?[key] as? T { return existing }
+        let made = make()
+        if allRoutes.contains(route) { heldObjects[route, default: [:]][key] = made }
+        return made
+    }
+
     @ObservationIgnored private var remapping = false
 
     private func dropOrphanedDraft() {
@@ -315,6 +358,10 @@ final class AppRouter {
         let live = Set(allRoutes)
         if heldFields.keys.contains(where: { !live.contains($0) }) {
             heldFields = heldFields.filter { live.contains($0.key) }
+        }
+        for (route, objects) in heldObjects where !live.contains(route) {
+            heldObjects[route] = nil
+            for object in objects.values { (object as? HeldOnRouter)?.released() }
         }
     }
 
@@ -511,6 +558,10 @@ final class AppRouter {
         // while one of the two still named the temp id.
         remapping = true
         eventFormDraft = eventFormDraft?.remapped(resolve)
+        heldObjects = Dictionary(
+            heldObjects.map { (Self.remapped([$0.key], resolve)[0], $0.value) },
+            uniquingKeysWith: { first, _ in first }
+        )
         heldFields = Dictionary(
             heldFields.map { (Self.remapped([$0.key], resolve)[0], $0.value) },
             uniquingKeysWith: { first, _ in first }
@@ -548,6 +599,12 @@ final class AppRouter {
                     eventId: Self.followed(eventId, resolve),
                     sessionId: Self.followed(sessionId, resolve),
                     lapId: Self.followed(lapId, resolve)
+                )
+            case .sessionCompare(let eventId, let sessionId, let lapId):
+                return .sessionCompare(
+                    eventId: Self.followed(eventId, resolve),
+                    sessionId: Self.followed(sessionId, resolve),
+                    lapId: lapId.map { Self.followed($0, resolve) }
                 )
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.

@@ -101,10 +101,13 @@ extension EnvironmentValues {
 extension View {
     /// Publish the window's posture to this view's subtree.
     ///
-    /// Applied to the **record route only**, which owns the window at every width
-    /// (`Route.ownsTheWindow`), so the reader sees the whole window and the hinge
-    /// fraction is against the right height. The logbook screens need nothing:
-    /// standard containers already lay out around reserved regions.
+    /// Applied to the **record route**, which owns the window at every width
+    /// (`Route.ownsTheWindow`), and since NS-51 to the three lap-stage
+    /// destinations — the lap page, the session compare and the track compare —
+    /// whose stage splits at the crease. The hinge fraction is against the
+    /// height the reader is given, which for a pushed destination is its pane.
+    /// The other logbook screens need nothing: standard containers already lay
+    /// out around reserved regions.
     func publishingFoldGeometry() -> some View {
         modifier(FoldGeometryReader())
     }

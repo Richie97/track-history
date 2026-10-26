@@ -182,10 +182,6 @@ struct LapVideoPlayer: View {
     @State private var player: AVPlayer?
     @State private var ready = false
     @State private var problem: String?
-    @State private var downloading = false
-    @State private var downloaded: URL?
-    @State private var confirmingDelete = false
-    @State private var actionError: String?
 
     static let needsConnection = "Playing a lap video needs a connection."
 
@@ -198,28 +194,7 @@ struct LapVideoPlayer: View {
                         .foregroundStyle(Color(.textMuted))
                     Spacer()
                     if !readOnly {
-                        Menu {
-                            Button {
-                                Task { await download() }
-                            } label: {
-                                Label("Download video", systemImage: "arrow.down.circle")
-                            }
-                            .disabled(downloading)
-                            Button(role: .destructive) {
-                                confirmingDelete = true
-                            } label: {
-                                Label("Delete video", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .foregroundStyle(Color(.textMuted))
-                                .frame(width: 44, height: 44)
-                                .contentShape(.rect)
-                        }
-                        .padding(.vertical, -12)
-                        .padding(.trailing, -12)
-                        .accessibilityLabel("Video options")
-                        .accessibilityIdentifier("lapVideoMenu")
+                        LapClipMenu(clip: clip, onDeleted: onDeleted) { player?.pause() }
                     }
                 }
 
@@ -240,33 +215,7 @@ struct LapVideoPlayer: View {
                         .aspectRatio(16 / 9, contentMode: .fit)
                 }
 
-                if downloading {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                        Text("Downloading…")
-                            .teStyle(.sm)
-                            .foregroundStyle(Color(.textMuted))
-                    }
-                }
-                if let downloaded {
-                    ShareLink(item: downloaded) {
-                        Label("Save or share the video", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(TEButtonStyle(kind: .quiet))
-                    .accessibilityIdentifier("lapVideoShare")
-                }
-                if let actionError {
-                    Text(actionError)
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.dangerInk))
-                }
             }
-        }
-        .confirmationDialog("Delete this lap video?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button("Delete video", role: .destructive) { Task { await delete() } }
-            Button("Keep", role: .cancel) {}
-        } message: {
-            Text("The lap and its telemetry stay.")
         }
         .task(id: clip.id) { await load() }
         .onDisappear { player?.pause() }
@@ -322,6 +271,77 @@ struct LapVideoPlayer: View {
         }
     }
 
+}
+
+/// The owner's *Download video* and *Delete video* for a lap's clip (NS-45): the
+/// player card's menu, and the lap stage's (NS-51), which plays the clip
+/// itself. A download is handed to the share sheet; a delete re-reads the
+/// event.
+struct LapClipMenu: View {
+    let clip: LapClip
+    var onDeleted: () async -> Void
+    /// Called just before a delete is sent — the player stops first.
+    var willDelete: () -> Void = {}
+
+    @Environment(AuthController.self) private var auth
+    @State private var downloading = false
+    @State private var downloaded: URL?
+    @State private var confirmingDelete = false
+    @State private var actionError: String?
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            Menu {
+                Button {
+                    Task { await download() }
+                } label: {
+                    Label("Download video", systemImage: "arrow.down.circle")
+                }
+                .disabled(downloading)
+                Button(role: .destructive) {
+                    confirmingDelete = true
+                } label: {
+                    Label("Delete video", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(Color(.textMuted))
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
+            }
+            .padding(.vertical, -12)
+            .padding(.trailing, -12)
+            .accessibilityLabel("Video options")
+            .accessibilityIdentifier("lapVideoMenu")
+            if downloading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Downloading…")
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                }
+            }
+            if let downloaded {
+                ShareLink(item: downloaded) {
+                    Label("Save or share the video", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(TEButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("lapVideoShare")
+            }
+            if let actionError {
+                Text(actionError)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.dangerInk))
+            }
+        }
+        .confirmationDialog("Delete this lap video?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete video", role: .destructive) { Task { await delete() } }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            Text("The lap and its telemetry stay.")
+        }
+    }
+
     /// The file itself, named after its track, day and lap by the server's
     /// `Content-Disposition`, handed to the share sheet — Save to Files, Photos
     /// or anywhere else.
@@ -355,7 +375,7 @@ struct LapVideoPlayer: View {
         actionError = nil
         do {
             try await auth.api.deleteClip(id: clip.id)
-            player?.pause()
+            willDelete()
             await onDeleted()
             await auth.refreshAccount()
         } catch let error as APIError {

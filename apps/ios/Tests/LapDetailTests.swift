@@ -101,4 +101,39 @@ final class LapDetailTests: XCTestCase {
         XCTAssertNil(LapDetailScreen.build(d, sessionId: 10, lapId: 99))
         XCTAssertNil(LapDetailScreen.build(d, sessionId: 99, lapId: 1))
     }
+
+    // MARK: - The lap stage (NS-51)
+
+    /// The single lap's reference: the session best, or the next-best when this
+    /// lap is the best — and the panel draws it dim under the lap's own.
+    func testTheStagesReferenceIsTheBestOrTheNextBest() throws {
+        let d = detail(
+            laps: [(1, 1, 125_000), (2, 2, 121_500), (3, 3, 123_000)],
+            channels: [(1, 125_000), (2, 121_500), (3, 123_000)]
+        )
+        let slow = try XCTUnwrap(LapDetailScreen.build(d, sessionId: 10, lapId: 1))
+        XCTAssertEqual(slow.reference?.lap.id, 2, "a slower lap is measured against the best")
+        let best = try XCTUnwrap(LapDetailScreen.build(d, sessionId: 10, lapId: 2))
+        XCTAssertEqual(best.reference?.lap.id, 3, "the best against the next-best")
+
+        let staged = try XCTUnwrap(LapDetailScreen.stageChannels(slow, pro: true))
+        XCTAssertEqual(staged.channels.laps.map(\.timeMs), [125_000, 121_500], "this lap, then its reference")
+        XCTAssertEqual(staged.laps.map(\.id), [1, 2])
+        let free = try XCTUnwrap(LapDetailScreen.stageChannels(slow, pro: false))
+        XCTAssertEqual(free.channels.laps.count, 1, "a free stage is one-sided: the delta and B are Pro")
+    }
+
+    func testALapAloneHasNoReference() throws {
+        let d = detail(laps: [(1, 1, 125_000)], channels: [(1, 125_000)])
+        let only = try XCTUnwrap(LapDetailScreen.build(d, sessionId: 10, lapId: 1))
+        XCTAssertNil(only.reference)
+        XCTAssertEqual(LapDetailScreen.stageChannels(only, pro: true)?.channels.laps.count, 1)
+    }
+
+    /// A lap with no channel entry gets no stage — today's time and sentence.
+    func testALapWithNoEntryHasNoStage() throws {
+        let d = detail(laps: [(1, 1, 125_000), (2, 2, 130_000)], channels: [(1, 125_000)])
+        let typed = try XCTUnwrap(LapDetailScreen.build(d, sessionId: 10, lapId: 2))
+        XCTAssertNil(LapDetailScreen.stageChannels(typed, pro: true))
+    }
 }

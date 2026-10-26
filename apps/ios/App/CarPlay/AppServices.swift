@@ -15,6 +15,8 @@ import Foundation
 @MainActor
 enum AppServices {
     static let theme = ThemeStore()
+    /// The lap stage's remembered sync mode (NS-51), per device like the theme.
+    static let syncMode = SyncModeStore()
     /// One recorder for the whole app: navigating away, locking the phone, or
     /// plugging into a head unit must not end a recording.
     static let recorder = RecordingController()

@@ -147,6 +147,26 @@ final class RouterTests: XCTestCase {
         XCTAssertFalse(Route.eventForm(.new(presetTrack: nil)).ownsTheWindow)
         XCTAssertFalse(Route.eventForm(.edit(2)).ownsTheWindow)
         XCTAssertFalse(Route.lap(eventId: 1, sessionId: 2, lapId: 3).ownsTheWindow)
+        XCTAssertFalse(Route.sessionCompare(eventId: 1, sessionId: 2, lapId: nil).ownsTheWindow)
+        XCTAssertEqual(Route.sessionCompare(eventId: 1, sessionId: 2, lapId: nil).tab, .events)
+    }
+
+    /// The session compare (NS-51) carries three ids, the lap optional; each
+    /// follows its own row when the queue flushes.
+    func testASessionCompareRouteFollowsEachOfItsTempIds() {
+        let router = AppRouter()
+        router.show(.event(-1))
+        router.push(.sessionCompare(eventId: -1, sessionId: -2, lapId: -3))
+        router.push(.sessionCompare(eventId: -1, sessionId: -2, lapId: nil))
+        router.remapTempIds { [-1: 41, -2: 42, -3: 43][$0] }
+        XCTAssertEqual(
+            router.path,
+            [
+                .event(41),
+                .sessionCompare(eventId: 41, sessionId: 42, lapId: 43),
+                .sessionCompare(eventId: 41, sessionId: 42, lapId: nil),
+            ]
+        )
     }
 
     /// A lap route carries three ids and any of them can be an offline temp id

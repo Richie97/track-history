@@ -36,6 +36,12 @@ struct RootView: View {
             // without importing a real telemetry file first:
             //   xcrun simctl launch <device> app.trackevolution -channelGraphs
             LapChannelChart.demoScreen
+        } else if ProcessInfo.processInfo.arguments.contains("-lapStage") {
+            // The lap stage (NS-51) on the same synthetic session, two laps with
+            // a generated H.264 clip each and no server — for screenshots and
+            // the keyboard test:
+            //   xcrun simctl launch <device> app.trackevolution -lapStage
+            LapStageDemo()
         } else if ProcessInfo.processInfo.arguments.contains("-wrapped") {
             // Season Wrapped on a sample season, locked Pro cards unless
             // `-wrappedPro` is passed too:
@@ -344,6 +350,10 @@ struct RootView: View {
             SharedItemScreen(kind: kind, token: token)
         case .lap(let eventId, let sessionId, let lapId):
             LapDetailScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
+                .publishingFoldGeometry()
+        case .sessionCompare(let eventId, let sessionId, let lapId):
+            SessionCompareScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
+                .publishingFoldGeometry()
         case .wrapped(let year):
             WrappedScreen(year: year)
         case .coaching:
@@ -393,6 +403,8 @@ struct RootView: View {
         // next one on its next pass, which is soon enough.
         case .lap(let eventId, let sessionId, let lapId):
             [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
+        case .sessionCompare(let eventId, let sessionId, let lapId):
+            [eventId, sessionId, lapId].compactMap(\.self).first(where: OfflineStore.isTemp)
         case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
              .coaching, .profile, .coachInvite, .student, .trackDaysGuide: nil
         }
@@ -409,6 +421,7 @@ struct RootView: View {
     let auth = AuthController()
     RootView()
         .environment(ThemeStore())
+        .environment(SyncModeStore())
         .environment(RecordingController())
         .environment(auth)
         .environment(StoreController(auth: auth))
