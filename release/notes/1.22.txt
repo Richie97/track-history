@@ -1,0 +1,2 @@
+- Save a video of every lap: when you import a Corvette or Cadillac PDR recording, pick Every lap to keep a clip of each full lap, not just your fastest one. Each lap's video plays from that lap.
+- Lap video storage is now 50 GB.
