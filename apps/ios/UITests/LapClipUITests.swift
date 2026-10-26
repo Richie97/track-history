@@ -73,8 +73,10 @@ final class LapClipUITests: XCTestCase {
         XCTAssertTrue(scrollTo(lapRow, in: app), "the event page marks the lap that has a video")
         lapRow.tap()
 
-        let player = app.descendants(matching: .any)["lapVideoPlayer"]
-        XCTAssertTrue(player.waitForExistence(timeout: 20), "the lap page shows the player")
+        // An imported lap carries channels, so since NS-51 its video plays on
+        // the lap stage rather than in the old player card.
+        let player = app.descendants(matching: .any)["stageVideoA"]
+        XCTAssertTrue(player.waitForExistence(timeout: 20), "the lap page shows the video on its stage")
         // "ready" once the signed URL has loaded and the player has sought to the
         // lap's first frame.
         let deadline = Date().addingTimeInterval(30)

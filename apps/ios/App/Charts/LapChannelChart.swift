@@ -103,6 +103,18 @@ struct LapChannelPanel: View {
     /// no-op, because everywhere the panel is a *sheet* there is nothing beside
     /// it to answer.
     var onHit: (ChannelHit?) -> Void = { _ in }
+    /// The lap stage's playhead (NS-51), drawn as a line across every
+    /// distance-axis chart with a dot on each lit lap's trace. Read **only by the
+    /// overlays** — see `LapPlayhead` — so the traces never re-render because it
+    /// moved. nil off a stage, and the panel is exactly what it was.
+    var playhead: LapPlayhead? = nil
+    /// With a stage, a tap on a chart (or a sector heading, a friction-circle
+    /// sample, a balance corner) seeks the video to that grid index instead of
+    /// parking the read-out — the playhead then *is* the mark. nil: today's tap.
+    var onSeek: ((Double) -> Void)? = nil
+    /// Which laps are lit, in slot order, whenever that changes — the session
+    /// compare picks its stage's sides from it (`VideoSync.stageSides`).
+    var onLitChange: (([Int]) -> Void)? = nil
 
     /// The account's unit system — the speed axis and the distance ticks follow it.
     @Environment(\.unitSystem) private var units
@@ -149,8 +161,12 @@ struct LapChannelPanel: View {
         var hit: ChannelHit?
     }
 
-    /// A tap: commits a mark, or clears it.
+    /// A tap: commits a mark, or clears it — or, on a stage, seeks there.
     private func park(_ hit: ChannelHit?) {
+        if let onSeek, let hit {
+            onSeek(Double(hit.k))
+            return
+        }
         parked = hit.map { Mark(k: $0.k, hit: $0) }
         emit()
     }
@@ -227,7 +243,9 @@ struct LapChannelPanel: View {
         .background { keyboardCommands }
         .onAppear {
             if lit.isEmpty { lit = preselect ?? ChannelGraphs.initialSelection(matches) }
+            onLitChange?(lit)
         }
+        .onChange(of: lit) { _, lit in onLitChange?(lit) }
     }
 
     // MARK: - Keyboard (NS-34 ticket 5)
@@ -551,6 +569,8 @@ struct LapChannelPanel: View {
                             .foregroundStyle(Color(.textStrong))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
+                    } else if let playhead {
+                        PlayheadReadout(playhead: playhead) { k in readoutText(channel, at: Int(k.rounded())) }
                     }
                 }
                 // One flat array of points through a single `ForEach`, and nothing
@@ -605,14 +625,22 @@ struct LapChannelPanel: View {
                 .foregroundStyle(Color(.textMuted))
                 .frame(height: 150)
                 .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle().fill(.clear).contentShape(.rect)
-                            .onTapGesture { location in
-                                readOut(at: location, channel, proxy: proxy, geometry: geometry)
-                            }
-                            .onContinuousHover { phase in
-                                hoverReadOut(phase, channel, proxy: proxy, geometry: geometry)
-                            }
+                    ZStack {
+                        if let playhead {
+                            PlayheadLayer(
+                                playhead: playhead, proxy: proxy, dStepM: channels.dStepM,
+                                traces: playheadTraces(channel), hidden: hovered != nil
+                            )
+                        }
+                        GeometryReader { geometry in
+                            Rectangle().fill(.clear).contentShape(.rect)
+                                .onTapGesture { location in
+                                    readOut(at: location, channel, proxy: proxy, geometry: geometry)
+                                }
+                                .onContinuousHover { phase in
+                                    hoverReadOut(phase, channel, proxy: proxy, geometry: geometry)
+                                }
+                        }
                     }
                 }
                 // Belt and braces with the per-mark suppression above: this alone does
@@ -726,6 +754,10 @@ struct LapChannelPanel: View {
                                 .foregroundStyle(Color(.textStrong))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
+                        } else if let playhead {
+                            PlayheadReadout(playhead: playhead) { k in
+                                deltaReadoutText(deltas, refIdx: refIdx, at: Int(k.rounded()))
+                            }
                         }
                     }
                     // Same one-homogeneous-ForEach rule as the channel charts
@@ -762,14 +794,28 @@ struct LapChannelPanel: View {
                     .foregroundStyle(Color(.textMuted))
                     .frame(height: 150)
                     .chartOverlay { proxy in
-                        GeometryReader { geometry in
-                            Rectangle().fill(.clear).contentShape(.rect)
-                                .onTapGesture { location in
-                                    readOut(at: location, .speed, proxy: proxy, geometry: geometry)
-                                }
-                                .onContinuousHover { phase in
-                                    hoverReadOut(phase, .speed, proxy: proxy, geometry: geometry)
-                                }
+                        ZStack {
+                            if let playhead {
+                                PlayheadLayer(
+                                    playhead: playhead, proxy: proxy, dStepM: channels.dStepM,
+                                    traces: deltas.map {
+                                        PlayheadLayer.Trace(
+                                            id: $0.chIdx, color: color(forLapIndex: $0.chIdx) ?? Color(.chartDim),
+                                            values: $0.series
+                                        )
+                                    },
+                                    hidden: hovered != nil
+                                )
+                            }
+                            GeometryReader { geometry in
+                                Rectangle().fill(.clear).contentShape(.rect)
+                                    .onTapGesture { location in
+                                        readOut(at: location, .speed, proxy: proxy, geometry: geometry)
+                                    }
+                                    .onContinuousHover { phase in
+                                        hoverReadOut(phase, .speed, proxy: proxy, geometry: geometry)
+                                    }
+                            }
                         }
                     }
                     .accessibilityHidden(true)
@@ -896,6 +942,21 @@ struct LapChannelPanel: View {
         return out
     }
 
+    // MARK: - Playhead (NS-51)
+
+    /// Each lit lap's trace in display units, for the playhead's dots.
+    private func playheadTraces(_ channel: ChannelGraphs.Channel) -> [PlayheadLayer.Trace] {
+        lit.compactMap { chIdx in
+            guard channels.laps.indices.contains(chIdx), let series = channel.series(of: channels.laps[chIdx]) else {
+                return nil
+            }
+            return PlayheadLayer.Trace(
+                id: chIdx, color: color(forLapIndex: chIdx) ?? Color(.chartDim),
+                values: series.map { channel.convert($0, units) }
+            )
+        }
+    }
+
     // MARK: - Read-out
 
     /// Tap to park the read-out on a grid point; tap the same point to clear it.
@@ -911,6 +972,17 @@ struct LapChannelPanel: View {
     private func readOut(
         at location: CGPoint, _ channel: ChannelGraphs.Channel, proxy: ChartProxy, geometry: GeometryProxy
     ) {
+        if let onSeek {
+            // On a stage a tap pauses and seeks the video there (NS-51): the
+            // fractional place under the finger, not the rounded sample.
+            guard let plotFrame = proxy.plotFrame,
+                  let metres: Double = proxy.value(atX: location.x - geometry[plotFrame].origin.x)
+            else { return }
+            let span = ChannelGraphs.distanceSpan(channel, in: channels)
+            onSeek(min(max(metres, 0), span) / channels.dStepM)
+            Haptics.select()
+            return
+        }
         guard let index = gridIndex(at: location, channel, proxy: proxy, geometry: geometry) else { return }
         if parked?.k == index {
             parked = nil
@@ -997,6 +1069,75 @@ struct LapChannelPanel: View {
     }
 }
 
+/// The stage's playhead over one chart (NS-51): a line at the playhead's
+/// distance and a dot on each lit lap's trace.
+///
+/// Drawn in the chart's `.chartOverlay`, placed with `proxy.position(forX:)`,
+/// and **never appended to the chart's samples**: that array is the chart's
+/// data, and changing it 30 times a second would re-lay-out every chart — the
+/// same family of failure as the mixed-mark wedge `channelChart` documents.
+/// This view is the only thing that reads `playhead.mark`, so a frame
+/// re-renders it and nothing under it.
+struct PlayheadLayer: View {
+    struct Trace: Identifiable {
+        /// The channel-lap index the dot belongs to.
+        let id: Int
+        let color: Color
+        let values: [Double]
+    }
+
+    let playhead: LapPlayhead
+    let proxy: ChartProxy
+    let dStepM: Double
+    let traces: [Trace]
+    /// A pointer hovering borrows the mark (NS-34 ticket 5's rule), so the
+    /// playhead steps aside while it does.
+    var hidden = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            if !hidden, let mark = playhead.mark, let plotFrame = proxy.plotFrame,
+               let x = proxy.position(forX: mark.k * dStepM) {
+                let plot = geometry[plotFrame]
+                Path { path in
+                    path.move(to: CGPoint(x: plot.minX + x, y: plot.minY))
+                    path.addLine(to: CGPoint(x: plot.minX + x, y: plot.maxY))
+                }
+                .stroke(Color(.textStrong), lineWidth: 1.5)
+                ForEach(traces) { trace in
+                    if let k = mark.dots[trace.id], let value = VideoSync.valueAt(trace.values, k),
+                       let dx = proxy.position(forX: k * dStepM), let dy = proxy.position(forY: value) {
+                        Circle()
+                            .fill(trace.color)
+                            .overlay(Circle().strokeBorder(Color(.surfaceCard), lineWidth: 1.5))
+                            .frame(width: 9, height: 9)
+                            .position(x: plot.minX + dx, y: plot.minY + dy)
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// A chart's title read-out while the stage plays: the values at the playhead,
+/// in the words a tap would park. Its own view for the same reason as
+/// `PlayheadLayer` — it is the only thing that reads the playhead.
+struct PlayheadReadout: View {
+    let playhead: LapPlayhead
+    let text: (Double) -> String
+
+    var body: some View {
+        if let mark = playhead.mark {
+            Text(text(mark.k))
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textStrong))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+}
+
 #if DEBUG
 extension LapChannelChart {
     /// The panel on synthetic data, for `-channelGraphs` (see `RootView`) and for
@@ -1007,8 +1148,20 @@ extension LapChannelChart {
     /// table, the limit bands, the balance scatter (#189) and the Car tab's
     /// health strip all have something to draw.
     static var demoScreen: some View {
-        let times = [118_400, 116_900, 117_600]
-        let channels = SessionChannels(
+        LapChannelChart(channels: demoChannels, laps: demoLaps)
+    }
+
+    static let demoTimes = [118_400, 116_900, 117_600]
+
+    static var demoLaps: [Lap] {
+        demoTimes.enumerated().map { index, ms in
+            Lap(id: index + 1, sessionId: 1, lapNum: index + 1, timeMs: ms)
+        }
+    }
+
+    static var demoChannels: SessionChannels {
+        let times = demoTimes
+        return SessionChannels(
             v: 1,
             dStepM: 20,
             laps: times.enumerated().map { index, ms -> LapChannels in
@@ -1061,12 +1214,6 @@ extension LapChannelChart {
                     tyreCLF: 82 + heat * 9, tyreCRF: 74 + heat * 7,
                     tyreCLR: 68 + heat * 6, tyreCRR: 66 + heat * 6
                 )
-            }
-        )
-        return LapChannelChart(
-            channels: channels,
-            laps: times.enumerated().map { index, ms in
-                Lap(id: index + 1, sessionId: 1, lapNum: index + 1, timeMs: ms)
             }
         )
     }

@@ -83,6 +83,10 @@ struct StudentLogbook: View {
             TrackScreen(trackId: id)
         case .lap(let eventId, let sessionId, let lapId):
             LapDetailScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
+                .publishingFoldGeometry()
+        case .sessionCompare(let eventId, let sessionId, let lapId):
+            SessionCompareScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
+                .publishingFoldGeometry()
         case .vehicle(let id):
             VehicleScreen(vehicleId: id)
         }

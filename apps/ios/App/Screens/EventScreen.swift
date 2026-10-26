@@ -32,8 +32,8 @@ struct EventScreen: View {
     @State private var model: EventModel?
     /// The page's one form sheet: a session's label and notes, or the share
     /// sheet for the event or one session (NS-48). One `.sheet` for all of them,
-    /// because a second `.sheet` on this view beside the channel panel's is the
-    /// watchdog crash AGENTS.md lists.
+    /// because two `.sheet`s on one view is the watchdog crash AGENTS.md lists —
+    /// and the page's only sheet since NS-51 made the lap overlay a push.
     @State private var formSheet: FormSheet?
 
     private enum FormSheet: Identifiable {
@@ -48,12 +48,6 @@ struct EventScreen: View {
         }
     }
     @State private var confirmingDeleteEvent = false
-    /// The session whose lap overlay is open **as a sheet**, if any.
-    ///
-    /// Compact and medium width only. At expanded width the panel is a column
-    /// beside the page and the same control selects rather than presents — see
-    /// `selectedChannelSessionId`.
-    @State private var channelSession: Session?
     /// The session the analysis column is showing (NS-34 ticket 3).
     @State private var selectedChannelSessionId: Int?
     /// Whether a clip is being dragged over the page (NS-34 ticket 5).
@@ -186,23 +180,6 @@ struct EventScreen: View {
                 Task { await model?.deleteEvent() }
             }
             Button("Keep", role: .cancel) {}
-        }
-        .sheet(item: $channelSession) { session in
-            NavigationStack {
-                LapChannelChart(
-                    channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []),
-                    laps: session.laps,
-                    // The student's tier in a student's logbook (NS-38).
-                    pro: owner.canViewChannels(viewer: auth.entitlement)
-                )
-                .navigationTitle(session.label ?? "Channel graphs")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { channelSession = nil }
-                        }
-                    }
-            }
         }
         .sheet(item: $formSheet) { sheet in
             switch sheet {
@@ -809,11 +786,12 @@ struct EventScreen: View {
                     // The same control, two meanings, decided by whether there is
                     // a column to put the answer in (NS-34): at expanded width it
                     // *selects* the session the analysis column shows, and below
-                    // that it presents the sheet it always did.
+                    // that it pushes the session's two-lap stage (NS-51) — once a
+                    // sheet, before the stage put video above the charts.
                     if isTwoColumn {
                         selectedChannelSessionId = session.id
                     } else {
-                        channelSession = session
+                        router.push(owner.link(.sessionCompare(eventId: model?.eventId ?? eventId, sessionId: session.id, lapId: nil)))
                     }
                 } label: {
                     HStack(spacing: 12) {

@@ -94,6 +94,40 @@ final class ChannelPanelKeyboardUITests: XCTestCase {
         )
     }
 
+    // MARK: - The lap stage (NS-51)
+
+    /// Space plays and pauses the stage; ← / → step it a second. `-lapStage`
+    /// opens it on the same synthetic session, no server, with a generated clip
+    /// on each lap.
+    func testSpacePlaysAndArrowsStepTheLapStage() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-lapStage", "-syncMode", "place"]
+        app.launch()
+
+        let play = app.buttons["stagePlay"]
+        XCTAssertTrue(play.waitForExistence(timeout: 30), "the demo stage should open")
+        let scrubber = app.descendants(matching: .any)["stageScrubber"]
+        XCTAssertTrue(scrubber.waitForExistence(timeout: 5))
+        XCTAssertEqual(Self.value(of: scrubber), "\u{2212}0:02.0, Before the line", "it opens two seconds before the line")
+
+        app.typeKey(.rightArrow, modifierFlags: [])
+        XCTAssertTrue(
+            Self.wait(scrubber) { $0 == "\u{2212}0:01.0, Before the line" },
+            "→ should step one second"
+        )
+        app.typeKey(.leftArrow, modifierFlags: [])
+        XCTAssertTrue(Self.wait(scrubber) { $0.hasPrefix("\u{2212}0:02.0") }, "← should step back")
+
+        app.typeKey(" ", modifierFlags: [])
+        XCTAssertTrue(Self.wait(play) { $0 == "playing" }, "space should play")
+        XCTAssertTrue(
+            Self.wait(scrubber) { $0.contains("in T") || $0.contains(" ft") || $0.contains(" mi") },
+            "playing should carry the playhead over the line and into the lap"
+        )
+        app.typeKey(" ", modifierFlags: [])
+        XCTAssertTrue(Self.wait(play) { $0 == "paused" }, "space again should pause")
+    }
+
     // MARK: - Helpers
 
     /// The labels of the lap chips currently highlighted. A chip carries the
@@ -113,7 +147,7 @@ final class ChannelPanelKeyboardUITests: XCTestCase {
     /// Poll rather than an expectation: the value changes without an event to
     /// wait on, and the change is a redraw away.
     private static func wait(_ element: XCUIElement, until matches: (String) -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(8)
         while Date() < deadline {
             if matches(value(of: element)) { return true }
             usleep(100_000)

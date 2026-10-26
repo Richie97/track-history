@@ -152,7 +152,8 @@ final class ChannelGraphsUITests: XCTestCase {
         )
         attach(app, named: "channel-graphs-health")
 
-        app.buttons["Done"].tap()
+        // A pushed page since NS-51 (it was a sheet): back to the event.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
         deleteEventFromMenu(app)
     }
 

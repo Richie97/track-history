@@ -22,6 +22,7 @@ struct AnalysisColumn: View {
     /// Whose logbook: the student's in a coach's view (NS-38), which decides both
     /// where the reads go and whose tier the channel panel opens by.
     @Environment(\.logbookOwner) private var owner
+    @Environment(AppRouter.self) private var router
 
     /// Where the panel is pointing, if anywhere — the friction circle's tapped
     /// sample. Held here rather than in the panel because the *map* is what
@@ -84,9 +85,27 @@ struct AnalysisColumn: View {
     private func panel(_ session: Session) -> some View {
         if let channels = session.channels, !ChannelGraphs.presentChannels(channels).isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text(session.label ?? "Channel graphs")
-                    .teStyle(.h3)
-                    .foregroundStyle(Color(.textStrong))
+                HStack {
+                    Text(session.label ?? "Channel graphs")
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textStrong))
+                    Spacer()
+                    // NS-51: a session with a lap video opens its two-lap stage —
+                    // the video above these charts, with a playhead across them.
+                    if session.laps.contains(where: { $0.clip != nil }) {
+                        Button {
+                            router.push(owner.link(.sessionCompare(eventId: detail.event.id, sessionId: session.id, lapId: nil)))
+                        } label: {
+                            Label("Watch", systemImage: "play.rectangle")
+                                .teStyle(.sm)
+                                .foregroundStyle(Color(.accentInk))
+                        }
+                        // Plain, not `TEButtonStyle`: that style fills its row,
+                        // and beside the title it would take half of it.
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("watchSession")
+                    }
+                }
                 LapChannelChart(
                     channels: channels,
                     laps: session.laps,
