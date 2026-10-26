@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -68,6 +69,17 @@ fun TrackMap(
      * answer to a question being asked right now, not a mark the map carries.
      */
     highlight: Int? = null,
+    /**
+     * The lap stage's playhead (NS-51): up to two dots, each a fraction of the
+     * lap and a colour, placed by cumulative chord length
+     * (`TrackMap.traceIndexAtFraction`). A lambda read **in the draw phase**, so
+     * a video frame moves the dots without recomposing or re-pathing the map.
+     * The stored trace is the session's best lap, so on any other lap a dot
+     * marks the place, not that lap's line.
+     */
+    dots: (() -> List<TrackMapDot>)? = null,
+    /** The map's height; the stage's cards size it themselves. */
+    height: androidx.compose.ui.unit.Dp = 220.dp,
 ) {
     // Matching `renderTrackMap`'s bail: fewer than ten points is a GPS glitch,
     // not a lap, and drawing it would claim more than we know.
@@ -90,15 +102,18 @@ fun TrackMap(
     val ringRadius = with(density) { 10.dp.toPx() }
     val ringHalo = with(density) { 4.dp.toPx() }
     val ringStroke = with(density) { 2.dp.toPx() }
+    val dotRadius = with(density) { 5.dp.toPx() }
 
     // Stored samples carry no timestamp; TraceMap only needs the geometry.
     val points = remember(trace) { trace.map { TracePoint(t = 0.0, x = it.x, y = it.y, v = it.v) } }
     val speeds = remember(trace) { ChartScale.speedRange(trace) }
+    // The stored-trace shape `TrackMap.traceIndexAtFraction` walks (NS-51's dots).
+    val stored = remember(trace) { trace.map { app.trackevolution.core.model.TracePoint(x = it.x, y = it.y, v = it.v) } }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .height(height)
             .background(colors.bgSubtle, RoundedCornerShape(TrackTheme.radii.md))
             .border(1.dp, colors.borderHairline, RoundedCornerShape(TrackTheme.radii.md))
             .semantics {
@@ -106,7 +121,29 @@ fun TrackMap(
                 contentDescription = trackMapSummary(trace, markers, units)
             },
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        val dotModifier = if (dots == null) {
+            Modifier
+        } else {
+            Modifier.drawWithContent {
+                drawContent()
+                val wanted = dots()
+                if (wanted.isEmpty()) return@drawWithContent
+                val map = TraceMap.fit(
+                    trace = points,
+                    width = size.width.toDouble(),
+                    height = size.height.toDouble(),
+                    padding = TRACE_PADDING,
+                ) ?: return@drawWithContent
+                for (dot in wanted) {
+                    val idx = app.trackevolution.core.TrackMap.traceIndexAtFraction(stored, dot.frac) ?: continue
+                    val p = map.viewPoint(points[idx])
+                    val centre = Offset(p.x.toFloat(), p.y.toFloat())
+                    drawCircle(colors.surfaceCard, radius = dotRadius + ringHalo / 2, center = centre)
+                    drawCircle(dot.color, radius = dotRadius, center = centre)
+                }
+            }
+        }
+        Canvas(modifier = Modifier.fillMaxSize().then(dotModifier)) {
             val map = TraceMap.fit(
                 trace = points,
                 width = size.width.toDouble(),
@@ -212,6 +249,9 @@ fun TrackMap(
         }
     }
 }
+
+/** One playhead dot on the map (NS-51): [frac] of the lap, in its side's colour. */
+data class TrackMapDot(val frac: Double, val color: Color)
 
 /** Fewer points than this is a glitch rather than a lap. */
 private const val MIN_POINTS = 10

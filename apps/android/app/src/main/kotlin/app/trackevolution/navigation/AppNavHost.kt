@@ -80,6 +80,7 @@ import app.trackevolution.screens.VehicleScreen
 import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.PageColumn
 import app.trackevolution.ui.PaneWidth
+import app.trackevolution.ui.stage.StageHandoff
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.videoimport.ImportModel
 import app.trackevolution.videoimport.ImportScreen
@@ -317,6 +318,15 @@ fun AppNavHost(
                     videoApi = api,
                     owner = owner,
                     viewer = entitlement,
+                    // The stage's lap stepper (NS-51) replaces this destination,
+                    // so Back still returns to the event; the place on track
+                    // crosses through the handoff.
+                    onStepLap = { lapId, k ->
+                        k?.let { StageHandoff.put(lapId, it) }
+                        nav.navigate(Route.Lap(route.eventId, route.sessionId, lapId, route.student)) {
+                            popUpTo<Route.Lap> { inclusive = true }
+                        }
+                    },
                 )
                 }
             }
@@ -331,6 +341,9 @@ fun AppNavHost(
                     lapId = route.lapId,
                     canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
                     onSubscribe = onRequirePro,
+                    videoApi = api,
+                    owner = owner,
+                    viewer = entitlement,
                 )
                 }
             }
@@ -442,6 +455,8 @@ fun AppNavHost(
                             // nothing, so the column needs a way out of its own.
                             CompareLapsScreen(
                                 model = compare,
+                                videoApi = api,
+                                canPlayVideo = Entitlement.canSaveLapVideo(owner.entitlement(entitlement)),
                                 onClose = { comparing = false },
                                 onNavigate = if (owner.readOnly) {
                                     null
@@ -467,6 +482,8 @@ fun AppNavHost(
                     CompareLapsScreen(
                         model = model,
                         onNavigate = if (owner.readOnly) null else { { next: Route -> nav.navigate(next) } },
+                        videoApi = api,
+                        canPlayVideo = Entitlement.canSaveLapVideo(owner.entitlement(entitlement)),
                     )
                 }
             }
@@ -490,6 +507,8 @@ fun AppNavHost(
                     canViewChannels = Entitlement.canViewChannels(entitlement),
                     onSubscribe = onRequirePro,
                     onNavigate = { next: Route -> nav.navigate(next) },
+                    videoApi = api,
+                    canPlayVideo = Entitlement.canSaveLapVideo(entitlement),
                 )
             }
 

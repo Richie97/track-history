@@ -40,6 +40,14 @@ class CompareLapsModel(
     /** `sessions.channels` by session id, so a picked row finds its entry. */
     private var channelsBySession: Map<Int, SessionChannels> = emptyMap()
 
+    /**
+     * Each session's real lap rows (NS-51), so a pick resolves `(sessionId,
+     * lapNum)` to its `Lap` — and its `clip` — rather than the synthetic chip
+     * rows below; and its stored best-lap trace, for the stage's map.
+     */
+    private var lapsBySession: Map<Int, List<Lap>> = emptyMap()
+    private var traceBySession: Map<Int, List<app.trackevolution.core.model.TracePoint>> = emptyMap()
+
     /** Indexes into [rows] — seeded by [CompareLaps.defaultComparePicks]. */
     var selA by mutableStateOf(0)
         private set
@@ -58,6 +66,10 @@ class CompareLapsModel(
                 channelsBySession = details
                     .flatMap { it.sessions }
                     .mapNotNull { session -> session.channels?.let { session.id to it } }
+                    .toMap()
+                lapsBySession = details.flatMap { it.sessions }.associate { it.id to it.laps }
+                traceBySession = details.flatMap { it.sessions }
+                    .mapNotNull { s -> s.trace?.let { s.id to it } }
                     .toMap()
                 CompareLaps.defaultComparePicks(rows)?.let {
                     selA = it.a
@@ -106,6 +118,11 @@ class CompareLapsModel(
         val metricsA: CompareLaps.Metrics,
         val metricsB: CompareLaps.Metrics,
         val mismatch: Double,
+        /** Each pick's real lap, with its clip (NS-51); null if the row no longer resolves. */
+        val lapA: Lap? = null,
+        val lapB: Lap? = null,
+        /** Side A's session's stored best-lap trace — both dots go on it. */
+        val traceA: List<app.trackevolution.core.model.TracePoint>? = null,
     )
 
     val pair: LapPair?
@@ -126,6 +143,9 @@ class CompareLapsModel(
                 metricsA = CompareLaps.lapMetrics(entryA),
                 metricsB = CompareLaps.lapMetrics(entryB),
                 mismatch = CompareLaps.lengthMismatchRatio(entryA, chanA.dStepM, entryB, chanB.dStepM),
+                lapA = lapsBySession[rowA.sessionId]?.firstOrNull { it.lapNum == rowA.lapNum },
+                lapB = lapsBySession[rowB.sessionId]?.firstOrNull { it.lapNum == rowB.lapNum },
+                traceA = traceBySession[rowA.sessionId],
             )
         }
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -33,6 +37,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -61,6 +66,7 @@ import app.trackevolution.ui.studentFreeNote
 import app.trackevolution.ui.LocalUnitSystem
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * A place on a lap, pointed at from one chart and answered on the others.
@@ -129,6 +135,22 @@ fun LapChannelChart(
     onSubscribe: () -> Unit = {},
     /** What an empty panel says — "this session" by default, "this lap" on the lap page (#343). */
     emptyText: String = "No channel data for this session.",
+    /**
+     * The lap stage's playhead (NS-51), or null with no stage. A `State` read
+     * only in each plot's draw phase, so a video frame moves the line without
+     * recomposing a chart.
+     */
+    playhead: State<LapPlayhead?>? = null,
+    /**
+     * With a stage, what a tap on a chart does instead of parking a mark: pause
+     * and seek the stage to that fractional grid index. Null keeps today's
+     * behaviour — a tap parks the mark.
+     */
+    onSeek: ((Double) -> Unit)? = null,
+    /** A mouse dragging across a chart with its button down: a fast seek per move. */
+    onScrub: ((Double) -> Unit)? = null,
+    /** The lit laps, as they change — the session stage picks its sides from them. */
+    onLitChange: ((List<Int>) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val matches = remember(channels, laps) { ChannelGraphs.matchLapsToChannels(laps, channels.laps) }
@@ -148,6 +170,39 @@ fun LapChannelChart(
     val pointer = remember(channels) { PanelPointer() }
     val hit = pointer.current
     val markDistance = hit?.let { it.k * channels.dStepM }
+    LaunchedEffect(lit) { onLitChange?.invoke(lit) }
+
+    // A place every lap shares, from a chart's x — what a tap on a distance-axis
+    // chart parks (NS-51: those charts answered no tap before, so the lap page's
+    // "Tap a chart" was untrue). With a stage, a tap seeks it instead and the
+    // playhead *is* the mark.
+    val gridHit: (Double) -> ChannelHit? = { k ->
+        val n = channels.laps.maxOfOrNull { it.speed?.size ?: 0 } ?: 0
+        if (n <= 1) null else ChannelHit(chIdx = null, k = k.roundToInt(), frac = (k / (n - 1)).coerceIn(0.0, 1.0))
+    }
+    val tapAt: (Double) -> Unit = { k ->
+        if (onSeek != null) {
+            onSeek(k)
+        } else {
+            pointer.park(gridHit(k))
+            onHit(pointer.current)
+        }
+    }
+    val hoverAt: (Double?) -> Unit = { k ->
+        pointer.hover(k?.let(gridHit))
+        onHit(pointer.current)
+    }
+    // The friction circle, the balance table and the sector headings seek the
+    // same way (NS-51), going outward unchanged so the map still rings.
+    val parkOrSeek: (ChannelHit?) -> Unit = { h ->
+        if (onSeek != null && h != null) {
+            onSeek(h.k.toDouble())
+            onHit(h)
+        } else {
+            pointer.park(h)
+            onHit(pointer.current)
+        }
+    }
 
     if (present.isEmpty()) {
         // A session imported without channel data is normal — a hand-entered
@@ -214,12 +269,23 @@ fun LapChannelChart(
                     lit = lit,
                     slots = slots,
                     lapNumber = lapNumber,
-                    onHit = { pointer.park(it); onHit(pointer.current) },
+                    onHit = parkOrSeek,
                     onHover = { pointer.hover(it); onHit(pointer.current) },
                 )
                 val refIdx = ChannelGraphs.deltaReference(lit, channels)
                 if (refIdx != null) {
-                    DeltaPlot(channels = channels, matches = matches, lit = lit, refIdx = refIdx, slots = slots)
+                    DeltaPlot(
+                        channels = channels,
+                        matches = matches,
+                        lit = lit,
+                        refIdx = refIdx,
+                        slots = slots,
+                        markDistance = markDistance,
+                        playhead = playhead,
+                        onTap = tapAt,
+                        onHover = hoverAt,
+                        onScrub = onScrub,
+                    )
                 }
             }
             // The session's shift points (#187) above the traces they explain.
@@ -236,7 +302,7 @@ fun LapChannelChart(
                     // The point of the column (NS-34 ticket 3): the tapped
                     // sample marks its distance on every chart sharing the axis,
                     // and goes outward so the map can ring the place.
-                    onHit = { pointer.park(it); onHit(pointer.current) },
+                    onHit = parkOrSeek,
                     onHover = { pointer.hover(it); onHit(pointer.current) },
                 )
                 // Under it, the balance scatter and its per-corner table (#189),
@@ -247,7 +313,7 @@ fun LapChannelChart(
                     lit = lit,
                     slots = slots,
                     lapNumber = lapNumber,
-                    onHit = { pointer.park(it); onHit(pointer.current) },
+                    onHit = parkOrSeek,
                     onHover = { pointer.hover(it); onHit(pointer.current) },
                 )
             }
@@ -265,6 +331,10 @@ fun LapChannelChart(
                 lit = lit,
                 slots = slots,
                 markDistance = markDistance,
+                playhead = playhead,
+                onTap = tapAt,
+                onHover = hoverAt,
+                onScrub = onScrub,
             )
             // The gear ribbon rides under the RPM trace, where each shift is the
             // drop in the sawtooth above it (#187).
@@ -439,11 +509,130 @@ private fun LapChip(
 }
 
 /**
+ * Where a plot's data sits inside it, shared by the draw, the tap and the
+ * playhead overlay so the three agree to the pixel (NS-51). The left inset is
+ * the widest y label, measured in composition rather than in the draw, because
+ * a tap has to map x back to a distance with the same number.
+ */
+private class PlotFrame(
+    val padLeft: Float,
+    val padRight: Float,
+    val padTop: Float,
+    val padBottom: Float,
+    /** The driven distance the x axis spans, metres. */
+    val span: Double,
+) {
+    fun plotW(width: Float) = width - padLeft - padRight
+    fun plotH(height: Float) = height - padTop - padBottom
+    fun px(width: Float, distance: Double): Float =
+        padLeft + (if (span <= 0.0) 0.0 else (distance / span).coerceIn(0.0, 1.0)).toFloat() * plotW(width)
+
+    /** A tap's x back to a fractional grid index on a [dStepM] grid. */
+    fun kAt(width: Float, x: Float, dStepM: Double): Double? {
+        val w = plotW(width)
+        if (w <= 0f || span <= 0.0 || dStepM <= 0.0) return null
+        return ((x - padLeft) / w).coerceIn(0f, 1f) * span / dStepM
+    }
+}
+
+/**
+ * The plot's pointer: a tap, from a finger or a mouse, says where ([onTap] with
+ * a fractional grid index); a mouse borrows the mark while it hovers
+ * ([onHover], null on leaving) and scrubs while its button is down ([onScrub],
+ * then [onTap] on release for the exact seek). Touch never drags — the page
+ * scrolls over the charts (NS-51's rule on every client).
+ */
+private fun Modifier.plotPointer(
+    frame: PlotFrame,
+    dStepM: Double,
+    onTap: (Double) -> Unit,
+    onHover: (Double?) -> Unit,
+    onScrub: ((Double) -> Unit)?,
+): Modifier = this
+    .pointerInput(frame, dStepM, onTap) {
+        detectTapGestures { offset -> frame.kAt(size.width.toFloat(), offset.x, dStepM)?.let(onTap) }
+    }
+    .pointerHover(frame, dStepM, onHover) { offset ->
+        onHover(offset?.let { frame.kAt(size.width.toFloat(), it.x, dStepM) })
+    }
+    .then(
+        if (onScrub == null) {
+            Modifier
+        } else {
+            Modifier.mouseDrag(
+                frame, dStepM, onScrub,
+                onDrag = { offset -> frame.kAt(size.width.toFloat(), offset.x, dStepM)?.let(onScrub) },
+                onRelease = { offset -> frame.kAt(size.width.toFloat(), offset.x, dStepM)?.let(onTap) },
+            )
+        },
+    )
+
+/**
+ * The stage's playhead over a plot (NS-51): a solid line at side A's place and
+ * a dot on each lit lap's trace at that lap's own place, plus the values in the
+ * title's read-out. Read **in the draw phase** — [playhead] is a `State` whose
+ * value is only touched inside `drawWithContent` — so a video frame redraws this
+ * overlay and nothing else: the traces neither recompose nor re-render.
+ */
+private fun Modifier.playheadOverlay(
+    playhead: State<LapPlayhead?>?,
+    frame: PlotFrame,
+    dStepM: Double,
+    lit: List<Int>,
+    slots: List<Color>,
+    lineColor: Color,
+    haloColor: Color,
+    /** A lit lap's value at a fractional index, already in the axis's unit, or null where it has none. */
+    valueAt: (chIdx: Int, k: Double) -> Double?,
+    /** The axis value's y, as a fraction of the plot height from the top. */
+    yFraction: (Double) -> Float,
+    /** The title read-out's words for one value. */
+    readout: (Double) -> String,
+    readoutStyle: TextStyle,
+    measurer: androidx.compose.ui.text.TextMeasurer,
+    density: Float,
+): Modifier = if (playhead == null) this else this.drawWithContent {
+    drawContent()
+    val p = playhead.value ?: return@drawWithContent
+    val plotH = frame.plotH(size.height)
+    if (frame.plotW(size.width) <= 0f || plotH <= 0f) return@drawWithContent
+    val x = frame.px(size.width, p.k * dStepM)
+    drawLine(lineColor, Offset(x, frame.padTop), Offset(x, frame.padTop + plotH), strokeWidth = 1.5f * density)
+    val values = mutableListOf<String>()
+    lit.forEachIndexed { slot, chIdx ->
+        val v = valueAt(chIdx, p.kFor(chIdx)) ?: return@forEachIndexed
+        val dx = frame.px(size.width, p.kFor(chIdx) * dStepM)
+        val dy = frame.padTop + yFraction(v) * plotH
+        drawCircle(haloColor, radius = 4.5f * density, center = Offset(dx, dy))
+        drawCircle(slots[slot % slots.size], radius = 3f * density, center = Offset(dx, dy))
+        values += readout(v)
+    }
+    if (values.isNotEmpty()) {
+        // Beside the line, inside the plot, flipping to its left near the right
+        // edge — the title row already carries the chart's name and any shading
+        // note, and a phone has no room left in it.
+        val text = measurer.measure(values.joinToString("  "), readoutStyle)
+        val gap = 4f * density
+        val w = text.size.width.toFloat()
+        val left = if (x + gap + w <= size.width - frame.padRight) x + gap else x - gap - w
+        drawRect(
+            haloColor.copy(alpha = 0.85f),
+            topLeft = Offset(left - gap / 2, frame.padTop),
+            size = androidx.compose.ui.geometry.Size(w + gap, text.size.height.toFloat()),
+        )
+        drawText(text, topLeft = Offset(left, frame.padTop))
+    }
+}
+
+/**
  * The delta chart: highlighted laps vs the fastest of the selection ([refIdx]),
  * on the same distance axis as the channels below it. Positive is slower, so a
  * climbing trace is time slipping away. The reference lap draws no trace — it
  * *is* the zero line. The maths is `ChannelGraphs.deltaSeries` in `:core`,
  * pinned to the web implementation by `contracts/logic/lap-delta.json`.
+ *
+ * Since NS-51 it answers a tap like every distance-axis chart, carries the
+ * panel's mark, and draws the stage's playhead.
  */
 @Composable
 private fun DeltaPlot(
@@ -452,6 +641,11 @@ private fun DeltaPlot(
     lit: List<Int>,
     refIdx: Int,
     slots: List<Color>,
+    markDistance: Double? = null,
+    playhead: State<LapPlayhead?>? = null,
+    onTap: (Double) -> Unit = {},
+    onHover: (Double?) -> Unit = {},
+    onScrub: ((Double) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -459,26 +653,39 @@ private fun DeltaPlot(
     val density = LocalDensity.current
     val labelStyle = TrackTheme.typography.xxs.copy(color = colors.textFaint)
     val titleStyle = TrackTheme.typography.xxs.copy(color = colors.textMuted)
+    val readoutStyle = TrackTheme.typography.xxs.copy(color = colors.textStrong)
 
     fun lapNumber(chIdx: Int): Int =
         matches.firstOrNull { it.chIdx == chIdx }?.lap?.lapNum ?: channels.laps[chIdx].n
 
-    val deltas = lit
-        .filter { it != refIdx && it in channels.laps.indices }
-        .mapNotNull { chIdx ->
-            ChannelGraphs.deltaSeries(channels.laps[chIdx], channels.laps[refIdx], channels.dStepM)
-                ?.let { chIdx to it }
-        }
+    val deltas = remember(channels, lit, refIdx) {
+        lit
+            .filter { it != refIdx && it in channels.laps.indices }
+            .mapNotNull { chIdx ->
+                ChannelGraphs.deltaSeries(channels.laps[chIdx], channels.laps[refIdx], channels.dStepM)
+                    ?.let { chIdx to it }
+            }
+    }
     if (deltas.isEmpty()) return
     val domain = ChannelGraphs.deltaDomain(deltas.map { it.second }) ?: return
     val span = ChannelGraphs.distanceSpan(ChannelGraphs.Channel.SPEED, channels)
     if (span <= 0.0) return
 
     val gutter = with(density) { 5.dp.toPx() }
-    val padRight = with(density) { 10.dp.toPx() }
-    val padTop = with(density) { 18.dp.toPx() }
-    val padBottom = with(density) { 18.dp.toPx() }
     val litWidth = with(density) { 2.dp.toPx() }
+    val yLabels = remember(domain, labelStyle) {
+        ChartScale.niceNumTicks(domain.low, domain.high, 3).map { it to measurer.measure(formatDelta(it, 1), labelStyle) }
+    }
+    val frame = remember(yLabels, span, density) {
+        PlotFrame(
+            padLeft = (yLabels.maxOfOrNull { it.second.size.width }?.toFloat() ?: 0f) + gutter * 2,
+            padRight = with(density) { 10.dp.toPx() },
+            padTop = with(density) { 18.dp.toPx() },
+            padBottom = with(density) { 18.dp.toPx() },
+            span = span,
+        )
+    }
+    val bySeries = remember(deltas) { deltas.toMap() }
 
     val refN = lapNumber(refIdx)
     val summary = buildString {
@@ -497,18 +704,35 @@ private fun DeltaPlot(
             .semantics {
                 testTag = "channelChart:delta"
                 contentDescription = summary
-            },
+            }
+            .plotPointer(frame, channels.dStepM, onTap, onHover, onScrub)
+            .playheadOverlay(
+                playhead = playhead,
+                frame = frame,
+                dStepM = channels.dStepM,
+                // The reference is the zero line; its dot would sit on it.
+                lit = lit.filter { it in bySeries },
+                slots = slots,
+                lineColor = colors.textStrong,
+                haloColor = colors.surfaceCard,
+                valueAt = { chIdx, k -> app.trackevolution.core.VideoSync.valueAt(bySeries[chIdx], k) },
+                yFraction = { ChartScale.plottedFraction(it, domain).toFloat() },
+                readout = { formatDelta(it, 2) + " s" },
+                readoutStyle = readoutStyle,
+                measurer = measurer,
+                density = density.density,
+            ),
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val yTicks = ChartScale.niceNumTicks(domain.low, domain.high, 3)
-            val yLabels = yTicks.map { it to measurer.measure(formatDelta(it, 1), labelStyle) }
-            val padLeft = (yLabels.maxOfOrNull { it.second.size.width }?.toFloat() ?: 0f) + gutter * 2
-
-            val plotW = size.width - padLeft - padRight
-            val plotH = size.height - padTop - padBottom
+            val plotW = frame.plotW(size.width)
+            val plotH = frame.plotH(size.height)
             if (plotW <= 0f || plotH <= 0f) return@Canvas
+            val padLeft = frame.padLeft
+            val padRight = frame.padRight
+            val padTop = frame.padTop
+            val padBottom = frame.padBottom
 
-            fun px(distance: Double) = padLeft + (distance / span).toFloat() * plotW
+            fun px(distance: Double) = frame.px(size.width, distance)
             fun py(value: Double) = padTop + ChartScale.plottedFraction(value, domain).toFloat() * plotH
 
             for ((tick, text) in yLabels) {
@@ -557,6 +781,19 @@ private fun DeltaPlot(
                     style = Stroke(width = litWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
                 )
             }
+
+            // The panel's mark, as on every chart sharing the axis (NS-51:
+            // the delta chart drew none before).
+            if (markDistance != null) {
+                val x = px(markDistance.coerceIn(0.0, span))
+                drawLine(
+                    color = colors.textFaint,
+                    start = Offset(x, padTop),
+                    end = Offset(x, padTop + plotH),
+                    strokeWidth = with(density) { 1.5.dp.toPx() },
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)),
+                )
+            }
         }
     }
 }
@@ -585,6 +822,12 @@ private fun ChannelPlot(
      * about the axis, which is what makes the answer meaningful.
      */
     markDistance: Double? = null,
+    /** The stage's playhead (NS-51), read in the draw phase only. */
+    playhead: State<LapPlayhead?>? = null,
+    /** A tap at a fractional grid index — a seek with a stage, a parked mark without. */
+    onTap: (Double) -> Unit = {},
+    onHover: (Double?) -> Unit = {},
+    onScrub: ((Double) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -592,6 +835,7 @@ private fun ChannelPlot(
     val density = LocalDensity.current
     val labelStyle = TrackTheme.typography.xxs.copy(color = colors.textFaint)
     val titleStyle = TrackTheme.typography.xxs.copy(color = colors.textMuted)
+    val readoutStyle = TrackTheme.typography.xxs.copy(color = colors.textStrong)
 
     val domain = ChannelGraphs.valueDomain(channel, channels, units) ?: return
     val span = ChannelGraphs.distanceSpan(channel, channels)
@@ -612,15 +856,26 @@ private fun ChannelPlot(
         }
     }
 
-    // Measured below rather than fixed: an RPM axis label ("7400") is far wider
+    // Measured here rather than fixed: an RPM axis label ("7400") is far wider
     // than a lateral-G one ("1.2"), and a single inset either wastes the plot or
-    // lets the label run under it.
+    // lets the label run under it. In composition, not the draw, so a tap maps
+    // x back to a distance against the same inset (NS-51).
     val gutter = with(density) { 5.dp.toPx() }
-    val padRight = with(density) { 10.dp.toPx() }
-    val padTop = with(density) { 18.dp.toPx() }
-    val padBottom = with(density) { 18.dp.toPx() }
     val dimWidth = with(density) { 1.25.dp.toPx() }
     val litWidth = with(density) { 2.dp.toPx() }
+    val yLabels = remember(domain, labelStyle, channel) {
+        ChartScale.niceNumTicks(domain.low, domain.high, 3)
+            .map { it to measurer.measure(formatTick(it, channel.decimals), labelStyle) }
+    }
+    val frame = remember(yLabels, span, density) {
+        PlotFrame(
+            padLeft = (yLabels.maxOfOrNull { it.second.size.width }?.toFloat() ?: 0f) + gutter * 2,
+            padRight = with(density) { 10.dp.toPx() },
+            padTop = with(density) { 18.dp.toPx() },
+            padBottom = with(density) { 18.dp.toPx() },
+            span = span,
+        )
+    }
 
     Box(
         Modifier
@@ -636,19 +891,37 @@ private fun ChannelPlot(
                     units = units,
                     shaded = bands.map { it.second.label }.distinct(),
                 )
-            },
+            }
+            .plotPointer(frame, channels.dStepM, onTap, onHover, onScrub)
+            .playheadOverlay(
+                playhead = playhead,
+                frame = frame,
+                dStepM = channels.dStepM,
+                lit = lit.filter { it in channels.laps.indices },
+                slots = slots,
+                lineColor = colors.textStrong,
+                haloColor = colors.surfaceCard,
+                valueAt = { chIdx, k ->
+                    app.trackevolution.core.VideoSync.valueAt(channel.series(channels.laps[chIdx]), k)
+                        ?.let { channel.convert(it, units) }
+                },
+                yFraction = { ChartScale.plottedFraction(it, domain).toFloat() },
+                readout = { formatTick(it, channel.decimals) + if (channel == ChannelGraphs.Channel.SPEED) " ${channel.unit(units)}" else "" },
+                readoutStyle = readoutStyle,
+                measurer = measurer,
+                density = density.density,
+            ),
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val yTicks = ChartScale.niceNumTicks(domain.low, domain.high, 3)
-            val yLabels = yTicks.map { it to measurer.measure(formatTick(it, channel.decimals), labelStyle) }
-            val padLeft = (yLabels.maxOfOrNull { it.second.size.width }?.toFloat() ?: 0f) + gutter * 2
-
-            val plotW = size.width - padLeft - padRight
-            val plotH = size.height - padTop - padBottom
+            val plotW = frame.plotW(size.width)
+            val plotH = frame.plotH(size.height)
             if (plotW <= 0f || plotH <= 0f) return@Canvas
+            val padLeft = frame.padLeft
+            val padRight = frame.padRight
+            val padTop = frame.padTop
+            val padBottom = frame.padBottom
 
-            fun px(distance: Double) =
-                padLeft + (if (span <= 0.0) 0.0 else distance / span).toFloat() * plotW
+            fun px(distance: Double) = frame.px(size.width, distance)
 
             fun py(value: Double) =
                 padTop + ChartScale.plottedFraction(value, domain).toFloat() * plotH

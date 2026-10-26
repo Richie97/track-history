@@ -486,6 +486,53 @@ private fun Playable(
 }
 
 /**
+ * The lap stage's video menu (NS-51): the stage draws the player, so the
+ * owner's *Download video* and *Delete video* — the card's menu — live under
+ * the facts. A deleted clip re-reads the page; the stage turns to replay.
+ */
+@Composable
+internal fun StageVideoMenu(api: ApiClient, clipId: Int, onDeleted: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = TrackTheme.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var message by remember(clipId) { mutableStateOf<String?>(null) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    TrackCard(modifier.fillMaxWidth().testTag("stageVideoMenu")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Lap video", style = TrackTheme.typography.bodyStrong, color = colors.textStrong, modifier = Modifier.weight(1f))
+            TextButton(onClick = {
+                message = "Downloading…"
+                scope.launch { message = download(context, api, clipId) }
+            }) {
+                Text("Download video", style = TrackTheme.typography.sm, color = colors.accentInk)
+            }
+            TextButton(onClick = { confirmDelete = true }) {
+                Text("Delete video", style = TrackTheme.typography.sm, color = colors.dangerInk)
+            }
+        }
+        message?.let { Text(it, style = TrackTheme.typography.sm, color = colors.textMuted) }
+    }
+    if (confirmDelete) {
+        TEConfirmDialog(
+            text = LapVideoText.CONFIRM_DELETE,
+            confirm = "Delete video",
+            onConfirm = {
+                confirmDelete = false
+                scope.launch {
+                    try {
+                        api.deleteClip(clipId)
+                        onDeleted()
+                    } catch (e: ApiException) {
+                        message = if (e is ApiException.Transport) LapVideoText.DELETE_NEEDS_CONNECTION else e.message
+                    }
+                }
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
+}
+
+/**
  * The lap video's player, held on the lap page's back-stack entry rather than
  * `remember`ed in the card. Turning the phone sideways is how a driver watches a
  * lap full screen, and a rotation throws the card's composition away: a
