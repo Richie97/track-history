@@ -65,8 +65,12 @@ export function traceIndexAtFraction(points, frac) {
 // points: [[x, y, v], ...] in meters; markers: [{idx, shape, filled, side}]
 // (limitMarkers output joined to its LIMIT_KINDS entry). Returns a handle
 // whose setHighlight(idx | null) rings one trace point — the friction
-// circle's hover uses it to answer "which corner is this dot" — or null when
-// there was nothing to draw. The renderer owns the canvas until it leaves the
+// circle's hover uses it to answer "which corner is this dot" — and whose
+// setPlayhead(dots | null) places the lap stage's cars (NS-51): up to two
+// { frac, color } — frac the fraction of the lap's driven distance, color a
+// CSS custom property name such as "--chart-line" — which stop the
+// free-running replay dot while they are set. null when there was nothing to
+// draw. The renderer owns the canvas until it leaves the
 // document (checked each frame / theme change).
 export function renderTrackMap(canvas, points, { markers = [] } = {}) {
   if (!points || points.length < 10) return null;
@@ -96,6 +100,21 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
   const ctx = canvas.getContext("2d");
   let dot = 0;
   let highlight = null; // trace point index, from setHighlight
+  let playhead = null; // [{ idx, color }], from setPlayhead
+  // Cumulative chord length, for placing a fraction of the lap on the line —
+  // traceIndexAtFraction's walk, done once since the playhead moves per frame.
+  const cum = [0];
+  for (let i = 1; i < points.length; i++) cum.push(cum[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
+  const idxAt = (frac) => {
+    const target = Math.max(0, Math.min(1, frac)) * cum[cum.length - 1];
+    let lo = 0, hi = cum.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cum[mid] < target) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
 
   function draw() {
     const styles = getComputedStyle(document.documentElement);
@@ -171,7 +190,18 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
       ctx.stroke();
     }
 
-    if (!reduceMotion) {
+    if (playhead) {
+      for (const p of playhead) {
+        const [x, y] = px[p.idx];
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = cssVar(p.color) || cssVar("--accent");
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = cssVar("--surface-card");
+        ctx.stroke();
+      }
+    } else if (!reduceMotion) {
       const d = px[Math.floor(dot) % px.length];
       ctx.save();
       ctx.shadowColor = cssVar("--accent");
@@ -190,6 +220,12 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
     setHighlight(idx) {
       if (idx === highlight) return;
       highlight = idx;
+      if (reduceMotion && canvas.isConnected) draw();
+    },
+    setPlayhead(dots) {
+      const next = dots?.length ? dots.map((d) => ({ idx: idxAt(d.frac), color: d.color })) : null;
+      if (JSON.stringify(next) === JSON.stringify(playhead)) return;
+      playhead = next;
       if (reduceMotion && canvas.isConnected) draw();
     },
   };

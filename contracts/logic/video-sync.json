@@ -1,0 +1,1501 @@
+{
+  "description": "NS-51 (public/js/video-sync.js): the lap stage's playhead — grid index from a clip time and back, both sync modes, the follower's rate, the re-seek bound, the words, the reference lap and the stage's sides. Ports (VideoSync in the iOS Kit and Android :core) must reproduce numbers to 1e-9 and strings exactly. Sides are rebuilt from `input` with makeSide. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/video-sync.js",
+  "constants": {
+    "syncModes": [
+      "place",
+      "time"
+    ],
+    "defaultSyncMode": "place",
+    "resyncMs": 150,
+    "followRateMin": 0.5,
+    "followRateMax": 2,
+    "brakingWordPct": 10
+  },
+  "input": {
+    "dStepM": 20,
+    "entryA": {
+      "n": 3,
+      "timeMs": 15000,
+      "speed": [
+        160,
+        162,
+        163.7,
+        165,
+        165.8,
+        166,
+        165.5,
+        164.3,
+        162.7,
+        160.8,
+        88.4,
+        87,
+        88.4,
+        91.3,
+        93,
+        154.2,
+        155.1,
+        156.5,
+        158.3,
+        160.3,
+        162.2,
+        163.9,
+        165.2,
+        165.9,
+        165.9,
+        165.3,
+        164.1,
+        162.5,
+        160.5,
+        158.6
+      ],
+      "latG": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        1.1,
+        1.1,
+        1.1,
+        1.1,
+        1.1,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.8,
+        0.8,
+        0.8,
+        0.8,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ],
+      "throttle": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        20,
+        20,
+        20,
+        20,
+        20,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "brake": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        70,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        9.5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "gear": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        3,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    "entryB": {
+      "n": 5,
+      "timeMs": 16200,
+      "speed": [
+        156,
+        158,
+        159.7,
+        161,
+        161.8,
+        162,
+        161.5,
+        160.3,
+        158.7,
+        156.8,
+        68.4,
+        67,
+        68.4,
+        71.3,
+        73,
+        150.2,
+        151.1,
+        152.5,
+        154.3,
+        156.3,
+        158.2,
+        159.9,
+        161.2,
+        161.9,
+        161.9,
+        161.3,
+        160.1,
+        158.5,
+        156.5,
+        154.6
+      ],
+      "latG": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        1.1,
+        1.1,
+        1.1,
+        1.1,
+        1.1,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.8,
+        0.8,
+        0.8,
+        0.8,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ]
+    },
+    "entryShort": {
+      "n": 7,
+      "timeMs": 12600,
+      "speed": [
+        156,
+        158,
+        159.7,
+        161,
+        161.8,
+        162,
+        161.5,
+        160.3,
+        158.7,
+        156.8,
+        68.4,
+        67,
+        68.4,
+        71.3,
+        73,
+        150.2,
+        151.1,
+        152.5,
+        154.3,
+        156.3,
+        158.2,
+        159.9,
+        161.2,
+        161.9
+      ]
+    },
+    "clipA": {
+      "lapOffsetMs": 3000,
+      "durationMs": 22000
+    },
+    "clipB": {
+      "lapOffsetMs": 3317,
+      "durationMs": 23600
+    },
+    "clipLate": {
+      "lapOffsetMs": 500,
+      "durationMs": 9000
+    },
+    "sidesLegend": {
+      "AB": "a: entryA + clipA, b: entryB + clipB",
+      "AShort": "a: entryA + clipA, b: entryShort, no clip",
+      "A": "a: entryA + clipA, no b",
+      "Late": "a: entryA + clipLate, no b",
+      "ACrawl": "a: entryA + clipA, b: entryB with every speed 10 km/h, no clip"
+    }
+  },
+  "expected": {
+    "timeCurveA": [
+      0,
+      0.46009209326961903,
+      0.9149574725536759,
+      1.3656713576550368,
+      1.8135239998340493,
+      2.260026875158996,
+      2.706933825484237,
+      3.1561444198833195,
+      3.609201465855238,
+      4.0671602109334986,
+      4.6616612303268266,
+      5.506300078860562,
+      6.3509389273942976,
+      7.175366607042697,
+      7.979217144388423,
+      8.578528042579432,
+      9.057511728427533,
+      9.53295991210153,
+      10.003575077390023,
+      10.468577130223723,
+      10.927955902418505,
+      11.38226333582181,
+      11.832429407024536,
+      12.279876263058416,
+      12.726379138383361,
+      13.173690895728825,
+      13.623446979617158,
+      14.077058902559036,
+      14.535726562103362,
+      15
+    ],
+    "timeCurveB": [
+      0,
+      0.4674670009492344,
+      0.9294897843866269,
+      1.387190558624418,
+      1.8419137255948628,
+      2.2952325591280918,
+      2.7489717810695433,
+      3.2051080094662483,
+      3.665247941435087,
+      4.130492436833057,
+      4.782289232117513,
+      5.86637075573686,
+      6.950452279356207,
+      8.001165509836232,
+      9.018384070460346,
+      9.676021338820828,
+      10.163192391917606,
+      10.646672755218198,
+      11.12511029856259,
+      11.597694452773984,
+      12.064418262942695,
+      12.525860068343698,
+      12.982990676559393,
+      13.437291630747136,
+      13.890610464280364,
+      14.344770855054064,
+      14.801474770107141,
+      15.262192404438778,
+      15.728175383162778,
+      16.2
+    ],
+    "corners": [
+      {
+        "n": 1,
+        "k0": 10,
+        "k1": 14,
+        "peakG": 1.1,
+        "peakK": 10,
+        "laps": 2
+      },
+      {
+        "n": 2,
+        "k0": 22,
+        "k1": 25,
+        "peakG": 0.8,
+        "peakK": 22,
+        "laps": 2
+      }
+    ],
+    "gridAtElapsed": [
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": -1,
+        "k": 0
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 0,
+        "k": 0
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 0.5,
+        "k": 0.5
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 1,
+        "k": 1
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 2,
+        "k": 1.5
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 3,
+        "k": 2
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 4.5,
+        "k": 2.5
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 6,
+        "k": 3
+      },
+      {
+        "t": [
+          0,
+          1,
+          3,
+          6
+        ],
+        "e": 9,
+        "k": 3
+      }
+    ],
+    "valueAt": [
+      {
+        "series": [
+          1,
+          3
+        ],
+        "k": 0.5,
+        "value": 2
+      },
+      {
+        "series": [
+          1,
+          3
+        ],
+        "k": -4,
+        "value": 1
+      },
+      {
+        "series": [
+          1,
+          3
+        ],
+        "k": 9,
+        "value": 3
+      },
+      {
+        "series": [],
+        "k": 1,
+        "value": null
+      }
+    ],
+    "sideAtClipTime": [
+      {
+        "clipMs": 1000,
+        "at": {
+          "e": -2,
+          "k": 0,
+          "inLap": false
+        }
+      },
+      {
+        "clipMs": 3000,
+        "at": {
+          "e": 0,
+          "k": 0,
+          "inLap": true
+        }
+      },
+      {
+        "clipMs": 9000,
+        "at": {
+          "e": 6,
+          "k": 11.584510080250848,
+          "inLap": true
+        }
+      },
+      {
+        "clipMs": 18000,
+        "at": {
+          "e": 15,
+          "k": 29,
+          "inLap": true
+        }
+      },
+      {
+        "clipMs": 20000,
+        "at": {
+          "e": 17,
+          "k": 29,
+          "inLap": false
+        }
+      }
+    ],
+    "clipTimeAtGrid": [
+      {
+        "k": 0,
+        "clipMs": 3000
+      },
+      {
+        "k": 0.5,
+        "clipMs": 3230.0460466348095
+      },
+      {
+        "k": 12.25,
+        "clipMs": 9557.045847306399
+      },
+      {
+        "k": 29,
+        "clipMs": 18000
+      },
+      {
+        "k": 40,
+        "clipMs": 18000
+      }
+    ],
+    "scrubRange": {
+      "min": -2,
+      "max": 17
+    },
+    "matchByFraction": {
+      "ab": false,
+      "aShort": true
+    },
+    "playheadAt": [
+      {
+        "name": "place, fast master",
+        "sides": "AB",
+        "masterKey": "A",
+        "eMaster": 8.25,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": true,
+          "byFraction": false,
+          "a": {
+            "e": 8.25,
+            "k": 14.451823680211593,
+            "distM": 289.03647360423184,
+            "inLap": true,
+            "clipMs": 11250,
+            "inClip": true,
+            "now": {
+              "speedKph": 120.65160922894948,
+              "throttle": 56.14589441692743,
+              "brake": 0,
+              "gear": 3
+            }
+          },
+          "b": {
+            "e": 9.315520161295279,
+            "k": 14.451823680211593,
+            "distM": 289.03647360423184,
+            "inLap": true,
+            "clipMs": 12632.520161295279,
+            "inClip": true,
+            "now": {
+              "speedKph": 107.88078811233497,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": -1.0655201612952787,
+          "gapM": null
+        }
+      },
+      {
+        "name": "time, fast master",
+        "sides": "AB",
+        "masterKey": "A",
+        "eMaster": 8.25,
+        "mode": "time",
+        "state": {
+          "mode": "time",
+          "masterKey": "A",
+          "inLap": true,
+          "byFraction": false,
+          "a": {
+            "e": 8.25,
+            "k": 14.451823680211593,
+            "distM": 289.03647360423184,
+            "inLap": true,
+            "clipMs": 11250,
+            "inClip": true,
+            "now": {
+              "speedKph": 120.65160922894948,
+              "throttle": 56.14589441692743,
+              "brake": 0,
+              "gear": 3
+            }
+          },
+          "b": {
+            "e": 8.25,
+            "k": 13.24462244378543,
+            "distM": 264.89244887570857,
+            "inLap": true,
+            "clipMs": 11567,
+            "inClip": true,
+            "now": {
+              "speedKph": 71.71585815443522,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": -1.0655201612952787,
+          "gapM": -24.14402472852327
+        }
+      },
+      {
+        "name": "place, slow master (swapped)",
+        "sides": "AB",
+        "masterKey": "B",
+        "eMaster": 8.25,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "B",
+          "inLap": true,
+          "byFraction": false,
+          "a": {
+            "e": 7.37200648992644,
+            "k": 13.24462244378543,
+            "distM": 264.89244887570857,
+            "inLap": true,
+            "clipMs": 10372.00648992644,
+            "inClip": true,
+            "now": {
+              "speedKph": 91.71585815443522,
+              "throttle": 20,
+              "brake": 0,
+              "gear": 3
+            }
+          },
+          "b": {
+            "e": 8.25,
+            "k": 13.24462244378543,
+            "distM": 264.89244887570857,
+            "inLap": true,
+            "clipMs": 11567,
+            "inClip": true,
+            "now": {
+              "speedKph": 71.71585815443522,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": -0.8779935100735603,
+          "gapM": null
+        }
+      },
+      {
+        "name": "time, slow master (swapped)",
+        "sides": "AB",
+        "masterKey": "B",
+        "eMaster": 8.25,
+        "mode": "time",
+        "state": {
+          "mode": "time",
+          "masterKey": "B",
+          "inLap": true,
+          "byFraction": false,
+          "a": {
+            "e": 8.25,
+            "k": 14.451823680211593,
+            "distM": 289.03647360423184,
+            "inLap": true,
+            "clipMs": 11250,
+            "inClip": true,
+            "now": {
+              "speedKph": 120.65160922894948,
+              "throttle": 56.14589441692743,
+              "brake": 0,
+              "gear": 3
+            }
+          },
+          "b": {
+            "e": 8.25,
+            "k": 13.24462244378543,
+            "distM": 264.89244887570857,
+            "inLap": true,
+            "clipMs": 11567,
+            "inClip": true,
+            "now": {
+              "speedKph": 71.71585815443522,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": -1.0655201612952787,
+          "gapM": -24.14402472852327
+        }
+      },
+      {
+        "name": "place, at the line",
+        "sides": "AB",
+        "masterKey": "A",
+        "eMaster": 0,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": true,
+          "byFraction": false,
+          "a": {
+            "e": 0,
+            "k": 0,
+            "distM": 0,
+            "inLap": true,
+            "clipMs": 3000,
+            "inClip": true,
+            "now": {
+              "speedKph": 160,
+              "throttle": 100,
+              "brake": 0,
+              "gear": 4
+            }
+          },
+          "b": {
+            "e": 0,
+            "k": 0,
+            "distM": 0,
+            "inLap": true,
+            "clipMs": 3317,
+            "inClip": true,
+            "now": {
+              "speedKph": 156,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": 0,
+          "gapM": null
+        }
+      },
+      {
+        "name": "place, in the run-up",
+        "sides": "AB",
+        "masterKey": "A",
+        "eMaster": -1.5,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": false,
+          "byFraction": false,
+          "a": {
+            "e": -1.5,
+            "k": 0,
+            "distM": 0,
+            "inLap": false,
+            "clipMs": 1500,
+            "inClip": true,
+            "now": {
+              "speedKph": 160,
+              "throttle": 100,
+              "brake": 0,
+              "gear": 4
+            }
+          },
+          "b": {
+            "e": -1.5,
+            "k": 0,
+            "distM": 0,
+            "inLap": false,
+            "clipMs": 1817,
+            "inClip": true,
+            "now": {
+              "speedKph": 156,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": null,
+          "gapM": null
+        }
+      },
+      {
+        "name": "place, rolling out",
+        "sides": "AB",
+        "masterKey": "A",
+        "eMaster": 15.5,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": false,
+          "byFraction": false,
+          "a": {
+            "e": 15.5,
+            "k": 29,
+            "distM": 580,
+            "inLap": false,
+            "clipMs": 18500,
+            "inClip": true,
+            "now": {
+              "speedKph": 158.6,
+              "throttle": 100,
+              "brake": 0,
+              "gear": 4
+            }
+          },
+          "b": {
+            "e": 16.7,
+            "k": 29,
+            "distM": 580,
+            "inLap": false,
+            "clipMs": 20017,
+            "inClip": true,
+            "now": {
+              "speedKph": 154.6,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": null,
+          "gapM": null
+        }
+      },
+      {
+        "name": "time, rolling out",
+        "sides": "AB",
+        "masterKey": "A",
+        "eMaster": 15.5,
+        "mode": "time",
+        "state": {
+          "mode": "time",
+          "masterKey": "A",
+          "inLap": false,
+          "byFraction": false,
+          "a": {
+            "e": 15.5,
+            "k": 29,
+            "distM": 580,
+            "inLap": false,
+            "clipMs": 18500,
+            "inClip": true,
+            "now": {
+              "speedKph": 158.6,
+              "throttle": 100,
+              "brake": 0,
+              "gear": 4
+            }
+          },
+          "b": {
+            "e": 15.5,
+            "k": 27.510335369357072,
+            "distM": 550.2067073871415,
+            "inLap": true,
+            "clipMs": 18817,
+            "inClip": true,
+            "now": {
+              "speedKph": 157.47932926128584,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": null,
+          "gapM": null
+        }
+      },
+      {
+        "name": "place, by fraction",
+        "sides": "AShort",
+        "masterKey": "A",
+        "eMaster": 7,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": true,
+          "byFraction": true,
+          "a": {
+            "e": 7,
+            "k": 12.787286851992297,
+            "distM": 255.74573703984595,
+            "inLap": true,
+            "clipMs": 10000,
+            "inClip": true,
+            "now": {
+              "speedKph": 90.68313187077766,
+              "throttle": 20,
+              "brake": 0,
+              "gear": 3
+            }
+          },
+          "b": {
+            "e": 4.628282619008521,
+            "k": 10.141641296407684,
+            "distM": 202.83282592815368,
+            "inLap": true,
+            "clipMs": null,
+            "inClip": false,
+            "now": {
+              "speedKph": 68.20170218502925,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": 2.3717173809914787,
+          "gapM": null
+        }
+      },
+      {
+        "name": "time, by fraction",
+        "sides": "AShort",
+        "masterKey": "A",
+        "eMaster": 7,
+        "mode": "time",
+        "state": {
+          "mode": "time",
+          "masterKey": "A",
+          "inLap": true,
+          "byFraction": true,
+          "a": {
+            "e": 7,
+            "k": 12.787286851992297,
+            "distM": 255.74573703984595,
+            "inLap": true,
+            "clipMs": 10000,
+            "inClip": true,
+            "now": {
+              "speedKph": 90.68313187077766,
+              "throttle": 20,
+              "brake": 0,
+              "gear": 3
+            }
+          },
+          "b": {
+            "e": 7,
+            "k": 12.489866999666871,
+            "distM": 249.79733999333743,
+            "inLap": true,
+            "clipMs": null,
+            "inClip": false,
+            "now": {
+              "speedKph": 69.82061429903393,
+              "throttle": null,
+              "brake": null,
+              "gear": null
+            }
+          },
+          "deltaS": 2.3717173809914787,
+          "gapM": 59.21612643001431
+        }
+      },
+      {
+        "name": "one-sided",
+        "sides": "A",
+        "masterKey": "A",
+        "eMaster": 4,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": true,
+          "byFraction": false,
+          "a": {
+            "e": 4,
+            "k": 8.8533487750692,
+            "distM": 177.066975501384,
+            "inLap": true,
+            "clipMs": 7000,
+            "inClip": true,
+            "now": {
+              "speedKph": 161.07863732736854,
+              "throttle": 100,
+              "brake": 59.734414254844026,
+              "gear": 4
+            }
+          },
+          "b": null,
+          "deltaS": null,
+          "gapM": null
+        }
+      },
+      {
+        "name": "late clip, before it",
+        "sides": "Late",
+        "masterKey": "A",
+        "eMaster": -1,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": false,
+          "byFraction": false,
+          "a": {
+            "e": -1,
+            "k": 0,
+            "distM": 0,
+            "inLap": false,
+            "clipMs": -500,
+            "inClip": false,
+            "now": {
+              "speedKph": 160,
+              "throttle": 100,
+              "brake": 0,
+              "gear": 4
+            }
+          },
+          "b": null,
+          "deltaS": null,
+          "gapM": null
+        }
+      },
+      {
+        "name": "late clip, past its end",
+        "sides": "Late",
+        "masterKey": "A",
+        "eMaster": 10,
+        "mode": "place",
+        "state": {
+          "mode": "place",
+          "masterKey": "A",
+          "inLap": true,
+          "byFraction": false,
+          "a": {
+            "e": 10,
+            "k": 17.99240339527131,
+            "distM": 359.8480679054262,
+            "inLap": true,
+            "clipMs": 10500,
+            "inClip": false,
+            "now": {
+              "speedKph": 158.28632611148836,
+              "throttle": 100,
+              "brake": 0,
+              "gear": 4
+            }
+          },
+          "b": null,
+          "deltaS": null,
+          "gapM": null
+        }
+      }
+    ],
+    "followRate": [
+      {
+        "sides": "AB",
+        "masterKey": "A",
+        "k": 12,
+        "rate": 1.2923976608187133
+      },
+      {
+        "sides": "AB",
+        "masterKey": "B",
+        "k": 3.5,
+        "rate": 0.9758162031438936
+      },
+      {
+        "sides": "ACrawl",
+        "masterKey": "A",
+        "k": 2,
+        "rate": 2
+      },
+      {
+        "sides": "ACrawl",
+        "masterKey": "B",
+        "k": 2,
+        "rate": 0.5
+      },
+      {
+        "sides": "A",
+        "masterKey": "A",
+        "k": 2,
+        "rate": 1
+      }
+    ],
+    "needsResync": [
+      {
+        "targetMs": 1000,
+        "actualMs": 1149,
+        "resync": false
+      },
+      {
+        "targetMs": 1000,
+        "actualMs": 1150,
+        "resync": false
+      },
+      {
+        "targetMs": 1000,
+        "actualMs": 1151,
+        "resync": true
+      },
+      {
+        "targetMs": 1000,
+        "actualMs": 849,
+        "resync": true
+      }
+    ],
+    "fmtStageTime": [
+      {
+        "s": 0,
+        "text": "0:00.0"
+      },
+      {
+        "s": 36,
+        "text": "0:36.0"
+      },
+      {
+        "s": 139.84,
+        "text": "2:19.8"
+      },
+      {
+        "s": -1.5,
+        "text": "−0:01.5"
+      },
+      {
+        "s": -0.04,
+        "text": "0:00.0"
+      },
+      {
+        "s": 59.96,
+        "text": "1:00.0"
+      },
+      {
+        "s": 600.05,
+        "text": "10:00.1"
+      }
+    ],
+    "fmtDeltaS": [
+      {
+        "d": 0.314,
+        "text": "+0.31 s"
+      },
+      {
+        "d": -0.12,
+        "text": "−0.12 s"
+      },
+      {
+        "d": 0.004,
+        "text": "0.00 s"
+      },
+      {
+        "d": -0.005,
+        "text": "−0.01 s"
+      },
+      {
+        "d": 0.005,
+        "text": "+0.01 s"
+      },
+      {
+        "d": 1.995,
+        "text": "+2.00 s"
+      }
+    ],
+    "fmtGap": [
+      {
+        "gapM": 26.2,
+        "units": "metric",
+        "text": "B ahead 26 m"
+      },
+      {
+        "gapM": -26.2,
+        "units": "imperial",
+        "text": "A ahead 86 ft"
+      },
+      {
+        "gapM": 0.4,
+        "units": "metric",
+        "text": "Level"
+      },
+      {
+        "gapM": 0.1,
+        "units": "imperial",
+        "text": "Level"
+      }
+    ],
+    "cornerPlace": [
+      {
+        "k": 3,
+        "text": "before T1"
+      },
+      {
+        "k": 10,
+        "text": "in T1"
+      },
+      {
+        "k": 12,
+        "text": "in T1"
+      },
+      {
+        "k": 14,
+        "text": "in T1"
+      },
+      {
+        "k": 18,
+        "text": "after T1"
+      },
+      {
+        "k": 22,
+        "text": "in T2"
+      },
+      {
+        "k": 28,
+        "text": "after T2"
+      }
+    ],
+    "playheadText": [
+      {
+        "name": "in a corner",
+        "units": "imperial",
+        "sides": "AB",
+        "eMaster": 6.3509389273942976,
+        "mode": "place",
+        "text": {
+          "place": "787 ft · in T1",
+          "value": "0:06.4, 787 ft, in T1, 55 mph, throttle 20 %, −0.60 s",
+          "delta": "−0.60 s"
+        }
+      },
+      {
+        "name": "in a corner",
+        "units": "metric",
+        "sides": "AB",
+        "eMaster": 6.3509389273942976,
+        "mode": "place",
+        "text": {
+          "place": "240 m · in T1",
+          "value": "0:06.4, 240 m, in T1, 88 km/h, throttle 20 %, −0.60 s",
+          "delta": "−0.60 s"
+        }
+      },
+      {
+        "name": "a straight after a corner",
+        "units": "imperial",
+        "sides": "AB",
+        "eMaster": 10.236076103806873,
+        "mode": "place",
+        "text": {
+          "place": "1214 ft · after T1",
+          "value": "0:10.2, 1214 ft, after T1, 99 mph, throttle 100 %, −1.13 s",
+          "delta": "−1.13 s"
+        }
+      },
+      {
+        "name": "a straight after a corner",
+        "units": "metric",
+        "sides": "AB",
+        "eMaster": 10.236076103806873,
+        "mode": "place",
+        "text": {
+          "place": "370 m · after T1",
+          "value": "0:10.2, 370 m, after T1, 159 km/h, throttle 100 %, −1.13 s",
+          "delta": "−1.13 s"
+        }
+      },
+      {
+        "name": "before T1, braking",
+        "units": "imperial",
+        "sides": "A",
+        "eMaster": 4.0671602109334986,
+        "mode": "place",
+        "text": {
+          "place": "591 ft · before T1",
+          "value": "0:04.1, 591 ft, before T1, 100 mph, braking 70 %",
+          "delta": null
+        }
+      },
+      {
+        "name": "before T1, braking",
+        "units": "metric",
+        "sides": "A",
+        "eMaster": 4.0671602109334986,
+        "mode": "place",
+        "text": {
+          "place": "180 m · before T1",
+          "value": "0:04.1, 180 m, before T1, 161 km/h, braking 70 %",
+          "delta": null
+        }
+      },
+      {
+        "name": "brake under the word threshold",
+        "units": "imperial",
+        "sides": "A",
+        "eMaster": 11.38226333582181,
+        "mode": "place",
+        "text": {
+          "place": "0.26 mi · after T1",
+          "value": "0:11.4, 0.26 mi, after T1, 102 mph, throttle 100 %",
+          "delta": null
+        }
+      },
+      {
+        "name": "brake under the word threshold",
+        "units": "metric",
+        "sides": "A",
+        "eMaster": 11.38226333582181,
+        "mode": "place",
+        "text": {
+          "place": "420 m · after T1",
+          "value": "0:11.4, 420 m, after T1, 164 km/h, throttle 100 %",
+          "delta": null
+        }
+      },
+      {
+        "name": "the gap in time mode",
+        "units": "imperial",
+        "sides": "AB",
+        "eMaster": 12,
+        "mode": "time",
+        "text": {
+          "place": "0.28 mi · in T2",
+          "value": "0:12.0, 0.28 mi, in T2, 103 mph, throttle 100 %, A ahead 165 ft",
+          "delta": "A ahead 165 ft"
+        }
+      },
+      {
+        "name": "the gap in time mode",
+        "units": "metric",
+        "sides": "AB",
+        "eMaster": 12,
+        "mode": "time",
+        "text": {
+          "place": "447 m · in T2",
+          "value": "0:12.0, 447 m, in T2, 165 km/h, throttle 100 %, A ahead 50 m",
+          "delta": "A ahead 50 m"
+        }
+      },
+      {
+        "name": "before the line",
+        "units": "imperial",
+        "sides": "AB",
+        "eMaster": -1,
+        "mode": "place",
+        "text": {
+          "place": "Before the line",
+          "value": "−0:01.0, Before the line",
+          "delta": null
+        }
+      },
+      {
+        "name": "before the line",
+        "units": "metric",
+        "sides": "AB",
+        "eMaster": -1,
+        "mode": "place",
+        "text": {
+          "place": "Before the line",
+          "value": "−0:01.0, Before the line",
+          "delta": null
+        }
+      },
+      {
+        "name": "after the line",
+        "units": "imperial",
+        "sides": "AB",
+        "eMaster": 16,
+        "mode": "place",
+        "text": {
+          "place": "After the line",
+          "value": "0:16.0, After the line",
+          "delta": null
+        }
+      },
+      {
+        "name": "after the line",
+        "units": "metric",
+        "sides": "AB",
+        "eMaster": 16,
+        "mode": "place",
+        "text": {
+          "place": "After the line",
+          "value": "0:16.0, After the line",
+          "delta": null
+        }
+      }
+    ],
+    "cornerStops": [
+      {
+        "label": "T1",
+        "e": 4.6616612303268266
+      },
+      {
+        "label": "T2",
+        "e": 11.832429407024536
+      }
+    ],
+    "referenceLap": [
+      {
+        "chIdx": 0,
+        "ref": 1
+      },
+      {
+        "chIdx": 1,
+        "ref": 2
+      },
+      {
+        "chIdx": 2,
+        "ref": 1
+      },
+      {
+        "chIdx": 0,
+        "alone": true,
+        "ref": null
+      }
+    ],
+    "stageSides": [
+      {
+        "lit": [
+          0,
+          2,
+          1
+        ],
+        "opened": 2,
+        "sides": {
+          "a": 2,
+          "b": 1
+        }
+      },
+      {
+        "lit": [
+          0,
+          2
+        ],
+        "opened": 1,
+        "sides": {
+          "a": 2,
+          "b": 0
+        }
+      },
+      {
+        "lit": [
+          1
+        ],
+        "opened": 1,
+        "sides": {
+          "a": 1,
+          "b": null
+        }
+      },
+      {
+        "lit": [],
+        "opened": 1,
+        "sides": null
+      }
+    ]
+  }
+}

@@ -2220,6 +2220,56 @@ clip with Media3 ExoPlayer, opened two seconds before the line (`playbackStartMs
 app's one instrumented test — `./gradlew :app:connectedDebugAndroidTest` on an
 emulator; no CI job runs it — because Robolectric has no `MediaMuxer`.
 
+### Watching a lap: the lap stage (NS-51)
+
+`docs/specs/native/NS-51-video-synced-laps.md`. On the web (ticket 1; the
+phones are tickets 2 and 3) an imported session's lap opens on a **stage**:
+its video above the channel panel, one transport, a now-strip (speed, gear,
+throttle and brake, the delta) and a **playhead** — a line across every
+distance-axis chart, a dot per lap on its trace, a ring on the friction circle
+and balance scatter, the current sector lit — at the car's place in the video.
+Scrubbing moves all of it; a tap on a chart pauses the video and seeks it
+there. No server change: the sync is derived from what is already stored.
+
+- **The sync** is `public/js/video-sync.js`, pure, pinned by
+  `contracts/logic/video-sync.json` for the phones. The playhead is one
+  fractional index `k` on the lap's 20 m grid. A clip time `c` maps to it
+  through the lap's elapsed-time curve — `lapTimeSeries`, the delta chart's
+  own, integrated from the speed trace and scaled to the timed lap — and the
+  clip's `lap_offset_ms`: `k = gridAtElapsed(T, (c − offset) / 1000)`, and
+  back with `valueAt(T, k)`. Two laps are kept together in **Same place**
+  (the follower seeked to the master's distance, its `playbackRate` set to
+  the speed ratio there, clamped to 0.5–2×, and re-seeked past `RESYNC_MS`,
+  150) or **Same time** (both at the master's elapsed time; the gap in
+  metres). Laps over `LENGTH_MISMATCH_WARN` apart are matched by fraction.
+  The mode is per device, `th-sync-mode` in `localStorage`.
+- **Measured drift** of the derived curve against the recording's own clock,
+  on real Corvette and Cadillac PDR footage: worst 0.14–0.26 s a lap, mean
+  0.03–0.14 s, and under 9 m (typically 1–5 m) at the braking points. The
+  spec's *As built* has the table, and why storing an exact time series
+  stays deferred.
+- **The stage** is `public/js/lap-stage.js` (web-only DOM): two `<video>`s
+  with no native controls, the master's `currentTime` as the clock (a timer
+  in **replay**, when the master has no playable clip — another driver's
+  leaderboard lap always does), and its own map card. Its layout reads its
+  own width — Wide ≥ 1000 px pins the whole stage under the header, Medium
+  pins only the transport, Compact puts the other lap in a corner inset and
+  turns the transport into a mini bar once the page has scrolled past — and a
+  phone held sideways with a video loaded goes full-bleed. Keyboard: Space,
+  ← / →, ⌥← / ⌥→, `,` / `.`, `S`, `F`.
+- **The charts** take it without re-rendering: `showPlayhead` in
+  `channel-graphs.js` moves one line and a few dots per frame from the
+  y-scale each chart now carries in data attributes, `bindChartSeek` is the
+  tap / mouse-drag seek (touch only seeks on a tap, so a scroll that starts
+  on a chart never moves the video), `bindChannelGraphs` gained `onRender`
+  (re-apply the playhead after a chip toggle rebuilds the charts) and
+  `onSelect` (the stage re-picks its sides from the lit laps), and
+  `renderTrackMap`'s handle gained `setPlayhead`.
+- **Where**: the event page (a lap's ▶, or *Play the lap*), the two-lap
+  compare and the leaderboard lap, so also the student and shared-item views.
+  Tiers follow the parts: the video is `canSaveLapVideo`, the second lap and
+  the delta `canViewChannels`.
+
 ## Publishing best-lap videos to YouTube
 
 A Pro driver's stored best-lap clip (above) can be published to their YouTube

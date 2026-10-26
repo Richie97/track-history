@@ -33,6 +33,32 @@ import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/ch
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import { traceIndexAtFraction } from "../public/js/trackmap.js";
 import {
+  BRAKING_WORD_PCT,
+  DEFAULT_SYNC_MODE,
+  FOLLOW_RATE_MAX,
+  FOLLOW_RATE_MIN,
+  RESYNC_MS,
+  SYNC_MODES,
+  clipTimeAtGrid,
+  cornerPlace,
+  cornerStops,
+  fmtDeltaS,
+  fmtGap,
+  fmtStageTime,
+  followRate,
+  gridAtElapsed,
+  makeSide,
+  matchByFraction,
+  needsResync,
+  playheadAt,
+  playheadText,
+  referenceLap,
+  scrubRange,
+  sideAtClipTime,
+  stageSides,
+  valueAt,
+} from "../public/js/video-sync.js";
+import {
   MAX_CLIP_S,
   PLAYBACK_LEAD_S,
   POST_ROLL_S,
@@ -3286,3 +3312,176 @@ const youtubeFixture = {
 };
 writeFileSync(path.join(OUT_DIR, "youtube.json"), JSON.stringify(youtubeFixture, null, 2) + "\n");
 console.log(`wrote contracts/logic/youtube.json (${offerCases.length} offers, ${statusCases.length} status lines)`);
+
+// ---------------------------------------------------------------------------
+// Video-synced lap analysis (NS-51): public/js/video-sync.js. The playhead is
+// a fractional grid index derived from each lap's lapTimeSeries curve and its
+// clip's lap_offset_ms. What is worth pinning: the binary search's clamping at
+// and past both ends and its exact landing on a grid point; the clip-time round
+// trips, including the run-up and roll-out outside the lap; both sync modes for
+// a fast and a slow lap, with the gap's sign (B ahead is positive) and a master
+// swap that still reports A's delta; the length-mismatch switch to matching by
+// fraction; followRate clamped at both ends and needsResync's strict bound; and
+// every word — the corner placement rule and both unit systems. A port that
+// rounds a negative tie the other way, or spells `>` as `>=`, fails one row.
+const vsN = 30;
+const vsLatG = Array.from({ length: vsN }, (_, k) => (k >= 10 && k <= 14 ? 1.1 : k >= 22 && k <= 25 ? 0.8 : 0.05));
+const vsSpeedA = Array.from({ length: vsN }, (_, k) => round1(k >= 10 && k <= 14 ? 90 + 3 * Math.sin(k) : 160 + 6 * Math.sin(k / 3)));
+const vsSpeedB = vsSpeedA.map((v, k) => round1(k >= 10 && k <= 14 ? v - 20 : v - 4));
+const vsEntryA = {
+  n: 3,
+  timeMs: 15000,
+  speed: vsSpeedA,
+  latG: vsLatG,
+  throttle: vsSpeedA.map((v) => (v > 100 ? 100 : 20)),
+  brake: vsSpeedA.map((_, k) => (k === 9 ? 70 : k === 21 ? 9.5 : 0)),
+  gear: vsSpeedA.map((v) => (v > 100 ? 4 : 3)),
+};
+const vsEntryB = { n: 5, timeMs: 16200, speed: vsSpeedB, latG: vsLatG };
+// A lap a fifth shorter: past LENGTH_MISMATCH_WARN, so matched by fraction.
+const vsEntryShort = { n: 7, timeMs: 12600, speed: vsSpeedB.slice(0, 24) };
+const vsClipA = { lapOffsetMs: 3000, durationMs: 22000 };
+const vsClipB = { lapOffsetMs: 3317, durationMs: 23600 };
+// A cut that started late and stopped early: the side is on replay outside it.
+const vsClipLate = { lapOffsetMs: 500, durationMs: 9000 };
+const vsA = makeSide("A", vsEntryA, 20, vsClipA);
+const vsB = makeSide("B", vsEntryB, 20, vsClipB);
+const vsShort = makeSide("B", vsEntryShort, 20, null);
+const vsLate = makeSide("A", vsEntryA, 20, vsClipLate);
+const vsCorners = sessionCorners({ v: 1, dStepM: 20, laps: [vsEntryA, vsEntryB] });
+const vsT = [0, 1, 3, 6];
+const vsPlayheads = [
+  ["place, fast master", { a: vsA, b: vsB }, "A", 8.25, "place"],
+  ["time, fast master", { a: vsA, b: vsB }, "A", 8.25, "time"],
+  ["place, slow master (swapped)", { a: vsA, b: vsB }, "B", 8.25, "place"],
+  ["time, slow master (swapped)", { a: vsA, b: vsB }, "B", 8.25, "time"],
+  ["place, at the line", { a: vsA, b: vsB }, "A", 0, "place"],
+  ["place, in the run-up", { a: vsA, b: vsB }, "A", -1.5, "place"],
+  ["place, rolling out", { a: vsA, b: vsB }, "A", 15.5, "place"],
+  ["time, rolling out", { a: vsA, b: vsB }, "A", 15.5, "time"],
+  ["place, by fraction", { a: vsA, b: vsShort }, "A", 7, "place"],
+  ["time, by fraction", { a: vsA, b: vsShort }, "A", 7, "time"],
+  ["one-sided", { a: vsA, b: null }, "A", 4, "place"],
+  ["late clip, before it", { a: vsLate, b: null }, "A", -1, "place"],
+  ["late clip, past its end", { a: vsLate, b: null }, "A", 10, "place"],
+].map(([name, sides, masterKey, eMaster, mode]) => ({
+  name,
+  sides: sides.b === vsB ? "AB" : sides.b === vsShort ? "AShort" : sides.a === vsLate ? "Late" : "A",
+  masterKey,
+  eMaster,
+  mode,
+  state: playheadAt(sides, masterKey, eMaster, mode),
+}));
+const vsTextAt = (sides, e, mode) => playheadAt(sides, "A", e, mode);
+const vsTexts = [
+  ["in a corner", { a: vsA, b: vsB }, valueAt(vsA.t, 12), "place"],
+  ["a straight after a corner", { a: vsA, b: vsB }, valueAt(vsA.t, 18.5), "place"],
+  ["before T1, braking", { a: vsA, b: null }, valueAt(vsA.t, 9), "place"],
+  ["brake under the word threshold", { a: vsA, b: null }, valueAt(vsA.t, 21), "place"],
+  ["the gap in time mode", { a: vsA, b: vsB }, 12, "time"],
+  ["before the line", { a: vsA, b: vsB }, -1, "place"],
+  ["after the line", { a: vsA, b: vsB }, 16, "place"],
+].flatMap(([name, sides, e, mode]) =>
+  ["imperial", "metric"].map((units) => ({
+    name,
+    units,
+    sides: sides.b ? "AB" : "A",
+    eMaster: e,
+    mode,
+    text: playheadText(vsTextAt(sides, e, mode), vsCorners, units),
+  })),
+);
+const vsRefLaps = [
+  { lap_num: 1, time_ms: 95000 },
+  { lap_num: 2, time_ms: 91000 },
+  { lap_num: 3, time_ms: 92000 },
+  { lap_num: 4, time_ms: 90500 }, // typed in: no channel entry
+];
+const vsRefCh = [{ timeMs: 95000 }, { timeMs: 91000 }, { timeMs: 92000 }];
+const vsMatched = matchLapsToChannels(vsRefLaps, vsRefCh);
+const vsCrawl = makeSide("B", { ...vsEntryB, speed: vsSpeedB.map(() => 10) }, 20, null);
+const videoSyncFixture = {
+  description:
+    "NS-51 (public/js/video-sync.js): the lap stage's playhead — grid index from a clip time and back, " +
+    "both sync modes, the follower's rate, the re-seek bound, the words, the reference lap and the stage's " +
+    "sides. Ports (VideoSync in the iOS Kit and Android :core) must reproduce numbers to 1e-9 and strings " +
+    "exactly. Sides are rebuilt from `input` with makeSide. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/video-sync.js",
+  constants: {
+    syncModes: SYNC_MODES,
+    defaultSyncMode: DEFAULT_SYNC_MODE,
+    resyncMs: RESYNC_MS,
+    followRateMin: FOLLOW_RATE_MIN,
+    followRateMax: FOLLOW_RATE_MAX,
+    brakingWordPct: BRAKING_WORD_PCT,
+  },
+  input: {
+    dStepM: 20,
+    entryA: vsEntryA,
+    entryB: vsEntryB,
+    entryShort: vsEntryShort,
+    clipA: vsClipA,
+    clipB: vsClipB,
+    clipLate: vsClipLate,
+    // What each row's `sides` names, every side built by makeSide(key, entry, dStepM, clip).
+    sidesLegend: {
+      AB: "a: entryA + clipA, b: entryB + clipB",
+      AShort: "a: entryA + clipA, b: entryShort, no clip",
+      A: "a: entryA + clipA, no b",
+      Late: "a: entryA + clipLate, no b",
+      ACrawl: "a: entryA + clipA, b: entryB with every speed 10 km/h, no clip",
+    },
+  },
+  expected: {
+    timeCurveA: vsA.t,
+    timeCurveB: vsB.t,
+    corners: vsCorners,
+    gridAtElapsed: [-1, 0, 0.5, 1, 2, 3, 4.5, 6, 9].map((e) => ({ t: vsT, e, k: gridAtElapsed(vsT, e) })),
+    valueAt: [
+      { series: [1, 3], k: 0.5 },
+      { series: [1, 3], k: -4 },
+      { series: [1, 3], k: 9 },
+      { series: [], k: 1 },
+    ].map((r) => ({ ...r, value: valueAt(r.series, r.k) })),
+    sideAtClipTime: [1000, 3000, 9000, 18000, 20000].map((clipMs) => ({ clipMs, at: sideAtClipTime(vsA, clipMs) })),
+    clipTimeAtGrid: [0, 0.5, 12.25, vsN - 1, 40].map((k) => ({ k, clipMs: clipTimeAtGrid(vsA, k) })),
+    scrubRange: scrubRange(vsA),
+    matchByFraction: { ab: matchByFraction(vsA, vsB), aShort: matchByFraction(vsA, vsShort) },
+    playheadAt: vsPlayheads,
+    followRate: [
+      { sides: "AB", masterKey: "A", k: 12, rate: followRate({ a: vsA, b: vsB }, "A", 12) },
+      { sides: "AB", masterKey: "B", k: 3.5, rate: followRate({ a: vsA, b: vsB }, "B", 3.5) },
+      { sides: "ACrawl", masterKey: "A", k: 2, rate: followRate({ a: vsA, b: vsCrawl }, "A", 2) },
+      { sides: "ACrawl", masterKey: "B", k: 2, rate: followRate({ a: vsA, b: vsCrawl }, "B", 2) },
+      { sides: "A", masterKey: "A", k: 2, rate: followRate({ a: vsA, b: null }, "A", 2) },
+    ],
+    needsResync: [
+      [1000, 1149],
+      [1000, 1150],
+      [1000, 1151],
+      [1000, 849],
+    ].map(([targetMs, actualMs]) => ({ targetMs, actualMs, resync: needsResync(targetMs, actualMs) })),
+    fmtStageTime: [0, 36, 139.84, -1.5, -0.04, 59.96, 600.05].map((s) => ({ s, text: fmtStageTime(s) })),
+    fmtDeltaS: [0.314, -0.12, 0.004, -0.005, 0.005, 1.995].map((d) => ({ d, text: fmtDeltaS(d) })),
+    fmtGap: [
+      [26.2, "metric"],
+      [-26.2, "imperial"],
+      [0.4, "metric"],
+      [0.1, "imperial"],
+    ].map(([gapM, units]) => ({ gapM, units, text: fmtGap(gapM, units) })),
+    cornerPlace: [3, 10, 12, 14, 18, 22, 28].map((k) => ({ k, text: cornerPlace(vsCorners, k) })),
+    playheadText: vsTexts,
+    cornerStops: cornerStops(vsCorners, vsA.t),
+    referenceLap: [0, 1, 2].map((chIdx) => ({ chIdx, ref: referenceLap(vsMatched, chIdx)?.chIdx ?? null })).concat([
+      { chIdx: 0, alone: true, ref: referenceLap(matchLapsToChannels([vsRefLaps[0]], [vsRefCh[0]]), 0)?.chIdx ?? null },
+    ]),
+    stageSides: [
+      [[0, 2, 1], 2],
+      [[0, 2], 1],
+      [[1], 1],
+      [[], 1],
+    ].map(([lit, opened]) => ({ lit, opened, sides: stageSides(lit, vsRefCh, opened) })),
+  },
+};
+writeFileSync(path.join(OUT_DIR, "video-sync.json"), JSON.stringify(videoSyncFixture, null, 2) + "\n");
+console.log(`wrote contracts/logic/video-sync.json (${vsPlayheads.length} playheads, ${vsTexts.length} texts)`);

@@ -83,7 +83,7 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190,
     labels += `<text x="${X(m).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
   }
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
-  labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">${esc(def.label)} (${esc(def.unit)})</text>`;
+  labels += `<text class="ch-title" x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">${esc(def.label)} (${esc(def.unit)})</text>`;
 
   // Limit bands (js/limits.js): the kinds this chart's trace explains — ABS
   // and lockup on the brake trace, traction control and wheelspin on the
@@ -119,7 +119,11 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190,
     }
   }
 
-  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(def.label)} by distance, per lap" data-channel="${def.key}" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
+  // The y-scale rides on the element beside the x-axis geometry, so the
+  // playhead (showPlayhead) can put a dot on a trace without re-rendering it.
+  // Every channel's display conversion is linear through zero, so one factor
+  // carries it.
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(def.label)} by distance, per lap" data-channel="${def.key}" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}" data-padt="${pad.t}" data-padb="${pad.b}" data-y0="${y0}" data-y1="${y1}" data-vscale="${def.conv(1)}" data-dp="${def.dp}">
     ${grid}${labels}${bands}${dimPaths}${litPaths}
   </svg>`;
 }
@@ -135,7 +139,7 @@ export function channelChartSvg(def, channels, lit, { width = 900, height = 190,
 
 // A 0 km/h sample would make its grid cell take near-forever; clamp the cell
 // average to walking pace instead. The end-scale to timeMs absorbs the error.
-const DELTA_MIN_KPH = 3;
+export const DELTA_MIN_KPH = 3;
 
 // Cumulative elapsed seconds at each grid point (d = 0, dStepM, 2*dStepM …)
 // from a lap's speed samples (km/h). Scaled so the last point equals
@@ -216,7 +220,7 @@ export function deltaChartSvg(channels, lit, refIdx, refLabel, { width = 900, he
   const zy = Y(0).toFixed(1);
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${zy}" y2="${zy}" stroke="var(--text-faint)" stroke-width="1" stroke-dasharray="4 3"/>`;
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
-  labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Delta (s) vs lap ${esc(String(refLabel))} — above the line is slower</text>`;
+  labels += `<text class="ch-title" x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Delta (s) vs lap ${esc(String(refLabel))} — above the line is slower</text>`;
 
   let paths = "";
   for (const { color, d } of rows) {
@@ -224,7 +228,7 @@ export function deltaChartSvg(channels, lit, refIdx, refLabel, { width = 900, he
     paths += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   }
 
-  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Time delta to lap ${esc(String(refLabel))} by distance — above the zero line is slower" data-channel="delta" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Time delta to lap ${esc(String(refLabel))} by distance — above the zero line is slower" data-channel="delta" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}" data-padt="${pad.t}" data-padb="${pad.b}" data-y0="${y0}" data-y1="${y1}" data-vscale="1" data-dp="2">
     ${grid}${labels}${paths}
   </svg>`;
 }
@@ -277,6 +281,187 @@ export function showDistanceMark(root, d) {
   });
 }
 
+// The lap stage's playhead (NS-51) across every chart in `root`: a solid line
+// at the master's driven distance, a dot on each marked lap's trace at that
+// lap's own grid index (in "Same time" the two dots sit apart, which is the
+// gap), and the values in each chart's title. The friction circle and balance
+// scatter ring each marked lap's sample, and the sector table lights the
+// sector the line is in. `mark` is null (remove it all) or
+// { dStepM, k, n, laps: [{ chIdx, k, color, entry, delta }] } — n the master lap's grid length, chIdx the lap's
+// index in the charts' own lap list, `delta` its value on the delta chart
+// (null for the reference). Attributes only: no chart re-renders because the
+// playhead moved, which is what lets it run at the video's frame rate.
+const SVGNS = "http://www.w3.org/2000/svg";
+const svgNode = (tag, attrs) => {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+};
+const at = (arr, k) => {
+  if (!Array.isArray(arr) || !arr.length) return null;
+  const kk = Math.max(0, Math.min(arr.length - 1, k));
+  const i0 = Math.floor(kk);
+  return i0 >= arr.length - 1 ? arr[arr.length - 1] : arr[i0] + (arr[i0 + 1] - arr[i0]) * (kk - i0);
+};
+
+export function showPlayhead(root, mark) {
+  if (!root) return;
+  root.querySelectorAll("svg[data-channel]").forEach((svg) => {
+    let line = svg.querySelector(".ch-playhead");
+    let dots = svg.querySelector(".ch-playdots");
+    const title = svg.querySelector(".ch-title");
+    let readout = title?.querySelector(".ch-readout");
+    if (!mark) {
+      line?.remove();
+      dots?.remove();
+      readout?.remove();
+      return;
+    }
+    const vb = svg.viewBox.baseVal;
+    const x1 = Number(svg.dataset.x1) || 1;
+    const padL = Number(svg.dataset.padl), padR = Number(svg.dataset.padr);
+    const X = (k) => padL + Math.max(0, Math.min(1, (k * mark.dStepM) / x1)) * (vb.width - padL - padR);
+    if (!line) {
+      line = svgNode("line", { class: "ch-playhead", stroke: "var(--text-strong)", "stroke-width": "1.5", "pointer-events": "none" });
+      svg.appendChild(line);
+    }
+    const x = X(mark.k).toFixed(1);
+    line.setAttribute("x1", x);
+    line.setAttribute("x2", x);
+    line.setAttribute("y1", "16");
+    line.setAttribute("y2", String(vb.height - (Number(svg.dataset.padb) || 0)));
+    if (svg.dataset.y0 == null) return; // the gear ribbon: the line, no values
+    const key = svg.dataset.channel;
+    const y0 = Number(svg.dataset.y0), y1 = Number(svg.dataset.y1);
+    const padT = Number(svg.dataset.padt), padB = Number(svg.dataset.padb);
+    const scale = Number(svg.dataset.vscale) || 1;
+    const dp = Number(svg.dataset.dp) || 0;
+    const Y = (v) => padT + ((y1 - v) / (y1 - y0 || 1)) * (vb.height - padT - padB);
+    const points = mark.laps
+      .map((l) => ({ l, v: key === "delta" ? l.delta : at(l.entry?.[key], l.k) }))
+      .filter((p) => p.v != null && Number.isFinite(p.v))
+      .map((p) => ({ ...p, v: key === "delta" ? p.v : p.v * scale }));
+    if (!dots) {
+      dots = svgNode("g", { class: "ch-playdots", "pointer-events": "none" });
+      svg.appendChild(dots);
+    }
+    while (dots.childNodes.length > points.length) dots.lastChild.remove();
+    points.forEach((p, i) => {
+      const c = dots.childNodes[i] ?? dots.appendChild(svgNode("circle", { r: "4", stroke: "var(--surface-card)", "stroke-width": "1.5" }));
+      c.setAttribute("cx", X(p.l.k).toFixed(1));
+      c.setAttribute("cy", Y(p.v).toFixed(1));
+      c.setAttribute("fill", p.l.color);
+    });
+    if (!title) return;
+    if (!readout) {
+      readout = svgNode("tspan", { class: "ch-readout", "font-weight": "400" });
+      title.appendChild(readout);
+    }
+    readout.textContent = points.length
+      ? `  ${points.map((p) => `${key === "delta" && p.v > 0 ? "+" : ""}${p.v.toFixed(dp)}`).join(" · ")}`
+      : "";
+  });
+
+  // The two scatters: a ring round each marked lap's sample at its grid index.
+  for (const [svgSel, lapAttr, kAttr] of [
+    ["svg[data-grip]", "gripLap", "gk"],
+    ["svg[data-balance]", "balanceLap", "bk"],
+  ]) {
+    root.querySelectorAll(svgSel).forEach((svg) => {
+      svg.querySelectorAll(".ch-playring").forEach((r) => r.remove());
+      if (!mark) return;
+      for (const l of mark.laps) {
+        const g = [...svg.querySelectorAll("g")].find((el) => el.dataset[lapAttr] === String(l.chIdx));
+        const dot = g?.querySelector(`circle[data-${kAttr}="${Math.round(l.k)}"]`);
+        if (!dot) continue;
+        svg.appendChild(
+          svgNode("circle", {
+            class: "ch-playring",
+            cx: dot.getAttribute("cx"),
+            cy: dot.getAttribute("cy"),
+            r: "6",
+            fill: "none",
+            stroke: l.color,
+            "stroke-width": "2.5",
+            "pointer-events": "none",
+          })
+        );
+      }
+    });
+  }
+
+  // The sector table: the column of the sector the line is in. Sectors are
+  // equal thirds of each lap's own distance (js/sectors.js), so the master's
+  // fraction of its own lap picks the column.
+  root.querySelectorAll("table.sectors").forEach((table) => {
+    const heads = [...table.querySelectorAll("thead th")].slice(1, -1);
+    const n = heads.length;
+    const frac = mark && mark.n > 1 ? mark.k / (mark.n - 1) : null;
+    const now = frac == null ? -1 : Math.min(n - 1, Math.floor(frac * n));
+    heads.forEach((th, i) => th.classList.toggle("sec-now", i === now));
+  });
+}
+
+// Tapping or clicking a distance-axis chart seeks the lap stage (NS-51), and
+// so do the scatters' samples. A touch only seeks, on the tap's click, so a
+// finger that starts a scroll on a chart never moves the video: dragging is
+// the scrubber's job. A mouse may press and drag across a chart to scrub.
+// `onSeek(k, { final })` — k the fractional grid index, final false while a
+// mouse drags. Bound once per root; a second call replaces the callback, which
+// is how the event page's re-renders keep one listener.
+export function bindChartSeek(root, dStepM, onSeek) {
+  if (!root) return;
+  const prev = root._chartSeek;
+  root._chartSeek = { dStepM, onSeek };
+  root.classList.toggle("chart-seek", !!onSeek);
+  if (prev) return;
+  const kAt = (svg, clientX) => {
+    const rect = svg.getBoundingClientRect();
+    const vbW = svg.viewBox.baseVal.width;
+    const padL = Number(svg.dataset.padl), padR = Number(svg.dataset.padr);
+    const frac = Math.max(0, Math.min(1, (((clientX - rect.left) / rect.width) * vbW - padL) / (vbW - padL - padR)));
+    return (frac * Number(svg.dataset.x1)) / root._chartSeek.dStepM;
+  };
+  const scatterK = (target) => {
+    const dot = target.closest?.("svg[data-grip] circle[data-gk], svg[data-balance] circle[data-bk]");
+    return dot ? Number(dot.dataset.gk ?? dot.dataset.bk) : null;
+  };
+  let dragging = null;
+  root.addEventListener("pointerdown", (evt) => {
+    if (evt.pointerType !== "mouse" || evt.button !== 0 || !root._chartSeek.onSeek) return;
+    const svg = evt.target.closest?.("svg[data-channel]");
+    if (!svg) return;
+    dragging = svg;
+    svg.setPointerCapture?.(evt.pointerId);
+    evt.preventDefault();
+    root._chartSeek.onSeek(kAt(svg, evt.clientX), { final: false });
+  });
+  root.addEventListener("pointermove", (evt) => {
+    if (dragging && evt.pointerType === "mouse") root._chartSeek.onSeek(kAt(dragging, evt.clientX), { final: false });
+  });
+  const end = (evt) => {
+    if (!dragging) return;
+    const svg = dragging;
+    dragging = null;
+    root._chartSeek.onSeek?.(kAt(svg, evt.clientX), { final: true });
+    root._chartSeekSwallow = true; // the click that follows is this drag's
+  };
+  root.addEventListener("pointerup", end);
+  root.addEventListener("pointercancel", () => (dragging = null));
+  root.addEventListener("click", (evt) => {
+    if (root._chartSeekSwallow) {
+      root._chartSeekSwallow = false;
+      return;
+    }
+    const seek = root._chartSeek.onSeek;
+    if (!seek) return;
+    const sk = scatterK(evt.target);
+    if (sk != null) return seek(sk, { final: true });
+    const svg = evt.target.closest?.("svg[data-channel]");
+    if (svg) seek(kAt(svg, evt.clientX), { final: true });
+  });
+}
+
 // The panel's tabs (epic #193): one question per tab, so the analysis area
 // holds more views without becoming a page nobody scrolls to the bottom of.
 // A chart lands on the tab its channel answers for; only tabs with content
@@ -315,13 +500,17 @@ const TAB_OF = { delta: "time", speed: "time", throttle: "inputs", brake: "input
 // placed once between the chips and the charts (the session's lap video
 // player, so it opens next to the ▶ that asked for it); the chips' re-renders
 // never touch it.
+// `onRender(chartsEl)` — called after every render of the charts, which
+// rebuilds them whole: the lap stage (NS-51) re-applies its playhead from it.
+// `onSelect(lit)` — called with the lit channel-lap indexes, oldest first,
+// whenever a chip changes them; the stage re-picks its sides from it.
 // `pro` — whether the account gets the Pro half of the panel (#264). A free
 // account's `channels` already arrive with only the free traces (the server
 // strips the rest), but the delta chart and the caller's extras — sectors,
 // shift points, the friction circle, the Car tab — derive from what is left,
 // so they are the panel's own gate; with `pro: false` none of them render and
 // `lockedHtml` (the caller's Pro note) is appended under the charts instead.
-export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits(), pro = true, lockedHtml = "", chipAfter, afterChips = "" } = {}) {
+export function bindChannelGraphs(container, channels, sessionLaps, { renderExtras, renderAfter, memory, units = currentUnits(), pro = true, lockedHtml = "", chipAfter, afterChips = "", onRender, onSelect } = {}) {
   const CHANNEL_DEFS = channelDefs(units);
   const chLaps = channels.laps;
   const rows = matchLapsToChannels(sessionLaps, chLaps);
@@ -387,12 +576,16 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
           state.lit.push(i);
           if (state.lit.length > SLOTS.length) state.lit.shift(); // evict oldest
         }
-        remember();
-        renderChips();
-        if (details.open) renderCharts();
-        else chartsDirty = true;
+        changed();
       };
     });
+  };
+  const changed = () => {
+    remember();
+    renderChips();
+    if (details.open) renderCharts();
+    else chartsDirty = true;
+    onSelect?.([...state.lit]);
   };
 
   // Charts render lazily on first expand — laps × 3 SVGs is wasted work for
@@ -495,6 +688,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
       });
       svgEl.addEventListener("mouseleave", () => ($tooltip.hidden = true));
     });
+    onRender?.(chartsEl);
   };
 
   details.addEventListener("toggle", () => {
@@ -508,5 +702,17 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
       if (details.open) renderCharts();
       else chartsDirty = true;
     },
+    // The lit laps, oldest first, and a way to light one — a lap's ▶ opens
+    // the stage on that lap, so it joins the charts too.
+    lit: () => [...state.lit],
+    light: (chIdx) => {
+      if (state.lit.includes(chIdx) || chIdx < 0 || chIdx >= chLaps.length) return;
+      state.lit.push(chIdx);
+      if (state.lit.length > SLOTS.length) state.lit.shift();
+      changed();
+    },
+    slotColor: (chIdx) => litMap().get(chIdx) ?? null,
+    chartsEl,
+    details,
   };
 }

@@ -4,7 +4,10 @@
 import { esc, fmtMs, parseTime, parseLapList, fmtDate, fmtConsistency, fmtDelta } from "./js/format.js";
 import { emptyHtml, importTargetEvent } from "./js/empty.js";
 import { lineChart, multiLineChart } from "./js/chart.js";
-import { bindChannelGraphs, channelDefs, deltaChartSvg, deltaSeries, channelChartSvg, matchLapsToChannels, showDistanceMark } from "./js/channel-graphs.js";
+import { bindChannelGraphs, bindChartSeek, channelDefs, deltaChartSvg, deltaSeries, channelChartSvg, lapTimeSeries, matchLapsToChannels, showDistanceMark, showPlayhead } from "./js/channel-graphs.js";
+import { referenceLap, stageSides, valueAt } from "./js/video-sync.js";
+import { VIDEO_NEEDS_CONNECTION, bindLapStage, destroyAllStages } from "./js/lap-stage.js";
+import { sessionCorners } from "./js/corners.js";
 import {
   LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
   lengthMismatchRatio,
@@ -1526,6 +1529,7 @@ function noTelemetryAction(events, trackName) {
 }
 
 async function viewLapCompare(trackId, params) {
+  destroyAllStages();
   if (!canViewChannels(ent())) return viewProGate(trackId, "Compare two laps",
     "Any two laps at this track, head to head: the time delta as it builds through the lap, " +
       "speed, throttle, brake and steering side by side, and sector splits.");
@@ -1634,17 +1638,48 @@ async function viewLapCompare(trackId, params) {
       <span class="swatch" style="background:${sideColors[1]}"></span> <select id="lap-b">${pickerOpts(keyOf(rowB))}</select>
     </p>
     ${warnHtml}
+    <div id="cmp-stage" class="lap-stage-box"></div>
     <h2>Head to head</h2>
     ${tableHtml}
+    <div id="cmp-analysis">
     ${sectorsHtml}
     <div class="chart-card">
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
-      <div class="hint" style="margin:2px 0 6px">The delta chart shows where time is gained or lost vs the faster lap; the channels below show why.</div>
+      <div class="hint" style="margin:2px 0 6px">The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to move the playhead there.</div>
       <div class="ch-graphs" id="cmp-charts">${chartsHtml}</div>
+    </div>
     </div>
   `);
 
   bindPairTooltip(view.querySelector("#cmp-charts"), aligned, { sideColors, sideLabels, delta, refIdx });
+
+  // The stage (NS-51): both laps' videos from one transport, kept together by
+  // place or by time, over the aligned pair the charts draw. Each pick's clip
+  // is on its lap row in the event detail it came from.
+  const lapRow = (r) => sessionsById.get(String(r.sessionId))?.laps.find((l) => l.lap_num === r.lapNum) ?? null;
+  const analysis = view.querySelector("#cmp-analysis");
+  const stageSpec = (r, i) => ({
+    entry: aligned.laps[i],
+    dStepM: aligned.dStepM,
+    clip: stageClip(lapRow(r)),
+    label: `Lap ${r.lapNum} · ${fmtMs(r.timeMs)}`,
+    best: false,
+    color: cssVarName(sideColors[i]),
+  });
+  const deltaFor = (i, k) => (i === refIdx || !delta ? null : valueAt(delta, k));
+  const cmpStage = bindLapStage(view.querySelector("#cmp-stage"), {
+    a: stageSpec(rowA, 0),
+    b: stageSpec(rowB, 1),
+    canPlay: canSaveLapVideo(ent()),
+    lockedHtml: stageLockedHtml(),
+    clipUrl: stageClipUrl,
+    describeError: stageErrorText,
+    trace: sessionsById.get(String(rowA.sessionId))?.trace ?? null,
+    corners: sessionCorners(aligned),
+    units: currentUnits(),
+    onFrame: (st, sides) => showPlayhead(analysis, stageMark(st, sides, { idxA: 0, idxB: 1, colorA: "--chart-line", colorB: "--chart-line-b", deltaFor })),
+  });
+  bindChartSeek(analysis, aligned.dStepM, (k, { final }) => cmpStage?.seekGrid(k, { final }));
 
   const [selA, selB] = [view.querySelector("#lap-a"), view.querySelector("#lap-b")];
   const go = () => {
@@ -1746,6 +1781,7 @@ async function viewLeaderboard(trackId) {
 // only one. Their lap is always side A, so the leaderboard lap keeps the same
 // colour whether or not you have something to put beside it.
 async function viewLeaderboardLap(trackId, lapId, params) {
+  destroyAllStages();
   const lap = await api(`/tracks/${trackId}/leaderboard/laps/${lapId}`);
   // The viewer's own name for the track — never the owner's row, which is
   // user-entered and not published.
@@ -1795,12 +1831,13 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   // never the page: their lap still renders.
   let mine = [];
   let myEvents = [];
+  let mySessions = new Map();
   try {
     const allEvents = (myEvents = await api(`/events?track_id=${trackId}`));
     const details = await Promise.all(
       allEvents.filter((e) => e.lap_count > 0).map((e) => api(`/events/${e.id}`))
     );
-    const sessionsById = new Map(details.flatMap((e) => e.sessions.map((s) => [String(s.id), s])));
+    const sessionsById = (mySessions = new Map(details.flatMap((e) => e.sessions.map((s) => [String(s.id), s]))));
     mine = comparableLaps(details).map((r) => ({
       ...r,
       key: `${r.sessionId}:${r.lapNum}`,
@@ -1898,8 +1935,10 @@ async function viewLeaderboardLap(trackId, lapId, params) {
     ${warnHtml}
     ${noneHtml}
     ${mapHtml}
+    <div id="lb-stage" class="lap-stage-box"></div>
     <h2>${pick ? "Head to head" : "This lap"}</h2>
     ${tableHtml}
+    <div id="lb-analysis">
     ${proOk ? sectorTableHtml(aligned, lit, (i) => sideLabels[i]) : ""}
     <div class="chart-card">
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
@@ -1909,6 +1948,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
           : ""
       }
       <div class="ch-graphs" id="lb-charts">${chartsHtml}</div>
+    </div>
     </div>
     ${
       proOk
@@ -1923,6 +1963,30 @@ async function viewLeaderboardLap(trackId, lapId, params) {
 
   if (lap.trace) renderTrackMap(view.querySelector("#lb-trackmap"), lap.trace);
   bindPairTooltip(view.querySelector("#lb-charts"), aligned, { sideColors, sideLabels, delta, refIdx });
+
+  // The stage (NS-51). Their side is always replay — no clip ever reaches a
+  // leaderboard — and yours plays your lap's video when it has one, which
+  // makes yours the clock. B and the delta are Pro, as the delta chart is.
+  const analysis = view.querySelector("#lb-analysis");
+  const withB = pick && proOk;
+  const myLap = pick ? mySessions.get(String(pick.sessionId))?.laps.find((l) => l.lap_num === pick.lapNum) ?? null : null;
+  const deltaFor = (i, k) => (i === refIdx || !delta ? null : valueAt(delta, k));
+  const lbStage = bindLapStage(view.querySelector("#lb-stage"), {
+    a: { entry: aligned.laps[0], dStepM: aligned.dStepM, clip: null, label: theirLabel, best: false, color: "--chart-line" },
+    b: withB
+      ? { entry: aligned.laps[1], dStepM: aligned.dStepM, clip: stageClip(myLap), label: `You · ${fmtMs(pick.timeMs)}`, best: false, color: "--chart-line-b" }
+      : null,
+    canPlay: canSaveLapVideo(ent()),
+    lockedHtml: stageLockedHtml(),
+    clipUrl: stageClipUrl,
+    describeError: stageErrorText,
+    trace: lap.trace ?? null,
+    corners: sessionCorners(aligned),
+    units: currentUnits(),
+    onFrame: (st, sides) =>
+      showPlayhead(analysis, stageMark(st, sides, { idxA: 0, idxB: withB ? 1 : null, colorA: "--chart-line", colorB: "--chart-line-b", deltaFor })),
+  });
+  bindChartSeek(analysis, aligned.dStepM, (k, { final }) => lbStage?.seekGrid(k, { final }));
 
   const sel = view.querySelector("#lb-mine");
   if (sel)
@@ -2064,7 +2128,6 @@ function lapVideosHtml(s) {
 // reads `clip.youtube` from when a player opens.
 const renderedClips = new Map();
 
-const VIDEO_NEEDS_CONNECTION = "Playing a lap video needs a connection.";
 const studentVideoNote = () => `Lap videos play while ${esc(viewing?.name || "this driver")} has Pro.`;
 
 // Redraw every ▶ of one session to say which lap is playing.
@@ -2155,6 +2218,12 @@ async function showLapVideo(box, clipId) {
   video.addEventListener("error", () => {
     if (!navigator.onLine) body.querySelector("video")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);
   }, { once: true });
+  wireClipDelete(body, id);
+}
+
+// *Delete video* under a player: confirmed, then the page re-reads, which
+// turns the lap's slot to replay and takes its ▶ away.
+function wireClipDelete(body, id) {
   body.querySelector("[data-video-delete]")?.addEventListener("click", async () => {
     const onYouTube = renderedClips.get(String(id))?.youtube?.status === "done";
     if (!confirm(`Delete this lap video? The lap and its telemetry stay.${onYouTube ? ` ${YOUTUBE_DELETE_NOTE}` : ""}`)) return;
@@ -2167,6 +2236,81 @@ async function showLapVideo(box, clipId) {
     route();
   });
 }
+
+// ---------- the lap stage (NS-51) ---------------------------------------------
+//
+// An imported session's lap video plays on a stage (js/lap-stage.js) rather
+// than in a plain player: the video sits over the channel panel and every
+// chart carries a playhead at the car's place in it. A lap with no video
+// replays on the map. The same stage serves the event page's panel, the
+// two-lap compare and the leaderboard lap; these helpers are what the three
+// share.
+
+// The stage's colours are custom property names; the panel's are var()s.
+const cssVarName = (c) => String(c).replace(/^var\((.*)\)$/, "$1");
+const stageClip = (lap) =>
+  lap?.clip ? { id: lap.clip.id, lapOffsetMs: Number(lap.clip.lap_offset_ms) || 0, durationMs: lap.clip.duration_ms ?? null } : null;
+const stageClipUrl = (id) => (sharedView ? sharedClipUrl(id) : api(`/clips/${id}/url`, { cache: false }));
+const stageErrorText = (err) =>
+  err instanceof OfflineError ? VIDEO_NEEDS_CONNECTION : err instanceof ApiError && err.status === 404 ? "This video has been deleted." : err.message;
+const stageLockedHtml = () =>
+  readOnly()
+    ? `<p class="hint">${studentVideoNote()}</p>`
+    : proPanelHtml("Lap video", "Your lap video is kept. Pro plays it, downloads it and saves new ones from a video import.");
+
+// The playhead as the charts draw it: A's line, a dot per side on its own
+// trace (apart in "Same time"), and on the delta chart each side's delta to
+// that chart's own reference lap. idxA / idxB index the charts' lap list.
+function stageMark(state, sides, { idxA, idxB = null, colorA, colorB, deltaFor }) {
+  if (!state) return null;
+  const laps = [{ chIdx: idxA, k: state.a.k, color: `var(${colorA})`, entry: sides.a.entry, delta: deltaFor?.(idxA, state.a.k) ?? null }];
+  if (idxB != null && sides.b && state.b?.inLap)
+    laps.push({ chIdx: idxB, k: state.b.k, color: `var(${colorB})`, entry: sides.b.entry, delta: deltaFor?.(idxB, state.b.k) ?? null });
+  return { dStepM: sides.a.dStepM, k: state.a.k, n: sides.a.t.length, laps };
+}
+
+// The delta chart's value for lap i at grid index k: its time there minus the
+// reference lap's, on time curves worked out once per lap.
+function stageDeltaFor(laps, dStepM, refIdx) {
+  const curves = new Map();
+  const T = (i) => {
+    if (!curves.has(i)) curves.set(i, lapTimeSeries(laps[i].speed, dStepM, laps[i].timeMs));
+    return curves.get(i);
+  };
+  return (i, k) => (refIdx == null || refIdx < 0 || i === refIdx || !Array.isArray(laps[i]?.speed) ? null : valueAt(T(i), k) - valueAt(T(refIdx), k));
+}
+
+// Download / Delete / YouTube for the owner, under the stage, for side A's clip.
+function stageClipActions(el, clipId) {
+  if (!el) return;
+  if (clipId == null || readOnly() || !canSaveLapVideo(ent())) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `<div class="btn-row">
+      <a class="btn small" href="/api/clips/${encodeURIComponent(clipId)}/download">Download video</a>
+      <button class="btn small danger" data-video-delete="${esc(clipId)}">Delete video</button>
+    </div>`;
+  youtubePanel(el, clipId);
+  wireClipDelete(el, clipId);
+}
+
+// The event page's stage box: the button that opens it on the lit lap, and the
+// box itself, which the session's ▶ controls open too. It keeps the session's
+// clip list so a clip on a lap with no channel entry still opens in the plain
+// player (showLapVideo) in the same place.
+function lapStageBoxHtml(s) {
+  for (const l of s.laps) if (l.clip) renderedClips.set(String(l.clip.id), l.clip);
+  return `<div class="stage-open-row"><button type="button" class="btn small" data-stage-open="${esc(s.id)}">▶ Play the lap</button>
+      <span class="hint">${s.laps.some((l) => l.clip) ? "The video and the charts move together." : "Replays the lap on the map, with the charts."}</span></div>
+    <div class="lap-stage-box" id="lap-video-${esc(s.id)}" data-stage-session="${esc(s.id)}" data-lap-video-session="${esc(s.id)}" data-clips="${esc(
+      JSON.stringify(lapVideoList(s.laps))
+    )}" hidden></div>`;
+}
+
+// Each event-page session's stage, by session id: what a ▶ or *Play the lap*
+// asks to open. Cleared whenever the event page renders.
+const stageOpeners = new Map();
 
 // ---------- publishing a best-lap video to YouTube (NS-46) -------------------
 
@@ -2417,6 +2561,17 @@ function showYouTubeResult(params) {
 document.addEventListener("click", (e) => {
   const el = e.target instanceof Element ? e.target : null;
   const play = el?.closest("[data-video-play]");
+  // An imported session's ▶ opens its lap stage (NS-51).
+  const opener = play && stageOpeners.get(play.dataset.videoSession);
+  if (opener) {
+    opener.toggleClip(play.dataset.videoPlay);
+    return;
+  }
+  const stageOpen = el?.closest("[data-stage-open]");
+  if (stageOpen) {
+    stageOpeners.get(stageOpen.dataset.stageOpen)?.openLit();
+    return;
+  }
   if (play) {
     const box = document.getElementById(`lap-video-${play.dataset.videoSession}`);
     if (!box) return;
@@ -2447,8 +2602,10 @@ async function viewEvent(eventId) {
   const [e, tracks, garage] = sharedView
     ? [sharedView.event, [], []]
     : await Promise.all([api(`/events/${eventId}`), api("/tracks"), api("/garage").catch(() => [])]);
-  // Rendering closes every lap video player, so none is open now.
+  // Rendering closes every lap video player and stage, so none is open now.
   openLapVideos.clear();
+  stageOpeners.clear();
+  destroyAllStages();
   const track = tracks.find((t) => t.id === e.track_id);
   // Read-only is a coach reading a student's event (NS-38): no writes, no
   // setup notebook or checklist (neither is shared), and no personal-best
@@ -2925,10 +3082,19 @@ async function viewEvent(eventId) {
       };
     };
     if (!channelPanelMemory.has(s.id)) channelPanelMemory.set(s.id, {});
+    // The lap stage (NS-51): opened from a lap's ▶ or *Play the lap*, it sits
+    // between the chips and the charts and marks every chart with the
+    // playhead. `mark` is re-applied after each chart render, since a chip
+    // toggle rebuilds the charts whole.
+    const stage = { handle: null, open: false, opened: null, aIdx: null, mark: null };
     const panel = bindChannelGraphs(el, s.channels, s.laps, {
       // Each lap chip carries its video's ▶ (NS-50), as the plain lap list does.
       chipAfter: (lap) => lapPlayHtml(s, lap),
-      afterChips: lapVideosHtml(s),
+      afterChips: lapStageBoxHtml(s),
+      onRender: (chartsEl) => showPlayhead(chartsEl, stage.mark),
+      onSelect: (lit) => {
+        if (stage.open) lit.length ? buildStage() : closeStage();
+      },
       // Sector splits + theoretical best for the highlighted laps on the
       // Time tab, the session's shift points on Inputs, on Grip the
       // friction circle (#186) — a square scatter, so it gets its own
@@ -3026,6 +3192,133 @@ async function viewEvent(eventId) {
     };
     bindGripCircle(el, s.channels, { onHover });
     bindBalance(el, s.channels, { onHover });
+
+    // The stage's sides follow the lit laps: A the lap it was opened for (or
+    // the newest lit), B the fastest other lit lap — or, with one lap lit, no
+    // second slot and the session's reference lap behind the delta. B and the
+    // delta are Pro, as the panel's delta chart is.
+    const chLaps = s.channels.laps;
+    const dStepM = s.channels.dStepM;
+    const matched = matchLapsToChannels(s.laps, chLaps);
+    const lapOfCh = new Map(matched.filter((r) => r.chIdx >= 0).map((r) => [r.chIdx, r.lap]));
+    const bestMs = Math.min(...s.laps.map((l) => l.time_ms));
+    const box = el.querySelector(".lap-stage-box");
+    const openRow = el.querySelector(".stage-open-row");
+    const sideSpec = (i) => {
+      const lap = lapOfCh.get(i);
+      return {
+        entry: chLaps[i],
+        dStepM,
+        clip: stageClip(lap),
+        label: `Lap ${lap?.lap_num ?? chLaps[i].n} · ${fmtMs(lap?.time_ms ?? chLaps[i].timeMs)}`,
+        best: lap != null && lap.time_ms === bestMs,
+        color: cssVarName(panel.slotColor(i) ?? "var(--chart-line)"),
+      };
+    };
+    function closeStage() {
+      stage.open = false;
+      stage.handle?.destroy();
+      stage.handle = null;
+      stage.mark = null;
+      box.hidden = true;
+      box.innerHTML = "";
+      openRow.hidden = false;
+      showPlayhead(panel.chartsEl, null);
+      bindChartSeek(el, dStepM, null);
+      openLapVideos.delete(String(s.id));
+      paintLapPlays(s.id);
+    }
+    function buildStage() {
+      const pick = stageSides(panel.lit(), chLaps, stage.opened);
+      if (!pick) return closeStage();
+      // A rebuilt stage keeps the playhead's place, and keeps playing.
+      const prev = stage.handle;
+      const startK = prev?.inLap() ? prev.k() : null;
+      const startE = prev && !prev.inLap() ? prev.e() : null;
+      const startPlaying = !!prev?.playing();
+      prev?.destroy();
+      const full = pro();
+      const bIdx = full ? pick.b : null;
+      const ref = full && bIdx == null ? referenceLap(matched, pick.a) : null;
+      const a = sideSpec(pick.a);
+      const b = bIdx != null ? sideSpec(bIdx) : null;
+      const lit = panel.lit();
+      // The delta chart's own reference: the fastest lit lap.
+      const chartRef = lit.length >= 2 ? lit.reduce((x, y) => (chLaps[y].timeMs < chLaps[x].timeMs ? y : x)) : null;
+      const deltaFor = full ? stageDeltaFor(chLaps, dStepM, chartRef) : null;
+      const aLap = lapOfCh.get(pick.a);
+      const list = lapVideoList(s.laps);
+      const stepTo = (dir) => (aLap?.clip ? lapVideoStep(list, aLap.clip.id, dir) : null);
+      stage.aIdx = pick.a;
+      openRow.hidden = true;
+      box.hidden = false;
+      box.innerHTML = `<div class="stage-mount"></div><div class="stage-actions"></div>`;
+      stage.handle = bindLapStage(box.querySelector(".stage-mount"), {
+        a,
+        b,
+        reference: ref ? { entry: chLaps[ref.chIdx], dStepM, label: ref.lap.time_ms === bestMs ? "best" : `lap ${ref.lap.lap_num}` } : null,
+        canPlay: canSaveLapVideo(ent()),
+        lockedHtml: stageLockedHtml(),
+        clipUrl: stageClipUrl,
+        describeError: stageErrorText,
+        trace: s.trace ?? null,
+        corners: sessionCorners(s.channels),
+        units: currentUnits(),
+        startK,
+        startE,
+        startPlaying,
+        onFrame: (state, sides) => {
+          stage.mark = stageMark(state, sides, { idxA: pick.a, idxB: bIdx, colorA: a.color, colorB: b?.color, deltaFor });
+          showPlayhead(panel.chartsEl, stage.mark);
+        },
+        // Lap stepping (NS-50's every-lap sessions): the neighbouring laps
+        // with a video, keeping the playhead's place.
+        stepper:
+          list.length > 1 && aLap?.clip
+            ? {
+                prev: stepTo(-1) ? `Lap ${stepTo(-1).lapNum}` : null,
+                next: stepTo(1) ? `Lap ${stepTo(1).lapNum}` : null,
+                onStep: (dir) => {
+                  const to = stepTo(dir);
+                  const lap = to && s.laps.find((l) => String(l.clip?.id) === String(to.clipId));
+                  const i = matched.find((r) => r.lap === lap)?.chIdx;
+                  if (i != null && i >= 0) openStage(i);
+                },
+              }
+            : null,
+        onClose: closeStage,
+      });
+      stageClipActions(box.querySelector(".stage-actions"), aLap?.clip?.id ?? null);
+      if (aLap?.clip) openLapVideos.set(String(s.id), aLap.clip.id);
+      else openLapVideos.delete(String(s.id));
+      paintLapPlays(s.id);
+      bindChartSeek(el, dStepM, (k, { final }) => stage.handle?.seekGrid(k, { final }));
+    }
+    function openStage(chIdx) {
+      stage.opened = chIdx;
+      stage.open = true;
+      if (!panel.details.open) panel.details.open = true;
+      if (!panel.lit().includes(chIdx)) panel.light(chIdx); // → onSelect → buildStage
+      else buildStage();
+    }
+    stageOpeners.set(String(s.id), {
+      toggleClip(clipId) {
+        const lap = s.laps.find((l) => String(l.clip?.id) === String(clipId));
+        const i = matched.find((r) => r.lap === lap)?.chIdx ?? -1;
+        if (stage.open && i === stage.aIdx) return closeStage();
+        if (i >= 0) return openStage(i);
+        // A clip on a lap with no channel entry plays in the plain player.
+        if (stage.open) closeStage();
+        if (!box.hidden && String(openLapVideos.get(String(s.id))) === String(clipId)) closeLapVideo(box);
+        else showLapVideo(box, clipId);
+      },
+      openLit() {
+        const lit = panel.lit();
+        const best = matched.filter((r) => r.chIdx >= 0).reduce((m, r) => (m == null || r.lap.time_ms < m.lap.time_ms ? r : m), null);
+        const i = lit.length ? lit[lit.length - 1] : best?.chIdx;
+        if (i != null) openStage(i);
+      },
+    });
   });
 
   view.querySelectorAll("[data-del-session]").forEach((btn) => {
