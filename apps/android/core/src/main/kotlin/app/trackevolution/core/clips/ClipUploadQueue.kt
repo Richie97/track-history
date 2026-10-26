@@ -264,15 +264,33 @@ public object ClipUploadQueue {
 
     /**
      * Whether a job (or a failed cut) is for this lap: the same session —
-     * matched on either its temp or its real id — and the same time.
+     * matched on either its temp or its real id — and the same time, and,
+     * when the job has a [jobLapNum] (NS-50), the same lap number. A job from
+     * before lap numbers falls back to the time alone.
      */
-    public fun isFor(jobSessionId: Int, jobTimeMs: Int, sessionId: Int, resolved: Int?, timeMs: Int): Boolean =
-        jobTimeMs == timeMs && (jobSessionId == sessionId || (resolved != null && resolved == sessionId))
+    public fun isFor(
+        jobSessionId: Int,
+        jobTimeMs: Int,
+        sessionId: Int,
+        resolved: Int?,
+        timeMs: Int,
+        jobLapNum: Int? = null,
+        lapNum: Int? = null,
+    ): Boolean =
+        jobTimeMs == timeMs &&
+            (jobLapNum == null || jobLapNum == lapNum) &&
+            (jobSessionId == sessionId || (resolved != null && resolved == sessionId))
 
     /**
-     * The lap a clip with this time lands on: the lowest lap number among the
-     * session's laps with that time, the server's rule. A second lap tied on
-     * time never shows the first one's pending upload.
+     * The lap a clip lands on — the server's rule. With a [lapNum] (NS-50) it
+     * is that lap, if its time matches; without one, the lowest lap number
+     * among the session's laps with that time, so a second lap tied on time
+     * never shows the first one's pending upload.
      */
-    public fun clipLap(laps: List<Lap>, timeMs: Int): Lap? = laps.filter { it.timeMs == timeMs }.minByOrNull { it.lapNum }
+    public fun clipLap(laps: List<Lap>, timeMs: Int, lapNum: Int? = null): Lap? =
+        if (lapNum != null) {
+            laps.firstOrNull { it.lapNum == lapNum && it.timeMs == timeMs }
+        } else {
+            laps.filter { it.timeMs == timeMs }.minByOrNull { it.lapNum }
+        }
 }

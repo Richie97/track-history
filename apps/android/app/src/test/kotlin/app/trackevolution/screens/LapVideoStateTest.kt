@@ -49,6 +49,19 @@ class LapVideoStateTest {
     private val uploading = LapVideoState.Uploading(0.0)
 
     @Test
+    fun `a job with a lap number is for that lap alone, a tie on time included (NS-50)`() {
+        val lap5 = without.copy(id = 40, lapNum = 5)
+        val laps = listOf(lap5, without)
+        val forSix = job().copy(id = "six", lapNum = 6)
+        val forFive = job(state = ClipJob.State.CUTTING).copy(id = "five", lapNum = 5)
+        assertEquals(uploading, of(without, jobs = listOf(forSix, forFive), sessionLaps = laps))
+        assertEquals(LapVideoState.Preparing, of(lap5, jobs = listOf(forSix, forFive), sessionLaps = laps))
+        // A job from before lap numbers keeps the old rule: the lowest lap number with its time.
+        assertEquals(LapVideoState.None, of(without, jobs = listOf(job()), sessionLaps = laps))
+        assertEquals(uploading, of(lap5, jobs = listOf(job()), sessionLaps = laps))
+    }
+
+    @Test
     fun `the owner plays and manages a ready clip with Pro, and sees it locked without`() {
         assertEquals(LapVideoState.Playable(clip, menu = true), of(withClip))
         assertEquals(LapVideoState.Locked, of(withClip, viewer = free))

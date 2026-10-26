@@ -4,11 +4,19 @@ import app.trackevolution.core.RepoRoot
 import app.trackevolution.core.model.ClipStorage
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.telemetry.LapClips.ClipOffer
+import app.trackevolution.core.telemetry.LapClips.ClipScope
 import app.trackevolution.core.telemetry.LapClips.MAX_CLIP_S
 import app.trackevolution.core.telemetry.LapClips.OfferItem
 import app.trackevolution.core.telemetry.LapClips.POST_ROLL_S
 import app.trackevolution.core.telemetry.LapClips.PRE_ROLL_S
 import app.trackevolution.core.telemetry.LapClips.clipCandidate
+import app.trackevolution.core.telemetry.LapClips.clipCandidates
+import app.trackevolution.core.telemetry.LapClips.clipRowTitle
+import app.trackevolution.core.telemetry.LapClips.everyLapFullText
+import app.trackevolution.core.telemetry.LapClips.everyLapOfferText
+import app.trackevolution.core.telemetry.LapClips.offersEveryLap
+import app.trackevolution.core.telemetry.LapClips.reviewClipBytes
+import app.trackevolution.core.telemetry.LapClips.reviewClipCount
 import app.trackevolution.core.telemetry.LapClips.clipFullText
 import app.trackevolution.core.telemetry.LapClips.clipOffer
 import app.trackevolution.core.telemetry.LapClips.clipOfferNote
@@ -96,6 +104,8 @@ class LapClipsTest {
         }
         assertEquals(fixture["MAX_CLIP_S"]!!.jsonPrimitive.content.toDouble(), MAX_CLIP_S)
         assertEquals(fixture["VIDEO_KINDS"]!!.jsonArray.map { it.jsonPrimitive.content }, LapClips.VIDEO_KINDS)
+        assertEquals(fixture["EVERY_LAP_KINDS"]!!.jsonArray.map { it.jsonPrimitive.content }, LapClips.EVERY_LAP_KINDS)
+        assertEquals(fixture["CLIP_SCOPES"]!!.jsonArray.map { it.jsonPrimitive.content }, LapClips.CLIP_SCOPES)
     }
 
     @Test
@@ -113,6 +123,14 @@ class LapClipsTest {
             val c = clipCandidate(parsed)
             val wantIndex = expected["candidateIndex"]!!.let { if (it is JsonNull) null else it.jsonPrimitive.content.toInt() }
             assertEquals(wantIndex, c?.index, "$name: candidateIndex")
+            val wantLapNum = expected["candidateLapNum"]!!.let { if (it is JsonNull) null else it.jsonPrimitive.content.toInt() }
+            assertEquals(wantLapNum, c?.lapNum, "$name: candidateLapNum")
+            assertEquals(
+                expected["everyLapNums"]!!.jsonArray.map { it.jsonPrimitive.content.toInt() },
+                clipCandidates(parsed, ClipScope.EVERY).map { it.lapNum },
+                "$name: everyLapNums",
+            )
+            assertEquals(listOfNotNull(c), clipCandidates(parsed, ClipScope.BEST), "$name: best is clipCandidate's lap")
             assertWindow(expected["window"], c?.let { clipWindow(it.lap, parsed.durationS) }, "$name: window")
             val wantBytes = expected["estimateBytes"]!!.let { if (it is JsonNull) null else it.jsonPrimitive.long }
             assertEquals(wantBytes, c?.let { estimateClipBytes(it.lap, fileBytes, parsed.durationS) }, "$name: estimateBytes")
@@ -143,11 +161,19 @@ class LapClipsTest {
             }
             val rawEnt = case["entitlement"]!!
             val entitlement = if (rawEnt is JsonNull) null else strict.decodeFromJsonElement(Entitlement.serializer(), rawEnt)
+            val scope = ClipScope.entries.single { it.rawValue == case["scope"]!!.jsonPrimitive.content }
             assertEquals(
                 case["expected"]!!.jsonPrimitive.content,
-                clipOffer(items, entitlement, clipsOf(case["clips"])).rawValue,
+                clipOffer(items, entitlement, clipsOf(case["clips"]), scope).rawValue,
                 name,
             )
+            assertEquals(case["offersEveryLap"]!!.jsonPrimitive.content.toBooleanStrict(), offersEveryLap(items), "$name: offersEveryLap")
+            val count = case["count"]!!.jsonObject
+            val bytes = case["bytes"]!!.jsonObject
+            for (s in ClipScope.entries) {
+                assertEquals(count[s.rawValue]!!.jsonPrimitive.content.toInt(), reviewClipCount(items, s), "$name: count ${s.rawValue}")
+                assertEquals(bytes[s.rawValue]!!.jsonPrimitive.long, reviewClipBytes(items, s), "$name: bytes ${s.rawValue}")
+            }
         }
     }
 
@@ -169,6 +195,20 @@ class LapClipsTest {
         for (row in fixture["storageLine"]!!.jsonArray) {
             val (input, want) = row.jsonArray
             assertEquals(if (want is JsonNull) null else want.jsonPrimitive.content, clipStorageLine(clipsOf(input)), "storageLine $input")
+        }
+        val everyText = fixture["everyLapOfferText"]!!.jsonArray
+        assertTrue(everyText.isNotEmpty())
+        for (row in everyText) {
+            val (count, size, want) = row.jsonArray
+            assertEquals(want.jsonPrimitive.content, everyLapOfferText(count.jsonPrimitive.content.toInt(), size.jsonPrimitive.long), "everyLapOfferText $row")
+        }
+        for (row in fixture["everyLapFullText"]!!.jsonArray) {
+            val (input, want) = row.jsonArray
+            assertEquals(want.jsonPrimitive.content, everyLapFullText(clipsOf(input)), "everyLapFullText $input")
+        }
+        for (row in fixture["clipRowTitle"]!!.jsonArray) {
+            val (input, want) = row.jsonArray
+            assertEquals(want.jsonPrimitive.content, clipRowTitle(input.jsonPrimitive.content.toBooleanStrict()), "clipRowTitle $input")
         }
         val bytes = fixture["fmtClipBytes"]!!.jsonArray
         assertTrue(bytes.size >= 14)
@@ -336,6 +376,81 @@ class LapClipsTest {
             assertEquals("1 GB", fmtClipBytes(gib - 1))
             assertEquals("3.3 GB", fmtClipBytes(3.25 * gib))
             assertEquals("20 GB", fmtClipBytes(20 * gib))
+        }
+    }
+
+    // NS-50: every full lap of a PDR import.
+    @Nested
+    inner class EveryLapClips {
+        private fun pdr(laps: List<ParsedLap>) = ParsedTelemetry(kind = ParsedTelemetry.Kind.PDR, durationS = 1000.0, laps = laps)
+        private fun gopro(laps: List<ParsedLap>) = ParsedTelemetry(kind = ParsedTelemetry.Kind.GOPRO, durationS = 1000.0, laps = laps)
+        private fun item(parsed: ParsedTelemetry, include: Boolean = true, fileBytes: Long = 1000L * 5_000_000) =
+            OfferItem(parsed = parsed, include = include, fileBytes = fileBytes)
+
+        private val laps = listOf(lap(101_000, 10.0, 111.0), lap(100_000, 111.0, 211.0), lap(100_000, 211.0, 311.0), lap(102_000, 990.0, 1092.0))
+
+        @Test
+        fun `names each lap by its place in the session`() {
+            val c = clipCandidate(pdr(laps))!!
+            assertEquals(1, c.index)
+            assertEquals(2, c.lapNum)
+            assertEquals(listOf(2), clipCandidates(pdr(laps), ClipScope.BEST).map { it.lapNum })
+            // The last lap runs past the file: no window, no clip.
+            assertEquals(listOf(1, 2, 3), clipCandidates(pdr(laps), ClipScope.EVERY).map { it.lapNum })
+        }
+
+        @Test
+        fun `is PDR only - a GoPro keeps its best lap`() {
+            assertEquals(listOf("pdr"), LapClips.EVERY_LAP_KINDS)
+            assertEquals(listOf(2), clipCandidates(gopro(laps), ClipScope.EVERY).map { it.lapNum })
+            val vbo = ParsedTelemetry(kind = ParsedTelemetry.Kind.VBO, durationS = 1000.0, laps = laps)
+            assertEquals(emptyList<LapClips.ClipCandidate>(), clipCandidates(vbo, ClipScope.EVERY))
+            assertEquals(emptyList<LapClips.ClipCandidate>(), clipCandidates(null, ClipScope.EVERY))
+        }
+
+        @Test
+        fun `offers the choice only when it saves more`() {
+            assertTrue(offersEveryLap(listOf(item(pdr(laps)))))
+            assertFalse(offersEveryLap(listOf(item(pdr(laps), include = false))))
+            assertFalse(offersEveryLap(listOf(item(pdr(listOf(lap(100_000, 10.0, 110.0)))))))
+            assertFalse(offersEveryLap(listOf(item(gopro(laps)))))
+        }
+
+        @Test
+        fun `counts and sizes the review per scope`() {
+            val items = listOf(item(pdr(laps)), item(gopro(laps)), item(pdr(laps), include = false))
+            assertEquals(2, reviewClipCount(items, ClipScope.BEST))
+            assertEquals(4, reviewClipCount(items, ClipScope.EVERY))
+            // 5 MB/s over 101 + 7, 100 + 7 and 100 + 7 seconds, plus the GoPro's 107.
+            assertEquals(5_000_000L * (108 + 107 + 107 + 107), reviewClipBytes(items, ClipScope.EVERY))
+            assertEquals(5_000_000L * (107 + 107), reviewClipBytes(items, ClipScope.BEST))
+        }
+
+        @Test
+        fun `decides full against the picked scope`() {
+            val items = listOf(item(pdr(laps)))
+            val room = ClipStorage(usedBytes = 0, quotaBytes = 5_000_000L * 200, coachCount = 0)
+            assertEquals(ClipOffer.ON, clipOffer(items, pro, room))
+            assertEquals(ClipOffer.ON, clipOffer(items, pro, room, ClipScope.BEST))
+            assertEquals(ClipOffer.FULL, clipOffer(items, pro, room, ClipScope.EVERY))
+            assertEquals(ClipOffer.LOCKED, clipOffer(items, free, room, ClipScope.EVERY))
+            assertEquals(ClipOffer.NONE, clipOffer(emptyList(), pro, room, ClipScope.EVERY))
+        }
+
+        @Test
+        fun `words the choice`() {
+            assertEquals(
+                "A clip of every full lap in each PDR session — 14 clips, about 1.3 GB in all. Uploads on Wi-Fi.",
+                everyLapOfferText(14, (1.3 * gib).roundToLong()),
+            )
+            assertEquals("A clip of every full lap in each PDR session — 1 clip. Uploads on Wi-Fi.", everyLapOfferText(1, 0))
+            assertEquals(
+                "Every lap would go over your lap video storage (50 GB).",
+                everyLapFullText(ClipStorage(usedBytes = 0, quotaBytes = 50 * gib, coachCount = 0)),
+            )
+            assertEquals("Every lap would go over your lap video storage.", everyLapFullText(null))
+            assertEquals("Save lap videos", clipRowTitle(true))
+            assertEquals("Save best-lap video", clipRowTitle(false))
         }
     }
 }

@@ -45,15 +45,15 @@ struct LapVideoSection: View {
                     VStack(alignment: .leading, spacing: 8) {
                         ProUpsellCard(
                             title: "Lap video",
-                            blurb: "Your best-lap video is kept. Pro plays it, downloads it and saves new ones from a video import."
+                            blurb: "Your lap video is kept. Pro plays it, downloads it and saves new ones from a video import."
                         )
                         DeleteClipButton(clipId: clip.id, onDeleted: reload)
                     }
                 }
-            } else if !owner.isReadOnly, isClipLap {
-                if let clips, let status = clips.status(sessionId: session.id, timeMs: lap.timeMs) {
+            } else if !owner.isReadOnly {
+                if let clips, let status = clips.status(clipKey) {
                     ClipPendingCard(status: status) {
-                        clips.retry(sessionId: session.id, timeMs: lap.timeMs)
+                        clips.retry(clipKey)
                     }
                 } else if let failure {
                     TECard {
@@ -67,8 +67,8 @@ struct LapVideoSection: View {
             }
         }
         .task(id: lap.id) {
-            if !owner.isReadOnly, lap.clip == nil, isClipLap, let clips {
-                failure = clips.takeFailure(sessionId: session.id, timeMs: lap.timeMs)
+            if !owner.isReadOnly, lap.clip == nil, let clips {
+                failure = clips.takeFailure(clipKey)
             }
         }
         // An upload finished somewhere: if it was this lap's, the event now
@@ -78,16 +78,22 @@ struct LapVideoSection: View {
         }
         // An upload given up on while the page was open: say why now, not on
         // the next visit.
-        .onChange(of: clips?.status(sessionId: session.id, timeMs: lap.timeMs) == nil) { _, gone in
-            if gone, lap.clip == nil, !owner.isReadOnly, isClipLap, let clips, failure == nil {
-                failure = clips.takeFailure(sessionId: session.id, timeMs: lap.timeMs)
+        .onChange(of: clips?.status(clipKey) == nil) { _, gone in
+            if gone, lap.clip == nil, !owner.isReadOnly, let clips, failure == nil {
+                failure = clips.takeFailure(clipKey)
             }
         }
     }
 
-    /// The lap a clip with this time lands on — the lowest lap number with it.
-    private var isClipLap: Bool {
-        ClipUploadQueue.clipLap(session.laps, timeMs: lap.timeMs)?.id == lap.id
+    /// This lap, as the uploader's jobs name it (NS-50): its session, time and
+    /// lap number — and, for a job from before lap numbers, which matches on
+    /// time alone, whether this is the lap such a clip lands on (the lowest lap
+    /// number with this time).
+    private var clipKey: ClipUploader.LapKey {
+        ClipUploader.LapKey(
+            sessionId: session.id, timeMs: lap.timeMs, lapNum: lap.lapNum,
+            isClipLap: ClipUploadQueue.clipLap(session.laps, timeMs: lap.timeMs)?.id == lap.id
+        )
     }
 }
 

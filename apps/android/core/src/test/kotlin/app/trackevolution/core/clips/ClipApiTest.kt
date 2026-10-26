@@ -24,6 +24,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -67,6 +68,16 @@ class ClipApiTest {
         assertEquals("127400", sent["duration_ms"]!!.jsonPrimitive.content)
         assertEquals("3317", sent["lap_offset_ms"]!!.jsonPrimitive.content)
         assertEquals("Bearer tok", request.headers[HttpHeaders.Authorization])
+        assertNull(sent["lap_num"], "no lap_num without one — NS-45's body, unchanged")
+    }
+
+    @Test
+    fun `create sends lap_num beside the time when the job has one (NS-50)`() = runTest {
+        val api = client { """{"clip_id":9,"part_bytes":52428800,"parts":3,"uploaded":[]}""" }
+        api.createClip(501, ClipCreate(timeMs = 122_110, sizeBytes = 140_000_000, durationMs = 127_400, lapOffsetMs = 3_317, lapNum = 4))
+        val sent = Json.parseToJsonElement((recorded.single().body as TextContent).text).jsonObject
+        assertEquals("4", sent["lap_num"]!!.jsonPrimitive.content)
+        assertEquals("122110", sent["time_ms"]!!.jsonPrimitive.content)
     }
 
     @Test

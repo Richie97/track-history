@@ -462,6 +462,90 @@ class RecordingFlowImportTest {
         assertEquals("once", 1, requested.size)
     }
 
+    // ---- Every-lap clips (NS-50) ----------------------------------------------
+
+    @Test
+    fun `every lap hands each windowed lap over with its number, in lap order, after its session`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"), video("pdr25-laps.mp4"))), preferredEventId = 7)
+        awaitEvents(flow)
+
+        val fresh = flow.state.value
+        assertEquals("best lap in every review", LapClips.ClipScope.BEST, fresh.clipScope)
+        assertEquals(LapClips.ClipOffer.ON, fresh.everyLapOffer(pro, room))
+        flow.setClipScope(LapClips.ClipScope.EVERY)
+        val state = flow.state.value
+        val scope = state.effectiveClipScope(pro, room)
+        assertEquals(LapClips.ClipScope.EVERY, scope)
+
+        flow.save(context, clipOffer = state.clipOffer(pro, room), clipScope = scope)
+        awaitSaved(flow)
+
+        val want = state.items.filter { it.include && it.hasLaps }.flatMap { item ->
+            LapClips.clipCandidates(item.parsed, LapClips.ClipScope.EVERY).map { item.uri to it }
+        }
+        assertTrue("more than one clip per session", want.size > posted.size)
+        assertEquals(state.clipCount(LapClips.ClipScope.EVERY), requested.size)
+        assertEquals(want.map { (uri, c) -> Triple(uri, c.lapNum, c.lap.timeMs) }, requested.map { Triple(it.source, it.lapNum, it.timeMs) })
+        // Each session's clips follow its own POST.
+        assertEquals("post 600", timeline.first())
+        val second = timeline.indexOf("post 601")
+        assertTrue(timeline.subList(1, second).all { it == "clip 600" })
+        assertTrue(timeline.subList(second + 1, timeline.size).all { it == "clip 601" })
+    }
+
+    @Test
+    fun `best lap sends its lap number too`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"))), preferredEventId = 7)
+        awaitEvents(flow)
+        val state = flow.state.value
+        flow.save(context, clipOffer = state.clipOffer(pro, room), clipScope = state.effectiveClipScope(pro, room))
+        awaitSaved(flow)
+        val candidate = LapClips.clipCandidate(state.items.single().parsed)!!
+        assertEquals(candidate.lapNum, requested.single().lapNum)
+    }
+
+    @Test
+    fun `every lap falls back to best lap when it would go over, and is never offered locked`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"))), preferredEventId = 7)
+        awaitEvents(flow)
+        flow.setClipScope(LapClips.ClipScope.EVERY)
+        val state = flow.state.value
+        val best = state.clipBytes(LapClips.ClipScope.BEST)
+        val every = state.clipBytes(LapClips.ClipScope.EVERY)
+        assertTrue(every > best)
+        // Room for the best lap and not for every lap.
+        val tight = room.copy(usedBytes = room.quotaBytes - best)
+        assertEquals(LapClips.ClipOffer.ON, state.clipOffer(pro, tight))
+        assertEquals(LapClips.ClipOffer.FULL, state.everyLapOffer(pro, tight))
+        assertEquals(LapClips.ClipScope.BEST, state.effectiveClipScope(pro, tight))
+        // Free: NS-45's locked row, no choice.
+        assertEquals(LapClips.ClipOffer.NONE, state.everyLapOffer(Entitlement.FREE, room))
+        assertEquals(LapClips.ClipScope.BEST, state.effectiveClipScope(Entitlement.FREE, room))
+    }
+
+    @Test
+    fun `every lap for a new event waits for the form, then hands every lap over`() {
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(video("pdr-delta.mp4"))), preferredEventId = null, forNewEvent = true)
+        flow.setClipScope(LapClips.ClipScope.EVERY)
+        val state = flow.state.value
+        flow.save(context, clipOffer = state.clipOffer(pro, room), clipScope = state.effectiveClipScope(pro, room))
+        awaitSaved(flow)
+        assertTrue(requested.isEmpty())
+
+        val drafts = flow.takeStaged()
+        flow.sessionsPosted(eventId = 12, posted = drafts, sessionIds = listOf(-4))
+        val want = LapClips.clipCandidates(state.items.single().parsed, LapClips.ClipScope.EVERY).map { it.lapNum }
+        assertTrue(want.size > 1)
+        assertEquals(want, requested.map { it.lapNum })
+        assertTrue(requested.all { it.sessionId == -4 && it.eventId == 12 })
+        flow.sessionsPosted(eventId = 12, posted = drafts, sessionIds = listOf(-4))
+        assertEquals("once", want.size, requested.size)
+    }
+
     private companion object {
         const val EVENTS = """
             [{"id":7,"track_id":1,"track_name":"Summit Point (Shenandoah)",

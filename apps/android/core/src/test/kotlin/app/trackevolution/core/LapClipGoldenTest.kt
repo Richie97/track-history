@@ -62,7 +62,7 @@ class LapClipGoldenTest {
         val clips = Goldens.decode("me-pro-legacy", Me.serializer()).user.clips
         assertNotNull(clips)
         assertEquals(2048L, clips!!.usedBytes)
-        assertEquals(20L * 1024 * 1024 * 1024, clips.quotaBytes)
+        assertEquals(50L * 1024 * 1024 * 1024, clips.quotaBytes, "NS-50: 50 GiB")
         assertEquals(0, clips.coachCount)
     }
 }

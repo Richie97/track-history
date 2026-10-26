@@ -76,9 +76,12 @@ async function uploadedParts(db: D1Database, clipId: number) {
   return results;
 }
 
-// Start (or resume) the upload of a session's best-lap clip. Keyed on the
-// session and the lap's time rather than a lap id, because a session POST
-// answers only the session's id — the phone never learns its laps' ids.
+// Start (or resume) the upload of one lap's clip. Keyed on the session and the
+// lap's time rather than a lap id, because a session POST answers only the
+// session's id — the phone never learns its laps' ids. Since NS-50 a client
+// also sends `lap_num`, its position in the posted session, and then both must
+// match: that is what reaches the second of two laps with the same time, which
+// every-lap clips meet. Without it, the lowest lap number with that time.
 clips.post("/sessions/:id/clip", requireEntitlement, async (c) => {
   const userId = c.get("userId");
   const bucket = c.env.CLIPS;
@@ -92,10 +95,10 @@ clips.post("/sessions/:id/clip", requireEntitlement, async (c) => {
       `SELECT l.id AS lap_id, k.id AS clip_id, k.status, k.size_bytes, k.upload_id
          FROM laps l JOIN sessions s ON s.id = l.session_id JOIN events e ON e.id = s.event_id
          LEFT JOIN lap_clips k ON k.lap_id = l.id
-        WHERE s.id = ? AND e.user_id = ? AND l.time_ms = ?
+        WHERE s.id = ?1 AND e.user_id = ?2 AND l.time_ms = ?3 AND (?4 IS NULL OR l.lap_num = ?4)
         ORDER BY l.lap_num LIMIT 1`
     )
-    .bind(c.req.param("id"), userId, body.time_ms);
+    .bind(c.req.param("id"), userId, body.time_ms, body.lap_num);
   type LapClipRow = {
     lap_id: number;
     clip_id: number | null;

@@ -662,8 +662,28 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   color: var(--accent-ink); font-weight: var(--weight-semibold);
 }
 
-/* Best-lap videos (NS-45): a ▶ control per clipped lap, the player under it */
-.lap-videos { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+/* Lap videos (NS-45, NS-50): a ▶ joined to the end of each lap chip that has
+   a clip, opening the session's one player under the laps. */
+.lap-group { display: inline-flex; align-items: stretch; }
+.lap-group > .lap { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.lap-play {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; padding: 0 9px; margin-left: -1px; cursor: pointer;
+  font: inherit; font-size: 11px; line-height: 1; color: var(--accent-ink);
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  transition: var(--transition);
+}
+@media (hover: hover) { .lap-play:hover { background: var(--surface-hover); } }
+.lap-play.on { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.lap-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; position: relative; }
+.lap-video { margin-top: 14px; }
+.lap-video[hidden] { display: none; }
+.lap-video-head, .lap-video-steps { display: flex; align-items: center; gap: 8px; }
+.lap-video-head .grow, .lap-video-steps .grow { flex: 1; }
+.lap-video-steps { margin-top: 8px; }
+.lap-video-title { font-size: var(--fs-sm); }
+.lap-video-title .t { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .lap-video-body { margin-top: 8px; }
 .lap-video-body video {
   display: block; width: 100%; max-height: 70vh; border-radius: var(--radius-xs);
@@ -691,6 +711,23 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .clip-offer.disabled { cursor: default; }
 .clip-offer.disabled strong { color: var(--text-muted); }
 .clip-offer-locked { margin: 4px 0 14px; }
+.clip-offer label[for] { cursor: pointer; }
+/* NS-50's Best lap / Every lap choice: radios drawn as the theme toggle's pill. */
+.clip-scope {
+  display: inline-flex; align-self: flex-start; padding: 3px; gap: 2px; margin: 6px 0 4px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
+}
+.clip-scope label {
+  position: relative; padding: 4px 12px; cursor: pointer; white-space: nowrap;
+  font-size: var(--fs-sm); color: var(--text-muted);
+  border-radius: var(--radius-pill); transition: var(--transition);
+}
+.clip-scope label.active { background: var(--accent); color: var(--accent-contrast); }
+.clip-scope label.disabled { cursor: default; opacity: 0.5; }
+.clip-scope input { position: absolute; opacity: 0; pointer-events: none; }
+.clip-scope label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .clip-upload { margin-top: 10px; font-size: var(--fs-sm); color: var(--text-muted); }
 .clip-upload[hidden] { display: none; }
 .clip-upload-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

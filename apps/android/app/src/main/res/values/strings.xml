@@ -19,6 +19,6 @@
 
     <!-- The best-lap video upload's foreground notification (NS-45). -->
     <string name="clip_upload_channel_name">Lap video uploads</string>
-    <string name="clip_upload_channel_description">Shows while a best-lap video is uploading.</string>
+    <string name="clip_upload_channel_description">Shows while lap videos are uploading.</string>
     <string name="clip_upload_title">Uploading lap video</string>
 </resources>

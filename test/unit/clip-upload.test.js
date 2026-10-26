@@ -12,6 +12,7 @@ import {
   backoffMs,
   clipBannerText,
   clipFailureText,
+  clipSessionLines,
   clipStatusText,
   createBody,
   createClipUploads,
@@ -406,5 +407,87 @@ describe("the driver", () => {
     h.uploads.cancelAll();
     expect(h.uploads.statuses()).toEqual([]);
     expect(h.uploads.active()).toBe(false);
+  });
+});
+
+// NS-50: a job names its lap, and a session saving every lap says one line.
+describe("every-lap jobs", () => {
+  it("sends lap_num only when the job has one", () => {
+    const base = { id: "j", sessionId: 1, timeMs: 100, sizeBytes: 10, durationMs: 20, lapOffsetMs: 3, createdAtMs: 0 };
+    expect(newJob(base).lapNum).toBeNull();
+    expect(createBody(newJob(base))).toEqual({ time_ms: 100, size_bytes: 10, duration_ms: 20, lap_offset_ms: 3 });
+    expect(createBody(newJob({ ...base, lapNum: 4 }))).toEqual({
+      time_ms: 100,
+      lap_num: 4,
+      size_bytes: 10,
+      duration_ms: 20,
+      lap_offset_ms: 3,
+    });
+  });
+
+  it("collapses one session's jobs into a line", () => {
+    expect(clipSessionLines([])).toEqual([]);
+    expect(clipSessionLines([{ state: "uploading", fraction: 0.5, sizeBytes: 10 }])).toEqual([
+      { text: "Saving lap video · 50%", keys: [] },
+    ]);
+    expect(
+      clipSessionLines([
+        { state: "uploading", fraction: 1, sizeBytes: 100 },
+        { state: "uploading", fraction: 0, sizeBytes: 300 },
+        { state: "cutting", sizeBytes: 0 },
+        { key: "clip-9", state: "failed", reason: "refused" },
+        { key: "clip-8", state: "failed", reason: "lap already has a clip" },
+      ])
+    ).toEqual([
+      { text: "Saving 3 lap videos · 25%", keys: [] },
+      { text: "Couldn't save this lap's video.", keys: ["clip-9"] },
+    ]);
+    expect(clipSessionLines([{ state: "waiting" }, { state: "waiting" }])).toEqual([
+      { text: "2 lap videos waiting to sync", keys: [] },
+    ]);
+    expect(clipSessionLines([{ state: "cutting" }, { state: "cutting" }])).toEqual([{ text: "Saving 2 lap videos…", keys: [] }]);
+    // The same failure on several laps is one line, dismissed together.
+    expect(
+      clipSessionLines([
+        { key: "a", state: "failed", reason: "cut no-video" },
+        { key: "b", state: "failed", reason: "cut no-video" },
+        { key: "c", state: "failed", reason: DropReason.sessionLost },
+        { key: "d", state: "failed", reason: DropReason.sessionLost },
+        { key: "e", state: "failed", reason: DropReason.storageFull },
+      ])
+    ).toEqual([
+      { text: "Couldn't save 2 lap videos.", keys: ["a", "b"] },
+      { text: "This session didn't sync, so its lap videos couldn't be saved.", keys: ["c", "d"] },
+      { text: clipFailureText(DropReason.storageFull), keys: ["e"] },
+    ]);
+  });
+
+  it("cuts one at a time and uploads each lap with its number", async () => {
+    const h = harness();
+    const bodies = [];
+    let cutting = 0;
+    let most = 0;
+    h.uploads.enqueue({ ...enqueueArgs(), lapNum: 1 });
+    h.uploads.enqueue({ ...enqueueArgs(), lapNum: 2 });
+    expect(h.uploads.statuses().map((s) => s.lapNum)).toEqual([1, 2]);
+    await drain(h);
+    expect(h.calls.filter((c) => c[0] === "create").length).toBe(2);
+    expect(h.finished).toEqual([42, 42]);
+    // The concurrency check, on a harness whose cut takes a turn.
+    const slow = createClipUploads({
+      now: () => now,
+      cut: async () => {
+        most = Math.max(most, ++cutting);
+        await new Promise((r) => setTimeout(r, 1));
+        cutting--;
+        return { blob: new Blob([new Uint8Array(2)]), sizeBytes: 2, durationMs: 5000, lapOffsetMs: 3000 };
+      },
+      tempIdState: async () => ({ mapped: null, queued: false }),
+      create: async (_, body) => (bodies.push(body), { kind: "status", status: 400, error: "x" }),
+    });
+    await Promise.all([1, 2, 3].map((n) => slow.enqueue({ ...enqueueArgs(), lapNum: n })));
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(most).toBe(1);
+    expect(bodies.map((b) => b.lap_num).sort()).toEqual([1, 2, 3]);
   });
 });

@@ -113,6 +113,36 @@ describe("uploading a clip", () => {
     expect(row!.lap_num).toBe(2);
   });
 
+  // NS-50: every-lap clips name the lap, so a tie reaches both laps.
+  it("keys on lap_num and time_ms together when lap_num is sent", async () => {
+    const user = await signedInProUser();
+    const eventId = await createEvent(user.api);
+    const s = await user.api("POST", `/events/${eventId}/sessions`, { laps: [99_000, LAP_MS, LAP_MS] });
+    const lapOf = async (clipId: number) =>
+      (await env.DB.prepare("SELECT l.lap_num FROM lap_clips k JOIN laps l ON l.id = k.lap_id WHERE k.id = ?")
+        .bind(clipId)
+        .first<{ lap_num: number }>())!.lap_num;
+    const third = await user.api("POST", `/sessions/${s.body.id}/clip`, createBody(100, { lap_num: 3 }));
+    expect(third.status).toBe(201);
+    expect(await lapOf(third.body.clip_id)).toBe(3);
+    const second = await user.api("POST", `/sessions/${s.body.id}/clip`, createBody(100, { lap_num: 2 }));
+    expect(second.status).toBe(201);
+    expect(await lapOf(second.body.clip_id)).toBe(2);
+    const first = await user.api("POST", `/sessions/${s.body.id}/clip`, createBody(100, { lap_num: 1, time_ms: 99_000 }));
+    expect(first.status).toBe(201);
+    // A lap number whose time doesn't match is no lap at all.
+    expect((await user.api("POST", `/sessions/${s.body.id}/clip`, createBody(100, { lap_num: 1 }))).status).toBe(404);
+    expect((await user.api("POST", `/sessions/${s.body.id}/clip`, createBody(100, { lap_num: 4 }))).status).toBe(404);
+    for (const bad of [0, -1, 1.5, "2"]) {
+      expect((await user.api("POST", `/sessions/${s.body.id}/clip`, createBody(100, { lap_num: bad }))).status).toBe(400);
+    }
+    // An explicit null is the old rule.
+    const s2 = await user.api("POST", `/events/${eventId}/sessions`, { laps: [LAP_MS, LAP_MS] });
+    const old = await user.api("POST", `/sessions/${s2.body.id}/clip`, createBody(100, { lap_num: null }));
+    expect(old.status).toBe(201);
+    expect(await lapOf(old.body.clip_id)).toBe(1);
+  });
+
   it("resumes: a second create answers the same clip with the parts already in", async () => {
     const user = await signedInProUser();
     const { sessionId } = await sessionWithLaps(user.api);
@@ -206,6 +236,7 @@ describe("uploading a clip", () => {
 
     const me = (await user.api("GET", "/me")).body.user;
     expect(me.clips).toEqual({ used_bytes: CLIP_QUOTA_BYTES, quota_bytes: CLIP_QUOTA_BYTES, coach_count: 0 });
+    expect(CLIP_QUOTA_BYTES).toBe(50 * 1024 ** 3);
   });
 });
 

@@ -24,6 +24,7 @@ import app.trackevolution.core.clips.ClipUploadQueue
 import app.trackevolution.core.clips.ClipUploadRunner
 import app.trackevolution.data.settingsDataStore
 import app.trackevolution.videoimport.ClipCutter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +35,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.time.Duration
 import java.util.UUID
@@ -63,6 +66,13 @@ import java.util.UUID
  * moving is the runner's to cancel (`ClipUploadRunner.STALL_MS`); and a job
  * the queue gives up on stays in the manifest with its reason, said once on
  * its lap.
+ *
+ * **One cut and one upload at a time** (NS-50): a session saved lap by lap
+ * hands over a job per lap at once, and eight `MediaMuxer` cuts of the same
+ * source or eight 50 MiB parts in flight help nobody. Cuts run in the order
+ * they were asked for ([cutLock]); each job keeps its own unique work, so
+ * every NS-45 rule about scheduling one job holds, and the workers take turns
+ * on [uploadLock] — a fair mutex, so they go in the order they arrived.
  */
 internal class ClipUploads(
     context: Context,
@@ -89,6 +99,19 @@ internal class ClipUploads(
 
     /** The network the last callback described — its id and the two facts — to notice a new one. */
     private var networkSignature: String? = null
+
+    /** Cuts one at a time, in the order asked for. */
+    private val cutLock = Mutex()
+
+    /** Uploads one job at a time: see [oneAtATime]. */
+    private val uploadLock = Mutex()
+
+    /**
+     * Runs [block] — a worker's whole run of one job — once no other job's run
+     * is in progress. A waiting worker holds no thread, and cancelling it (a
+     * `REPLACE`, a constraint lost) just leaves the queue.
+     */
+    suspend fun <T> oneAtATime(block: suspend () -> T): T = uploadLock.withLock { block() }
 
     /** *Upload lap videos over cellular* — off by default (Wi-Fi only). */
     override val cellularAllowed: Flow<Boolean> = appContext.settingsDataStore.data.map { it[CELLULAR_KEY] ?: false }
@@ -194,6 +217,7 @@ internal class ClipUploads(
             sessionId = request.sessionId,
             eventId = request.eventId,
             timeMs = request.timeMs,
+            lapNum = request.lapNum,
             state = ClipJob.State.CUTTING,
             createdAt = System.currentTimeMillis(),
         )
@@ -201,11 +225,17 @@ internal class ClipUploads(
             manifest.put(job)
             val out = File(dir, "${job.id}.mp4")
             val cut = try {
-                ClipCutter.cut(appContext.contentResolver, request.source, request.window, out)
+                cutLock.withLock {
+                    // Signed out while it waited its turn: nothing to cut for.
+                    if (manifest.get(job.id) == null) return@launch
+                    ClipCutter.cut(appContext.contentResolver, request.source, request.window, out)
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Nothing was written, and the session is already saved. The lap
                 // page says so once: "Couldn't save this lap's video."
-                Log.w(TAG, "couldn't cut the best lap from ${request.source}", e)
+                Log.w(TAG, "couldn't cut lap ${request.lapNum ?: "?"} from ${request.source}", e)
                 manifest.update(job.id) { it.copy(state = ClipJob.State.CUT_FAILED, file = null, failedAt = System.currentTimeMillis()) }
                 return@launch
             }

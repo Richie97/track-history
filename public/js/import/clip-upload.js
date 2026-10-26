@@ -71,13 +71,16 @@ export const DropReason = Object.freeze({
 const isTemp = (id) => typeof id === "string" && id.startsWith("tmp-");
 
 // One clip on its way up. `sessionId` is what the session POST answered — a
-// `tmp-N` id when the save was queued offline. Everything from `clipId` on is
-// the server's answer to the create.
-export function newJob({ id, sessionId, timeMs, sizeBytes, durationMs, lapOffsetMs, createdAtMs }) {
+// `tmp-N` id when the save was queued offline. `lapNum` (NS-50) is the lap's
+// place in that session, which the create sends beside the time so a tie on
+// time reaches the right lap; null for a job made before it existed. Everything
+// from `clipId` on is the server's answer to the create.
+export function newJob({ id, sessionId, timeMs, lapNum = null, sizeBytes, durationMs, lapOffsetMs, createdAtMs }) {
   return {
     id,
     sessionId,
     timeMs,
+    lapNum: lapNum ?? null,
     sizeBytes,
     durationMs,
     lapOffsetMs,
@@ -92,9 +95,11 @@ export function newJob({ id, sessionId, timeMs, sizeBytes, durationMs, lapOffset
   };
 }
 
-// The body of POST /sessions/:id/clip.
+// The body of POST /sessions/:id/clip. `lap_num` only when the job has one, so
+// an older job posts exactly what it always did.
 export const createBody = (job) => ({
   time_ms: job.timeMs,
+  ...(job.lapNum != null ? { lap_num: job.lapNum } : {}),
   size_bytes: job.sizeBytes,
   duration_ms: job.durationMs,
   lap_offset_ms: job.lapOffsetMs,
@@ -254,6 +259,26 @@ export function clipFailureText(reason) {
   }
 }
 
+// The same sentence for `n` jobs of one session given up for the same reason
+// (NS-50: a session saving every lap fails them together when it fails).
+export function clipFailuresText(reason, n) {
+  if (!(n > 1)) return clipFailureText(reason);
+  switch (reason) {
+    case DropReason.alreadyHasClip:
+      return "";
+    case DropReason.sessionLost:
+      return "This session didn't sync, so its lap videos couldn't be saved.";
+    case DropReason.notFound:
+      return "The session was deleted before its lap videos were saved.";
+    case DropReason.storageFull:
+    case DropReason.proRequired:
+    case DropReason.sourceUnreadable:
+      return clipFailureText(reason);
+    default:
+      return `Couldn't save ${n} lap videos.`;
+  }
+}
+
 // One running job's line on its session card.
 export function clipStatusText(status) {
   if (!status) return "";
@@ -262,6 +287,33 @@ export function clipStatusText(status) {
   if (status.state === "waiting") return "Lap video waiting to sync";
   const pct = `${Math.floor((status.fraction ?? 0) * 100)}%`;
   return status.retrying ? `Saving lap video · ${pct} · retrying shortly` : `Saving lap video · ${pct}`;
+}
+
+// One session's lines on its card (NS-50): a session saving every lap has a job
+// per lap, said as one line — "Saving 6 lap videos · 40%", the jobs still
+// running, weighted by bytes — and the failed jobs one line per reason. A
+// single job keeps clipStatusText's words. Each line is { text, keys }, `keys`
+// the failed jobs' (for Dismiss), empty for the running line.
+export function clipSessionLines(statuses) {
+  const failed = statuses.filter((s) => s.state === "failed" && clipFailureText(s.reason));
+  const active = statuses.filter((s) => s.state !== "failed");
+  const lines = [];
+  if (active.length === 1) lines.push({ text: clipStatusText(active[0]), keys: [] });
+  else if (active.length > 1) {
+    const n = active.length;
+    if (active.every((s) => s.state === "waiting")) lines.push({ text: `${n} lap videos waiting to sync`, keys: [] });
+    else if (active.every((s) => s.state === "cutting")) lines.push({ text: `Saving ${n} lap videos…`, keys: [] });
+    else {
+      const bytes = active.reduce((sum, s) => sum + (s.sizeBytes ?? 0), 0);
+      const done = active.reduce((sum, s) => sum + (s.sizeBytes ?? 0) * (s.fraction ?? 0), 0);
+      const pct = bytes ? ` · ${Math.floor((done / bytes) * 100)}%` : "";
+      lines.push({ text: `Saving ${n} lap videos${pct}`, keys: [] });
+    }
+  }
+  const byReason = new Map();
+  for (const s of failed) byReason.set(s.reason, [...(byReason.get(s.reason) ?? []), s.key]);
+  for (const [reason, keys] of byReason) lines.push({ text: clipFailuresText(reason, keys.length), keys });
+  return lines;
 }
 
 // The shell's banner over every running job, or "" when none is.
@@ -309,7 +361,8 @@ export function createClipUploads(deps) {
     return entries.map((e) => ({
       key: e.key,
       sessionId: e.job?.sessionId ?? e.session,
-      timeMs: e.job?.timeMs ?? null,
+      timeMs: e.job?.timeMs ?? e.timeMs ?? null,
+      lapNum: e.job?.lapNum ?? e.lapNum ?? null,
       state: e.state,
       reason: e.reason ?? null,
       sizeBytes: e.job?.sizeBytes ?? 0,
@@ -326,21 +379,28 @@ export function createClipUploads(deps) {
     return Math.min(1, (held + e.sent) / j.sizeBytes);
   }
 
-  // Hand a saved session's best lap over. Never throws: a cut that fails is a
-  // failed entry, said on the session card, and the session is already saved.
-  async function enqueue({ sessionId, timeMs, file, window, lapStartS }) {
+  // Cuts run one after another: a session saved lap by lap enqueues a dozen at
+  // once, and each cut reads the source's moov.
+  let cutChain = Promise.resolve();
+
+  // Hand one saved lap over. Never throws: a cut that fails is a failed entry,
+  // said on the session card, and the session is already saved.
+  async function enqueue({ sessionId, timeMs, lapNum = null, file, window, lapStartS }) {
     const gen = generation;
-    const entry = { key: `clip-${++seq}`, job: null, blob: null, state: "cutting", sent: 0, session: sessionId };
+    const entry = { key: `clip-${++seq}`, job: null, blob: null, state: "cutting", sent: 0, session: sessionId, timeMs, lapNum };
     entries.push(entry);
     emit();
+    const turn = cutChain.then(() => (gen === generation ? deps.cut(file, window, lapStartS) : null));
+    cutChain = turn.catch(() => {});
     try {
-      const cut = await deps.cut(file, window, lapStartS);
+      const cut = await turn;
       if (gen !== generation) return;
       entry.blob = cut.blob;
       entry.job = newJob({
         id: entry.key,
         sessionId,
         timeMs,
+        lapNum,
         sizeBytes: cut.sizeBytes,
         durationMs: cut.durationMs,
         lapOffsetMs: cut.lapOffsetMs,

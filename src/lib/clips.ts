@@ -15,8 +15,8 @@ const GiB = 1024 * MiB;
 // 5 MiB multipart floor.
 export const CLIP_PART_BYTES = 50 * MiB;
 // Per user: every ready clip plus the declared size of every uploading one.
-// About 130 clips at ~150 MB.
-export const CLIP_QUOTA_BYTES = 20 * GiB;
+// About 500 laps at ~100 MB — sixty-odd sessions saved lap by lap (NS-50).
+export const CLIP_QUOTA_BYTES = 50 * GiB;
 // One clip. A passthrough cut of a lap keeps the source's bitrate, so this is
 // generous; it exists to refuse a body that is not a lap at all.
 export const MAX_CLIP_BYTES = GiB;
@@ -115,12 +115,13 @@ export function clipFilename(trackName: string | null | undefined, date: string 
 }
 
 // Body validation for POST /sessions/:id/clip. A positive whole number in
-// range, or the reason it isn't.
+// range, or the reason it isn't. `lap_num` (NS-50) is optional — a shipped
+// client keys on the time alone — and null when absent.
 export function validateClipCreate(
   body: unknown
 ):
   | { error: string }
-  | { time_ms: number; size_bytes: number; duration_ms: number; lap_offset_ms: number } {
+  | { time_ms: number; lap_num: number | null; size_bytes: number; duration_ms: number; lap_offset_ms: number } {
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const int = (v: unknown) => typeof v === "number" && Number.isInteger(v);
   if (!int(b.time_ms) || (b.time_ms as number) <= 0) return { error: "invalid time_ms" };
@@ -133,8 +134,10 @@ export function validateClipCreate(
   if ((b.time_ms as number) > MAX_CLIP_S * 1000) return { error: "clip too long" };
   if (!int(b.lap_offset_ms) || (b.lap_offset_ms as number) < 0 || (b.lap_offset_ms as number) >= (b.duration_ms as number))
     return { error: "invalid lap_offset_ms" };
+  if (b.lap_num != null && (!int(b.lap_num) || (b.lap_num as number) <= 0)) return { error: "invalid lap_num" };
   return {
     time_ms: b.time_ms as number,
+    lap_num: (b.lap_num as number | null | undefined) ?? null,
     size_bytes: b.size_bytes as number,
     duration_ms: b.duration_ms as number,
     lap_offset_ms: b.lap_offset_ms as number,

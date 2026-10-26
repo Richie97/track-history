@@ -2104,9 +2104,16 @@ The server half is `src/routes/clips.ts` over migration 0032:
 - **Tier**: create, url and download are Pro; parts, complete and `DELETE
   /api/clips/:id` are not, so a lapse mid-upload still finishes and a lapsed
   driver can always delete. A lapsed account's clips are kept and shown
-  locked. `CLIP_QUOTA_BYTES` is 20 GiB per user, counting uploading clips at
-  their declared size; a create over it is a 409 and nothing is ever deleted
-  to make room.
+  locked. `CLIP_QUOTA_BYTES` is 50 GiB per user (20 GiB before NS-50),
+  counting uploading clips at their declared size; a create over it is a 409
+  and nothing is ever deleted to make room.
+- **Every lap** (NS-50, `docs/specs/native/NS-50-every-lap-clips.md`): a PDR
+  import's review can save a clip of every full lap rather than the best
+  one, a Best lap / Every lap choice that starts on Best lap. Each lap is its
+  own clip and its own upload job, and the create names the lap with
+  `lap_num` (its position in the session) beside `time_ms`, so two laps tied
+  on time each get their own. A create without `lap_num` keeps the old
+  lowest-lap-number rule, for shipped clients.
 - **Deleting a row never deletes the object.** A trigger writes a tombstone
   for every clip row that goes — its lap, session, event or track, and the
   account, since `users` cascades — and `sweepClips` in the daily cron

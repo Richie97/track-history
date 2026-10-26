@@ -46,7 +46,7 @@ struct LapClipGoldenTests {
         let me = try Goldens.decode(Me.self, "me-pro-legacy")
         let clips = try #require(me.user.clips)
         #expect(clips.usedBytes == 2048)
-        #expect(clips.quotaBytes == 20 * 1024 * 1024 * 1024)
+        #expect(clips.quotaBytes == 50 * 1024 * 1024 * 1024)
         #expect(clips.coachCount == 0)
     }
 }

@@ -11,9 +11,9 @@ struct ClipUploadQueueTests {
     private static let now = 1_800_000_000_000
 
     /// A 120 MiB clip: three parts of 50, 50 and 20 MiB.
-    private static func job(sessionId: Int = 42) -> ClipUploadJob {
+    private static func job(sessionId: Int = 42, lapNum: Int? = 4) -> ClipUploadJob {
         ClipUploadJob(
-            id: "job-1", sessionId: sessionId, timeMs: 121_345, file: "job-1.mp4",
+            id: "job-1", sessionId: sessionId, timeMs: 121_345, lapNum: lapNum, file: "job-1.mp4",
             sizeBytes: 120 * MiB, durationMs: 126_400, lapOffsetMs: 3_317, createdAtMs: now
         )
     }
@@ -57,8 +57,15 @@ struct ClipUploadQueueTests {
 
     @Test func aFreshJobStartsWithTheCreate() {
         let body = Self.job().createBody
-        #expect(body == ClipCreateBody(timeMs: 121_345, sizeBytes: 120 * Self.MiB, durationMs: 126_400, lapOffsetMs: 3_317))
+        #expect(body == ClipCreateBody(timeMs: 121_345, lapNum: 4, sizeBytes: 120 * Self.MiB, durationMs: 126_400, lapOffsetMs: 3_317))
         #expect(ClipUploadQueue.nextAction(Self.job(), session: .real(42), nowMs: Self.now) == .create(sessionId: 42, body: body))
+    }
+
+    @Test func theCreateBodySendsLapNumOnlyWhenTheJobHasOne() throws {
+        let withNum = try JSONDecoder().decode([String: Int].self, from: JSONEncoder().encode(Self.job().createBody))
+        #expect(withNum == ["time_ms": 121_345, "lap_num": 4, "size_bytes": 120 * Self.MiB, "duration_ms": 126_400, "lap_offset_ms": 3_317])
+        let old = try JSONDecoder().decode([String: Int].self, from: JSONEncoder().encode(Self.job(lapNum: nil).createBody))
+        #expect(old == ["time_ms": 121_345, "size_bytes": 120 * Self.MiB, "duration_ms": 126_400, "lap_offset_ms": 3_317])
     }
 
     @Test func theCreateAnswerSetsUpThePartsAndTheFirstPartFollows() {
@@ -238,10 +245,33 @@ struct ClipUploadQueueTests {
     // MARK: - The lap page
 
     @Test func aJobIsForTheLapOnEitherItsTempOrItsRealSessionId() {
-        #expect(ClipUploadQueue.isFor(sessionId: -3, timeMs: 100, sessionId: -3, resolved: nil, timeMs: 100))
-        #expect(ClipUploadQueue.isFor(sessionId: -3, timeMs: 100, sessionId: 42, resolved: 42, timeMs: 100))
-        #expect(!ClipUploadQueue.isFor(sessionId: -3, timeMs: 100, sessionId: 42, resolved: nil, timeMs: 100))
-        #expect(!ClipUploadQueue.isFor(sessionId: 42, timeMs: 100, sessionId: 42, resolved: nil, timeMs: 101))
+        func isFor(_ jobSession: Int, _ jobTime: Int, _ sessionId: Int, _ resolved: Int?, _ timeMs: Int) -> Bool {
+            ClipUploadQueue.isFor(
+                sessionId: jobSession, timeMs: jobTime, lapNum: 2,
+                sessionId: sessionId, resolved: resolved, timeMs: timeMs, lapNum: 2, isClipLap: false
+            )
+        }
+        #expect(isFor(-3, 100, -3, nil, 100))
+        #expect(isFor(-3, 100, 42, 42, 100))
+        #expect(!isFor(-3, 100, 42, nil, 100))
+        #expect(!isFor(42, 100, 42, nil, 101))
+    }
+
+    /// NS-50: a session saving every lap has a job per lap, so the lap number
+    /// decides — two laps tied on time each find their own.
+    @Test func aJobWithALapNumberIsForThatLapOnly() {
+        func isFor(job jobLap: Int?, lap lapNum: Int, isClipLap: Bool) -> Bool {
+            ClipUploadQueue.isFor(
+                sessionId: 42, timeMs: 100, lapNum: jobLap,
+                sessionId: 42, resolved: nil, timeMs: 100, lapNum: lapNum, isClipLap: isClipLap
+            )
+        }
+        #expect(isFor(job: 3, lap: 3, isClipLap: false))
+        #expect(!isFor(job: 3, lap: 2, isClipLap: true))
+        // A job from before lap numbers: the time alone, on the lap the server
+        // attached it to.
+        #expect(isFor(job: nil, lap: 2, isClipLap: true))
+        #expect(!isFor(job: nil, lap: 3, isClipLap: false))
     }
 
     @Test func theClipLandsOnTheLowestLapNumberWithItsTime() {
@@ -252,16 +282,35 @@ struct ClipUploadQueueTests {
         ]
         #expect(ClipUploadQueue.clipLap(laps, timeMs: 100_000)?.id == 2)
         #expect(ClipUploadQueue.clipLap(laps, timeMs: 99_000) == nil)
+        // With a lap number, that lap — the second of two tied laps included.
+        #expect(ClipUploadQueue.clipLap(laps, timeMs: 100_000, lapNum: 3)?.id == 3)
+        #expect(ClipUploadQueue.clipLap(laps, timeMs: 101_000, lapNum: 3) == nil, "a number whose time doesn't match lands nowhere")
     }
 
     @Test func theManifestRoundTripsInSnakeCase() throws {
         var job = Self.started(uploaded: [1])
         job.notBeforeMs = Self.now
-        let manifest = ClipUploadManifest(jobs: [job], failedCuts: [.init(sessionId: -3, timeMs: 99_000)])
+        let manifest = ClipUploadManifest(jobs: [job], failedCuts: [.init(sessionId: -3, timeMs: 99_000, lapNum: 5)])
         let data = try JSONEncoder().encode(manifest)
         let json = try #require(String(data: data, encoding: .utf8))
         #expect(json.contains("\"session_id\":42") && json.contains("\"failed_cuts\"") && json.contains("\"part_bytes\""))
+        #expect(json.contains("\"lap_num\":4") && json.contains("\"lap_num\":5"))
         #expect(try JSONDecoder().decode(ClipUploadManifest.self, from: data) == manifest)
+    }
+
+    /// A manifest written before NS-50 has no `lap_num`: its jobs still load,
+    /// and post without one.
+    @Test func aJobFromBeforeLapNumbersStillLoads() throws {
+        let old = Data((
+            #"{"jobs":[{"id":"job-1","session_id":42,"time_ms":121345,"file":"job-1.mp4","size_bytes":10,"#
+                + #""duration_ms":126400,"lap_offset_ms":3317,"uploaded":[],"failures":0,"restarts":0,"created_at_ms":1}],"#
+                + #""failed_cuts":[{"session_id":42,"time_ms":121345}]}"#
+        ).utf8)
+        let manifest = try JSONDecoder().decode(ClipUploadManifest.self, from: old)
+        let job = try #require(manifest.jobs.first)
+        #expect(job.lapNum == nil)
+        #expect(job.createBody.lapNum == nil)
+        #expect(manifest.failedCuts.first?.lapNum == nil)
     }
 
     @Test func aFailedUploadKeepsItsReasonAndAnOldManifestStillReads() throws {

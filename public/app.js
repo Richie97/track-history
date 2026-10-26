@@ -60,7 +60,7 @@ import {
 import {
   PLANS_DISABLED, billedText, checkoutIdFrom, endedText, fmtPlanPrice, plansEnabled, subscribeLabel, trialLine,
 } from "./js/billing.js";
-import { clipStorageLine, playbackStartMs } from "./js/import/clip.js";
+import { clipStorageLine, lapVideoList, lapVideoStep, playbackStartMs } from "./js/import/clip.js";
 import { cutClip } from "./js/import/mp4cut.js";
 import {
   GOOGLE_PERMISSIONS_URL, YOUTUBE_CONNECT_TEXT, YOUTUBE_DEFAULT_PRIVACY, YOUTUBE_DELETE_NOTE, YOUTUBE_DISCONNECT_NOTE,
@@ -68,7 +68,7 @@ import {
   youtubeIsPending, youtubeOffer, youtubeRequestError, youtubeStatusLine,
 } from "./js/youtube.js";
 import {
-  clipBannerText, clipStatusText, createClipUploads, liveComplete, liveCreate, livePutPart,
+  clipBannerText, clipSessionLines, createClipUploads, liveComplete, liveCreate, livePutPart,
 } from "./js/import/clip-upload.js";
 
 const $app = document.getElementById("app");
@@ -2007,13 +2007,14 @@ function paintClipUploads() {
     banner.textContent = text;
   }
   document.querySelectorAll("[data-clip-upload]").forEach((el) => {
-    const mine = statuses.filter((st) => clipForSession(st, el.dataset.clipUpload) && clipStatusText(st));
-    el.hidden = !mine.length;
-    el.innerHTML = mine
+    // A session saving every lap (NS-50) has a job per lap, said as one line.
+    const lines = clipSessionLines(statuses.filter((st) => clipForSession(st, el.dataset.clipUpload)));
+    el.hidden = !lines.length;
+    el.innerHTML = lines
       .map(
-        (st) => `<div class="clip-upload-line${st.state === "failed" ? " failed" : ""}">
-          <span>${esc(clipStatusText(st))}</span>
-          ${st.state === "failed" ? `<button class="btn small ghost" type="button" data-clip-dismiss="${esc(st.key)}">Dismiss</button>` : ""}
+        (line) => `<div class="clip-upload-line${line.keys.length ? " failed" : ""}">
+          <span>${esc(line.text)}</span>
+          ${line.keys.length ? `<button class="btn small ghost" type="button" data-clip-dismiss="${esc(line.keys.join(" "))}">Dismiss</button>` : ""}
         </div>`
       )
       .join("");
@@ -2022,49 +2023,105 @@ function paintClipUploads() {
 
 document.addEventListener("click", (e) => {
   const btn = e.target instanceof Element ? e.target.closest("[data-clip-dismiss]") : null;
-  if (btn) clipUploads.dismiss(btn.dataset.clipDismiss);
+  if (btn) for (const key of btn.dataset.clipDismiss.split(" ")) clipUploads.dismiss(key);
 });
 
-// ---------- best-lap videos (NS-45) ------------------------------------------
+// ---------- lap videos (NS-45, NS-50) -----------------------------------------
+//
+// A lap's video hangs off the lap itself, as on the phones' session cards: a ▶
+// joined to the end of each lap chip that has a clip (lapPlayHtml — the plain
+// lap list and the channel panel's chips both carry it), opening one player per
+// session under the laps. The player names its lap and steps to the previous
+// and next lap with a video, so a session saved lap by lap is one player rather
+// than a stack of them.
 
-// The lap rows that carry a clip, under a session's laps: a ▶ control per
-// clip that opens an inline player, with Download and Delete for the owner.
+// Which clip each session's player is showing, by session id: the ▶ controls
+// read it to draw themselves pressed, including the channel panel's chips,
+// which re-render on every toggle. Cleared whenever the event page renders,
+// since a render closes every player.
+const openLapVideos = new Map();
+
+// The ▶ for one lap, or "" when it has no clip.
+function lapPlayHtml(s, lap) {
+  if (!lap?.clip) return "";
+  const on = String(openLapVideos.get(String(s.id))) === String(lap.clip.id);
+  const n = Number(lap.lap_num) || 0;
+  const label = `${on ? "Hide" : "Play"} lap ${n} video`;
+  return `<button type="button" class="lap-play${on ? " on" : ""}" data-video-play="${esc(lap.clip.id)}" data-video-session="${esc(s.id)}" data-lap-num="${n}"
+    aria-pressed="${on}" aria-controls="lap-video-${esc(s.id)}" aria-label="${label}" title="${label}">▶</button>`;
+}
+
+// The session's player, closed until a ▶ opens it. Its lap list rides on the
+// element, so the delegated handler below needs nothing but the DOM.
 function lapVideosHtml(s) {
-  const clipped = s.laps.filter((l) => l.clip);
-  for (const l of clipped) renderedClips.set(String(l.clip.id), l.clip);
-  if (!clipped.length) return "";
-  return `<div class="lap-videos">${clipped
-    .map(
-      (l) => `<div class="lap-video" data-lap-video="${l.clip.id}" data-lap-offset="${Number(l.clip.lap_offset_ms) || 0}">
-        <button class="btn small" data-video-toggle="${l.clip.id}" data-lap-num="${Number(l.lap_num) || 0}" aria-expanded="false" aria-controls="lap-video-${l.clip.id}">${videoToggleLabel(l.lap_num, false)}</button>
-        <div class="lap-video-body" id="lap-video-${l.clip.id}" hidden></div>
-      </div>`
-    )
-    .join("")}</div>`;
+  for (const l of s.laps) if (l.clip) renderedClips.set(String(l.clip.id), l.clip);
+  const list = lapVideoList(s.laps);
+  if (!list.length) return "";
+  return `<div class="lap-video" id="lap-video-${esc(s.id)}" data-lap-video-session="${esc(s.id)}" data-clips="${esc(JSON.stringify(list))}" hidden></div>`;
 }
 
 // The clips the event page last drew, by id — what the YouTube panel (NS-46)
 // reads `clip.youtube` from when a player opens.
 const renderedClips = new Map();
 
-// The control says what it will do: play the lap, or put the player away.
-const videoToggleLabel = (lapNum, open) => (open ? `Hide lap ${lapNum} video` : `▶ Lap ${lapNum} video`);
-
 const VIDEO_NEEDS_CONNECTION = "Playing a lap video needs a connection.";
 const studentVideoNote = () => `Lap videos play while ${esc(viewing?.name || "this driver")} has Pro.`;
 
-// Open one clip's player: a URL from the server every time (it expires in an
-// hour, so it is never cached), seeked to the lap once its metadata is in —
-// `preload="metadata"` so the player opens on the lap's first frame with its
-// length showing rather than as an empty box — so the pre-roll is one scrub
-// back.
-async function openLapVideo(box) {
-  const id = box.dataset.lapVideo;
+// Redraw every ▶ of one session to say which lap is playing.
+function paintLapPlays(sessionId) {
+  const open = openLapVideos.get(String(sessionId));
+  document.querySelectorAll(`[data-video-play][data-video-session="${CSS.escape(String(sessionId))}"]`).forEach((btn) => {
+    const on = open != null && btn.dataset.videoPlay === String(open);
+    const label = `${on ? "Hide" : "Play"} lap ${btn.dataset.lapNum} video`;
+    btn.classList.toggle("on", on);
+    btn.setAttribute("aria-pressed", String(on));
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
+  });
+}
+
+function closeLapVideo(box) {
+  openLapVideos.delete(box.dataset.lapVideoSession);
+  box.hidden = true;
+  box.innerHTML = "";
+  paintLapPlays(box.dataset.lapVideoSession);
+}
+
+// Show one lap in its session's player: the lap's name and time, the steps to
+// its neighbours, then the video — a URL from the server every time (it
+// expires in an hour, so it is never cached), seeked to PLAYBACK_LEAD_S before
+// the lap once its metadata is in, so the crossing is on screen.
+async function showLapVideo(box, clipId) {
+  const list = JSON.parse(box.dataset.clips || "[]");
+  const v = list.find((x) => String(x.clipId) === String(clipId));
+  if (!v) return;
+  const sid = box.dataset.lapVideoSession;
+  openLapVideos.set(sid, v.clipId);
+  paintLapPlays(sid);
+  const prev = lapVideoStep(list, v.clipId, -1);
+  const next = lapVideoStep(list, v.clipId, 1);
+  const step = (to, dir) =>
+    list.length > 1
+      ? `<button class="btn small" type="button" data-video-step="${to ? esc(to.clipId) : ""}" ${to ? "" : "disabled"}>${
+          dir < 0 ? `‹ ${to ? `Lap ${to.lapNum}` : "Previous"}` : `${to ? `Lap ${to.lapNum}` : "Next"} ›`
+        }</button>`
+      : "";
+  box.hidden = false;
+  box.innerHTML = `<div class="lap-video-head">
+      <span class="lap-video-title"><strong>Lap ${v.lapNum} video</strong> <span class="t">${fmtMs(v.timeMs)}${v.best ? " ★" : ""}</span></span>
+      <span class="grow"></span>
+      <button class="btn small ghost" type="button" data-video-close>Hide video</button>
+    </div>
+    ${list.length > 1 ? `<div class="lap-video-steps">${step(prev, -1)}<span class="grow"></span>${step(next, 1)}</div>` : ""}
+    <div class="lap-video-body"></div>`;
   const body = box.querySelector(".lap-video-body");
+  // Still this lap: another step or Hide may have come while a URL was on its way.
+  const current = () => !box.hidden && String(openLapVideos.get(sid)) === String(v.clipId);
+  const id = v.clipId;
   if (!canSaveLapVideo(ent())) {
     body.innerHTML = readOnly()
       ? `<p class="hint">${studentVideoNote()}</p>`
-      : proPanelHtml("Lap video", "Your best-lap video is kept. Pro plays it, downloads it and saves new ones from a video import.");
+      : proPanelHtml("Lap video", "Your lap video is kept. Pro plays it, downloads it and saves new ones from a video import.");
     // A link to a copy already on YouTube isn't Pro (NS-46).
     if (!readOnly()) youtubePanel(body, id);
     return;
@@ -2074,14 +2131,13 @@ async function openLapVideo(box) {
   try {
     signed = sharedView ? await sharedClipUrl(id) : await api(`/clips/${id}/url`, { cache: false });
   } catch (err) {
-    if (body.hidden) return;
+    if (!current()) return;
     body.innerHTML = `<p class="hint">${
       err instanceof OfflineError ? VIDEO_NEEDS_CONNECTION : err instanceof ApiError && err.status === 404 ? "This video has been deleted." : esc(err.message)
     }</p>`;
     return;
   }
-  // Closed again while the URL was on its way.
-  if (body.hidden) return;
+  if (!current()) return;
   body.innerHTML = `<video controls preload="metadata" playsinline src="${esc(signed.url)}"></video>
     ${
       readOnly()
@@ -2094,7 +2150,7 @@ async function openLapVideo(box) {
   youtubePanel(body, id);
   const video = body.querySelector("video");
   // A couple of seconds of run-up, so the crossing is on screen.
-  const offsetS = playbackStartMs(Number(box.dataset.lapOffset)) / 1000;
+  const offsetS = playbackStartMs(Number(v.offsetMs)) / 1000;
   video.addEventListener("loadedmetadata", () => { if (offsetS > 0 && offsetS < video.duration) video.currentTime = offsetS; }, { once: true });
   video.addEventListener("error", () => {
     if (!navigator.onLine) body.querySelector("video")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);
@@ -2356,18 +2412,23 @@ function showYouTubeResult(params) {
 
 // Delegated and bound once, rather than per render: the event page re-renders
 // whole through shell(), and a click that lands while it does must still reach
-// whichever button is under it.
+// whichever button is under it. A ▶ opens its lap, or closes the player when
+// that lap is the one showing.
 document.addEventListener("click", (e) => {
-  const btn = e.target instanceof Element ? e.target.closest("[data-video-toggle]") : null;
-  const box = btn?.closest("[data-lap-video]");
+  const el = e.target instanceof Element ? e.target : null;
+  const play = el?.closest("[data-video-play]");
+  if (play) {
+    const box = document.getElementById(`lap-video-${play.dataset.videoSession}`);
+    if (!box) return;
+    if (!box.hidden && String(openLapVideos.get(box.dataset.lapVideoSession)) === play.dataset.videoPlay) closeLapVideo(box);
+    else showLapVideo(box, play.dataset.videoPlay);
+    return;
+  }
+  const box = el?.closest("[data-lap-video-session]");
   if (!box) return;
-  const body = box.querySelector(".lap-video-body");
-  const open = body.hidden;
-  body.hidden = !open;
-  btn.setAttribute("aria-expanded", String(open));
-  btn.textContent = videoToggleLabel(btn.dataset.lapNum, open);
-  if (open) openLapVideo(box);
-  else body.innerHTML = "";
+  const step = el.closest("[data-video-step]");
+  if (step?.dataset.videoStep) showLapVideo(box, step.dataset.videoStep);
+  else if (el.closest("[data-video-close]")) closeLapVideo(box);
 });
 
 // "Entry $450 · Fuel $120 · Travel & lodging $300" under a cost figure — only
@@ -2386,6 +2447,8 @@ async function viewEvent(eventId) {
   const [e, tracks, garage] = sharedView
     ? [sharedView.event, [], []]
     : await Promise.all([api(`/events/${eventId}`), api("/tracks"), api("/garage").catch(() => [])]);
+  // Rendering closes every lap video player, so none is open now.
+  openLapVideos.clear();
   const track = tracks.find((t) => t.id === e.track_id);
   // Read-only is a coach reading a student's event (NS-38): no writes, no
   // setup notebook or checklist (neither is shared), and no personal-best
@@ -2409,7 +2472,10 @@ async function viewEvent(eventId) {
         : `<div class="laps">${s.laps
             .map(
               (l) =>
-                `<span class="lap${l.time_ms === best ? " best" : ""}">Lap ${l.lap_num} · ${fmtMs(l.time_ms)}${l.time_ms === best ? " ★" : ""}</span>`
+                ((chip, play) => (play ? `<span class="lap-group">${chip}${play}</span>` : chip))(
+                  `<span class="lap${l.time_ms === best ? " best" : ""}">Lap ${l.lap_num} · ${fmtMs(l.time_ms)}${l.time_ms === best ? " ★" : ""}</span>`,
+                  lapPlayHtml(s, l)
+                )
             )
             .join("")}</div>`;
       // Session analysis from the laps we already have: representative pace,
@@ -2481,7 +2547,7 @@ async function viewEvent(eventId) {
         </form>`
         }
         ${lapsHtml}
-        ${lapVideosHtml(s)}
+        ${s.channels?.laps?.length ? "" : lapVideosHtml(s)}
         ${ro ? "" : `<div class="clip-upload" data-clip-upload="${esc(s.id)}" role="status" hidden></div>`}
         ${
           ro
@@ -2860,6 +2926,9 @@ async function viewEvent(eventId) {
     };
     if (!channelPanelMemory.has(s.id)) channelPanelMemory.set(s.id, {});
     const panel = bindChannelGraphs(el, s.channels, s.laps, {
+      // Each lap chip carries its video's ▶ (NS-50), as the plain lap list does.
+      chipAfter: (lap) => lapPlayHtml(s, lap),
+      afterChips: lapVideosHtml(s),
       // Sector splits + theoretical best for the highlighted laps on the
       // Time tab, the session's shift points on Inputs, on Grip the
       // friction circle (#186) — a square scatter, so it gets its own
@@ -3459,9 +3528,9 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
       const handSession = sessionsToCreate([], hand);
       while (staged.length) {
         const saved = await api(`/events/${createdId}/sessions`, { method: "POST", body: staged[0] });
-        // A staged import's best-lap clip (NS-47) rides on the body, unsent,
-        // until the session has an id to attach it to.
-        if (staged[0].clip && saved?.id != null) clipUploads.enqueue({ sessionId: saved.id, ...staged[0].clip });
+        // A staged import's lap clips (NS-47, NS-50) ride on the body, unsent,
+        // until the session has an id to attach them to.
+        if (saved?.id != null) for (const clip of staged[0].clips ?? []) clipUploads.enqueue({ sessionId: saved.id, ...clip });
         staged.shift();
         renderStaged();
       }
