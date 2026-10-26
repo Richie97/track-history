@@ -2269,6 +2269,14 @@ there. No server change: the sync is derived from what is already stored.
   compare and the leaderboard lap, so also the student and shared-item views.
   Tiers follow the parts: the video is `canSaveLapVideo`, the second lap and
   the delta `canViewChannels`.
+- **Android** (ticket 3) ports the pure half as `VideoSync` in `:core` and
+  builds its stage in `app/…/ui/stage/` on the lap page, the session compare,
+  the track compare and the leaderboard lap. Both videos are Media3 players
+  held by a back-stack `ViewModel`, so the activity recreation a rotation
+  causes keeps playback. Every distance-axis chart now answers a tap (before,
+  only the friction circle, balance and sector tables did). A phone turned
+  sideways with a video goes full-bleed, judged by the window's height, and
+  the mode is `sync_mode` in the settings DataStore.
 
 ## Publishing best-lap videos to YouTube
 

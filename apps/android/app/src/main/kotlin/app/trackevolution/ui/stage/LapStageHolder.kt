@@ -115,8 +115,9 @@ class LapStageHolder(
     private var modeChosen = false
     private var wasPlaying = false
     private var lastFrameNanos = 0L
-    private var lastRateAtNanos = 0L
-    private var lastResyncAtNanos = 0L
+    /** Frame times of the last rate change and re-seek; null is "not since playback started". */
+    private var lastRateAtNanos: Long? = null
+    private var lastResyncAtNanos: Long? = null
 
     /** The master side's key: A unless the inset was swapped. */
     val masterKey: SideKey
@@ -389,8 +390,12 @@ class LapStageHolder(
         keepInStep(frameNanos)
     }
 
-    /** Start or stop each side's video by whether it holds the moment, and keep the follower in step. */
-    private fun keepInStep(frameNanos: Long) {
+    /**
+     * Start or stop each side's video by whether it holds the moment, and keep
+     * the follower in step. [frameNanos] is the frame loop's clock; null is a
+     * start or a seek outside it, which sets the rate at once.
+     */
+    private fun keepInStep(frameNanos: Long?) {
         val b = binding ?: return
         val st = state.value ?: return
         for (key in listOf(SideKey.A, SideKey.B)) {
@@ -410,7 +415,8 @@ class LapStageHolder(
             val speed = if (isMaster || mode == SyncMode.TIME) {
                 rate
             } else {
-                if (frameNanos - lastRateAtNanos >= RATE_EVERY_NANOS || lastRateAtNanos == 0L) {
+                val last = lastRateAtNanos
+                if (frameNanos == null || last == null || frameNanos - last >= RATE_EVERY_NANOS) {
                     lastRateAtNanos = frameNanos
                     VideoSync.followRate(b.sides, masterKey, if (masterKey == SideKey.B) st.b!!.k else st.a.k) * rate
                 } else {
@@ -421,7 +427,7 @@ class LapStageHolder(
             if (!p.isPlaying) {
                 p.seekTo(target.toLong(), exact = true)
                 p.play()
-            } else if (!isMaster && frameNanos - lastResyncAtNanos >= RESYNC_COOLDOWN_NANOS &&
+            } else if (!isMaster && frameNanos != null && cooledDown(frameNanos) &&
                 VideoSync.needsResync(target, p.positionMs.toDouble())
             ) {
                 // Exact: a keyframe seek could land 1.5 s off on a PDR clip and
@@ -432,9 +438,15 @@ class LapStageHolder(
         }
     }
 
+    private fun cooledDown(frameNanos: Long): Boolean {
+        val last = lastResyncAtNanos ?: return true
+        return frameNanos - last >= RESYNC_COOLDOWN_NANOS
+    }
+
     private fun startPlayers() {
-        lastRateAtNanos = 0L
-        keepInStep(System.nanoTime())
+        lastRateAtNanos = null
+        lastResyncAtNanos = null
+        keepInStep(null)
     }
 
     /** Every side's video to where the playhead says, or left where it is when its clip doesn't hold the moment. */
