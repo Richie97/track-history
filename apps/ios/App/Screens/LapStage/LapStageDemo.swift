@@ -54,6 +54,8 @@ struct LapStageDemo: View {
             .background(Color(.bgPage))
             .navigationTitle("Lap stage")
             .navigationBarTitleDisplayMode(.inline)
+            // As on the real routes, so `-tabletop <fraction>` shows the split.
+            .publishingFoldGeometry()
         }
         .task {
             guard stage == nil else { return }

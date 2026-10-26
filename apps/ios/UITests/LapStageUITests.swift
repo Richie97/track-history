@@ -83,7 +83,10 @@ final class LapStageUITests: XCTestCase {
         )
         attach(app, named: "lap-stage-seeked")
 
-        // Compare laps: the two-sided stage, and its mode.
+        // Compare laps: the two-sided stage, and its mode. The button sits just
+        // under the stage, which the page has scrolled past by now — the mini
+        // bar's thumbnail is the way back up.
+        backToTheStage(app)
         let compare = app.buttons["compareLaps"]
         XCTAssertTrue(scrollTo(compare, in: app))
         compare.tap()

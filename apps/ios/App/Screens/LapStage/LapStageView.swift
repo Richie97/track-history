@@ -167,7 +167,10 @@ struct LapStageView<Header: View, Content: View>: View {
 
     private var mediumTop: some View {
         VStack(spacing: 10) {
+            // Held to the same share of the height as Wide: a lone 16:9 replay
+            // map across a whole pane is taller than the screen has to give.
             slotsRow(rounded: true)
+                .frame(maxHeight: max(160, visibleHeight * 0.45))
             HStack(alignment: .top, spacing: 10) {
                 if model.trace != nil, model.hasAnyVideo {
                     StageMapCard(model: model)
@@ -257,12 +260,16 @@ struct LapStageView<Header: View, Content: View>: View {
 
     /// Above the crease the picture; below it the transport and the now-strip
     /// in one row, then the charts — weighted by where the hinge actually is.
+    /// A narrow window (a cover display) keeps the picture to itself above the
+    /// crease and stacks the now-strip under the transport: beside each other
+    /// at that width the scrubber has no room left.
     private func tabletop(_ share: Double) -> some View {
-        GeometryReader { geo in
+        let roomy = layout.contentWidth >= StageLayout.MEDIUM_MIN
+        return GeometryReader { geo in
             VStack(spacing: 0) {
                 HStack(spacing: 10) {
                     slotsRow(rounded: true)
-                    if model.trace != nil, model.hasAnyVideo {
+                    if roomy, model.trace != nil, model.hasAnyVideo {
                         StageMapCard(model: model).frame(maxWidth: 260)
                     }
                 }
@@ -274,9 +281,19 @@ struct LapStageView<Header: View, Content: View>: View {
                             header().padding(.horizontal, gutter)
                             content().padding(.horizontal, gutter).padding(.bottom, gutter)
                         } header: {
-                            HStack(alignment: .center, spacing: 12) {
-                                StageTransport(model: model, compare: compare, large: true)
-                                NowStrip(model: model, row: true).frame(maxWidth: 380)
+                            Group {
+                                if roomy {
+                                    HStack(alignment: .center, spacing: 12) {
+                                        StageTransport(model: model, compare: compare, large: true)
+                                        NowStrip(model: model, row: true).frame(maxWidth: 380)
+                                    }
+                                } else {
+                                    VStack(spacing: 8) {
+                                        StageTransport(model: model, compare: compare, large: false)
+                                        NowStrip(model: model, row: true)
+                                        if compare, model.isTwoSided { ModeControl(model: model) }
+                                    }
+                                }
                             }
                             .padding(.horizontal, gutter)
                             .padding(.vertical, 8)
@@ -856,6 +873,12 @@ private struct FullBleedStage: View {
                                 StageVideoView(player: model.videos[other]?.player)
                                     .frame(width: 150, height: 84)
                                     .clipShape(RoundedRectangle(cornerRadius: TERadius.sm))
+                                    // Bordered in B's colour: a dark frame on the
+                                    // black around it would otherwise vanish.
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: TERadius.sm)
+                                            .strokeBorder(Color(.chartLineB), lineWidth: 2)
+                                    )
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Swap videos")

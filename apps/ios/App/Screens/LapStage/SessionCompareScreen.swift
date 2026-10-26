@@ -100,14 +100,14 @@ struct SessionCompareScreen: View {
         var pro: Bool
     }
 
-    /// What the panel lights first: the opened lap and the session's best
-    /// beside it, or the panel's own default (the fastest) with no lap named.
+    /// What the panel lights first: the opened lap and its reference beside it
+    /// (`VideoSync.referenceLap` — the session best, or the next-best when the
+    /// opened lap is the best, which is the lap page's own B), or the panel's
+    /// own default (the fastest) with no lap named.
     static func preselect(_ matched: [ChannelGraphs.LapMatch], opened: Int?) -> [Int]? {
         guard let opened else { return nil }
-        guard let best = matched.filter(\.hasChannels).min(by: { $0.lap.timeMs < $1.lap.timeMs }),
-              best.chIdx != opened
-        else { return [opened] }
-        return [opened, best.chIdx]
+        guard let reference = VideoSync.referenceLap(matched, opened) else { return [opened] }
+        return [opened, reference.chIdx]
     }
 
     /// The stage's sides from the lit laps. A free account's stage is one-sided:
