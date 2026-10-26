@@ -1,25 +1,53 @@
 # iOS client CI (spec: docs/specs/native/NS-10-native-ci.md).
 #
 # macOS runners bill at a heavy multiplier, so this is kept off web/backend PRs by
-# the path filter and superseded runs are cancelled. It triggers on contracts/**
-# too: a golden change has to be proven against the Swift decoders in the same PR
-# that makes it.
+# the path filter and superseded runs are cancelled. It triggers on the committed
+# contract fixtures too (contracts/golden, contracts/logic — not the .mjs
+# generators, which the app never reads): a golden or fixture change has to be
+# proven against the Swift decoders and ports in the same PR that makes it. But
+# a contract-only change — the usual web PR that regenerates a fixture — runs
+# only the Kit's tests, where every golden decoder and logic fixture is asserted;
+# the app build, the simulator and the rest wait for a change under apps/ios/.
 name: iOS
 
 on:
   push:
     branches: [main]
-    paths: ["apps/ios/**", "contracts/**", ".github/workflows/ios.yml"]
+    paths: ["apps/ios/**", "contracts/golden/**", "contracts/logic/**", ".github/workflows/ios.yml"]
   pull_request:
-    paths: ["apps/ios/**", "contracts/**", ".github/workflows/ios.yml"]
+    paths: ["apps/ios/**", "contracts/golden/**", "contracts/logic/**", ".github/workflows/ios.yml"]
 
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Cheap Linux job deciding whether the iOS project itself changed, so the
+  # macOS job below can skip its expensive steps on a contract-only PR. Steps,
+  # not a second job, because a second macOS runner per app PR costs more than
+  # the Kit tests it would parallelise.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - "apps/ios/**"
+              - ".github/workflows/ios.yml"
+
   build:
+    needs: changes
     runs-on: macos-latest
+    env:
+      APP_CHANGED: ${{ needs.changes.outputs.app }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +60,7 @@ jobs:
       # runs the same strict resolve first, before anything here touches the
       # file, so a stripped Package.resolved fails the PR instead of the release.
       - name: Package.resolved matches the app's dependencies (as Xcode Cloud resolves)
+        if: env.APP_CHANGED == 'true'
         working-directory: apps/ios
         run: |
           xcodebuild -resolvePackageDependencies \
@@ -63,6 +92,7 @@ jobs:
       # value left the retired Capacitor app's Release entitlements invalid, and
       # nothing noticed.
       - name: The CarPlay entitlement stays in, and the entitlements parse
+        if: env.APP_CHANGED == 'true'
         run: |
           for f in apps/ios/App/TrackEvolution.entitlements; do
             if ! plutil -lint "$f"; then
@@ -80,6 +110,7 @@ jobs:
 
       # Unsigned simulator build: no signing secret is a prerequisite for green.
       - name: Build the app
+        if: env.APP_CHANGED == 'true'
         working-directory: apps/ios
         run: |
           xcodebuild build \
@@ -106,6 +137,7 @@ jobs:
       # answering flat), and `runs-on` moves to whichever label carries 27.1
       # (ticket 2), pinned and said so.
       - name: App unit tests
+        if: env.APP_CHANGED == 'true'
         working-directory: apps/ios
         run: |
           device=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [^(]+' | sed 's/ *$//')

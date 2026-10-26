@@ -54,6 +54,11 @@ Capacitor project and is retired with it (NS-27) — do not extend it.
 - [ ] A PR touching only `public/` runs `ci.yml` and neither native workflow.
 - [ ] A PR touching only `apps/ios/` runs `ios.yml` only.
 - [ ] A PR touching `contracts/` runs all three.
+  *(Since revised: a PR touching only `contracts/golden/` or `contracts/logic/`
+  runs `ci.yml` plus each native workflow's pure-logic suite — the Kit's
+  `swift test` and `:core:test` — and skips the app build, simulator and
+  Robolectric jobs; those run when `apps/ios/` or `apps/android/` changes. The
+  `.mjs` generators no longer trigger the native workflows at all.)*
 - [ ] A PR touching `src/` runs `ci.yml` (and the contract check catches shape drift).
 - [ ] iOS build succeeds with no CarPlay entitlement present.
 - [ ] Android `:core:test` runs on the JVM in under a minute.

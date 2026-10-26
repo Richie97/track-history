@@ -4,14 +4,21 @@
 # — which is what keeps it under a minute. :app's tests are Robolectric, so they
 # need the SDK but still no emulator. Instrumentation tests are deliberately not
 # part of a PR run; if any ever appear, gate them to a nightly.
+#
+# It triggers on the committed contract fixtures too (contracts/golden,
+# contracts/logic — not the .mjs generators, which the app never reads), so a
+# golden or fixture change is proven against the Kotlin decoders and ports in the
+# same PR. A contract-only change — the usual web PR that regenerates a fixture —
+# runs only :core, where every golden decoder and logic fixture is asserted; the
+# app job waits for a change under apps/android/.
 name: Android
 
 on:
   push:
     branches: [main]
-    paths: ["apps/android/**", "contracts/**", ".github/workflows/android.yml"]
+    paths: ["apps/android/**", "contracts/golden/**", "contracts/logic/**", ".github/workflows/android.yml"]
   pull_request:
-    paths: ["apps/android/**", "contracts/**", ".github/workflows/android.yml"]
+    paths: ["apps/android/**", "contracts/golden/**", "contracts/logic/**", ".github/workflows/android.yml"]
 
 concurrency:
   group: android-${{ github.ref }}
@@ -35,7 +42,28 @@ jobs:
         working-directory: apps/android
         run: ./gradlew :core:test --no-daemon
 
+  # Whether the Android project itself changed, rather than only a contract
+  # fixture. The app job below runs only when it did.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - "apps/android/**"
+              - ".github/workflows/android.yml"
+
   app:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
