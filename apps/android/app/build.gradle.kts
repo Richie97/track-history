@@ -69,7 +69,7 @@ android {
         // actually holds. The 3 below is only what local builds get; it is not
         // kept in step with Play.
         versionCode = env("TE_VERSION_CODE")?.toInt() ?: 3
-        versionName = env("TE_VERSION_NAME") ?: "1.21"
+        versionName = env("TE_VERSION_NAME") ?: "1.22"
         // The one instrumented suite, ClipCutterTest (NS-45): Robolectric has
         // no MediaMuxer. Run with `./gradlew :app:connectedDebugAndroidTest`
         // against an emulator; no CI job does.
