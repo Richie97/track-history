@@ -1,6 +1,6 @@
 # NS-51 — Video-synced lap analysis (the lap stage)
 
-**Phase:** post-rewrite · **Platform:** Web + iOS + Android (no server change) · **Depends on:** [NS-45](NS-45-best-lap-clips.md) / [NS-50](NS-50-every-lap-clips.md) (lap clips and their `lap_offset_ms`), [NS-23](NS-23-ios-charts.md) / [NS-24](NS-24-android-charts.md) (the channel panels), [NS-34](NS-34-large-screens.md) (layout classes, `sideColumnWidth`, postures, tap-to-mark), #165 (the two-lap compare), [NS-35](NS-35-leaderboard-lap-detail.md) (the leaderboard lap) · **Estimate:** shared logic + web 4–5 days, each phone 6–8 days · **Issue:** not yet filed · **Design:** [design doc with screenshots](https://claude.ai/artifact/Sviifnj32ZkJMA9RyUmabn), [interactive prototype](https://claude.ai/artifact/X1j49M5ChmNQHvYUZuzy21)
+**Phase:** post-rewrite · **Platform:** Web + iOS + Android (no server change) · **Depends on:** [NS-45](NS-45-best-lap-clips.md) / [NS-50](NS-50-every-lap-clips.md) (lap clips and their `lap_offset_ms`), [NS-23](NS-23-ios-charts.md) / [NS-24](NS-24-android-charts.md) (the channel panels), [NS-34](NS-34-large-screens.md) (layout classes, `sideColumnWidth`, postures, tap-to-mark), #165 (the two-lap compare), [NS-35](NS-35-leaderboard-lap-detail.md) (the leaderboard lap) · **Estimate:** shared logic + web 4–5 days, each phone 6–8 days · **Issue:** [#437](https://github.com/Richie97/track-history/issues/437) (tickets #434, #435, #436) · **Design:** [design doc with screenshots](https://claude.ai/artifact/Sviifnj32ZkJMA9RyUmabn), [interactive prototype](https://claude.ai/artifact/X1j49M5ChmNQHvYUZuzy21)
 
 ## Goal
 
@@ -808,6 +808,92 @@ full-bleed and postures — as long as (a) leaves the app shippable.
       SwiftUI / Compose recomposition tools and a web performance trace).
 - [ ] `npm test`, `npm run typecheck`, `npm run contracts:check`, `swift
       test`, `./gradlew :core:test :app:testDebugUnitTest` pass.
+
+## As built — ticket 1 (shared logic + web)
+
+### Drift of the derived time curve
+
+Measured against the recording's own clock rather than hand-marked frames:
+the importer cuts each grid point at a known time (`distS.timeAt(d0 + k·20 m)`
+in `buildLapChannels`), so the true elapsed time at every grid point is
+available from the parse itself, exactly, for every lap. The script compared
+it with `lapTimeSeries` over the stored 20 m speed trace. "Braking points"
+are the speed peak before each of the lap's first corners (`sessionCorners`),
+the places a driver checks a marker.
+
+| Recording | Laps | Worst drift a lap | Mean drift a lap | At the braking points |
+|---|---|---|---|---|
+| Corvette PDR (beacon-timed) | 7 | 0.14 – 0.26 s | 0.03 – 0.14 s | ≤ 0.16 s, ≤ 8.5 m (typically 1–5 m) |
+| Cadillac PDR 2.5 (CT5-V Blackwing), 3 files | 4 | 0.10 – 0.23 s | 0.04 – 0.09 s | ≤ 0.20 s, ≤ 7.7 m (typically 1–3 m) |
+
+No GoPro footage was to hand; a GoPro lap's channels come from GPS distance
+the same way, so it should land in the same range. Much of the worst-case
+figure sits at the end of the lap: the grid's last point stops up to 20 m
+short of the line, yet `lapTimeSeries` scales that point to the whole timed
+lap, so the last few hundred metres read up to a cell's time late. Scaling to
+the lap's driven fraction would remove that part, but it changes
+`lapTimeSeries`, which `contracts/logic/lap-delta.json` pins for both phones.
+
+**Recommendation**: keep deriving. The error is a car length or two at the
+braking points and within `RESYNC_MS` for most of a lap; storing a time
+series stays the deferred option, and the end-of-lap scaling is the cheaper
+fix if the drift ever shows on video.
+
+### Deviations from the spec
+
+- **More of the pure half is pinned.** `playheadAt`'s state carries
+  `masterKey`, each side's `distM`, `inClip` (a cut that doesn't cover the
+  moment leaves that side on replay) and `now` (speed, throttle, brake, gear at
+  its `k`), so `playheadText(state, corners, units)` keeps the spec's
+  signature. Also exported and in the fixture: `scrubRange`, `matchByFraction`,
+  `cornerPlace`, `fmtStageTime`, `fmtDeltaS`, `fmtGap`, `BRAKING_WORD_PCT`.
+  The ports implement them under the same names.
+- **Signs are A/B-relative whichever side is the master.** `deltaS` is A − B
+  at A's place in both modes (positive: A slower) and `gapM` is B's distance
+  ahead of A (positive: B ahead), so the words stay *B ahead 26 m* after a
+  swap. The spec's master-relative wording agrees whenever A is the master.
+- **Out of the lap** in *Same place*, the follower keeps the master's time
+  from the line — the same run-up before it, the same roll-out after — so the
+  two cars cross it together.
+- **Layout** is a `ResizeObserver` on the stage setting `stage-wide` /
+  `stage-medium` / `stage-compact` rather than `@container` queries: the same
+  rule (the stage's own width), and the same code also sets the sticky offset.
+  The stage's wrappers are `display: contents` so the sticky stage pins over
+  the charts rather than inside a box its own size.
+- **Medium** orders videos, then the map and now-strip, then the transport:
+  a sticky element shows its bottom edge when pinned with a negative `top`,
+  so the transport has to be last to be what pins.
+- **Compact** isn't sticky: the stage scrolls with the page and, 120 px past
+  it, its transport moves into a bar fixed under the header (no thumbnail).
+  The transport's slot keeps its height, so nothing below jumps.
+- **The clock** is `requestAnimationFrame` over the master's `currentTime`;
+  `requestVideoFrameCallback` wasn't needed.
+- **No `setSides`**: when the lit laps change the event page rebuilds the
+  stage, keeping the playhead's place and whether it was playing.
+- **A door for laps without video**: the event page has *Play the lap* beside
+  the chips, opening the stage on the newest lit lap (replay when it has no
+  clip). A ▶ still opens its own lap.
+- **Deleting a clip** from under the stage re-reads the page (the stage
+  closes) rather than turning the slot to replay in place; a video that fails
+  to load or play does turn to replay in place.
+- **Head to head** stays above the charts on every width of the track
+  compare.
+- **Passing fix**: the session header (Edit / Share / Delete) didn't wrap, so
+  on a phone it widened the whole event page; it wraps now.
+
+### Verified
+
+In a browser against `wrangler dev`, with three real Cadillac PDR sessions
+and four lap clips cut by `mp4cut.js` and uploaded through the clip routes:
+two-video playback (the follower rate-matched, ~1.13×), tap-to-seek (both
+videos paused at the same place, 3.03 s apart), *Same time* (both at the same
+elapsed time, the gap in words), → stepping a second, the remembered mode,
+Wide pinning over the charts, Compact with the inset, full-bleed on rotation
+and back at the same place, and the cross-session track compare. Not checked
+in a browser: the leaderboard lap (it needs a second, opted-in account) and
+the mini bar's scroll-back. The DOM half has no unit tests — the unit suite
+has no DOM — so `onRender` after a chip toggle was checked in the browser
+instead of in `channel-graphs.test.js`.
 
 ## Open questions
 

@@ -630,7 +630,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   background: var(--surface-card); border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg); padding: 20px var(--card-pad); margin: var(--grid-gap) 0;
 }
-.session .s-head { display: flex; align-items: baseline; gap: 12px; }
+.session .s-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
 .session .s-label { font-weight: var(--weight-semibold); color: var(--text-strong); font-size: var(--fs-h3); font-variant-numeric: tabular-nums; }
 .session .s-best { color: var(--text-muted); font-size: var(--fs-sm); }
 .session .s-best .t { color: var(--accent-ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
@@ -690,6 +690,180 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   background: #000;
 }
 .lap-video-body .btn-row { margin-top: 8px; }
+
+/* The lap stage (NS-51, js/lap-stage.js): the video(s), one transport and a
+   now-strip, with a playhead every chart below carries. The layout class is
+   set from the stage's own width (stage-wide ≥ 1000, stage-medium ≥ 600,
+   else stage-compact). */
+/* The wrappers lay out no box of their own, so the stage's sticky containing
+   block is the page (or the session's panel) that holds the charts — a
+   sticky element only pins inside its parent. */
+.lap-stage-box, .stage-mount { display: contents; }
+.lap-stage-box[hidden] { display: none; }
+.lap-stage { margin-top: 14px; }
+.stage-actions { display: block; margin-top: 8px; }
+.stage-head { display: flex; align-items: center; gap: 8px; margin: 14px 0 -6px; }
+.stage-head .grow { flex: 1; }
+.lap-stage {
+  display: grid; gap: 10px; grid-template-columns: 1fr;
+  grid-template-areas: "videos" "transport" "side";
+  background: var(--stage-bg, var(--surface-card)); z-index: 6;
+}
+/* On a page rather than inside a session card, the pinned stage takes the
+   page's colour so it doesn't read as a card of its own. */
+#cmp-stage, #lb-stage { --stage-bg: var(--bg-page); }
+.stage-videos { grid-area: videos; display: grid; gap: 8px; grid-template-columns: 1fr; position: relative; min-width: 0; }
+.stage-side { grid-area: side; display: grid; gap: 8px; grid-template-columns: 1fr; min-width: 0; }
+.stage-transport-slot { grid-area: transport; min-width: 0; }
+.stage-slot {
+  position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden;
+  border-radius: var(--radius-sm); min-width: 0;
+}
+.stage-slot video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.stage-slot.replay { background: var(--surface-raised); border: 1px solid var(--border-hairline); }
+.stage-slot .stage-replay-map { position: absolute; inset: 8px 8px 30px; width: calc(100% - 16px); height: calc(100% - 38px); object-fit: contain; }
+.stage-chip, .stage-chips {
+  position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px; font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent); color: var(--text-strong);
+}
+.stage-chips { padding: 0; background: none; gap: 6px; }
+.stage-chips .stage-chip { position: static; }
+.stage-chip .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.stage-slot-note {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; font-size: var(--fs-xs); color: var(--text-muted);
+}
+.stage-slot-note[hidden] { display: none; }
+.stage-slot:not(.replay) .stage-slot-note { color: #fff; }
+.stage-map { background: var(--surface-raised); border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); padding: 8px; }
+.stage-map-title { font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: 4px; }
+.stage-map canvas { display: block; width: 100%; height: auto; max-height: 180px; object-fit: contain; }
+.stage-now {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
+  background: var(--surface-raised); border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.now-place { grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--text-muted); }
+.now-main { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.now-speed { font-size: 28px; font-weight: 600; color: var(--text-strong); line-height: 1; }
+.now-unit, .now-gear, .now-speed-b { font-size: var(--fs-xs); color: var(--text-muted); }
+.now-gear { color: var(--text-strong); }
+.now-bars { display: flex; gap: 4px; height: 34px; }
+.now-bars .bar { position: relative; width: 8px; height: 100%; background: var(--surface-card); border-radius: 3px; overflow: hidden; }
+.now-bars .bar i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; }
+.now-bars .thr i { background: var(--limit-power); }
+.now-bars .brk i { background: var(--limit-brake); }
+.now-delta { grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--text-strong); min-height: 1.2em; }
+.now-delta.slower { color: var(--danger-ink); }
+.now-delta.faster { color: var(--accent-ink); }
+.stage-transport {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--stage-bg, var(--surface-card)); padding: 4px 0;
+}
+.stage-play {
+  flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--accent); color: var(--accent-contrast); font-size: 14px; line-height: 1;
+}
+.stage-play:focus-visible, .stage-scrub:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage-scrub {
+  --pos: 0%; position: relative; flex: 1 1 200px; min-width: 140px; height: 40px; cursor: pointer;
+  touch-action: none; border-radius: var(--radius-xs); background: var(--surface-raised);
+}
+.stage-scrub svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.scrub-zero { stroke: var(--chart-grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.scrub-line { stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.scrub-delta { fill: none; stroke: var(--danger); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.scrub-speed { fill: none; stroke: var(--chart-line); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.scrub-corner { stroke: var(--text-muted); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.scrub-sector { stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.scrub-fill { position: absolute; left: 0; top: 0; bottom: 0; width: var(--pos); background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.scrub-thumb {
+  position: absolute; top: -2px; bottom: -2px; left: var(--pos); width: 3px; margin-left: -1.5px;
+  background: var(--text-strong); border-radius: 2px; pointer-events: none;
+}
+.stage-times { font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
+.stage-mode { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.stage-mode button {
+  border: 0; background: transparent; color: var(--text-muted); padding: 6px 10px; cursor: pointer;
+  font: inherit; font-size: var(--fs-xs);
+}
+.stage-mode button[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
+.stage-rate {
+  padding: 5px 8px; border: 1px solid var(--border-hairline); border-radius: var(--radius-sm);
+  background: var(--surface-input); color: var(--text-strong); font-size: var(--fs-xs);
+}
+.stage-back { position: absolute; top: 12px; left: 12px; z-index: 2; }
+.stage-notes { margin-top: 8px; }
+.stage-sentinel { display: block; height: 0; }
+
+/* Wide: the videos with the transport under them, a side column with the
+   map above the now-strip; the whole stage pins under the header and the
+   charts scroll beneath it. */
+.lap-stage.stage-wide {
+  grid-template-columns: 1fr clamp(280px, 24%, 360px);
+  grid-template-areas: "videos side" "transport side";
+  position: sticky; top: var(--stage-top, 0px); padding: 8px 0;
+}
+.stage-wide .stage-videos.n2, .stage-medium .stage-videos.n2 { grid-template-columns: 1fr 1fr; }
+.stage-wide .stage-slot { max-height: 38vh; }
+.stage-wide .stage-side { align-content: start; }
+/* Medium: videos side by side, then the map and the now-strip in one row,
+   then the transport, which is the part that pins once it reaches the top. */
+.lap-stage.stage-medium {
+  grid-template-areas: "videos" "side" "transport";
+  position: sticky; top: var(--stage-top, 0px);
+}
+.stage-medium .stage-side { grid-template-columns: 46% 1fr; }
+/* Compact: one video edge to edge, the other lap an inset to tap and swap;
+   no map card (a replay slot is the map). The rate menu is large-screen only. */
+.stage-compact .stage-map, .stage-compact .stage-rate, .stage-medium .stage-rate { display: none; }
+.stage-compact .stage-slot { border-radius: 0; }
+.stage-compact .stage-videos.n2 .stage-slot:not(.master) {
+  position: absolute; right: 8px; bottom: 8px; width: 132px; z-index: 1; cursor: pointer;
+  border: 2px solid var(--surface-card); border-radius: var(--radius-xs);
+}
+.stage-compact .stage-videos.n2 .stage-slot:not(.master) .stage-slot-note { display: none; }
+.stage-compact .stage-videos.n2 .stage-slot:not(.master) .stage-chip { top: 3px; left: 3px; padding: 1px 6px; font-size: 10px; }
+.stage-compact .stage-now { grid-template-columns: 1fr auto auto; }
+.stage-compact .now-place { grid-column: 1; }
+.stage-compact .now-delta { grid-column: 1 / -1; }
+.stage-compact .stage-mode { flex-basis: 100%; justify-content: stretch; order: 5; }
+.stage-compact .stage-mode button { flex: 1; }
+.stage-transport.stage-mini {
+  position: fixed; left: 0; right: 0; z-index: 30; padding: 8px max(var(--page-gutter), env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border-hairline); box-shadow: var(--shadow-pop); min-height: 64px; flex-wrap: nowrap;
+}
+.stage-transport.stage-mini .stage-mode, .stage-transport.stage-mini .stage-fs { display: none; }
+
+/* Full-bleed: the master video fills the window, the HUD over a gradient at
+   the bottom, the map top-right with the other lap under it. */
+.lap-stage.stage-fullbleed {
+  position: fixed; inset: 0; z-index: 60; display: block; background: #000; padding: 0;
+}
+html.stage-fullbleed-open { overflow: hidden; }
+.stage-fullbleed .stage-videos { position: absolute; inset: 0; display: block; }
+.stage-fullbleed .stage-slot.master, .stage-fullbleed .stage-videos.n1 .stage-slot { position: absolute; inset: 0; aspect-ratio: auto; height: 100%; border-radius: 0; border: 0; }
+.stage-fullbleed .stage-videos.n2 .stage-slot:not(.master) {
+  position: absolute; top: 132px; right: 12px; left: auto; bottom: auto; width: 150px; height: auto; aspect-ratio: 16 / 9; z-index: 1;
+}
+.stage-fullbleed .stage-side { position: absolute; top: 12px; right: 12px; width: 150px; display: block; }
+.stage-fullbleed .stage-map { display: block; padding: 4px; background: color-mix(in srgb, #000 55%, transparent); border: 0; }
+.stage-fullbleed .stage-map-title { display: none; }
+.stage-fullbleed .stage-map canvas { max-height: 110px; }
+.stage-fullbleed .stage-now {
+  position: fixed; left: 0; right: 0; bottom: 56px; border: 0; border-radius: 0; color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)); grid-template-columns: auto auto 1fr auto; padding: 24px 16px 6px;
+}
+.stage-fullbleed .now-place, .stage-fullbleed .now-delta { grid-column: auto; color: #fff; }
+.stage-fullbleed .now-speed { color: #fff; }
+.stage-fullbleed .stage-transport-slot { position: fixed; left: 0; right: 0; bottom: 0; }
+.stage-fullbleed .stage-transport { background: rgba(0, 0, 0, 0.75); padding: 8px 16px; flex-wrap: nowrap; }
+.stage-fullbleed .stage-times { color: #ddd; }
+.stage-fullbleed .stage-mode, .stage-fullbleed .stage-rate { display: none; }
+.stage-fullbleed .stage-slot.master .stage-chip, .stage-fullbleed .stage-videos.n1 .stage-chip { top: 52px; left: 12px; }
+/* The playhead on the charts: a solid line, so it never reads as the dashed
+   hover mark. */
+.chart-seek svg[data-channel], .chart-seek svg[data-grip] circle, .chart-seek svg[data-balance] circle { cursor: pointer; }
+table.sectors th.sec-now { color: var(--text-strong); background: var(--accent-tint); }
 /* Publishing a best-lap video to YouTube (NS-46): the line under the player. */
 .yt-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-hairline); }
 .yt-panel .hint { margin: 0 0 8px; }
