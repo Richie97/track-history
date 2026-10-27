@@ -98,6 +98,9 @@ fun SessionCompareScreen(
                     laps = session.laps,
                     modifier = Modifier.fillMaxWidth(),
                     initialSelection = lit,
+                    // With no stage there is no map beside the panel, so it
+                    // draws its own on Traces; on a stage the stage's map is it.
+                    trace = trace,
                     pro = canViewChannels,
                     onSubscribe = onSubscribe,
                     playhead = if (binding != null) holder.playhead else null,

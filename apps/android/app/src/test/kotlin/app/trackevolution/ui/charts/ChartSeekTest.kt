@@ -8,13 +8,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performClick
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -25,7 +24,8 @@ import org.robolectric.annotation.Config
 /**
  * The distance-axis charts answer a tap (NS-51): before this, `ChannelPlot`
  * and `DeltaPlot` had no pointer input at all, so the lap page's "Tap a chart"
- * hint was untrue. With a stage a tap seeks it; without one it parks the mark.
+ * hint was untrue. With a stage a tap seeks it and the panel's own cursor is
+ * off; without one it parks the cursor (`ChannelCursorTest`).
  * A mouse drags to scrub; a finger never does.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -79,20 +79,43 @@ class ChartSeekTest {
     }
 
     @Test
-    fun `without a stage a tap parks the mark and says where`() {
-        var hit: ChannelHit? = null
+    fun `on a stage the cursor is off - a tap seeks and nothing is parked or put on a map`() {
+        val seeks = mutableListOf<Double>()
+        val dots = mutableListOf<List<MapDot>?>()
         compose.setContent {
             TrackTheme {
-                LapChannelChart(channels = channels, laps = laps, onHit = { hit = it })
+                LapChannelChart(
+                    channels = channels,
+                    laps = laps,
+                    onSeek = { seeks += it },
+                    onCursor = { dots += it },
+                )
             }
         }
-        compose.onNodeWithTag("channelChart:speed").performTouchInput { click(Offset(width - 1f, centerY)) }
+        compose.onNodeWithTag("channelChart:speed").performTouchInput { click(center) }
         compose.runOnIdle {
-            assertNotNull(hit)
-            assertNull("a place every lap shares", hit!!.chIdx)
-            assertEquals(n - 1, hit!!.k)
-            assertEquals(1.0, hit!!.frac, 1e-9)
+            assertEquals(1, seeks.size)
+            assertTrue("no cursor dots on a stage", dots.all { it == null })
         }
+        compose.onNodeWithTag("channelCursorBar").assertDoesNotExist()
+    }
+
+    @Test
+    fun `on a time axis a tap seeks to the grid index where side A's time reaches it`() {
+        val seeks = mutableListOf<Double>()
+        val playhead = mutableStateOf<LapPlayhead?>(LapPlayhead(0.0, aLap = 1))
+        compose.setContent {
+            TrackTheme {
+                LapChannelChart(channels = channels, laps = laps, playhead = playhead, onSeek = { seeks += it })
+            }
+        }
+        compose.onNodeWithTag("axis:time").performClick()
+        // The right edge is the longest lap's end — past A's own (lap 2 is the
+        // faster), so it clamps to A's last grid point.
+        compose.onNodeWithTag("channelChart:speed").performTouchInput { click(Offset(width - 1f, centerY)) }
+        compose.runOnIdle { assertEquals((n - 1).toDouble(), seeks.last(), 1e-9) }
+        compose.onNodeWithTag("channelChart:speed").performTouchInput { click(center) }
+        compose.runOnIdle { assertTrue(seeks.last() > 0.0 && seeks.last() < n - 1) }
     }
 
     @Test

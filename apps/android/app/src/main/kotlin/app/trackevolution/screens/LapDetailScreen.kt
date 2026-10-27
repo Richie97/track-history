@@ -14,7 +14,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import app.trackevolution.ui.charts.MapDot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -237,6 +241,9 @@ fun LapDetailScreen(
             )
             return@TELoadable
         }
+        // The panel's cursor: a dot per lit lap, drawn on this page's own
+        // racing line rather than on a second map inside the panel.
+        var cursorDots by remember(sessionId, lapId) { mutableStateOf<List<MapDot>?>(null) }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -276,6 +283,7 @@ fun LapDetailScreen(
                         TrackMap(
                             trace = trace,
                             markers = view.markers,
+                            dots = cursorDots.orEmpty(),
                             modifier = Modifier.fillMaxWidth().height(220.dp),
                         )
                         LimitLegend(view.markers, Modifier.padding(top = 6.dp))
@@ -292,6 +300,7 @@ fun LapDetailScreen(
                         channels = channels,
                         laps = listOf(view.lap),
                         initialSelection = listOf(0),
+                        onCursor = { cursorDots = it },
                         pro = canViewChannels,
                         onSubscribe = onSubscribe,
                         emptyText = "No channel data for this lap.",

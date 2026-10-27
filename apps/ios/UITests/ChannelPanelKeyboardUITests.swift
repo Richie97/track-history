@@ -25,34 +25,34 @@ final class ChannelPanelKeyboardUITests: XCTestCase {
         return app
     }
 
-    /// 1…4 select tabs by their place in the bar.
+    /// 1…3 select tabs by their place in the bar.
     func testNumberKeysSelectTabs() throws {
         let app = launchPanel()
         XCTAssertTrue(
-            app.buttons["Time"].waitForExistence(timeout: 20),
+            app.buttons["Traces"].waitForExistence(timeout: 20),
             "the demo panel should offer its tabs"
         )
 
-        app.typeKey("3", modifierFlags: [])
+        app.typeKey("2", modifierFlags: [])
         XCTAssertTrue(
             app.otherElements["frictionCircle"].waitForExistence(timeout: 5),
-            "3 should select the third tab, Grip, which is where the friction circle is"
+            "2 should select the second tab, Grip, which is where the friction circle is"
         )
         XCTAssertTrue(app.buttons["Grip"].isSelected)
 
         app.typeKey("1", modifierFlags: [])
         XCTAssertTrue(
             app.otherElements["sectorTable"].waitForExistence(timeout: 5),
-            "1 should go back to Time, where the sector table is"
+            "1 should go back to Traces, where the sector table is"
         )
-        XCTAssertTrue(app.buttons["Time"].isSelected)
+        XCTAssertTrue(app.buttons["Traces"].isSelected)
     }
 
     /// `[` and `]` move the highlighted lap. The demo session's three laps are
     /// enough to show the step and the step back.
     func testBracketsStepTheHighlightedLap() throws {
         let app = launchPanel()
-        XCTAssertTrue(app.buttons["Time"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Traces"].waitForExistence(timeout: 20))
 
         // The fastest lap is pre-selected — the panel's own rule.
         XCTAssertEqual(Self.litLapLabels(app).count, 1, "one lap starts highlighted")
@@ -74,8 +74,8 @@ final class ChannelPanelKeyboardUITests: XCTestCase {
     /// only way a screen-reader user learns the envelope has gone.
     func testCommandFTogglesTheEnvelope() throws {
         let app = launchPanel()
-        XCTAssertTrue(app.buttons["Time"].waitForExistence(timeout: 20))
-        app.typeKey("3", modifierFlags: [])
+        XCTAssertTrue(app.buttons["Traces"].waitForExistence(timeout: 20))
+        app.typeKey("2", modifierFlags: [])
 
         let circle = app.otherElements["frictionCircle"]
         XCTAssertTrue(circle.waitForExistence(timeout: 5))
@@ -91,6 +91,42 @@ final class ChannelPanelKeyboardUITests: XCTestCase {
         XCTAssertTrue(
             Self.wait(circle) { !$0.contains("Other laps hidden") },
             "command-F again should bring it back"
+        )
+    }
+
+    // MARK: - The cursor and the axis
+
+    /// Tapping a trace parks a cursor there — "Marked at …" with a Clear — and
+    /// the Distance / Time switch re-lays the charts out against time, which
+    /// clears it. Pointer-free, so it needs no keyboard either.
+    func testATapMarksThePlaceAndTheAxisSwitchesToTime() throws {
+        let app = launchPanel()
+        let speed = app.descendants(matching: .any)["Speed by driven distance, per lap"]
+        XCTAssertTrue(speed.waitForExistence(timeout: 20), "the demo panel draws speed on the Traces tab")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["cursorMap"].exists,
+            "a panel with no map beside it draws one for the cursor"
+        )
+
+        speed.tap()
+        let bar = app.descendants(matching: .any)["cursorBar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 5), "a tap parks the cursor")
+        XCTAssertTrue(
+            app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Marked at ")).firstMatch.exists
+        )
+        app.buttons["clearCursor"].tap()
+        XCTAssertTrue(Self.waitGone(bar), "Clear lets go of it")
+
+        let time = app.segmentedControls["axisSwitch"].buttons["Time"]
+        XCTAssertTrue(time.exists, "the panel offers a time axis")
+        time.tap()
+        let speedByTime = app.descendants(matching: .any)["Speed by time, per lap"]
+        XCTAssertTrue(speedByTime.waitForExistence(timeout: 5), "the charts say which axis they are on")
+        speedByTime.tap()
+        XCTAssertTrue(
+            app.staticTexts.containing(NSPredicate(format: "label MATCHES %@", "Marked at [0-9]+:[0-9]{2}\\.[0-9]")).firstMatch
+                .waitForExistence(timeout: 5),
+            "a place on a time axis is said as m:ss.s"
         )
     }
 
@@ -138,6 +174,15 @@ final class ChannelPanelKeyboardUITests: XCTestCase {
             .allElementsBoundByIndex
             .filter { $0.isSelected }
             .map { $0.label }
+    }
+
+    private static func waitGone(_ element: XCUIElement) -> Bool {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if !element.exists { return true }
+            usleep(100_000)
+        }
+        return false
     }
 
     private static func value(of element: XCUIElement) -> String {

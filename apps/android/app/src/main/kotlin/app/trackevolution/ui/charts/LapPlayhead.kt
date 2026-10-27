@@ -16,7 +16,16 @@ import androidx.compose.runtime.Immutable
  * nothing and blanks its read-outs.
  */
 @Immutable
-data class LapPlayhead(val k: Double, val perLap: Map<Int, Double> = emptyMap()) {
+data class LapPlayhead(
+    val k: Double,
+    val perLap: Map<Int, Double> = emptyMap(),
+    /**
+     * Side A's channel-lap index — where the line goes on a time axis (A's
+     * elapsed time at [k]), and whose time series a time-axis tap is turned
+     * into a grid index with. Null when A carries no channels.
+     */
+    val aLap: Int? = null,
+) {
     /** Where [chIdx]'s dot sits. */
     fun kFor(chIdx: Int): Double = perLap[chIdx] ?: k
 }

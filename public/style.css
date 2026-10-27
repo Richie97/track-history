@@ -919,7 +919,45 @@ button.ch-chip { cursor: pointer; font-family: inherit; }
 @media (hover: hover) { button.ch-chip:hover { background: var(--surface-hover); } }
 button.ch-chip.on { background: var(--surface-raised); }
 .ch-chip .dot { width: 9px; height: 9px; border-radius: var(--radius-pill); flex: none; }
-/* One question per tab: Time / Inputs / Grip / Car (epic #193) */
+/* The panel's head: the hint, and the Distance / Time axis switch */
+.ch-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 2px 0 6px; }
+.ch-head .hint { flex: 1 1 260px; }
+.ch-axis { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; flex: none; }
+.ch-axis button {
+  border: 0; background: transparent; color: var(--text-muted); padding: 6px 10px; cursor: pointer;
+  font: inherit; font-size: var(--fs-xs);
+}
+.ch-axis button[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
+/* The pinned cursor's line: where it is, and the way to clear it */
+.ch-cursor-bar { font-size: var(--fs-sm); color: var(--text-muted); margin: 4px 0; font-variant-numeric: tabular-nums; }
+.ch-cursor-bar[hidden] { display: none; }
+.ch-cursor-bar button {
+  border: 0; background: none; padding: 0 2px; font: inherit; color: var(--accent-ink);
+  text-decoration: underline; cursor: pointer;
+}
+/* Pointing at a chart marks the place; the pointer says so */
+.ch-graphs svg[data-channel] { cursor: crosshair; }
+/* The Traces tab's track map: beside the charts and pinned while they
+   scroll on a wide page, above them on a narrow one */
+.ch-cursor-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+/* Narrow: a small map pinned under the app bar, so the dot stays in sight
+   while the charts scroll under it */
+.ch-cursor-map {
+  order: -1; position: sticky; top: 64px; z-index: 5; margin-top: 8px;
+  padding: 6px; width: 100%; display: flex; justify-content: center;
+  background: var(--surface-card);
+}
+.ch-cursor-map canvas { display: block; width: auto; max-width: 100%; height: auto; max-height: 150px; }
+.ch-cursor-map .hint { display: none; }
+@media (min-width: 1000px) {
+  .ch-cursor-layout { grid-template-columns: minmax(0, 1fr) 280px; align-items: start; }
+  .ch-cursor-map { order: 0; top: 80px; margin-top: 12px; padding: 10px; display: block; }
+  .ch-cursor-map canvas { width: 100%; max-height: none; }
+  .ch-cursor-map .hint { display: block; font-size: var(--fs-xs); margin-top: 4px; }
+}
+/* The stage has its own map while it is open */
+.lap-stage-box:not([hidden]) ~ .ch-details .ch-cursor-map { display: none; }
+/* Traces / Grip / Car (epic #193) */
 .ch-tabs {
   display: inline-flex; gap: 2px; padding: 3px; margin: 8px 0 2px;
   background: var(--surface-raised);

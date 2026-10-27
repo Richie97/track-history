@@ -97,7 +97,7 @@ import app.trackevolution.ui.LocalLayoutMetrics
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.charts.TrackMap
-import app.trackevolution.ui.charts.TrackMapDot
+import app.trackevolution.ui.charts.MapDot
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlinx.coroutines.delay
@@ -458,10 +458,10 @@ private fun VideoSlot(
                     trace = trace,
                     modifier = Modifier.fillMaxSize(),
                     height = 400.dp,
-                    dots = { stageDots(holder, colors.chartLine, colors.chartLineB, both = bothDots) },
+                    liveDots = { stageDots(holder, colors.chartLine, colors.chartLineB, both = bothDots) },
                 )
             } else if (trace != null && trace.size >= 10) {
-                TrackMap(trace = trace, modifier = Modifier.fillMaxSize(), height = 120.dp, dots = {
+                TrackMap(trace = trace, modifier = Modifier.fillMaxSize(), height = 120.dp, liveDots = {
                     stageDots(holder, colors.chartLine, colors.chartLineB, both = false, only = key)
                 })
             }
@@ -514,15 +514,15 @@ private fun stageDots(
     colorB: Color,
     both: Boolean,
     only: SideKey? = null,
-): List<TrackMapDot> {
+): List<MapDot> {
     val binding = holder.binding ?: return emptyList()
     val st = holder.state.value ?: return emptyList()
     if (!st.inLap) return emptyList()
     fun frac(side: VideoSync.Side, k: Double) = k / max(1, side.t.size - 1)
-    val dots = mutableListOf<TrackMapDot>()
-    if (only == null || only == SideKey.A) dots += TrackMapDot(frac(binding.a.side, st.a.k), colorA)
+    val dots = mutableListOf<MapDot>()
+    if (only == null || only == SideKey.A) dots += MapDot(frac(binding.a.side, st.a.k), colorA)
     val b = binding.shownB
-    if ((both || only == SideKey.B) && b != null && st.b != null) dots += TrackMapDot(frac(b.side, st.b!!.k), colorB)
+    if ((both || only == SideKey.B) && b != null && st.b != null) dots += MapDot(frac(b.side, st.b!!.k), colorB)
     return dots
 }
 
@@ -538,7 +538,7 @@ private fun StageMapCard(ctx: StageCtx, modifier: Modifier, height: androidx.com
             trace = trace,
             modifier = Modifier.fillMaxWidth(),
             height = height,
-            dots = { stageDots(ctx.holder, colors.chartLine, colors.chartLineB, both = true) },
+            liveDots = { stageDots(ctx.holder, colors.chartLine, colors.chartLineB, both = true) },
         )
     }
 }
@@ -928,7 +928,7 @@ private fun FullBleed(ctx: StageCtx) {
                         trace = trace,
                         modifier = Modifier.fillMaxWidth(),
                         height = 110.dp,
-                        dots = { stageDots(holder, colors.chartLine, colors.chartLineB, both = true) },
+                        liveDots = { stageDots(holder, colors.chartLine, colors.chartLineB, both = true) },
                     )
                 }
                 if (holder.binding?.shownB != null) {

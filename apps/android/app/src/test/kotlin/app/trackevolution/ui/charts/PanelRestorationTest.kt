@@ -1,6 +1,9 @@
 package app.trackevolution.ui.charts
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -10,6 +13,7 @@ import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -69,5 +73,50 @@ class PanelRestorationTest {
 
         compose.onNodeWithTag("channelChart:latG").assertIsDisplayed()
         compose.onNodeWithTag("channelChart:speed").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the chosen axis survives a configuration change, with the tab and the lit laps`() {
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            TrackTheme {
+                LapChannelChart(
+                    channels = channels,
+                    laps = listOf(lap(1, 121_900), lap(2, 120_400)),
+                )
+            }
+        }
+
+        compose.onNodeWithTag("axis:time").performClick()
+        compose.onNodeWithContentDescription("Lap 1 · 2:01.9, tap to compare").performClick()
+        compose.onNodeWithContentDescription("Grip").performClick()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithTag("channelChart:latG").assertIsDisplayed()
+        compose.onNodeWithTag("axis:time").assertIsSelected()
+        compose.onNodeWithContentDescription("Lap 1 · 2:01.9, shown").assertExists()
+        val said = compose.onNodeWithTag("channelChart:latG").fetchSemanticsNode()
+            .config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].first()
+        assertTrue(said, said.startsWith("Lateral G by time") && said.contains("2 laps highlighted"))
+    }
+
+    @Test
+    fun `a parked cursor survives a configuration change`() {
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            TrackTheme {
+                LapChannelChart(
+                    channels = channels,
+                    laps = listOf(lap(1, 121_900), lap(2, 120_400)),
+                )
+            }
+        }
+        compose.onNodeWithTag("channelChart:speed").performTouchInput { click(center) }
+        compose.onNodeWithTag("channelCursorBar").assertExists()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithTag("channelCursorBar").assertExists()
     }
 }

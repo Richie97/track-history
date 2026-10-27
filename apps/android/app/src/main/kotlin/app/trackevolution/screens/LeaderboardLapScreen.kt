@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import app.trackevolution.ui.charts.MapDot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -120,6 +121,10 @@ fun LeaderboardLapScreen(
         LaunchedEffect(binding) {
             binding?.let { b -> holder.bind(b, { id -> videoApi!!.clipUrl(id).url }) }
         }
+        // The panel's cursor: a dot per lit lap on this page's own map of
+        // their lap, rather than a second map inside the panel. Off on the
+        // stage, whose map carries the playhead's dots instead.
+        var cursorDots by remember(lap) { mutableStateOf<List<MapDot>?>(null) }
         val header: LazyListScope.() -> Unit = {
             item("head") {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -143,7 +148,11 @@ fun LeaderboardLapScreen(
                             style = TrackTheme.typography.xs,
                             color = colors.textFaint,
                         )
-                        TrackMap(trace = trace, modifier = Modifier.fillMaxWidth().height(220.dp))
+                        TrackMap(
+                            trace = trace,
+                            dots = cursorDots.orEmpty(),
+                            modifier = Modifier.fillMaxWidth().height(220.dp),
+                        )
                     }
                 }
             }
@@ -203,6 +212,7 @@ fun LeaderboardLapScreen(
                         channels = panel.aligned,
                         laps = panel.laps,
                         initialSelection = if (panel.mine == null) listOf(0) else listOf(0, 1),
+                        onCursor = { cursorDots = it },
                         pro = canViewChannels,
                         onSubscribe = onSubscribe,
                         playhead = if (onStage) holder.playhead else null,

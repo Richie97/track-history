@@ -5,8 +5,7 @@
 // replay dot that runs the lap. Colors are read from CSS variables at draw
 // time so theme flips repaint correctly.
 
-const W = 760;
-const PAD = 26;
+const MAP_W = 760;
 
 function hex2rgb(h) {
   h = h.replace("#", "");
@@ -70,10 +69,16 @@ export function traceIndexAtFraction(points, frac) {
 // { frac, color } — frac the fraction of the lap's driven distance, color a
 // CSS custom property name such as "--chart-line" — which stop the
 // free-running replay dot while they are set. null when there was nothing to
-// draw. The renderer owns the canvas until it leaves the
+// draw. `width` — the canvas's drawing width; a map shown small (the
+// channel panel's, beside its charts) draws narrower so its dots and line
+// keep a readable size. The renderer owns the canvas until it leaves the
 // document (checked each frame / theme change).
-export function renderTrackMap(canvas, points, { markers = [] } = {}) {
+export function renderTrackMap(canvas, points, { markers = [], width = MAP_W } = {}) {
   if (!points || points.length < 10) return null;
+  const W = width;
+  // Line weights follow the width, down to a floor; the dots stay put.
+  const lw = Math.max(0.55, W / MAP_W);
+  const PAD = Math.round(26 * lw);
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -86,7 +91,7 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
   const spanX = Math.max(1, x1 - x0);
   const spanY = Math.max(1, y1 - y0);
   // Height follows the track's aspect ratio within sane bounds.
-  const H = Math.round(Math.min(460, Math.max(200, ((W - PAD * 2) * spanY) / spanX + PAD * 2)));
+  const H = Math.round(Math.min(460 * lw, Math.max(200 * lw, ((W - PAD * 2) * spanY) / spanX + PAD * 2)));
   const scale = Math.min((W - PAD * 2) / spanX, (H - PAD * 2) / spanY);
   const ox = (W - spanX * scale) / 2 - x0 * scale;
   const oy = (H + spanY * scale) / 2 + y0 * scale;
@@ -129,7 +134,7 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
 
     // tarmac underlay
     ctx.strokeStyle = cssVar("--map-tarmac");
-    ctx.lineWidth = 13;
+    ctx.lineWidth = 13 * lw;
     ctx.beginPath();
     ctx.moveTo(px[0][0], px[0][1]);
     for (let i = 1; i < px.length; i++) ctx.lineTo(px[i][0], px[i][1]);
@@ -138,7 +143,7 @@ export function renderTrackMap(canvas, points, { markers = [] } = {}) {
     // speed-colored line
     const slow = hex2rgb(cssVar("--map-slow"));
     const fast = hex2rgb(cssVar("--map-fast"));
-    ctx.lineWidth = 4.5;
+    ctx.lineWidth = 4.5 * lw;
     for (let i = 1; i < px.length; i++) {
       const t = (vNorm[i - 1] + vNorm[i]) / 2;
       const c = slow.map((s, k) => Math.round(s + (fast[k] - s) * t));

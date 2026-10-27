@@ -226,7 +226,7 @@ fun Session.statsSummary(units: UnitSystem): String? {
     val theoretical = sec?.takeIf { it.laps.size >= 2 && it.gapMs > 0 }
         ?.let { "theoretical best ${LapTime.fmtMs(it.theoreticalBestMs)}" }
     // The typical upshift rpm across the session (`Gears`, #187); the
-    // per-gear breakdown sits in the channel panel's Inputs tab.
+    // per-gear breakdown sits at the foot of the channel panel's Traces tab.
     val upshifts = channels?.let { Gears.shiftPoints(it) }
         ?.let { "upshifts ≈ ${Gears.fmtRpm(it.medianRpm.toDouble())} rpm" }
     // Where the car hit its limit (`Limits`, #188), counted as places on

@@ -142,7 +142,7 @@ class LapStageHolder(
             val bIdx = b.b?.chIdx
             if (bk != null && bIdx != null && b.showB) put(bIdx, bk)
         }
-        LapPlayhead(st.a.k, perLap)
+        LapPlayhead(st.a.k, perLap, aLap = b.a.chIdx)
     }
 
     /** The scrubber's range: the master's lap with the run-up either side. */
