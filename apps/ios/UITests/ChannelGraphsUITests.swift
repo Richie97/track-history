@@ -83,7 +83,7 @@ final class ChannelGraphsUITests: XCTestCase {
         // a tab away rather than stacked under the speed trace.
         XCTAssertFalse(
             app.descendants(matching: .any)["Lateral G by driven distance, per lap"].exists,
-            "the Grip channel should not be stacked under Time"
+            "the Grip channel should not be stacked under Traces"
         )
         // The chips are the legend — a lap is never identified by color alone. Lap 2
         // is the fastest of the three seeded laps, so it starts highlighted.
@@ -105,18 +105,13 @@ final class ChannelGraphsUITests: XCTestCase {
         )
         attach(app, named: "channel-graphs-readout")
 
-        // One question per tab (#193): the driver inputs, the gear ribbon and the
-        // shift points are one tap away, not stacked under the speed trace.
-        let inputs = app.buttons["Inputs"]
-        XCTAssertTrue(inputs.exists, "a session with pedal traces offers the Inputs tab")
-        // The tab bar has scrolled under the lap stage (NS-51) by now.
-        backToTheStage(app)
-        XCTAssertTrue(scrollTo(inputs, in: app))
-        inputs.tap()
+        // The Traces tab is the data-logger view: the speed trace with the driver
+        // inputs, the gear ribbon and the shift points under it on one axis.
+        XCTAssertTrue(app.buttons["Traces"].isSelected, "Traces is the tab the panel opens on")
         attach(app, named: "channel-graphs-inputs")
         XCTAssertTrue(
-            app.descendants(matching: .any)["shiftTable"].waitForExistence(timeout: 10),
-            "the shift points are tabulated above the traces"
+            scrollTo(app.descendants(matching: .any)["shiftTable"], in: app),
+            "the shift points are tabulated under the traces"
         )
         // The page is longer under the lap stage (NS-51): the ribbon is scrolled
         // to rather than waited for.

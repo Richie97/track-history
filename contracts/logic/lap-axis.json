@@ -1,0 +1,706 @@
+{
+  "description": "The channel panel's tabs (TABS / TAB_OF in public/js/channel-graphs.js) and its x-axis and cursor (public/js/lap-axis.js): each lap's series on the distance or time axis, the axis extent, the interpolating search both ways, where each lit lap is at an axis value (grid index and fraction of its lap — the map dot), the time-axis ticks and the cursor's words. Ports (LapAxis in the iOS Kit and Android :core, plus each client's tab enum) must reproduce numbers to 1e-9 and strings exactly. Regenerate with `npm run contracts:logic`; never hand-edit.",
+  "source": "public/js/lap-axis.js",
+  "constants": {
+    "axisModes": [
+      "distance",
+      "time"
+    ],
+    "defaultAxis": "distance",
+    "timeTickSteps": [
+      1,
+      2,
+      5,
+      10,
+      15,
+      20,
+      30,
+      60,
+      120,
+      300
+    ],
+    "timeTickTarget": 6,
+    "tabs": [
+      {
+        "key": "traces",
+        "label": "Traces"
+      },
+      {
+        "key": "grip",
+        "label": "Grip"
+      },
+      {
+        "key": "car",
+        "label": "Car"
+      }
+    ],
+    "tabOf": {
+      "delta": "traces",
+      "speed": "traces",
+      "throttle": "traces",
+      "brake": "traces",
+      "steering": "traces",
+      "rpm": "traces",
+      "latG": "grip",
+      "yaw": "grip"
+    }
+  },
+  "input": {
+    "dStepM": 20,
+    "laps": [
+      {
+        "n": 1,
+        "timeMs": 10000,
+        "speed": [
+          100,
+          120,
+          140,
+          140,
+          120,
+          100,
+          110,
+          130,
+          150,
+          160,
+          160,
+          150
+        ],
+        "throttle": [
+          50,
+          80,
+          100,
+          100,
+          60,
+          20,
+          60,
+          90,
+          100,
+          100,
+          100,
+          90
+        ]
+      },
+      {
+        "n": 2,
+        "timeMs": 11000,
+        "speed": [
+          95,
+          110,
+          120,
+          120,
+          100,
+          90,
+          100,
+          120,
+          140,
+          150,
+          150
+        ],
+        "throttle": [
+          40,
+          70,
+          90,
+          90,
+          50,
+          10,
+          50,
+          80,
+          95,
+          100,
+          100
+        ]
+      },
+      {
+        "n": 3,
+        "timeMs": 9000,
+        "throttle": [
+          10,
+          20,
+          30,
+          40
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "lapAxisSeries": [
+      {
+        "lap": 0,
+        "mode": "distance",
+        "xs": [
+          0,
+          20,
+          40,
+          60,
+          80,
+          100,
+          120,
+          140,
+          160,
+          180,
+          200,
+          220
+        ]
+      },
+      {
+        "lap": 0,
+        "mode": "time",
+        "xs": [
+          0,
+          1.0712514151312837,
+          1.97769492024237,
+          2.819392460702664,
+          3.7258359658137508,
+          4.797087380945034,
+          5.919350768225427,
+          6.90133123209577,
+          7.743028772556064,
+          8.503271712326653,
+          9.23975706022941,
+          10
+        ]
+      },
+      {
+        "lap": 1,
+        "mode": "distance",
+        "xs": [
+          0,
+          20,
+          40,
+          60,
+          80,
+          100,
+          120,
+          140,
+          160,
+          180,
+          200
+        ]
+      },
+      {
+        "lap": 1,
+        "mode": "time",
+        "xs": [
+          0,
+          1.2296419447716151,
+          2.3256271564158806,
+          3.3759463175749684,
+          4.5217490388394275,
+          5.848467979250907,
+          7.175186919662386,
+          8.320989640926845,
+          9.290515020458312,
+          10.159744671072728,
+          11
+        ]
+      },
+      {
+        "lap": 2,
+        "mode": "distance",
+        "xs": [
+          0,
+          20,
+          40,
+          60
+        ]
+      },
+      {
+        "lap": 2,
+        "mode": "time",
+        "xs": null
+      }
+    ],
+    "axisExtent": [
+      {
+        "mode": "distance",
+        "x1": 220
+      },
+      {
+        "mode": "time",
+        "x1": 11
+      }
+    ],
+    "gridAtAxis": [
+      {
+        "lap": 0,
+        "mode": "distance",
+        "x": -1,
+        "k": null
+      },
+      {
+        "lap": 0,
+        "mode": "distance",
+        "x": 0,
+        "k": 0
+      },
+      {
+        "lap": 0,
+        "mode": "distance",
+        "x": 50,
+        "k": 2.5
+      },
+      {
+        "lap": 0,
+        "mode": "distance",
+        "x": 220,
+        "k": 11
+      },
+      {
+        "lap": 0,
+        "mode": "distance",
+        "x": 220.5,
+        "k": null
+      },
+      {
+        "lap": 1,
+        "mode": "time",
+        "x": 0,
+        "k": 0
+      },
+      {
+        "lap": 1,
+        "mode": "time",
+        "x": 4.25,
+        "k": 3.7628308662598244
+      },
+      {
+        "lap": 1,
+        "mode": "time",
+        "x": 11,
+        "k": 10
+      },
+      {
+        "lap": 1,
+        "mode": "time",
+        "x": 11.01,
+        "k": null
+      },
+      {
+        "lap": 2,
+        "mode": "time",
+        "x": 1,
+        "k": null
+      }
+    ],
+    "axisAtGrid": [
+      {
+        "lap": 0,
+        "mode": "time",
+        "k": -2,
+        "x": 0
+      },
+      {
+        "lap": 0,
+        "mode": "time",
+        "k": 0,
+        "x": 0
+      },
+      {
+        "lap": 0,
+        "mode": "time",
+        "k": 3.75,
+        "x": 3.499225089535979
+      },
+      {
+        "lap": 0,
+        "mode": "time",
+        "k": 11,
+        "x": 10
+      },
+      {
+        "lap": 0,
+        "mode": "time",
+        "k": 40,
+        "x": 10
+      },
+      {
+        "lap": 1,
+        "mode": "distance",
+        "k": 2.5,
+        "x": 50
+      }
+    ],
+    "axisPlaces": [
+      {
+        "mode": "distance",
+        "x": 100,
+        "lit": [
+          0,
+          1
+        ],
+        "places": [
+          {
+            "chIdx": 0,
+            "k": 5,
+            "frac": 0.45454545454545453
+          },
+          {
+            "chIdx": 1,
+            "k": 5,
+            "frac": 0.5
+          }
+        ]
+      },
+      {
+        "mode": "time",
+        "x": 5,
+        "lit": [
+          0,
+          1
+        ],
+        "places": [
+          {
+            "chIdx": 0,
+            "k": 5.180806592600948,
+            "frac": 0.47098241750917713
+          },
+          {
+            "chIdx": 1,
+            "k": 4.360476470632313,
+            "frac": 0.4360476470632313
+          }
+        ]
+      },
+      {
+        "mode": "time",
+        "x": 5,
+        "lit": [
+          1,
+          0
+        ],
+        "places": [
+          {
+            "chIdx": 1,
+            "k": 4.360476470632313,
+            "frac": 0.4360476470632313
+          },
+          {
+            "chIdx": 0,
+            "k": 5.180806592600948,
+            "frac": 0.47098241750917713
+          }
+        ]
+      },
+      {
+        "mode": "distance",
+        "x": 210,
+        "lit": [
+          1,
+          0
+        ],
+        "places": [
+          {
+            "chIdx": 0,
+            "k": 10.5,
+            "frac": 0.9545454545454546
+          }
+        ]
+      },
+      {
+        "mode": "time",
+        "x": 10.5,
+        "lit": [
+          0,
+          1,
+          2
+        ],
+        "places": [
+          {
+            "chIdx": 1,
+            "k": 9.404942780144776,
+            "frac": 0.9404942780144776
+          }
+        ]
+      },
+      {
+        "mode": "distance",
+        "x": 40,
+        "lit": [
+          2
+        ],
+        "places": [
+          {
+            "chIdx": 2,
+            "k": 2,
+            "frac": 0.6666666666666666
+          }
+        ]
+      },
+      {
+        "mode": "distance",
+        "x": 40,
+        "lit": [],
+        "places": []
+      }
+    ],
+    "timeAxisTicks": [
+      {
+        "x1": 0,
+        "ticks": []
+      },
+      {
+        "x1": 4,
+        "ticks": [
+          {
+            "s": 0,
+            "label": "0:00"
+          },
+          {
+            "s": 1,
+            "label": "0:01"
+          },
+          {
+            "s": 2,
+            "label": "0:02"
+          },
+          {
+            "s": 3,
+            "label": "0:03"
+          },
+          {
+            "s": 4,
+            "label": "0:04"
+          }
+        ]
+      },
+      {
+        "x1": 10,
+        "ticks": [
+          {
+            "s": 0,
+            "label": "0:00"
+          },
+          {
+            "s": 2,
+            "label": "0:02"
+          },
+          {
+            "s": 4,
+            "label": "0:04"
+          },
+          {
+            "s": 6,
+            "label": "0:06"
+          },
+          {
+            "s": 8,
+            "label": "0:08"
+          },
+          {
+            "s": 10,
+            "label": "0:10"
+          }
+        ]
+      },
+      {
+        "x1": 12.4,
+        "ticks": [
+          {
+            "s": 0,
+            "label": "0:00"
+          },
+          {
+            "s": 5,
+            "label": "0:05"
+          },
+          {
+            "s": 10,
+            "label": "0:10"
+          }
+        ]
+      },
+      {
+        "x1": 61,
+        "ticks": [
+          {
+            "s": 0,
+            "label": "0:00"
+          },
+          {
+            "s": 15,
+            "label": "0:15"
+          },
+          {
+            "s": 30,
+            "label": "0:30"
+          },
+          {
+            "s": 45,
+            "label": "0:45"
+          },
+          {
+            "s": 60,
+            "label": "1:00"
+          }
+        ]
+      },
+      {
+        "x1": 125,
+        "ticks": [
+          {
+            "s": 0,
+            "label": "0:00"
+          },
+          {
+            "s": 30,
+            "label": "0:30"
+          },
+          {
+            "s": 60,
+            "label": "1:00"
+          },
+          {
+            "s": 90,
+            "label": "1:30"
+          },
+          {
+            "s": 120,
+            "label": "2:00"
+          }
+        ]
+      },
+      {
+        "x1": 400,
+        "ticks": [
+          {
+            "s": 0,
+            "label": "0:00"
+          },
+          {
+            "s": 120,
+            "label": "2:00"
+          },
+          {
+            "s": 240,
+            "label": "4:00"
+          },
+          {
+            "s": 360,
+            "label": "6:00"
+          }
+        ]
+      },
+      {
+        "x1": 3000,
+        "ticks": [
+          {
+            "s": 0,
+            "label": "0:00"
+          },
+          {
+            "s": 300,
+            "label": "5:00"
+          },
+          {
+            "s": 600,
+            "label": "10:00"
+          },
+          {
+            "s": 900,
+            "label": "15:00"
+          },
+          {
+            "s": 1200,
+            "label": "20:00"
+          },
+          {
+            "s": 1500,
+            "label": "25:00"
+          },
+          {
+            "s": 1800,
+            "label": "30:00"
+          },
+          {
+            "s": 2100,
+            "label": "35:00"
+          },
+          {
+            "s": 2400,
+            "label": "40:00"
+          },
+          {
+            "s": 2700,
+            "label": "45:00"
+          },
+          {
+            "s": 3000,
+            "label": "50:00"
+          }
+        ]
+      }
+    ],
+    "fmtAxisSeconds": [
+      {
+        "s": 0,
+        "text": "0:00"
+      },
+      {
+        "s": 9.6,
+        "text": "0:10"
+      },
+      {
+        "s": 59.5,
+        "text": "1:00"
+      },
+      {
+        "s": 65,
+        "text": "1:05"
+      },
+      {
+        "s": 600,
+        "text": "10:00"
+      }
+    ],
+    "fmtAxisValue": [
+      {
+        "x": 83.46,
+        "mode": "time",
+        "units": "imperial",
+        "text": "1:23.5"
+      },
+      {
+        "x": 59.96,
+        "mode": "time",
+        "units": "metric",
+        "text": "1:00.0"
+      },
+      {
+        "x": 0.04,
+        "mode": "time",
+        "units": "metric",
+        "text": "0:00.0"
+      },
+      {
+        "x": 1234.4,
+        "mode": "distance",
+        "units": "metric",
+        "text": "1.2 km"
+      },
+      {
+        "x": 1234.4,
+        "mode": "distance",
+        "units": "imperial",
+        "text": "0.77 mi"
+      },
+      {
+        "x": 60.6,
+        "mode": "distance",
+        "units": "metric",
+        "text": "61 m"
+      },
+      {
+        "x": 60.6,
+        "mode": "distance",
+        "units": "imperial",
+        "text": "200 ft"
+      },
+      {
+        "x": null,
+        "mode": "time",
+        "units": "metric",
+        "text": "—"
+      }
+    ]
+  }
+}

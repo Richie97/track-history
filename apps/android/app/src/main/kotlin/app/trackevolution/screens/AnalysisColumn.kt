@@ -32,6 +32,7 @@ import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.charts.ChannelHit
 import app.trackevolution.ui.charts.LapChannelChart
 import app.trackevolution.ui.charts.LimitLegend
+import app.trackevolution.ui.charts.MapDot
 import app.trackevolution.ui.charts.TrackMap
 import app.trackevolution.ui.theme.TrackTheme
 
@@ -63,6 +64,9 @@ fun AnalysisColumn(
     // sample. Held here rather than in the panel because the *map* is what
     // answers it, and the map is this column's, not the panel's.
     var hit by remember(selectedSessionId) { mutableStateOf<ChannelHit?>(null) }
+    // The panel's cursor: a dot per lit lap, which this column's map draws
+    // rather than the panel drawing a second map beside it.
+    var cursorDots by remember(selectedSessionId) { mutableStateOf<List<MapDot>?>(null) }
 
     Column(
         modifier = modifier
@@ -94,6 +98,7 @@ fun AnalysisColumn(
                 trace = samples,
                 markers = markers,
                 highlight = ringedIndex(selected, hit),
+                dots = cursorDots.orEmpty(),
             )
             LimitLegend(markers)
         }
@@ -112,6 +117,7 @@ fun AnalysisColumn(
                     laps = selected.laps,
                     modifier = Modifier.fillMaxWidth(),
                     onHit = { hit = it },
+                    onCursor = { cursorDots = it },
                     pro = pro,
                     onSubscribe = onSubscribe,
                 )

@@ -186,9 +186,9 @@ class ChartRenderingTest {
         compose.onNodeWithContentDescription("Grip").performClick()
         compose.onNodeWithTag("channelChart:latG").assertIsDisplayed()
         // RPM is absent from the data, so neither tab draws an empty axis — and
-        // with nothing on Inputs, that tab is not offered at all.
+        // with no per-lap scalars, the Car tab is not offered at all.
         compose.onNodeWithTag("channelChart:rpm").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Inputs").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Car").assertDoesNotExist()
     }
 
     @Test
@@ -213,11 +213,12 @@ class ChartRenderingTest {
                 )
             }
         }
-        // The driver inputs share a tab; speed keeps the Time tab it opens on.
+        // Speed and the driver inputs share the Traces tab, stacked on one axis;
+        // with nothing else to show it renders flat, no tab bar.
         compose.onNodeWithTag("channelChart:speed").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Inputs").performClick()
         compose.onNodeWithTag("channelChart:throttle").assertIsDisplayed()
-        compose.onNodeWithTag("channelChart:brake").assertIsDisplayed()
+        compose.onNodeWithTag("channelChart:brake").assertExists()
+        compose.onNodeWithTag("channelTabs").assertDoesNotExist()
         // Steering is absent from every lap, so it must not draw an empty axis.
         compose.onNodeWithTag("channelChart:steering").assertDoesNotExist()
     }
@@ -253,9 +254,8 @@ class ChartRenderingTest {
         compose.onNodeWithTag("sectorTable").assertDoesNotExist()
         compose.onNodeWithTag("channelProCard").assertExists()
         compose.onNodeWithText("See Track Evolution Pro").assertExists()
-        compose.onNodeWithContentDescription("Inputs").performClick()
-        compose.onNodeWithTag("channelChart:throttle").assertIsDisplayed()
-        compose.onNodeWithTag("channelChart:brake").assertIsDisplayed()
+        compose.onNodeWithTag("channelChart:throttle").assertExists()
+        compose.onNodeWithTag("channelChart:brake").assertExists()
     }
 
     @Test
@@ -350,11 +350,10 @@ class ChartRenderingTest {
                 )
             }
         }
-        // Both live on Inputs, beside the traces they explain.
-        compose.onNodeWithTag("gearRibbon").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Inputs").performClick()
-        compose.onNodeWithTag("shiftTable").assertIsDisplayed()
-        compose.onNodeWithTag("gearRibbon").assertIsDisplayed()
+        // Both live on Traces, beside the traces they explain: the ribbon under
+        // the RPM trace, the shift table last.
+        compose.onNodeWithTag("shiftTable").assertExists()
+        compose.onNodeWithTag("gearRibbon").assertExists()
         // The ribbon is a picture; the gears it drew have to survive into words.
         val ribbon = compose.onNodeWithTag("gearRibbon").fetchSemanticsNode()
         val said = ribbon.config[SemanticsProperties.ContentDescription].first()
@@ -375,7 +374,6 @@ class ChartRenderingTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Inputs").performClick()
         compose.onNodeWithTag("channelChart:rpm").assertIsDisplayed()
         compose.onNodeWithTag("gearRibbon").assertDoesNotExist()
         compose.onNodeWithTag("shiftTable").assertDoesNotExist()

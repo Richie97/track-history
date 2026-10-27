@@ -25,6 +25,10 @@ final class LapPlayhead {
     /// nil out of the lap (or with no stage): nothing is drawn and the
     /// read-outs go back to what a tap parked.
     var mark: Mark?
+    /// Side A's channel-lap index — where the line goes on a time axis, and
+    /// whose time series a time-axis tap is turned into `seek(toGridA:)`'s
+    /// grid index with. nil with no stage.
+    var aLap: Int?
 }
 
 /// One lap on the stage, as the page that hosts the stage describes it.
@@ -198,6 +202,8 @@ final class LapStageModel: HeldOnRouter {
         self.corners = corners
         let previous = inputs
         inputs = newInputs
+        let aLap = newInputs.first { $0.key == .A }?.chIdx
+        if playhead.aLap != aLap { playhead.aLap = aLap }
         let a = newInputs.first { $0.key == .A }.flatMap(Self.side)
         let b = newInputs.first { $0.key == .B }.flatMap(Self.side)
         sides = a.map { VideoSync.Sides(a: $0, b: b) }

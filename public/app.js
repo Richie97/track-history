@@ -5,7 +5,8 @@ import { esc, fmtMs, parseTime, parseLapList, fmtDate, fmtConsistency, fmtDelta 
 import { emptyHtml, importTargetEvent } from "./js/empty.js";
 import { lineChart, multiLineChart } from "./js/chart.js";
 import { bindChannelGraphs, bindChartSeek, channelDefs, deltaChartSvg, deltaSeries, channelChartSvg, lapTimeSeries, matchLapsToChannels, showDistanceMark, showPlayhead } from "./js/channel-graphs.js";
-import { referenceLap, stageSides, valueAt } from "./js/video-sync.js";
+import { gridAtElapsed, referenceLap, stageSides, valueAt } from "./js/video-sync.js";
+import { axisAtGrid, lapAxisSeries } from "./js/lap-axis.js";
 import { VIDEO_NEEDS_CONNECTION, bindLapStage, destroyAllStages } from "./js/lap-stage.js";
 import { sessionCorners } from "./js/corners.js";
 import {
@@ -3091,21 +3092,26 @@ async function viewEvent(eventId) {
       // Each lap chip carries its video's ▶ (NS-50), as the plain lap list does.
       chipAfter: (lap) => lapPlayHtml(s, lap),
       afterChips: lapStageBoxHtml(s),
-      onRender: (chartsEl) => showPlayhead(chartsEl, stage.mark),
+      // While the stage is shut the panel's own cursor holds the marks.
+      onRender: (chartsEl) => {
+        if (stage.open) showPlayhead(chartsEl, stage.mark);
+      },
       onSelect: (lit) => {
         if (stage.open) lit.length ? buildStage() : closeStage();
       },
-      // Sector splits + theoretical best for the highlighted laps on the
-      // Time tab, the session's shift points on Inputs, on Grip the
-      // friction circle (#186) — a square scatter, so it gets its own
+      // Sector splits + theoretical best for the highlighted laps above the
+      // Traces tab's charts and the session's shift points under them, on
+      // Grip the friction circle (#186) — a square scatter, so it gets its own
       // container rather than a slot on the distance axis — followed by the
       // balance scatter and per-corner table (#189), above the lateral-G and
       // yaw traces, and on Car the health strip (#190): the per-lap scalars
       // as small multiples, the tire spread, the pressure loop and the
       // per-lap table.
       renderExtras: (lit, dispN) => ({
-        time: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
-        inputs: shiftTableHtml(s.channels),
+        traces: {
+          before: sectorTableHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
+          after: shiftTableHtml(s.channels),
+        },
         grip:
           gripCircleHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) +
           balanceHtml(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`),
@@ -3116,7 +3122,17 @@ async function viewEvent(eventId) {
       }),
       // The gear ribbon rides under the RPM trace (#187), where each shift
       // is the drop in the sawtooth above it.
-      renderAfter: { rpm: (lit, dispN) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`) },
+      renderAfter: { rpm: (lit, dispN, axis) => gearRibbonSvg(s.channels, lit, (chIdx) => `Lap ${dispN[chIdx]}`, { axis }) },
+      // The cursor: a place picked on the charts shows as a dot per lit lap
+      // on the panel's own map of this session's line, and on the event's
+      // map too when that map is this session's. Off while the stage is
+      // open, whose playhead it would fight.
+      trace: s.trace ?? null,
+      cursorEnabled: () => !stage.open,
+      onCursor: (cursor) => {
+        if (!trackMap || traceSession.id !== s.id) return;
+        trackMap.setPlayhead(cursor ? cursor.places.map((p) => ({ frac: p.frac, color: p.color })) : null);
+      },
       memory: channelPanelMemory.get(s.id),
       // A free account's channels arrive as speed, throttle and brake only
       // (#264); the panel skips the delta chart and the extras above, and
@@ -3184,7 +3200,11 @@ async function viewEvent(eventId) {
     // on the map. A row of the balance table is a corner every lap shares
     // (chIdx null), so it rings the map whichever lap the trace is.
     const onHover = (hit) => {
-      showDistanceMark(el, hit?.d ?? null);
+      // On a time axis the mark goes at the hovered lap's time there (a
+      // corner row names no lap: the first lit one stands in).
+      const timeIdx = hit ? hit.chIdx ?? panel.lit()[0] : null;
+      const t = hit && panel.axis() === "time" && timeIdx != null ? axisAtGrid(lapAxisSeries(s.channels.laps[timeIdx], s.channels.dStepM, "time"), hit.k) : null;
+      showDistanceMark(el, hit?.d ?? null, t);
       if (!trackMap || traceSession.id !== s.id) return;
       trackMap.setHighlight(
         hit && (hit.chIdx == null || hit.chIdx === traceBestChIdx) ? traceIndexAtFraction(traceSession.trace, hit.frac) : null
@@ -3225,6 +3245,7 @@ async function viewEvent(eventId) {
       openRow.hidden = false;
       showPlayhead(panel.chartsEl, null);
       bindChartSeek(el, dStepM, null);
+      panel.refreshCursor();
       openLapVideos.delete(String(s.id));
       paintLapPlays(s.id);
     }
@@ -3292,7 +3313,14 @@ async function viewEvent(eventId) {
       if (aLap?.clip) openLapVideos.set(String(s.id), aLap.clip.id);
       else openLapVideos.delete(String(s.id));
       paintLapPlays(s.id);
-      bindChartSeek(el, dStepM, (k, { final }) => stage.handle?.seekGrid(k, { final }));
+      // A time-axis chart seeks to A's grid index at the clicked time.
+      bindChartSeek(el, dStepM, (k, { final }) => stage.handle?.seekGrid(k, { final }), {
+        timeToK: (t) => {
+          const xs = panel.axisSeries(pick.a);
+          return xs ? gridAtElapsed(xs, t) : null;
+        },
+      });
+      panel.refreshCursor();
     }
     function openStage(chIdx) {
       stage.opened = chIdx;

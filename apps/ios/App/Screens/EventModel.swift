@@ -235,7 +235,7 @@ extension Session {
             parts.append("theoretical best \(LapTime.fmtMs(sec.theoreticalBestMs))")
         }
         // Shift points (`Gears`, #187): the typical upshift rpm across the
-        // session; the per-gear breakdown sits in the channel panel's Inputs tab.
+        // session; the per-gear breakdown sits in the channel panel's Traces tab.
         if let channels, let sp = Gears.shiftPoints(channels) {
             parts.append("upshifts ≈ \(Gears.fmtRpm(Double(sp.medianRpm))) rpm")
         }
