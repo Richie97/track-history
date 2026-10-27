@@ -29,7 +29,21 @@ import { lapsFromLaptime } from "../public/js/import/csv.js";
 import { applyGate } from "../public/js/import/ui.js";
 import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
 import { CHANNEL_NAMES, attachLapChannels } from "../public/js/import/channels.js";
-import { deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
+import { TABS as PANEL_TABS, TAB_OF as PANEL_TAB_OF, deltaSeries, lapTimeSeries, matchLapsToChannels } from "../public/js/channel-graphs.js";
+import {
+  AXIS_MODES,
+  DEFAULT_AXIS,
+  TIME_TICK_STEPS,
+  TIME_TICK_TARGET,
+  axisAtGrid,
+  axisExtent,
+  axisPlaces,
+  fmtAxisSeconds,
+  fmtAxisValue,
+  gridAtAxis,
+  lapAxisSeries,
+  timeAxisTicks,
+} from "../public/js/lap-axis.js";
 import { sectorTimes, sessionSectors } from "../public/js/sectors.js";
 import { traceIndexAtFraction } from "../public/js/trackmap.js";
 import {
@@ -3485,3 +3499,97 @@ const videoSyncFixture = {
 };
 writeFileSync(path.join(OUT_DIR, "video-sync.json"), JSON.stringify(videoSyncFixture, null, 2) + "\n");
 console.log(`wrote contracts/logic/video-sync.json (${vsPlayheads.length} playheads, ${vsTexts.length} texts)`);
+
+// The channel panel's tabs and its x-axis + cursor (public/js/lap-axis.js).
+// The panel is three tabs — Traces (delta, speed and the inputs on one axis),
+// Grip, Car — and TAB_OF says where each channel's chart goes. The axis is
+// distance or each lap's own elapsed time; the cursor is an axis value turned
+// into each lit lap's grid index and fraction of its lap (the dot on the
+// map). Worth pinning: a lap with no speed has a distance series but no time
+// one; both ends of a lap are on it and a hair past is not; the slower lap
+// falls behind on time while on distance both laps sit at one index with
+// different fractions; the caller's lap order is kept and an off-lap lap is
+// dropped; tick steps at both ends of TIME_TICK_STEPS; and the words, where a
+// 59.96 s time rounds up into the next minute.
+const axA = {
+  n: 1,
+  timeMs: 10000,
+  speed: [100, 120, 140, 140, 120, 100, 110, 130, 150, 160, 160, 150],
+  throttle: [50, 80, 100, 100, 60, 20, 60, 90, 100, 100, 100, 90],
+};
+const axB = {
+  n: 2,
+  timeMs: 11000,
+  speed: [95, 110, 120, 120, 100, 90, 100, 120, 140, 150, 150],
+  throttle: [40, 70, 90, 90, 50, 10, 50, 80, 95, 100, 100],
+};
+// No speed: a distance grid from its other channels, and no time series.
+const axNoSpeed = { n: 3, timeMs: 9000, throttle: [10, 20, 30, 40] };
+const axLaps = [axA, axB, axNoSpeed];
+const axModes = ["distance", "time"];
+const lapAxisFixture = {
+  description:
+    "The channel panel's tabs (TABS / TAB_OF in public/js/channel-graphs.js) and its x-axis and cursor " +
+    "(public/js/lap-axis.js): each lap's series on the distance or time axis, the axis extent, the " +
+    "interpolating search both ways, where each lit lap is at an axis value (grid index and fraction of " +
+    "its lap — the map dot), the time-axis ticks and the cursor's words. Ports (LapAxis in the iOS Kit and " +
+    "Android :core, plus each client's tab enum) must reproduce numbers to 1e-9 and strings exactly. " +
+    "Regenerate with `npm run contracts:logic`; never hand-edit.",
+  source: "public/js/lap-axis.js",
+  constants: {
+    axisModes: AXIS_MODES,
+    defaultAxis: DEFAULT_AXIS,
+    timeTickSteps: TIME_TICK_STEPS,
+    timeTickTarget: TIME_TICK_TARGET,
+    tabs: PANEL_TABS,
+    tabOf: PANEL_TAB_OF,
+  },
+  input: { dStepM: 20, laps: axLaps },
+  expected: {
+    lapAxisSeries: axLaps.flatMap((_, i) => axModes.map((mode) => ({ lap: i, mode, xs: lapAxisSeries(axLaps[i], 20, mode) }))),
+    axisExtent: axModes.map((mode) => ({ mode, x1: axisExtent(axLaps, 20, mode) })),
+    gridAtAxis: [
+      [0, "distance", -1],
+      [0, "distance", 0],
+      [0, "distance", 50],
+      [0, "distance", 220],
+      [0, "distance", 220.5],
+      [1, "time", 0],
+      [1, "time", 4.25],
+      [1, "time", 11],
+      [1, "time", 11.01],
+      [2, "time", 1],
+    ].map(([lap, mode, x]) => ({ lap, mode, x, k: gridAtAxis(lapAxisSeries(axLaps[lap], 20, mode), x) })),
+    axisAtGrid: [
+      [0, "time", -2],
+      [0, "time", 0],
+      [0, "time", 3.75],
+      [0, "time", 11],
+      [0, "time", 40],
+      [1, "distance", 2.5],
+    ].map(([lap, mode, k]) => ({ lap, mode, k, x: axisAtGrid(lapAxisSeries(axLaps[lap], 20, mode), k) })),
+    axisPlaces: [
+      ["distance", 100, [0, 1]],
+      ["time", 5, [0, 1]],
+      ["time", 5, [1, 0]],
+      ["distance", 210, [1, 0]],
+      ["time", 10.5, [0, 1, 2]],
+      ["distance", 40, [2]],
+      ["distance", 40, []],
+    ].map(([mode, x, lit]) => ({ mode, x, lit, places: axisPlaces(axLaps, 20, mode, x, lit) })),
+    timeAxisTicks: [0, 4, 10, 12.4, 61, 125, 400, 3000].map((x1) => ({ x1, ticks: timeAxisTicks(x1) })),
+    fmtAxisSeconds: [0, 9.6, 59.5, 65, 600].map((s) => ({ s, text: fmtAxisSeconds(s) })),
+    fmtAxisValue: [
+      [83.46, "time", "imperial"],
+      [59.96, "time", "metric"],
+      [0.04, "time", "metric"],
+      [1234.4, "distance", "metric"],
+      [1234.4, "distance", "imperial"],
+      [60.6, "distance", "metric"],
+      [60.6, "distance", "imperial"],
+      [null, "time", "metric"],
+    ].map(([x, mode, units]) => ({ x, mode, units, text: fmtAxisValue(x, mode, units) })),
+  },
+};
+writeFileSync(path.join(OUT_DIR, "lap-axis.json"), JSON.stringify(lapAxisFixture, null, 2) + "\n");
+console.log("wrote contracts/logic/lap-axis.json");

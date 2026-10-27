@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -19,6 +20,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -27,6 +29,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.Gears
+import app.trackevolution.core.LapAxis
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.max
@@ -58,6 +61,17 @@ fun GearRibbon(
     /** The session's own lap number for a channel entry. */
     lapNumber: (Int) -> Int,
     modifier: Modifier = Modifier,
+    /**
+     * The panel's axis. On a time axis each lap's blocks sit at its own times,
+     * and the disagreement outlines are left off: laps at one time are at
+     * different places, so "they disagree here" would point nowhere. Null is the
+     * plain distance axis.
+     */
+    axis: PanelAxis? = null,
+    /** The panel's cursor, drawn as a line across the ribbon (no values). */
+    cursorX: Double? = null,
+    onPark: (Double?) -> Unit = {},
+    onHover: (Double?) -> Unit = {},
 ) {
     val rows = lit.mapIndexedNotNull { slot, chIdx ->
         val gear = channels.laps.getOrNull(chIdx)?.gear
@@ -70,13 +84,18 @@ fun GearRibbon(
     val measurer = rememberTextMeasurer()
     val blockStyle = TrackTheme.typography.xxs.copy(color = colors.surfaceCard)
 
-    val disagreements = Gears.gearDisagreements(rows.map { it.third })
+    val timeAxis = axis?.mode == LapAxis.AxisMode.TIME
+    val outlined = rows.size >= 2 && !timeAxis
+    val disagreements = if (outlined) Gears.gearDisagreements(rows.map { it.third }) else emptyList()
     // The same x-extent the channel charts use, so the ribbon lines up with the
     // RPM trace above it: the longest lap's speed series, falling back to gear.
-    val span = max(
+    val span = axis?.x1?.takeIf { it > 0.0 } ?: max(
         1.0,
         (channels.laps.maxOfOrNull { (it.speed?.size ?: it.gear?.size ?: 0) }?.minus(1) ?: 0) * channels.dStepM,
     )
+    // A lap's place on the axis at fractional grid index k.
+    fun xAt(chIdx: Int, k: Double): Double = axis?.xAt(chIdx, k, channels.dStepM) ?: (k * channels.dStepM)
+    val canvasWidth = remember { PlotEdges() }
 
     val summary = buildString {
         rows.forEachIndexed { i, (chIdx, _, gear) ->
@@ -86,7 +105,7 @@ fun GearRibbon(
             append(Gears.ordinal((used.minOrNull() ?: 0).toDouble()))
             append(" to ${Gears.ordinal((used.maxOrNull() ?: 0).toDouble())}")
         }
-        if (rows.size >= 2) {
+        if (outlined) {
             append(
                 if (disagreements.isEmpty()) {
                     ". The laps agree on gear throughout"
@@ -107,12 +126,13 @@ fun GearRibbon(
             .fillMaxWidth()
             .clearAndSetSemantics {
                 testTag = "gearRibbon"
-                contentDescription = summary
+                contentDescription = "Gear by ${if (timeAxis) "time" else "distance"}. $summary"
+                cursorActions(span, cursorX, onPark)
             },
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Gear", style = TrackTheme.typography.xxs, color = colors.textMuted)
-            if (rows.size >= 2) {
+            if (outlined) {
                 Text(
                     if (disagreements.isEmpty()) "  same gears throughout" else "  dashed: laps disagree",
                     style = TrackTheme.typography.xxs,
@@ -128,19 +148,25 @@ fun GearRibbon(
                     }
                 }
             }
-            Canvas(Modifier.fillMaxWidth().height(height)) {
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .height(height)
+                    .onSizeChanged { canvasWidth.left = 0f; canvasWidth.right = it.width.toFloat() }
+                    .axisCursorInput(axis?.mode, { canvasWidth.axisAt(it, span) }, onPark, onHover),
+            ) {
                 val rowPx = with(density) { rowHeight.toPx() }
                 val gapPx = with(density) { rowGap.toPx() }
 
                 fun x(distance: Double) = (distance / span).toFloat() * size.width
 
-                rows.forEachIndexed { index, (_, color, gear) ->
+                rows.forEachIndexed { index, (chIdx, color, gear) ->
                     val y = index * (rowPx + gapPx)
                     val last = gear.size - 1
                     for (segment in Gears.gearSegments(gear)) {
                         if (segment.gear <= 0) continue // no gear: a gap, not a block
-                        val xa = x(max(0.0, segment.k0 - 0.5) * channels.dStepM) + 1f
-                        val xb = x(min(last.toDouble(), segment.k1 + 0.5) * channels.dStepM) - 1f
+                        val xa = x(xAt(chIdx, max(0.0, segment.k0 - 0.5))) + 1f
+                        val xb = x(xAt(chIdx, min(last.toDouble(), segment.k1 + 0.5))) - 1f
                         if (xb <= xa) continue
                         drawRoundRect(
                             color = color,
@@ -163,7 +189,11 @@ fun GearRibbon(
                     }
                 }
 
-                if (rows.size < 2) return@Canvas
+                if (cursorX != null) {
+                    val cx = x(cursorX.coerceIn(0.0, span))
+                    drawLine(colors.textStrong, Offset(cx, 0f), Offset(cx, size.height), strokeWidth = 1.5f * density.density)
+                }
+                if (!outlined) return@Canvas
                 for (run in disagreements) {
                     val xa = x(max(0.0, run.k0 - 0.5) * channels.dStepM)
                     val xb = x((run.k1 + 0.5) * channels.dStepM)

@@ -1,3 +1,4 @@
+import TrackEvolutionKit
 import XCTest
 
 @testable import TrackEvolution
@@ -49,5 +50,53 @@ final class LapChannelPanelTests: XCTestCase {
     /// or standing still.
     func testASelectionThatIsNoLongerAvailableStartsOver() {
         XCTAssertEqual(LapChannelPanel.stepped([9], by: 1, over: available), [0])
+    }
+
+    // MARK: - Tabs
+
+    /// The tab enum is the web's `TABS`, through the Kit's port of it — which
+    /// `LapAxisTests` pins to `contracts/logic/lap-axis.json`.
+    func testTheTabsAreTheWebsTracesGripCar() {
+        XCTAssertEqual(LapChannelPanel.Tab.allCases.map(\.rawValue), ChannelGraphs.TABS.map(\.key))
+        XCTAssertEqual(LapChannelPanel.Tab.allCases.map(\.label), ChannelGraphs.TABS.map(\.label))
+    }
+
+    /// Every channel lands on the tab `TAB_OF` says — speed with the inputs.
+    func testEveryChannelLandsWhereTabOfSays() {
+        for channel in ChannelGraphs.Channel.allCases {
+            XCTAssertEqual(
+                LapChannelPanel.tab(of: channel).rawValue, ChannelGraphs.TAB_OF[channel.rawValue],
+                "\(channel)"
+            )
+        }
+        XCTAssertEqual(ChannelGraphs.TAB_OF["delta"], LapChannelPanel.Tab.traces.rawValue)
+    }
+
+    /// A remembered tab from before the merge (Time, Inputs) is not a tab any
+    /// more: it reads as nil, which the panel shows as its first populated tab.
+    func testARememberedTabThatNoLongerExistsReadsAsNone() {
+        XCTAssertNil(LapChannelPanel.Tab(rawValue: "time"))
+        XCTAssertNil(LapChannelPanel.Tab(rawValue: "inputs"))
+        XCTAssertEqual(LapChannelPanel.Tab(rawValue: "grip"), .grip)
+    }
+
+    // MARK: - The axis
+
+    /// The frame the charts draw on: k · step on distance, each lap's own
+    /// elapsed time on time, and one extent for every chart.
+    func testTheAxisFrameLaysLapsOutByDistanceOrTime() {
+        let a = LapChannels(n: 1, timeMs: 10_000, speed: [100, 120, 140, 140, 120, 100, 110, 130, 150, 160, 160, 150])
+        let b = LapChannels(n: 2, timeMs: 11_000, speed: [95, 110, 120, 120, 100, 90, 100, 120, 140, 150, 150])
+        let channels = SessionChannels(v: 1, dStepM: 20, laps: [a, b])
+
+        let distance = AxisFrame(channels, .distance)
+        XCTAssertEqual(distance.x1, 220)
+        XCTAssertEqual(distance.x(nil, 2.5), 50)
+
+        let time = AxisFrame(channels, .time)
+        XCTAssertEqual(time.x1, 11, accuracy: 1e-9)
+        XCTAssertNil(time.x(nil, 2), "a time axis needs the lap")
+        XCTAssertEqual(time.x(0, 11) ?? .nan, 10, accuracy: 1e-9)
+        XCTAssertEqual(time.x(1, 10) ?? .nan, 11, accuracy: 1e-9)
     }
 }

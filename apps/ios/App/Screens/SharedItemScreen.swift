@@ -45,7 +45,8 @@ struct SharedItemScreen: View {
                     channels: session.channels ?? SessionChannels(v: 1, dStepM: 20, laps: []),
                     laps: session.laps,
                     pro: item?.pro ?? false,
-                    freeNote: ItemShareText.freeNote(name: item?.name)
+                    freeNote: ItemShareText.freeNote(name: item?.name),
+                    mapTrace: session.trace.flatMap { $0.count >= 10 ? $0 : nil }
                 )
                 .navigationTitle(session.label ?? "Channel graphs")
                 .navigationBarTitleDisplayMode(.inline)

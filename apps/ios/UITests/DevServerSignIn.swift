@@ -362,7 +362,7 @@ extension XCTestCase {
                                 abs(cos(Double(k) / 9 + Double(index) * 0.15)) * 1.2
                             },
                             // The pedals trade off against each other, so the
-                            // Inputs tab has traces for the limit bands to shade.
+                            // Traces tab has traces for the limit bands to shade.
                             "throttle": (0..<120).map { k in
                                 max(0, sin(Double(k) / 9 + Double(index) * 0.15)) * 100
                             },

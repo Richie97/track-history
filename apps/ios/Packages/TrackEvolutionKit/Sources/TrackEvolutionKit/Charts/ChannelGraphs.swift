@@ -319,3 +319,31 @@ public enum ChannelGraphs {
         return (low - pad, high + pad)
     }
 }
+
+// MARK: - The panel's tabs
+
+extension ChannelGraphs {
+    /// One of the panel's tabs: its key and the word on its button.
+    public struct PanelTab: Sendable, Hashable {
+        public let key: String
+        public let label: String
+    }
+
+    /// The panel's tabs, in order — `TABS` in the JS. The first is the
+    /// data-logger view: the delta, speed and the driver's inputs stacked on one
+    /// axis. Grip and Car are the two questions that need a chart of their own
+    /// kind. Pinned by `contracts/logic/lap-axis.json`; the app's tab enum is
+    /// asserted against this table.
+    public static let TABS: [PanelTab] = [
+        PanelTab(key: "traces", label: "Traces"),
+        PanelTab(key: "grip", label: "Grip"),
+        PanelTab(key: "car", label: "Car"),
+    ]
+
+    /// Which tab a chart lands on, by channel key (plus `delta`, the lap delta
+    /// chart) — `TAB_OF` in the JS.
+    public static let TAB_OF: [String: String] = [
+        "delta": "traces", "speed": "traces", "throttle": "traces", "brake": "traces",
+        "steering": "traces", "rpm": "traces", "latG": "grip", "yaw": "grip",
+    ]
+}

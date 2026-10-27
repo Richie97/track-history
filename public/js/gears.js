@@ -26,6 +26,7 @@
 import { esc } from "./format.js";
 import { currentUnits, distAxisTicks, fmtDist as fmtDistIn } from "./units.js";
 import { niceNumTicks } from "./chart.js";
+import { axisAtGrid } from "./lap-axis.js";
 
 // A run of differing gears shorter than this (3 points = 60 m at the 20 m
 // grid) is a shift that landed on a different sample, not a different gear
@@ -212,9 +213,12 @@ const fmtDist = (m) => fmtDistIn(m, currentUnits());
 // the gear number where the block is wide enough, gear 0 as a gap. Sits under
 // the speed chart on the same distance axis (same padding and x-extent as
 // channelChartSvg, so the charts align), and with two or more laps the runs
-// where they disagree are outlined. `labelFor(chIdx)` names a lap. Returns ""
-// when no highlighted lap stored a gear series. Exported for unit tests.
-export function gearRibbonSvg(channels, lit, labelFor, { width = 900 } = {}) {
+// where they disagree are outlined. `labelFor(chIdx)` names a lap. `axis` —
+// the panel's axisFrame (js/lap-axis.js); on a time axis each lap's blocks
+// sit at its own times, and the disagreement outlines are left off, since
+// laps at one time are at different places. Returns "" when no highlighted
+// lap stored a gear series. Exported for unit tests.
+export function gearRibbonSvg(channels, lit, labelFor, { width = 900, axis = null } = {}) {
   const dStep = channels.dStepM;
   const laps = channels.laps;
   const rows = [...lit.entries()]
@@ -230,16 +234,24 @@ export function gearRibbonSvg(channels, lit, labelFor, { width = 900 } = {}) {
     const n = Array.isArray(l.speed) ? l.speed.length : Array.isArray(l.gear) ? l.gear.length : 0;
     if (n > maxN) maxN = n;
   }
-  const x1 = (maxN - 1) * dStep;
-  const X = (d) => pad.l + (d / Math.max(1, x1)) * (width - pad.l - pad.r);
+  const timeAxis = axis?.mode === "time";
+  const x1 = axis ? axis.x1 : (maxN - 1) * dStep;
+  const X = (d) => pad.l + (d / Math.max(1e-9, x1)) * (width - pad.l - pad.r);
+  // A lap's place on the axis at fractional grid index k.
+  const xAt = (i, k) => {
+    const xs = axis?.xsOf(i);
+    return xs ? axisAtGrid(xs, k) : k * dStep;
+  };
   const rowY = (r) => pad.t + r * (rowH + gap);
 
   let labels = "", grid = "";
-  for (const { m, label } of distAxisTicks(x1, currentUnits())) {
-    labels += `<text x="${X(m).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
+  const ticks = axis ? axis.ticks : distAxisTicks(x1, currentUnits()).map((t) => ({ x: t.m, label: t.label }));
+  for (const { x, label } of ticks) {
+    labels += `<text x="${X(x).toFixed(1)}" y="${height - 6}" text-anchor="middle" fill="var(--text-faint)" font-size="11">${esc(label)}</text>`;
   }
   grid += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${height - pad.b}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
-  labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Gear${rows.length >= 2 ? " — dashed boxes: laps disagree" : ""}</text>`;
+  const outlined = rows.length >= 2 && !timeAxis;
+  labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Gear${outlined ? " — dashed boxes: laps disagree" : ""}</text>`;
 
   let blocks = "";
   rows.forEach((r, ri) => {
@@ -248,8 +260,8 @@ export function gearRibbonSvg(channels, lit, labelFor, { width = 900 } = {}) {
     labels += `<text x="${pad.l - 8}" y="${(y + rowH / 2).toFixed(1)}" dy="0.35em" text-anchor="end" fill="${r.color}" font-size="11" font-weight="600">${esc(labelFor(r.i))}</text>`;
     for (const seg of gearSegments(r.gear)) {
       if (!(seg.gear > 0)) continue; // no gear: a gap
-      const xa = X(Math.max(0, seg.k0 - 0.5) * dStep) + 1;
-      const xb = X(Math.min(last, seg.k1 + 0.5) * dStep) - 1;
+      const xa = X(xAt(r.i, Math.max(0, seg.k0 - 0.5))) + 1;
+      const xb = X(xAt(r.i, Math.min(last, seg.k1 + 0.5))) - 1;
       const w = xb - xa;
       if (w <= 0) continue;
       blocks += `<rect x="${xa.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${rowH}" rx="2" fill="${r.color}"/>`;
@@ -260,7 +272,7 @@ export function gearRibbonSvg(channels, lit, labelFor, { width = 900 } = {}) {
   });
 
   let outlines = "";
-  if (rows.length >= 2) {
+  if (outlined) {
     const y0 = rowY(0) - 2, y1 = rowY(rows.length - 1) + rowH + 2;
     for (const run of gearDisagreements(rows.map((r) => r.gear))) {
       const xa = X(Math.max(0, run.k0 - 0.5) * dStep);
@@ -269,7 +281,7 @@ export function gearRibbonSvg(channels, lit, labelFor, { width = 900 } = {}) {
     }
   }
 
-  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Gear by distance, per lap${rows.length >= 2 ? " — outlined where the laps disagree" : ""}" data-channel="gear" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Gear by ${timeAxis ? "time" : "distance"}, per lap${outlined ? " — outlined where the laps disagree" : ""}" data-channel="gear" data-axis="${timeAxis ? "time" : "distance"}" data-x1="${x1}" data-padl="${pad.l}" data-padr="${pad.r}">
     ${grid}${labels}${blocks}${outlines}
   </svg>`;
 }

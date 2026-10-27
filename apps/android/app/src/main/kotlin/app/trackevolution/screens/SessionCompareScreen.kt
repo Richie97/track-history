@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import app.trackevolution.core.TraceSample
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,6 +65,8 @@ fun SessionCompareScreen(
                 laps = session.laps,
                 modifier = Modifier.fillMaxWidth(),
                 initialSelection = LapDetail.comparePreselect(session, lapId),
+                // No map beside the panel here, so it draws its own on Traces.
+                trace = session.trace?.map { TraceSample(x = it.x, y = it.y, v = it.v) },
                 pro = canViewChannels,
                 onSubscribe = onSubscribe,
             )

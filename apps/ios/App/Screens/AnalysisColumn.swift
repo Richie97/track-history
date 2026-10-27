@@ -28,6 +28,10 @@ struct AnalysisColumn: View {
     /// sample. Held here rather than in the panel because the *map* is what
     /// answers it, and the map is this column's, not the panel's.
     @State private var hit: ChannelHit?
+    /// The panel's cursor on this column's map: one dot per lit lap, at its own
+    /// fraction of the lap. The panel draws no map of its own here — this one is
+    /// beside it.
+    @State private var dots: [TrackMapView.Dot] = []
 
     var body: some View {
         ScrollView {
@@ -43,6 +47,11 @@ struct AnalysisColumn: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Color(.bgPage))
+        .onChange(of: selectedSessionId) {
+            // A new session's panel starts with nothing marked.
+            hit = nil
+            dots = []
+        }
         .accessibilityIdentifier("analysisColumn")
     }
 
@@ -72,7 +81,8 @@ struct AnalysisColumn: View {
                     TrackMapView(
                         trace: trace,
                         markers: markers,
-                        highlight: ringedIndex(session, trace: trace)
+                        highlight: ringedIndex(session, trace: trace),
+                        dots: dots
                     )
                     .frame(height: 240)
                     LimitLegend(markers: markers)
@@ -110,7 +120,8 @@ struct AnalysisColumn: View {
                     channels: channels,
                     laps: session.laps,
                     pro: owner.canViewChannels(viewer: auth.entitlement),
-                    onHit: { hit = $0 }
+                    onHit: { hit = $0 },
+                    onCursor: { dots = $0 }
                 )
                     // Keyed by session: `lit` holds *channel-lap indexes*, which
                     // mean different laps in a different session, so carrying them

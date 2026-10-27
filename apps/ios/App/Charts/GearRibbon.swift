@@ -4,8 +4,8 @@ import TrackEvolutionKit
 /// The gear ribbon (#187) — the counterpart of `gearRibbonSvg` in
 /// `public/js/gears.js`.
 ///
-/// One horizontal band per highlighted lap on the channel panel's shared
-/// driven-distance axis, cut into blocks of one gear with the number written in
+/// One horizontal band per highlighted lap on the channel panel's shared axis
+/// — driven distance, or each lap's own elapsed time (`LapAxis`) — cut into blocks of one gear with the number written in
 /// any block wide enough to hold it. **Not a line chart**: `gear` is an enum, and
 /// a line between 3 and 4 implies a gear no car has — which is also why the
 /// importer samples it by holding the last value. Gear 0 (clutch in / no gear)
@@ -13,7 +13,10 @@ import TrackEvolutionKit
 ///
 /// With two or more laps lit, the runs where they sit in different gears are
 /// outlined, and that is the whole feature: "you took T5 in 3rd on your best lap
-/// and 4th on this one". The cutting and the comparison rule are the Kit's
+/// and 4th on this one". On a time axis each lap's blocks sit at its own times
+/// and the outlines are left off: a run of grid points is one place on track,
+/// which a time axis draws in a different spot for every lap. The cutting and
+/// the comparison rule are the Kit's
 /// `Gears`, pinned to the web implementation by `contracts/logic/gears.json`;
 /// this file draws.
 ///
@@ -27,6 +30,19 @@ struct GearRibbon: View {
     let slots: [Color]
     /// The session's own lap number for a channel entry.
     let lapNumber: (Int) -> Int
+    /// The panel's axis, so the ribbon lines up with the RPM trace above it.
+    let axis: AxisFrame
+    /// The panel's cursor, as an axis value: a line across the ribbon.
+    var cursorX: Double? = nil
+    /// A tap at an axis value — the panel's, so the ribbon marks (or seeks)
+    /// exactly as a trace does.
+    var onAxisTap: (Double) -> Void = { _ in }
+    /// A pointer at an axis value; nil when it leaves.
+    var onAxisHover: (Double?) -> Void = { _ in }
+    /// VoiceOver's swipe up / down on the card, which moves the mark.
+    var onAxisStep: (AccessibilityAdjustmentDirection) -> Void = { _ in }
+    /// The card's "Clear the mark" action, when there is one to clear.
+    var onClear: (() -> Void)? = nil
 
     private struct Band {
         let chIdx: Int
@@ -37,22 +53,15 @@ struct GearRibbon: View {
     private var bands: [Band] {
         lit.enumerated().compactMap { slot, chIdx in
             guard slot < slots.count, channels.laps.indices.contains(chIdx),
-                  let gear = channels.laps[chIdx].gear, !gear.isEmpty
+                  let gear = channels.laps[chIdx].gear, !gear.isEmpty,
+                  axis.mode == .distance || axis.xs(chIdx) != nil
             else { return nil }
             return Band(chIdx: chIdx, color: slots[slot], gear: gear)
         }
     }
 
-    /// The same x-extent the channel charts use, so the ribbon lines up with the
-    /// RPM trace above it: the longest lap's speed series, falling back to gear.
-    private var span: Double {
-        var maxN = 0
-        for l in channels.laps {
-            let n = l.speed?.count ?? l.gear?.count ?? 0
-            if n > maxN { maxN = n }
-        }
-        return max(1, Double(maxN - 1) * channels.dStepM)
-    }
+    /// The same x-extent the channel charts use.
+    private var span: Double { max(1, axis.x1) }
 
     private static let rowHeight: CGFloat = 22
     private static let rowGap: CGFloat = 6
@@ -60,14 +69,15 @@ struct GearRibbon: View {
     var body: some View {
         let rows = bands
         if !rows.isEmpty {
-            let disagreements = Gears.gearDisagreements(rows.map { $0.gear })
+            // Disagreement is a same-place comparison, so only distance draws it.
+            let disagreements = axis.mode == .distance ? Gears.gearDisagreements(rows.map { $0.gear }) : []
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Gear")
                         .teStyle(.eyebrow)
                         .foregroundStyle(Color(.textMuted))
                     Spacer()
-                    if rows.count >= 2 {
+                    if rows.count >= 2 && axis.mode == .distance {
                         Text(disagreements.isEmpty ? "same gears throughout" : "dashed: laps disagree")
                             .teStyle(.xxs)
                             .foregroundStyle(Color(.textFaint))
@@ -86,12 +96,37 @@ struct GearRibbon: View {
                         draw(rows, disagreements, in: context, size: size)
                     }
                     .frame(height: CGFloat(rows.count) * Self.rowHeight + CGFloat(rows.count - 1) * Self.rowGap)
+                    .overlay { pointing }
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Gear by driven distance, per lap")
+            .accessibilityLabel("Gear by \(axis.mode == .time ? "time" : "driven distance"), per lap")
             .accessibilityValue(summary(rows, disagreements))
+            .accessibilityAdjustableAction(onAxisStep)
+            .accessibilityActions {
+                if let onClear { Button("Clear the mark", action: onClear) }
+            }
             .accessibilityIdentifier("gearRibbon")
+        }
+    }
+
+    /// The tap and the pointer, turned into an axis value.
+    private var pointing: some View {
+        GeometryReader { geometry in
+            Rectangle().fill(.clear).contentShape(.rect)
+                .onTapGesture { location in
+                    onAxisTap(location.x / max(1, geometry.size.width) * span)
+                }
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location):
+                        onAxisHover(location.x / max(1, geometry.size.width) * span)
+                    case .ended:
+                        onAxisHover(nil)
+                    @unknown default:
+                        onAxisHover(nil)
+                    }
+                }
         }
     }
 
@@ -99,14 +134,16 @@ struct GearRibbon: View {
         _ rows: [Band], _ disagreements: [Gears.Disagreement], in context: GraphicsContext, size: CGSize
     ) {
         let step = channels.dStepM
-        func x(_ distance: Double) -> CGFloat { CGFloat(distance / span) * size.width }
+        func x(_ value: Double) -> CGFloat { CGFloat(value / span) * size.width }
+        /// Lap chIdx's grid index k on the axis — its own time on a time axis.
+        func xAt(_ chIdx: Int, _ k: Double) -> CGFloat { x(axis.x(chIdx, k) ?? k * step) }
 
         for (index, row) in rows.enumerated() {
             let y = CGFloat(index) * (Self.rowHeight + Self.rowGap)
             let last = row.gear.count - 1
             for segment in Gears.gearSegments(row.gear) where segment.gear > 0 {
-                let xa = x(max(0, Double(segment.k0) - 0.5) * step) + 1
-                let xb = x(min(Double(last), Double(segment.k1) + 0.5) * step) - 1
+                let xa = xAt(row.chIdx, max(0, Double(segment.k0) - 0.5)) + 1
+                let xb = xAt(row.chIdx, min(Double(last), Double(segment.k1) + 0.5)) - 1
                 guard xb > xa else { continue }
                 let rect = CGRect(x: xa, y: y, width: xb - xa, height: Self.rowHeight)
                 context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(row.color))
@@ -119,6 +156,13 @@ struct GearRibbon: View {
                     context.draw(context.resolve(text), at: CGPoint(x: rect.midX, y: rect.midY))
                 }
             }
+        }
+
+        if let cursorX {
+            var line = Path()
+            line.move(to: CGPoint(x: x(cursorX), y: 0))
+            line.addLine(to: CGPoint(x: x(cursorX), y: size.height))
+            context.stroke(line, with: .color(Color(.textStrong)), lineWidth: 1.5)
         }
 
         guard rows.count >= 2 else { return }
@@ -145,7 +189,7 @@ struct GearRibbon: View {
             let high = used.max() ?? 0
             return "Lap \(String(lapNumber(row.chIdx))) used \(Gears.ordinal(Double(low))) to \(Gears.ordinal(Double(high)))"
         }
-        if rows.count >= 2 {
+        if rows.count >= 2 && axis.mode == .distance {
             parts.append(
                 disagreements.isEmpty
                     ? "The laps agree on gear throughout"

@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.TraceSample
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.SessionConditions
@@ -264,6 +265,7 @@ private fun SharedItemContent(
                             channels = channels,
                             laps = session.laps,
                             modifier = Modifier.fillMaxWidth(),
+                            trace = session.trace?.map { TraceSample(x = it.x, y = it.y, v = it.v) },
                             pro = item.pro,
                         )
                     }

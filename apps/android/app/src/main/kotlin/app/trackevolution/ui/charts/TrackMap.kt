@@ -30,6 +30,7 @@ import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.TraceMap
 import app.trackevolution.core.TracePoint
 import app.trackevolution.core.TraceSample
+import app.trackevolution.core.TrackMap as TrackMapGeometry
 import app.trackevolution.ui.theme.TrackColors
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.theme.TrackTheme
@@ -68,6 +69,14 @@ fun TrackMap(
      * answer to a question being asked right now, not a mark the map carries.
      */
     highlight: Int? = null,
+    /**
+     * The channel panel's cursor: one dot per lit lap, in that lap's slot
+     * colour, placed by fraction of the lap along this trace's driven distance
+     * (`TrackMap.traceIndexAtFraction` in `:core`). The stored trace is the
+     * best lap's, so every lap's dot is where that fraction of the lap falls on
+     * the best lap's line — the web's rule.
+     */
+    dots: List<MapDot> = emptyList(),
 ) {
     // Matching `renderTrackMap`'s bail: fewer than ten points is a GPS glitch,
     // not a lap, and drawing it would claim more than we know.
@@ -90,10 +99,16 @@ fun TrackMap(
     val ringRadius = with(density) { 10.dp.toPx() }
     val ringHalo = with(density) { 4.dp.toPx() }
     val ringStroke = with(density) { 2.dp.toPx() }
+    val dotRadius = with(density) { 5.dp.toPx() }
+    val dotHalo = with(density) { 2.dp.toPx() }
 
     // Stored samples carry no timestamp; TraceMap only needs the geometry.
     val points = remember(trace) { trace.map { TracePoint(t = 0.0, x = it.x, y = it.y, v = it.v) } }
     val speeds = remember(trace) { ChartScale.speedRange(trace) }
+    // The geometry the dots are placed by, in the wire type it takes.
+    val wirePoints = remember(trace) {
+        trace.map { app.trackevolution.core.model.TracePoint(x = it.x, y = it.y, v = it.v) }
+    }
 
     Box(
         modifier = modifier
@@ -103,7 +118,8 @@ fun TrackMap(
             .border(1.dp, colors.borderHairline, RoundedCornerShape(TrackTheme.radii.md))
             .semantics {
                 testTag = "trackMap"
-                contentDescription = trackMapSummary(trace, markers, units)
+                contentDescription = trackMapSummary(trace, markers, units) +
+                    if (dots.isEmpty()) "" else " ${dots.size} marked place${if (dots.size == 1) "" else "s"} on the line."
             },
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -188,6 +204,16 @@ fun TrackMap(
                 val centre = Offset(p.x.toFloat(), p.y.toFloat())
                 drawCircle(colors.surfaceCard, radius = ringRadius, center = centre, style = Stroke(ringHalo))
                 drawCircle(colors.accent, radius = ringRadius, center = centre, style = Stroke(ringStroke))
+            }
+
+            // The cursor's dots, over the ring: each a filled slot-coloured
+            // disc in a card-coloured halo, so two laps at one place both read.
+            for (dot in dots) {
+                val i = TrackMapGeometry.traceIndexAtFraction(wirePoints, dot.frac) ?: continue
+                val p = view.getOrNull(i) ?: continue
+                val centre = Offset(p.x.toFloat(), p.y.toFloat())
+                drawCircle(colors.surfaceCard, radius = dotRadius + dotHalo, center = centre)
+                drawCircle(dot.color, radius = dotRadius, center = centre)
             }
 
             // Start/finish: a tick normal to the heading out of the first point.

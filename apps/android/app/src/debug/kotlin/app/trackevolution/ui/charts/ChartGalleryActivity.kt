@@ -144,8 +144,10 @@ private fun Gallery(theme: ThemeChoice, onToggleTheme: () -> Unit) {
         TrackMap(trace = lapTrace, markers = markers)
         LimitLegend(markers, Modifier.padding(top = 6.dp))
 
+        // The Traces tab with its own small map: a tap on a trace parks the
+        // cursor, a dot per lit lap on the line.
         Text("Lap overlay", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
-        LapChannelChart(channels = gallerySession, laps = galleryLaps)
+        LapChannelChart(channels = gallerySession, laps = galleryLaps, trace = lapTrace)
 
         // The lap detail's panel (#268): one lap alone, the way the screen carves
         // it out of the session's blob.

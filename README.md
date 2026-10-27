@@ -1024,13 +1024,33 @@ to the iOS Kit and Android `:core` and pinned for both by
 sit under its label rather than in columns of their own, which is what keeps
 the table inside the width.
 
-The panel is organised as **one question per tab** rather than a stack of
-sections: *Time* (the delta chart, the sector table and the speed trace),
-*Inputs* (throttle, brake, steering, RPM, the gear ribbon and shift points)
-and *Grip* (the friction circle, the balance scatter and per-corner table,
-and the lateral-G and yaw traces), and *Car* (the session health strip);
-only tabs with content render, and a session with one populated tab renders
-flat. All of it — the tabs, the ribbon, the shift points, the limit marks and
+The panel is organised as tabs rather than one long stack of sections. The
+first, *Traces*, is the data-logger view: the sector table, the delta chart,
+speed, throttle, brake, steering, RPM with the gear ribbon, and the shift
+points, all on one axis, because speed is read against the inputs that made
+it (it used to be split into *Time* and *Inputs*; user feedback merged them).
+*Grip* has the friction circle, the balance scatter and per-corner table, and
+the lateral-G and yaw traces, and *Car* has the session health strip. Only
+tabs with content render, and a session with one populated tab renders flat.
+The tab table (`TABS` / `TAB_OF` in `public/js/channel-graphs.js`) is pinned
+for the ports by `contracts/logic/lap-axis.json`.
+
+**The cursor and the x-axis** (`public/js/lap-axis.js`). Pointing at any
+lap-axis chart (or tapping it) marks that place on every chart: a line, a dot
+on each lit lap's trace and the values in each chart's title. It also puts one
+dot per lit lap on a track map of the session's best lap. On the web that map
+sits beside the *Traces* tab's charts, pinned while they scroll, and the event
+page's own map takes the dots too when it is this session's line. A tap or
+click pins the mark until *Clear*. A map dot is placed by the lap's fraction
+of its own driven distance, which is how the lap stage places its cars. While
+the stage is open it owns the playhead, so the cursor is off and a click
+seeks the stage. A *Distance / Time* switch picks the x-axis. Distance is the
+default and the stored grid. Time plots each lap against its own elapsed time
+(`lapTimeSeries`), so laps drift apart by the gap. The delta chart is then
+drawn at the reference lap's time, and the gear ribbon drops its
+disagreement outlines, since laps at one time are at different places. The
+pure half (`lapAxisSeries`, `gridAtAxis`, `axisPlaces`, `timeAxisTicks`,
+`fmtAxisValue`, …) is ported as `LapAxis` to the iOS Kit and Android `:core`. All of it — the tabs, the ribbon, the shift points, the limit marks and
 their bands, the friction circle, the balance read-out and the Car tab's health
 strip — is on the web app and both phone apps, and so, since NS-40, is the
 tire-pressure loop below (on the phones it sits under the setup notebook on
