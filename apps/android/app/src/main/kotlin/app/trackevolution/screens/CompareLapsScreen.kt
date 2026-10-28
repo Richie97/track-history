@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -33,6 +34,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.CompareLaps
+import app.trackevolution.core.Corners
+import app.trackevolution.core.TraceSample
+import app.trackevolution.core.VideoSync
+import app.trackevolution.core.api.ApiClient
+import app.trackevolution.ui.stage.LapStageHolder
+import app.trackevolution.ui.stage.LapStagePage
+import app.trackevolution.ui.stage.rememberLapStageHolder
+import app.trackevolution.ui.stage.stageSide
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Units
 import app.trackevolution.ui.LoadState
@@ -71,6 +80,10 @@ fun CompareLapsScreen(
      * closes a column first. Null hides the action, as for a coach.
      */
     onNavigate: ((Route) -> Unit)? = null,
+    /** Signs a clip's URL (NS-51) — the owner's client. Null plays no video. */
+    videoApi: ApiClient? = null,
+    /** Whether the viewer may play the owner's videos (`canSaveLapVideo` on the owner's tier). */
+    canPlayVideo: Boolean = false,
 ) {
     val colors = TrackTheme.colors
 
@@ -95,20 +108,22 @@ fun CompareLapsScreen(
 
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val pair = model.pair
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 12.dp),
-        ) {
-            // The column has its own heading above, with the close beside it, so
-            // this one would be the same words twice.
+        // The column has its own heading above, with the close beside it, so
+        // this one would be the same words twice.
+        val head: LazyListScope.() -> Unit = {
             if (onClose == null) {
                 item("head") {
                     Text("Compare two laps", style = TrackTheme.typography.h1, color = colors.textStrong)
                 }
             }
-
-            if (pair == null) {
+        }
+        if (pair == null) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+            ) {
+                head()
                 item("empty") {
                     TEEmpty(
                         "Comparing laps needs two laps with telemetry at this track — " +
@@ -116,16 +131,28 @@ fun CompareLapsScreen(
                         action = onNavigate?.let { noTelemetryAction(model.events, it) },
                     )
                 }
-                return@LazyColumn
             }
+            return@TELoadable
+        }
 
+        // The stage (NS-51): A and B are the picks, each playing its own clip
+        // when it has one and the viewer may play it, both on the aligned grid.
+        val binding = remember(pair, canPlayVideo) { compareBinding(pair, canPlayVideo) }
+        val holder = rememberLapStageHolder("track-compare-${model.trackId}")
+        LaunchedEffect(binding) {
+            binding?.let { b -> holder.bind(b, { id -> videoApi!!.clipUrl(id).url }) }
+        }
+        val trace = remember(pair.traceA) {
+            pair.traceA?.takeIf { it.size >= 10 }?.map { TraceSample(x = it.x, y = it.y, v = it.v) }
+        }
+        val header: LazyListScope.() -> Unit = {
+            head()
             item("pickers") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LapPicker("Lap A", colors.chartLine, model.selA, model, model::pickA)
                     LapPicker("Lap B", colors.chartLineB, model.selB, model, model::pickB)
                 }
             }
-
             if (pair.mismatch > CompareLaps.LENGTH_MISMATCH_WARN) {
                 item("mismatch") {
                     Text(
@@ -136,9 +163,10 @@ fun CompareLapsScreen(
                     )
                 }
             }
-
+        }
+        val staged = binding != null && holder.binding != null
+        val body: LazyListScope.() -> Unit = {
             item("head-to-head") { HeadToHead(pair) }
-
             item("charts-hint") {
                 Text(
                     "The delta chart shows where time is gained or lost vs the faster lap; " +
@@ -147,16 +175,52 @@ fun CompareLapsScreen(
                     color = colors.textFaint,
                 )
             }
-
             item("charts") {
                 LapChannelChart(
                     channels = pair.aligned,
                     laps = pair.laps,
                     initialSelection = listOf(0, 1),
+                    playhead = if (staged) holder.playhead else null,
+                    onSeek = if (staged) holder::seekGrid else null,
+                    onScrub = if (staged) holder::scrubGrid else null,
                 )
             }
         }
+        if (!staged) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+            ) {
+                header()
+                body()
+            }
+            return@TELoadable
+        }
+        LapStagePage(holder = holder, trace = trace, header = header, body = body)
     }
+}
+
+/** The track compare's stage over the pair: A and B on the aligned grid, chip indexes 0 and 1. */
+internal fun compareBinding(pair: CompareLapsModel.LapPair, canPlay: Boolean): LapStageHolder.Binding? {
+    val entries = pair.aligned.laps
+    if (entries.size < 2) return null
+    val faster = minOf(entries[0].timeMs, entries[1].timeMs)
+    val a = stageSide(
+        VideoSync.SideKey.A, entries[0], pair.aligned.dStepM, pair.laps[0].lapNum,
+        clip = pair.lapA?.clip?.takeIf { canPlay }, best = entries[0].timeMs == faster, chIdx = 0,
+    ) ?: return null
+    val b = stageSide(
+        VideoSync.SideKey.B, entries[1], pair.aligned.dStepM, pair.laps[1].lapNum,
+        clip = pair.lapB?.clip?.takeIf { canPlay }, best = entries[1].timeMs == faster, chIdx = 1,
+    )
+    return LapStageHolder.Binding(
+        key = "compare-${pair.laps[0].sessionId}-${pair.laps[0].lapNum}-${pair.laps[1].sessionId}-${pair.laps[1].lapNum}-$canPlay",
+        a = a,
+        b = b,
+        showB = true,
+        corners = Corners.sessionCorners(pair.aligned),
+    )
 }
 
 @Composable

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -35,6 +36,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.CompareLaps
+import app.trackevolution.core.Corners
+import app.trackevolution.core.VideoSync
+import app.trackevolution.core.api.ApiClient
+import app.trackevolution.ui.stage.LapStageHolder
+import app.trackevolution.ui.stage.LapStagePage
+import app.trackevolution.ui.stage.rememberLapStageHolder
+import app.trackevolution.ui.stage.stageSide
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.SessionConditions
 import app.trackevolution.core.Units
@@ -89,6 +97,10 @@ fun LeaderboardLapScreen(
      * the two-lap compare's ([noTelemetryAction]). Null hides it.
      */
     onNavigate: ((Route) -> Unit)? = null,
+    /** Signs your clip's URL (NS-51). Null plays no video. */
+    videoApi: ApiClient? = null,
+    /** Whether you may play your own videos (`canSaveLapVideo`). */
+    canPlayVideo: Boolean = false,
 ) {
     val colors = TrackTheme.colors
 
@@ -97,27 +109,38 @@ fun LeaderboardLapScreen(
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val lap = model.lap ?: return@TELoadable
         val panel = model.panel
+        val trace = lap.trace.orEmpty().map { TraceSample(x = it.x, y = it.y, v = it.v) }
+        // The stage (NS-51): their side is always replay — no clip ever
+        // reaches the leaderboard (NS-45) — and yours plays your lap's clip when
+        // it has one. A second side and the delta are Pro.
+        val staged = panel != null
+        val binding = remember(panel, canViewChannels, canPlayVideo) {
+            panel?.let { leaderboardBinding(it, canViewChannels, canPlayVideo) }
+        }
+        val holder = rememberLapStageHolder("leaderboard-${model.trackId}-${model.lapId}")
+        LaunchedEffect(binding) {
+            binding?.let { b -> holder.bind(b, { id -> videoApi!!.clipUrl(id).url }) }
+        }
         // The panel's cursor: a dot per lit lap on this page's own map of
-        // their lap, rather than a second map inside the panel.
+        // their lap, rather than a second map inside the panel. Off on the
+        // stage, whose map carries the playhead's dots instead.
         var cursorDots by remember(lap) { mutableStateOf<List<MapDot>?>(null) }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 12.dp),
-        ) {
+        val header: LazyListScope.() -> Unit = {
             item("head") {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(LapTime.fmtMs(lap.timeMs), style = TrackTheme.typography.h1, color = colors.textStrong)
                     Text(subtitle(lap, LocalUnitSystem.current), style = TrackTheme.typography.sm, color = colors.textMuted)
                 }
             }
-
+        }
+        val onStage = staged && binding != null && holder.binding != null
+        val content: LazyListScope.() -> Unit = {
             // The racing line is free, and so are the speed, throttle and brake
             // traces (#264): the server strips the rest of `channels` for a free
             // account (NS-32 rule 4), and the panel's upsell sits under what is
-            // drawn rather than over the screen.
-            val trace = lap.trace.orEmpty().map { TraceSample(x = it.x, y = it.y, v = it.v) }
-            if (trace.size > 1) {
+            // drawn rather than over the screen. On the stage the map is its
+            // replay slot and map card.
+            if (trace.size > 1 && !onStage) {
                 item("map") {
                     TrackCard(Modifier.fillMaxWidth()) {
                         Text(
@@ -139,65 +162,110 @@ fun LeaderboardLapScreen(
                 // keeps it, so an absent entry is a lap with no telemetry rather
                 // than one with telemetry withheld.
                 item("no-telemetry") { TEEmpty("This lap's telemetry isn't available.") }
-                return@LazyColumn
-            }
-
-            if (panel.mine == null) {
-                item("no-lap-of-mine") {
-                    TEEmpty(
-                        "You have no lap with telemetry at this track yet, so there's nothing to overlay. " +
-                            "Import a session, or record laps with the app, and this screen will put the two side by side.",
-                        action = onNavigate?.let { noTelemetryAction(model.events, it) },
-                    )
-                }
             } else {
-                // Only offered once there is a choice to make: with one lap of
-                // your own it is already the one shown, and a menu with a single
-                // item is a control that does nothing.
-                if (model.rows.size > 1) {
-                    item("mine-picker") {
-                        MinePicker(colors.chartLineB, model)
-                    }
-                }
-                if (panel.mismatch > CompareLaps.LENGTH_MISMATCH_WARN) {
-                    item("mismatch") {
-                        Text(
-                            "⚠️ These laps cover driven distances ${(panel.mismatch * 100).roundToInt()}% apart — " +
-                                "likely a different layout or start/finish line, so the distance alignment may be off.",
-                            style = TrackTheme.typography.xs,
-                            color = colors.textMuted,
+                if (panel.mine == null) {
+                    item("no-lap-of-mine") {
+                        TEEmpty(
+                            "You have no lap with telemetry at this track yet, so there's nothing to overlay. " +
+                                "Import a session, or record laps with the app, and this screen will put the two side by side.",
+                            action = onNavigate?.let { noTelemetryAction(model.events, it) },
                         )
                     }
+                } else {
+                    // Only offered once there is a choice to make: with one lap of
+                    // your own it is already the one shown, and a menu with a single
+                    // item is a control that does nothing.
+                    if (model.rows.size > 1) {
+                        item("mine-picker") {
+                            MinePicker(colors.chartLineB, model)
+                        }
+                    }
+                    if (panel.mismatch > CompareLaps.LENGTH_MISMATCH_WARN) {
+                        item("mismatch") {
+                            Text(
+                                "⚠️ These laps cover driven distances ${(panel.mismatch * 100).roundToInt()}% apart — " +
+                                    "likely a different layout or start/finish line, so the distance alignment may be off.",
+                                style = TrackTheme.typography.xs,
+                                color = colors.textMuted,
+                            )
+                        }
+                    }
+                }
+
+                item("head-to-head") { HeadToHead(panel) }
+
+                item("charts-hint") {
+                    Text(
+                        if (panel.mine == null || !canViewChannels) {
+                            "Tap a chart to read values."
+                        } else {
+                            "The delta chart shows where you gain or lose against this lap; " +
+                                "the channels below show why."
+                        },
+                        style = TrackTheme.typography.xs,
+                        color = colors.textFaint,
+                    )
+                }
+
+                item("charts") {
+                    LapChannelChart(
+                        channels = panel.aligned,
+                        laps = panel.laps,
+                        initialSelection = if (panel.mine == null) listOf(0) else listOf(0, 1),
+                        onCursor = { cursorDots = it },
+                        pro = canViewChannels,
+                        onSubscribe = onSubscribe,
+                        playhead = if (onStage) holder.playhead else null,
+                        onSeek = if (onStage) holder::seekGrid else null,
+                        onScrub = if (onStage) holder::scrubGrid else null,
+                    )
                 }
             }
-
-            item("head-to-head") { HeadToHead(panel) }
-
-            item("charts-hint") {
-                Text(
-                    if (panel.mine == null || !canViewChannels) {
-                        "Tap a chart to read values."
-                    } else {
-                        "The delta chart shows where you gain or lose against this lap; " +
-                            "the channels below show why."
-                    },
-                    style = TrackTheme.typography.xs,
-                    color = colors.textFaint,
-                )
-            }
-
-            item("charts") {
-                LapChannelChart(
-                    channels = panel.aligned,
-                    laps = panel.laps,
-                    initialSelection = if (panel.mine == null) listOf(0) else listOf(0, 1),
-                    onCursor = { cursorDots = it },
-                    pro = canViewChannels,
-                    onSubscribe = onSubscribe,
-                )
+        }
+        if (onStage) {
+            LapStagePage(holder = holder, trace = trace.takeIf { it.size >= 10 }, header = header, body = content)
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+            ) {
+                header()
+                content()
             }
         }
     }
+}
+
+/**
+ * The leaderboard lap's stage: theirs on A, always replay; yours on B (Pro),
+ * playing your lap's clip when you may. Chip indexes 0 and 1, the panel's own.
+ */
+internal fun leaderboardBinding(
+    panel: LeaderboardLapModel.Panel,
+    canViewChannels: Boolean,
+    canPlay: Boolean,
+): LapStageHolder.Binding? {
+    val entries = panel.aligned.laps
+    val a = stageSide(
+        VideoSync.SideKey.A, entries.firstOrNull() ?: return null, panel.aligned.dStepM, panel.laps[0].lapNum,
+        clip = null, best = false, chIdx = 0,
+    ) ?: return null
+    val b = if (canViewChannels && entries.size > 1 && panel.laps.size > 1) {
+        stageSide(
+            VideoSync.SideKey.B, entries[1], panel.aligned.dStepM, panel.laps[1].lapNum,
+            clip = panel.myLap?.clip?.takeIf { canPlay }, best = false, chIdx = 1,
+        )
+    } else {
+        null
+    }
+    return LapStageHolder.Binding(
+        key = "leaderboard-${panel.mine?.sessionId}-${panel.mine?.lapNum}-$canPlay-$canViewChannels",
+        a = a,
+        b = b,
+        showB = true,
+        corners = Corners.sessionCorners(panel.aligned),
+    )
 }
 
 /**

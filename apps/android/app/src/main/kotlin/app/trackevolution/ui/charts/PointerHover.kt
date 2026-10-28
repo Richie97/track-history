@@ -80,3 +80,42 @@ fun Modifier.pointerHover(
             }
         }
     }
+
+/**
+ * A **mouse** dragging across a plot with its button down (NS-51): [onDrag] on
+ * every pressed move, then [onRelease] where the button came up. Touch never
+ * gets here — the page must keep scrolling over the charts, and dragging is the
+ * stage scrubber's job — so a phone behaves exactly as before.
+ *
+ * The moves are consumed, which is what cancels a `detectTapGestures` beside
+ * this one: a drag ends in one exact seek on release, not a tap on top of it.
+ */
+fun Modifier.mouseDrag(
+    vararg keys: Any?,
+    onDrag: PointerInputScope.(Offset) -> Unit,
+    onRelease: PointerInputScope.(Offset) -> Unit,
+): Modifier =
+    this.pointerInput(*keys) {
+        val scope = this
+        awaitPointerEventScope {
+            var dragging = false
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull() ?: continue
+                if (change.type != PointerType.Mouse) continue
+                when (event.type) {
+                    PointerEventType.Move -> if (change.pressed) {
+                        dragging = true
+                        change.consume()
+                        scope.onDrag(change.position)
+                    }
+                    PointerEventType.Release -> if (dragging) {
+                        dragging = false
+                        change.consume()
+                        scope.onRelease(change.position)
+                    }
+                    else -> Unit
+                }
+            }
+        }
+    }

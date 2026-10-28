@@ -27,6 +27,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.CompareLaps
+import app.trackevolution.core.Corners
+import app.trackevolution.core.VideoSync
 import app.trackevolution.core.Gears
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
@@ -48,6 +50,12 @@ import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.charts.LapChannelChart
 import app.trackevolution.ui.charts.LimitLegend
 import app.trackevolution.ui.charts.TrackMap
+import app.trackevolution.ui.stage.LapStageHolder
+import app.trackevolution.ui.stage.LapStagePage
+import app.trackevolution.ui.stage.LapStepper
+import app.trackevolution.ui.stage.StageHandoff
+import app.trackevolution.ui.stage.rememberLapStageHolder
+import app.trackevolution.ui.stage.stageSide
 import app.trackevolution.ui.theme.TrackCard
 import app.trackevolution.ui.theme.TrackTheme
 import kotlin.math.roundToInt
@@ -131,25 +139,49 @@ internal data class LapDetail(
          */
         fun comparePreselect(session: Session, lapId: Int?): List<Int>? {
             val stored = session.channels?.takeIf { it.laps.isNotEmpty() } ?: return null
-            val matched = ChannelGraphs.matchLapsToChannels(session.laps, stored.laps).filter { it.hasChannels }
-            val mine = matched.firstOrNull { it.lap.id == lapId } ?: return null
-            val best = matched.minByOrNull { it.lap.timeMs } ?: return listOf(mine.chIdx)
-            return if (best.chIdx == mine.chIdx) listOf(mine.chIdx) else listOf(mine.chIdx, best.chIdx)
+            val matched = ChannelGraphs.matchLapsToChannels(session.laps, stored.laps)
+            val mine = matched.firstOrNull { it.lap.id == lapId && it.hasChannels } ?: return null
+            // The stage's reference (NS-51): the session best, or the next-best
+            // when this lap *is* the best — so the compare always opens on two.
+            val ref = VideoSync.referenceLap(matched, mine.chIdx) ?: return listOf(mine.chIdx)
+            return listOf(mine.chIdx, ref.chIdx)
+        }
+
+        /**
+         * The single-lap stage's reference lap (NS-51): its channel index and
+         * lap, or null when the session has no other lap with channels.
+         */
+        fun reference(session: Session, chIdx: Int?): ChannelGraphs.LapMatch? {
+            val stored = session.channels?.takeIf { it.laps.isNotEmpty() } ?: return null
+            return VideoSync.referenceLap(ChannelGraphs.matchLapsToChannels(session.laps, stored.laps), chIdx)
+        }
+
+        /**
+         * The neighbouring laps with a clip, for the stage's stepper (NS-50
+         * every-lap sessions): the previous and next by lap number.
+         */
+        fun clipNeighbours(session: Session, lap: Lap): Pair<Lap?, Lap?> {
+            val withClips = session.laps.filter { it.clip != null }.sortedBy { it.lapNum }
+            if (lap.clip == null || withClips.size < 2) return null to null
+            return withClips.lastOrNull { it.lapNum < lap.lapNum } to withClips.firstOrNull { it.lapNum > lap.lapNum }
         }
     }
 }
 
 /**
- * One lap of one session (#268): its time, its racing line when it is the lap
- * the session's trace was drawn from, its channel traces, and a door to the
- * multi-lap compare.
+ * One lap of one session (#268): its time, its stage and its channel traces,
+ * and a door to the two-lap compare.
+ *
+ * Since NS-51 a lap with a channel entry opens **video-first**: the lap stage
+ * (`ui/stage/`) — its video when it has one, replay on the map when it doesn't
+ * — over the channel panel, every chart carrying the playhead, and the facts
+ * last. The stage is one-sided, its delta measured against [LapDetail.reference].
+ * A lap with no channel entry is today's page: its time, the plain video card,
+ * the racing line if it is the best.
  *
  * Reached from a lap row on the event page. Reads the event detail through the
  * same `EventModel` the page uses — the same offline-cached read — and finds
  * its session and lap in it, so a lap opened in a paddock costs no request.
- * Everything below the time is optional: a hand-entered lap is a time and a
- * sentence, and the screen says which of the rest it has rather than drawing
- * empty frames.
  */
 @Composable
 fun LapDetailScreen(
@@ -165,12 +197,18 @@ fun LapDetailScreen(
     onImport: (() -> Unit)? = null,
     /**
      * The best-lap video's client (NS-45) — the **owner's**, so a student's
-     * URL comes through the coach mount. Null draws no video card.
+     * URL comes through the coach mount. Null draws no video.
      */
     videoApi: ApiClient? = null,
     owner: LogbookOwner = LogbookOwner.Me,
     /** The viewer's own tier; [owner] decides whose is read. */
     viewer: Entitlement? = null,
+    /**
+     * The stage's lap stepper (NS-51): open [lapId] instead of this lap,
+     * keeping the playhead's grid index. The host replaces the destination, so
+     * Back still returns to the event. Null hides the stepper.
+     */
+    onStepLap: ((lapId: Int, k: Double?) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -186,6 +224,23 @@ fun LapDetailScreen(
             TEEmpty("This lap is no longer in the logbook.", Modifier.padding(16.dp))
             return@TELoadable
         }
+        val channels = view.channels
+        val entry = channels?.laps?.firstOrNull()
+        if (channels != null && entry != null && entry.speed != null && (entry.speed?.size ?: 0) >= 2) {
+            StagedLap(
+                view = view,
+                channels = channels,
+                canViewChannels = canViewChannels,
+                onCompare = onCompare,
+                onSubscribe = onSubscribe,
+                videoApi = videoApi,
+                owner = owner,
+                viewer = viewer,
+                onStepLap = onStepLap,
+                onDeleted = model::load,
+            )
+            return@TELoadable
+        }
         // The panel's cursor: a dot per lit lap, drawn on this page's own
         // racing line rather than on a second map inside the panel.
         var cursorDots by remember(sessionId, lapId) { mutableStateOf<List<MapDot>?>(null) }
@@ -194,16 +249,7 @@ fun LapDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 12.dp),
         ) {
-            item("head") {
-                val spoken = "${LapTime.fmtMs(view.lap.timeMs)}, ${view.subtitle}"
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.testTag("lapDetail").semantics { contentDescription = spoken },
-                ) {
-                    Text(LapTime.fmtMs(view.lap.timeMs), style = TrackTheme.typography.h1, color = colors.textStrong)
-                    Text(view.subtitle, style = TrackTheme.typography.sm, color = colors.textMuted)
-                }
-            }
+            item("head") { LapHead(view) }
 
             if (videoApi != null) {
                 // Above the trace (NS-45): the video is what a debrief opens on.
@@ -222,13 +268,7 @@ fun LapDetailScreen(
             }
 
             if (view.canCompare) {
-                item("compare") {
-                    // The session's overlay as its own destination, with this lap
-                    // lit first — the same panel the session card used to inline.
-                    TextButton(onClick = onCompare, modifier = Modifier.testTag("compareLaps")) {
-                        Text("Compare laps →", style = TrackTheme.typography.sm, color = colors.accentInk)
-                    }
-                }
+                item("compare") { CompareButton(onCompare) }
             }
 
             val trace = view.trace
@@ -251,10 +291,7 @@ fun LapDetailScreen(
                 }
             }
 
-            val channels = view.channels
-            val entry = channels?.laps?.firstOrNull()
             if (channels != null && entry != null) {
-                item("facts") { Facts(CompareLaps.lapMetrics(entry), units) }
                 item("charts-hint") {
                     Text("Tap a chart to read values.", style = TrackTheme.typography.xs, color = colors.textFaint)
                 }
@@ -269,6 +306,7 @@ fun LapDetailScreen(
                         emptyText = "No channel data for this lap.",
                     )
                 }
+                item("facts") { Facts(CompareLaps.lapMetrics(entry), units) }
             } else if (trace == null) {
                 item("empty") {
                     TEEmpty(
@@ -278,6 +316,134 @@ fun LapDetailScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LapHead(view: LapDetail) {
+    val colors = TrackTheme.colors
+    val spoken = "${LapTime.fmtMs(view.lap.timeMs)}, ${view.subtitle}"
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.testTag("lapDetail").semantics { contentDescription = spoken },
+    ) {
+        Text(LapTime.fmtMs(view.lap.timeMs), style = TrackTheme.typography.h1, color = TrackTheme.colors.textStrong)
+        Text(view.subtitle, style = TrackTheme.typography.sm, color = colors.textMuted)
+    }
+}
+
+@Composable
+private fun CompareButton(onCompare: () -> Unit) {
+    // The two-lap stage as its own destination (NS-51), this lap beside its
+    // reference — the session's overlay with both lit.
+    TextButton(onClick = onCompare, modifier = Modifier.testTag("compareLaps")) {
+        Text("Compare laps →", style = TrackTheme.typography.sm, color = TrackTheme.colors.accentInk)
+    }
+}
+
+/**
+ * The lap page with a stage (NS-51): header, the stage (one-sided, the delta to
+ * the reference lap), the panel inline under it carrying the playhead — a tap
+ * on any chart pauses and seeks the video — and the facts last.
+ */
+@Composable
+private fun StagedLap(
+    view: LapDetail,
+    channels: SessionChannels,
+    canViewChannels: Boolean,
+    onCompare: () -> Unit,
+    onSubscribe: () -> Unit,
+    videoApi: ApiClient?,
+    owner: LogbookOwner,
+    viewer: Entitlement?,
+    onStepLap: ((Int, Double?) -> Unit)?,
+    onDeleted: () -> Unit,
+) {
+    val colors = TrackTheme.colors
+    val units = LocalUnitSystem.current
+    val entry = channels.laps.first()
+    val session = view.session
+    val stored = session.channels!!
+    val clip = view.lap.clip
+    val canPlay = videoApi != null && clip != null && Entitlement.canSaveLapVideo(owner.entitlement(viewer))
+    val lockedNote = when {
+        clip == null || canPlay || videoApi == null -> null
+        owner is LogbookOwner.Student -> LapVideoState.StudentLocked(owner.name).text
+        else -> "Lap ${view.lap.lapNum} · video is Pro · replaying telemetry"
+    }
+    // The delta and a second lap are Pro (canViewChannels); a free account's
+    // stage is one-sided with no reference.
+    val ref = if (canViewChannels) LapDetail.reference(session, view.chIdx) else null
+    val corners = remember(stored) { Corners.sessionCorners(stored) }
+    val binding = remember(view.lap.id, ref?.chIdx, canPlay, entry, stored) {
+        val a = stageSide(VideoSync.SideKey.A, entry, channels.dStepM, view.lap.lapNum, clip?.takeIf { canPlay }, view.isBest, 0, lockedNote)
+        val b = ref?.let { r ->
+            stageSide(VideoSync.SideKey.B, stored.laps[r.chIdx], stored.dStepM, r.lap.lapNum, null, false, null)
+        }
+        a?.let { LapStageHolder.Binding(key = "lap-${view.lap.id}-${ref?.chIdx}-$canPlay", a = it, b = b, showB = false, corners = corners) }
+    }
+    if (binding == null) return
+    val holder = rememberLapStageHolder("${session.id}-${view.lap.id}")
+    LaunchedEffect(binding) {
+        val api = videoApi
+        holder.bind(binding, { id -> api!!.clipUrl(id).url }, startK = StageHandoff.take(view.lap.id))
+    }
+    val (prev, next) = remember(session, view.lap) { LapDetail.clipNeighbours(session, view.lap) }
+    val stepper = if (onStepLap != null && (prev != null || next != null)) {
+        val here = { holder.playhead.value?.k }
+        LapStepper(
+            prevLabel = prev?.let { "Lap ${it.lapNum}" },
+            nextLabel = next?.let { "Lap ${it.lapNum}" },
+            onPrev = { prev?.let { onStepLap(it.id, here()) } },
+            onNext = { next?.let { onStepLap(it.id, here()) } },
+        )
+    } else {
+        null
+    }
+    val trace = remember(session.trace) {
+        session.trace?.takeIf { it.size >= 10 }?.map { TraceSample(x = it.x, y = it.y, v = it.v) }
+    }
+    val notice: (@Composable () -> Unit)? = if (clip != null && !canPlay && videoApi != null && owner !is LogbookOwner.Student) {
+        {
+            app.trackevolution.ui.TEProLocked(
+                title = "Lap video",
+                blurb = LapVideoText.LOCKED_BLURB,
+                onSubscribe = onSubscribe,
+                modifier = Modifier.testTag("lapVideoLocked"),
+            )
+        }
+    } else {
+        null
+    }
+    if (holder.binding == null) return
+    LapStagePage(
+        holder = holder,
+        trace = trace,
+        stepper = stepper,
+        notice = notice,
+        header = {
+            item("head") { LapHead(view) }
+            if (view.canCompare) item("compare") { CompareButton(onCompare) }
+        },
+    ) {
+        // The panel's own hint says a tap moves the video, as on every stage.
+        item("charts") {
+            LapChannelChart(
+                channels = channels,
+                laps = listOf(view.lap),
+                initialSelection = listOf(0),
+                pro = canViewChannels,
+                onSubscribe = onSubscribe,
+                emptyText = "No channel data for this lap.",
+                playhead = holder.playhead,
+                onSeek = holder::seekGrid,
+                onScrub = holder::scrubGrid,
+            )
+        }
+        item("facts") { Facts(CompareLaps.lapMetrics(entry), units) }
+        if (canPlay && clip != null && videoApi != null && !owner.readOnly) {
+            item("video-menu") { StageVideoMenu(videoApi, clip.id, onDeleted) }
         }
     }
 }

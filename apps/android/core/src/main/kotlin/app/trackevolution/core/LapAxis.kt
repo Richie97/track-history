@@ -86,20 +86,10 @@ public object LapAxis {
 
     /**
      * The fractional index at which a rising series reaches [e] — `gridAtElapsed`
-     * in `public/js/video-sync.js`, which this module imports there. Clamped.
+     * in `public/js/video-sync.js`, which this module imports there, and so
+     * [VideoSync.gridAtElapsed] here. Clamped.
      */
-    public fun gridAtElapsed(t: List<Double>, e: Double): Double {
-        val last = t.size - 1
-        if (last <= 0 || !(e > t[0])) return 0.0
-        if (e >= t[last]) return last.toDouble()
-        var lo = 0
-        var hi = last
-        while (hi - lo > 1) {
-            val mid = (lo + hi) ushr 1
-            if (t[mid] <= e) lo = mid else hi = mid
-        }
-        return lo + (e - t[lo]) / (t[hi] - t[lo])
-    }
+    public fun gridAtElapsed(t: List<Double>, e: Double): Double = VideoSync.gridAtElapsed(t, e)
 
     /**
      * A lap's fractional grid index at axis value [x], or null when the value

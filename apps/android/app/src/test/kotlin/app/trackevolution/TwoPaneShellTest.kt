@@ -2,6 +2,12 @@ package app.trackevolution
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
@@ -146,6 +152,59 @@ class TwoPaneShellTest {
         assertTrue("…where the window would have allowed more", againstWindow > inPane)
     }
 
+    /**
+     * The detail keeps its saved state when the shell changes shape.
+     *
+     * A phone turned sideways is an expanded window on Android (it has no
+     * compact size class to hold it to one column), so a rotation is also a
+     * swap from one pane to two. While the detail sat in a plain `Box` below
+     * expanded width and inside the scaffold above it, the `NavHost` was at a
+     * different place in the tree in each, and every `rememberSaveable` in a
+     * destination — the panel's tab and axis, the session compare's lit laps —
+     * was lost: thrown away when the width changed in place, and restored into
+     * the wrong place after a recreate. The emulator found it on NS-51's stage.
+     */
+    @Test
+    @Config(qualifiers = "w1000dp-h800dp")
+    fun `the detail keeps its saved state when the window crosses into two panes`() {
+        var twoPane by mutableStateOf(false)
+        var saved: (Int) -> Unit = {}
+        var seen = -1
+        compose.setContent {
+            ProvideLayoutMetrics {
+                TrackTheme {
+                    TwoPaneShell(twoPane = twoPane, listPane = { Text(LIST) }) { SavedCounter({ saved = it }) { seen = it } }
+                }
+            }
+        }
+        compose.runOnIdle { saved(5) }
+        compose.runOnIdle { twoPane = true }
+        compose.runOnIdle { assertEquals("into two panes", 5, seen) }
+        compose.runOnIdle { twoPane = false }
+        compose.runOnIdle { assertEquals("and back to one", 5, seen) }
+    }
+
+    @Test
+    @Config(qualifiers = "w1000dp-h800dp")
+    fun `the detail's saved state is restored after a recreate that changes the shell`() {
+        val restoration = StateRestorationTester(compose)
+        var twoPane = false
+        var saved: (Int) -> Unit = {}
+        var seen = -1
+        restoration.setContent {
+            ProvideLayoutMetrics {
+                TrackTheme {
+                    TwoPaneShell(twoPane = twoPane, listPane = { Text(LIST) }) { SavedCounter({ saved = it }) { seen = it } }
+                }
+            }
+        }
+        compose.runOnIdle { saved(7) }
+        // A rotation: saved in one shape, restored into the other.
+        twoPane = true
+        restoration.emulateSavedInstanceStateRestore()
+        compose.runOnIdle { assertEquals(7, seen) }
+    }
+
     private fun showShell() {
         compose.setContent {
             ProvideLayoutMetrics {
@@ -167,4 +226,13 @@ class TwoPaneShellTest {
         const val LIST = "the list pane"
         const val DETAIL = "the detail pane"
     }
+}
+
+/** A value in `rememberSaveable`, as a destination holds one, with a way in and out for the test. */
+@androidx.compose.runtime.Composable
+private fun SavedCounter(setter: ((Int) -> Unit) -> Unit, seen: (Int) -> Unit) {
+    var n by rememberSaveable { mutableIntStateOf(0) }
+    setter { n = it }
+    seen(n)
+    Text("saved $n")
 }

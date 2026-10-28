@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -77,6 +78,14 @@ fun TrackMap(
      * the best lap's line — the web's rule.
      */
     dots: List<MapDot> = emptyList(),
+    /**
+     * The lap stage's playhead (NS-51): up to two dots on the same rule as
+     * [dots], but a lambda read **in the draw phase**, so a video frame moves
+     * them without recomposing or re-pathing the map.
+     */
+    liveDots: (() -> List<MapDot>)? = null,
+    /** The map's height; the stage's cards size it themselves. */
+    height: androidx.compose.ui.unit.Dp = 220.dp,
 ) {
     // Matching `renderTrackMap`'s bail: fewer than ten points is a GPS glitch,
     // not a lap, and drawing it would claim more than we know.
@@ -113,7 +122,7 @@ fun TrackMap(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .height(height)
             .background(colors.bgSubtle, RoundedCornerShape(TrackTheme.radii.md))
             .border(1.dp, colors.borderHairline, RoundedCornerShape(TrackTheme.radii.md))
             .semantics {
@@ -122,7 +131,29 @@ fun TrackMap(
                     if (dots.isEmpty()) "" else " ${dots.size} marked place${if (dots.size == 1) "" else "s"} on the line."
             },
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        val dotModifier = if (liveDots == null) {
+            Modifier
+        } else {
+            Modifier.drawWithContent {
+                drawContent()
+                val wanted = liveDots()
+                if (wanted.isEmpty()) return@drawWithContent
+                val map = TraceMap.fit(
+                    trace = points,
+                    width = size.width.toDouble(),
+                    height = size.height.toDouble(),
+                    padding = TRACE_PADDING,
+                ) ?: return@drawWithContent
+                for (dot in wanted) {
+                    val idx = TrackMapGeometry.traceIndexAtFraction(wirePoints, dot.frac) ?: continue
+                    val p = map.viewPoint(points[idx])
+                    val centre = Offset(p.x.toFloat(), p.y.toFloat())
+                    drawCircle(colors.surfaceCard, radius = dotRadius + dotHalo, center = centre)
+                    drawCircle(dot.color, radius = dotRadius, center = centre)
+                }
+            }
+        }
+        Canvas(modifier = Modifier.fillMaxSize().then(dotModifier)) {
             val map = TraceMap.fit(
                 trace = points,
                 width = size.width.toDouble(),

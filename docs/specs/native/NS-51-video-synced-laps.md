@@ -1058,6 +1058,166 @@ Built with Xcode 27.1, against `npm run dev`:
   fails identically on `main` (checked in a scratch worktree), so it
   predates this ticket.
 
+## As built — ticket 3 (Android)
+
+### What landed
+
+- **`:core`** — `VideoSync.kt`, the port under the JS names, including
+  ticket 1's extras (`scrubRange`, `matchByFraction`, `cornerPlace`,
+  `fmtStageTime`, `fmtDeltaS`, `fmtGap`, `BRAKING_WORD_PCT`). The JS strings
+  become two enums, `SyncMode` (`key` is the stored `"place"` / `"time"`,
+  `fromKey` the fallback to *Same place*) and `SideKey` (`A` / `B`); the state
+  objects are data classes with the JS field names. Rounding is
+  `java.lang.Math.round` (JavaScript's half-up) and `Units.toFixed`.
+  `VideoSyncTest` carries every case of `test/unit/video-sync.test.js` and
+  asserts every row of `video-sync.json`, numbers to 1e-9 and strings exactly.
+- **The panel** (`LapChannelChart`) takes `playhead: State<LapPlayhead?>?`,
+  `onSeek`, `onScrub` and `onLitChange`. `ChannelPlot` and `DeltaPlot` now have
+  pointer input: a tap (finger or mouse) seeks when there is a stage and parks
+  the mark when there isn't, so *"Tap a chart to read values"* is true on every
+  lap page. A mouse with its button down scrubs (`Modifier.mouseDrag`, beside
+  `pointerHover` in `PointerHover.kt`; its moves are consumed so the release
+  seeks exactly once rather than tapping too), and a mouse hovering borrows
+  the mark. Touch never drags. `DeltaPlot` draws the mark. Each plot's
+  geometry is a `PlotFrame` built in composition, so the draw, the tap and the
+  overlay agree to the pixel. The playhead is `Modifier.playheadOverlay`, a
+  `drawWithContent` that reads the `State` **only in the draw phase**: a solid
+  line at side A's `k`, a dot on each lit lap's trace at that lap's own `k`
+  (`LapPlayhead.kFor`, so in *Same time* B's dot sits at B's place), and the
+  values beside the line. The friction circle, the balance table and the
+  sector headings seek through the same path.
+- **`ui/stage/`** — `StageLayout.choose` (pure, `StageLayoutTest`);
+  `StagePlayer`, the seam over Media3, with `ExoStagePlayer` behind it
+  (`SeekParameters.CLOSEST_SYNC` while dragging, `EXACT` otherwise, volume 0
+  and `setMaxVideoSize(640, 360)` for the non-master); `LapStageHolder`, the
+  back-stack `ViewModel` (`rememberLapStageHolder`) that owns both players,
+  the binding, `mode`, `swapped`, `playing`, `eMaster` (a
+  `mutableDoubleStateOf`), the rate and the signed URLs, plus `state` and
+  `playhead` as `derivedStateOf`; `LapStagePage`, the layouts, slots, transport,
+  now-strip, map card and full-bleed; `SyncModePreference` (`sync_mode` in
+  `settingsDataStore`); `StageBindings.kt` (`stageSide`, `LocalStagePlayerFactory`
+  for tests, `StageHandoff`). `TrackMap` gained `dots`, a lambda read in the
+  draw phase and placed by `traceIndexAtFraction`.
+- **Surfaces** — the lap page (a lap with a channel entry gets the stage, the
+  panel and the facts; one without keeps today's page and `LapVideoCard`;
+  *Download* and *Delete* moved to a card under the facts, since the stage
+  draws the player), `SessionCompareScreen` (sides from `stageSides` over the
+  panel's lit laps), the track compare (`CompareLapsModel` keeps each session's
+  laps and trace, so a pick resolves to its real `Lap` and `clip`; the column
+  beside the track page reads `PaneWidth` and so lays out Compact) and the
+  leaderboard lap (their side always replay; yours on B, Pro). Lap stepping
+  replaces the destination (`popUpTo<Route.Lap> { inclusive = true }`).
+- **The clock** is a `withFrameNanos` loop calling `holder.tick` while playing:
+  the master's `currentPosition` while its video holds the moment, else
+  `eMaster + dt · rate` (replay). Backgrounding pauses, unless the activity is
+  changing configurations.
+
+### Deviations from the spec
+
+- **`LapDetail.comparePreselect` lights the reference beside the lap**, so the
+  best lap's *Compare laps* opens on it and the next-best rather than alone
+  (`LapDetailTest` updated).
+- **Compact isn't a sticky player with a mini bar.** As on the web, the videos
+  scroll with the page and the transport (with the now-strip and the mode
+  row) is a `stickyHeader` that pins once it reaches the top. Keeping a 16:9
+  player pinned ate half a phone's height, and collapsing it under a sticky
+  header shifts the list under the scroll position. Medium pins the same way.
+- **Wide pins the whole stage above the list** rather than letting the list
+  scroll under it; same effect, no overlap arithmetic.
+- **Tabletop charts are one per row**, not two.
+- **A step keeps the place through `StageHandoff`**, a one-shot map from the
+  target lap id to side A's `k`, rather than a route argument. The holder is
+  per destination, and adding a `Double?` to `Route.Lap` would change a
+  serialized route for one transient value.
+- **`onScrub` beside `onSeek`**: the panel reports a mouse drag's moves
+  separately, so the holder can seek fast while dragging and exactly on release.
+- **The follower re-seeks exactly, with a 500 ms cooldown.** A keyframe seek
+  can land 1.5 s off on a PDR clip, which would trip the next `needsResync`
+  check, and so on forever.
+- **The scrubber is drawn on a `Canvas`** with `progressBarRangeInfo` and
+  `setProgress`, `stateDescription` from `playheadText(…).value`, and the
+  *Next corner*, *Previous corner* and *Play* / *Pause* custom actions. Its
+  words recompose at most when they change (a `derivedStateOf`), its thumb
+  only in the draw phase.
+
+### Not done in this ticket
+
+- The **event page's analysis column** (expanded width) has neither the
+  playhead nor a *Watch* button yet.
+- **The friction circle and the balance scatter don't ring the playhead's
+  sample, the sector table doesn't light its sector, and the gear ribbon
+  draws no line.** They seek when tapped, but take no inbound value yet.
+- **The shared-item page** (NS-48) keeps its plain player. The student view
+  gets the stages through the reused screens, on the student's tier.
+- **The scrubber draws no delta in *Same time*** beyond the place-mode
+  delta, and the rate menu (Wide and Medium only) has no keyboard shortcut.
+  Android has no keyboard shortcuts for the stage.
+
+### Verified
+
+`./gradlew :core:test :core:check :app:testDebugUnitTest :app:assembleDebug`
+passes. The tests: `VideoSyncTest`; `StageLayoutTest`; `LapStageHolderTest`
+(a fake player: the clock from the master's position and from replay, the
+follower's rate and exact re-seek, a chart tap pausing and seeking exactly, a
+drag seeking fast and then exactly, *Same time*, the remembered mode, the swap,
+the reference with no slot, a rebinding that keeps the place, an offline URL,
+an expired URL re-signed once, the corner stops, the scrubber's track);
+`ChartSeekTest` (Robolectric: a tap on `channelChart:speed` and
+`channelChart:delta` calls `onSeek` with the `k` under it, a tap without a stage
+parks a `ChannelHit`, a mouse drag scrubs and seeks once on release, the
+playhead moved and cleared); `LapStageScreenTest` (the holder keeps `eMaster`
+and `mode` through `StateRestorationTester` and an `ActivityScenario.recreate`,
+and the lap page at `w411dp-h891dp` compact, `w891dp-h411dp` full-bleed and its
+back chip, `w1400dp-h1000dp` wide with the map card and the now-strip).
+
+**Run on an emulator** (2026-10-27, a Pixel Tablet image on API 35, also
+shrunk to a phone's 1080×2400 at 420 dpi with `wm size` / `wm density` for
+the compact, mini-bar and full-bleed layouts), against `npm run dev` with a
+session of synthetic channels and two uploaded clips of ffmpeg's `testsrc`
+counter, so the frame on screen could be read against the stage's clock. The
+lap page and the session compare played in step with real Media3 playback —
+the counter read the clock plus the clip's 3 s run-up, and the clock ran at
+real speed — through a chart tap (distance and time axes), *Same place* →
+*Same time* while playing, the medium layout's pinned transport, the compact
+mini bar, and a rotation into full-bleed and back with playback carried on.
+It found five bugs the JVM suite could not, each fixed with a test where one
+can see it:
+
+- **The video never appeared.** `LapStageHolder.players` was a plain map, and
+  a player arrives after its URL is signed — after the slot has drawn its
+  replay — so nothing redrew it. It is a state map now
+  (`LapStageHolderTest`: the slot sees a player that opens after a delayed
+  signer).
+- **Switching to *Same time* froze both videos.** `keepInStep` started a
+  player whenever `isPlaying` was false, which Media3's is while it buffers
+  after a seek, so each frame re-seeked it and a far seek never landed. It
+  asks `StagePlayer.playWhenReady` now, and the clock waits on the master's
+  seek (`LapStageHolderTest`, with `FakeStagePlayer.buffering`).
+- **Full-bleed cut a fifth of the frame.** The slot's 16:9 box inside a 20:9
+  window was taller than the window; the master now takes the window and
+  `PlayerView` letterboxes. The lap chip moved off the back chip, and the HUD
+  and transport draw in the dark theme over a scrim that starts at 45%.
+- **The stage's colours disagreed with the chips.** A side was green for A and
+  blue for B, while `stageSides` puts the newest lit lap on A; a side now
+  carries its lap's lit slot, the web's `panel.slotColor`
+  (`SessionBindingTest`). Behind it, the inset's `SurfaceView` could stack
+  under the master's once the sides swapped roles; it is a media overlay now.
+- **Rotating lost the lit laps.** A phone turned sideways is an expanded
+  window, the shell swaps to two panes, and the destination's
+  `rememberSaveable` state is restored into a different place in the tree and
+  dropped — lap 3 fell off the stage on every rotation, and every other
+  saveable on a destination (the panel's tab and axis) went with it. The fix
+  is the shell's: `TwoPaneShell` is one tree at every width now, the list pane
+  `Hidden` below expanded width, so a destination keeps its place
+  (`TwoPaneShellTest`).
+
+**Still not verified**: a real phone and real footage (PDR's 1.5 s GOPs
+against the keyframe-fast scrub), TalkBack on the scrubber, the expired-URL
+refresh, tabletop and book postures, a mouse, the track compare and the
+leaderboard lap (the seeded logbook had one event and no opted-in driver), and
+a recomposition count (the design reads the playhead in the draw phase only;
+no Layout Inspector count was taken).
+
 ## Open questions
 
 - **Exact timing** — store each grid point's elapsed time at import, or keep

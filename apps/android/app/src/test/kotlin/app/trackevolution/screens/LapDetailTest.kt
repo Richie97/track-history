@@ -113,7 +113,10 @@ class LapDetailTest {
         assertEquals("this lap first, the best beside it", listOf(0, 1), LapDetail.comparePreselect(s, 1))
         assertTrue(first.canCompare)
 
-        assertEquals("the best alone: nothing to put beside it", listOf(1), LapDetail.comparePreselect(s, 3))
+        // NS-51: the best is compared with the next-best — the stage's reference.
+        assertEquals("the best beside the next-best", listOf(1, 0), LapDetail.comparePreselect(s, 3))
+        assertEquals(0, LapDetail.reference(s, 1)?.chIdx)
+        assertEquals(1, LapDetail.reference(s, 0)?.chIdx)
 
         val handAdded = LapDetail.build(d, sessionId = 10, lapId = 2)!!
         assertNull(handAdded.channels)

@@ -52,7 +52,7 @@ The three clients are deliberately **not** at parity:
   ([NS-51](NS-51-video-synced-laps.md)) is for all three too: the web landed
   first (ticket 1, which writes the pure half, `public/js/video-sync.js`, and
   its fixture), and the phones port that half and build their own stages
-  (tickets 2 and 3).
+  (tickets 2 and 3, both landed).
 - **The Mac is a fourth *surface*, not a fourth client** (2026-09, epic
   [#230](https://github.com/Richie97/track-history/issues/230)). It runs the
   iPad build as a *Designed for iPad* app — no target, no Catalyst — so it

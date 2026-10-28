@@ -61,6 +61,9 @@ class LeaderboardLapModel(
     var selectedMine by mutableStateOf<Int?>(null)
         private set
 
+    /** Your sessions' real lap rows (NS-51), so your side finds its lap — and its clip. */
+    private var lapsBySession: Map<Int, List<Lap>> = emptyMap()
+
     fun pickMine(index: Int) {
         selectedMine = index
     }
@@ -92,6 +95,7 @@ class LeaderboardLapModel(
                 .flatMap { it.sessions }
                 .mapNotNull { session -> session.channels?.let { session.id to it } }
                 .toMap()
+            lapsBySession = details.flatMap { it.sessions }.associate { it.id to it.laps }
             selectedMine = rows.indices.minByOrNull { rows[it].timeMs }
         } catch (_: ApiException) {
             rows = emptyList()
@@ -119,6 +123,8 @@ class LeaderboardLapModel(
         val myMetrics: CompareLaps.Metrics?,
         val mine: CompareLaps.Row?,
         val mismatch: Double,
+        /** Your lap's real row, with its clip (NS-51); null for no lap of yours or one that no longer resolves. */
+        val myLap: Lap? = null,
     )
 
     val panel: Panel?
@@ -148,6 +154,7 @@ class LeaderboardLapModel(
                 myMetrics = CompareLaps.lapMetrics(mine),
                 mine = row,
                 mismatch = CompareLaps.lengthMismatchRatio(theirs, step, mine, channels.dStepM),
+                myLap = lapsBySession[row.sessionId]?.firstOrNull { it.lapNum == row.lapNum },
             )
         }
 }

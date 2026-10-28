@@ -26,10 +26,10 @@ import androidx.compose.ui.unit.dp
 import app.trackevolution.core.LapAxis
 import app.trackevolution.core.LapAxis.AxisMode
 import app.trackevolution.core.Units
+import app.trackevolution.core.VideoSync
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.ui.theme.TrackTheme
-import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
@@ -101,18 +101,8 @@ class PlotEdges {
     }
 }
 
-/**
- * A series at fractional index [k], linearly interpolated with k clamped —
- * `valueAt` in `public/js/video-sync.js` (which Android has no port of yet).
- */
-internal fun valueAt(series: List<Double>?, k: Double): Double? {
-    if (series.isNullOrEmpty()) return null
-    val last = series.size - 1
-    val kk = max(0.0, min(last.toDouble(), if (k.isFinite()) k else 0.0))
-    val i0 = floor(kk).toInt()
-    if (i0 >= last) return series[last]
-    return series[i0] + (series[i0 + 1] - series[i0]) * (kk - i0)
-}
+/** A series at fractional index [k], linearly interpolated with k clamped — `VideoSync.valueAt`. */
+internal fun valueAt(series: List<Double>?, k: Double): Double? = VideoSync.valueAt(series, k)
 
 /**
  * A tap on a lap-axis chart parks the cursor; a mouse over it borrows the
