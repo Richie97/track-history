@@ -85,16 +85,6 @@ class LapStageHolder(
     var binding by mutableStateOf<Binding?>(null)
         private set
 
-    /**
-     * The panel's lit laps on a page whose sides come from them (the session
-     * compare), held here as well as in the page's `rememberSaveable`: a phone
-     * turned sideways is an expanded window, the shell swaps to two panes, and
-     * the restored saveable state lands in a different place in the tree and is
-     * lost — the emulator showed lap 3 dropping off the stage on every rotation.
-     * This holder is a back-stack `ViewModel` and survives the swap.
-     */
-    var lit by mutableStateOf<List<Int>?>(null)
-
     var mode by mutableStateOf(VideoSync.DEFAULT_SYNC_MODE)
         private set
     var swapped by mutableStateOf(false)

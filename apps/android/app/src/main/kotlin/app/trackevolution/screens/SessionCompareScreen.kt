@@ -76,18 +76,15 @@ fun SessionCompareScreen(
         }
         val initial = remember(session.id, lapId) { LapDetail.comparePreselect(session, lapId) }
         val matched = remember(session) { ChannelGraphs.matchLapsToChannels(session.laps, channels.laps) }
-        val holder = rememberLapStageHolder("session-${session.id}")
-        // The saveable copy covers process death; the holder's, a rotation
-        // across the two-pane breakpoint (see `LapStageHolder.lit`).
-        var savedLit by rememberSaveable(session.id) {
+        var lit by rememberSaveable(session.id) {
             mutableStateOf(initial ?: ChannelGraphs.initialSelection(matched))
         }
-        val lit = holder.lit ?: savedLit
         val opened = matched.firstOrNull { it.lap.id == lapId && it.hasChannels }?.chIdx
         val canPlay = videoApi != null && Entitlement.canSaveLapVideo(owner.entitlement(viewer))
         val binding = remember(lit, canPlay, canViewChannels, session) {
             sessionBinding(session, matched, lit, opened, canPlay, canViewChannels)
         }
+        val holder = rememberLapStageHolder("session-${session.id}")
         LaunchedEffect(binding) {
             binding?.let { b -> holder.bind(b, { id -> videoApi!!.clipUrl(id).url }) }
         }
@@ -109,10 +106,7 @@ fun SessionCompareScreen(
                     playhead = if (binding != null) holder.playhead else null,
                     onSeek = if (binding != null) holder::seekGrid else null,
                     onScrub = if (binding != null) holder::scrubGrid else null,
-                    onLitChange = {
-                        holder.lit = it
-                        savedLit = it
-                    },
+                    onLitChange = { lit = it },
                 )
             }
         }

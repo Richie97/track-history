@@ -1,6 +1,5 @@
 package app.trackevolution.ui
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
@@ -32,8 +31,16 @@ import androidx.compose.ui.unit.dp
  * thing it is actually good at: pane widths and spacing that match the platform,
  * and a seam ticket 3 can hang a third pane on.
  *
- * Below expanded width this composes the detail alone, with no scaffold and no
- * wrapper of any kind, so the phone layout is untouched.
+ * Below expanded width the list pane is [PaneAdaptedValue.Hidden] and the detail
+ * has the window, with the window's own metrics, so the phone layout is
+ * unchanged — but it is the **same tree** at every width. That is load-bearing:
+ * a phone turned sideways is an expanded window here (Android has no compact
+ * size class to hold it to one column), and while the detail sat in a plain
+ * `Box` below the breakpoint and inside the scaffold above it, the `NavHost` was
+ * at a different place in the tree in each. Every `rememberSaveable` in a
+ * destination was lost on the swap — thrown away when the width changed in
+ * place, and restored into the wrong place after a recreate, since saved state
+ * is keyed by position (`TwoPaneShellTest`).
  */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -43,12 +50,10 @@ fun TwoPaneShell(
     modifier: Modifier = Modifier,
     detailPane: @Composable () -> Unit,
 ) {
-    if (!twoPane) {
-        Box(modifier.fillMaxSize()) { detailPane() }
-        return
-    }
     @Suppress("NAME_SHADOWING") val listPane = @Composable { PaneWidth(content = listPane) }
-    @Suppress("NAME_SHADOWING") val detailPane = @Composable { PaneWidth(content = detailPane) }
+    // One pane keeps the window's metrics: the detail is the page, and medium
+    // width's rail beside it was never subtracted from the page column.
+    @Suppress("NAME_SHADOWING") val detailPane = @Composable { PaneWidth(measure = twoPane, content = detailPane) }
     val fold = LocalFoldGeometry.current
     BoxWithConstraints(modifier.fillMaxSize()) {
         ListDetailPaneScaffold(
@@ -61,10 +66,10 @@ fun TwoPaneShell(
             // foldable the split goes where the hinge is, so neither pane is laid
             // across it (NS-34 ticket 4). Everywhere else — every phone, every
             // tablet, every flat foldable — this is the default, unchanged.
-            directive = bookDirective(fold, maxWidth),
+            directive = if (twoPane) bookDirective(fold, maxWidth) else ONE_PANE,
             value = ThreePaneScaffoldValue(
                 primary = PaneAdaptedValue.Expanded,
-                secondary = PaneAdaptedValue.Expanded,
+                secondary = if (twoPane) PaneAdaptedValue.Expanded else PaneAdaptedValue.Hidden,
                 tertiary = PaneAdaptedValue.Hidden,
             ),
             listPane = { AnimatedPane { listPane() } },
@@ -73,6 +78,10 @@ fun TwoPaneShell(
         )
     }
 }
+
+/** The detail alone: one partition, so the scaffold adds no gutter beside it. */
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
+private val ONE_PANE = PaneScaffoldDirective.Default.copy(maxHorizontalPartitions = 1)
 
 /**
  * The scaffold directive, with the list pane widened to meet the hinge in book
@@ -113,12 +122,17 @@ internal fun bookDirective(fold: FoldGeometry, width: Dp): PaneScaffoldDirective
  * contents the same honest width.
  */
 @Composable
-fun PaneWidth(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun PaneWidth(
+    modifier: Modifier = Modifier,
+    /** False passes the metrics through unchanged, in the same tree — [TwoPaneShell]'s one-pane detail. */
+    measure: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     val metrics = LocalLayoutMetrics.current
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = (maxWidth - pageGutter(metrics.layoutClass) * 2).coerceAtLeast(0.dp)
         CompositionLocalProvider(
-            LocalLayoutMetrics provides metrics.copy(contentWidth = width),
+            LocalLayoutMetrics provides if (measure) metrics.copy(contentWidth = width) else metrics,
         ) {
             content()
         }

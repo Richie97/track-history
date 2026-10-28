@@ -1205,10 +1205,11 @@ can see it:
 - **Rotating lost the lit laps.** A phone turned sideways is an expanded
   window, the shell swaps to two panes, and the destination's
   `rememberSaveable` state is restored into a different place in the tree and
-  dropped — lap 3 fell off the stage on every rotation. The session compare
-  holds its lit laps on the stage holder too (`LapStageHolder.lit`). The same
-  loss applies to every saveable on a destination across that swap (the
-  panel's tab and axis included); that is the shell's, not the stage's.
+  dropped — lap 3 fell off the stage on every rotation, and every other
+  saveable on a destination (the panel's tab and axis) went with it. The fix
+  is the shell's: `TwoPaneShell` is one tree at every width now, the list pane
+  `Hidden` below expanded width, so a destination keeps its place
+  (`TwoPaneShellTest`).
 
 **Still not verified**: a real phone and real footage (PDR's 1.5 s GOPs
 against the keyframe-fast scrub), TalkBack on the scrubber, the expired-URL
