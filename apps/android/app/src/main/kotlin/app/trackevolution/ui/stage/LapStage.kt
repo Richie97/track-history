@@ -427,12 +427,15 @@ private fun VideoSlot(
     val binding = holder.binding ?: return
     val info = (if (key == SideKey.A) binding.a else binding.shownB) ?: return
     val colors = TrackTheme.colors
-    val sideColor = if (key == SideKey.A) colors.chartLine else colors.chartLineB
+    val sideColor = stageColor(holder, key, colors)
     val player = holder.playerFor(key)
     val shape = RoundedCornerShape(TrackTheme.radii.sm)
     Box(
         modifier
-            .aspectRatio(16f / 9f)
+            // Full-bleed's master takes the window as it is and PlayerView
+            // letterboxes inside it: a 16:9 box in a 20:9 window is taller than
+            // the window, and cut a fifth of the frame — the dash and the road.
+            .then(if (inDialog && !inset) Modifier else Modifier.aspectRatio(16f / 9f))
             .background(if (player != null) Color.Black else colors.bgSubtle, shape)
             .testTag("stageSlot:${key.name}"),
     ) {
@@ -444,6 +447,10 @@ private fun VideoSlot(
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                         setShutterBackgroundColor(android.graphics.Color.BLACK)
+                        // Two SurfaceViews that overlap have no defined order:
+                        // the inset showed the master through it once the sides
+                        // swapped roles. Its surface goes over the master's.
+                        if (inset) (videoSurfaceView as? android.view.SurfaceView)?.setZOrderMediaOverlay(true)
                         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     }
                 },
@@ -458,11 +465,11 @@ private fun VideoSlot(
                     trace = trace,
                     modifier = Modifier.fillMaxSize(),
                     height = 400.dp,
-                    liveDots = { stageDots(holder, colors.chartLine, colors.chartLineB, both = bothDots) },
+                    liveDots = { stageDots(holder, stageColor(holder, SideKey.A, colors), stageColor(holder, SideKey.B, colors), both = bothDots) },
                 )
             } else if (trace != null && trace.size >= 10) {
                 TrackMap(trace = trace, modifier = Modifier.fillMaxSize(), height = 120.dp, liveDots = {
-                    stageDots(holder, colors.chartLine, colors.chartLineB, both = false, only = key)
+                    stageDots(holder, stageColor(holder, SideKey.A, colors), stageColor(holder, SideKey.B, colors), both = false, only = key)
                 })
             }
             if (!inset) {
@@ -479,8 +486,9 @@ private fun VideoSlot(
         if (!bothDots) {
             Row(
                 Modifier
-                    .align(Alignment.TopStart)
-                    .padding(6.dp)
+                    // Full-bleed's back chip has the top-left corner.
+                    .align(if (inDialog && !inset) Alignment.TopCenter else Alignment.TopStart)
+                    .padding(if (inDialog && !inset) 12.dp else 6.dp)
                     .background(colors.surfaceCard.copy(alpha = 0.9f), CircleShape)
                     .padding(horizontal = 8.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -538,7 +546,7 @@ private fun StageMapCard(ctx: StageCtx, modifier: Modifier, height: androidx.com
             trace = trace,
             modifier = Modifier.fillMaxWidth(),
             height = height,
-            liveDots = { stageDots(ctx.holder, colors.chartLine, colors.chartLineB, both = true) },
+            liveDots = { stageDots(ctx.holder, stageColor(ctx.holder, SideKey.A, colors), stageColor(ctx.holder, SideKey.B, colors), both = true) },
         )
     }
 }
@@ -928,7 +936,7 @@ private fun FullBleed(ctx: StageCtx) {
                         trace = trace,
                         modifier = Modifier.fillMaxWidth(),
                         height = 110.dp,
-                        liveDots = { stageDots(holder, colors.chartLine, colors.chartLineB, both = true) },
+                        liveDots = { stageDots(holder, stageColor(holder, SideKey.A, colors), stageColor(holder, SideKey.B, colors), both = true) },
                     )
                 }
                 if (holder.binding?.shownB != null) {
@@ -945,15 +953,25 @@ private fun FullBleed(ctx: StageCtx) {
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))))
+                    .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.8f))))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                TrackTheme(app.trackevolution.ui.theme.ThemeChoice.Dark) { NowStrip(holder, row = true) }
-                StageTransport(ctx, StageLayout.FullBleed)
+                // Dark whatever the app's theme: both sit on the black scrim.
+                TrackTheme(app.trackevolution.ui.theme.ThemeChoice.Dark) {
+                    NowStrip(holder, row = true)
+                    StageTransport(ctx, StageLayout.FullBleed)
+                }
             }
         }
     }
+}
+
+/** A side's colour: its lap's slot among the panel's lit laps, else A the first and B the second. */
+private fun stageColor(holder: LapStageHolder, key: SideKey, colors: app.trackevolution.ui.theme.TrackColors): Color {
+    val slots = listOf(colors.chartLine, colors.chartLineB, colors.chartLineC)
+    val info = holder.binding?.let { if (key == SideKey.A) it.a else it.b }
+    return slots[(info?.slot ?: if (key == SideKey.A) 0 else 1) % slots.size]
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

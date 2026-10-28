@@ -29,7 +29,17 @@ interface StagePlayer {
 
     /** Whether the error is the signed URL having expired (a 403), which a fresh URL fixes. */
     val expired: Boolean
+
+    /** Frames are moving: told to play *and* not buffering. */
     val isPlaying: Boolean
+
+    /**
+     * Told to play — true while it buffers after a seek, when [isPlaying] is
+     * still false. What decides whether to start a player: starting one that is
+     * already starting re-seeks it, and a seek restarts the buffering, so a far
+     * seek would never land.
+     */
+    val playWhenReady: Boolean
     val positionMs: Long
 
     /** Open [url] paused at [startMs]. */
@@ -89,6 +99,7 @@ class ExoStagePlayer(context: Context) : StagePlayer {
     override val error: String? get() = errorState
     override val expired: Boolean get() = expiredState
     override val isPlaying: Boolean get() = exo.isPlaying
+    override val playWhenReady: Boolean get() = exo.playWhenReady
     override val positionMs: Long get() = exo.currentPosition
 
     override fun load(url: String, startMs: Long) {

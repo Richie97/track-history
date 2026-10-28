@@ -8,6 +8,8 @@ import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.LapClip
 import app.trackevolution.core.model.SessionChannels
+import androidx.compose.runtime.derivedStateOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
@@ -62,6 +64,45 @@ class LapStageHolderTest {
         assertTrue(b.silent)
         assertTrue("the inset decodes small", b.small)
         assertTrue(h.hasVideo)
+    }
+
+    @Test
+    fun `a player that arrives after its URL is signed is seen by what drew the replay`() {
+        // The emulator found this: the signed URL comes back after the slot has
+        // drawn, and a player added to a plain map never redrew it.
+        val h = holder()
+        val gate = CompletableDeferred<String>()
+        h.bind(binding(clipB = null), { gate.await() })
+        val shown = derivedStateOf { h.playerFor(SideKey.A) }
+        assertNull("replay until the URL is signed", shown.value)
+        gate.complete("https://clips.test/7.mp4")
+        assertNotNull("the slot sees the player once it opens", shown.value)
+    }
+
+    @Test
+    fun `a player buffering after a seek is left to land, and the clock waits for the master`() {
+        // The emulator found this: Media3's isPlaying is false while it buffers,
+        // and starting a player per frame on that re-seeked it every frame — a
+        // far seek (switching to Same time) never landed and both videos froze.
+        val h = holder()
+        h.bind(binding(), urls)
+        h.seekElapsed(8.0)
+        h.play()
+        val a = h.playerFor(SideKey.A) as FakeStagePlayer
+        val b = h.playerFor(SideKey.B) as FakeStagePlayer
+        h.changeMode(SyncMode.TIME)
+        a.buffering = true
+        b.buffering = true
+        val seeks = a.seeks.size + b.seeks.size
+        repeat(30) { h.tick(1_000_000_000L + it * 16_000_000L) }
+        assertEquals("no seek while the players buffer", seeks, a.seeks.size + b.seeks.size)
+        assertEquals("the clock waits on the master's seek", 8.0, h.eMaster, 1e-6)
+        a.buffering = false
+        b.buffering = false
+        h.tick(1_500_000_000L)
+        a.advance(500)
+        h.tick(2_000_000_000L)
+        assertEquals("and runs again once frames move", 8.5, h.eMaster, 1e-6)
     }
 
     @Test

@@ -1170,14 +1170,52 @@ and `mode` through `StateRestorationTester` and an `ActivityScenario.recreate`,
 and the lap page at `w411dp-h891dp` compact, `w891dp-h411dp` full-bleed and its
 back chip, `w1400dp-h1000dp` wide with the map card and the now-strip).
 
-**Not verified on a device or an emulator**: real Media3 playback of two
-clips, the follower's rate-matching and re-seek against real decode latency,
-keyframe-fast seeks on a PDR clip's 1.5 s GOPs, the inset's 640×360 cap, the
-full-bleed dialog across a real rotation (Robolectric runs the qualifier, not
-the rotation), the expired-URL refresh, TalkBack on the scrubber, tabletop and
-book postures, mouse scrubbing on a real pointer, and whether the charts stay
-free of per-frame recomposition (the design reads the playhead only in the
-draw phase; no Layout Inspector recomposition count was taken).
+**Run on an emulator** (2026-10-27, a Pixel Tablet image on API 35, also
+shrunk to a phone's 1080×2400 at 420 dpi with `wm size` / `wm density` for
+the compact, mini-bar and full-bleed layouts), against `npm run dev` with a
+session of synthetic channels and two uploaded clips of ffmpeg's `testsrc`
+counter, so the frame on screen could be read against the stage's clock. The
+lap page and the session compare played in step with real Media3 playback —
+the counter read the clock plus the clip's 3 s run-up, and the clock ran at
+real speed — through a chart tap (distance and time axes), *Same place* →
+*Same time* while playing, the medium layout's pinned transport, the compact
+mini bar, and a rotation into full-bleed and back with playback carried on.
+It found five bugs the JVM suite could not, each fixed with a test where one
+can see it:
+
+- **The video never appeared.** `LapStageHolder.players` was a plain map, and
+  a player arrives after its URL is signed — after the slot has drawn its
+  replay — so nothing redrew it. It is a state map now
+  (`LapStageHolderTest`: the slot sees a player that opens after a delayed
+  signer).
+- **Switching to *Same time* froze both videos.** `keepInStep` started a
+  player whenever `isPlaying` was false, which Media3's is while it buffers
+  after a seek, so each frame re-seeked it and a far seek never landed. It
+  asks `StagePlayer.playWhenReady` now, and the clock waits on the master's
+  seek (`LapStageHolderTest`, with `FakeStagePlayer.buffering`).
+- **Full-bleed cut a fifth of the frame.** The slot's 16:9 box inside a 20:9
+  window was taller than the window; the master now takes the window and
+  `PlayerView` letterboxes. The lap chip moved off the back chip, and the HUD
+  and transport draw in the dark theme over a scrim that starts at 45%.
+- **The stage's colours disagreed with the chips.** A side was green for A and
+  blue for B, while `stageSides` puts the newest lit lap on A; a side now
+  carries its lap's lit slot, the web's `panel.slotColor`
+  (`SessionBindingTest`). Behind it, the inset's `SurfaceView` could stack
+  under the master's once the sides swapped roles; it is a media overlay now.
+- **Rotating lost the lit laps.** A phone turned sideways is an expanded
+  window, the shell swaps to two panes, and the destination's
+  `rememberSaveable` state is restored into a different place in the tree and
+  dropped — lap 3 fell off the stage on every rotation. The session compare
+  holds its lit laps on the stage holder too (`LapStageHolder.lit`). The same
+  loss applies to every saveable on a destination across that swap (the
+  panel's tab and axis included); that is the shell's, not the stage's.
+
+**Still not verified**: a real phone and real footage (PDR's 1.5 s GOPs
+against the keyframe-fast scrub), TalkBack on the scrubber, the expired-URL
+refresh, tabletop and book postures, a mouse, the track compare and the
+leaderboard lap (the seeded logbook had one event and no opted-in driver), and
+a recomposition count (the design reads the playhead in the draw phase only;
+no Layout Inspector count was taken).
 
 ## Open questions
 

@@ -11,7 +11,11 @@ class FakeStagePlayer : StagePlayer {
     override var ready: Boolean = true
     override var error: String? = null
     override var expired: Boolean = false
-    override var isPlaying: Boolean = false
+    override var playWhenReady: Boolean = false
+
+    /** Waiting on data after a seek, as Media3 is: told to play, no frames moving. */
+    var buffering: Boolean = false
+    override val isPlaying: Boolean get() = playWhenReady && !buffering
     override var positionMs: Long = 0
 
     var loadedUrl: String? = null
@@ -27,11 +31,11 @@ class FakeStagePlayer : StagePlayer {
     }
 
     override fun play() {
-        isPlaying = true
+        playWhenReady = true
     }
 
     override fun pause() {
-        isPlaying = false
+        playWhenReady = false
     }
 
     override fun seekTo(ms: Long, exact: Boolean) {

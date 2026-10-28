@@ -44,6 +44,7 @@ fun stageSide(
     best: Boolean,
     chIdx: Int?,
     lockedNote: String? = null,
+    slot: Int? = null,
 ): LapStageHolder.SideInfo? {
     val side = VideoSync.makeSide(key, entry, dStepM, VideoSync.SideClip.of(clip)) ?: return null
     return LapStageHolder.SideInfo(
@@ -53,6 +54,7 @@ fun stageSide(
         best = best,
         chIdx = chIdx,
         lockedNote = lockedNote,
+        slot = slot,
     )
 }
 

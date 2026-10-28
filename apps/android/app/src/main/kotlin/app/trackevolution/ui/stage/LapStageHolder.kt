@@ -57,6 +57,12 @@ class LapStageHolder(
         val chIdx: Int?,
         /** Why a clip that exists isn't played — the locked sentence — or null. */
         val lockedNote: String? = null,
+        /**
+         * The side's place among the panel's lit laps (0–2), which picks its
+         * colour the way the chips and traces pick theirs — the web's
+         * `panel.slotColor`. Null takes the side's own: A the first, B the second.
+         */
+        val slot: Int? = null,
     )
 
     /**
@@ -78,6 +84,17 @@ class LapStageHolder(
 
     var binding by mutableStateOf<Binding?>(null)
         private set
+
+    /**
+     * The panel's lit laps on a page whose sides come from them (the session
+     * compare), held here as well as in the page's `rememberSaveable`: a phone
+     * turned sideways is an expanded window, the shell swaps to two panes, and
+     * the restored saveable state lands in a different place in the tree and is
+     * lost — the emulator showed lap 3 dropping off the stage on every rotation.
+     * This holder is a back-stack `ViewModel` and survives the swap.
+     */
+    var lit by mutableStateOf<List<Int>?>(null)
+
     var mode by mutableStateOf(VideoSync.DEFAULT_SYNC_MODE)
         private set
     var swapped by mutableStateOf(false)
@@ -109,7 +126,9 @@ class LapStageHolder(
     /** Signed URLs by clip id, and what to say instead of a video. */
     private val urls = mutableStateMapOf<Int, String>()
     private val notes = mutableStateMapOf<Int, String>()
-    private val players = mutableMapOf<Int, StagePlayer>()
+    // State, not a plain map: a player arrives after its URL is signed, which
+    // is after the slot has drawn its replay, and the slot has to see it.
+    private val players = mutableStateMapOf<Int, StagePlayer>()
     private val refetched = mutableSetOf<Int>()
     private var signedUrl: (suspend (Int) -> String)? = null
     private var modeChosen = false
@@ -375,7 +394,9 @@ class LapStageHolder(
         val clip = masterInfo.clip
         val st = state.value
         val masterSide = if (masterKey == SideKey.B) st?.b else st?.a
-        var e = if (mp != null && clip != null && mp.ready && mp.isPlaying && masterSide?.inClip == true) {
+        // While the master buffers after a seek its position is the seek's
+        // target, so the clock waits for it rather than running ahead.
+        var e = if (mp != null && clip != null && mp.ready && mp.playWhenReady && masterSide?.inClip == true) {
             (mp.positionMs - clip.lapOffsetMs) / 1000.0
         } else {
             eMaster + dt * rate
@@ -408,7 +429,7 @@ class LapStageHolder(
             if (!side.inClip || target == null) {
                 // Outside its clip a side waits on its last frame and resumes
                 // when the target comes back in.
-                if (p.isPlaying) p.pause()
+                if (p.playWhenReady) p.pause()
                 continue
             }
             val isMaster = key == masterKey
@@ -424,7 +445,7 @@ class LapStageHolder(
                 }
             }
             speed?.let { p.setSpeed(it.toFloat()) }
-            if (!p.isPlaying) {
+            if (!p.playWhenReady) {
                 p.seekTo(target.toLong(), exact = true)
                 p.play()
             } else if (!isMaster && frameNanos != null && cooledDown(frameNanos) &&
@@ -457,7 +478,7 @@ class LapStageHolder(
             val side = if (key == SideKey.A) st.a else st.b ?: continue
             val target = side.clipMs?.takeIf { side.inClip } ?: continue
             p.seekTo(target.toLong(), exact)
-            if (!playing && p.isPlaying) p.pause()
+            if (!playing && p.playWhenReady) p.pause()
         }
     }
 

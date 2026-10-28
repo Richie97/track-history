@@ -427,13 +427,7 @@ private fun StagedLap(
             if (view.canCompare) item("compare") { CompareButton(onCompare) }
         },
     ) {
-        item("charts-hint") {
-            Text(
-                "Tap a chart to move the video there.",
-                style = TrackTheme.typography.xs,
-                color = colors.textFaint,
-            )
-        }
+        // The panel's own hint says a tap moves the video, as on every stage.
         item("charts") {
             LapChannelChart(
                 channels = channels,
