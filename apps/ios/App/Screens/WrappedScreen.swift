@@ -45,14 +45,8 @@ struct WrappedScreen: View {
                         // The way out the web offers (#342): every year that has
                         // a story, or the one there is.
                         if years.count > 1 {
-                            HStack(spacing: 8) {
-                                ForEach(years, id: \.self) { y in
-                                    Button(String(y)) { Task { await model.load(y) } }
-                                        .buttonStyle(YearChipStyle(selected: y == model.year))
-                                        .disabled(y == model.year)
-                                }
-                            }
-                            .accessibilityIdentifier("wrappedYears")
+                            YearChips(years: years, current: model.year) { y in Task { await model.load(y) } }
+                                .accessibilityIdentifier("wrappedYears")
                         } else if let only = years.first, only != model.year {
                             Button("See \(String(only))") { Task { await model.load(only) } }
                                 .buttonStyle(TEButtonStyle(kind: .quiet))
@@ -318,14 +312,8 @@ struct WrappedCardView: View {
                 foot("So far — through \(Self.day(through)).")
             }
             if data.years.count > 1 {
-                HStack(spacing: 8) {
-                    ForEach(data.years, id: \.self) { y in
-                        Button(String(y)) { onYear(y) }
-                            .buttonStyle(YearChipStyle(selected: y == data.year))
-                            .disabled(y == data.year)
-                    }
-                }
-                .padding(.top, 26)
+                YearChips(years: data.years, current: data.year, onYear: onYear)
+                    .padding(.top, 26)
             }
         case .numbers:
             kicker("The numbers")
@@ -520,12 +508,33 @@ struct WrappedCardView: View {
     }
 }
 
+/// One chip per year with a story, the one in view marked — the web's
+/// `wrappedYearPicker`. A wrapping row, as the web's and Android's are: an
+/// `HStack` proposes each chip an equal share of the width, and nine years of
+/// track days left every chip one digit wide, the year written down its side.
+private struct YearChips: View {
+    let years: [Int]
+    let current: Int
+    let onYear: (Int) -> Void
+
+    var body: some View {
+        FlowRow(spacing: 8) {
+            ForEach(years, id: \.self) { y in
+                Button(String(y)) { onYear(y) }
+                    .buttonStyle(YearChipStyle(selected: y == current))
+                    .disabled(y == current)
+            }
+        }
+    }
+}
+
 private struct YearChipStyle: ButtonStyle {
     let selected: Bool
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .teStyle(.sm)
+            .lineLimit(1)
             .foregroundStyle(selected ? Color(.accentContrast) : Color(.textBody))
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
