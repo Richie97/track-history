@@ -674,7 +674,11 @@ cd apps/android && ./gradlew :app:bundleRelease
 ```
 
 The iOS side has no equivalent: those builds go through Xcode Cloud, which
-archives and uploads to TestFlight itself.
+archives and uploads to TestFlight itself. Reaching the **Internal** TestFlight
+group is the workflow's *TestFlight Internal Testing* post-action, set in Xcode
+Cloud rather than in this repo — a group's "Enable automatic distribution"
+checkbox does not cover Xcode Cloud builds. Keep the Archive action's deployment
+on *TestFlight and App Store*, so the same build can still go to App Review.
 
 ### Store submission
 
