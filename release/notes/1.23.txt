@@ -1,0 +1,2 @@
+- Watch a lap with its data: the charts and track map follow the video as it plays, and tapping a chart jumps the video to that spot. Compare two laps side by side with the live time gap.
+- The Traces tab puts speed, inputs and the delta on one view, on a distance or time axis. Tap a chart to read every lap at that point.
