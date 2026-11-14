@@ -6,6 +6,7 @@ import { apiApp } from "./api";
 import { publicShare, sharePage } from "./routes/share";
 import { wellKnown } from "./routes/wellKnown";
 import { download } from "./routes/download";
+import { home } from "./routes/landing";
 import { billingWebhooks } from "./routes/billingWebhooks";
 import { oauth, oauthWellKnown, sweepOAuth } from "./routes/oauth";
 import { mcp } from "./routes/mcp";
@@ -28,6 +29,8 @@ const studentApi = apiApp(requireCoachGrant);
 
 const app = new Hono<AppContext>();
 
+// The home page: landing page or app shell, by whether a session cookie came.
+app.get("/", home);
 app.route("/auth", auth);
 // Store webhooks: public, sender-verified, outside /api (see run_worker_first).
 app.route("/", billingWebhooks);

@@ -15,7 +15,8 @@
   var ID = "G-JXM9CX77RQ";
   var GTM = "GTM-MQD633J7";
   var KEY = "te-analytics-consent";
-  var HOSTS = ["docs.trackevolution.app", "richie97.github.io"];
+  // The landing page is also served on the app's own host (tools/landing.mjs).
+  var HOSTS = ["docs.trackevolution.app", "richie97.github.io", "trackevolution.app", "www.trackevolution.app"];
   var REGIONS = [
     "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
     "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
