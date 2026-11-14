@@ -1,0 +1,35 @@
+# Track Evolution
+
+> Track Evolution is a logbook for HPDE and track-day drivers: every track, event, session and lap time, with progress charts, telemetry import from the driver's own video and data files, GPS lap recording in the phone apps, and a garage that tracks each car and its consumables. It runs on the web at https://trackevolution.app and as an app for iPhone, iPad, Apple silicon Macs and Android.
+
+Key facts:
+
+- The logbook is free with no limit and no expiry: tracks, events, sessions, lap times, progress charts, telemetry import, share links, per-track leaderboards and Season Wrapped.
+- Track Evolution Pro costs $1.99 a month or $19.99 a year. It adds lap recording from the phone's GPS with live timing, the full telemetry analysis (sector splits, theoretical best, lap-vs-lap deltas, all channel graphs), consumable wear tracking, the setup notebook, best-lap video clips, sharing a logbook with a coach, and connecting an AI assistant. One subscription covers web, iPhone and Android.
+- Telemetry import reads Corvette PDR video, Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), Racelogic VBO files (VBOX, RaceChrono, TrackAddict, Harry's LapTimer exports) and Porsche Track Precision VBO and CSV exports. Files are parsed on the driver's own device and never uploaded.
+- The whole logbook works offline and syncs when the device is back online.
+- Lap data is private by default. A driver can publish a read-only share page, share one event or session by link, or opt in to per-track leaderboards.
+- Track Evolution is made by Speedshift LLC, a veteran-owned business.
+
+## Get the app
+
+- [Web app](https://trackevolution.app): sign in with Google or Apple, no install needed
+- [iPhone, iPad and Mac](https://apps.apple.com/us/app/track-evolution/id6792941186): App Store
+- [Android](https://play.google.com/store/apps/details?id=app.trackevolution): Google Play
+
+## Docs
+
+- [Overview, features and pricing](https://docs.trackevolution.app/): what Track Evolution does, what is free and what is Pro, and common questions
+- [Getting started](https://docs.trackevolution.app/docs/): sign in, log a first event, import telemetry, install on a phone, share progress
+- [Your first track day](https://docs.trackevolution.app/docs/track-days.html): what an HPDE is, what the car and driver need, where to find an event, and ways to record laps
+- [Telemetry import](https://docs.trackevolution.app/docs/telemetry-import.html): every supported source, the start/finish line picker, and how lap times are derived
+- [Recording laps with your phone](https://docs.trackevolution.app/docs/lap-recording.html): the GPS lap recorder in the iPhone and Android apps and what accuracy to expect
+- [Data model and stats](https://docs.trackevolution.app/docs/data-model.html): tracks, events, sessions and laps, the best-time rule, consistency, costs and share-page privacy
+- [Garage and setup notebook](https://docs.trackevolution.app/docs/garage.html): pad, tire and fluid wear tracking with projections, and per-day setup sheets
+- [AI assistants](https://docs.trackevolution.app/docs/ai.html): connecting Claude, ChatGPT or another assistant to a logbook, and what it can read
+
+## Legal
+
+- [Privacy policy](https://docs.trackevolution.app/docs/privacy.html)
+- [Terms of use](https://docs.trackevolution.app/docs/terms.html)
+- [Delete your account](https://docs.trackevolution.app/docs/account-deletion.html)

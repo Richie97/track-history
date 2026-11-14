@@ -1,0 +1,6 @@
+# Everything here is public documentation. Search engines and AI assistants
+# are welcome to read, index and cite it.
+User-agent: *
+Allow: /
+
+Sitemap: https://docs.trackevolution.app/sitemap.xml

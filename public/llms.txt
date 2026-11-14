@@ -1,0 +1,10 @@
+# Track Evolution
+
+> Track Evolution is a logbook for HPDE and track-day drivers: every track, event, session and lap time, with progress charts, telemetry import, GPS lap recording in the phone apps, and a garage for each car. This host, https://trackevolution.app, is the web app, behind sign-in. Free to use; Pro is $1.99 a month or $19.99 a year.
+
+## Read more
+
+- [Overview, features and pricing](https://docs.trackevolution.app/)
+- [Full index for AI assistants](https://docs.trackevolution.app/llms.txt)
+- [Getting started](https://docs.trackevolution.app/docs/)
+- [Get the app for iPhone or Android](https://trackevolution.app/get)

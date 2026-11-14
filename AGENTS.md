@@ -184,6 +184,29 @@ not a follow-up:**
      at the end of its `<head>`, and its footer carries the *Cookies* button
      (`data-consent-open`) that reopens the banner and the *Veteran-owned
      business · Speedshift LLC* line (`.footer-vob`); a new page copies all three.
+   - **Search and answer engines** (SEO / AEO): every page carries a
+     `<link rel="canonical">` equal to its `og:url` and a JSON-LD block —
+     the landing page's `@graph` is the Organization, WebSite,
+     SoftwareApplication (with the three offers), the promo VideoObject and
+     an FAQPage; a docs page is a TechArticle (a legal page a WebPage) plus
+     its BreadcrumbList. `site/sitemap.xml` lists every page,
+     `site/robots.txt` allows everything and names the sitemap, and
+     `site/llms.txt` is the plain-language index for AI assistants (facts,
+     prices, supported import sources, one line per page). A new page owes
+     all of these; a change to a price, a tier or an import source owes
+     `llms.txt` and the landing page's FAQ and offers. The FAQ is visible
+     content (`#faq`) and its markup must say the same words — never mark
+     up a question the page doesn't show, and never add a rating or review
+     to the structured data without a real source. A re-cut promo owes the
+     VideoObject its id and upload date. `test/unit/site-seo.test.js` pins
+     the lot. On the app host, `public/robots.txt` keeps crawlers off the
+     API and auth paths but **leaves `/share/` crawlable** (a Disallow would
+     also stop the link-preview scrapers that honour robots.txt),
+     `public/llms.txt` points at the docs, `public/index.html` carries a
+     canonical to the app's home and a `<noscript>` summary, the share
+     pages rewrite that canonical with their `og:url` (`setPageUrl` in
+     `src/routes/share.ts`), and the unlisted `/share/(e|s)/<token>` pages
+     answer `X-Robots-Tag: noindex`.
    - Every page carries Open Graph/Twitter-card meta tags. The social preview
      image is `site/og-image.png`, and `public/og-image.png` is an identical
      copy used by the app — the two must stay in sync (regenerate both if the

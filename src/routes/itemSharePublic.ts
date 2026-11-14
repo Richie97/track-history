@@ -5,7 +5,7 @@ import type { AppContext, Ctx } from "../types";
 import { isEntitled } from "../lib/entitlement";
 import { signClipUrl } from "../lib/clips";
 import { SHARE_TOKEN, type ShareKind, shareKindFor, sharePath, sharedEvent, sharedSummary } from "../lib/itemShare";
-import { escHtml, fmtMsShare, setMeta } from "./share";
+import { escHtml, fmtMsShare, setMeta, setPageUrl } from "./share";
 
 // Share one event or one session (NS-48) — the public half: no session, the
 // token in the path is the whole of the permission.
@@ -112,13 +112,13 @@ itemSharePage.get("/:prefix{[es]}/:token", async (c) => {
     const title = titleFor(item.kind, item.row.name, item.event.track_name);
     const description = `${sharedSummary(item.event, fmtMsShare)} — lap times, racing line and telemetry on Track Evolution.`;
     const url = new URL(sharePath(item.kind, c.req.param("token")), c.req.url).toString();
-    html = html
-      .replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`)
-      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escHtml(url)}$2`);
+    html = setPageUrl(html.replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`), url);
     html = setMeta(html, "name", "description", description);
     html = setMeta(html, "property", "og:title", title);
     html = setMeta(html, "property", "og:description", description);
     html = setMeta(html, "property", "og:image:alt", title);
   }
-  return c.html(html, 200, { "Cache-Control": "no-store" });
+  // An unlisted link: whoever holds it may read it, and a search engine that
+  // comes across one must not list it.
+  return c.html(html, 200, { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" });
 });
