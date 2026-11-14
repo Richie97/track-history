@@ -3,18 +3,200 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Track Evolution — a track-day logbook</title>
-  <meta name="description" content="Track Evolution is an HPDE / track-day logbook: events, sessions and lap times per track, progress charts, and telemetry import on your own device. Free at trackevolution.app.">
+  <title>Track Evolution — track-day logbook &amp; lap timer for HPDE</title>
+  <meta name="description" content="Track Evolution is a track-day and HPDE logbook: lap times per track, progress charts, phone GPS lap timing, and telemetry import from Corvette PDR, GoPro and VBO files. Free on web, iPhone and Android.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Track Evolution">
-  <meta property="og:title" content="Track Evolution — a track-day logbook">
-  <meta property="og:description" content="Track Evolution is an HPDE / track-day logbook: events, sessions and lap times per track, progress charts, and telemetry import on your own device. Free at trackevolution.app.">
+  <meta property="og:title" content="Track Evolution — track-day logbook &amp; lap timer for HPDE">
+  <meta property="og:description" content="Track Evolution is a track-day and HPDE logbook: lap times per track, progress charts, phone GPS lap timing, and telemetry import from Corvette PDR, GoPro and VBO files. Free on web, iPhone and Android.">
   <meta property="og:url" content="https://docs.trackevolution.app/">
   <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
   <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://docs.trackevolution.app/#org",
+        "name": "Track Evolution",
+        "legalName": "Speedshift LLC",
+        "url": "https://docs.trackevolution.app/",
+        "logo": "https://trackevolution.app/icons/icon-512.png",
+        "sameAs": [
+          "https://trackevolution.app/",
+          "https://apps.apple.com/us/app/track-evolution/id6792941186",
+          "https://play.google.com/store/apps/details?id=app.trackevolution",
+          "https://youtu.be/UBnjPYRr8wU",
+          "https://github.com/richie97/track-history"
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://docs.trackevolution.app/#website",
+        "name": "Track Evolution",
+        "url": "https://docs.trackevolution.app/",
+        "inLanguage": "en",
+        "publisher": {
+          "@id": "https://docs.trackevolution.app/#org"
+        }
+      },
+      {
+        "@type": [
+          "SoftwareApplication",
+          "MobileApplication",
+          "WebApplication"
+        ],
+        "@id": "https://docs.trackevolution.app/#app",
+        "name": "Track Evolution",
+        "description": "An HPDE / track-day logbook: events, sessions and lap times per track, progress charts, telemetry import from Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision files, GPS lap recording, and a garage with wear tracking.",
+        "url": "https://trackevolution.app/",
+        "applicationCategory": "SportsApplication",
+        "operatingSystem": "iOS, iPadOS, macOS, Android, Web",
+        "installUrl": [
+          "https://apps.apple.com/us/app/track-evolution/id6792941186",
+          "https://play.google.com/store/apps/details?id=app.trackevolution"
+        ],
+        "image": "https://docs.trackevolution.app/og-image.png",
+        "screenshot": "https://docs.trackevolution.app/promo-poster.jpg",
+        "publisher": {
+          "@id": "https://docs.trackevolution.app/#org"
+        },
+        "featureList": [
+          "Track-day logbook: tracks, events, sessions and lap times",
+          "Progress charts per track and layout",
+          "Telemetry import parsed on your own device",
+          "GPS lap recording with live timing",
+          "Garage with consumable wear tracking and a setup notebook",
+          "Share links and per-track leaderboards",
+          "Works offline",
+          "AI assistant connection for Claude and ChatGPT"
+        ],
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Free",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          {
+            "@type": "Offer",
+            "name": "Pro, monthly",
+            "price": "1.99",
+            "priceCurrency": "USD"
+          },
+          {
+            "@type": "Offer",
+            "name": "Pro, yearly",
+            "price": "19.99",
+            "priceCurrency": "USD"
+          }
+        ]
+      },
+      {
+        "@type": "VideoObject",
+        "@id": "https://docs.trackevolution.app/#video",
+        "name": "Track Evolution in 84 seconds",
+        "description": "Track Evolution, the track-day logbook, filmed in the real app on a fictional driver's logbook.",
+        "thumbnailUrl": "https://docs.trackevolution.app/promo-poster.jpg",
+        "uploadDate": "2026-10-01",
+        "duration": "PT1M24S",
+        "embedUrl": "https://www.youtube-nocookie.com/embed/UBnjPYRr8wU",
+        "url": "https://youtu.be/UBnjPYRr8wU"
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://docs.trackevolution.app/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Track Evolution?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Track Evolution is a logbook for HPDE and track-day drivers. It keeps every track, event, session and lap time you drive, charts your best laps at each track over time, pulls lap times and telemetry out of your own video and data files, and tracks the cars you drive. It runs in any browser at trackevolution.app and as an app for iPhone, iPad, Apple silicon Macs and Android."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Track Evolution free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. The logbook is free with no limit and no expiry: tracks, events, sessions, lap times, progress charts, telemetry import, share links and leaderboards. Track Evolution Pro costs $1.99 a month or $19.99 a year and adds lap recording from the phone's GPS, the full telemetry analysis, consumable wear tracking, the setup notebook, best-lap video clips, coach sharing and the AI assistant connection."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I time my laps with just a phone?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, with Pro. The iPhone and Android apps time laps from the phone's GPS: start recording before you head out, stow the phone, and pick the start/finish line on the track map when you are back in the paddock. With the phone mounted in view you also get live lap timing and a predictive delta. How lap recording works."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which data loggers and cameras can it import?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Corvette Performance Data Recorder (PDR) video, the newer Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), Racelogic VBO files — including VBOX, RaceChrono, TrackAddict and Harry's LapTimer exports — and Porsche Track Precision VBO and CSV exports. Import is free on the web and in both phone apps. See every supported source."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I get lap times out of a Corvette PDR video?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Drop the PDR's MP4 file into an event in Track Evolution. The lap times, the racing line, top speed, max RPM and max lateral G are read from the telemetry recorded inside the video, and a recording with no lap beacons is still timed once you pick the start/finish line on its track map."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is my video uploaded when I import it?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Video and data files are parsed on your own device, in the browser or in the phone app, and the file is never uploaded. The one exception is one you choose: with Pro you can save a short video clip of a lap to play back on the lap's page."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does it work offline at the track?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Your whole logbook works offline on the web, iPhone and Android, and the events, sessions and laps you add without signal sync when you are back online."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can ChatGPT or Claude analyze my lap data?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, with Pro. You can connect Claude, ChatGPT or another AI assistant to your logbook and ask where the time went against your best lap, what changed since last season or when the brake pads are due. The assistant reads the same numbers the app shows and cannot change anything. How to connect an assistant."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is an HPDE?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "HPDE stands for High Performance Driver Education: a track day where you drive your own car on a race circuit in run groups sorted by experience, usually with an instructor when you are new. It is not racing — there are no results and no wheel-to-wheel driving. Your first track day covers what you and the car need and where to find an event."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What happens to my data if I cancel Pro?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Nothing you logged is lost. Your events, sessions and lap times stay, you can keep adding more for free, and everything Pro showed comes back if you resubscribe."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./site.css">
   <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
@@ -307,6 +489,54 @@
         you resubscribe. If you bought the app when it was a paid download,
         Pro is yours for life.
       </p>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <h2 class="section-title">Questions drivers ask</h2>
+      <div class="faq">
+        <div class="faq-item">
+          <h3>What is Track Evolution?</h3>
+          <p>Track Evolution is a logbook for HPDE and track-day drivers. It keeps every track, event, session and lap time you drive, charts your best laps at each track over time, pulls lap times and telemetry out of your own video and data files, and tracks the cars you drive. It runs in any browser at <a href="https://trackevolution.app">trackevolution.app</a> and as an app for iPhone, iPad, Apple silicon Macs and Android.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Is Track Evolution free?</h3>
+          <p>Yes. The logbook is free with no limit and no expiry: tracks, events, sessions, lap times, progress charts, telemetry import, share links and leaderboards. Track Evolution Pro costs $1.99 a month or $19.99 a year and adds lap recording from the phone's GPS, the full telemetry analysis, consumable wear tracking, the setup notebook, best-lap video clips, coach sharing and the AI assistant connection.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Can I time my laps with just a phone?</h3>
+          <p>Yes, with Pro. The iPhone and Android apps time laps from the phone's GPS: start recording before you head out, stow the phone, and pick the start/finish line on the track map when you are back in the paddock. With the phone mounted in view you also get live lap timing and a predictive delta. <a href="docs/lap-recording.html">How lap recording works</a>.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Which data loggers and cameras can it import?</h3>
+          <p>Corvette Performance Data Recorder (PDR) video, the newer Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), Racelogic VBO files — including VBOX, RaceChrono, TrackAddict and Harry's LapTimer exports — and Porsche Track Precision VBO and CSV exports. Import is free on the web and in both phone apps. <a href="docs/telemetry-import.html">See every supported source</a>.</p>
+        </div>
+        <div class="faq-item">
+          <h3>How do I get lap times out of a Corvette PDR video?</h3>
+          <p>Drop the PDR's MP4 file into an event in Track Evolution. The lap times, the racing line, top speed, max RPM and max lateral G are read from the telemetry recorded inside the video, and a recording with no lap beacons is still timed once you pick the start/finish line on its track map.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Is my video uploaded when I import it?</h3>
+          <p>No. Video and data files are parsed on your own device, in the browser or in the phone app, and the file is never uploaded. The one exception is one you choose: with Pro you can save a short video clip of a lap to play back on the lap's page.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Does it work offline at the track?</h3>
+          <p>Yes. Your whole logbook works offline on the web, iPhone and Android, and the events, sessions and laps you add without signal sync when you are back online.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Can ChatGPT or Claude analyze my lap data?</h3>
+          <p>Yes, with Pro. You can connect Claude, ChatGPT or another AI assistant to your logbook and ask where the time went against your best lap, what changed since last season or when the brake pads are due. The assistant reads the same numbers the app shows and cannot change anything. <a href="docs/ai.html">How to connect an assistant</a>.</p>
+        </div>
+        <div class="faq-item">
+          <h3>What is an HPDE?</h3>
+          <p>HPDE stands for High Performance Driver Education: a track day where you drive your own car on a race circuit in run groups sorted by experience, usually with an instructor when you are new. It is not racing — there are no results and no wheel-to-wheel driving. <a href="docs/track-days.html">Your first track day</a> covers what you and the car need and where to find an event.</p>
+        </div>
+        <div class="faq-item">
+          <h3>What happens to my data if I cancel Pro?</h3>
+          <p>Nothing you logged is lost. Your events, sessions and lap times stay, you can keep adding more for free, and everything Pro showed comes back if you resubscribe.</p>
+        </div>
+      </div>
     </div>
   </section>
 

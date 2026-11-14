@@ -329,6 +329,11 @@ section.alt { background: var(--bg-subtle); border-block: 1px solid var(--border
 .tier-card li { margin-bottom: 7px; }
 .tier-note { margin: 18px 0 0; font-size: 14px; color: var(--text-faint); }
 
+/* ---------- FAQ ---------- */
+.faq { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 40px; margin-top: 28px; }
+.faq-item h3 { font-size: 16px; margin-bottom: 6px; }
+.faq-item p { margin: 0 0 20px; color: var(--text-muted); font-size: 15px; }
+
 /* ---------- Steps ---------- */
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; counter-reset: step; }
 .step {

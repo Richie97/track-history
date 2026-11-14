@@ -255,8 +255,12 @@ describe("GET /share/(e|s)/:token (the page)", () => {
     const ev = (await user.api("POST", `/events/${eventId}/share`)).body;
     const ss = (await user.api("POST", `/sessions/${s1}/share`)).body;
 
-    const page = await (await SELF.fetch(ev.url)).text();
+    const res = await SELF.fetch(ev.url);
+    // Unlisted: readable by whoever holds the link, never listed by a search engine.
+    expect(res.headers.get("x-robots-tag")).toBe("noindex");
+    const page = await res.text();
     expect(page).toContain(`<title>Test User&#39;s track day at Share Raceway</title>`);
+    expect(page).toContain(`<link rel="canonical" href="https://example.com/share/e/${tokenOf(ev.url)}"`);
     expect(page).toContain(`content="https://example.com/share/e/${tokenOf(ev.url)}"`);
     expect(page).toContain("Jun 14, 2026 · best 1:39.0 · 6 laps · 2 sessions");
     expect(page).not.toContain("secret");

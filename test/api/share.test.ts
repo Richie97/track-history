@@ -128,6 +128,8 @@ describe("GET /share/:slug (the HTML share page)", () => {
     expect(html).toContain('property="og:title" content="Test User&#39;s track logbook"');
     expect(html).toContain("1 event · 2 track days · Road Atlanta 1:38.76");
     expect(html).toContain('property="og:url" content="https://example.com/share/og-driver"');
+    // …and its own canonical, not the shell's, which names the app's home.
+    expect(html).toContain('<link rel="canonical" href="https://example.com/share/og-driver"');
     // Still the real app shell — human visitors boot the SPA as before.
     expect(html).toContain('<script type="module" src="/app.js"></script>');
   });
@@ -135,7 +137,7 @@ describe("GET /share/:slug (the HTML share page)", () => {
   it("serves the stock shell for unknown slugs (the SPA renders not-found)", async () => {
     const { status, html } = await sharePage("no-such-driver");
     expect(status).toBe(200);
-    expect(html).toContain("<title>Track Evolution</title>");
+    expect(html).toContain("<title>Track Evolution — track-day logbook &amp; lap timer</title>");
     expect(html).toContain('content="Track Evolution"');
   });
 
@@ -256,6 +258,6 @@ describe("a shared Season Wrapped (NS-36)", () => {
     await createEvent(api, { start_date: past });
     await api("PUT", "/share", { slug: "wrapped-og-empty" });
     const html = await (await SELF.fetch("https://example.com/share/wrapped-og-empty/wrapped/1999")).text();
-    expect(html).toContain("<title>Track Evolution</title>");
+    expect(html).toContain("<title>Track Evolution — track-day logbook &amp; lap timer</title>");
   });
 });

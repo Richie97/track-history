@@ -72,6 +72,15 @@ export function setMeta(html: string, attr: "name" | "property", key: string, va
   return html.replace(re, `$1${escHtml(value)}$2`);
 }
 
+// Point the page at its own address: og:url for link scrapers and the
+// canonical link for search engines, which would otherwise read the shell's
+// (the app's home) and fold every share page into it.
+export function setPageUrl(html: string, url: string): string {
+  return html
+    .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escHtml(url)}$2`)
+    .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${escHtml(url)}$2`);
+}
+
 export const sharePage = new Hono<AppContext>();
 
 sharePage.get("/:slug", async (c) => {
@@ -101,9 +110,10 @@ sharePage.get("/:slug", async (c) => {
       ...bestBits,
     ].join(" · ") + " — lap times and progress on Track Evolution.";
 
-    html = html
-      .replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`)
-      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escHtml(new URL(`/share/${slug}`, c.req.url).toString())}$2`);
+    html = setPageUrl(
+      html.replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`),
+      new URL(`/share/${slug}`, c.req.url).toString(),
+    );
     html = setMeta(html, "name", "description", description);
     html = setMeta(html, "property", "og:title", title);
     html = setMeta(html, "property", "og:description", description);
@@ -139,9 +149,7 @@ sharePage.get("/:slug/wrapped/:year", async (c) => {
     const title = `${owner.name ?? "A driver"}'s ${season.year} on Track Evolution`;
     const description = wrappedSummary(season, isValidUnits(owner.units) ? owner.units : "imperial");
     const url = new URL(`/share/${slug}/wrapped/${season.year}`, c.req.url).toString();
-    html = html
-      .replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`)
-      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escHtml(url)}$2`);
+    html = setPageUrl(html.replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`), url);
     html = setMeta(html, "name", "description", description);
     html = setMeta(html, "property", "og:title", title);
     html = setMeta(html, "property", "og:description", description);

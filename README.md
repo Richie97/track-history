@@ -42,6 +42,17 @@ at `site/og-image.png` and `public/og-image.png` (1200×630 PNG, rendered from
 the site's design tokens — regenerate both together if the brand or tagline
 changes).
 
+For search engines and AI assistants the site also carries a canonical link
+and schema.org structured data on every page (the landing page's includes the
+app, its prices, the promo video and a visible FAQ), plus `site/sitemap.xml`,
+`site/robots.txt` and `site/llms.txt` — a plain-language index an assistant
+can read in one request. The app host has its own `public/robots.txt` and
+`public/llms.txt`; unlisted share links (`/share/e/…`, `/share/s/…`) answer
+`X-Robots-Tag: noindex`. `test/unit/site-seo.test.js` keeps the pages, the
+sitemap, `llms.txt` and the FAQ markup in step; after the first deploy, submit
+`https://docs.trackevolution.app/sitemap.xml` in Google Search Console and
+Bing Webmaster Tools.
+
 ## Stack
 
 - **Cloudflare Workers** — serves the API (Hono) and the static frontend

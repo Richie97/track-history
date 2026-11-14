@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Track Evolution</title>
+  <title>Track Evolution — track-day logbook &amp; lap timer</title>
   <meta name="description" content="Track Evolution is a free HPDE / track-day logbook: events, sessions and lap times per track, progress charts, and in-browser telemetry import." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Track Evolution" />
@@ -15,6 +15,7 @@
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap" />
   <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href="https://trackevolution.app/" />
   <script>
     // Apply the saved theme before first paint (Auto = follow the device).
     try {
@@ -32,6 +33,14 @@
 </head>
 <body>
   <div id="app"></div>
+  <noscript>
+    <!-- What a reader without JavaScript (and a crawler that runs none) gets. -->
+    <div style="max-width: 560px; margin: 48px auto; padding: 0 20px">
+      <h1>Track Evolution</h1>
+      <p>Track Evolution is a logbook for HPDE and track days: events, sessions and lap times per track, progress charts, telemetry import from your own video and data files, and lap timing from your phone's GPS. The logbook is free.</p>
+      <p>The web app needs JavaScript. <a href="https://docs.trackevolution.app/">See what it does</a>, <a href="https://docs.trackevolution.app/docs/">read the docs</a>, or get the app for <a href="https://apps.apple.com/us/app/track-evolution/id6792941186">iPhone</a> or <a href="https://play.google.com/store/apps/details?id=app.trackevolution">Android</a>.</p>
+    </div>
+  </noscript>
   <div id="tooltip" class="tooltip" hidden></div>
   <script type="module" src="/app.js"></script>
   <script>
