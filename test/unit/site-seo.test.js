@@ -9,7 +9,11 @@ const BASE = "https://docs.trackevolution.app";
 const read = (p) => readFileSync(new URL(`../../site/${p}`, import.meta.url), "utf8");
 const docs = readdirSync(new URL("../../site/docs", import.meta.url)).filter((f) => f.endsWith(".html"));
 const pages = ["index.html", ...docs.map((f) => `docs/${f}`)];
-const urlOf = (p) => `${BASE}/${p.replace(/index\.html$/, "")}`;
+// The landing page's canonical home is the app's own domain, where the Worker
+// serves the same page to signed-out visitors (tools/landing.mjs); the copy on
+// the docs host points there, and so stays out of the docs sitemap.
+const HOME = "https://trackevolution.app/";
+const urlOf = (p) => (p === "index.html" ? HOME : `${BASE}/${p.replace(/index\.html$/, "")}`);
 const jsonLd = (html) =>
   [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
 // The visible text of a fragment of our own markup. Tags are removed until
@@ -39,13 +43,15 @@ describe("site pages", () => {
     expect(html).toContain(`<meta property="og:description" content="${desc}">`);
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
     expect(jsonLd(html).length).toBeGreaterThan(0); // throws if it doesn't parse
-    expect(sitemap).toContain(`<loc>${url}</loc>`);
+    if (url !== HOME) expect(sitemap).toContain(`<loc>${url}</loc>`);
     expect(llms).toContain(`(${url})`);
   });
 
   it("lists nothing in the sitemap that isn't a page", () => {
     const locs = [...sitemap.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
-    expect(locs.sort()).toEqual(pages.map(urlOf).sort());
+    expect(locs.sort()).toEqual(pages.map(urlOf).filter((u) => u !== HOME).sort());
+    const appSitemap = readFileSync(new URL("../../public/sitemap.xml", import.meta.url), "utf8");
+    expect(appSitemap).toContain(`<loc>${HOME}</loc>`);
   });
 
   it("points robots.txt at the sitemap and blocks nothing", () => {
