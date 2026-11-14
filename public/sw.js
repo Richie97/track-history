@@ -3,8 +3,10 @@
 // Strategies:
 //  - App shell (same-origin static files): stale-while-revalidate, so there's
 //    no build-step cache busting to manage — updates land on the next load.
-//  - Navigations: network-first, falling back to the cached shell offline
-//    (the Worker serves index.html for every SPA path, so "/" covers them all).
+//  - Navigations: network-first, falling back to the cached shell offline.
+//    The shell is cached as SHELL_URL, never as "/": the Worker answers "/"
+//    with the landing page for a visitor with no session, and that must not
+//    become what a signed-in driver gets offline.
 //  - GET /api/*: network-first with the last successful response as the
 //    offline fallback — the logbook stays readable at the track.
 //  - /auth/* and non-GET requests are never intercepted.
@@ -15,8 +17,12 @@ const SHELL_CACHE = `th-shell-${VERSION}`;
 // two in sync if this name ever changes.
 const DATA_CACHE = `th-data-${VERSION}`;
 
+// A path the Worker doesn't claim, so it is always the app shell (index.html).
+// The landing page's "Open the app" points here too (tools/landing.mjs).
+const SHELL_URL = "/login";
+
 const SHELL = [
-  "/",
+  SHELL_URL,
   "/style.css",
   "/app.js",
   "/pdr.js",
@@ -81,6 +87,26 @@ async function networkFirst(req, cacheName, fallbackUrl) {
   }
 }
 
+// A navigation: the network's answer, else the cached shell. An online load
+// of the app's home refreshes that cached shell — unless the answer is the
+// landing page (the Worker marks it X-TE-Page: landing), which must never
+// become what a signed-in driver gets offline.
+async function navigate(req) {
+  try {
+    const res = await fetch(req);
+    const path = new URL(req.url).pathname;
+    if (res.ok && (path === "/" || path === SHELL_URL) && res.headers.get("X-TE-Page") !== "landing") {
+      const cache = await caches.open(SHELL_CACHE);
+      cache.put(SHELL_URL, res.clone());
+    }
+    return res;
+  } catch (err) {
+    const cached = await caches.match(SHELL_URL);
+    if (cached) return cached;
+    throw err;
+  }
+}
+
 async function staleWhileRevalidate(req, cacheName) {
   const cached = await caches.match(req);
   const refresh = fetchAndCache(req, cacheName).catch(() => cached);
@@ -118,7 +144,7 @@ self.addEventListener("fetch", (e) => {
       return;
     }
     if (req.mode === "navigate") {
-      e.respondWith(networkFirst(req, SHELL_CACHE, "/"));
+      e.respondWith(navigate(req));
       return;
     }
     e.respondWith(staleWhileRevalidate(req, SHELL_CACHE));

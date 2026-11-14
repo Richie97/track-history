@@ -1,5 +1,5 @@
-# The app itself is behind sign-in; the pages worth reading are the docs at
-# https://docs.trackevolution.app/ (see /llms.txt). /share/ stays crawlable so
+# The home page says what the app is; the rest of the app is behind sign-in,
+# and the docs are at https://docs.trackevolution.app/ (see /llms.txt). /share/ stays crawlable so
 # link previews work; unlisted share links answer noindex themselves.
 User-agent: *
 Disallow: /api/
@@ -10,3 +10,5 @@ Disallow: /clips/
 Disallow: /youtube/
 Disallow: /coach/
 Disallow: /mcp
+
+Sitemap: https://trackevolution.app/sitemap.xml

@@ -21,7 +21,10 @@
     // /clips/* are the signed best-lap video URLs (src/routes/clips.ts, NS-45).
     // /youtube/* is connecting YouTube (src/routes/youtube.ts, NS-46): the
     // consent round trip with Google, which must not get the SPA shell.
+    // "/" alone (no wildcard) is the home page: the landing page for a visitor
+    // with no session, the app shell otherwise (src/routes/landing.ts).
     "run_worker_first": [
+      "/",
       "/api/*",
       "/auth/*",
       "/share/*",

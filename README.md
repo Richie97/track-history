@@ -50,8 +50,22 @@ can read in one request. The app host has its own `public/robots.txt` and
 `public/llms.txt`; unlisted share links (`/share/e/…`, `/share/s/…`) answer
 `X-Robots-Tag: noindex`. `test/unit/site-seo.test.js` keeps the pages, the
 sitemap, `llms.txt` and the FAQ markup in step; after the first deploy, submit
+`https://trackevolution.app/sitemap.xml` and
 `https://docs.trackevolution.app/sitemap.xml` in Google Search Console and
 Bing Webmaster Tools.
+
+The landing page is also the app's own home page. `https://trackevolution.app/`
+answers a visitor who carries no session cookie with it, and everyone else with
+the app as before; the sign-in screen is at `/login`, which is where the
+page's *Open the app* goes. The Worker's copy is generated from `site/`:
+
+```sh
+npm run landing:generate   # after editing site/index.html, site.css, analytics.js or the poster
+```
+
+That writes `src/landing.generated.ts` and `public/site/`, and
+`test/unit/landing.test.js` fails while they are stale. The root domain is the
+page's canonical address; the copy on the docs host points at it.
 
 ## Stack
 

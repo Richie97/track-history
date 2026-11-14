@@ -19,7 +19,7 @@ Key facts:
 
 ## Docs
 
-- [Overview, features and pricing](https://docs.trackevolution.app/): what Track Evolution does, what is free and what is Pro, and common questions
+- [Overview, features and pricing](https://trackevolution.app/): what Track Evolution does, what is free and what is Pro, and common questions
 - [Getting started](https://docs.trackevolution.app/docs/): sign in, log a first event, import telemetry, install on a phone, share progress
 - [Your first track day](https://docs.trackevolution.app/docs/track-days.html): what an HPDE is, what the car and driver need, where to find an event, and ways to record laps
 - [Telemetry import](https://docs.trackevolution.app/docs/telemetry-import.html): every supported source, the start/finish line picker, and how lap times are derived
