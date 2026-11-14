@@ -288,7 +288,8 @@ As built (ticket 2):
 
 - **Coach comments on laps** ("brake 10 m later into T4"): the first time two
   users write to one logbook. Needs a table, notifications and a moderation
-  story. The grant table is where its permission will hang.
+  story. The grant table is where its permission will hang. Specced as
+  [NS-52](NS-52-coach-comments.md).
 - **Sharing toggles**: notes, track course notes and setup sheets are the
   likely next asks. Each is one field added to the `coachView` allowlist behind
   a per-grant flag.
