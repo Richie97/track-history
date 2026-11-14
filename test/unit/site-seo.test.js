@@ -12,7 +12,16 @@ const pages = ["index.html", ...docs.map((f) => `docs/${f}`)];
 const urlOf = (p) => `${BASE}/${p.replace(/index\.html$/, "")}`;
 const jsonLd = (html) =>
   [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
-const plain = (s) => s.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+// The visible text of a fragment of our own markup. Tags are removed until
+// none is left, so nothing a removal uncovers survives as a tag.
+const plain = (s) => {
+  let prev;
+  do {
+    prev = s;
+    s = s.replace(/<[^>]+>/g, "");
+  } while (s !== prev);
+  return s.replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+};
 
 describe("site pages", () => {
   const sitemap = read("sitemap.xml");
