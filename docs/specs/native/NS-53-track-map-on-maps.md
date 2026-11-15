@@ -1,6 +1,6 @@
 # NS-53 — The racing line on a real map
 
-**Phase:** post-rewrite · **Platform:** Shared (server, web, iOS, Android) · **Depends on:** the importers and recorders (`geo.js` / `Geo` / `GeoTrace`), `trackmap.js` / `TrackMap`, NS-35 (leaderboard lap), NS-38 (coach allow-lists) · **Estimate:** 3–4 weeks across four PRs — server + shared logic, then iOS, Android, web · **Issue:** not opened yet
+**Phase:** post-rewrite · **Platform:** Shared (server, web, iOS, Android) · **Depends on:** the importers and recorders (`geo.js` / `Geo` / `GeoTrace`), `trackmap.js` / `TrackMap`, NS-35 (leaderboard lap), NS-38 (coach allow-lists) · **Estimate:** 3–4 weeks across four PRs — server + shared logic, then iOS, Android, web · **Issue:** [#453](https://github.com/Richie97/track-history/issues/453)
 
 ## Goal
 
