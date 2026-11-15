@@ -9,7 +9,8 @@
         "last_viewed_at": 0,
         "name": "Coach User",
         "picture": null,
-        "since": 0
+        "since": 0,
+        "unread": 0
       }
     ],
     "invites": [

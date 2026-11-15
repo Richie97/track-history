@@ -180,6 +180,27 @@ fun LapChannelChart(
     onScrub: ((Double) -> Unit)? = null,
     /** The lit laps, as they change — the session stage picks its sides from them. */
     onLitChange: ((List<Int>) -> Unit)? = null,
+    /**
+     * Where coach comments were placed (NS-52), drawn as a diamond on each
+     * chart's top edge at the mark's place on its own lap — a lit lap's only.
+     * A `State` read **in the draw phase**, like [playhead]: the marks are
+     * never a chart's samples, and a change to them recomposes no chart.
+     */
+    commentMarks: State<List<CommentMark>>? = null,
+    /**
+     * The parked cursor's place on each lit lap, `(chIdx, k)`, as it changes —
+     * the comment composer's *At the marked place* (NS-52). Null when nothing
+     * is parked, and never called while a stage owns the playhead.
+     */
+    onParked: ((List<Pair<Int, Double>>?) -> Unit)? = null,
+    /**
+     * Park the cursor here from outside — a placed comment's *Show on lap*
+     * (NS-52). A fresh request (its [ParkRequest.seq]) re-parks even at the
+     * same place.
+     */
+    parkRequest: ParkRequest? = null,
+    /** Coach comments' places on the panel's own map ([trace]), as fractions of the lap. */
+    mapPins: List<Double> = emptyList(),
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -227,6 +248,20 @@ fun LapChannelChart(
         if (places.isEmpty()) null else CursorMark(x, places)
     }
     val dots = cursor?.places?.map { MapDot(it.frac, it.color) }
+    val latestOnParked by rememberUpdatedState(onParked)
+    LaunchedEffect(parkedX, lit, axisMode) {
+        val x = parkedX
+        latestOnParked?.invoke(
+            if (x == null || !cursorEnabled) null
+            else LapAxis.axisPlaces(channels.laps, channels.dStepM, axisMode, x, lit).map { it.chIdx to it.k },
+        )
+    }
+    LaunchedEffect(parkRequest) {
+        val req = parkRequest ?: return@LaunchedEffect
+        if (req.chIdx !in channels.laps.indices) return@LaunchedEffect
+        if (req.chIdx !in lit) lit = ChannelGraphs.toggle(req.chIdx, lit)
+        axis.xAt(req.chIdx, req.k, channels.dStepM)?.let { parkedX = it }
+    }
     val latestOnCursor by rememberUpdatedState(onCursor)
     LaunchedEffect(dots) { latestOnCursor(dots) }
     DisposableEffect(Unit) { onDispose { latestOnCursor(null) } }
@@ -350,6 +385,7 @@ fun LapChannelChart(
             TrackMap(
                 trace = mapTrace,
                 dots = dots.orEmpty(),
+                pins = mapPins,
                 modifier = Modifier.fillMaxWidth().height(150.dp),
             )
         }
@@ -386,6 +422,7 @@ fun LapChannelChart(
                         playhead = playhead,
                         onScrub = scrub,
                         cursorEnabled = cursorEnabled,
+                        commentMarks = commentMarks,
                     )
                 }
             }
@@ -437,6 +474,7 @@ fun LapChannelChart(
                 playhead = playhead,
                 onScrub = scrub,
                 cursorEnabled = cursorEnabled,
+                commentMarks = commentMarks,
             )
             // The gear ribbon rides under the RPM trace, where each shift is the
             // drop in the sawtooth above it (#187).
@@ -652,6 +690,7 @@ private fun DeltaPlot(
     playhead: State<LapPlayhead?>?,
     onScrub: ((Double) -> Unit)?,
     cursorEnabled: Boolean,
+    commentMarks: State<List<CommentMark>>? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -742,6 +781,16 @@ private fun DeltaPlot(
                 readout = { formatDelta(it, 2) + " s" },
                 readoutStyle = readoutStyle,
                 measurer = measurer,
+                density = density.density,
+            )
+            .commentOverlay(
+                marks = commentMarks,
+                frame = PlotFrame(padLeft, padRight, padTop, padBottom, span),
+                // The delta is drawn on the reference lap's axis.
+                markX = { _, k -> LapAxis.axisAtGrid(refXs, k) },
+                lit = lit,
+                slots = slots,
+                haloColor = colors.surfaceCard,
                 density = density.density,
             ),
     ) {
@@ -846,6 +895,7 @@ private fun ChannelPlot(
     playhead: State<LapPlayhead?>?,
     onScrub: ((Double) -> Unit)?,
     cursorEnabled: Boolean,
+    commentMarks: State<List<CommentMark>>? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -940,6 +990,15 @@ private fun ChannelPlot(
                 },
                 readoutStyle = readoutStyle,
                 measurer = measurer,
+                density = density.density,
+            )
+            .commentOverlay(
+                marks = commentMarks,
+                frame = PlotFrame(padLeft, padRight, padTop, padBottom, span),
+                markX = { chIdx, k -> axis.xAt(chIdx, k, channels.dStepM) },
+                lit = lit,
+                slots = slots,
+                haloColor = colors.surfaceCard,
                 density = density.density,
             ),
     ) {
@@ -1152,6 +1211,49 @@ private fun Modifier.playheadOverlay(
         drawText(text, topLeft = Offset(left, frame.padTop))
     }
 }
+
+/**
+ * Where coach comments were placed (NS-52): a small diamond on the plot's top
+ * edge at each lit lap's mark, in that lap's slot colour with a card-coloured
+ * halo — the web's `showCommentMarks`. Read **in the draw phase**, like the
+ * playhead: a mark is a sign over the chart, never one of its samples, and it
+ * takes no pointer input — the comment in the list is what opens the place.
+ */
+private fun Modifier.commentOverlay(
+    marks: State<List<CommentMark>>?,
+    frame: PlotFrame,
+    markX: (chIdx: Int, k: Double) -> Double?,
+    lit: List<Int>,
+    slots: List<Color>,
+    haloColor: Color,
+    density: Float,
+): Modifier = if (marks == null) this else this.drawWithContent {
+    drawContent()
+    val wanted = marks.value
+    if (wanted.isEmpty() || frame.plotW(size.width) <= 0f) return@drawWithContent
+    val r = 5f * density
+    val y = maxOf(r, frame.padTop)
+    for (m in wanted) {
+        val slot = lit.indexOf(m.chIdx)
+        if (slot < 0) continue
+        val x = frame.px(size.width, markX(m.chIdx, m.k) ?: continue)
+        val path = Path().apply {
+            moveTo(x, y - r)
+            lineTo(x + r * 0.8f, y)
+            lineTo(x, y + r)
+            lineTo(x - r * 0.8f, y)
+            close()
+        }
+        drawPath(path, color = slots[slot % slots.size])
+        drawPath(path, color = haloColor, style = Stroke(width = 1f * density))
+    }
+}
+
+/** One placed comment on a chart (NS-52): a lap's channel index and the fractional grid index on it. */
+data class CommentMark(val chIdx: Int, val k: Double, val mine: Boolean = false)
+
+/** A request to park the panel's cursor on lap [chIdx] at grid index [k]; [seq] makes a repeat a new one. */
+data class ParkRequest(val chIdx: Int, val k: Double, val seq: Int)
 
 /** The x-axis labels, centred under their place and kept inside the chart. */
 private fun DrawScope.drawAxisTicks(

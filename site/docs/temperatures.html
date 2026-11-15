@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engine oil, coolant and brake temperatures on track — Track Evolution</title>
+  <meta name="description" content="What to watch on a track day: engine oil and coolant temperature, oil pressure and brake heat, the warning signs of each, and how to cool a car down properly.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="Engine oil, coolant and brake temperatures on track — Track Evolution">
+  <meta property="og:description" content="What to watch on a track day: engine oil and coolant temperature, oil pressure and brake heat, the warning signs of each, and how to cool a car down properly.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/temperatures.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/temperatures.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/temperatures.html#page",
+        "url": "https://docs.trackevolution.app/docs/temperatures.html",
+        "headline": "Engine and brake temperatures on track",
+        "description": "What to watch on a track day: engine oil and coolant temperature, oil pressure and brake heat, the warning signs of each, and how to cool a car down properly.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Engine and brake temperatures on track",
+            "item": "https://docs.trackevolution.app/docs/temperatures.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html" class="active">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Engine and brake temperatures on track</h1>
+    <p class="lede">
+      A road car spends its life at part throttle with air flowing gently
+      through its radiators. Twenty minutes on track is full throttle and
+      full braking, over and over, and heat is what limits how long the car
+      can keep it up. Knowing what to watch, and what to do when a number
+      climbs, is most of mechanical sympathy.
+    </p>
+
+    <div class="callout plain">
+      The limits that matter are your manufacturer's. They are in the
+      owner's manual or its track-use supplement, and they differ from car
+      to car. If a warning light comes on or a gauge reaches its red zone,
+      ease off and come in.
+    </div>
+
+    <h2 id="oil">Engine oil</h2>
+    <p>
+      Oil temperature is the best single indicator of how hard the engine
+      is working. It rises more slowly than coolant and keeps rising after
+      the coolant has settled, so it is the one that climbs through a long
+      session.
+    </p>
+    <ul>
+      <li><strong>Warm it up first.</strong> Cold oil does not protect the
+        engine properly. Use the out-lap, and stay away from high revs until
+        the oil is up to temperature, which takes longer than the
+        coolant.</li>
+      <li><strong>Watch the trend.</strong> A temperature that levels off is
+        a car coping. One that climbs every lap will reach a limit; shorten
+        the session.</li>
+      <li><strong>Watch oil pressure in long corners.</strong> A drop in
+        pressure in a sustained corner can mean the oil is being pulled away
+        from the pickup. Keeping the level at the full mark helps.</li>
+      <li><strong>Change it more often.</strong> Heat ages oil, and track
+        use usually calls for a much shorter interval than the road.</li>
+    </ul>
+
+    <h2 id="coolant">Coolant</h2>
+    <p>
+      Coolant temperature responds quickly and should be steady. If it
+      climbs, the car is producing more heat than it can shed: a hot day,
+      following another car closely, or debris blocking a radiator.
+    </p>
+    <ul>
+      <li>Drop back from the car in front to get clean air.</li>
+      <li>Take a lap at reduced pace in a high gear.</li>
+      <li>If it does not come down, come in.</li>
+      <li>Never open a hot cooling system.</li>
+    </ul>
+
+    <h2 id="brakes">Brakes</h2>
+    <p>
+      Brakes turn speed into heat, and on track there is no time for it to
+      go anywhere. Few cars report brake temperature, so you read it from
+      the pedal:
+    </p>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>What you feel</th><th>What is happening</th><th>What to do</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>The pedal is firm, but the car is not slowing as it did</td>
+          <td>Pad fade: the pads are hotter than their working range</td>
+          <td>Ease off for a lap; brake earlier and for a shorter time.
+            Track-rated pads cope with more heat.</td>
+        </tr>
+        <tr>
+          <td>The pedal goes long or soft</td>
+          <td>Fluid fade: the brake fluid is boiling</td>
+          <td>Come in. Bleed the brakes before going out again, and use
+            fresh high-temperature fluid.</td>
+        </tr>
+        <tr>
+          <td>Vibration through the pedal or wheel under braking</td>
+          <td>Uneven pad material on the rotors, or a rotor past its
+            best</td>
+          <td>Finish the session gently and inspect the rotors.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <p>
+      A long pedal is the one never to drive around. See
+      <a href="./consumables.html">tracking brake pads, tires and
+      fluids</a> for what to check between events.
+    </p>
+
+    <h2 id="other">Other things that get hot</h2>
+    <ul>
+      <li><strong>Transmission and differential.</strong> Some cars report
+        them; they rise slowly and need a long cool-down.</li>
+      <li><strong>Intake air.</strong> A turbocharged or supercharged engine
+        loses power as its intake temperature climbs through a session.
+        That is normal, and it explains laps that get slower with no change
+        in your driving.</li>
+      <li><strong>Tires.</strong> See <a href="./tire-pressures.html">tire
+        pressures</a>.</li>
+    </ul>
+
+    <h2 id="cooldown">Cooling down</h2>
+    <ol>
+      <li><strong>Take a full cool-down lap</strong> at reduced pace, using
+        the brakes as little as you can. Moving air cools the car far better
+        than idling does.</li>
+      <li><strong>Park with the parking brake off.</strong> Hot pads
+        clamped against a hot rotor can leave material on it or stick.
+        Leave the car in gear, or chock a wheel.</li>
+      <li><strong>Let the engine idle briefly</strong> if your manual asks
+        for it, particularly with a turbocharger.</li>
+      <li><strong>Open the hood</strong> between sessions on a hot
+        day.</li>
+    </ol>
+
+    <h2 id="logbook">Temperatures in Track Evolution</h2>
+    <p>
+      If your car records its own readings — a Corvette or Cadillac
+      <a href="./telemetry-import.html">PDR video</a>, for example —
+      importing the recording fills in the session's <strong>Car</strong>
+      tab: oil, coolant and transmission temperature, oil pressure, boost,
+      the four tire pressures and temperatures, fuel and battery voltage,
+      each as a small chart across the laps of the session.
+    </p>
+    <p>
+      Each chart shows the figure that matters for that reading — the peak
+      of a temperature, the lowest oil pressure, a tire pressure as the lap
+      ended — and is shaded when it approaches or passes a line worth a
+      look, such as oil over about 130&nbsp;°C or the battery under
+      12.5&nbsp;V. Those lines are the app's general prompts to look
+      closer, not your car's limits. A fuel line gives your burn per lap and
+      the laps left at that rate.
+    </p>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/temperatures-light.webp">
+        <img src="./img/temperatures-dark.webp" alt="Small charts of oil, coolant, transmission and tire temperatures, oil and tire pressures, fuel and battery voltage across a session&#39;s laps." width="846" height="552" loading="lazy">
+      </picture>
+      <figcaption>The Car tab: each reading across the session&#39;s laps, shaded where one passes a line worth a look.</figcaption>
+    </figure>
+    <p>
+      Seeing a whole session at once shows what a gauge cannot: whether a
+      temperature levelled off or was still climbing when you came in. The
+      Car tab is on the web and in the phone apps, as part of
+      <a href="./#subscription">Track Evolution Pro</a>, and temperatures
+      are shown in °C or °F to match your settings.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./setup-notebook.html"><span class="label">Previous</span>← Keeping a setup notebook</a>
+      <a href="./phone-gps-lap-timing.html"><span class="label">Next</span>Phone GPS vs a lap timer →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

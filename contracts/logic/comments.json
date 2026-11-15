@@ -1,0 +1,2507 @@
+{
+  "generatedFrom": [
+    "public/js/comments.js"
+  ],
+  "constants": {
+    "COMMENT_MAX_CHARS": 1000,
+    "COMMENTS_HEADING": "Comments",
+    "COMMENT_PLACEHOLDER": "Add a comment…",
+    "REPLY_PLACEHOLDER": "Reply…",
+    "WHOLE_SESSION": "Whole session",
+    "COMMENT_OFFLINE": "Commenting needs a connection.",
+    "THREAD_CLOSED": "They no longer have access to your logbook, so this thread is closed.",
+    "REPORT_LABEL": "Report",
+    "REPORT_EMAIL": "eric@speedshift.io"
+  },
+  "commentLength": [
+    {
+      "args": [
+        "  🏁🏁\r\n ok "
+      ],
+      "expected": 6
+    },
+    {
+      "args": [
+        ""
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "expected": 1001
+    },
+    {
+      "args": [
+        "a\nb"
+      ],
+      "expected": 3
+    }
+  ],
+  "commentThreads": [
+    {
+      "args": [
+        [
+          {
+            "id": 1,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": null,
+            "body": "c1",
+            "created_at": 1000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 2,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 900,
+            "body": "c2",
+            "created_at": 2000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 4,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 101,
+            "dist_m": null,
+            "body": "c4",
+            "created_at": 4000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": true,
+            "seen": false
+          },
+          {
+            "id": 5,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c5",
+            "created_at": 5000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": true
+          },
+          {
+            "id": 6,
+            "coach_id": 2,
+            "session_id": 11,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c6",
+            "created_at": 6000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 7,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 999,
+            "dist_m": null,
+            "body": "c7",
+            "created_at": 7000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 9,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c9",
+            "created_at": 1,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ]
+      ],
+      "expected": [
+        {
+          "coach_id": 2,
+          "comments": [
+            {
+              "id": 1,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": 102,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false
+            },
+            {
+              "id": 2,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": 102,
+              "dist_m": 900,
+              "body": "c2",
+              "created_at": 2000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false
+            },
+            {
+              "id": 3,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c3",
+              "created_at": 3000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false
+            },
+            {
+              "id": 4,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": 101,
+              "dist_m": null,
+              "body": "c4",
+              "created_at": 4000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": true,
+              "seen": false
+            },
+            {
+              "id": 5,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": 102,
+              "dist_m": 300,
+              "body": "c5",
+              "created_at": 5000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": true
+            },
+            {
+              "id": 6,
+              "coach_id": 2,
+              "session_id": 11,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c6",
+              "created_at": 6000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false
+            },
+            {
+              "id": 7,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": 999,
+              "dist_m": null,
+              "body": "c7",
+              "created_at": 7000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false
+            },
+            {
+              "id": 9,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": 102,
+              "dist_m": 300,
+              "body": "c9",
+              "created_at": 1,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false
+            }
+          ]
+        },
+        {
+          "coach_id": 7,
+          "comments": [
+            {
+              "id": 8,
+              "coach_id": 7,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c8",
+              "created_at": 8000,
+              "edited_at": null,
+              "author": {
+                "id": 7,
+                "name": "Kim Park",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": []
+    }
+  ],
+  "groupComments": [
+    {
+      "args": [
+        [
+          {
+            "id": 1,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": null,
+            "body": "c1",
+            "created_at": 1000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 2,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 900,
+            "body": "c2",
+            "created_at": 2000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 4,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 101,
+            "dist_m": null,
+            "body": "c4",
+            "created_at": 4000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": true,
+            "seen": false
+          },
+          {
+            "id": 5,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c5",
+            "created_at": 5000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": true
+          },
+          {
+            "id": 6,
+            "coach_id": 2,
+            "session_id": 11,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c6",
+            "created_at": 6000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 7,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 999,
+            "dist_m": null,
+            "body": "c7",
+            "created_at": 7000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 9,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c9",
+            "created_at": 1,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        {
+          "id": 10,
+          "laps": [
+            {
+              "id": 101,
+              "lap_num": 1,
+              "time_ms": 95000
+            },
+            {
+              "id": 102,
+              "lap_num": 2,
+              "time_ms": 94000
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "session": [
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        "laps": [
+          {
+            "lap_id": 101,
+            "lap_num": 1,
+            "time_ms": 95000,
+            "comments": [
+              {
+                "id": 4,
+                "coach_id": 2,
+                "session_id": 10,
+                "lap_id": 101,
+                "dist_m": null,
+                "body": "c4",
+                "created_at": 4000,
+                "edited_at": null,
+                "author": {
+                  "id": 2,
+                  "name": "Sam Lee",
+                  "picture": null
+                },
+                "mine": true,
+                "seen": false
+              }
+            ]
+          },
+          {
+            "lap_id": 102,
+            "lap_num": 2,
+            "time_ms": 94000,
+            "comments": [
+              {
+                "id": 9,
+                "coach_id": 2,
+                "session_id": 10,
+                "lap_id": 102,
+                "dist_m": 300,
+                "body": "c9",
+                "created_at": 1,
+                "edited_at": null,
+                "author": {
+                  "id": 2,
+                  "name": "Sam Lee",
+                  "picture": null
+                },
+                "mine": false,
+                "seen": false
+              },
+              {
+                "id": 5,
+                "coach_id": 2,
+                "session_id": 10,
+                "lap_id": 102,
+                "dist_m": 300,
+                "body": "c5",
+                "created_at": 5000,
+                "edited_at": null,
+                "author": {
+                  "id": 2,
+                  "name": "Sam Lee",
+                  "picture": null
+                },
+                "mine": false,
+                "seen": true
+              },
+              {
+                "id": 2,
+                "coach_id": 2,
+                "session_id": 10,
+                "lap_id": 102,
+                "dist_m": 900,
+                "body": "c2",
+                "created_at": 2000,
+                "edited_at": null,
+                "author": {
+                  "id": 2,
+                  "name": "Sam Lee",
+                  "picture": null
+                },
+                "mine": false,
+                "seen": false
+              },
+              {
+                "id": 1,
+                "coach_id": 2,
+                "session_id": 10,
+                "lap_id": 102,
+                "dist_m": null,
+                "body": "c1",
+                "created_at": 1000,
+                "edited_at": null,
+                "author": {
+                  "id": 2,
+                  "name": "Sam Lee",
+                  "picture": null
+                },
+                "mine": false,
+                "seen": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "args": [
+        [
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        {
+          "id": 10,
+          "laps": [
+            {
+              "id": 101,
+              "lap_num": 1,
+              "time_ms": 95000
+            },
+            {
+              "id": 102,
+              "lap_num": 2,
+              "time_ms": 94000
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "session": [
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        "laps": []
+      }
+    },
+    {
+      "args": [
+        [],
+        {
+          "id": 10,
+          "laps": [
+            {
+              "id": 101,
+              "lap_num": 1,
+              "time_ms": 95000
+            },
+            {
+              "id": 102,
+              "lap_num": 2,
+              "time_ms": 94000
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "session": [],
+        "laps": []
+      }
+    }
+  ],
+  "commentCounts": [
+    {
+      "args": [
+        [
+          {
+            "id": 1,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": null,
+            "body": "c1",
+            "created_at": 1000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 2,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 900,
+            "body": "c2",
+            "created_at": 2000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 4,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 101,
+            "dist_m": null,
+            "body": "c4",
+            "created_at": 4000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": true,
+            "seen": false
+          },
+          {
+            "id": 5,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c5",
+            "created_at": 5000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": true
+          },
+          {
+            "id": 6,
+            "coach_id": 2,
+            "session_id": 11,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c6",
+            "created_at": 6000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 7,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 999,
+            "dist_m": null,
+            "body": "c7",
+            "created_at": 7000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 9,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c9",
+            "created_at": 1,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ]
+      ],
+      "expected": {
+        "bySession": {
+          "10": {
+            "count": 8,
+            "unread": 6
+          },
+          "11": {
+            "count": 1,
+            "unread": 1
+          }
+        },
+        "byLap": {
+          "101": {
+            "count": 1,
+            "unread": 0
+          },
+          "102": {
+            "count": 4,
+            "unread": 3
+          },
+          "999": {
+            "count": 1,
+            "unread": 1
+          }
+        }
+      }
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": {
+        "bySession": {},
+        "byLap": {}
+      }
+    }
+  ],
+  "commentCountText": [
+    {
+      "args": [
+        {
+          "count": 3,
+          "unread": 1
+        }
+      ],
+      "expected": "3 comments, 1 unread"
+    },
+    {
+      "args": [
+        {
+          "count": 1,
+          "unread": 0
+        }
+      ],
+      "expected": "1 comment"
+    },
+    {
+      "args": [
+        {
+          "count": 2,
+          "unread": 2
+        }
+      ],
+      "expected": "2 comments, 2 unread"
+    },
+    {
+      "args": [
+        null
+      ],
+      "expected": ""
+    }
+  ],
+  "commentPlace": [
+    {
+      "args": [
+        1240,
+        20,
+        [
+          {
+            "n": 1,
+            "k0": 10,
+            "k1": 20
+          },
+          {
+            "n": 2,
+            "k0": 55,
+            "k1": 70
+          }
+        ],
+        "metric"
+      ],
+      "expected": "in T2 · 1.2 km"
+    },
+    {
+      "args": [
+        1240,
+        20,
+        [
+          {
+            "n": 1,
+            "k0": 10,
+            "k1": 20
+          },
+          {
+            "n": 2,
+            "k0": 55,
+            "k1": 70
+          }
+        ],
+        "imperial"
+      ],
+      "expected": "in T2 · 0.77 mi"
+    },
+    {
+      "args": [
+        600,
+        20,
+        [
+          {
+            "n": 1,
+            "k0": 10,
+            "k1": 20
+          },
+          {
+            "n": 2,
+            "k0": 55,
+            "k1": 70
+          }
+        ],
+        "metric"
+      ],
+      "expected": "after T1 · 600 m"
+    },
+    {
+      "args": [
+        100,
+        20,
+        [
+          {
+            "n": 1,
+            "k0": 10,
+            "k1": 20
+          },
+          {
+            "n": 2,
+            "k0": 55,
+            "k1": 70
+          }
+        ],
+        "metric"
+      ],
+      "expected": "before T1 · 100 m"
+    },
+    {
+      "args": [
+        300,
+        20,
+        [
+          {
+            "n": 1,
+            "k0": 10,
+            "k1": 20
+          },
+          {
+            "n": 2,
+            "k0": 55,
+            "k1": 70
+          }
+        ],
+        "imperial"
+      ],
+      "expected": "in T1 · 984 ft"
+    },
+    {
+      "args": [
+        600,
+        20,
+        [],
+        "metric"
+      ],
+      "expected": "600 m"
+    },
+    {
+      "args": [
+        0,
+        20,
+        [
+          {
+            "n": 1,
+            "k0": 10,
+            "k1": 20
+          },
+          {
+            "n": 2,
+            "k0": 55,
+            "k1": 70
+          }
+        ],
+        "metric"
+      ],
+      "expected": "before T1 · 0 m"
+    },
+    {
+      "args": [
+        null,
+        20,
+        [
+          {
+            "n": 1,
+            "k0": 10,
+            "k1": 20
+          },
+          {
+            "n": 2,
+            "k0": 55,
+            "k1": 70
+          }
+        ],
+        "metric"
+      ],
+      "expected": null
+    }
+  ],
+  "placeFromCursor": [
+    {
+      "args": [
+        62.04,
+        20
+      ],
+      "expected": 1241
+    },
+    {
+      "args": [
+        0,
+        20
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        -1,
+        20
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        10.5,
+        25
+      ],
+      "expected": 263
+    },
+    {
+      "args": [
+        0.025,
+        20
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        3,
+        0
+      ],
+      "expected": null
+    }
+  ],
+  "commentMarkers": [
+    {
+      "args": [
+        [
+          {
+            "id": 1,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": null,
+            "body": "c1",
+            "created_at": 1000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 2,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 900,
+            "body": "c2",
+            "created_at": 2000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 4,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 101,
+            "dist_m": null,
+            "body": "c4",
+            "created_at": 4000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": true,
+            "seen": false
+          },
+          {
+            "id": 5,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c5",
+            "created_at": 5000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": true
+          },
+          {
+            "id": 6,
+            "coach_id": 2,
+            "session_id": 11,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c6",
+            "created_at": 6000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 7,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 999,
+            "dist_m": null,
+            "body": "c7",
+            "created_at": 7000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 9,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c9",
+            "created_at": 1,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        102,
+        1000
+      ],
+      "expected": [
+        {
+          "id": 5,
+          "frac": 0.3,
+          "mine": false
+        },
+        {
+          "id": 9,
+          "frac": 0.3,
+          "mine": false
+        },
+        {
+          "id": 2,
+          "frac": 0.9,
+          "mine": false
+        }
+      ]
+    },
+    {
+      "args": [
+        [
+          {
+            "id": 1,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": null,
+            "body": "c1",
+            "created_at": 1000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 2,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 900,
+            "body": "c2",
+            "created_at": 2000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 4,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 101,
+            "dist_m": null,
+            "body": "c4",
+            "created_at": 4000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": true,
+            "seen": false
+          },
+          {
+            "id": 5,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c5",
+            "created_at": 5000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": true
+          },
+          {
+            "id": 6,
+            "coach_id": 2,
+            "session_id": 11,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c6",
+            "created_at": 6000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 7,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 999,
+            "dist_m": null,
+            "body": "c7",
+            "created_at": 7000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 9,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c9",
+            "created_at": 1,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        102,
+        600
+      ],
+      "expected": [
+        {
+          "id": 5,
+          "frac": 0.5,
+          "mine": false
+        },
+        {
+          "id": 9,
+          "frac": 0.5,
+          "mine": false
+        },
+        {
+          "id": 2,
+          "frac": 1,
+          "mine": false
+        }
+      ]
+    },
+    {
+      "args": [
+        [
+          {
+            "id": 1,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": null,
+            "body": "c1",
+            "created_at": 1000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 2,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 900,
+            "body": "c2",
+            "created_at": 2000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 4,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 101,
+            "dist_m": null,
+            "body": "c4",
+            "created_at": 4000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": true,
+            "seen": false
+          },
+          {
+            "id": 5,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c5",
+            "created_at": 5000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": true
+          },
+          {
+            "id": 6,
+            "coach_id": 2,
+            "session_id": 11,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c6",
+            "created_at": 6000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 7,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 999,
+            "dist_m": null,
+            "body": "c7",
+            "created_at": 7000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 9,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c9",
+            "created_at": 1,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        101,
+        1000
+      ],
+      "expected": []
+    },
+    {
+      "args": [
+        [
+          {
+            "id": 1,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": null,
+            "body": "c1",
+            "created_at": 1000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 2,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 900,
+            "body": "c2",
+            "created_at": 2000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 3,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c3",
+            "created_at": 3000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 4,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 101,
+            "dist_m": null,
+            "body": "c4",
+            "created_at": 4000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": true,
+            "seen": false
+          },
+          {
+            "id": 5,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c5",
+            "created_at": 5000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": true
+          },
+          {
+            "id": 6,
+            "coach_id": 2,
+            "session_id": 11,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c6",
+            "created_at": 6000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 7,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 999,
+            "dist_m": null,
+            "body": "c7",
+            "created_at": 7000,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 8,
+            "coach_id": 7,
+            "session_id": 10,
+            "lap_id": null,
+            "dist_m": null,
+            "body": "c8",
+            "created_at": 8000,
+            "edited_at": null,
+            "author": {
+              "id": 7,
+              "name": "Kim Park",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          },
+          {
+            "id": 9,
+            "coach_id": 2,
+            "session_id": 10,
+            "lap_id": 102,
+            "dist_m": 300,
+            "body": "c9",
+            "created_at": 1,
+            "edited_at": null,
+            "author": {
+              "id": 2,
+              "name": "Sam Lee",
+              "picture": null
+            },
+            "mine": false,
+            "seen": false
+          }
+        ],
+        102,
+        0
+      ],
+      "expected": []
+    }
+  ],
+  "canReply": [
+    {
+      "args": [
+        {
+          "active": true
+        }
+      ],
+      "expected": true
+    },
+    {
+      "args": [
+        {
+          "active": false
+        }
+      ],
+      "expected": false
+    },
+    {
+      "args": [
+        null
+      ],
+      "expected": false
+    }
+  ],
+  "threadTitle": [
+    {
+      "args": [
+        {
+          "name": "Sam Lee",
+          "active": true
+        },
+        true
+      ],
+      "expected": "Sam Lee"
+    },
+    {
+      "args": [
+        {
+          "name": "Sam Lee",
+          "active": false
+        },
+        true
+      ],
+      "expected": "Sam Lee · no longer your coach"
+    },
+    {
+      "args": [
+        {
+          "name": null,
+          "active": true
+        },
+        true
+      ],
+      "expected": "Your coach"
+    },
+    {
+      "args": [
+        null,
+        true
+      ],
+      "expected": "Your coach"
+    },
+    {
+      "args": [
+        {
+          "name": "Sam Lee",
+          "active": true
+        },
+        false
+      ],
+      "expected": "Your comments"
+    }
+  ],
+  "coachAudienceNote": [
+    {
+      "args": [
+        "Alex R."
+      ],
+      "expected": "Only you and Alex R. see what you write here."
+    },
+    {
+      "args": [
+        null
+      ],
+      "expected": "Only you and this driver see what you write here."
+    }
+  ],
+  "reportSubject": [
+    {
+      "args": [
+        42
+      ],
+      "expected": "Report a comment (#42)"
+    }
+  ],
+  "reportBody": [
+    {
+      "args": [
+        42
+      ],
+      "expected": "I'd like to report comment #42 on Track Evolution.\n\nWhat's wrong with it:\n"
+    }
+  ],
+  "commentError": [
+    {
+      "args": [
+        null,
+        null
+      ],
+      "expected": "Commenting needs a connection."
+    },
+    {
+      "args": [
+        429,
+        "x"
+      ],
+      "expected": "Too many comments at once — try again in a minute."
+    },
+    {
+      "args": [
+        409,
+        "x"
+      ],
+      "expected": "This session has as many comments as it can hold."
+    },
+    {
+      "args": [
+        404,
+        "not found"
+      ],
+      "expected": "That can't be commented on any more — the session or the coaching link is gone."
+    },
+    {
+      "args": [
+        400,
+        "a comment can't be empty"
+      ],
+      "expected": "a comment can't be empty"
+    },
+    {
+      "args": [
+        500,
+        null
+      ],
+      "expected": "Couldn't send that comment."
+    }
+  ],
+  "commentWhen": [
+    {
+      "args": [
+        1727995000,
+        1728000000
+      ],
+      "expected": "just now"
+    },
+    {
+      "args": [
+        1727940001,
+        1728000000
+      ],
+      "expected": "just now"
+    },
+    {
+      "args": [
+        1727940000,
+        1728000000
+      ],
+      "expected": "1 min ago"
+    },
+    {
+      "args": [
+        1724460000,
+        1728000000
+      ],
+      "expected": "59 min ago"
+    },
+    {
+      "args": [
+        1724400000,
+        1728000000
+      ],
+      "expected": "1 hour ago"
+    },
+    {
+      "args": [
+        1710000000,
+        1728000000
+      ],
+      "expected": "5 hours ago"
+    },
+    {
+      "args": [
+        1641600000,
+        1728000000
+      ],
+      "expected": "1 day ago"
+    },
+    {
+      "args": [
+        1209600000,
+        1728000000
+      ],
+      "expected": "6 days ago"
+    },
+    {
+      "args": [
+        1123200000,
+        1728000000
+      ],
+      "expected": null
+    },
+    {
+      "args": [
+        1728005000,
+        1728000000
+      ],
+      "expected": "just now"
+    }
+  ],
+  "feedLine": [
+    {
+      "args": [
+        {
+          "id": 1,
+          "coach_id": 2,
+          "session_id": 10,
+          "lap_id": null,
+          "dist_m": null,
+          "body": "c1",
+          "created_at": 1000,
+          "edited_at": null,
+          "author": {
+            "id": 2,
+            "name": "Sam Lee",
+            "picture": null
+          },
+          "mine": false,
+          "seen": false,
+          "student": null,
+          "event_id": 3,
+          "track_name": "VIR",
+          "start_date": "2026-05-01",
+          "session_label": "Session 2",
+          "lap_num": 6
+        }
+      ],
+      "expected": "Sam Lee commented on Lap 6 · VIR"
+    },
+    {
+      "args": [
+        {
+          "id": 2,
+          "coach_id": 2,
+          "session_id": 10,
+          "lap_id": null,
+          "dist_m": null,
+          "body": "c1",
+          "created_at": 1000,
+          "edited_at": null,
+          "author": {
+            "id": 9,
+            "name": "Alex R.",
+            "picture": null
+          },
+          "mine": false,
+          "seen": false,
+          "student": {
+            "id": 9,
+            "name": "Alex R."
+          },
+          "event_id": 3,
+          "track_name": "VIR",
+          "start_date": "2026-05-01",
+          "session_label": "Session 2",
+          "lap_num": null
+        }
+      ],
+      "expected": "Alex R. replied on Session 2 · VIR"
+    },
+    {
+      "args": [
+        {
+          "id": 1,
+          "coach_id": 2,
+          "session_id": 10,
+          "lap_id": null,
+          "dist_m": null,
+          "body": "c1",
+          "created_at": 1000,
+          "edited_at": null,
+          "author": {
+            "id": 2,
+            "name": "Sam Lee",
+            "picture": null
+          },
+          "mine": false,
+          "seen": false,
+          "student": null,
+          "event_id": 3,
+          "track_name": null,
+          "start_date": "2026-05-01",
+          "session_label": "Session 2",
+          "lap_num": 6
+        }
+      ],
+      "expected": "Sam Lee commented on Lap 6"
+    },
+    {
+      "args": [
+        {
+          "id": 1,
+          "coach_id": 2,
+          "session_id": 10,
+          "lap_id": null,
+          "dist_m": null,
+          "body": "c1",
+          "created_at": 1000,
+          "edited_at": null,
+          "author": {
+            "id": 2,
+            "name": "Sam Lee",
+            "picture": null
+          },
+          "mine": false,
+          "seen": false,
+          "student": null,
+          "event_id": 3,
+          "track_name": "VIR",
+          "start_date": "2026-05-01",
+          "session_label": null,
+          "lap_num": null
+        }
+      ],
+      "expected": "Sam Lee commented on a session · VIR"
+    },
+    {
+      "args": [
+        {
+          "id": 1,
+          "coach_id": 2,
+          "session_id": 10,
+          "lap_id": null,
+          "dist_m": null,
+          "body": "c1",
+          "created_at": 1000,
+          "edited_at": null,
+          "author": {
+            "id": 2,
+            "name": null,
+            "picture": null
+          },
+          "mine": false,
+          "seen": false,
+          "student": null,
+          "event_id": 3,
+          "track_name": "VIR",
+          "start_date": "2026-05-01",
+          "session_label": "Session 2",
+          "lap_num": 6
+        }
+      ],
+      "expected": "Your coach commented on Lap 6 · VIR"
+    },
+    {
+      "args": [
+        {
+          "id": 2,
+          "coach_id": 2,
+          "session_id": 10,
+          "lap_id": null,
+          "dist_m": null,
+          "body": "c1",
+          "created_at": 1000,
+          "edited_at": null,
+          "author": {
+            "id": 9,
+            "name": null,
+            "picture": null
+          },
+          "mine": false,
+          "seen": false,
+          "student": {
+            "id": 9,
+            "name": "Alex R."
+          },
+          "event_id": 3,
+          "track_name": "VIR",
+          "start_date": "2026-05-01",
+          "session_label": "Session 2",
+          "lap_num": null
+        }
+      ],
+      "expected": "Your student replied on Session 2 · VIR"
+    }
+  ],
+  "unreadLine": [
+    {
+      "args": [
+        {
+          "unread": 0,
+          "comments": [
+            {
+              "id": 1,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": true,
+              "student": null,
+              "event_id": 3,
+              "track_name": "VIR",
+              "start_date": "2026-05-01",
+              "session_label": "Session 2",
+              "lap_num": 6
+            }
+          ]
+        }
+      ],
+      "expected": null
+    },
+    {
+      "args": [
+        {
+          "unread": 1,
+          "comments": [
+            {
+              "id": 1,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false,
+              "student": null,
+              "event_id": 3,
+              "track_name": "VIR",
+              "start_date": "2026-05-01",
+              "session_label": "Session 2",
+              "lap_num": 6
+            }
+          ]
+        }
+      ],
+      "expected": "Sam Lee commented on Lap 6 · VIR"
+    },
+    {
+      "args": [
+        {
+          "unread": 2,
+          "comments": [
+            {
+              "id": 1,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false,
+              "student": null,
+              "event_id": 3,
+              "track_name": "VIR",
+              "start_date": "2026-05-01",
+              "session_label": "Session 2",
+              "lap_num": 6
+            },
+            {
+              "id": 5,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false,
+              "student": null,
+              "event_id": 3,
+              "track_name": "VIR",
+              "start_date": "2026-05-01",
+              "session_label": "Session 2",
+              "lap_num": 6
+            }
+          ]
+        }
+      ],
+      "expected": "2 new comments from Sam Lee"
+    },
+    {
+      "args": [
+        {
+          "unread": 2,
+          "comments": [
+            {
+              "id": 1,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false,
+              "student": null,
+              "event_id": 3,
+              "track_name": "VIR",
+              "start_date": "2026-05-01",
+              "session_label": "Session 2",
+              "lap_num": 6
+            },
+            {
+              "id": 2,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 9,
+                "name": "Alex R.",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false,
+              "student": {
+                "id": 9,
+                "name": "Alex R."
+              },
+              "event_id": 3,
+              "track_name": "VIR",
+              "start_date": "2026-05-01",
+              "session_label": "Session 2",
+              "lap_num": null
+            }
+          ]
+        }
+      ],
+      "expected": "2 new comments from 2 people"
+    },
+    {
+      "args": [
+        {
+          "unread": 60,
+          "comments": [
+            {
+              "id": 1,
+              "coach_id": 2,
+              "session_id": 10,
+              "lap_id": null,
+              "dist_m": null,
+              "body": "c1",
+              "created_at": 1000,
+              "edited_at": null,
+              "author": {
+                "id": 2,
+                "name": "Sam Lee",
+                "picture": null
+              },
+              "mine": false,
+              "seen": false,
+              "student": null,
+              "event_id": 3,
+              "track_name": "VIR",
+              "start_date": "2026-05-01",
+              "session_label": "Session 2",
+              "lap_num": 6
+            }
+          ]
+        }
+      ],
+      "expected": "60 new comments from Sam Lee"
+    },
+    {
+      "args": [
+        {
+          "unread": 3,
+          "comments": []
+        }
+      ],
+      "expected": "3 new comments"
+    },
+    {
+      "args": [
+        null
+      ],
+      "expected": null
+    }
+  ]
+}

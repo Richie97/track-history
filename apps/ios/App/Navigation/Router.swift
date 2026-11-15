@@ -75,6 +75,11 @@ enum Route: Hashable {
     /// suggested colds; nil opens the day's own sheet or the copy-forward
     /// prefill. A pushed page, never a sheet — see `SetupFormScreen`.
     case setupForm(eventId: Int, day: Int, startFrom: SetupSheet?)
+    /// A coach comment on a whole session, or the driver's reply into one
+    /// coach's thread (NS-52): a pushed page, since the event page's one
+    /// `.sheet` is taken. `coachId` is the thread an owner replies into; nil for
+    /// a coach, whose own thread it is.
+    case sessionComment(eventId: Int, sessionId: Int, coachId: Int?)
 }
 
 /// The pages of a student's logbook a coach can open (NS-38) — the web's
@@ -88,6 +93,9 @@ enum StudentPage: Hashable {
     case lap(eventId: Int, sessionId: Int, lapId: Int)
     case sessionCompare(eventId: Int, sessionId: Int, lapId: Int?)
     case vehicle(Int)
+    /// The coach's comment on a session (NS-52) — the one page of a student's
+    /// logbook that writes, through the coach's own routes.
+    case sessionComment(eventId: Int, sessionId: Int)
 }
 
 extension LogbookOwner {
@@ -107,6 +115,8 @@ extension LogbookOwner {
             .student(id: id, page: .lap(eventId: eventId, sessionId: sessionId, lapId: lapId))
         case .sessionCompare(let eventId, let sessionId, let lapId):
             .student(id: id, page: .sessionCompare(eventId: eventId, sessionId: sessionId, lapId: lapId))
+        case .sessionComment(let eventId, let sessionId, _):
+            .student(id: id, page: .sessionComment(eventId: eventId, sessionId: sessionId))
         case .student: route
         case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .sharedItem, .wrapped,
              .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm:
@@ -134,7 +144,8 @@ extension Route {
         switch self {
         case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .lap,
-             .sessionCompare, .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm: false
+             .sessionCompare, .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm,
+             .sessionComment: false
         }
     }
 }
@@ -181,7 +192,7 @@ extension Route {
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
         case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .sharedItem, .lap,
-             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm: .events
+             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm, .sessionComment: .events
         }
     }
 }
@@ -605,6 +616,14 @@ final class AppRouter {
                     eventId: Self.followed(eventId, resolve),
                     sessionId: Self.followed(sessionId, resolve),
                     lapId: lapId.map { Self.followed($0, resolve) }
+                )
+            case .sessionComment(let eventId, let sessionId, let coachId):
+                // A comment can't be sent about a session that hasn't synced,
+                // but the page can be open while it does; it follows its rows.
+                return .sessionComment(
+                    eventId: Self.followed(eventId, resolve),
+                    sessionId: Self.followed(sessionId, resolve),
+                    coachId: coachId
                 )
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.

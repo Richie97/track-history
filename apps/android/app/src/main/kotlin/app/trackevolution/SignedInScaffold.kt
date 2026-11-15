@@ -383,7 +383,7 @@ fun SignedInScaffold(
                     recorderIdle = !recorder.isRecording && pending == null,
                     onStartRecording = onStartRecording,
                     onStopRecording = { Recorder.stop(context) },
-                    onSignOut = { GarageBadge.clear(); onSignOut() },
+                    onSignOut = { GarageBadge.clear(); app.trackevolution.screens.CommentsBadge.clear(); onSignOut() },
                     entitlement = entitlement,
                     shareSlug = (authState as? AuthState.SignedIn)?.user?.shareSlug,
                     onRequirePro = { paywall = true },

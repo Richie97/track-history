@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to read a lap delta and find time — Track Evolution</title>
+  <meta name="description" content="What a lap delta graph shows, how to read its slope, how to trace lost time back to the corner that caused it, and which laps to compare.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="How to read a lap delta and find time — Track Evolution">
+  <meta property="og:description" content="What a lap delta graph shows, how to read its slope, how to trace lost time back to the corner that caused it, and which laps to compare.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/lap-delta.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/lap-delta.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/lap-delta.html#page",
+        "url": "https://docs.trackevolution.app/docs/lap-delta.html",
+        "headline": "How to find time with a lap delta",
+        "description": "What a lap delta graph shows, how to read its slope, how to trace lost time back to the corner that caused it, and which laps to compare.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "How to find time with a lap delta",
+            "item": "https://docs.trackevolution.app/docs/lap-delta.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html" class="active">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>How to find time with a lap delta</h1>
+    <p class="lede">
+      Two lap times tell you one lap was four tenths quicker. A lap delta
+      tells you where those four tenths came from. It is the single most
+      useful graph in data analysis, and it needs nothing more than the speed
+      of two laps — which any GPS recording has.
+    </p>
+
+    <h2 id="what">What a delta is</h2>
+    <p>
+      A delta graph compares two laps at the same place on the track. Line
+      both laps up by distance from the start/finish line, and at every
+      point ask: how far ahead or behind is this lap compared with the
+      reference lap? Plot that gap all the way round and you have the delta.
+    </p>
+    <p>
+      It starts at zero at the line and ends at the difference between the
+      two lap times. Everything interesting is in how it gets there.
+    </p>
+
+    <h2 id="reading">Read the slope, not the height</h2>
+    <p>
+      The most common mistake is to look at how high the line is. The height
+      only says how much time has built up so far. What matters is whether
+      the line is <strong>moving</strong>:
+    </p>
+    <ul>
+      <li><strong>Flat</strong> — the two laps are going the same speed
+        here. Nothing is being gained or lost, however far apart they
+        already are.</li>
+      <li><strong>Climbing</strong> — this lap is losing time to the
+        reference right now.</li>
+      <li><strong>Falling</strong> — this lap is gaining it back.</li>
+      <li><strong>A step</strong> — a short, sharp change is one event: a
+        missed braking point, a slide, a lift for traffic.</li>
+      <li><strong>A long ramp</strong> — a steady climb down a straight is
+        an exit problem. The car left the corner slower and pays for it
+        every metre until the next braking zone.</li>
+    </ul>
+
+    <h2 id="cause">Tracing a loss back to its cause</h2>
+    <p>
+      Time shows up on the delta after the mistake that caused it, so look
+      backward from where the line starts to move:
+    </p>
+    <ol>
+      <li><strong>Find the biggest climb.</strong> Ignore the small wiggles;
+        one or two places usually account for most of the gap.</li>
+      <li><strong>Find where it begins.</strong> That point, or just before
+        it, is where the two laps started to differ.</li>
+      <li><strong>Look at the speed trace there.</strong> Did the slower lap
+        brake earlier, carry less speed at the slowest point of the corner,
+        or get back to full throttle later?</li>
+      <li><strong>Check what happened next.</strong> A lap that brakes later
+        and gains into a corner often gives it all back, and more, on the
+        way out. The delta shows the net result, which is the only one that
+        counts.</li>
+    </ol>
+    <p>
+      As a rule, time lost on corner exit is the most expensive, because it
+      carries down the whole of the following straight. Slow corners before
+      long straights are where to look first.
+    </p>
+
+    <h2 id="which">Which laps to compare</h2>
+    <ul>
+      <li><strong>Your best lap against your second best.</strong> Same car,
+        same day, same tires. The differences are all yours, and all
+        repeatable.</li>
+      <li><strong>Today's best against your all-time best</strong> at the
+        track, to see what has changed since.</li>
+      <li><strong>A typical lap against your best.</strong> This shows which
+        corners you only get right occasionally — see
+        <a href="./lap-consistency.html">lap time consistency</a>.</li>
+    </ul>
+    <p>
+      Comparing against another driver in another car is interesting but
+      harder to act on: power, tires and weight explain much of the
+      difference. Start with yourself.
+    </p>
+
+    <h2 id="limits">Where a delta misleads</h2>
+    <ul>
+      <li><strong>Traffic.</strong> A lap spent behind another car shows
+        losses that have nothing to do with your driving. Compare clear
+        laps.</li>
+      <li><strong>Different lines.</strong> A lap that runs wider covers
+        more distance, which shifts where things appear on a distance axis
+        by a few metres.</li>
+      <li><strong>GPS precision.</strong> From a phone, read the delta for
+        the big features, not for hundredths.</li>
+    </ul>
+
+    <h2 id="logbook">Lap deltas in Track Evolution</h2>
+    <p>
+      Any session with telemetry — an
+      <a href="./telemetry-import.html">imported video or data file</a>, or
+      laps <a href="./lap-recording.html">recorded with your phone</a> —
+      has channel graphs with its laps as selectable chips. Select two or
+      three laps and a <strong>delta chart</strong> appears above the speed
+      trace, measured against the fastest of the laps you picked: where the
+      line climbs, time is slipping away. Point at the place (or tap it) and
+      it is marked on every graph below and on the track map, so the corner
+      is one glance away.
+    </p>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/lap-delta-light.webp">
+        <img src="./img/lap-delta-dark.webp" alt="A lap delta chart above a speed chart for two laps: the delta line falls early in the lap, stays level, then climbs sharply near the end." width="846" height="385" loading="lazy">
+      </picture>
+      <figcaption>A delta chart above the speed trace for two laps. Where the line climbs, the blue lap is losing time.</figcaption>
+    </figure>
+    <p>
+      To compare across days, a track's page has <strong>Compare two
+      laps</strong>, which opens on your latest event's best lap against
+      your all-time best there, with the delta, both laps' speed and inputs,
+      and a head-to-head table. A <em>Distance / Time</em> switch re-plots
+      the graphs against the clock, which shows the slower lap falling
+      behind on the map.
+    </p>
+    <p>
+      In the phone apps, a mounted phone also shows a <strong>live
+      delta</strong> to your best lap of the session while recording — green
+      when you are up, red when you are down. It is for a glance on a
+      straight, never for study while driving.
+    </p>
+    <p>
+      The delta chart and the two-lap compare are part of
+      <a href="./#subscription">Track Evolution Pro</a>, as is recording
+      with the phone. Importing a file and its speed graph are free.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./lap-consistency.html"><span class="label">Previous</span>← Lap consistency</a>
+      <a href="./brake-throttle-traces.html"><span class="label">Next</span>Brake &amp; throttle traces →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

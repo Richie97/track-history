@@ -14,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +28,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
+import app.trackevolution.core.Comments
 import app.trackevolution.core.CompareLaps
 import app.trackevolution.core.Corners
 import app.trackevolution.core.VideoSync
@@ -48,6 +51,8 @@ import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEEmptyAction
 import app.trackevolution.ui.TELoadable
 import app.trackevolution.ui.charts.LapChannelChart
+import app.trackevolution.ui.charts.CommentMark
+import app.trackevolution.ui.charts.ParkRequest
 import app.trackevolution.ui.charts.LimitLegend
 import app.trackevolution.ui.charts.TrackMap
 import app.trackevolution.ui.stage.LapStageHolder
@@ -209,11 +214,21 @@ fun LapDetailScreen(
      * Back still returns to the event. Null hides the stepper.
      */
     onStepLap: ((lapId: Int, k: Double?) -> Unit)? = null,
+    /**
+     * Coach comments on this lap (NS-52): a *Comments* card under the stage,
+     * markers on the charts and the map. Null shows none.
+     */
+    comments: CommentsModel? = null,
+    /** A coach who stops coaching from a comment leaves the logbook. */
+    onCommentsGone: () -> Unit = {},
+    /** The student's name, for a coach's audience note. */
+    studentName: String? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
+    LaunchedEffect(comments) { if (comments != null && comments.data == null) comments.load() }
 
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val detail = model.detail ?: return@TELoadable
@@ -238,9 +253,18 @@ fun LapDetailScreen(
                 viewer = viewer,
                 onStepLap = onStepLap,
                 onDeleted = model::load,
+                comments = comments,
+                onCommentsGone = onCommentsGone,
+                studentName = studentName,
             )
             return@TELoadable
         }
+        // The panel's parked mark (NS-52), for the composer's *At the marked
+        // place*, and a placed comment's way back to it.
+        var parked by remember(sessionId, lapId) { mutableStateOf<List<Pair<Int, Double>>?>(null) }
+        var parkRequest by remember(sessionId, lapId) { mutableStateOf<ParkRequest?>(null) }
+        val lapLen = channels?.let { lapLengthM(it) } ?: 0.0
+        val marks = commentMarksState(comments, view.lap.id, lapLen, channels)
         // The panel's cursor: a dot per lit lap, drawn on this page's own
         // racing line rather than on a second map inside the panel.
         var cursorDots by remember(sessionId, lapId) { mutableStateOf<List<MapDot>?>(null) }
@@ -285,6 +309,7 @@ fun LapDetailScreen(
                             markers = view.markers,
                             dots = cursorDots.orEmpty(),
                             modifier = Modifier.fillMaxWidth().height(220.dp),
+                            pins = commentPins(comments, view.lap.id, lapLen),
                         )
                         LimitLegend(view.markers, Modifier.padding(top = 6.dp))
                     }
@@ -304,10 +329,36 @@ fun LapDetailScreen(
                         pro = canViewChannels,
                         onSubscribe = onSubscribe,
                         emptyText = "No channel data for this lap.",
+                        commentMarks = marks,
+                        onParked = { parked = it },
+                        parkRequest = parkRequest,
                     )
                 }
                 item("facts") { Facts(CompareLaps.lapMetrics(entry), units) }
-            } else if (trace == null) {
+            }
+            if (comments != null) {
+                item("comments") {
+                    val dStep = channels?.dStepM ?: 0.0
+                    LapComments(
+                        session = view.session,
+                        lap = view.lap,
+                        model = comments,
+                        currentPlace = if (channels != null && entry != null) {
+                            { parked?.firstOrNull()?.let { Comments.placeFromCursor(it.second, dStep) } }
+                        } else {
+                            null
+                        },
+                        onShowOnLap = if (channels != null && entry != null && dStep > 0) {
+                            { distM -> parkRequest = ParkRequest(0, distM / dStep, (parkRequest?.seq ?: 0) + 1) }
+                        } else {
+                            null
+                        },
+                        onGone = onCommentsGone,
+                        studentName = studentName,
+                    )
+                }
+            }
+            if (channels == null && trace == null) {
                 item("empty") {
                     TEEmpty(
                         "No telemetry for this lap. Import a session, or record laps with the app, " +
@@ -359,6 +410,9 @@ private fun StagedLap(
     viewer: Entitlement?,
     onStepLap: ((Int, Double?) -> Unit)?,
     onDeleted: () -> Unit,
+    comments: CommentsModel? = null,
+    onCommentsGone: () -> Unit = {},
+    studentName: String? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -417,6 +471,10 @@ private fun StagedLap(
         null
     }
     if (holder.binding == null) return
+    // Coach comments (NS-52): markers on the charts (read in their draw phase)
+    // and pins on the stage's map, from this lap's placed comments.
+    val lapLen = lapLengthM(channels)
+    val marks = commentMarksState(comments, view.lap.id, lapLen, channels)
     LapStagePage(
         holder = holder,
         trace = trace,
@@ -426,7 +484,25 @@ private fun StagedLap(
             item("head") { LapHead(view) }
             if (view.canCompare) item("compare") { CompareButton(onCompare) }
         },
+        mapPins = commentPins(comments, view.lap.id, lapLen),
     ) {
+        // Under the stage, in place order (NS-52): the composer takes its place
+        // from the playhead, and a placed comment seeks the stage there.
+        if (comments != null) {
+            item("comments") {
+                LapComments(
+                    session = session,
+                    lap = view.lap,
+                    model = comments,
+                    // Read on the tap only, never in composition — the
+                    // playhead moves every frame.
+                    currentPlace = { holder.playhead.value?.k?.let { Comments.placeFromCursor(it, channels.dStepM) } },
+                    onShowOnLap = { distM -> if (channels.dStepM > 0) holder.seekGrid(distM / channels.dStepM) },
+                    onGone = onCommentsGone,
+                    studentName = studentName,
+                )
+            }
+        }
         // The panel's own hint says a tap moves the video, as on every stage.
         item("charts") {
             LapChannelChart(
@@ -439,6 +515,7 @@ private fun StagedLap(
                 playhead = holder.playhead,
                 onSeek = holder::seekGrid,
                 onScrub = holder::scrubGrid,
+                commentMarks = marks,
             )
         }
         item("facts") { Facts(CompareLaps.lapMetrics(entry), units) }
@@ -482,3 +559,37 @@ private fun Facts(m: CompareLaps.Metrics, units: UnitSystem) {
         }
     }
 }
+
+/** One lap's driven length on its own grid: the last grid index times the step. */
+private fun lapLengthM(channels: SessionChannels): Double {
+    val n = channels.laps.firstOrNull()?.speed?.size ?: 0
+    return if (n >= 2) (n - 1) * channels.dStepM else 0.0
+}
+
+/**
+ * This lap's placed comments as chart marks (NS-52), a `State` the charts read
+ * in their draw phase — derived from the model, so a new comment moves the
+ * marks without recomposing a chart. The lap's entry is channel index 0 in the
+ * one-lap blob this page draws.
+ */
+@Composable
+private fun commentMarksState(
+    comments: CommentsModel?,
+    lapId: Int,
+    lapLengthM: Double,
+    channels: SessionChannels?,
+): State<List<CommentMark>>? {
+    if (comments == null || channels == null) return null
+    val steps = (channels.laps.firstOrNull()?.speed?.size ?: 0) - 1
+    return remember(comments, lapId, lapLengthM, steps) {
+        derivedStateOf {
+            Comments.commentMarkers(comments.comments, lapId, lapLengthM).map {
+                CommentMark(chIdx = 0, k = it.frac * steps, mine = it.mine)
+            }
+        }
+    }
+}
+
+/** This lap's placed comments as fractions of the lap, for the map's pins (NS-52). */
+private fun commentPins(comments: CommentsModel?, lapId: Int, lapLengthM: Double): List<Double> =
+    comments?.let { Comments.commentMarkers(it.comments, lapId, lapLengthM).map { m -> m.frac } }.orEmpty()

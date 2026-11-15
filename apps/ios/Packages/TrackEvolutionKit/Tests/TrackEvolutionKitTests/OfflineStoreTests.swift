@@ -78,6 +78,21 @@ struct OfflineStoreTests {
         }
     }
 
+    /// Coach comments (NS-52) are live writes on every client: *"Commenting
+    /// needs a connection."* A reply sent later by a replay would land in a
+    /// conversation that has moved on, and a coach's write to a student's
+    /// logbook must never sit in their own queue.
+    @Test func neverQueuesACommentWrite() {
+        for (method, path) in [
+            ("POST", "/sessions/9/comments"), ("POST", "/events/3/comments/seen"),
+            ("POST", "/coaching/students/7/sessions/9/comments"),
+            ("POST", "/coaching/students/7/events/3/comments/seen"),
+            ("PUT", "/comments/4"), ("DELETE", "/comments/4"),
+        ] {
+            #expect(!OfflineStore.isQueueable(method: method, path: path), "\(method) \(path)")
+        }
+    }
+
     @Test func whitelistsOnlyMirrorableMutations() {
         #expect(OfflineStore.isQueueable(method: "POST", path: "/events"))
         #expect(OfflineStore.isQueueable(method: "PUT", path: "/events/3"))

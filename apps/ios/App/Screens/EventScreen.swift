@@ -30,6 +30,9 @@ struct EventScreen: View {
     @Environment(\.logbookOwner) private var owner
 
     @State private var model: EventModel?
+    /// The event's coach comments (NS-52), read beside the detail through the
+    /// unscoped client — the read-only seam's one exception.
+    @State private var comments: CommentsModel?
     /// The page's one form sheet: a session's label and notes, or the share
     /// sheet for the event or one session (NS-48). One `.sheet` for all of them,
     /// because two `.sheet`s on one view is the watchdog crash AGENTS.md lists —
@@ -154,14 +157,22 @@ struct EventScreen: View {
             if model == nil {
                 let model = EventModel(api: auth.api.scoped(to: owner), eventId: eventId)
                 self.model = model
+                let comments = CommentsModel(api: auth.api, owner: owner, eventId: eventId, viewerId: auth.me?.user.id)
+                self.comments = comments
                 await model.load()
+                await loadComments()
             }
         }
         // Back from a page pushed over this one — a day's setup sheet, the event
         // form — which wrote to this event: read it again. The first appearance
         // has no detail yet and is the `.task` above's.
         .onAppear {
-            if model?.detail != nil { Task { await model?.reload() } }
+            if model?.detail != nil {
+                Task {
+                    await model?.reload()
+                    await loadComments()
+                }
+            }
         }
         .task(id: model?.state) {
             // An event created offline is renumbered when its create flushes; follow
@@ -193,6 +204,20 @@ struct EventScreen: View {
         }
     }
 
+    /// Read the comments and, when an unread one is shown here, mark them read.
+    ///
+    /// Only a session-level one: this page shows those whole, but a lap's only
+    /// as a count on its row — "1 unread" there is the point of the count, and
+    /// marking it read before anyone opened the lap would take it away. The
+    /// server's `/seen` marks the whole event, so it waits for something here
+    /// to have been read; the lap page marks its own.
+    private func loadComments() async {
+        guard let comments else { return }
+        await comments.load()
+        guard comments.comments.contains(where: { $0.lapId == nil && !$0.mine && !$0.seen }) else { return }
+        await auth.noteCommentsSeen(await comments.markSeen())
+    }
+
     // MARK: - The page
 
     /// One column, or the page beside its analysis (NS-34 ticket 3).
@@ -220,7 +245,8 @@ struct EventScreen: View {
                 Divider()
                 AnalysisColumn(
                     detail: detail,
-                    selectedSessionId: $selectedChannelSessionId
+                    selectedSessionId: $selectedChannelSessionId,
+                    comments: comments
                 )
                 .measuringPaneWidth()
                 .frame(width: analysisWidth)
@@ -521,7 +547,10 @@ struct EventScreen: View {
                                 Spacer()
                                 TETime(ms: best, emphasized: true)
                             }
-                            TrackMapView(trace: session.trace ?? [], markers: markers)
+                            TrackMapView(
+                                trace: session.trace ?? [], markers: markers,
+                                marks: comments?.mapFractions(session) ?? []
+                            )
                                 .frame(height: 220)
                             LimitLegend(markers: markers)
                         }
@@ -531,6 +560,12 @@ struct EventScreen: View {
                 header("Best lap trace")
             }
         }
+    }
+
+    /// ", 2 comments, 1 unread" on a lap row's spoken label, or nothing.
+    static func commentsSpoken(_ count: Comments.Count?) -> String {
+        let text = Comments.commentCountText(count)
+        return text.isEmpty ? "" : ", \(text)"
     }
 
     /// Where the best lap hit its limit (#188), for the trace map.
@@ -611,6 +646,12 @@ struct EventScreen: View {
 
             channelSection(session)
 
+            // Only when there is something to show: an empty view in a `List`
+            // row is still a row, a blank one 44 pt tall under every session.
+            if let comments, comments.loaded, !comments.threads(sessionId: session.id).isEmpty {
+                row { SessionCommentsBlock(model: comments, session: session) }
+            }
+
             ForEach(session.laps) { lap in
                 row {
                     // Every lap is a door (#267): its detail holds the racing line
@@ -628,6 +669,13 @@ struct EventScreen: View {
                                 .teStyle(.sm)
                                 .foregroundStyle(Color(.textMuted))
                             Spacer()
+                            if let count = comments?.counts.byLap[lap.id] {
+                                // Coach comments on the lap (NS-52), accented
+                                // while one is unread.
+                                Text("💬 \(count.count)")
+                                    .teStyle(.xs)
+                                    .foregroundStyle(count.unread > 0 ? Color(.accentInk) : Color(.textMuted))
+                            }
                             if lap.clip != nil {
                                 // A best-lap video (NS-45) plays on the lap's page.
                                 Text("▶")
@@ -652,6 +700,7 @@ struct EventScreen: View {
                     // sheet's chips by label cannot land on the row underneath it.
                     .accessibilityLabel(
                         "Lap \(String(lap.lapNum)) · \(LapTime.fmtMs(lap.timeMs))" + (lap.clip != nil ? ", has video" : "")
+                            + Self.commentsSpoken(comments?.counts.byLap[lap.id])
                     )
                     .accessibilityIdentifier("lap-\(lap.id)")
                 }

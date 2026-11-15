@@ -86,6 +86,12 @@ fun TrackMap(
     liveDots: (() -> List<MapDot>)? = null,
     /** The map's height; the stage's cards size it themselves. */
     height: androidx.compose.ui.unit.Dp = 220.dp,
+    /**
+     * Where coach comments were placed (NS-52), as fractions of the lap —
+     * a small diamond on the line each, under the highlight and the dots so
+     * neither is hidden by one. The web's `setNotes`.
+     */
+    pins: List<Double> = emptyList(),
 ) {
     // Matching `renderTrackMap`'s bail: fewer than ten points is a GPS glitch,
     // not a lap, and drawing it would claim more than we know.
@@ -110,6 +116,8 @@ fun TrackMap(
     val ringStroke = with(density) { 2.dp.toPx() }
     val dotRadius = with(density) { 5.dp.toPx() }
     val dotHalo = with(density) { 2.dp.toPx() }
+    val pinRadius = with(density) { 6.dp.toPx() }
+    val pinEdge = with(density) { 1.5.dp.toPx() }
 
     // Stored samples carry no timestamp; TraceMap only needs the geometry.
     val points = remember(trace) { trace.map { TracePoint(t = 0.0, x = it.x, y = it.y, v = it.v) } }
@@ -128,7 +136,8 @@ fun TrackMap(
             .semantics {
                 testTag = "trackMap"
                 contentDescription = trackMapSummary(trace, markers, units) +
-                    if (dots.isEmpty()) "" else " ${dots.size} marked place${if (dots.size == 1) "" else "s"} on the line."
+                    (if (dots.isEmpty()) "" else " ${dots.size} marked place${if (dots.size == 1) "" else "s"} on the line.") +
+                    (if (pins.isEmpty()) "" else " ${pins.size} comment${if (pins.size == 1) "" else "s"} placed on the line.")
             },
     ) {
         val dotModifier = if (liveDots == null) {
@@ -225,6 +234,23 @@ fun TrackMap(
                 }
                 placed.add(point)
                 drawLimitMarker(kind, point, colors, markerRadius, markerRing)
+            }
+
+            // Coach comments' places (NS-52): a diamond on the line, in the
+            // strong text colour with a card-coloured edge.
+            for (frac in pins) {
+                val i = TrackMapGeometry.traceIndexAtFraction(wirePoints, frac) ?: continue
+                val p = view.getOrNull(i) ?: continue
+                val r = pinRadius
+                val diamond = Path().apply {
+                    moveTo(p.x.toFloat(), p.y.toFloat() - r)
+                    lineTo(p.x.toFloat() + r, p.y.toFloat())
+                    lineTo(p.x.toFloat(), p.y.toFloat() + r)
+                    lineTo(p.x.toFloat() - r, p.y.toFloat())
+                    close()
+                }
+                drawPath(diamond, color = colors.textStrong)
+                drawPath(diamond, color = colors.surfaceCard, style = Stroke(width = pinEdge))
             }
 
             // Over the limit marks, because it is the question being asked right

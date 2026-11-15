@@ -109,9 +109,9 @@ owes this table a re-key on `(session_id, lap_num)`.
   Unknown keys are dropped.
 - `commentView(row, viewerId)` — the response row, built by **allow-list**:
   `{ id, coach_id, session_id, lap_id, dist_m, body, created_at, edited_at, author: { id, name, picture }, mine, seen }`.
-  `mine` is `author_id === viewerId`; `seen` is `seen_at != null`, sent only
-  on rows the viewer wrote (it is the read receipt) and `true` otherwise.
-  Never an email.
+  `mine` is `author_id === viewerId`; `seen` is `seen_at != null` — on a row
+  the viewer wrote it is the read receipt, on any other the viewer's own
+  unread mark. Never an email.
 
 ### Routes (`routes/comments.ts`, an ordinary `/api` router, in `API_ROUTERS` with no gate)
 
@@ -219,6 +219,118 @@ Response shapes are pinned by new goldens (`comments-event`,
 `me` / `coaching` re-captured), with `Comment` / `CommentFeed` models in the
 Kit and `:core` landing **with the server ticket**, since both golden suites
 fail on a capture no model maps.
+
+### As built (ticket 1, server + web)
+
+- The helpers take the shapes the web needed, and the ports follow these, not
+  the list above: `commentThreads(comments)` splits an event's comments by
+  coach; `groupComments(comments, session)` orders one session's;
+  `commentPlace(distM, dStepM, corners, units)` takes the grid step, since
+  `cornerPlace` works in grid indexes; plus `commentLength`,
+  `commentCountText`, `commentWhen`, `feedTarget` / `feedLine`,
+  `coachAudienceNote` and the report mail's subject and body.
+  `commentError(status, message)` takes the status, null for no answer.
+- The decode models are `CoachComment`, `EventComments`, `CommentSaved`,
+  `CommentsSeen` and `CommentFeed` (`Comment` alone collides with nothing
+  today, but says less).
+- The owner's `coaches` lists only coaches with a thread on that event, so the
+  owner can reply but not open a thread; the server would accept one.
+- **Markers**: `showCommentMarks(root, marks)` in `channel-graphs.js` draws a
+  diamond on each lap-axis chart's top edge, in the lap's slot colour, for
+  every lit lap's placed comments; the panel re-applies them after each chart
+  render through `setNotes(fn)` on its handle, which also feeds its own map.
+  `renderTrackMap`'s handle gained `setNotes(fracs)`, and the event's map
+  shows every lap's when it is that session's line. They take no pointer
+  events: the comment in the list is what opens the place.
+- **The lap stage**: while one is open the composer's *At the marked place*
+  reads the playhead (side A first) instead of the pinned cursor, and a
+  placed comment seeks the stage rather than pinning.
+- **The export**: `comments` on each session of `logbook.json` (`lap_id`,
+  `dist_m`, `body`, the dates, the author's name, `by_you`) and a top-level
+  `comments_written` for what the account wrote as a coach, by the driver's
+  name and the event's track and date, with no id of theirs.
+- Neither native suite could be run where this was built (no Swift toolchain,
+  and Gradle could not reach Google's Maven), so the decode models were
+  checked by CI first.
+
+### As built (ticket 3, Android)
+
+- `Comments` in `:core` is the port, under the JS names (the JS objects
+  become small data classes: `Thread`, `Grouped` / `LapComments`, `Counts` /
+  `Count`, `Marker`), pinned by `CommentsTest` against every row of
+  `comments.json`. `groupComments` takes `(comments, sessionId, laps)` with a
+  `Session` overload.
+- The routes on `ApiClient` take the `LogbookOwner` whose logbook it is and
+  always run on `ApiClient.own`, so a coach's comment leaves from the
+  student's scoped view while that view keeps refusing every other write.
+- The session composer is **an inline row on the session card**, as above:
+  the text box and a row of chips (*Whole session* / *Lap N*), collapsed to a
+  button until opened. The lap page's composer is inline under the stage and
+  is offered on a lap with no comments yet — always to a coach, and to the
+  owner for each coach whose thread on the event is open. Drafts are in the
+  destination's `SavedStateHandle`, keyed by target.
+- The composer's place is taken on a tap (*◆ At the marked place*) from the
+  stage's playhead or the panel's parked mark, never read in composition;
+  before the line there is no place and it says so.
+- Markers: a diamond on each lap-axis chart's top edge (a draw-phase overlay
+  beside the playhead's), and a pin on every map of the session — on the lap
+  page, the session compare, and the event page's best-lap trace and its
+  expanded-width analysis column.
+- The block control is on each comment someone else wrote (*Remove coach* /
+  *Stop coaching*), beside *Report*, as well as on the Coaching page.
+- Run: `:core:test`, `:core:check`, `:app:testDebugUnitTest`,
+  `:app:assembleDebug`, `:app:checkReleaseHasNoCarApp`, and the debug build
+  on an emulator against `wrangler dev`.
+- Release step, outside any build: Play's Data safety form gains *other user
+  content, shared with other users*.
+
+### As built (ticket 2, iOS)
+
+- **The port** is `Comments` in the Kit (`Models/CommentRules.swift`), under
+  the JS names and pinned by every section of `comments.json`
+  (`CommentsTests`, with the JS cases). Two Swift-shaped differences:
+  `groupComments` takes `(comments, sessionId:, laps:)` (plus an overload over
+  a `Session`), and `commentError` has an overload over a thrown `APIError`
+  (a transport failure is the offline sentence). `reportURL` builds the
+  *Report* `mailto:` from `reportSubject` / `reportBody`.
+- **The routes** take the `LogbookOwner` and pick `/coaching/students/<id>/…`
+  for a student's logbook. Called on a scoped (student) client they go to its
+  parent instead of being prefixed or refused, which is the read-only seam's
+  one exception in a form the scoped client's other tests still pin.
+- **The lap page**: a *Comments* card first under the stage; *◆ At the marked
+  place* reads the stage's playhead when tapped (on the lap page a chart tap
+  seeks the stage, so the playhead is the panel's mark there); a placed
+  comment's place seeks the stage. Markers are drawn in the overlay layer:
+  `AxisMarkLayer`'s diamonds on the top edge of each lap-axis chart and the
+  delta chart, in the lap's colour as on the web, and `TrackMapView.marks` on
+  the stage's map and the plain lap page's.
+- **The event page**: each session's section carries its session-level
+  comments per thread, a line counting the lap comments, and *Comment on the
+  session* / *Reply about the session*, which pushes
+  `Route.sessionComment(eventId:sessionId:coachId:)`. Lap rows carry 💬 N.
+  The page posts `/seen` **only when an unread session-level comment is on
+  it**: the route marks the whole event, and marking on arrival would clear
+  the lap row's *1 unread* before the lap was opened. The lap page and the
+  session form post it once their thread is on screen.
+- **Block**: every comment by the other person carries *Report* and the
+  block — *Remove coach* for the owner (while the grant is live), *Stop
+  coaching* for a coach — confirmed through the Coaching page's own
+  `CoachingModel.Confirmation` wording.
+- **Markers everywhere the session's panel or map is drawn**: the lap page,
+  the session compare (charts and the stage's map), the event page's
+  best-lap trace and its expanded-width analysis column (map and charts).
+- **Unread** is one value, `CommentInbox` on `AuthController`: the count
+  (from `/me`, and from the feed) and `GET /coaching/comments`. The
+  dashboard's card (`UnreadCommentsCard`, opening the lap, the event or
+  Coaching), Settings' Coaching row and the Coaching page's *Recent comments*
+  all read it, and a successful `/seen` lowers the count and reads the feed
+  again — so at expanded width a thread read beside the dashboard clears its
+  card (`CommentInboxTests`).
+- **The first comment on a lap**: a coach's own thread is always offered,
+  empty, so the lap page's composer starts it — at a place — on a lap with no
+  comments yet (`CoachingUITests` does exactly that).
+- Release step, outside any build: the App Privacy label gains *other user
+  content, shared with other users*.
 
 ## Clients
 

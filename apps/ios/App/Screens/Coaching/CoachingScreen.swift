@@ -32,7 +32,9 @@ struct CoachingScreen: View {
             if model == nil {
                 let model = CoachingModel(api: auth.api)
                 self.model = model
+                async let feed: Void = auth.inbox.refresh()
                 await model.load()
+                await feed
             }
         }
         // Back from the profile form, or from a student's logbook: the page's
@@ -59,6 +61,17 @@ struct CoachingScreen: View {
                 TESectionHeader("Your students")
                 ForEach(model.students) { student in
                     studentRow(student)
+                }
+            }
+
+            if let feed = auth.inbox.feed, !feed.comments.isEmpty {
+                TESectionHeader("Recent comments")
+                TECard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(feed.comments.prefix(10)) { row in
+                            feedRow(row)
+                        }
+                    }
                 }
             }
 
@@ -123,6 +136,38 @@ struct CoachingScreen: View {
 
     // MARK: - Rows
 
+    /// One thing said to you: who, about what, when, and the comment; opens
+    /// where it was said.
+    private func feedRow(_ row: CommentFeed.Row) -> some View {
+        Button {
+            router.show(UnreadCommentsCard.route(for: row))
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(Comments.feedLine(row))
+                    .teStyle(.sm)
+                    .fontWeight(row.seen ? .regular : .semibold)
+                    .foregroundStyle(Color(.textStrong))
+                Text((Comments.commentWhen(row.createdAt, Self.nowMs) ?? Self.dateOfMs(row.createdAt)) + (row.seen ? "" : " · new"))
+                    .teStyle(.xs)
+                    .foregroundStyle(row.seen ? Color(.textMuted) : Color(.accentInk))
+                Text(row.body)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textBody))
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("feedRow-\(row.id)")
+    }
+
+    /// " · 2 new comments" on a grant's line.
+    private static func unreadSuffix(_ n: Int?) -> String {
+        guard let n, n > 0 else { return "" }
+        return " · \(n) new comment\(n == 1 ? "" : "s")"
+    }
+
     private func studentRow(_ student: Coaching.Student) -> some View {
         TECard(padding: 14) {
             HStack(alignment: .center, spacing: 12) {
@@ -133,7 +178,7 @@ struct CoachingScreen: View {
                         Text(student.name ?? "A driver")
                             .teStyle(.bodyStrong)
                             .foregroundStyle(Color(.accentInk))
-                        Text(Coaching.studentLine(student, fmtDate: EventDates.fmtDate))
+                        Text(Coaching.studentLine(student, fmtDate: EventDates.fmtDate) + Self.unreadSuffix(student.unread))
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textMuted))
                     }
@@ -158,7 +203,7 @@ struct CoachingScreen: View {
                 Text(coach.name ?? "A coach")
                     .teStyle(.bodyStrong)
                     .foregroundStyle(Color(.textStrong))
-                Text("since \(Self.dateOfMs(coach.since)) · \(Coaching.lastViewedText(coach.lastViewedAt, now: Self.nowMs))")
+                Text("since \(Self.dateOfMs(coach.since)) · \(Coaching.lastViewedText(coach.lastViewedAt, now: Self.nowMs))" + Self.unreadSuffix(coach.unread))
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
             }

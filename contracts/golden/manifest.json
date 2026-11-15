@@ -686,6 +686,87 @@
       "source": "src/routes/me.ts"
     },
     {
+      "name": "comment-create-coach",
+      "file": "comment-create-coach.json",
+      "method": "POST",
+      "path": "/coaching/students/:sid/sessions/:id/comments",
+      "status": 201,
+      "description": "A coach comments on a place on a student's lap (NS-52). `dist_m` is whole metres from the start/finish line along that lap; `lap_id` alone is the lap, neither the session.",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comments-feed",
+      "file": "comments-feed.json",
+      "method": "GET",
+      "path": "/coaching/comments",
+      "status": 200,
+      "description": "What was said to the caller, newest first, both roles at once — here a student with two unread comments from their coach. `student` is null on the caller's own logbook.",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comment-create",
+      "file": "comment-create.json",
+      "method": "POST",
+      "path": "/sessions/:id/comments",
+      "status": 201,
+      "description": "The logbook's owner replies into one coach's thread; `coach_id` names it.",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comment-update",
+      "file": "comment-update.json",
+      "method": "PUT",
+      "path": "/comments/:id",
+      "status": 200,
+      "description": "The author edits their own comment; `edited_at` is set.",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comments-seen",
+      "file": "comments-seen.json",
+      "method": "POST",
+      "path": "/events/:id/comments/seen",
+      "status": 200,
+      "description": "Mark the event's comments from other people as read; `seen` is how many it marked.",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comments-event",
+      "file": "comments-event.json",
+      "method": "GET",
+      "path": "/events/:id/comments",
+      "status": 200,
+      "description": "Every thread on one of the owner's events, oldest first, with each thread's coach and whether they can still read it (`active`).",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comments-student-event",
+      "file": "comments-student-event.json",
+      "method": "GET",
+      "path": "/coaching/students/:sid/events/:eid/comments",
+      "status": 200,
+      "description": "A coach's own thread on a student's event — never another coach's. `seen` on the coach's own rows is the read receipt.",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comments-seen-coach",
+      "file": "comments-seen-coach.json",
+      "method": "POST",
+      "path": "/coaching/students/:sid/events/:eid/comments/seen",
+      "status": 200,
+      "description": "A coach marks the student's replies on an event as read.",
+      "source": "src/routes/comments.ts"
+    },
+    {
+      "name": "comment-delete",
+      "file": "comment-delete.json",
+      "method": "DELETE",
+      "path": "/comments/:id",
+      "status": 200,
+      "description": "Delete a comment: its author, or the owner of the logbook it is on.",
+      "source": "src/routes/comments.ts"
+    },
+    {
       "name": "coaching",
       "file": "coaching.json",
       "method": "GET",

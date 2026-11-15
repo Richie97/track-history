@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phone GPS vs a dedicated lap timer: is a phone enough? — Track Evolution</title>
+  <meta name="description" content="How accurate lap timing from a phone's GPS is, how it compares with dedicated GPS lap timers and a car's own data recorder, and which one suits what you want to learn.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="Phone GPS vs a dedicated lap timer: is a phone enough? — Track Evolution">
+  <meta property="og:description" content="How accurate lap timing from a phone's GPS is, how it compares with dedicated GPS lap timers and a car's own data recorder, and which one suits what you want to learn.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/phone-gps-lap-timing.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/phone-gps-lap-timing.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/phone-gps-lap-timing.html#page",
+        "url": "https://docs.trackevolution.app/docs/phone-gps-lap-timing.html",
+        "headline": "Phone GPS versus a dedicated lap timer",
+        "description": "How accurate lap timing from a phone's GPS is, how it compares with dedicated GPS lap timers and a car's own data recorder, and which one suits what you want to learn.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Phone GPS versus a dedicated lap timer",
+            "item": "https://docs.trackevolution.app/docs/phone-gps-lap-timing.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html" class="active">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Phone GPS versus a dedicated lap timer</h1>
+    <p class="lede">
+      You can time laps with the phone already in your pocket, with a
+      dedicated GPS lap timer, or with the data recorder some cars have
+      built in. They differ mainly in how often they measure where the car
+      is, and what that costs you depends on the question you are asking.
+    </p>
+
+    <h2 id="how">How GPS lap timing works</h2>
+    <p>
+      A GPS lap timer records a series of positions, each with a time. A lap
+      is the time between two crossings of the start/finish line. No
+      receiver happens to take a reading exactly on the line, so the
+      crossing time is worked out between the reading just before it and
+      the one just after.
+    </p>
+    <p>
+      That makes one number matter more than any other: the
+      <strong>update rate</strong>, how many positions a second the device
+      records. At 150&nbsp;km/h (about 95&nbsp;mph) a car covers some
+      40&nbsp;metres a second. A device recording once a second has one
+      reading every 40 metres to work with; one recording ten times a
+      second has one every four.
+    </p>
+
+    <h2 id="compare">The options</h2>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Device</th><th>Typical update rate</th><th>Lap time precision</th><th>What else you get</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Phone, built-in GPS</strong></td>
+          <td>About once a second</td>
+          <td>Within a few tenths of a second</td>
+          <td>Speed around the lap, and a racing line</td>
+        </tr>
+        <tr>
+          <td><strong>Phone with an external GPS receiver</strong></td>
+          <td>Commonly ten times a second</td>
+          <td>Much closer, often within hundredths</td>
+          <td>A smoother speed trace; car data with an OBD reader</td>
+        </tr>
+        <tr>
+          <td><strong>Dedicated GPS lap timer or logger</strong></td>
+          <td>Ten to twenty-five times a second</td>
+          <td>Hundredths</td>
+          <td>A live display built for the car, often predictive timing</td>
+        </tr>
+        <tr>
+          <td><strong>The car's own data recorder</strong></td>
+          <td>Varies by maker</td>
+          <td>Good, and consistent from day to day</td>
+          <td>Throttle, brake, steering, gears, temperatures and
+            pressures, usually with video</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2 id="enough">When a phone is enough</h2>
+    <p>
+      A lap time that is right to within a few tenths is plenty for most of
+      what a driver in their first seasons wants to know:
+    </p>
+    <ul>
+      <li>whether you are quicker than last time at this track</li>
+      <li>how <a href="./lap-consistency.html">consistent</a> your laps
+        are</li>
+      <li>how your pace changes through a session and across a day</li>
+      <li>roughly where on the lap you are fast and slow, from the speed
+        trace</li>
+    </ul>
+    <p>
+      Seconds are what change in a first season, and a phone measures
+      seconds without difficulty.
+    </p>
+
+    <h2 id="not-enough">When it is not</h2>
+    <ul>
+      <li><strong>Chasing tenths.</strong> If a setup change is worth two
+        tenths and your timing is good to three, you cannot see it.</li>
+      <li><strong>Detailed data analysis.</strong> One reading a second
+        blurs a braking zone that lasts two.</li>
+      <li><strong>Anything about your inputs.</strong> GPS knows where the
+        car was, not what your feet were doing. Brake, throttle and
+        steering need data from the car.</li>
+    </ul>
+
+    <h2 id="better">Getting the best from a phone</h2>
+    <ul>
+      <li><strong>Give it a view of the sky.</strong> A windshield or dash
+        mount works better than a door pocket or a bag in the trunk.</li>
+      <li><strong>Start recording before you leave the paddock</strong>, so
+        it has a steady position before you are on track.</li>
+      <li><strong>Mount it securely.</strong> A phone that comes loose is a
+        hazard, and most organizers require a proper mount.</li>
+      <li><strong>Plug it in or start with a full battery.</strong></li>
+      <li><strong>Leave it alone on track.</strong> Look at it on a
+        straight if at all, and at the laps afterward.</li>
+    </ul>
+
+    <h2 id="logbook">Both, in Track Evolution</h2>
+    <p>
+      Track Evolution takes laps from all of these and keeps them in one
+      logbook.
+    </p>
+    <ul>
+      <li><strong>The phone.</strong> The iPhone and Android apps
+        <a href="./lap-recording.html">record a session from the phone's
+        GPS</a>: start before you head out, stow or mount the phone, and
+        pick the start/finish line on the map of the track you drove when
+        you are back in the paddock. Laps come out within roughly 0.2 to
+        0.5 seconds. Mounted in view, the screen shows a lap counter and a
+        live delta to your best lap of the session. Recording is part of
+        <a href="./#subscription">Pro</a>.</li>
+      <li><strong>Loggers and lap-timer apps.</strong>
+        <a href="./telemetry-import.html">Import</a> Racelogic VBO files,
+        including exports from RaceChrono, TrackAddict and Harry's
+        LapTimer, and Porsche Track Precision exports.</li>
+      <li><strong>The car's recorder and action cameras.</strong> Import
+        Corvette and Cadillac PDR video, and GoPro footage with GPS. The
+        file is read on your own device and never uploaded.</li>
+    </ul>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/phone-gps-lap-timing-light.webp">
+        <img src="./img/phone-gps-lap-timing-dark.webp" alt="An import preview in Track Evolution: a track map with the start/finish line marked and five lap times worked out from GPS, each shown with a tilde." width="892" height="735" loading="lazy">
+      </picture>
+      <figcaption>Importing a GPS-only clip: pick the start/finish line on the map and the laps are timed, each marked ~ as an estimate.</figcaption>
+    </figure>
+    <p>
+      Import is free. Whatever the source, a lap time that was worked out
+      between GPS readings is shown with a <code>~</code> in front, and one
+      the device measured exactly is shown without, so you always know
+      which is which.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./temperatures.html"><span class="label">Previous</span>← Temperatures on track</a>
+      <a href="./working-with-a-coach.html"><span class="label">Next</span>Working with a coach →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

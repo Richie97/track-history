@@ -61,7 +61,7 @@ then **draw**.
 
 ## Server
 
-### Migration `0036_session_trace_geo.sql`
+### Migration `0037_session_trace_geo.sql`
 
 ```sql
 ALTER TABLE sessions ADD COLUMN trace_geo TEXT;  -- JSON {"lat":..,"lon":..} or NULL
@@ -249,7 +249,7 @@ place; what "estimated" means); `site/docs/telemetry-import.html` and
 
 ## Tickets
 
-1. **Server + shared logic — landed.** Migration `0036`, `lib/geo.ts`, the
+1. **Server + shared logic — landed.** Migration `0037`, `lib/geo.ts`, the
    anchor on the session save, the event detail, the coach mount, the
    leaderboard lap and the export; goldens; the `geo.js` additions and
    `contracts/logic/geo-anchor.json`; every web importer sending `trace_geo`;

@@ -477,7 +477,7 @@ private struct ReplayMap: View {
     let trace: [TracePoint]
 
     var body: some View {
-        TrackMapView(trace: trace, dots: model.mapDots())
+        TrackMapView(trace: trace, dots: model.mapDots(), marks: model.commentMarks)
     }
 }
 
@@ -517,7 +517,7 @@ struct StageMapCard: View {
                     .teStyle(.eyebrow)
                     .foregroundStyle(Color(.textMuted))
                 if let trace = model.trace {
-                    TrackMapView(trace: trace, dots: model.mapDots())
+                    TrackMapView(trace: trace, dots: model.mapDots(), marks: model.commentMarks)
                         .frame(minHeight: 110)
                 }
             }

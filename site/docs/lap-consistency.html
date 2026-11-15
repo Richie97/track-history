@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lap time consistency and theoretical best lap — Track Evolution</title>
+  <meta name="description" content="How to measure lap time consistency on a track day, which laps to leave out, what a theoretical best lap is, and how to use both to find time.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="Lap time consistency and theoretical best lap — Track Evolution">
+  <meta property="og:description" content="How to measure lap time consistency on a track day, which laps to leave out, what a theoretical best lap is, and how to use both to find time.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/lap-consistency.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/lap-consistency.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/lap-consistency.html#page",
+        "url": "https://docs.trackevolution.app/docs/lap-consistency.html",
+        "headline": "Lap time consistency and your theoretical best",
+        "description": "How to measure lap time consistency on a track day, which laps to leave out, what a theoretical best lap is, and how to use both to find time.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Lap time consistency and your theoretical best",
+            "item": "https://docs.trackevolution.app/docs/lap-consistency.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html" class="active">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Lap time consistency and your theoretical best</h1>
+    <p class="lede">
+      One fast lap shows what you and the car can do. Whether you can do it
+      again shows how well you know the circuit. Consistency is the number
+      that separates the two, and paired with a theoretical best lap it tells
+      you what to work on next: finding more speed, or repeating the speed
+      you already have.
+    </p>
+
+    <h2 id="why">Why consistency comes first</h2>
+    <p>
+      A driver whose laps are all within a few tenths of each other is
+      hitting the same braking points, turn-in points and throttle points
+      every time. That matters for three reasons:
+    </p>
+    <ul>
+      <li><strong>You can test a change.</strong> If your laps vary by two
+        seconds, you cannot tell whether a new line or two more psi in the
+        fronts was worth three tenths.</li>
+      <li><strong>You are predictable</strong> to the cars around you, which
+        is what organizers and instructors look for before moving a driver up
+        a run group.</li>
+      <li><strong>Speed built on repeatable laps stays.</strong> A one-off
+        fast lap usually came from one corner going unusually well.</li>
+    </ul>
+
+    <h2 id="measuring">Measuring it</h2>
+    <p>
+      The simple measure is the spread of your lap times: how far a typical
+      lap sits from your average. To compare a 1:30 circuit with a 2:20 one,
+      express that spread as a percentage of the average lap — statisticians
+      call this the <strong>coefficient of variation</strong>, the standard
+      deviation divided by the mean.
+    </p>
+    <p>
+      An example: five laps of 1:41.2, 1:40.6, 1:40.9, 1:41.5 and 1:40.8
+      average 1:41.0 and vary by about a third of a second either way. That
+      is roughly 0.3% — a tidy session. Add one 1:44.0 spent behind a slower
+      car and the same run scores about 1.1%, though the other five laps
+      have not changed.
+    </p>
+    <p>
+      Lower is more consistent. As a rough guide, a spread under 1% is
+      repeatable driving, and a first-timer learning a circuit will often be
+      several times that. Compare against your own earlier days at the same
+      track rather than against anyone else.
+    </p>
+
+    <h2 id="clean">Which laps to count</h2>
+    <p>
+      The 1:44 above is the problem with a naive measure. A track day is full
+      of laps that say nothing about how consistently you drove:
+    </p>
+    <ul>
+      <li>the <strong>out-lap</strong>, on cold tires from the pit lane</li>
+      <li>the <strong>cool-down lap</strong> at the end</li>
+      <li>laps spent <strong>behind a slower car</strong> waiting for a
+        point-by</li>
+      <li>laps where you <strong>lifted for a flag</strong> or to let
+        someone past</li>
+    </ul>
+    <p>
+      Count those and the number measures traffic. The usual fix is to keep
+      only the laps close to the best of the session they came from — the
+      idea behind the 107% rule racing series use in qualifying. Judging
+      each session against its own best matters: a damp morning session is
+      then measured against the damp track, not against the dry afternoon.
+    </p>
+
+    <h2 id="theoretical">The theoretical best lap</h2>
+    <p>
+      Split each lap into sectors, take your fastest time through each sector
+      from anywhere in the session, and add them up. That sum is your
+      <strong>theoretical best</strong> (sometimes called an ideal or optimal
+      lap): the lap you would have set if you had strung your best sectors
+      together.
+    </p>
+    <p>
+      It is nearly always quicker than your actual best, and the size of the
+      gap is the useful part:
+    </p>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Gap to theoretical best</th><th>What it suggests</th><th>What to work on</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Large</td>
+          <td>The pace is already in you, in pieces. You did every part of
+            the lap well at some point, just not on the same lap.</td>
+          <td>Repetition. Same reference points, lap after lap, until the
+            good version of each corner is the normal one.</td>
+        </tr>
+        <tr>
+          <td>Small</td>
+          <td>You are driving close to what you currently know how to do,
+            every lap.</td>
+          <td>Something new: a different line, later braking in one corner,
+            earlier throttle, or time with an instructor.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <p>
+      The sector that is furthest off its own best, lap after lap, is where
+      to look first. A theoretical best is still a sum of things you really
+      did, so treat it as a realistic next target rather than a fantasy lap.
+    </p>
+
+    <h2 id="improving">Getting more consistent</h2>
+    <ul>
+      <li><strong>Use fixed reference points.</strong> A brake marker board,
+        a patch of tarmac, the end of a curb. "About there" is where the
+        variation comes from.</li>
+      <li><strong>Work on one corner per session.</strong> Changing several
+        things at once makes every lap different by design.</li>
+      <li><strong>Find clear track.</strong> Leave a gap leaving the pits,
+        and drop back to make space instead of following closely.</li>
+      <li><strong>Watch the trend through a session.</strong> Laps that get
+        steadily slower point to tires, brakes or concentration fading, and
+        are a reason to come in.</li>
+      <li><strong>Leave a margin.</strong> Laps at nine-tenths that repeat
+        teach more than one at the limit followed by three recovering.</li>
+    </ul>
+
+    <h2 id="logbook">Consistency in Track Evolution</h2>
+    <p>
+      Track Evolution works this out from the laps you log. Every event
+      with at least three clean laps gets a
+      <a href="./data-model.html#consistency">consistency figure</a>: the
+      coefficient of variation of its clean laps, where a clean lap is one
+      within 7% of the best lap of its own session. Out-laps, cool-down laps
+      and laps lost in traffic drop out on their own, and every lap still
+      counts toward your lap total and track time. Each session also shows a
+      best-three-lap average, whether your pace was improving or fading
+      through the run, and how many laps you took to get up to speed. All of
+      that is free, and works with lap times typed in by hand.
+    </p>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/lap-consistency-light.webp">
+        <img src="./img/lap-consistency-dark.webp" alt="A session in Track Evolution with its best lap, best-three average, pace trend and theoretical best above its six lap times." width="822" height="184" loading="lazy">
+      </picture>
+      <figcaption>A session&#39;s stats line: best-three average, when you got up to speed, the pace trend and the theoretical best.</figcaption>
+    </figure>
+    <p>
+      Sessions with telemetry — an
+      <a href="./telemetry-import.html">imported video or data file</a>, or
+      laps <a href="./lap-recording.html">recorded with your phone</a> — also
+      get <a href="./data-model.html#sectors">sector splits and a theoretical
+      best lap</a> with no setup: each lap is divided into three sectors
+      automatically, the session's best in each is marked, and the
+      theoretical best appears beside your actual best whenever it is
+      quicker. A delta graph then shows where around the lap one lap gained
+      or lost time against another. Sector splits, the theoretical best and
+      the delta graph are part of
+      <a href="./#subscription">Track Evolution Pro</a>.
+    </p>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/lap-consistency-sectors-light.webp">
+        <img src="./img/lap-consistency-sectors-dark.webp" alt="A sector table for two laps with the best time in each of three sectors and a theoretical best 0.27 seconds quicker than the best lap." width="846" height="214" loading="lazy">
+      </picture>
+      <figcaption>Sector splits for two laps, and the theoretical best they add up to.</figcaption>
+    </figure>
+
+    <nav class="docs-pager">
+      <a href="./consumables.html"><span class="label">Previous</span>← Brake pad &amp; tire wear</a>
+      <a href="./lap-delta.html"><span class="label">Next</span>Finding time with a lap delta →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

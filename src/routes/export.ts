@@ -247,6 +247,19 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
     return page.get(id) ?? null;
   };
 
+  // Coach comments on this logbook (NS-52): every thread, both sides, by the
+  // author's name — one query, grouped by session below.
+  const { results: commentRows } = await db
+    .prepare(
+      `SELECT c.session_id, c.lap_id, c.dist_m, c.body, c.created_at, c.edited_at,
+              a.name AS author, c.author_id = c.student_id AS by_you
+         FROM coach_comments c JOIN users a ON a.id = c.author_id
+        WHERE c.student_id = ? ORDER BY c.session_id, c.created_at, c.id`
+    )
+    .bind(userId)
+    .all<{ session_id: number; by_you: number }>();
+  const commentsBySession = groupBy(commentRows, (c) => c.session_id);
+
   await out.begin("events", "[");
   for (const row of eventRes.results as EventRow[]) {
     const event = withComputed(row);
@@ -276,7 +289,8 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
                 },
         })
       );
-      const json = JSON.stringify({ ...sessionFields, trace: parseStored(trace), trace_geo: parseStored(trace_geo), laps });
+      const comments = (commentsBySession.get(s.id) ?? []).map(({ session_id, by_you, ...c }) => ({ ...c, by_you: !!by_you }));
+      const json = JSON.stringify({ ...sessionFields, trace: parseStored(trace), trace_geo: parseStored(trace_geo), laps, comments });
       // The blob is spliced in as stored — already valid JSON, sanitized on the
       // way in — rather than parsed and re-serialized, so a megabyte of arrays
       // is held once, as a string, and only until it is written.
@@ -342,6 +356,26 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
     })),
   }));
   await out.item("garage", JSON.stringify({ vehicles }));
+
+  // --- what this account wrote as a coach on other drivers' logbooks (NS-52):
+  //     its own words and where they were said, by the driver's name — nothing
+  //     else of that driver's logbook, and no id of theirs.
+  const { results: written } = await db
+    .prepare(
+      `SELECT st.name AS student, t.name AS track_name, e.start_date, s.label AS session_label, l.lap_num,
+              c.dist_m, c.body, c.created_at, c.edited_at
+         FROM coach_comments c
+         JOIN users st ON st.id = c.student_id
+         JOIN events e ON e.id = c.event_id
+         JOIN tracks t ON t.id = e.track_id
+         JOIN sessions s ON s.id = c.session_id
+         LEFT JOIN laps l ON l.id = c.lap_id
+        WHERE c.author_id = ?1 AND c.student_id <> ?1
+        ORDER BY c.created_at, c.id`
+    )
+    .bind(userId)
+    .all();
+  await out.item("comments_written", JSON.stringify(written));
 
   // --- who has access: coaches and students by name, connected assistants by
   //     name, and the subscription by its state — never an id, token or store

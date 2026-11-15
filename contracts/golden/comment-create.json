@@ -1,0 +1,24 @@
+{
+  "method": "POST",
+  "path": "/sessions/:id/comments",
+  "status": 201,
+  "body": {
+    "comment": {
+      "author": {
+        "id": 1,
+        "name": "Dev User",
+        "picture": null
+      },
+      "body": "Tried it, the rear stepped out",
+      "coach_id": 1,
+      "created_at": 0,
+      "dist_m": null,
+      "edited_at": null,
+      "id": 1,
+      "lap_id": null,
+      "mine": true,
+      "seen": false,
+      "session_id": 1
+    }
+  }
+}

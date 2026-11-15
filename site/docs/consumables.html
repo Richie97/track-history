@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How long do brake pads and tires last on track? — Track Evolution</title>
+  <meta name="description" content="How to track brake pad, tire, rotor and fluid wear across track days: why track hours beat mileage, what to measure, working out a wear rate, and knowing what is due before the next event.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="How long do brake pads and tires last on track? — Track Evolution">
+  <meta property="og:description" content="How to track brake pad, tire, rotor and fluid wear across track days: why track hours beat mileage, what to measure, working out a wear rate, and knowing what is due before the next event.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/consumables.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/consumables.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/consumables.html#page",
+        "url": "https://docs.trackevolution.app/docs/consumables.html",
+        "headline": "Tracking brake pads, tires and fluids on track",
+        "description": "How to track brake pad, tire, rotor and fluid wear across track days: why track hours beat mileage, what to measure, working out a wear rate, and knowing what is due before the next event.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Tracking brake pads, tires and fluids on track",
+            "item": "https://docs.trackevolution.app/docs/consumables.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html" class="active">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Tracking brake pads, tires and fluids on track</h1>
+    <p class="lede">
+      A track day uses up brake pads, tires and fluid many times faster than
+      the road does, and the usual way to find out is at the track, with a
+      session left to run and nothing left on the pads. Tracking consumables
+      is how you find out the week before instead. This page covers which
+      clock to count wear on, what to measure, how to turn two measurements
+      into a prediction, and what your parts really cost.
+    </p>
+
+    <div class="callout plain">
+      Brakes and tires are what keep the car on the track. The part maker's
+      limits and your event's tech inspection come first, and if a part
+      looks marginal, replace it. Nothing here is a reason to run a part
+      longer than you otherwise would.
+    </div>
+
+    <h2 id="clock">Count track time, not miles</h2>
+    <p>
+      "These pads last 30,000 miles" tells you nothing about a track day. An
+      hour of lapping can take more out of a set of pads than a year of
+      commuting, and a car that does four track days a year may wear its
+      parts almost entirely in those few hours. The odometer barely moves.
+    </p>
+    <p>
+      The clocks that work are:
+    </p>
+    <ul>
+      <li><strong>Track hours</strong> — time actually spent lapping. A
+        typical HPDE day is four sessions of about 20 minutes, a little over
+        an hour of running. This is the best single clock for pads, rotors,
+        tires and oil.</li>
+      <li><strong>Track days</strong> — simpler to count, and close enough
+        when your days are all about the same length.</li>
+      <li><strong>Heat cycles</strong> — each time a tire is brought up to
+        temperature and cooled again. Track-oriented tires lose grip with
+        heat cycles even when plenty of tread is left, so a tire can be
+        finished by cycles before it is finished by wear.</li>
+      <li><strong>The calendar</strong> — for brake fluid, which takes on
+        moisture with age whether or not the car is driven.</li>
+    </ul>
+
+    <h2 id="what">What to track</h2>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Part</th><th>What to measure or count</th><th>Signs it is due</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Brake pads</strong></td>
+          <td>Friction material thickness, inner and outer pad, each
+            corner</td>
+          <td>At or near the pad maker's minimum; one pad of a pair much
+            thinner than the other; cracked or crumbling material</td>
+        </tr>
+        <tr>
+          <td><strong>Rotors</strong></td>
+          <td>Thickness against the minimum stamped on the rotor; track
+            hours</td>
+          <td>Cracks reaching the edge or joining drilled holes, a deep lip
+            at the outer edge, vibration under braking</td>
+        </tr>
+        <tr>
+          <td><strong>Brake fluid</strong></td>
+          <td>Age since the last flush; track days since the last bleed</td>
+          <td>A pedal that goes long or soft during a session; dark fluid;
+            older than your event allows</td>
+        </tr>
+        <tr>
+          <td><strong>Tires</strong></td>
+          <td>Tread depth across the tread; heat cycles; age from the date
+            code on the sidewall</td>
+          <td>At the wear bars; cords or uneven wear on a shoulder; grip
+            that has gone away with tread still left</td>
+        </tr>
+        <tr>
+          <td><strong>Engine oil</strong></td>
+          <td>Track hours since the last change</td>
+          <td>Past the interval your manufacturer gives for track use, which
+            is usually much shorter than the road interval</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <p>
+      Many organizers set their own limits — a minimum pad thickness, brake
+      fluid changed within a set number of months — on the tech inspection
+      form. Read yours before the event, not at the gate.
+    </p>
+
+    <h2 id="measuring">Measuring</h2>
+    <ul>
+      <li><strong>Pads.</strong> A pad thickness gauge reads the friction
+        material through the wheel spokes or the caliper window, without
+        taking anything apart. Measure the inner and the outer pad: the
+        inner one often wears faster and is the one you cannot see.</li>
+      <li><strong>Tires.</strong> A tread depth gauge in the same grooves
+        each time, at the inside, middle and outside of the tread. On track
+        the outside shoulder usually goes first, and an average hides it.</li>
+      <li><strong>Be consistent.</strong> Same gauge, same spots, parts cold,
+        and write the number down with the date. A measurement you cannot
+        compare with the last one is not much use.</li>
+    </ul>
+    <p>
+      Once before the event and once after is enough. It takes five minutes
+      with the wheels on.
+    </p>
+
+    <h2 id="rate">From two measurements to a prediction</h2>
+    <p>
+      One measurement tells you where a part is. Two, with the track time
+      between them, tell you how fast it is going — and that gives you a
+      date.
+    </p>
+    <p>
+      An example. A set of front pads starts with 10&nbsp;mm of material.
+      After four track days — five hours of lapping — it measures
+      7.5&nbsp;mm:
+    </p>
+    <ul>
+      <li>Wear rate: 2.5&nbsp;mm in 5 hours, or
+        <strong>0.5&nbsp;mm per track hour</strong>.</li>
+      <li>You plan to replace them at 3&nbsp;mm, so there is 4.5&nbsp;mm
+        left to use.</li>
+      <li>4.5&nbsp;mm at 0.5&nbsp;mm an hour is <strong>9 more track
+        hours</strong> — about seven days of the same length.</li>
+    </ul>
+    <p>
+      So this set will not need changing for the next event or the one
+      after, and you know roughly when to have the next set on the shelf.
+      Every new measurement sharpens the estimate.
+    </p>
+    <p>
+      With no measurements yet, the fallback is history: if your last set of
+      the same pads lasted 14 track hours, expect about that from this one.
+    </p>
+
+    <h2 id="changes">Why the rate moves</h2>
+    <p>
+      A wear rate belongs to one car, one compound and one way of driving
+      it. Expect it to change when any of these do:
+    </p>
+    <ul>
+      <li><strong>The circuit.</strong> A track with several heavy braking
+        zones can use pads twice as fast as a flowing one.</li>
+      <li><strong>Your pace.</strong> As you get quicker you brake later and
+        harder. Wear per hour goes up as lap times come down.</li>
+      <li><strong>The compound.</strong> A track pad, a street pad and a
+        different tire all have their own rate. Start the count again when
+        you change.</li>
+      <li><strong>The weather.</strong> Hot days are harder on tires and
+        fluid.</li>
+    </ul>
+    <p>
+      That is the reason to keep measuring instead of trusting a number from
+      a forum, or from your own first season.
+    </p>
+
+    <h2 id="cost">What a part really costs</h2>
+    <p>
+      Divide what a set cost by the track hours it lasted and you have its
+      cost per track hour. A $300 set of pads that lasts 14 hours costs
+      about $21 an hour; a $180 set that lasts 6 costs $30. The cheaper set
+      is the more expensive one. The same sum for tires is often the
+      largest running cost of a track day after the entry fee, and it is the
+      honest way to compare a compound that grips for longer against one
+      that is cheaper to buy.
+    </p>
+
+    <h2 id="spares">More than one set</h2>
+    <p>
+      Many drivers end up swapping parts for the track: a second set of
+      wheels and tires, track pads fitted for the weekend and street pads
+      put back afterward, wet-weather tires that come out twice a year. Each
+      set then has its own life, and only the days it was actually on the
+      car should count against it. Keep the count per set, not per car, or
+      the numbers stop meaning anything the first time you swap.
+    </p>
+
+    <h2 id="logbook">Tracking parts in Track Evolution</h2>
+    <p>
+      Track Evolution's <a href="./garage.html">garage</a> does this
+      bookkeeping from the events you already log. Add a part to a car —
+      pads, tires, rotors, brake fluid, oil — with what it cost and, if you
+      like, how many track hours you expect from it. From then on its hours
+      count up on their own:
+      <a href="./garage.html#hours">1 hour 15 minutes per track day</a> by
+      default, or the total of your logged lap times once an event has three
+      or more laps.
+    </p>
+    <ul>
+      <li><strong>Wear projections.</strong> Log a pad thickness or tread
+        depth between events and, from the second measurement on, the app
+        works out your wear rate per track hour and how much life is left,
+        in hours and in track days. Without measurements it uses the
+        expected life, which defaults to what your previous set of the same
+        part lasted.</li>
+      <li><strong>Due before the weekend.</strong> The Garage and each
+        car's page lead with the parts that are due or close to it, and
+        your next event names the most urgent part on the car you are
+        taking.</li>
+      <li><strong>Spares and swaps.</strong> Every part has an Equipped
+        switch. A part on the shelf stops accruing wear, and a set swapped
+        on in the middle of a track day gets only the sessions it ran.</li>
+      <li><strong>Heat cycles.</strong> Tires count one per event day they
+        were on the car.</li>
+      <li><strong>Cost per track hour.</strong> A retired part keeps its
+        hours, its cost and the cost per hour, and the car's page totals
+        what it has cost you.</li>
+    </ul>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/consumables-light.webp">
+        <img src="./img/consumables-dark.webp" alt="A car&#39;s page in Track Evolution: a maintenance-due notice for the front pads, track hours and spend, and the front pads&#39; wear bar with three thickness measurements." width="892" height="737" loading="lazy">
+      </picture>
+      <figcaption>A car&#39;s page: what is due, its track hours and spend, and a set of front pads with its wear measured across three readings.</figcaption>
+    </figure>
+    <p>
+      Keeping your cars in the garage is free. Consumable wear tracking,
+      projections and costs are part of
+      <a href="./#subscription">Track Evolution Pro</a>, on the web and in
+      the iPhone and Android apps.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./tire-pressures.html"><span class="label">Previous</span>← Tire pressures</a>
+      <a href="./lap-consistency.html"><span class="label">Next</span>Lap consistency →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

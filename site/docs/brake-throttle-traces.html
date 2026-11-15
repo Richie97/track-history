@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to read brake and throttle traces — Track Evolution</title>
+  <meta name="description" content="How to read speed, brake and throttle graphs from track-day data: what a good braking trace looks like, spotting coasting and throttle hesitation, and what to change.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="How to read brake and throttle traces — Track Evolution">
+  <meta property="og:description" content="How to read speed, brake and throttle graphs from track-day data: what a good braking trace looks like, spotting coasting and throttle hesitation, and what to change.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/brake-throttle-traces.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/brake-throttle-traces.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/brake-throttle-traces.html#page",
+        "url": "https://docs.trackevolution.app/docs/brake-throttle-traces.html",
+        "headline": "How to read brake and throttle traces",
+        "description": "How to read speed, brake and throttle graphs from track-day data: what a good braking trace looks like, spotting coasting and throttle hesitation, and what to change.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "How to read brake and throttle traces",
+            "item": "https://docs.trackevolution.app/docs/brake-throttle-traces.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html" class="active">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>How to read brake and throttle traces</h1>
+    <p class="lede">
+      The speed graph shows what the car did. The brake and throttle graphs
+      show what you did to make it happen. Read together, they answer most
+      questions about a lap without any more advanced analysis — and a
+      handful of shapes account for nearly everything a new driver can
+      improve.
+    </p>
+
+    <h2 id="speed">Start with speed</h2>
+    <p>
+      Plotted against distance, a lap's speed is a row of peaks and
+      valleys. Each valley is a corner; each peak is the end of a straight.
+      Three things to read from each corner:
+    </p>
+    <ul>
+      <li><strong>Where the speed starts to fall</strong> — your braking
+        point.</li>
+      <li><strong>The lowest speed</strong> — your minimum corner speed, and
+        where on the track it happens.</li>
+      <li><strong>How steeply it climbs afterward</strong> — your exit.</li>
+    </ul>
+    <p>
+      A sharp V means braking, then straight back to power. A valley with a
+      flat floor means time spent at a steady speed in the corner, neither
+      slowing nor accelerating.
+    </p>
+
+    <h2 id="brake">The brake trace</h2>
+    <p>
+      A well-judged braking zone has a recognizable shape: a fast rise to
+      the hardest braking, held briefly, then a gradual release that tapers
+      off as the car turns in. Hardest at the start, when the car is
+      fastest; lightest at the end, when the tires are needed for
+      cornering.
+    </p>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>What you see</th><th>What it means</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>A slow ramp up to peak pressure</td>
+          <td>Easing onto the brake. The car covers ground at full speed
+            while braking builds, so the braking zone has to start
+            earlier.</td>
+        </tr>
+        <tr>
+          <td>A low, long plateau</td>
+          <td>Braking earlier and more gently than the car can manage.</td>
+        </tr>
+        <tr>
+          <td>Peak pressure, then an instant drop to zero</td>
+          <td>Jumping off the brake. The nose rises as you turn in, which
+            invites understeer.</td>
+        </tr>
+        <tr>
+          <td>Two separate humps in one braking zone</td>
+          <td>Braking, releasing, then braking again: the first application
+            was too early or too hard, or the braking point is
+            uncertain.</td>
+        </tr>
+        <tr>
+          <td>A different shape every lap</td>
+          <td>No fixed reference for where to brake.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2 id="throttle">The throttle trace</h2>
+    <p>
+      The ideal is one application: off the brake, a brief pause or a light
+      steady throttle through the middle of the corner, then a smooth
+      progression to full throttle that stays there until the next braking
+      point.
+    </p>
+    <ul>
+      <li><strong>A dip after you have started accelerating</strong> means
+        the throttle went on before the car could take it, and you had to
+        lift. Starting a little later and committing is faster.</li>
+      <li><strong>A sawtooth</strong> through a corner is hunting for grip
+        with your foot.</li>
+      <li><strong>A long stretch short of full throttle</strong> on a
+        straight is either caution or a habit. Check the speed trace: if the
+        car was not near its limit, the straight is free time.</li>
+      <li><strong>A lift at the end of a straight</strong> before the brake
+        comes on is coasting.</li>
+    </ul>
+
+    <h2 id="coasting">Coasting</h2>
+    <p>
+      Look for stretches where both traces are at zero. The car is neither
+      slowing as fast as it could nor accelerating, so it is losing time on
+      both sides. Short gaps while moving your foot are normal; a gap of a
+      car length or more before a braking zone, or a long neutral stretch
+      in the middle of a corner, is the most common thing to find in a
+      first season's data.
+    </p>
+    <p>
+      The opposite, both traces above zero together, is the two pedals
+      overlapping. Unless you are doing it on purpose, it wears the brakes
+      and slows the car.
+    </p>
+
+    <h2 id="using">Putting it to use</h2>
+    <ol>
+      <li>Pick your fastest lap and one typical lap.</li>
+      <li>Find the corner where the two differ most — a
+        <a href="./lap-delta.html">lap delta</a> points straight at it.</li>
+      <li>Compare the brake and throttle shapes in that corner only.</li>
+      <li>Choose one thing to change next session, and look again
+        afterward.</li>
+    </ol>
+    <p>
+      Review data in the paddock, and change braking points a little at a
+      time, with room to spare.
+    </p>
+
+    <h2 id="logbook">Speed, brake and throttle in Track Evolution</h2>
+    <p>
+      When you <a href="./telemetry-import.html">import a recording</a>,
+      the session's channel graphs put its laps on one distance axis, with
+      up to three laps overlaid in different colors. The
+      <strong>Traces</strong> tab stacks speed, throttle and brake directly
+      above one another, so what your feet did sits under what the speed
+      did. Point at a graph (or tap it) to mark that place on every graph
+      and on the track map.
+    </p>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/brake-throttle-traces-light.webp">
+        <img src="./img/brake-throttle-traces-dark.webp" alt="Speed, throttle and brake charts for two laps stacked on one distance axis." width="846" height="570" loading="lazy">
+      </picture>
+      <figcaption>Speed, throttle and brake for two laps on one axis, with the stretches where ABS or traction control cut in shaded.</figcaption>
+    </figure>
+    <p>
+      Which graphs you get depends on the recording. Speed comes from GPS,
+      so every source has it, including laps
+      <a href="./lap-recording.html">recorded with your phone</a> and GoPro
+      footage. Throttle and brake come from the car, so they need a
+      recording that carries car data: a Corvette or Cadillac PDR video, a
+      Porsche Track Precision export, or a VBO file with those channels
+      logged.
+    </p>
+    <p>
+      The speed, throttle and brake graphs are <strong>free</strong>. The
+      other channels, the delta chart and sector splits are part of
+      <a href="./#subscription">Track Evolution Pro</a>.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./lap-delta.html"><span class="label">Previous</span>← Finding time with a lap delta</a>
+      <a href="./friction-circle.html"><span class="label">Next</span>Reading a friction circle →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

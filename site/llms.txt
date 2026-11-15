@@ -5,7 +5,7 @@
 Key facts:
 
 - The logbook is free with no limit and no expiry: tracks, events, sessions, lap times, progress charts, telemetry import, share links, per-track leaderboards and Season Wrapped.
-- Track Evolution Pro costs $1.99 a month or $19.99 a year. It adds lap recording from the phone's GPS with live timing, the full telemetry analysis (sector splits, theoretical best, lap-vs-lap deltas, all channel graphs), consumable wear tracking, the setup notebook, best-lap video clips, sharing a logbook with a coach, and connecting an AI assistant. One subscription covers web, iPhone and Android.
+- Track Evolution Pro costs $1.99 a month or $19.99 a year. It adds lap recording from the phone's GPS with live timing, the full telemetry analysis (sector splits, theoretical best, lap-vs-lap deltas, all channel graphs), consumable wear tracking, the setup notebook, best-lap video clips, sharing a logbook with a coach, and connecting an AI assistant. A coach (any account, free included) can read the logbook they were invited to and, on the web, leave comments on its sessions and laps that only they and the driver see. One subscription covers web, iPhone and Android.
 - Telemetry import reads Corvette PDR video, Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), Racelogic VBO files (VBOX, RaceChrono, TrackAddict, Harry's LapTimer exports) and Porsche Track Precision VBO and CSV exports. Files are parsed on the driver's own device and never uploaded.
 - The whole logbook works offline and syncs when the device is back online.
 - Lap data is private by default. A driver can publish a read-only share page, share one event or session by link, or opt in to per-track leaderboards.
@@ -24,9 +24,26 @@ Key facts:
 - [Your first track day](https://docs.trackevolution.app/docs/track-days.html): what an HPDE is, what the car and driver need, where to find an event, and ways to record laps
 - [Telemetry import](https://docs.trackevolution.app/docs/telemetry-import.html): every supported source, the start/finish line picker, and how lap times are derived
 - [Recording laps with your phone](https://docs.trackevolution.app/docs/lap-recording.html): the GPS lap recorder in the iPhone and Android apps and what accuracy to expect
-- [Data model and stats](https://docs.trackevolution.app/docs/data-model.html): tracks, events, sessions and laps, the best-time rule, consistency, costs and share-page privacy
+- [Data model and stats](https://docs.trackevolution.app/docs/data-model.html): tracks, events, sessions and laps, the best-time rule, consistency, costs, share-page privacy, and what a coach can see and comment on
 - [Garage and setup notebook](https://docs.trackevolution.app/docs/garage.html): pad, tire and fluid wear tracking with projections, and per-day setup sheets
 - [AI assistants](https://docs.trackevolution.app/docs/ai.html): connecting Claude, ChatGPT or another assistant to a logbook, and what it can read
+
+## Guides
+
+- [Track-day prep checklist](https://docs.trackevolution.app/docs/prep-checklist.html): what to check on the car the week before a track day, what to pack, and what to do at the circuit and between sessions
+- [What does a track day cost?](https://docs.trackevolution.app/docs/track-day-cost.html): the real costs of a track day (entry, fuel, pads and tires, insurance, gear, travel) and working out a cost per day
+- [Track-day tire pressures](https://docs.trackevolution.app/docs/tire-pressures.html): why hot pressure matters on track, finding a target, measuring and bleeding in the pits, and working back to a cold starting pressure
+- [Tracking brake pads, tires and fluids on track](https://docs.trackevolution.app/docs/consumables.html): why track hours beat mileage for wear, what to measure on pads, tires, rotors and fluid, working out a wear rate and a cost per track hour
+- [Lap time consistency and your theoretical best](https://docs.trackevolution.app/docs/lap-consistency.html): measuring lap time consistency, which laps to leave out, what a theoretical best lap is, and using both to find time
+- [How to find time with a lap delta](https://docs.trackevolution.app/docs/lap-delta.html): what a lap delta graph shows, reading its slope, tracing lost time back to a corner, and which laps to compare
+- [How to read brake and throttle traces](https://docs.trackevolution.app/docs/brake-throttle-traces.html): reading speed, brake and throttle graphs: what a good braking trace looks like, spotting coasting and throttle hesitation
+- [How to read a friction circle](https://docs.trackevolution.app/docs/friction-circle.html): what a friction circle (g-g diagram) shows, how to read its shape, what trail braking looks like on it, and its limits
+- [Understeer and oversteer: telling which you have](https://docs.trackevolution.app/docs/understeer-oversteer.html): what understeer and oversteer feel like, why drivers mistake one for the other, the usual causes of each, and what to change first
+- [When to shift on track](https://docs.trackevolution.app/docs/shift-points.html): choosing shift points on track, when to short-shift, where not to shift, and downshifting without upsetting the car
+- [Keeping a setup notebook](https://docs.trackevolution.app/docs/setup-notebook.html): what to write down in a track-day setup notebook, testing one change at a time, and judging whether a change worked
+- [Engine and brake temperatures on track](https://docs.trackevolution.app/docs/temperatures.html): watching engine oil and coolant temperature, oil pressure and brake heat on track, the warning signs, and cooling a car down properly
+- [Phone GPS versus a dedicated lap timer](https://docs.trackevolution.app/docs/phone-gps-lap-timing.html): how accurate phone GPS lap timing is, how it compares with dedicated lap timers and in-car recorders, and which suits which goal
+- [Getting the most from an instructor or coach](https://docs.trackevolution.app/docs/working-with-a-coach.html): what to tell a track-day instructor or coach beforehand, taking feedback in the car, and using it between events
 
 ## Legal
 

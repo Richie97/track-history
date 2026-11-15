@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Understeer vs oversteer: how to tell which you have — Track Evolution</title>
+  <meta name="description" content="What understeer and oversteer feel like on track, why drivers mistake one for the other, the usual driving causes of each, and what to change first.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="Understeer vs oversteer: how to tell which you have — Track Evolution">
+  <meta property="og:description" content="What understeer and oversteer feel like on track, why drivers mistake one for the other, the usual driving causes of each, and what to change first.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/understeer-oversteer.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/understeer-oversteer.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/understeer-oversteer.html#page",
+        "url": "https://docs.trackevolution.app/docs/understeer-oversteer.html",
+        "headline": "Understeer and oversteer: telling which you have",
+        "description": "What understeer and oversteer feel like on track, why drivers mistake one for the other, the usual driving causes of each, and what to change first.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Understeer and oversteer: telling which you have",
+            "item": "https://docs.trackevolution.app/docs/understeer-oversteer.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html" class="active">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Understeer and oversteer: telling which you have</h1>
+    <p class="lede">
+      Every conversation about how a car handles comes down to two words.
+      Understeer is the front tires running out of grip first; oversteer is
+      the rears. Knowing which one you have, and in which part of the
+      corner, is what turns "the car feels wrong" into something you can
+      fix — and most of the time the first fix is in how the corner is
+      driven, not in the car.
+    </p>
+
+    <h2 id="definitions">What they are</h2>
+    <ul>
+      <li><strong>Understeer</strong> — the car turns less than you asked.
+        You add steering and it keeps heading toward the outside of the
+        corner. Also called push.</li>
+      <li><strong>Oversteer</strong> — the car turns more than you asked.
+        The rear steps out and the nose points toward the inside. Also
+        called loose.</li>
+      <li><strong>Neutral</strong> — both ends reach their limit together,
+        and the car goes where the steering says.</li>
+    </ul>
+
+    <h2 id="feel">Why they get mixed up</h2>
+    <p>
+      Oversteer is dramatic: the car rotates, you correct, you remember it.
+      Understeer is quiet. Nothing happens — the steering goes light and the
+      car simply does not turn enough, so you add more lock, which does not
+      help. Drivers routinely describe a car as loose when the data shows it
+      was pushing for most of the corner and snapped once at the exit.
+    </p>
+    <p>
+      Two honest checks: if adding steering does nothing, it is understeer.
+      If you had to take steering off, or steer the other way, it is
+      oversteer.
+    </p>
+
+    <h2 id="phases">Where in the corner</h2>
+    <p>
+      "Understeer" on its own is not enough to act on. A corner has three
+      phases, and each has its own usual causes:
+    </p>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Phase</th><th>Understeer usually means</th><th>Oversteer usually means</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Entry</strong> (braking to turn-in)</td>
+          <td>Too much speed for the corner; turning the wheel too fast;
+            off the brake too abruptly, so the front unloads</td>
+          <td>Still braking hard while turning; lifting suddenly as you
+            turn in</td>
+        </tr>
+        <tr>
+          <td><strong>Middle</strong> (steady cornering)</td>
+          <td>More steering angle than the tires can use; carrying a touch
+            too much speed</td>
+          <td>Lifting off the throttle mid-corner</td>
+        </tr>
+        <tr>
+          <td><strong>Exit</strong> (back to power)</td>
+          <td>On the throttle too early or too hard with the wheel still
+            turned, pushing the car wide</td>
+          <td>Too much throttle for the grip, in a rear-drive car</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2 id="driving">Fix the driving first</h2>
+    <p>
+      Nearly all of the causes in that table are inputs. Before changing the
+      car:
+    </p>
+    <ul>
+      <li><strong>Entry understeer:</strong> brake a little earlier and
+        release the brake more gradually as you turn, so the front tires
+        stay loaded.</li>
+      <li><strong>Mid-corner understeer:</strong> try less steering, not
+        more. A tire turned past its best angle grips less.</li>
+      <li><strong>Exit understeer:</strong> wait to add throttle until you
+        can start unwinding the wheel.</li>
+      <li><strong>Oversteer when lifting:</strong> be smooth coming off the
+        throttle, and avoid lifting mid-corner at all. If the corner needs
+        less speed, take it off before turn-in.</li>
+      <li><strong>Exit oversteer:</strong> feed the throttle in as the wheel
+        straightens.</li>
+    </ul>
+    <p>
+      If you are new to finding the limit, do this with an instructor in
+      the car. Recovering from a slide is a skill to learn deliberately, not
+      to discover.
+    </p>
+
+    <h2 id="setup">Then the car</h2>
+    <p>
+      If a corner behaves the same way lap after lap with clean inputs, the
+      car may want a change. The usual order, cheapest first:
+    </p>
+    <ol>
+      <li><strong>Tire pressures.</strong> The end that is sliding often has
+        pressures out of their working range. See
+        <a href="./tire-pressures.html">track-day tire pressures</a>.</li>
+      <li><strong>Alignment.</strong> More negative front camber is the
+        common cure for a road car that pushes on track.</li>
+      <li><strong>Anti-roll bars and dampers.</strong> Stiffening one end
+        generally takes grip away from that end, so a stiffer rear bar
+        reduces understeer and a stiffer front bar adds it.</li>
+    </ol>
+    <p>
+      Make one change at a time and write it down — see
+      <a href="./setup-notebook.html">keeping a setup notebook</a>. Have
+      alignment and suspension changes done by someone who knows the car.
+    </p>
+
+    <h2 id="logbook">Balance in Track Evolution</h2>
+    <p>
+      A recording that carries the car's steering angle and rotation — a
+      Corvette or Cadillac <a href="./telemetry-import.html">PDR video</a>,
+      for example — lets the app answer the question from data. On the
+      session's <strong>Grip</strong> tab, a balance chart plots how much
+      the car rotated against how much steering it was given, with a dashed
+      line for how this car normally responds: points above the line are
+      oversteer, below it understeer.
+    </p>
+    <p>
+      Under the chart the lap is split into corners, numbered T1, T2 and so
+      on from the start/finish line (the app's own numbering, not the
+      circuit's), and each gets a reading for every selected lap and for the
+      session: "T1 understeer 14%, T7 neutral, T10 slight oversteer 9%".
+    </p>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/understeer-oversteer-light.webp">
+        <img src="./img/understeer-oversteer-dark.webp" alt="A scatter of rotation against steering angle with a dashed reference line, above a table reading each corner as neutral, understeer or oversteer." width="830" height="646" loading="lazy">
+      </picture>
+      <figcaption>The balance chart and its corner-by-corner reading for two laps and the session.</figcaption>
+    </figure>
+    <p>
+      One thing to know: the reading is relative. Each corner is compared
+      with how the car behaved on average across the session, so a car that
+      pushes everywhere reads neutral everywhere. What stands out is the
+      corner that behaves differently from the rest — which is usually the
+      one worth working on.
+    </p>
+    <p>
+      Balance is on the web and in the iPhone and Android apps, as part of
+      <a href="./#subscription">Track Evolution Pro</a>.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./friction-circle.html"><span class="label">Previous</span>← Reading a friction circle</a>
+      <a href="./shift-points.html"><span class="label">Next</span>Shift points →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

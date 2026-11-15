@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>When to shift on track: shift points and short-shifting — Track Evolution</title>
+  <meta name="description" content="How to choose shift points on track: why redline is not always right, when to short-shift, where not to shift, and downshifting without upsetting the car.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="When to shift on track: shift points and short-shifting — Track Evolution">
+  <meta property="og:description" content="How to choose shift points on track: why redline is not always right, when to short-shift, where not to shift, and downshifting without upsetting the car.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/shift-points.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/shift-points.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/shift-points.html#page",
+        "url": "https://docs.trackevolution.app/docs/shift-points.html",
+        "headline": "When to shift on track",
+        "description": "How to choose shift points on track: why redline is not always right, when to short-shift, where not to shift, and downshifting without upsetting the car.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "When to shift on track",
+            "item": "https://docs.trackevolution.app/docs/shift-points.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html" class="active">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>When to shift on track</h1>
+    <p class="lede">
+      Shifting looks like the simplest part of a lap, and it hides a
+      surprising amount of time and mechanical sympathy. The questions are
+      when to change up, when to change up early on purpose, where never to
+      change at all, and how to come down the gears without unsettling the
+      car.
+    </p>
+
+    <h2 id="upshift">When to change up</h2>
+    <p>
+      The aim is to keep the most drive at the wheels. Change up at the
+      point where the next gear, at the revs you will land on, pulls at
+      least as hard as the gear you are in.
+    </p>
+    <ul>
+      <li><strong>For most naturally aspirated engines</strong>, that is at
+        or close to the redline. Power is still high at the top, and the
+        next gear drops the revs back into the strongest part of the
+        range.</li>
+      <li><strong>For many turbocharged engines</strong>, power falls away
+        before the redline, and changing up a little sooner is quicker. So
+        is it for an engine that is simply out of breath at the top.</li>
+      <li><strong>Not on the limiter.</strong> Bouncing off the rev limiter
+        is slower than changing up, and it is not kind to the engine.</li>
+    </ul>
+    <p>
+      If you do not know your engine's power curve, your own data will tell
+      you: on a long straight, compare a lap where you changed at the
+      redline with one where you changed a few hundred revs earlier, and
+      look at the speed at the braking point.
+    </p>
+
+    <h2 id="short-shift">When to short-shift</h2>
+    <p>
+      Changing up early, before the best point, costs a little
+      acceleration. It is worth it when:
+    </p>
+    <ul>
+      <li><strong>The shift would otherwise land mid-corner.</strong> Change
+        up before the corner and carry the higher gear through.</li>
+      <li><strong>The car is struggling for traction</strong> on the way out
+        of a slow corner. A higher gear sends less torque to the wheels and
+        can be the quicker way out.</li>
+      <li><strong>A short straight would need a shift up and straight back
+        down.</strong> Holding one gear and using more of the rev range is
+        often faster than two shifts.</li>
+      <li><strong>The car is hot</strong> or you are on a cool-down
+        lap.</li>
+    </ul>
+
+    <h2 id="where-not">Where not to shift</h2>
+    <p>
+      Every shift briefly interrupts drive and shifts the car's weight. At
+      the limit of grip in a corner, that is enough to start a slide. Do
+      your shifting in a straight line: up before turn-in or after the car
+      is straight again, down while braking before the corner.
+    </p>
+
+    <h2 id="downshift">Coming down the gears</h2>
+    <ul>
+      <li><strong>Brake first, then downshift.</strong> The brakes slow the
+        car; the gearbox only chooses the gear for the exit. Using engine
+        braking to slow down wears the driveline and upsets the balance.</li>
+      <li><strong>Downshift late in the braking zone</strong>, once the
+        speed has come down enough for the lower gear.</li>
+      <li><strong>Match the revs.</strong> In a manual without automatic
+        rev-matching, a blip of throttle as the clutch comes up stops the
+        driven wheels from being dragged by the engine, which can lock them
+        for an instant.</li>
+      <li><strong>Never downshift into a gear that is too low for your
+        speed.</strong> The engine is forced past its redline no matter what
+        the limiter does. This is the mistake that breaks engines; when in
+        doubt, wait.</li>
+      <li><strong>Be in the right gear before you turn in.</strong></li>
+    </ul>
+
+    <h2 id="gear-choice">Which gear for a corner</h2>
+    <p>
+      If two gears both work, the higher one is usually the calmer choice:
+      the throttle is gentler, the car is easier to balance, and there is
+      one fewer shift to make. The lower gear is right when the corner
+      leads onto a long straight and the car can use the extra drive
+      without spinning its wheels. Try both and compare the speed at the end
+      of the following straight.
+    </p>
+
+    <h2 id="logbook">Gears and shift points in Track Evolution</h2>
+    <p>
+      When an imported recording carries the car's gear and engine speed —
+      a Corvette or Cadillac <a href="./telemetry-import.html">PDR
+      video</a>, for example — the session's <strong>Traces</strong> tab
+      adds a <strong>gear ribbon</strong> under the RPM graph: one band per
+      selected lap, one block per gear with its number, and a gap where the
+      clutch was in. With two or more laps selected, the stretches where
+      they were in different gears are outlined, so "third on my best lap,
+      fourth on this one" is visible at a glance.
+    </p>
+    <p>
+      Beside it, a <strong>shift points</strong> table gives the engine
+      speed you changed up at from each gear across the session — earliest,
+      typical and latest — with a note when a gear is taken to the top of
+      the day's rev range, or left noticeably earlier than the others. Your
+      typical upshift RPM also appears in the session's stats.
+    </p>
+    <figure class="shot">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="./img/shift-points-light.webp">
+        <img src="./img/shift-points-dark.webp" alt="An RPM chart with a gear ribbon for two laps under it, and a table of upshift RPM from each gear." width="830" height="554" loading="lazy">
+      </picture>
+      <figcaption>The gear ribbon under the RPM trace, with the places two laps used different gears outlined, and the upshift table.</figcaption>
+    </figure>
+    <p>
+      The app reports what you did and leaves the judgment to you: whether
+      7,000 rpm is the right place to change depends on the engine. The
+      gear ribbon and shift table are on the web and in the phone apps, as
+      part of <a href="./#subscription">Track Evolution Pro</a>.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./understeer-oversteer.html"><span class="label">Previous</span>← Understeer &amp; oversteer</a>
+      <a href="./setup-notebook.html"><span class="label">Next</span>Keeping a setup notebook →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

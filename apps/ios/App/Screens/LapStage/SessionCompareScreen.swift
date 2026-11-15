@@ -23,6 +23,9 @@ struct SessionCompareScreen: View {
     @State private var model: EventModel?
     @State private var stage: LapStageModel?
     @State private var lit: [Int] = []
+    /// The event's coach comments (NS-52), for the ◆ marks only — the thread
+    /// itself is read on the lap page. Through the unscoped client.
+    @State private var comments: CommentsModel?
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -61,8 +64,12 @@ struct SessionCompareScreen: View {
                 // video would stop and jump back to the run-up.
                 if let remembered = stage.panelMemory.lit { lit = remembered }
                 self.stage = stage
+                comments = router.held(route, "comments") {
+                    CommentsModel(api: auth.api, owner: owner, eventId: eventId, viewerId: auth.me?.user.id)
+                }
                 if model.detail == nil { await model.load() }
             }
+            await comments?.load()
         }
     }
 
@@ -93,7 +100,8 @@ struct SessionCompareScreen: View {
                 playhead: stage.playhead,
                 onSeek: { stage.seek(toGridA: $0) },
                 onLitChange: { lit = $0 },
-                memory: stage.panelMemory
+                memory: stage.panelMemory,
+                commentMarks: comments?.panelMarks(session) ?? []
             )
         }
         .task(id: StageKey(lit: lit, clips: session.laps.map(\.clip), playsVideo: playsVideo, pro: pro)) {
@@ -108,6 +116,9 @@ struct SessionCompareScreen: View {
                 trace: session.trace.flatMap { $0.count >= 10 ? $0 : nil },
                 corners: Corners.sessionCorners(channels)
             )
+        }
+        .task(id: comments?.mapFractions(session) ?? []) {
+            stage.commentMarks = comments?.mapFractions(session) ?? []
         }
     }
 

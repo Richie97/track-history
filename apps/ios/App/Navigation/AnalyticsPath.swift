@@ -42,6 +42,8 @@ extension Route {
         // The web edits a sheet inline on the event page; the phones give it a
         // page, named in the same idiom. The day is a position, not a record id.
         case .setupForm: "/event/:id/setup/:day"
+        // The web comments inline on the event page; the phone pushes a form.
+        case .sessionComment: "/event/:id/session/:id/comment"
         }
     }
 
@@ -59,6 +61,7 @@ extension StudentPage {
         case .lap: "/event/:id/lap/:id"
         case .sessionCompare: "/event/:id/session/:id/compare"
         case .vehicle: "/vehicle/:id"
+        case .sessionComment: "/event/:id/session/:id/comment"
         }
     }
 }

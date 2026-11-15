@@ -96,6 +96,9 @@ final class StageVideo {
 @Observable
 final class LapStageModel: HeldOnRouter {
     let playhead = LapPlayhead()
+    /// Where coach comments were placed on the lap (NS-52), as fractions of it
+    /// — the stage's map draws them under the playhead's dot. Set by the page.
+    var commentMarks: [Double] = []
     /// How a stage fetches a clip's signed URL — the owner's scoped client, a
     /// shared link's own endpoint, or (DEBUG) a local file.
     typealias URLSource = (LapClip) async throws -> URL

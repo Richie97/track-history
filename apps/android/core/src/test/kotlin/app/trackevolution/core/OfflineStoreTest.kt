@@ -152,6 +152,14 @@ class OfflineStoreTest {
         assertFalse(OfflineStore.isQueueable("DELETE", "/events/12/share"))
         assertFalse(OfflineStore.isQueueable("POST", "/sessions/4/share"))
         assertFalse(OfflineStore.isQueueable("DELETE", "/sessions/4/share"))
+        // Coach comments (NS-52): every write is live — "Commenting needs a
+        // connection." — whichever side writes it.
+        assertFalse(OfflineStore.isQueueable("POST", "/sessions/4/comments"))
+        assertFalse(OfflineStore.isQueueable("POST", "/events/12/comments/seen"))
+        assertFalse(OfflineStore.isQueueable("POST", "/coaching/students/3/sessions/4/comments"))
+        assertFalse(OfflineStore.isQueueable("POST", "/coaching/students/3/events/12/comments/seen"))
+        assertFalse(OfflineStore.isQueueable("PUT", "/comments/5"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/comments/5"))
         // …and nothing under a student's prefix can match the owner's patterns.
         assertFalse(OfflineStore.isQueueable("POST", "/students/3/events"))
         assertFalse(OfflineStore.isQueueable("PUT", "/students/3/events/12"))

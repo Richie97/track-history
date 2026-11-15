@@ -65,6 +65,7 @@ export type Env = {
   OAUTH_REGISTER?: RateLimit; // per IP: POST /oauth/register
   EXPORT?: RateLimit; // per user: GET /api/export/* (NS-44)
   CLIP_PARTS?: RateLimit; // per user: PUT /api/clips/:id/parts/:n (NS-45)
+  COACH_COMMENTS?: RateLimit; // per author: writing or editing a coach comment (NS-52)
 
   // --- Best-lap video clips (NS-45, routes/clips.ts) -------------------------
   // The R2 bucket the clips live in (r2_buckets in wrangler.jsonc). Optional so
