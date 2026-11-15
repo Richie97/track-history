@@ -1,2 +1,3 @@
 - Coach comments: a coach you share your logbook with can comment on a session, a lap, or an exact place on a lap, and you can reply. Comments show as markers on the charts and track map, with an unread count on the dashboard.
+- See your racing line on a real map: open a lap's trace over satellite or standard maps, coloured by speed.
 - Bug fixes and polish.
