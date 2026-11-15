@@ -40,6 +40,21 @@ node render.mjs --mux              # re-mux a changed score without re-rendering
 node capture.mjs --reuse           # re-film against the logbook already in .state/
 ```
 
+## The docs guides' screenshots
+
+The same demo logbook and the same camera also take the screenshots in the
+docs site's guides (`site/docs/img/`):
+
+```sh
+node guides.mjs                  # fresh demo logbook, then capture
+node guides.mjs --reuse          # against the logbook already in .state/
+```
+
+Each feature is cropped out of the real web app twice, dark and light, and
+written as WebP (it needs an ffmpeg with libwebp). Unlike `out/`, these are
+committed: the site has no build step. Re-run it when a screen a guide shows
+changes.
+
 Open `video/index.html?t=12` through any static server rooted at the repo to
 look at a moment interactively; `render.mjs` serves the repo to Chromium itself.
 

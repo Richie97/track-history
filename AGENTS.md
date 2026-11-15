@@ -77,6 +77,7 @@ node capture.mjs                                       # demo logbook on a scrat
 node audio/score.mjs                                   # the synthesised score → promo/out/score.wav
 node render.mjs                                        # → promo/out/track-evolution-promo.mp4 (ffmpeg with libx264/aac, or $FFMPEG)
 node render.mjs --stills 12,40.5                       # single frames, for checking a change
+node guides.mjs                                        # the docs guides' screenshots → site/docs/img (dark + light WebP)
 ```
 
 ## Documentation — update it as you go
@@ -195,7 +196,16 @@ not a follow-up:**
      every docs page, the pager chain, the sitemap and `llms.txt` like any
      page. The feature pages (`garage.html`, `telemetry-import.html`,
      `data-model.html`, `lap-recording.html`, `index.html`) and
-     `track-days.html` link to the guide for their topic.
+     `track-days.html` link to the guide for their topic. Each guide's
+     *in Track Evolution* section carries a **screenshot of the feature**
+     (`<figure class="shot">`, `site/docs/img/<name>-dark.webp` with a
+     `-light` alternative through `<picture>`, since the site follows the
+     reader's colour scheme). They are **generated**, never hand-made:
+     `promo/guides.mjs` films the real web app on the promo's fictional
+     demo logbook and crops each feature (`cd promo && node guides.mjs`, or
+     `--reuse` against the logbook already in `.state/`). A change to a
+     screen a guide shows owes a re-run and the new images committed, and
+     an image whose size changed owes its `width` / `height` in the page.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
    - `site/docs/lap-recording.html` — recording laps with the phone's GPS in

@@ -433,6 +433,17 @@ section.alt { background: var(--bg-subtle); border-block: 1px solid var(--border
   border-color: var(--border-hairline);
 }
 
+/* A screenshot in a guide: the app in the reader's colour scheme. */
+.shot { margin: 22px 0 26px; }
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius);
+}
+.shot figcaption { margin-top: 8px; font-size: 13.5px; color: var(--text-faint); }
+
 .docs-pager {
   display: flex;
   justify-content: space-between;
