@@ -158,6 +158,24 @@ public sealed interface Route {
     ) : Route
 
     /**
+     * The composer for a comment on a session (NS-52) — a destination of its
+     * own, since the event page is a long list of cards and a text box with a
+     * lap picker under it reads better on a page than squeezed into one. The
+     * draft lives in this entry's `SavedStateHandle`, so a rotation, a fold or
+     * the two-pane swap keeps it. [coachId] is the thread an owner replies
+     * into; null on a coach's own (their thread is the caller's). [student]
+     * set is a coach commenting on that driver's session — the one write a
+     * coach makes in a student's logbook.
+     */
+    @Serializable
+    public data class SessionComment(
+        val eventId: Int,
+        val sessionId: Int,
+        val coachId: Int? = null,
+        val student: Int? = null,
+    ) : Route
+
+    /**
      * Season Wrapped (NS-36): one calendar year as a story of cards, opened from
      * the dashboard's November banner. It **owns the window** — the scaffold
      * drops to one pane for it, as for the recorder — and it is not a
@@ -217,6 +235,7 @@ public val Route.studentId: Int?
         is Route.CompareLaps -> student
         is Route.Lap -> student
         is Route.SessionCompare -> student
+        is Route.SessionComment -> student
         else -> null
     }
 

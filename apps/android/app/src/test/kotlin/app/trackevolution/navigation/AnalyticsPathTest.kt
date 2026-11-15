@@ -35,6 +35,8 @@ class AnalyticsPathTest {
         Route.SharedItem("s", "s3cr3tAAAAAAAAAAAAAAAA") to "/share/s/:token",
         Route.Lap(12, 40, 991) to "/event/:id/lap/:id",
         Route.SessionCompare(12, 40) to "/event/:id/session/:id/compare",
+        Route.SessionComment(12, 40) to "/event/:id/session/:id/comment",
+        Route.SessionComment(12, 40, coachId = 3) to "/event/:id/session/:id/comment",
         Route.Wrapped(2026) to "/wrapped/2026",
         Route.Coaching to "/coaching",
         Route.Profile to "/profile",
@@ -46,6 +48,7 @@ class AnalyticsPathTest {
         Route.CompareLaps(3, student = 8) to "/student/:id/track/:id/lap-compare",
         Route.Lap(12, 40, 991, student = 8) to "/student/:id/event/:id/lap/:id",
         Route.SessionCompare(12, 40, 991, student = 8) to "/student/:id/event/:id/session/:id/compare",
+        Route.SessionComment(12, 40, student = 8) to "/student/:id/event/:id/session/:id/comment",
         Route.TrackDaysGuide to "/guide/track-days",
     )
 

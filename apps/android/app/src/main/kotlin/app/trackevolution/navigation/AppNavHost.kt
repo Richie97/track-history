@@ -33,6 +33,7 @@ import app.trackevolution.auth.UnitsStore
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.api.LogbookOwner
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.offline.OfflineStore
@@ -48,6 +49,8 @@ import app.trackevolution.screens.ProfileFormScreen
 import app.trackevolution.screens.StudentHomeModel
 import app.trackevolution.screens.StudentHomeScreen
 import app.trackevolution.screens.rememberStudentProfile
+import app.trackevolution.screens.CommentsModel
+import app.trackevolution.screens.SessionCommentScreen
 import app.trackevolution.screens.CompareLapsModel
 import app.trackevolution.screens.CompareLapsScreen
 import app.trackevolution.screens.DetailPlaceholder
@@ -227,8 +230,20 @@ fun AppNavHost(
                 val route = entry.toRoute<Route.Event>()
                 LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.id) }
+                // Coach comments (NS-52): their own model, keyed apart from the
+                // event's in this entry's store, with its drafts in the entry's
+                // saved state.
+                val comments = rememberScreenModel(key = "comments") { scope, handle ->
+                    CommentsModel(scope, api, owner, route.id, handle)
+                }
                 EventScreen(
                     model = model,
+                    comments = comments,
+                    onComposeComment = { sessionId, coachId ->
+                        nav.navigate(Route.SessionComment(route.id, sessionId, coachId, route.student))
+                    },
+                    onCommentsGone = onStudentGone,
+                    studentName = (owner as? LogbookOwner.Student)?.name,
                     checklistTemplate = checklistTemplate,
                     onEdit = { nav.navigate(Route.EventForm(editId = it)) },
                     onOpenTrack = { nav.navigate(Route.Track(it, student = route.student)) },
@@ -302,8 +317,14 @@ fun AppNavHost(
                 // Its own model over the same event: the read comes through the
                 // offline cache the page already warmed, so this costs no request.
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+                val comments = rememberScreenModel(key = "comments") { scope, handle ->
+                    CommentsModel(scope, api, owner, route.eventId, handle)
+                }
                 LapDetailScreen(
                     model = model,
+                    comments = comments,
+                    onCommentsGone = onStudentGone,
+                    studentName = (owner as? LogbookOwner.Student)?.name,
                     sessionId = route.sessionId,
                     lapId = route.lapId,
                     canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
@@ -327,6 +348,28 @@ fun AppNavHost(
                             popUpTo<Route.Lap> { inclusive = true }
                         }
                     },
+                )
+                }
+            }
+
+            // A session's comment composer (NS-52) — a page of its own, the
+            // draft in this entry's saved state, so a rotation or the two-pane
+            // swap keeps it. Reachable in a student's logbook: commenting is the
+            // one write a coach makes there, through their own routes.
+            pageComposable<Route.SessionComment> { entry ->
+                val route = entry.toRoute<Route.SessionComment>()
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
+                val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+                val comments = rememberScreenModel(key = "comments") { scope, handle ->
+                    CommentsModel(scope, api, owner, route.eventId, handle)
+                }
+                SessionCommentScreen(
+                    event = model,
+                    model = comments,
+                    sessionId = route.sessionId,
+                    coachId = route.coachId,
+                    onDone = { nav.popBackStack() },
+                    studentName = (owner as? LogbookOwner.Student)?.name,
                 )
                 }
             }
@@ -547,6 +590,7 @@ fun AppNavHost(
                     onEditProfile = { nav.navigate(Route.Profile) },
                     onShare = share,
                     onRequirePro = onRequirePro,
+                    onOpenComment = { nav.navigate(Route.Event(it.eventId, student = it.studentId)) },
                 )
             }
 
@@ -776,6 +820,7 @@ private fun NavBackStackEntry.routeOrNull(): Route? = when {
     destination.hasRoute(Route.Import::class) -> toRoute<Route.Import>()
     destination.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
     destination.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
+    destination.hasRoute(Route.SessionComment::class) -> toRoute<Route.SessionComment>()
     else -> null
 }
 
@@ -792,6 +837,7 @@ private fun Route.tempId(): Int? {
         is Route.Import -> listOfNotNull(eventId)
         is Route.Lap -> listOf(eventId, sessionId, lapId)
         is Route.SessionCompare -> listOfNotNull(eventId, sessionId, lapId)
+        is Route.SessionComment -> listOf(eventId, sessionId)
         else -> emptyList()
     }
     return ids.firstOrNull { OfflineStore.isTemp(it) }

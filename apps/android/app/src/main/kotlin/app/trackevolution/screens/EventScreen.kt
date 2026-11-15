@@ -39,11 +39,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.Costs
 import app.trackevolution.core.EventDates
+import app.trackevolution.core.Comments
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
 import app.trackevolution.core.SessionConditions
@@ -118,9 +120,24 @@ fun EventScreen(
      * loop's next-day sheet with its suggested colds.
      */
     onOpenSetup: (Int, SetupSheet?) -> Unit = { _, _ -> },
+    /**
+     * Coach comments on this event's sessions (NS-52) — the one thing a coach
+     * writes in a student's logbook, so it is shown whatever [readOnly] says.
+     * Null shows none (a shared item, a test that doesn't care).
+     */
+    comments: CommentsModel? = null,
+    /** A session's composer, as a page: `(sessionId, coachId)` — the thread an owner replies into. */
+    onComposeComment: (Int, Int?) -> Unit = { _, _ -> },
+    /** A coach who stops coaching from a comment leaves the logbook. */
+    onCommentsGone: () -> Unit = {},
+    /** The student's name, for a coach's "Only you and … see what you write here." */
+    studentName: String? = null,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
+    LaunchedEffect(comments) { comments?.load() }
+    // Once a thread is on screen, it has been read.
+    LaunchedEffect(comments?.data) { if (comments?.data != null) comments.markSeen() }
     var confirmDeleteEvent by remember { mutableStateOf(false) }
     var confirmDeleteSession by remember { mutableStateOf<Int?>(null) }
     // Which item's share dialog is open (NS-48) — by id, saveable, so a
@@ -335,6 +352,18 @@ fun EventScreen(
                             onSave = { label, notes -> model.updateSession(session.id, label, notes) },
                             onShare = { sharingSession = session.id },
                             readOnly = readOnly,
+                            lapComments = comments?.counts?.byLap.orEmpty(),
+                            commentsSlot = comments?.let { c ->
+                                {
+                                    SessionComments(
+                                        session = session,
+                                        model = c,
+                                        onCompose = { coachId -> onComposeComment(session.id, coachId) },
+                                        onGone = onCommentsGone,
+                                        studentName = studentName,
+                                    )
+                                }
+                            },
                         )
                     }
                 }
@@ -576,6 +605,10 @@ private fun SessionCard(
     /** *Share…* (NS-48): opens the session's share dialog. */
     onShare: () -> Unit = {},
     readOnly: Boolean = false,
+    /** Each lap's coach-comment count (NS-52), by lap id. */
+    lapComments: Map<Int, Comments.Count> = emptyMap(),
+    /** The session's comments block (NS-52), under its laps. */
+    commentsSlot: (@Composable () -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
@@ -723,6 +756,7 @@ private fun SessionCard(
                 isBest = best != null && lap.timeMs == best,
                 onOpen = { onOpenLap(lap.id) },
                 onDelete = if (readOnly) null else ({ onDeleteLap(lap.id) }),
+                comments = lapComments[lap.id],
             )
         }
         val channels = session.channels
@@ -741,6 +775,8 @@ private fun SessionCard(
                 )
             }
         }
+
+        commentsSlot?.invoke()
 
         if (!readOnly) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
             OutlinedTextField(
@@ -769,11 +805,20 @@ private fun SessionCard(
  * into anyone's logbook.
  */
 @Composable
-internal fun LapRow(lap: Lap, isBest: Boolean, onOpen: (() -> Unit)?, onDelete: (() -> Unit)?) {
+internal fun LapRow(
+    lap: Lap,
+    isBest: Boolean,
+    onOpen: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+    /** Its coach comments (NS-52): a 💬 seen, "2 comments, 1 unread" heard. */
+    comments: Comments.Count? = null,
+) {
     val colors = TrackTheme.colors
     val label = "Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}" + if (isBest) " ★" else ""
     // A lap with a best-lap video (NS-45) says so: a ▶ seen, "has video" heard.
-    val spoken = label + if (lap.clip != null) ", has video" else ""
+    val commentText = Comments.commentCountText(comments)
+    val spoken = label + (if (lap.clip != null) ", has video" else "") +
+        if (commentText.isNotEmpty()) ", $commentText" else ""
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -790,6 +835,17 @@ internal fun LapRow(lap: Lap, isBest: Boolean, onOpen: (() -> Unit)?, onDelete: 
             color = colors.textStrong,
             modifier = Modifier.weight(1f).semantics { contentDescription = spoken },
         )
+        if (commentText.isNotEmpty() && comments != null) {
+            Text(
+                "💬 ${comments.count}",
+                style = TrackTheme.typography.xs,
+                color = if (comments.unread > 0) colors.accentInk else colors.textFaint,
+                modifier = Modifier
+                    .padding(end = 6.dp)
+                    .testTag("lapComments-${lap.id}")
+                    .semantics { stateDescription = commentText },
+            )
+        }
         if (lap.clip != null) {
             Text(
                 "▶",

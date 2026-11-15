@@ -30,6 +30,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
@@ -150,7 +153,7 @@ fun SettingsScreen(
             item("lap-videos") { LapVideosCard(LapClips.clipStorageLine(model.user?.clips)) }
 
             item("coaching-header") { TESectionHeader("Coaching") }
-            item("coaching") { CoachingCard(onOpenCoaching) }
+            item("coaching") { CoachingCard(onOpenCoaching, unread = model.user?.commentsUnread ?: 0) }
 
             item("track-days-header") { TESectionHeader("New to track days?") }
             item("track-days") { TrackDaysCard(onOpenTrackDaysGuide) }
@@ -689,7 +692,7 @@ private fun CarsCard(onOpenGarage: () -> Unit) {
  * form behind it; the web's Settings carries the same one row.
  */
 @Composable
-private fun CoachingCard(onOpenCoaching: () -> Unit) {
+private fun CoachingCard(onOpenCoaching: () -> Unit, unread: Int = 0) {
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
         Text(
@@ -704,7 +707,11 @@ private fun CoachingCard(onOpenCoaching: () -> Unit) {
                 .fillMaxWidth()
                 .clickable(onClick = onOpenCoaching)
                 .padding(vertical = 8.dp)
-                .testTag("openCoaching"),
+                .testTag("openCoaching")
+                // Coach comments waiting (NS-52): the badge seen, the count heard.
+                .semantics(mergeDescendants = true) {
+                    if (unread > 0) stateDescription = "$unread unread comment${if (unread == 1) "" else "s"}"
+                },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -713,6 +720,18 @@ private fun CoachingCard(onOpenCoaching: () -> Unit) {
                 color = colors.accentInk,
                 modifier = Modifier.weight(1f),
             )
+            if (unread > 0) {
+                Text(
+                    unread.toString(),
+                    style = TrackTheme.typography.xs,
+                    color = colors.accentContrast,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .background(colors.accent, androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                        .padding(horizontal = 7.dp, vertical = 1.dp)
+                        .testTag("coachingUnread"),
+                )
+            }
             Text("›", style = TrackTheme.typography.body, color = colors.textFaint)
         }
     }

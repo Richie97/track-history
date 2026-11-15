@@ -90,6 +90,10 @@ class CoachingModel(
     var profile by mutableStateOf<ProfileResponse?>(null)
         private set
 
+    /** The newest things said to you, either way round (NS-52) — *Recent comments*. */
+    var feed by mutableStateOf<app.trackevolution.core.model.CommentFeed?>(null)
+        private set
+
     /**
      * The invite just made. Its link exists only in the create's answer — the
      * server keeps its hash — so it lives here, shown once, and a lost one is
@@ -115,8 +119,10 @@ class CoachingModel(
                 coroutineScope {
                     val c = async { api.coaching() }
                     val p = async { runCatching { api.profile() }.getOrNull() }
+                    val f = async { runCatching { api.commentFeed() }.getOrNull() }
                     coaching = c.await()
                     profile = p.await()
+                    feed = f.await()
                     state = LoadState.Ready
                 }
             } catch (e: ApiException) {
@@ -186,6 +192,8 @@ fun CoachingScreen(
     onRequirePro: () -> Unit,
     modifier: Modifier = Modifier,
     now: () -> Long = System::currentTimeMillis,
+    /** A *Recent comments* row (NS-52): its event, in whichever logbook. */
+    onOpenComment: (FeedTarget) -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     var confirmRemoveCoach by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -221,6 +229,19 @@ fun CoachingScreen(
                 }
             }
 
+            // Coach comments (NS-52): the newest said to you, either way round.
+            model.feed?.comments?.takeIf { it.isNotEmpty() }?.let { rows ->
+                item("comments-header") { TESectionHeader("Recent comments") }
+                item("comments") {
+                    TrackCard(Modifier.fillMaxWidth().testTag("recentComments")) {
+                        rows.forEachIndexed { index, row ->
+                            if (index > 0) HorizontalDivider(color = colors.borderHairline)
+                            FeedRow(row, at) { onOpenComment(FeedTarget(row.eventId, row.student?.id)) }
+                        }
+                    }
+                }
+            }
+
             if (coaching.students.isNotEmpty()) {
                 item("students-header") { TESectionHeader("Your students") }
                 item("students") {
@@ -244,7 +265,7 @@ fun CoachingScreen(
                                         color = colors.accentInk,
                                     )
                                     Text(
-                                        CoachingText.studentLine(student, EventDates::fmtDate),
+                                        CoachingText.studentLine(student, EventDates::fmtDate) + unreadSuffix(student.unread),
                                         style = TrackTheme.typography.xs,
                                         color = colors.textMuted,
                                     )
@@ -295,7 +316,7 @@ fun CoachingScreen(
                             Column(Modifier.weight(1f)) {
                                 Text(coach.name ?: "A coach", style = TrackTheme.typography.bodyStrong, color = colors.textStrong)
                                 Text(
-                                    "since ${fmtDay(coach.since)} · ${CoachingText.lastViewedText(coach.lastViewedAt, at)}",
+                                    "since ${fmtDay(coach.since)} · ${CoachingText.lastViewedText(coach.lastViewedAt, at)}" + unreadSuffix(coach.unread),
                                     style = TrackTheme.typography.xs,
                                     color = colors.textMuted,
                                 )
@@ -421,3 +442,6 @@ private fun InviteCard(model: CoachingModel, coaching: CoachingData, at: Long, o
 }
 
 private fun fmtDay(ms: Long): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(ms))
+
+/** A grant row's unread coach comments (NS-52): " · 2 new", or nothing. */
+internal fun unreadSuffix(unread: Int): String = if (unread > 0) " · $unread new" else ""

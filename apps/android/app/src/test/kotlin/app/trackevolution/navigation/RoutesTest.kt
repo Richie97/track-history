@@ -92,6 +92,17 @@ class RoutesTest {
             Route.SessionCompare(eventId = 41, sessionId = 42, lapId = null),
             Route.SessionCompare(eventId = -1, sessionId = 42).remapTempId(from = -1, to = 41),
         )
+        // A session's comment composer (NS-52) follows its event and session,
+        // keeping the thread and the student.
+        assertEquals(
+            Route.SessionComment(eventId = 41, sessionId = -2, coachId = 3),
+            Route.SessionComment(eventId = -1, sessionId = -2, coachId = 3).remapTempId(from = -1, to = 41),
+        )
+        assertEquals(
+            Route.SessionComment(eventId = 41, sessionId = 42, coachId = 3),
+            Route.SessionComment(eventId = 41, sessionId = -2, coachId = 3).remapTempId(from = -2, to = 42),
+        )
+        assertEquals(7, Route.SessionComment(1, 2, student = 7).studentId)
     }
 
     @Test

@@ -78,6 +78,12 @@ public fun Route.remapTempId(from: Int, to: Int): Route = when (this) {
         sessionId = if (sessionId == from) to else sessionId,
         lapId = lapId?.let { if (it == from) to else it },
     )
+    // A session created offline can be commented on once it syncs; the page
+    // follows both ids so the draft lands on the real rows.
+    is Route.SessionComment -> copy(
+        eventId = if (eventId == from) to else eventId,
+        sessionId = if (sessionId == from) to else sessionId,
+    )
     // Tracks are never created offline — an event's track is found-or-created
     // server-side by name — and slugs and settings carry no id at all. Nor is
     // anything in a student's logbook (NS-38): a coach cannot write there, so

@@ -10,6 +10,7 @@ import app.trackevolution.core.RemoteRecording
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Event
+import app.trackevolution.core.model.CommentFeed
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.Totals
 import app.trackevolution.core.model.Track
@@ -48,6 +49,19 @@ class DashboardModel(
     var garage by mutableStateOf<List<GarageVehicle>>(emptyList())
         private set
 
+    /**
+     * What coaches and students said to this account (NS-52), for the unread
+     * card. Fetched beside the garage, and its failure swallowed the same way:
+     * a card that cannot be drawn must not cost the logbook.
+     */
+    var commentFeed by mutableStateOf<CommentFeed?>(null)
+        private set
+
+    /** Re-read the feed — on coming back to the dashboard, after reading a thread. */
+    fun refreshFeed() {
+        scope.launch { runCatching { api.commentFeed() }.getOrNull()?.let { commentFeed = it } }
+    }
+
     fun load() {
         scope.launch {
             try {
@@ -73,6 +87,7 @@ class DashboardModel(
             // has its own tab (NS-37), and its failure is swallowed on purpose: a
             // 402 for a free account, or no network, must not cost the logbook.
             garage = runCatching { api.garage() }.getOrNull()?.also { GarageBadge.note(it) }.orEmpty()
+            commentFeed = runCatching { api.commentFeed() }.getOrNull()
 
             // Warm every event's detail so an event never opened still reads in
             // the paddock. A warm-up, not a load — failures are ignored.
