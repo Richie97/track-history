@@ -135,6 +135,24 @@ unread count. It mints an access token with the
 - The badge set to `/me`'s `comments_unread` on every foreground and after
   every `/seen`.
 
+### As built — ticket 2
+
+- `App/Push/PushController.swift` + `PushAskCard.swift`; the Kit's
+  `Models/Push.swift` (`PushDeviceDraft`, `CommentPushTarget`,
+  `DeepLink.commentPush`) and `APIClient.registerPushDevice` /
+  `unregisterPushDevice`. The tap is a new `DeepLink.comment(_)` case that
+  `parse(_:)` never produces, so it reuses the router's parking.
+- **Swizzling off** (`FirebaseAppDelegateProxyEnabled` false) and
+  `FirebaseMessagingAutoInitEnabled` false: no FCM token exists until the
+  user says yes.
+- **Foreground: always a banner.** The spec's "unless the thread is already
+  on screen" is not built — knowing which thread is on screen would need
+  every comment surface to report itself; a banner over the thread you are
+  reading is harmless. The inbox is refreshed when one arrives.
+- The badge follows `AuthController.commentsUnread`, which `/me` (re-read on
+  every foreground) and `/seen` already keep, rather than a separate read.
+- The toggle lives in Settings' *Coaching* card.
+
 ## Android (ticket 3)
 
 - `firebase-messaging` (BoM-versioned beside analytics); a

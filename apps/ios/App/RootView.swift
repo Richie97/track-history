@@ -12,6 +12,7 @@ struct RootView: View {
     @Environment(ThemeStore.self) private var theme
     @Environment(AuthController.self) private var auth
     @Environment(RecordingController.self) private var recorder
+    @Environment(PushController.self) private var push
     @Environment(\.layout) private var layout
 
     @State private var router = AppRouter()
@@ -55,8 +56,27 @@ struct RootView: View {
         #endif
     }
 
-    @ViewBuilder
+    /// The auth gate, plus the two things coach-comment notifications (NS-54)
+    /// need from the shell whichever side of it the user is on: a tapped
+    /// notification goes to the router — at once when signed in, parked
+    /// across a sign-in otherwise — and the app badge follows the unread count.
     private var shell: some View {
+        authGate
+            .onChange(of: push.tappedLink, initial: true) { _, link in
+                guard let link else { return }
+                push.tappedLink = nil
+                router.open(link, signedIn: auth.isSignedIn)
+            }
+            .onChange(of: auth.commentsUnread, initial: true) { _, unread in
+                push.setBadge(unread)
+            }
+            .onChange(of: push.permission) { _, _ in
+                push.setBadge(auth.commentsUnread)
+            }
+    }
+
+    @ViewBuilder
+    private var authGate: some View {
         switch auth.state {
         case .unknown:
             ZStack {

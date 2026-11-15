@@ -2123,12 +2123,22 @@ Wrapped, which is free.
   out unregisters) and stop with `DELETE`. `src/push/fcm.ts` sends from
   `waitUntil` after the comment's 201 — best effort, never retried, a dead
   token deleted — and ships dark without `FCM_SERVICE_ACCOUNT`. The server
-  half has landed (#463). **Android** (#465): `push/` in `:app` — FCM
+  half has landed (#463). **iOS** (#464): `App/Push/PushController.swift`
+  (FirebaseMessaging, swizzling off — the app delegate hands Messaging the
+  APNs token), registering after every sign-in and token change, the
+  in-context `PushAskCard` under a comment thread, Settings → Coaching →
+  *Comment notifications*, a tap routed through the Kit's
+  `DeepLink.commentPush` (parked across sign-in), and the badge kept to
+  `comments_unread`. It is configured only where `AppAnalytics` configures
+  Firebase, so a debug run (without `-FIRDebugEnabled`), the simulator and the
+  UI suites register nothing. `aps-environment` is per configuration
+  (`APS_ENVIRONMENT` in `project.yml`); the App ID needs the Push
+  Notifications capability.
+  **Android** (#465): `push/` in `:app` — FCM
   (`firebase-messaging`, auto-init off until a driver opts in), the
   `coach_comments` channel, `PushRegistrar` registering after every sign-in,
   an in-context *Get notified when … replies* under a thread, Settings'
-  *Comment notifications* switch, and a tap opening the lap or event. iOS
-  (#464) is next.
+  *Comment notifications* switch, and a tap opening the lap or event.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from

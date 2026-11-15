@@ -20,6 +20,7 @@ struct TrackEvolutionApp: App {
     @State private var auth = AppServices.auth
     @State private var store = AppServices.store
     @State private var clips = AppServices.clips
+    @State private var push = AppServices.push
     @Environment(\.scenePhase) private var scenePhase
     /// For one UIKit callback: a best-lap clip's background upload session
     /// waking the app to deliver its answers (NS-45).
@@ -34,6 +35,9 @@ struct TrackEvolutionApp: App {
         // Google Analytics: screen views by shape, release builds only. See
         // `AppAnalytics` for what is and is not sent.
         AppAnalytics.start()
+        // Coach-comment notifications (NS-54): after Analytics, whose Firebase
+        // configuration it shares — and so silent wherever Analytics is.
+        AppServices.push.start()
         // Best-lap clips: reattach to the background upload session before
         // anything else can create it, and pick up where the last run stopped.
         AppServices.clips.start()
@@ -53,6 +57,7 @@ struct TrackEvolutionApp: App {
                 .environment(auth)
                 .environment(store)
                 .environment(clips)
+                .environment(push)
                 // The account's unit system, as one environment *value*: the
                 // charts read it without an `AuthController`, which the
                 // `-channelGraphs` launch opens them without.
@@ -70,6 +75,13 @@ struct TrackEvolutionApp: App {
                 // A clip upload that stalled or backed off on the track's
                 // network starts again now, on this one.
                 clips.becameActive()
+                // Notification permission can change in iOS Settings; a token
+                // that met no network at sign-in gets sent now; and the badge
+                // follows the live count, not the last push's.
+                Task {
+                    await push.becameActive()
+                    await auth.refreshAccount()
+                }
             }
         }
     }
@@ -82,6 +94,12 @@ struct TrackEvolutionApp: App {
 /// its finished transfers. The handler is kept until the session says it has
 /// delivered everything (`ClipTransport.urlSessionDidFinishEvents`).
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    /// APNs answered `registerForRemoteNotifications()` (NS-54). Handed to
+    /// Messaging by hand — swizzling is off in Info.plist.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        MainActor.assumeIsolated { AppServices.push.apnsToken(deviceToken) }
+    }
+
     func application(
         _ application: UIApplication,
         handleEventsForBackgroundURLSession identifier: String,
