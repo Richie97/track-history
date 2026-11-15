@@ -109,9 +109,9 @@ owes this table a re-key on `(session_id, lap_num)`.
   Unknown keys are dropped.
 - `commentView(row, viewerId)` — the response row, built by **allow-list**:
   `{ id, coach_id, session_id, lap_id, dist_m, body, created_at, edited_at, author: { id, name, picture }, mine, seen }`.
-  `mine` is `author_id === viewerId`; `seen` is `seen_at != null`, sent only
-  on rows the viewer wrote (it is the read receipt) and `true` otherwise.
-  Never an email.
+  `mine` is `author_id === viewerId`; `seen` is `seen_at != null` — on a row
+  the viewer wrote it is the read receipt, on any other the viewer's own
+  unread mark. Never an email.
 
 ### Routes (`routes/comments.ts`, an ordinary `/api` router, in `API_ROUTERS` with no gate)
 
@@ -219,6 +219,29 @@ Response shapes are pinned by new goldens (`comments-event`,
 `me` / `coaching` re-captured), with `Comment` / `CommentFeed` models in the
 Kit and `:core` landing **with the server ticket**, since both golden suites
 fail on a capture no model maps.
+
+### As built (ticket 1, server + web — in progress)
+
+- The helpers take the shapes the web needed, and the ports follow these, not
+  the list above: `commentThreads(comments)` splits an event's comments by
+  coach; `groupComments(comments, session)` orders one session's;
+  `commentPlace(distM, dStepM, corners, units)` takes the grid step, since
+  `cornerPlace` works in grid indexes; plus `commentLength`,
+  `commentCountText`, `commentWhen`, `feedTarget` / `feedLine`,
+  `coachAudienceNote` and the report mail's subject and body.
+  `commentError(status, message)` takes the status, null for no answer.
+- The decode models are `CoachComment`, `EventComments`, `CommentSaved`,
+  `CommentsSeen` and `CommentFeed` (`Comment` alone collides with nothing
+  today, but says less).
+- The owner's `coaches` lists only coaches with a thread on that event, so the
+  owner can reply but not open a thread; the server would accept one.
+- **Not yet built on the web**: the ◆ markers drawn on the charts and the
+  track map (a placed comment pins the panel's cursor there instead, which
+  marks every chart and the map); taking a place from an open lap stage, and
+  seeking it; the export's `comments` members; the MCP assertion in
+  `ai-tools.test.ts`. Neither native suite could be run where this was built
+  (no Swift toolchain, and Gradle could not reach Google's Maven), so the new
+  decode models are checked by CI first.
 
 ## Clients
 

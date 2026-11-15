@@ -100,6 +100,7 @@ import {
 } from "../public/js/import/clip.js";
 import { PROFILE_GROUPS, profileBody, profileSections } from "../public/js/profile.js";
 import { inviteExpiryText, lastViewedText, studentLine } from "../public/js/coaching.js";
+import * as commentsJs from "../public/js/comments.js";
 import {
   activeLimitLabels,
   limitMarkers,
@@ -3060,6 +3061,83 @@ const coachingFixture = {
     .map((at) => ({ expires_at: at, text: inviteExpiryText(at, COACH_NOW) })),
 };
 writeFileSync(path.join(OUT_DIR, "coaching.json"), JSON.stringify(coachingFixture, null, 2) + "\n");
+
+// --- coach comments (NS-52) ---------------------------------------------------
+// public/js/comments.js: how a thread is grouped and ordered, where a placed
+// comment is, and every sentence. Rows are { args, expected }; the ports call
+// the same function with the same arguments.
+{
+  const C = commentsJs;
+  const cm = (id, over = {}) => ({
+    id, coach_id: 2, session_id: 10, lap_id: null, dist_m: null, body: `c${id}`, created_at: id * 1000, edited_at: null,
+    author: { id: 2, name: "Sam Lee", picture: null }, mine: false, seen: false, ...over,
+  });
+  const session = { id: 10, laps: [{ id: 101, lap_num: 1, time_ms: 95000 }, { id: 102, lap_num: 2, time_ms: 94000 }] };
+  // Out of order on purpose: a lap's own are sorted by place (unplaced last)
+  // then time, the session's by time; another session's and a deleted lap's
+  // are dropped.
+  const list = [
+    cm(1, { lap_id: 102 }), cm(2, { lap_id: 102, dist_m: 900 }), cm(3), cm(4, { lap_id: 101, mine: true }),
+    cm(5, { lap_id: 102, dist_m: 300, seen: true }), cm(6, { session_id: 11 }), cm(7, { lap_id: 999 }),
+    cm(8, { coach_id: 7, author: { id: 7, name: "Kim Park", picture: null } }), cm(9, { lap_id: 102, dist_m: 300, created_at: 1 }),
+  ];
+  const corners = [{ n: 1, k0: 10, k1: 20 }, { n: 2, k0: 55, k1: 70 }];
+  const now = 20 * 24 * 3600 * 1000;
+  const feedRow = (over = {}) => ({
+    ...cm(1), student: null, event_id: 3, track_name: "VIR", start_date: "2026-05-01", session_label: "Session 2", lap_num: 6, ...over,
+  });
+  const reply = feedRow({ id: 2, author: { id: 9, name: "Alex R.", picture: null }, student: { id: 9, name: "Alex R." }, lap_num: null });
+  const rows = (fn, argsList) => argsList.map((args) => ({ args, expected: fn(...args) }));
+  const fixture = {
+    generatedFrom: ["public/js/comments.js"],
+    constants: {
+      COMMENT_MAX_CHARS: C.COMMENT_MAX_CHARS,
+      COMMENTS_HEADING: C.COMMENTS_HEADING,
+      COMMENT_PLACEHOLDER: C.COMMENT_PLACEHOLDER,
+      REPLY_PLACEHOLDER: C.REPLY_PLACEHOLDER,
+      WHOLE_SESSION: C.WHOLE_SESSION,
+      COMMENT_OFFLINE: C.COMMENT_OFFLINE,
+      THREAD_CLOSED: C.THREAD_CLOSED,
+      REPORT_LABEL: C.REPORT_LABEL,
+      REPORT_EMAIL: C.REPORT_EMAIL,
+    },
+    commentLength: rows(C.commentLength, [["  🏁🏁\r\n ok "], [""], ["x".repeat(1001)], ["a\nb"]]),
+    commentThreads: rows(C.commentThreads, [[list], [[]]]),
+    groupComments: rows(C.groupComments, [[list, session], [list.filter((c) => c.coach_id === 7), session], [[], session]]),
+    commentCounts: rows(C.commentCounts, [[list], [[]]]),
+    commentCountText: rows(C.commentCountText, [[{ count: 3, unread: 1 }], [{ count: 1, unread: 0 }], [{ count: 2, unread: 2 }], [null]]),
+    commentPlace: rows(C.commentPlace, [
+      [1240, 20, corners, "metric"], [1240, 20, corners, "imperial"], [600, 20, corners, "metric"], [100, 20, corners, "metric"],
+      [300, 20, corners, "imperial"], [600, 20, [], "metric"], [0, 20, corners, "metric"], [null, 20, corners, "metric"],
+    ]),
+    placeFromCursor: rows(C.placeFromCursor, [[62.04, 20], [0, 20], [-1, 20], [10.5, 25], [0.025, 20], [3, 0]]),
+    commentMarkers: rows(C.commentMarkers, [[list, 102, 1000], [list, 102, 600], [list, 101, 1000], [list, 102, 0]]),
+    canReply: rows(C.canReply, [[{ active: true }], [{ active: false }], [null]]),
+    threadTitle: rows(C.threadTitle, [
+      [{ name: "Sam Lee", active: true }, true], [{ name: "Sam Lee", active: false }, true], [{ name: null, active: true }, true],
+      [null, true], [{ name: "Sam Lee", active: true }, false],
+    ]),
+    coachAudienceNote: rows(C.coachAudienceNote, [["Alex R."], [null]]),
+    reportSubject: rows(C.reportSubject, [[42]]),
+    reportBody: rows(C.reportBody, [[42]]),
+    commentError: rows(C.commentError, [[null, null], [429, "x"], [409, "x"], [404, "not found"], [400, "a comment can't be empty"], [500, null]]),
+    commentWhen: rows(C.commentWhen, [
+      [now - 5_000, now], [now - 59_999, now], [now - 60_000, now], [now - 59 * 60_000, now], [now - 3_600_000, now],
+      [now - 5 * 3_600_000, now], [now - 86_400_000, now], [now - 6 * 86_400_000, now], [now - 7 * 86_400_000, now], [now + 5_000, now],
+    ]),
+    feedLine: rows(C.feedLine, [
+      [feedRow()], [reply], [feedRow({ track_name: null })], [feedRow({ lap_num: null, session_label: null })],
+      [feedRow({ author: { id: 2, name: null, picture: null } })], [{ ...reply, author: { id: 9, name: null, picture: null } }],
+    ]),
+    unreadLine: rows(C.unreadLine, [
+      [{ unread: 0, comments: [feedRow({ seen: true })] }], [{ unread: 1, comments: [feedRow()] }],
+      [{ unread: 2, comments: [feedRow(), feedRow({ id: 5 })] }], [{ unread: 2, comments: [feedRow(), reply] }],
+      [{ unread: 60, comments: [feedRow()] }], [{ unread: 3, comments: [] }], [null],
+    ]),
+  };
+  writeFileSync(path.join(OUT_DIR, "comments.json"), JSON.stringify(fixture, null, 2) + "\n");
+  console.log("wrote contracts/logic/comments.json");
+}
 
 // ---- swaps between sessions (migration 0030): the picker's pure half ---------
 //

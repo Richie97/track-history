@@ -73,6 +73,8 @@ public data class Coach(
     @SerialName("picture") val picture: String? = null,
     @SerialName("since") val since: Long,
     @SerialName("last_viewed_at") val lastViewedAt: Long? = null,
+    /** Comments (NS-52) this coach wrote that the caller hasn't read. */
+    @SerialName("unread") val unread: Int = 0,
 )
 
 @Serializable
@@ -84,6 +86,8 @@ public data class Student(
     /** Past events only, on the totals' rule. */
     @SerialName("event_count") val eventCount: Int,
     @SerialName("last_event_date") val lastEventDate: String? = null,
+    /** The student's replies (NS-52) the caller hasn't read. */
+    @SerialName("unread") val unread: Int = 0,
 )
 
 /** An unused invite. Its link was shown once, at creation, and can't be again. */

@@ -64,6 +64,11 @@ public data class User(
      * the field still decodes — read as unavailable.
      */
     val youtube: YouTubeAccount? = null,
+    /**
+     * Coach comments (NS-52) waiting to be read, as a student and as a coach
+     * together. Defaulted so a `/me` cached before the field still decodes.
+     */
+    @SerialName("comments_unread") val commentsUnread: Int = 0,
 ) {
     val effectiveUnits: UnitSystem get() = units ?: UnitSystem.IMPERIAL
 }

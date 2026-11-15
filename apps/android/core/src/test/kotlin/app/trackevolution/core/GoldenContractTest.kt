@@ -115,6 +115,10 @@ class GoldenContractTest {
             "coaching-invite" -> roundTrip(entry.name, CoachInvite.serializer())
             "coaching-invite-preview" -> roundTrip(entry.name, InvitePreview.serializer())
             "coaching-accept" -> roundTrip(entry.name, InviteAccepted.serializer())
+            "comments-event", "comments-student-event" -> roundTrip(entry.name, EventComments.serializer())
+            "comment-create", "comment-create-coach", "comment-update" -> roundTrip(entry.name, CommentSaved.serializer())
+            "comments-seen", "comments-seen-coach" -> roundTrip(entry.name, CommentsSeen.serializer())
+            "comments-feed" -> roundTrip(entry.name, CommentFeed.serializer())
             "track-create" -> roundTrip(entry.name, CreatedTrack.serializer())
             "vehicle-create" -> roundTrip(entry.name, Vehicle.serializer())
             "part-refresh" -> roundTrip(entry.name, PartRefresh.serializer())
@@ -136,7 +140,7 @@ class GoldenContractTest {
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
             "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
             "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
-            "item-share-event-delete",
+            "item-share-event-delete", "comment-delete",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(

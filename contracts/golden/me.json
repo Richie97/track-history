@@ -20,6 +20,7 @@
         "quota_bytes": 53687091200,
         "used_bytes": 0
       },
+      "comments_unread": 0,
       "email": "dev@example.com",
       "id": 1,
       "leaderboard_opt_in": false,

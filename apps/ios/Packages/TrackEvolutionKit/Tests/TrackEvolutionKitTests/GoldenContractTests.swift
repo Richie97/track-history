@@ -52,6 +52,10 @@ struct GoldenContractTests {
         case "coaching-invite": try roundTrip(CoachInvite.self, entry.name)
         case "coaching-invite-preview": try roundTrip(InvitePreview.self, entry.name)
         case "coaching-accept": try roundTrip(InviteAccepted.self, entry.name)
+        case "comments-event", "comments-student-event": try roundTrip(EventComments.self, entry.name)
+        case "comment-create", "comment-create-coach", "comment-update": try roundTrip(CommentSaved.self, entry.name)
+        case "comments-seen", "comments-seen-coach": try roundTrip(CommentsSeen.self, entry.name)
+        case "comments-feed": try roundTrip(CommentFeed.self, entry.name)
         case "track-create": try roundTrip(CreatedTrack.self, entry.name)
         case "vehicle-create": try roundTrip(Vehicle.self, entry.name)
         case "part-refresh": try roundTrip(PartRefresh.self, entry.name)
@@ -71,7 +75,7 @@ struct GoldenContractTests {
              "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
              "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
              "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
-             "item-share-event-delete", "item-share-session-delete":
+             "item-share-event-delete", "item-share-session-delete", "comment-delete":
             try roundTrip(OKResponse.self, entry.name)
         default:
             Issue.record("""
