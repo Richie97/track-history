@@ -564,6 +564,12 @@ Features added after the rewrite shipped, and where they landed:
   invite, with the owner's event, track, lap, compare and vehicle screens
   reused under `LogbookOwner.student` rather than copied. The channel
   panel's gates read **the student's** tier on every client.
+- **Coach comments** (2026-11, [NS-52](NS-52-coach-comments.md)) — **all
+  three, both roles**, specced and not yet built. A coach comments on a
+  student's session, lap or a place on a lap, in a thread private to that
+  coach and the student; the student replies. It is the one write a coach
+  makes, and it goes through the coach's own `/api/coaching/students/:id/…`
+  routes, so the coach mount stays GET-only.
 - **Subscriptions** (2026-09, [NS-32](NS-32-subscriptions.md)) — **all three,
   server-owned.** The $1 up-front purchase becomes Track Evolution Pro at
   $1.99/month or $19.99/year, sold through StoreKit 2 and Play Billing and
@@ -687,6 +693,7 @@ change* rule does not apply — see the spec for why.
 | NS-49 | [Stripe: Track Evolution Pro on the web](NS-49-stripe-web-checkout.md) — both phases landed; ships dark until the Stripe secrets are set | Server + web (the phones deliberately untouched) | NS-32 |
 | NS-50 | [Every-lap video clips from a PDR import](NS-50-every-lap-clips.md) | Server + web + iOS + Android | NS-45, NS-47 |
 | NS-51 | [Video-synced lap analysis (the lap stage)](NS-51-video-synced-laps.md) | Web + iOS + Android (no server change) | NS-45, NS-50, NS-34, #165, NS-35 |
+| NS-52 | [Coach comments on sessions and laps](NS-52-coach-comments.md) — specced, not built | Shared (server, web, iOS, Android) | NS-38, NS-51, #189 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
