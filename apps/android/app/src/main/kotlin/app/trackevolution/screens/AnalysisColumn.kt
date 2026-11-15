@@ -58,6 +58,8 @@ fun AnalysisColumn(
     onSubscribe: () -> Unit = {},
     /** Coach comments (NS-52): their places, marked on the map and the charts. */
     comments: CommentsModel? = null,
+    /** Opens the selected session's trace on a real map (NS-53). */
+    onOpenMap: ((Int) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val selected = sessions.firstOrNull { it.id == selectedSessionId }
@@ -103,6 +105,7 @@ fun AnalysisColumn(
                 highlight = ringedIndex(selected, hit),
                 dots = cursorDots.orEmpty(),
                 pins = sessionCommentPins(comments, selected),
+                onExpand = onOpenMap?.let { open -> { open(selected.id) } },
             )
             LimitLegend(markers)
         }

@@ -75,6 +75,8 @@ import app.trackevolution.screens.SharedLogbookModel
 import app.trackevolution.screens.SharedLogbookScreen
 import app.trackevolution.screens.SharedItemModel
 import app.trackevolution.screens.SharedItemScreen
+import app.trackevolution.screens.TrackMapModel
+import app.trackevolution.screens.TrackMapScreen
 import app.trackevolution.screens.TrackModel
 import app.trackevolution.screens.TrackScreen
 import app.trackevolution.screens.VehicleModel
@@ -269,6 +271,10 @@ fun AppNavHost(
                     onCompareLaps = { sessionId ->
                         nav.navigate(Route.SessionCompare(route.id, sessionId, student = route.student))
                     },
+                    // The racing line on a real map (NS-53) — a coach's view too.
+                    onOpenMap = { sessionId ->
+                        nav.navigate(Route.TrackMap.session(route.id, sessionId, route.student))
+                    },
                     readOnly = owner.readOnly,
                     // The setup notebook (NS-40): the owner's own tier — it is
                     // never shared with a coach, so a read-only page has none.
@@ -338,6 +344,9 @@ fun AppNavHost(
                     // The stage's lap stepper (NS-51) replaces this destination,
                     // so Back still returns to the event; the place on track
                     // crosses through the handoff.
+                    onOpenMap = {
+                        nav.navigate(Route.TrackMap.session(route.eventId, route.sessionId, route.student))
+                    },
                     onStepLap = { lapId, k ->
                         k?.let { StageHandoff.put(lapId, it) }
                         nav.navigate(Route.Lap(route.eventId, route.sessionId, lapId, route.student)) {
@@ -625,6 +634,16 @@ fun AppNavHost(
 
             // Plain `composable`, not `pageComposable`: the story is full-window at
             // every width, and the scaffold drops to one pane for it.
+            // The racing line on a real map (NS-53). A plain `composable`, as the
+            // recorder's is: the map wants the whole pane, not a capped column.
+            composable<Route.TrackMap> { entry ->
+                val route = entry.toRoute<Route.TrackMap>()
+                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { _, api ->
+                    val model = rememberScreenModel { scope, _ -> TrackMapModel(scope, api, route.source) }
+                    TrackMapScreen(model = model, onBack = { nav.popBackStack() })
+                }
+            }
+
             composable<Route.Wrapped> { entry ->
                 val route = entry.toRoute<Route.Wrapped>()
                 val model = rememberScreenModel { scope, _ -> WrappedModel(scope, api, route.year) }
@@ -798,6 +817,7 @@ private fun NavBackStackEntry.routeOrNull(): Route? = when {
     destination.hasRoute(Route.Import::class) -> toRoute<Route.Import>()
     destination.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
     destination.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
+    destination.hasRoute(Route.TrackMap::class) -> toRoute<Route.TrackMap>()
     else -> null
 }
 
@@ -814,6 +834,7 @@ private fun Route.tempId(): Int? {
         is Route.Import -> listOfNotNull(eventId)
         is Route.Lap -> listOf(eventId, sessionId, lapId)
         is Route.SessionCompare -> listOfNotNull(eventId, sessionId, lapId)
+        is Route.TrackMap -> listOfNotNull(eventId, sessionId)
         else -> emptyList()
     }
     return ids.firstOrNull { OfflineStore.isTemp(it) }

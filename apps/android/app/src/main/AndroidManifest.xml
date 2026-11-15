@@ -51,6 +51,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TrackEvolution">
 
+        <!-- The Maps SDK key for the map viewer (NS-53), filled from MAPS_API_KEY
+             at build time (app/build.gradle.kts). Empty is a build without
+             maps: the viewer draws the line alone. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
+
         <!-- Google Analytics for Firebase (analytics/AppAnalytics.kt). Collection
              starts OFF: TrackEvolutionApp switches it on at launch in release
              builds only (BuildConfig.ANALYTICS), so a debug build, the emulator

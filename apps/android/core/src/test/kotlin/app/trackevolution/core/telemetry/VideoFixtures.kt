@@ -118,6 +118,8 @@ object VideoFixtures {
         /** `[x, y, v]` triples. */
         val bestLapTrace: List<List<Double>>? = null,
         val lapChannels: SessionChannels? = null,
+        /** Where the picked best lap lies (NS-53): the batch origin, or null. */
+        val traceGeo: app.trackevolution.core.model.TraceGeo? = null,
     )
 }
 

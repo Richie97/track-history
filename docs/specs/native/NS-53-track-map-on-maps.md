@@ -247,6 +247,40 @@ overlays. While `state.me.maps.web` is false the viewer offers Line only.
   (the same calls, drawn on a canvas). **Apple's real imagery has not been
   seen from this code yet**: the first open on the deployed app is that test.
 
+#### As built — Android
+
+- **`:core` carries the pure half**: `GeoTrace.KX` / `KY` / `traceOrigin` /
+  `unprojectTrace` / `traceGeoBounds` / `nearestOnTrace` / `speedRuns`
+  (`GeoAnchorTest`, every row of `geo-anchor.json` plus the JS cases), and
+  `MapViewer`, the port of `map-viewer.js`' exported helpers under the same
+  names (`viewerPlan`, `startType`, the four `NOTE_*` sentences, `rampColor`,
+  `traceMetres`, `headingDeg`, `tapHit`, `placeAt`, `readoutText`,
+  `pointAlong`) plus `stepHit`, the 5 % accessibility step (`MapViewerTest`).
+- **The anchor**: `ParsedTelemetry.traceGeo`, set where the JS sets it — a
+  beacon PDR, a `.vbo` with a `[laptiming]` line, a Track Precision CSV, and
+  `Telemetry.applyGate` (null when the line only fitted mirrored) — and sent
+  as `SessionDraft.traceGeo` (`trace_geo`) only beside a trace. The three
+  parser contract tests assert the fixtures' `traceGeo`; the offline patch
+  carries it into the optimistic session as `offline.js` does.
+- **`Route.TrackMap`** (flat nullable ids; `source` is the two halves),
+  a plain `composable`, opened by the ⤢ on `TrackMap`'s card (`onExpand`):
+  the event page, its analysis column, the lap page and its stage map, the
+  leaderboard lap — never `SharedItemScreen` / `SharedLogbookScreen`.
+- **The seam is `MapSupport`** (`LocalMapAvailable`): `available` is the key
+  (`BuildConfig.MAPS_KEY_SET`) and Play services (`GoogleApiAvailability`),
+  `online` is asked once at open (offline is `NOTE_OFFLINE` and the line —
+  tiles the SDK has cached are not offered), and `drawMap` is
+  `GoogleTrackMap`. `TrackMapViewerTest` stands a plain composable in for it.
+- **Line** is the drawn card (`TrackMap`) at the pane's size, with the
+  accessibility steps ringing the place; no tap there, as on the web.
+- **The ramp is one solid `StyleSpan` per `speedRuns` run**, not gradient
+  spans, so a run is the web's overlay colour exactly; the casing is a 7 dp
+  near-black polyline under it. Zoom out stops one level past the first fit
+  (`minZoomPreference`). The standard style follows the app theme through
+  `mapColorScheme`. Limit marks are dots in the side's colour.
+- **No real tiles have been seen from this code**: there is no key yet, so
+  every build so far, emulator included, is Line-only.
+
 ## Privacy, legal and stores
 
 - Opening the viewer sends the viewed area and the device's IP to Apple (iOS,
@@ -281,7 +315,12 @@ place; what "estimated" means); `site/docs/telemetry-import.html` and
    `TrackMapScreen`. The line is one `MKPolyline` per `speedRuns` run over a
    casing rather than an `MKGradientPolylineRenderer`, the web's own drawing,
    so no gradient-stop interpretation can colour a metre differently.
-3. **Android.** The same, plus the Maps key and the Data safety review.
+3. **Android — landed.** The `GeoTrace` ports and the viewer's pure half
+   (`MapViewer`), every importer and the recorder sending the anchor, the
+   viewer. See *As built — Android* below. **Still manual:** creating the
+   restricted Maps key (`MAPS_API_KEY`) and Play's **Data safety** review
+   before the first upload that links the SDK — until the key exists, every
+   build is Line-only.
 4. **Web — landed.** `GET /api/map-token` and `user.maps` on `/me` (moved
    here from ticket 1: they are only testable against the viewer that uses
    them), the `MAPKIT_*` secrets, `map-viewer.js`, the privacy page. See

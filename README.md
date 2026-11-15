@@ -464,6 +464,15 @@ either `ANDROID_HOME` in the environment or an `sdk.dir` line in a local
 `apps/android/local.properties` (gitignored; Android Studio writes it for you).
 `:core:test` deliberately still works without one.
 
+The racing line on a real map (NS-53) uses the Google Maps SDK, whose key is
+read at build time as `MAPS_API_KEY` — a Gradle property, an environment
+variable, or a line in that same `local.properties`. It is not in the
+checkout: create it in the Google Cloud Console restricted to the package
+`app.trackevolution`, the Play app-signing, upload and debug SHA-1
+fingerprints, and the *Maps SDK for Android* alone, and add it as the
+`MAPS_API_KEY` repository secret, which `android-release.yml` passes to the build. Without a key the build still works — the map
+viewer draws the line on its own and says so.
+
 The Android app also carries an **Android Auto** surface — one screen with a
 Start/Stop control over the same recorder — but it is built into **debug builds
 only** and does not ship. Google Play rejected it: Android Auto has no category

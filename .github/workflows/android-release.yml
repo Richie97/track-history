@@ -153,6 +153,9 @@ jobs:
           # checked-in value when its input is empty.
           TE_VERSION_CODE: ${{ steps.version.outputs.code }}
           TE_VERSION_NAME: ${{ inputs.version_name }}
+          # The map viewer's Google Maps key (NS-53). Unset is a build whose
+          # viewer draws the line alone, so a missing secret ships nothing broken.
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         # An .aab, not an .apk: Play has required App Bundles for updates to
         # existing listings since 2021.
         run: ./gradlew :app:bundleRelease --no-daemon

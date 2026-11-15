@@ -94,6 +94,24 @@ class RoutesTest {
         )
     }
 
+    /** The map viewer (NS-53) follows an offline-created event and session; never a leaderboard lap. */
+    @Test
+    fun `follows a map route's temp ids to its real ones`() {
+        assertEquals(
+            Route.TrackMap.session(41, -2, student = null),
+            Route.TrackMap.session(-1, -2).remapTempId(from = -1, to = 41),
+        )
+        assertEquals(
+            Route.TrackMap.session(41, 42),
+            Route.TrackMap.session(41, -2).remapTempId(from = -2, to = 42),
+        )
+        assertEquals(
+            Route.TrackMap.leaderboardLap(3, 991),
+            Route.TrackMap.leaderboardLap(3, 991).remapTempId(from = -1, to = 42),
+        )
+        assertEquals(8, Route.TrackMap.session(1, 2, student = 8).studentId)
+    }
+
     @Test
     fun `leaves rows it was not about alone`() {
         assertEquals(Route.Event(9), Route.Event(9).remapTempId(from = -1, to = 42))
