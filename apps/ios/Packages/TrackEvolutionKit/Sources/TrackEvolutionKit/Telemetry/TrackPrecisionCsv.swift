@@ -330,6 +330,7 @@ public enum TrackPrecisionCsv {
             let best = laps.dropFirst().reduce(first) { $1.timeMs < $0.timeMs ? $1 : $0 }
             bestLapTrace = Geo.lapTrace(Geo.projectTrace(points), from: best.startT!, to: best.endT!)
         }
+        let traceGeo = bestLapTrace != nil ? Geo.traceOrigin(points) : nil
 
         // The name's date and time are the recording's own, in local time; the
         // UTC timestamp is the fallback, which can land on the neighbouring day.
@@ -351,6 +352,7 @@ public enum TrackPrecisionCsv {
             gps: points,
             needsLine: laps.isEmpty,
             bestLapTrace: bestLapTrace,
+            traceGeo: traceGeo,
             carChannels: finished.carChannels,
             lapScalarChannels: finished.lapScalarChannels,
             sessionMeta: finished.sessionMeta

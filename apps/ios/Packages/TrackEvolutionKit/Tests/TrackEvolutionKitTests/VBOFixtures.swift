@@ -61,6 +61,7 @@ enum VBOFixtures {
         var laps: [VideoFixtures.Lap]
         var lapChannels: SessionChannels?
         var bestLapTrace: [TracePoint]?
+        var traceGeo: TraceGeo?
         var carChannels: [String: Summary]
         var lapScalarChannels: [String: Summary]
         var sessionMeta: [String: Double]?

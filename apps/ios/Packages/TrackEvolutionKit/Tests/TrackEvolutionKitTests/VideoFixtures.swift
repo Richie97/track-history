@@ -115,6 +115,7 @@ enum VideoFixtures {
         var gate: Geo.Gate
         var laps: [Lap]
         var bestLapTrace: [TracePoint]?
+        var traceGeo: TraceGeo?
         var lapChannels: SessionChannels?
     }
 }

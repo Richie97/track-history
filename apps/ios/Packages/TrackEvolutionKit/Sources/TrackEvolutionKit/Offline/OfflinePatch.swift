@@ -42,6 +42,7 @@ extension OfflineStore {
         var notes: String?
         var laps: [Double]?
         var trace: [TracePoint]?
+        var trace_geo: TraceGeo?
         var channels: SessionChannels?
     }
 
@@ -239,6 +240,8 @@ extension OfflineStore {
                 notes: body?.notes,
                 sort: (detail.sessions.map(\.sort).max() ?? 0) + 1,
                 trace: body?.trace,
+                // So the map viewer opens on a session saved offline (NS-53).
+                traceGeo: body?.trace == nil ? nil : body?.trace_geo,
                 channels: body?.channels,
                 laps: laps.enumerated().map { index, ms in
                     Lap(

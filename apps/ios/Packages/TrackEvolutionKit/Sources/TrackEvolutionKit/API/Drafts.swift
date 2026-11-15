@@ -136,6 +136,10 @@ public struct SessionDraft: Encodable, Hashable, Sendable {
     public var laps: [Int]?
     /// Best-lap GPS trace in local metres.
     public var trace: [TracePoint]?
+    /// Where ``trace`` lies on Earth (NS-53): the origin it was projected
+    /// from. Sent only beside a trace; the server stores an implausible one as
+    /// null rather than refusing the session.
+    public var traceGeo: TraceGeo?
     /// Per-lap channel data. Written by the web importer only.
     public var channels: SessionChannels?
 
@@ -144,13 +148,20 @@ public struct SessionDraft: Encodable, Hashable, Sendable {
         notes: String? = nil,
         laps: [Int]? = nil,
         trace: [TracePoint]? = nil,
+        traceGeo: TraceGeo? = nil,
         channels: SessionChannels? = nil
     ) {
         self.label = label
         self.notes = notes
         self.laps = laps
         self.trace = trace
+        self.traceGeo = trace == nil ? nil : traceGeo
         self.channels = channels
+    }
+
+    public enum CodingKeys: String, CodingKey {
+        case label, notes, laps, trace, channels
+        case traceGeo = "trace_geo"
     }
 }
 

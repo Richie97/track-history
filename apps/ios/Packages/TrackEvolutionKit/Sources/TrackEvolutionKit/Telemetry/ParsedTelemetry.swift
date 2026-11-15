@@ -47,6 +47,11 @@ public struct ParsedTelemetry: Sendable {
     public var needsLine: Bool
     /// Best-lap polyline, drawn as the racing line on the event page.
     public var bestLapTrace: [TracePoint]?
+    /// Where `bestLapTrace` lies on Earth (NS-53): the origin it was projected
+    /// from (`Geo.traceOrigin`), saved as the session's `trace_geo`. nil
+    /// whenever there is no trace, the origin isn't a real coordinate, or the
+    /// trace was only fitted through the longitude mirror.
+    public var traceGeo: TraceGeo?
     /// Per-lap channel arrays on a driven-distance grid, stored with the session.
     public var lapChannels: SessionChannels?
     /// Session maxima from a PDR file's car channels.
@@ -79,6 +84,7 @@ public struct ParsedTelemetry: Sendable {
         gps: [Geo.Point]? = nil,
         needsLine: Bool = false,
         bestLapTrace: [TracePoint]? = nil,
+        traceGeo: TraceGeo? = nil,
         lapChannels: SessionChannels? = nil,
         metrics: Metrics? = nil,
         beaconCount: Int = 0,
@@ -96,6 +102,7 @@ public struct ParsedTelemetry: Sendable {
         self.gps = gps
         self.needsLine = needsLine
         self.bestLapTrace = bestLapTrace
+        self.traceGeo = traceGeo
         self.lapChannels = lapChannels
         self.metrics = metrics
         self.beaconCount = beaconCount
