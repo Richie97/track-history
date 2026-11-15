@@ -61,7 +61,20 @@ targets:
         product: TrackEvolutionKit
       - package: Firebase
         product: FirebaseAnalytics
+      # Coach-comment notifications (NS-54): the FCM token the Worker sends
+      # to, delivered through APNs. Configured only where Analytics is
+      # (App/Push/PushController.swift), so debug runs stay silent.
+      - package: Firebase
+        product: FirebaseMessaging
     settings:
+      configs:
+        # Read by `aps-environment` in App/TrackEvolution.entitlements. Xcode
+        # Cloud's App Store export re-signs with the distribution profile's own
+        # value either way; this keeps a local Release build honest.
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
       base:
         # Firebase Analytics is Objective-C with categories; without -ObjC the
         # linker drops them and Analytics fails at run time, not at build time.

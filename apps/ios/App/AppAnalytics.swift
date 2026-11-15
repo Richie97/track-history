@@ -22,6 +22,11 @@ enum AppAnalytics {
     private static var started = false
     private static var lastScreen: String?
 
+    /// Whether `FirebaseApp.configure()` has run. Coach-comment notifications
+    /// (`PushController`, NS-54) ride on the same configuration and the same
+    /// rule, so a debug run, the simulator and the UI tests register nothing.
+    static var firebaseStarted: Bool { started }
+
     /// Whether this build sends anything.
     static var isEnabled: Bool {
         #if DEBUG

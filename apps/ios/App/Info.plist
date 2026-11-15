@@ -88,6 +88,15 @@
 	<false/>
 	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
 	<false/>
+	<!-- Coach-comment notifications (NS-54, App/Push/PushController.swift). No
+	     swizzling: the app delegate hands Messaging the APNs token itself, so
+	     what happens is in the code rather than in a proxy. Auto-init off —
+	     Messaging makes no token (and so no registration) until the user has
+	     said yes and PushController turns it on. -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+	<key>FirebaseMessagingAutoInitEnabled</key>
+	<false/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<!-- Live lap recorder: GPS keeps recording with the phone locked/stowed
