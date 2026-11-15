@@ -564,6 +564,12 @@ Features added after the rewrite shipped, and where they landed:
   invite, with the owner's event, track, lap, compare and vehicle screens
   reused under `LogbookOwner.student` rather than copied. The channel
   panel's gates read **the student's** tier on every client.
+- **The racing line on a real map** (2026-11, [NS-53](NS-53-track-map-on-maps.md)) — **all
+  three**, specced and not yet built. The best-lap trace opens in a
+  full-window viewer over satellite imagery (MapKit on iOS and the web,
+  Google Maps on Android) with pan, pinch and rotate. A stored trace has no
+  position today, so sessions gain a `trace_geo` anchor first; older ones
+  borrow one from a newer session at the same track.
 - **Coach comments** (2026-11, [NS-52](NS-52-coach-comments.md)) — **all
   three, both roles**, specced and not yet built. A coach comments on a
   student's session, lap or a place on a lap, in a thread private to that
@@ -694,6 +700,7 @@ change* rule does not apply — see the spec for why.
 | NS-50 | [Every-lap video clips from a PDR import](NS-50-every-lap-clips.md) | Server + web + iOS + Android | NS-45, NS-47 |
 | NS-51 | [Video-synced lap analysis (the lap stage)](NS-51-video-synced-laps.md) | Web + iOS + Android (no server change) | NS-45, NS-50, NS-34, #165, NS-35 |
 | NS-52 | [Coach comments on sessions and laps](NS-52-coach-comments.md) — specced, not built | Shared (server, web, iOS, Android) | NS-38, NS-51, #189 |
+| NS-53 | [The racing line on a real map](NS-53-track-map-on-maps.md) — specced, not built | Shared (server, web, iOS, Android) | the importers and recorders, NS-35, NS-38 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
