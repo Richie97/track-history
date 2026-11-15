@@ -7,6 +7,7 @@ import { parseProfile, sanitizeProfile } from "../lib/profile";
 import { subscriptionsForUserStmt } from "../lib/billing/store";
 import { CLIP_QUOTA_BYTES } from "../lib/clips";
 import { youtubeAvailable } from "../lib/youtube";
+import { unreadCommentsStmt } from "./comments";
 
 export const me = new Hono<AppContext>();
 
@@ -27,7 +28,7 @@ me.get("/me", async (c) => {
   const userId = c.get("userId");
   // The user row, the totals and the subscription rows are independent — one
   // batched round trip.
-  const [userRes, totalsRes, subsRes, clipsRes, youtubeRes] = await c.env.DB.batch([
+  const [userRes, totalsRes, subsRes, clipsRes, youtubeRes, unreadRes] = await c.env.DB.batch([
     c.env.DB.prepare(
       "SELECT id, email, name, picture, share_slug, checklist_template, leaderboard_opt_in, leaderboard_share_laps, units FROM users WHERE id = ?"
     ).bind(userId),
@@ -43,6 +44,9 @@ me.get("/me", async (c) => {
     ).bind(userId),
     // YouTube (NS-46): the connection, if any, for Settings and the lap page.
     c.env.DB.prepare("SELECT status, email, channel_title FROM youtube_connections WHERE user_id = ?").bind(userId),
+    // Coach comments (NS-52) waiting to be read, as a student and as a coach
+    // together — the badge every client draws.
+    unreadCommentsStmt(c.env.DB, userId),
   ]);
   const clips = clipsRes.results[0] as { used_bytes: number; coach_count: number };
   const yt = (youtubeRes.results[0] ?? null) as { status: string; email: string | null; channel_title: string | null } | null;
@@ -66,6 +70,7 @@ me.get("/me", async (c) => {
       account: yt?.email ?? null,
       channel_title: yt?.channel_title ?? null,
     },
+    comments_unread: (unreadRes.results[0] as { unread: number }).unread,
   };
   // Tier comes from entitled_until as loaded with the session; the rows only
   // say where it came from (NS-32 requirement 1) — and a web subscription's

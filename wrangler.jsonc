@@ -73,6 +73,9 @@
     // Best-lap video part uploads per user (NS-45): a clip is ~3 parts of
     // 50 MiB, so 60 a minute is a client stuck in a retry loop.
     { "name": "CLIP_PARTS", "namespace_id": "3145", "simple": { "limit": 60, "period": 60 } },
+    // Coach comments written or edited per author (NS-52): a person types a
+    // few a minute, so 20 is a script, not a coach.
+    { "name": "COACH_COMMENTS", "namespace_id": "3146", "simple": { "limit": 20, "period": 60 } },
   ],
   // Best-lap video clips (NS-45, src/routes/clips.ts). No public access and no
   // custom domain: every byte goes through /clips/* and its signed URLs.

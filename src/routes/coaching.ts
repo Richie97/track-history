@@ -27,9 +27,15 @@ type GrantRow = { id: number; name: string | null; picture: string | null; since
 
 coaching.get("/coaching", async (c) => {
   const userId = c.get("userId");
+  // `unread` on each row is the coach comments (NS-52) from that person the
+  // caller hasn't read: a coach's comments for the student, the student's
+  // replies for the coach.
   const [coachesRes, studentsRes, invitesRes] = await c.env.DB.batch([
     c.env.DB.prepare(
-      `SELECT u.id, u.name, u.picture, g.created_at AS since, g.last_viewed_at
+      `SELECT u.id, u.name, u.picture, g.created_at AS since, g.last_viewed_at,
+              (SELECT COUNT(*) FROM coach_comments c
+                WHERE c.student_id = g.student_id AND c.coach_id = g.coach_id
+                  AND c.author_id = g.coach_id AND c.seen_at IS NULL) AS unread
          FROM coach_grants g JOIN users u ON u.id = g.coach_id
         WHERE g.student_id = ?
         ORDER BY g.created_at`
@@ -38,7 +44,10 @@ coaching.get("/coaching", async (c) => {
     c.env.DB.prepare(
       `SELECT u.id, u.name, u.picture, g.created_at AS since,
               (SELECT COUNT(*) FROM events e WHERE e.user_id = u.id AND e.start_date <= date('now')) AS event_count,
-              (SELECT MAX(e.start_date) FROM events e WHERE e.user_id = u.id AND e.start_date <= date('now')) AS last_event_date
+              (SELECT MAX(e.start_date) FROM events e WHERE e.user_id = u.id AND e.start_date <= date('now')) AS last_event_date,
+              (SELECT COUNT(*) FROM coach_comments c
+                WHERE c.student_id = g.student_id AND c.coach_id = g.coach_id
+                  AND c.author_id = g.student_id AND c.seen_at IS NULL) AS unread
          FROM coach_grants g JOIN users u ON u.id = g.student_id
         WHERE g.coach_id = ?
         ORDER BY u.name COLLATE NOCASE, u.id`
@@ -48,8 +57,8 @@ coaching.get("/coaching", async (c) => {
     ).bind(userId, Date.now()),
   ]);
   return c.json({
-    coaches: coachesRes.results as (GrantRow & { last_viewed_at: number | null })[],
-    students: studentsRes.results as (GrantRow & { event_count: number; last_event_date: string | null })[],
+    coaches: coachesRes.results as (GrantRow & { last_viewed_at: number | null; unread: number })[],
+    students: studentsRes.results as (GrantRow & { event_count: number; last_event_date: string | null; unread: number })[],
     invites: invitesRes.results,
   });
 });
