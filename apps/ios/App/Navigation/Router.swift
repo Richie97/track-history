@@ -524,14 +524,20 @@ final class AppRouter {
     @discardableResult
     func open(_ url: URL, signedIn: Bool) -> Bool {
         guard let link = DeepLink.parse(url) else { return false }
+        open(link, signedIn: signedIn)
+        return true
+    }
+
+    /// Open a link that didn't come as a URL — a tapped coach-comment
+    /// notification (NS-54) — on the same rules: parked while signed out.
+    func open(_ link: DeepLink, signedIn: Bool) {
         let route = Self.route(for: link)
         guard signedIn else {
             // Held rather than dropped: the destination outlives the sign-in detour.
             pending = route
-            return true
+            return
         }
         if let route { show(route) } else { tab = .events; eventsPath = [] }
-        return true
     }
 
     /// Apply a link that arrived while signed out. Called once auth settles.
@@ -554,7 +560,21 @@ final class AppRouter {
         case .shared(let slug): .shared(slug: slug)
         case .sharedItem(let kind, let token): .sharedItem(kind: kind, token: token)
         case .coachInvite(let token): .coachInvite(token: token)
+        case .comment(let target): commentRoute(target)
         }
+    }
+
+    /// Where a tapped comment notification lands (NS-54): the lap, or the event
+    /// for a comment on a whole session — in a student's logbook when the
+    /// recipient is their coach. The page's own read marks it seen.
+    static func commentRoute(_ target: CommentPushTarget) -> Route {
+        let own: Route = if let lapId = target.lapId {
+            .lap(eventId: target.eventId, sessionId: target.sessionId, lapId: lapId)
+        } else {
+            .event(target.eventId)
+        }
+        guard let studentId = target.studentId else { return own }
+        return LogbookOwner.student(id: studentId, name: nil, pro: false).link(own)
     }
 
     /// Rewrite temp ids in the path once their creates have flushed.
