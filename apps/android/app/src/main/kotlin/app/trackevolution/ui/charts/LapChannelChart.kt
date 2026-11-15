@@ -199,6 +199,8 @@ fun LapChannelChart(
      * same place.
      */
     parkRequest: ParkRequest? = null,
+    /** Coach comments' places on the panel's own map ([trace]), as fractions of the lap. */
+    mapPins: List<Double> = emptyList(),
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -383,6 +385,7 @@ fun LapChannelChart(
             TrackMap(
                 trace = mapTrace,
                 dots = dots.orEmpty(),
+                pins = mapPins,
                 modifier = Modifier.fillMaxWidth().height(150.dp),
             )
         }

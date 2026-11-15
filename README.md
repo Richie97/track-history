@@ -2054,8 +2054,9 @@ Wrapped, which is free.
   half), with a placed comment marked on the charts and the track map; the
   logbook export includes them. **Android** has them too (#450): a lap's
   *Comments* card under its stage with markers on the charts and the map,
-  each session card's thread and a count on its lap rows, a composer page
-  per session, the dashboard's unread card and Settings' count. The iPhone
+  each session card's thread with its composer inline and a count on its
+  lap rows, the markers on the session compare and the analysis column too,
+  the dashboard's unread card and Settings' count. The iPhone
   app is ticket #449.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,

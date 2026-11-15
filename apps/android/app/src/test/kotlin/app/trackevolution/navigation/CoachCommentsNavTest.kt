@@ -5,6 +5,10 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasTestTag
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -65,6 +69,7 @@ class CoachCommentsNavTest {
     private val store = OfflineStore(InMemoryOfflinePersistence())
     private lateinit var nav: NavHostController
     @Volatile private var online = true
+    @Volatile private var coachThread = COACH_THREAD
 
     private object NoTemplate : ChecklistTemplateStore {
         override val items: List<String> = emptyList()
@@ -77,19 +82,25 @@ class CoachCommentsNavTest {
     }
 
     @Test
-    fun `a coach comments on a student's session while every other write stays hidden`() {
+    fun `a coach comments inline on a student's session while every other write stays hidden`() {
+        coachThread = COACH_EMPTY
         show(Route.Event(5, student = 7))
         await("sessionComments-11")
         // The coach's thread, empty, with its audience note and its door.
         assertTrue(compose.onAllNodesWithText("Only you and Alex see what you write here.").fetchSemanticsNodes().isNotEmpty())
-        for (text in listOf("Edit event", "Delete event", "Add a session", "Prep checklist")) {
+        // The read-only exception: a coach can comment, and still edits nothing.
+        for (text in listOf("Edit event", "Delete event", "Add a session", "Prep checklist", "Share…")) {
             assertTrue(text, compose.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty())
         }
+        assertTrue(compose.onAllNodesWithTag("editSession-11").fetchSemanticsNodes().isEmpty())
         list().performScrollToNode(hasTestTag("composeSessionComment-11"))
         compose.onNodeWithTag("composeSessionComment-11").performClick()
-        await("commentField")
-        assertEquals("/student/:id/event/:id/session/:id/comment", Route.SessionComment(5, 11, null, 7).analyticsPath)
+        // Inline on the card: no new destination.
+        await("sessionComposer-11")
+        assertTrue(nav.currentBackStackEntry!!.destination.hasRoute(Route.Event::class))
+        list().performScrollToNode(hasTestTag("commentTarget-21"))
         compose.onNodeWithTag("commentTarget-21").performClick()
+        list().performScrollToNode(hasTestTag("commentSend"))
         compose.onNodeWithTag("commentField").performTextInput("Brake later into T1")
         compose.onNodeWithTag("commentSend").performClick()
         awaitRequest("POST", "/api/coaching/students/7/sessions/11/comments")
@@ -99,7 +110,20 @@ class CoachCommentsNavTest {
     }
 
     @Test
-    fun `the owner's lap rows say their counts, and a comment card carries every action`() {
+    fun `a coach edits and deletes their own, and reports or stops coaching on the student's reply`() {
+        show(Route.Event(5, student = 7))
+        await("comment-4")
+        assertEquals(listOf("Edit", "Delete"), actions("comment-4"))
+        assertEquals(listOf("Reply", "Report", "Stop coaching"), actions("comment-5"))
+        // Stop coaching ends the grant through the coach's own route, after a confirm.
+        invoke("comment-5", "Stop coaching")
+        compose.onNodeWithText("Stop coaching? You lose access to this logbook and these comments.").assertExists()
+        compose.onNode(hasText("Stop coaching") and hasClickAction() and !hasTestTag("comment-5")).performClick()
+        awaitRequest("DELETE", "/api/coaching/students/7")
+    }
+
+    @Test
+    fun `the owner's lap rows say their counts, and each comment carries the owner's controls`() {
         show(Route.Event(5))
         await("lap-21")
         val row = compose.onNodeWithTag("lapComments-21", useUnmergedTree = true).fetchSemanticsNode()
@@ -110,13 +134,33 @@ class CoachCommentsNavTest {
             }).fetchSemanticsNodes().isNotEmpty(),
         )
         await("comment-1")
-        val card = compose.onNodeWithTag("comment-1").fetchSemanticsNode()
-        val actions = card.config[SemanticsActions.CustomActions].map { it.label }
-        assertEquals(listOf("Reply", "Delete", "Report", "Remove coach"), actions)
-        val spoken = card.config[SemanticsProperties.ContentDescription].single()
+        // A coach's comment: no Edit (not yours), Delete (your logbook), Report and Remove coach.
+        assertEquals(listOf("Reply", "Delete", "Report", "Remove coach"), actions("comment-1"))
+        // Your own reply: Edit and Delete, nothing to report or block.
+        assertEquals(listOf("Edit", "Delete"), actions("comment-6"))
+        val spoken = compose.onNodeWithTag("comment-1").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
         assertTrue(spoken, spoken.startsWith("Sam Lee, ") && spoken.endsWith(", unread: Good pace all session."))
         // On screen, so read: the owner's /seen.
         awaitRequest("POST", "/api/events/5/comments/seen")
+        // Remove coach, confirmed, goes to the owner's route.
+        invoke("comment-1", "Remove coach")
+        compose.onNode(hasText("Remove coach") and hasClickAction() and !hasTestTag("comment-1")).performClick()
+        awaitRequest("DELETE", "/api/coaching/coaches/3")
+    }
+
+    @Test
+    fun `the owner replies inline, about a lap, into the coach's thread`() {
+        show(Route.Event(5))
+        await("comment-1")
+        invoke("comment-1", "Reply")
+        await("sessionComposer-11")
+        list().performScrollToNode(hasTestTag("commentTarget-22"))
+        compose.onNodeWithTag("commentTarget-22").performClick()
+        list().performScrollToNode(hasTestTag("commentSend"))
+        compose.onNodeWithTag("commentField").performTextInput("Will do")
+        compose.onNodeWithTag("commentSend").performClick()
+        awaitRequest("POST", "/api/sessions/11/comments")
+        assertTrue(bodies.toString(), bodies.any { it == """{"body":"Will do","lap_id":22,"coach_id":3}""" })
     }
 
     @Test
@@ -124,11 +168,7 @@ class CoachCommentsNavTest {
         show(Route.Lap(5, 11, 21))
         await("lapComments")
         await("comment-2")
-        assertTrue(
-            compose.onAllNodes(SemanticsMatcher("map pin") {
-                it.config.getOrNull(SemanticsProperties.ContentDescription)?.any { d -> d.contains("1 comment placed on the line") } == true
-            }).fetchSemanticsNodes().isNotEmpty(),
-        )
+        assertPins(1)
         val card = compose.onNodeWithTag("comment-2").fetchSemanticsNode()
         assertTrue(card.config[SemanticsActions.CustomActions].any { it.label == "Show on lap" })
         // Before the line there is no place: the stage opens on its run-up.
@@ -149,9 +189,45 @@ class CoachCommentsNavTest {
     }
 
     @Test
+    fun `a coach starts the first thread on a lap with nothing on it, at a place`() {
+        coachThread = COACH_EMPTY
+        show(Route.Lap(5, 11, 22, student = 7))
+        await("lapComments")
+        assertTrue(compose.onAllNodesWithText("No comments on this lap yet.").fetchSemanticsNodes().isNotEmpty())
+        list().performScrollToNode(hasTestTag("channelChart:speed"))
+        compose.onNodeWithTag("channelChart:speed").performClick()
+        compose.waitForIdle()
+        list().performScrollToNode(hasTestTag("commentPlacePin"))
+        compose.onNodeWithTag("commentPlacePin").performClick()
+        await("commentPlace")
+        compose.onNodeWithTag("commentField").performTextInput("Turn in later")
+        compose.onNodeWithTag("commentSend").performClick()
+        awaitRequest("POST", "/api/coaching/students/7/sessions/11/comments")
+        assertTrue(bodies.toString(), bodies.any { it.startsWith("""{"body":"Turn in later","lap_id":22,"dist_m":""") && it.endsWith("}") && !it.contains("coach_id") })
+    }
+
+    @Test
+    fun `the session compare marks the comments on its stage map`() {
+        show(Route.SessionCompare(5, 11))
+        await("channelChart:speed")
+        assertPins(1)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp")
+    fun `the event page's analysis column marks the comments on its map`() {
+        show(Route.Event(5))
+        await("analysisColumn")
+        assertPins(1)
+    }
+
+    @Test
     fun `a send with no connection keeps the draft, says so, and queues nothing`() {
-        show(Route.SessionComment(5, 11, coachId = 3))
-        await("commentField")
+        show(Route.Event(5))
+        await("comment-1")
+        invoke("comment-1", "Reply")
+        await("sessionComposer-11")
+        list().performScrollToNode(hasTestTag("commentSend"))
         compose.onNodeWithTag("commentField").performTextInput("Thanks")
         online = false
         compose.onNodeWithTag("commentSend").performClick()
@@ -168,6 +244,30 @@ class CoachCommentsNavTest {
         assertTrue(compose.onAllNodesWithText("💬 Sam Lee commented on Session 1 · VIR").fetchSemanticsNodes().isNotEmpty())
         compose.onNodeWithTag("unreadComments").performClick()
         await("sessionComments-11")
+    }
+
+    private fun actions(tag: String): List<String> {
+        await(tag)
+        return compose.onNodeWithTag(tag).fetchSemanticsNode().config[SemanticsActions.CustomActions].map { it.label }
+    }
+
+    private fun invoke(tag: String, label: String) {
+        val action = compose.onNodeWithTag(tag).fetchSemanticsNode().config[SemanticsActions.CustomActions].first { it.label == label }
+        compose.runOnIdle { action.action() }
+        compose.waitForIdle()
+    }
+
+    private fun assertPins(n: Int) {
+        val want = "$n comment${if (n == 1) "" else "s"} placed on the line"
+        repeat(200) {
+            val found = compose.onAllNodes(SemanticsMatcher("map pin") {
+                it.config.getOrNull(SemanticsProperties.ContentDescription)?.any { d -> d.contains(want) } == true
+            }).fetchSemanticsNodes().isNotEmpty()
+            if (found) return
+            Thread.sleep(25)
+            compose.waitForIdle()
+        }
+        throw AssertionError("no map with \"$want\"")
     }
 
     private fun list() = compose.onAllNodes(androidx.compose.ui.test.hasScrollToNodeAction())[0]
@@ -201,9 +301,10 @@ class CoachCommentsNavTest {
                 path.endsWith("/me/profile") -> respond(PROFILE, HttpStatusCode.OK, JSON)
                 path == "/api/coaching/comments" -> respond(FEED, HttpStatusCode.OK, JSON)
                 path.endsWith("/comments/seen") -> respond("""{"ok":true,"seen":1}""", HttpStatusCode.OK, JSON)
-                path == "/api/coaching/students/7/events/5/comments" -> respond(COACH_THREAD, HttpStatusCode.OK, JSON)
+                path == "/api/coaching/students/7/events/5/comments" -> respond(coachThread, HttpStatusCode.OK, JSON)
                 path == "/api/events/5/comments" -> respond(OWNER_THREADS, HttpStatusCode.OK, JSON)
                 path.endsWith("/comments") && !get -> respond(CREATED, HttpStatusCode.Created, JSON)
+                request.method.value == "DELETE" -> respond("""{"ok":true}""", HttpStatusCode.OK, JSON)
                 path.endsWith("/events/5") -> respond(DETAIL, HttpStatusCode.OK, JSON)
                 path.endsWith("/events") -> respond(EVENTS, HttpStatusCode.OK, JSON)
                 path.endsWith("/tracks") -> respond(TRACKS, HttpStatusCode.OK, JSON)
@@ -290,11 +391,22 @@ class CoachCommentsNavTest {
               {"id":2,"coach_id":3,"session_id":11,"lap_id":21,"dist_m":400,"body":"Brake 10 m later here.",
                "created_at":2000,"edited_at":null,"author":$SAM,"mine":false,"seen":true},
               {"id":3,"coach_id":3,"session_id":11,"lap_id":21,"dist_m":null,"body":"Smooth lap.",
-               "created_at":3000,"edited_at":null,"author":$SAM,"mine":false,"seen":false}],
+               "created_at":3000,"edited_at":null,"author":$SAM,"mine":false,"seen":false},
+              {"id":6,"coach_id":3,"session_id":11,"lap_id":null,"dist_m":null,"body":"Will try.",
+               "created_at":4000,"edited_at":null,"author":{"id":1,"name":"Alex","picture":null},"mine":true,"seen":true}],
              "coaches":[{"id":3,"name":"Sam Lee","picture":null,"active":true}]}
         """
 
-        const val COACH_THREAD = """{"comments":[]}"""
+        const val COACH_EMPTY = """{"comments":[]}"""
+
+        /** A coach's own thread on Alex's session: their comment, and Alex's reply. */
+        const val COACH_THREAD = """
+            {"comments":[
+              {"id":4,"coach_id":1,"session_id":11,"lap_id":null,"dist_m":null,"body":"Smooth hands.",
+               "created_at":1000,"edited_at":null,"author":{"id":1,"name":"Coach","picture":null},"mine":true,"seen":true},
+              {"id":5,"coach_id":1,"session_id":11,"lap_id":null,"dist_m":null,"body":"Thanks!",
+               "created_at":2000,"edited_at":null,"author":{"id":7,"name":"Alex","picture":null},"mine":false,"seen":false}]}
+        """
 
         const val CREATED = """
             {"comment":{"id":9,"coach_id":3,"session_id":11,"lap_id":null,"dist_m":null,"body":"x",

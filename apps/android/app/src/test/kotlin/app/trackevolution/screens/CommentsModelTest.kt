@@ -14,6 +14,13 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import app.trackevolution.core.model.CoachComment
+import app.trackevolution.core.model.CommentAuthor
+import app.trackevolution.core.model.Lap
+import app.trackevolution.core.model.LapChannels
+import app.trackevolution.core.model.Session
+import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.ui.charts.CommentMark
 
 /**
  * The comment drafts (NS-52) live in the destination's `SavedStateHandle`,
@@ -60,4 +67,26 @@ class CommentsModelTest {
         m.setLap(key, 22)
         assertNull(m.place(key))
     }
+
+    @Test
+    fun `a session's placed comments mark each lap at its own channel index and grid place`() {
+        val laps = listOf(Lap(21, 11, 1, 121_900), Lap(22, 11, 2, 120_400))
+        val grid = List(41) { it * 4.0 } // 40 steps of 20 m: an 800 m lap
+        val session = Session(
+            id = 11, sort = 0, laps = laps,
+            channels = SessionChannels(v = 1, dStepM = 20.0, laps = listOf(LapChannels(n = 1, timeMs = 121_900, speed = grid), LapChannels(n = 2, timeMs = 120_400, speed = grid))),
+        )
+        fun c(id: Int, lapId: Int?, distM: Int?, mine: Boolean = false) = CoachComment(
+            id = id, coachId = 3, sessionId = 11, lapId = lapId, distM = distM, body = "x", createdAt = 0,
+            author = CommentAuthor(3, "Sam"), mine = mine, seen = false,
+        )
+        val marks = sessionCommentMarks(
+            listOf(c(1, 21, 400), c(2, 22, 2000, mine = true), c(3, 22, null), c(4, null, null)),
+            session,
+        )
+        // 400 m of 800 is grid index 20 on lap 1; past the end clamps to 40 on lap 2.
+        assertEquals(listOf(CommentMark(0, 20.0, false), CommentMark(1, 40.0, true)), marks)
+        assertEquals(emptyList<CommentMark>(), sessionCommentMarks(emptyList(), session))
+    }
 }
+

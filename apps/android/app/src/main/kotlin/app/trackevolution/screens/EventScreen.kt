@@ -126,8 +126,6 @@ fun EventScreen(
      * Null shows none (a shared item, a test that doesn't care).
      */
     comments: CommentsModel? = null,
-    /** A session's composer, as a page: `(sessionId, coachId)` — the thread an owner replies into. */
-    onComposeComment: (Int, Int?) -> Unit = { _, _ -> },
     /** A coach who stops coaching from a comment leaves the logbook. */
     onCommentsGone: () -> Unit = {},
     /** The student's name, for a coach's "Only you and … see what you write here." */
@@ -297,7 +295,7 @@ fun EventScreen(
                             color = colors.textStrong,
                             modifier = Modifier.padding(vertical = 4.dp),
                         )
-                        TrackMap(trace = traced.trace, markers = traced.markers)
+                        TrackMap(trace = traced.trace, markers = traced.markers, pins = sessionCommentPins(comments, traced.session))
                         LimitLegend(traced.markers, Modifier.padding(top = 6.dp))
                     }
                 }
@@ -358,7 +356,6 @@ fun EventScreen(
                                     SessionComments(
                                         session = session,
                                         model = c,
-                                        onCompose = { coachId -> onComposeComment(session.id, coachId) },
                                         onGone = onCommentsGone,
                                         studentName = studentName,
                                     )
@@ -390,6 +387,7 @@ fun EventScreen(
                         selectedSessionId = selectedSessionId,
                         pro = canViewChannels,
                         onSubscribe = onSubscribe,
+                        comments = comments,
                     )
                 }
             }
@@ -469,7 +467,7 @@ internal fun bestLapTrace(sessions: List<Session>): TracedLap? {
         ?: return null
     val best = candidate.bestLapMs ?: return null
     val trace = candidate.trace.orEmpty().map { TraceSample(x = it.x, y = it.y, v = it.v) }
-    return TracedLap(trace, best, limitMarkers(candidate, trace))
+    return TracedLap(trace, best, limitMarkers(candidate, trace), candidate)
 }
 
 /** The trace to draw, its lap time, and where that lap hit its limit (#188). */
@@ -477,6 +475,8 @@ internal data class TracedLap(
     val trace: List<TraceSample>,
     val lapMs: Int,
     val markers: List<Limits.Marker>,
+    /** The session the trace is from — whose comments' places it pins (NS-52). */
+    val session: Session? = null,
 )
 
 /**

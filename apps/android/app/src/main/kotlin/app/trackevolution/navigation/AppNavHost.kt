@@ -50,7 +50,6 @@ import app.trackevolution.screens.StudentHomeModel
 import app.trackevolution.screens.StudentHomeScreen
 import app.trackevolution.screens.rememberStudentProfile
 import app.trackevolution.screens.CommentsModel
-import app.trackevolution.screens.SessionCommentScreen
 import app.trackevolution.screens.CompareLapsModel
 import app.trackevolution.screens.CompareLapsScreen
 import app.trackevolution.screens.DetailPlaceholder
@@ -239,9 +238,6 @@ fun AppNavHost(
                 EventScreen(
                     model = model,
                     comments = comments,
-                    onComposeComment = { sessionId, coachId ->
-                        nav.navigate(Route.SessionComment(route.id, sessionId, coachId, route.student))
-                    },
                     onCommentsGone = onStudentGone,
                     studentName = (owner as? LogbookOwner.Student)?.name,
                     checklistTemplate = checklistTemplate,
@@ -352,34 +348,16 @@ fun AppNavHost(
                 }
             }
 
-            // A session's comment composer (NS-52) — a page of its own, the
-            // draft in this entry's saved state, so a rotation or the two-pane
-            // swap keeps it. Reachable in a student's logbook: commenting is the
-            // one write a coach makes there, through their own routes.
-            pageComposable<Route.SessionComment> { entry ->
-                val route = entry.toRoute<Route.SessionComment>()
+            pageComposable<Route.SessionCompare> { entry ->
+                val route = entry.toRoute<Route.SessionCompare>()
                 LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
                 val comments = rememberScreenModel(key = "comments") { scope, handle ->
                     CommentsModel(scope, api, owner, route.eventId, handle)
                 }
-                SessionCommentScreen(
-                    event = model,
-                    model = comments,
-                    sessionId = route.sessionId,
-                    coachId = route.coachId,
-                    onDone = { nav.popBackStack() },
-                    studentName = (owner as? LogbookOwner.Student)?.name,
-                )
-                }
-            }
-
-            pageComposable<Route.SessionCompare> { entry ->
-                val route = entry.toRoute<Route.SessionCompare>()
-                LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
-                val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
                 SessionCompareScreen(
                     model = model,
+                    comments = comments,
                     sessionId = route.sessionId,
                     lapId = route.lapId,
                     canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
@@ -820,7 +798,6 @@ private fun NavBackStackEntry.routeOrNull(): Route? = when {
     destination.hasRoute(Route.Import::class) -> toRoute<Route.Import>()
     destination.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
     destination.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
-    destination.hasRoute(Route.SessionComment::class) -> toRoute<Route.SessionComment>()
     else -> null
 }
 
@@ -837,7 +814,6 @@ private fun Route.tempId(): Int? {
         is Route.Import -> listOfNotNull(eventId)
         is Route.Lap -> listOf(eventId, sessionId, lapId)
         is Route.SessionCompare -> listOfNotNull(eventId, sessionId, lapId)
-        is Route.SessionComment -> listOf(eventId, sessionId)
         else -> emptyList()
     }
     return ids.firstOrNull { OfflineStore.isTemp(it) }

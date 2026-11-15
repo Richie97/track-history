@@ -20,6 +20,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import app.trackevolution.ui.charts.CommentMark
+import app.trackevolution.core.ChannelGraphs
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.State
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -293,25 +298,42 @@ fun CommentComposer(
 private fun blockFor(model: CommentsModel, coachId: Int?, onGone: () -> Unit): Pair<String, () -> Unit> =
     if (model.isOwner) "Remove coach" to { model.block(coachId) } else "Stop coaching" to { model.block(null, onGone) }
 
-/** The threads a session shows: one per coach for the owner, the caller's own for a coach. */
-private fun threadsOf(model: CommentsModel, mine: List<CoachComment>): List<Comments.Thread> =
-    if (model.isOwner) Comments.commentThreads(mine) else listOf(Comments.Thread(coachId = -1, comments = mine))
+/**
+ * The threads a target shows: for a coach, their own — always, empty or not,
+ * since it is where they start; for the owner, one per coach who has spoken
+ * here, plus (with [withOpenCoaches]) an empty one for each other coach whose
+ * thread on this event is still open, so a reply can start on a lap that has
+ * nothing on it yet. The owner never opens a thread with a coach who has not
+ * written on the event (NS-52: the owner replies).
+ */
+private fun threadsOf(
+    model: CommentsModel,
+    mine: List<CoachComment>,
+    withOpenCoaches: Boolean = false,
+): List<Comments.Thread> {
+    if (!model.isOwner) return listOf(Comments.Thread(coachId = -1, comments = mine))
+    val spoken = Comments.commentThreads(mine)
+    if (!withOpenCoaches) return spoken
+    val have = spoken.map { it.coachId }.toSet()
+    return spoken + model.coaches.filter { it.active && it.id !in have }.map { Comments.Thread(it.id, emptyList()) }
+}
 
 /**
  * A session card's comments on the event page (NS-52): each thread's
- * whole-session comments, and the way to add one — the composer is a page of
- * its own ([onCompose]), keyed by thread. A lap's comments are on the lap's
- * page; its row here carries the count.
+ * whole-session comments and, inline under them, its composer — a text box
+ * and a row of chips for what the comment is about (*Whole session* or a lap),
+ * its draft in the destination's saved state, keyed by thread. Collapsed to a
+ * button until it is opened or holds a draft. A lap's comments are on the
+ * lap's page; its row here carries the count.
  *
  * The owner sees nothing until a coach has spoken (the owner replies, and does
  * not open a thread); a coach always has their thread, empty or not.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SessionComments(
     session: Session,
     model: CommentsModel,
-    /** Open the session composer for a thread: the coach id the owner replies to, null for a coach's own. */
-    onCompose: (coachId: Int?) -> Unit,
     /** A coach who stops coaching is taken out of the logbook. */
     onGone: () -> Unit = {},
     studentName: String? = null,
@@ -331,6 +353,8 @@ fun SessionComments(
             val coach: CommentCoach? = if (model.isOwner) model.coach(t.coachId) else null
             val coachId = if (model.isOwner) t.coachId else null
             val open = if (model.isOwner) Comments.canReply(coach) else true
+            val key = CommentsModel.sessionKey(session.id, coachId)
+            var composing by rememberSaveable(key) { mutableStateOf(false) }
             Text(Comments.threadTitle(coach, model.isOwner), style = TrackTheme.typography.xs, color = colors.textMuted)
             val g = Comments.groupComments(t.comments, session)
             if (!model.isOwner && t.comments.isEmpty()) {
@@ -342,7 +366,7 @@ fun SessionComments(
                     model = model,
                     place = null,
                     now = now,
-                    onReply = if (open && !c.mine) ({ onCompose(coachId) }) else null,
+                    onReply = if (open && !c.mine) ({ composing = true }) else null,
                     block = blockFor(model, coachId, onGone),
                 )
             }
@@ -354,9 +378,38 @@ fun SessionComments(
                     color = colors.textFaint,
                 )
             }
-            if (open) {
+            if (!open) {
+                Text(Comments.THREAD_CLOSED, style = TrackTheme.typography.xs, color = colors.textFaint)
+            } else if (composing || model.draft(key).isNotEmpty()) {
+                CommentComposer(
+                    model = model,
+                    key = key,
+                    sendLabel = if (model.isOwner) "Reply" else "Comment",
+                    placeholder = if (model.isOwner) Comments.REPLY_PLACEHOLDER else Comments.COMMENT_PLACEHOLDER,
+                    onSend = { model.send(key, session.id, coachId, model.lap(key), onSent = { composing = false }) },
+                    modifier = Modifier.testTag("sessionComposer-${session.id}"),
+                ) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val chosen = model.lap(key)
+                        FilterChip(
+                            selected = chosen == null,
+                            onClick = { model.setLap(key, null) },
+                            label = { Text(Comments.WHOLE_SESSION, style = TrackTheme.typography.xs) },
+                            modifier = Modifier.testTag("commentTarget-session"),
+                        )
+                        for (lap in session.laps) {
+                            FilterChip(
+                                selected = chosen == lap.id,
+                                onClick = { model.setLap(key, lap.id) },
+                                label = { Text("Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}", style = TrackTheme.typography.xs) },
+                                modifier = Modifier.testTag("commentTarget-${lap.id}"),
+                            )
+                        }
+                    }
+                }
+            } else {
                 TextButton(
-                    onClick = { onCompose(coachId) },
+                    onClick = { composing = true },
                     modifier = Modifier.testTag("composeSessionComment-${session.id}"),
                 ) {
                     Text(
@@ -365,8 +418,6 @@ fun SessionComments(
                         color = colors.accentInk,
                     )
                 }
-            } else {
-                Text(Comments.THREAD_CLOSED, style = TrackTheme.typography.xs, color = colors.textFaint)
             }
         }
         model.actionError?.let { Text(it, style = TrackTheme.typography.xs, color = colors.danger) }
@@ -410,11 +461,11 @@ fun LapComments(
             return@TrackCard
         }
         val forLap = data.comments.filter { it.sessionId == session.id && it.lapId == lap.id }
-        val threads = threadsOf(model, forLap)
-        if (threads.isEmpty()) {
-            Text("No comments on this lap.", style = TrackTheme.typography.xs, color = colors.textFaint)
-            return@TrackCard
+        val threads = threadsOf(model, forLap, withOpenCoaches = true)
+        if (forLap.isEmpty()) {
+            Text("No comments on this lap yet.", style = TrackTheme.typography.xs, color = colors.textFaint)
         }
+        if (threads.isEmpty()) return@TrackCard
         val now = System.currentTimeMillis()
         for (t in threads) {
             val coach: CommentCoach? = if (model.isOwner) model.coach(t.coachId) else null
@@ -497,88 +548,6 @@ fun LapComments(
     }
 }
 
-/**
- * The session composer (NS-52): a page of its own reached from a session
- * card, its draft in this destination's saved state. The comment is about the
- * whole session or one of its laps (a lap's place is the lap page's composer:
- * a place needs the charts to mark it on).
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun SessionCommentScreen(
-    event: EventModel,
-    model: CommentsModel,
-    sessionId: Int,
-    coachId: Int?,
-    onDone: () -> Unit,
-    studentName: String? = null,
-    modifier: Modifier = Modifier,
-) {
-    val colors = TrackTheme.colors
-    LaunchedEffect(Unit) {
-        if (event.state == LoadState.Loading) event.load()
-        if (model.data == null) model.load()
-    }
-    TELoadable(state = event.state, onRetry = event::load, modifier = modifier) {
-        val session = event.detail?.sessions?.firstOrNull { it.id == sessionId }
-        if (session == null) {
-            TEEmpty("This session is no longer in the logbook.", Modifier.padding(16.dp))
-            return@TELoadable
-        }
-        val key = CommentsModel.sessionKey(sessionId, coachId)
-        val coach = coachId?.let { model.coach(it) }
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                if (model.isOwner) "Reply to ${coach?.name ?: "your coach"}" else "Comment on ${session.label ?: "this session"}",
-                style = TrackTheme.typography.h2,
-                color = colors.textStrong,
-            )
-            Text(
-                if (model.isOwner) {
-                    "On ${session.label ?: "this session"}. Only you and ${coach?.name ?: "your coach"} see this thread."
-                } else {
-                    Comments.coachAudienceNote(studentName)
-                },
-                style = TrackTheme.typography.sm,
-                color = colors.textMuted,
-            )
-            if (model.isOwner && coachId != null && coach != null && !Comments.canReply(coach)) {
-                Text(Comments.THREAD_CLOSED, style = TrackTheme.typography.sm, color = colors.textFaint)
-                return@Column
-            }
-            CommentComposer(
-                model = model,
-                key = key,
-                sendLabel = if (model.isOwner) "Reply" else "Comment",
-                placeholder = if (model.isOwner) Comments.REPLY_PLACEHOLDER else Comments.COMMENT_PLACEHOLDER,
-                onSend = { model.send(key, sessionId, coachId, model.lap(key), onSent = onDone) },
-            ) {
-                Text("What it's about", style = TrackTheme.typography.xs, color = colors.textMuted)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val chosen = model.lap(key)
-                    FilterChip(
-                        selected = chosen == null,
-                        onClick = { model.setLap(key, null) },
-                        label = { Text(Comments.WHOLE_SESSION, style = TrackTheme.typography.xs) },
-                        modifier = Modifier.testTag("commentTarget-session"),
-                    )
-                    for (lap in session.laps) {
-                        FilterChip(
-                            selected = chosen == lap.id,
-                            onClick = { model.setLap(key, lap.id) },
-                            label = { Text("Lap ${lap.lapNum} · ${LapTime.fmtMs(lap.timeMs)}", style = TrackTheme.typography.xs) },
-                            modifier = Modifier.testTag("commentTarget-${lap.id}"),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
 /** The ids the dashboard card opens: the event, in whichever logbook it is. */
 data class FeedTarget(val eventId: Int, val studentId: Int?)
 
@@ -630,5 +599,52 @@ fun FeedRow(row: FeedComment, now: Long, onOpen: () -> Unit) {
             color = if (row.seen) colors.textFaint else colors.accentInk,
         )
         Text(row.body, style = TrackTheme.typography.xs, color = colors.textMuted, maxLines = 2)
+    }
+}
+
+/** A channel lap's grid length: its speed trace's, else its first gridded series'. */
+private fun gridSteps(entry: app.trackevolution.core.model.LapChannels): Int =
+    (entry.speed?.size ?: entry.latG?.size ?: entry.throttle?.size ?: entry.brake?.size ?: 0) - 1
+
+/**
+ * Every placed comment on [session]'s laps as chart marks (NS-52), for a
+ * multi-lap panel — the event page's analysis column, the session compare.
+ * Each lap's marks sit at its own channel index and grid place; the panel
+ * draws only the lit laps'. A derived `State` the charts read in their draw
+ * phase, never their samples.
+ */
+@Composable
+fun rememberSessionCommentMarks(comments: CommentsModel?, session: Session?): State<List<CommentMark>>? {
+    if (comments == null || session == null || session.channels?.laps.isNullOrEmpty()) return null
+    return remember(comments, session) { derivedStateOf { sessionCommentMarks(comments.comments, session) } }
+}
+
+/** [rememberSessionCommentMarks]'s value: each placed comment at its lap's channel index and grid place. */
+internal fun sessionCommentMarks(comments: List<CoachComment>, session: Session): List<CommentMark> {
+    val channels = session.channels?.takeIf { it.laps.isNotEmpty() } ?: return emptyList()
+    val placed = comments.filter { it.sessionId == session.id && it.distM != null }
+    if (placed.isEmpty()) return emptyList()
+    return ChannelGraphs.matchLapsToChannels(session.laps, channels.laps).filter { it.hasChannels }.flatMap { m ->
+        val steps = gridSteps(channels.laps[m.chIdx])
+        if (steps < 1) return@flatMap emptyList()
+        Comments.commentMarkers(placed, m.lap.id, steps * channels.dStepM).map {
+            CommentMark(chIdx = m.chIdx, k = it.frac * steps, mine = it.mine)
+        }
+    }
+}
+
+/**
+ * Every placed comment on [session] as fractions of its lap, for the map —
+ * the session's best-lap line, on which every lap's place falls by fraction,
+ * as the panel's cursor dots do (the web's `setNotes`).
+ */
+fun sessionCommentPins(comments: CommentsModel?, session: Session?): List<Double> {
+    val channels = session?.channels?.takeIf { it.laps.isNotEmpty() } ?: return emptyList()
+    if (comments == null) return emptyList()
+    val placed = comments.comments.filter { it.sessionId == session.id && it.distM != null }
+    if (placed.isEmpty()) return emptyList()
+    return ChannelGraphs.matchLapsToChannels(session.laps, channels.laps).filter { it.hasChannels }.flatMap { m ->
+        val steps = gridSteps(channels.laps[m.chIdx])
+        if (steps < 1) emptyList() else Comments.commentMarkers(placed, m.lap.id, steps * channels.dStepM).map { it.frac }
     }
 }

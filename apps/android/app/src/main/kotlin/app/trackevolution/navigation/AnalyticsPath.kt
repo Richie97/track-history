@@ -39,8 +39,6 @@ public val Route.analyticsPath: String
         is Route.SharedItem -> "/share/${itemKind.prefix}/:token"
         is Route.Lap -> student(student) + "/event/:id/lap/:id"
         is Route.SessionCompare -> student(student) + "/event/:id/session/:id/compare"
-        // The web's composer is inline on the event page; it is a screen here (NS-52).
-        is Route.SessionComment -> student(student) + "/event/:id/session/:id/comment"
         is Route.Wrapped -> "/wrapped/$year"
         Route.Coaching -> "/coaching"
         Route.Profile -> "/profile"
@@ -82,7 +80,6 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.SharedItem::class) -> toRoute<Route.SharedItem>()
         d.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
         d.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
-        d.hasRoute(Route.SessionComment::class) -> toRoute<Route.SessionComment>()
         d.hasRoute(Route.Wrapped::class) -> toRoute<Route.Wrapped>()
         d.hasRoute(Route.Coaching::class) -> Route.Coaching
         d.hasRoute(Route.Profile::class) -> Route.Profile

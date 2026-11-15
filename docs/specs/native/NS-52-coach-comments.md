@@ -263,24 +263,26 @@ fail on a capture no model maps.
 - The routes on `ApiClient` take the `LogbookOwner` whose logbook it is and
   always run on `ApiClient.own`, so a coach's comment leaves from the
   student's scoped view while that view keeps refusing every other write.
-- **Deviation**: the session composer is a **destination**,
-  `Route.SessionComment` (analytics `/event/:id/session/:id/comment`), not
-  an inline row — the event page is a long list of cards, and a page keeps
-  the draft in its own `SavedStateHandle`. The lap page's composer is
-  inline, under the stage.
+- The session composer is **an inline row on the session card**, as above:
+  the text box and a row of chips (*Whole session* / *Lap N*), collapsed to a
+  button until opened. The lap page's composer is inline under the stage and
+  is offered on a lap with no comments yet — always to a coach, and to the
+  owner for each coach whose thread on the event is open. Drafts are in the
+  destination's `SavedStateHandle`, keyed by target.
 - The composer's place is taken on a tap (*◆ At the marked place*) from the
   stage's playhead or the panel's parked mark, never read in composition;
   before the line there is no place and it says so.
 - Markers: a diamond on each lap-axis chart's top edge (a draw-phase overlay
-  beside the playhead's), and on every map the lap page draws.
+  beside the playhead's), and a pin on every map of the session — on the lap
+  page, the session compare, and the event page's best-lap trace and its
+  expanded-width analysis column.
 - The block control is on each comment someone else wrote (*Remove coach* /
   *Stop coaching*), beside *Report*, as well as on the Coaching page.
-- Not built: markers in the event page's expanded-width analysis column and
-  on the session compare; a per-thread composer on the lap page for a coach
-  thread that has nothing on that lap yet (the owner can reply there from
-  the session's composer, choosing the lap).
-- `:core:test`, `:core:check`, `:app:testDebugUnitTest`, `:app:assembleDebug`
-  and `:app:checkReleaseHasNoCarApp` were run; no emulator run.
+- Run: `:core:test`, `:core:check`, `:app:testDebugUnitTest`,
+  `:app:assembleDebug`, `:app:checkReleaseHasNoCarApp`, and the debug build
+  on an emulator against `wrangler dev`.
+- Release step, outside any build: Play's Data safety form gains *other user
+  content, shared with other users*.
 
 ## Clients
 
