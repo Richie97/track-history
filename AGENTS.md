@@ -164,28 +164,38 @@ not a follow-up:**
      user agent marked `TrackEvolution-App`, which `site/analytics.js` reads
      to load nothing and show no banner. Keep it organizer-neutral and point at the
      event's own rules rather than restating them.
-   - The **guides** (the sidebar's *Guides* group, after *AI assistants*
-     in the pager): `site/docs/tire-pressures.html`,
-     `site/docs/friction-circle.html`, `site/docs/lap-consistency.html`
-     and `site/docs/consumables.html`.
-     Each answers a question drivers search for whether or not they use the
-     app — setting track-day tire pressures, reading a friction circle,
-     measuring lap consistency and a theoretical best, tracking brake pad
-     and tire wear — in general terms
-     first, and ends on one *in Track Evolution* section saying how the app
-     does it and which tier it is in. That last section states app
-     behaviour, so each owes an edit with its feature: the tire guide with
-     the setup notebook and pressure loop, the friction-circle guide with
-     the Grip tab, the consistency guide with the clean-lap rule
-     (`CLEAN_FACTOR`, three laps), the per-session stats and sectors, the
-     consumables guide with the garage's hours rule, wear projections, the
-     Equipped switch and where a due part is flagged. Keep
-     the driving advice conservative and deferential — the tire maker, the
+   - The **guides** (the sidebar's *Guides* group, between *AI assistants*
+     and the privacy policy in the pager), fourteen pages that each answer
+     a question drivers search for whether or not they use the app, in
+     general terms first, and end on one *in Track Evolution* section
+     (`id="logbook"`) saying how the app does it and which tier it is in.
+     That last section states app behaviour, so each owes an edit with its
+     feature: `prep-checklist.html` (the prep checklist and its default
+     list, `public/js/checklist.js`), `track-day-cost.html` (event costs
+     and the Pro roll-ups), `tire-pressures.html` (the setup notebook's
+     pressure loop), `consumables.html` (the garage's hours rule, wear
+     projections, the Equipped switch, where a due part is flagged),
+     `lap-consistency.html` (the clean-lap rule — `CLEAN_FACTOR`, three
+     laps — the per-session stats and sectors), `lap-delta.html` (the delta
+     chart, *Compare two laps*, the recorder's live delta),
+     `brake-throttle-traces.html` (the Traces tab, which sources carry
+     which channels, the free channels), `friction-circle.html` (the Grip
+     tab), `understeer-oversteer.html` (the balance read-out and that it is
+     relative), `shift-points.html` (the gear ribbon and shift table),
+     `setup-notebook.html` (setup sheets and the web's setup-vs-lap-times
+     table), `temperatures.html` (the Car tab and its watch lines),
+     `phone-gps-lap-timing.html` (the recorder's accuracy, the import
+     sources, the `~` on estimated laps) and `working-with-a-coach.html`
+     (coach sharing, the driver profile, comments). Keep the advice
+     conservative and deferential — the car, tire or part maker, the
      event's rules and an instructor come first, and nothing in a guide is
-     for use while driving — and give no pressure figure as a
-     recommendation. `garage.html`, `telemetry-import.html`,
-     `data-model.html` and `track-days.html` each link to the guide for
-     their topic.
+     for use while driving — and give no pressure, temperature or wear
+     figure as a recommendation; `track-day-cost.html`'s prices are marked
+     as rough illustrations. A new guide goes in the sidebar order on
+     every docs page, the pager chain, the sitemap and `llms.txt` like any
+     page. The feature pages (`garage.html`, `telemetry-import.html`,
+     `data-model.html`, `lap-recording.html`, `index.html`) and
+     `track-days.html` link to the guide for their topic.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
    - `site/docs/lap-recording.html` — recording laps with the phone's GPS in
