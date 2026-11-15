@@ -204,10 +204,17 @@ struct EventScreen: View {
         }
     }
 
-    /// Read the comments and, once they are on the page, mark them read.
+    /// Read the comments and, when an unread one is shown here, mark them read.
+    ///
+    /// Only a session-level one: this page shows those whole, but a lap's only
+    /// as a count on its row — "1 unread" there is the point of the count, and
+    /// marking it read before anyone opened the lap would take it away. The
+    /// server's `/seen` marks the whole event, so it waits for something here
+    /// to have been read; the lap page marks its own.
     private func loadComments() async {
         guard let comments else { return }
         await comments.load()
+        guard comments.comments.contains(where: { $0.lapId == nil && !$0.mine && !$0.seen }) else { return }
         auth.noteCommentsSeen(await comments.markSeen())
     }
 

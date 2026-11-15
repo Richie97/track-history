@@ -490,6 +490,9 @@ struct LapCommentsCard: View {
                 }
             }
         }
+        // A container, so the identifier doesn't stamp itself over the
+        // composer's and the cards' own.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("lapComments")
     }
 
@@ -588,6 +591,7 @@ struct SessionCommentsBlock: View {
                     threadView(thread)
                 }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("sessionComments-\(session.id)")
         }
     }

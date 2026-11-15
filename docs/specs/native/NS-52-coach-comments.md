@@ -253,6 +253,44 @@ fail on a capture no model maps.
   and Gradle could not reach Google's Maven), so the decode models were
   checked by CI first.
 
+### As built (ticket 2, iOS)
+
+- **The port** is `Comments` in the Kit (`Models/CommentRules.swift`), under
+  the JS names and pinned by every section of `comments.json`
+  (`CommentsTests`, with the JS cases). Two Swift-shaped differences:
+  `groupComments` takes `(comments, sessionId:, laps:)` (plus an overload over
+  a `Session`), and `commentError` has an overload over a thrown `APIError`
+  (a transport failure is the offline sentence). `reportURL` builds the
+  *Report* `mailto:` from `reportSubject` / `reportBody`.
+- **The routes** take the `LogbookOwner` and pick `/coaching/students/<id>/…`
+  for a student's logbook. Called on a scoped (student) client they go to its
+  parent instead of being prefixed or refused, which is the read-only seam's
+  one exception in a form the scoped client's other tests still pin.
+- **The lap page**: a *Comments* card first under the stage; *◆ At the marked
+  place* reads the stage's playhead when tapped (on the lap page a chart tap
+  seeks the stage, so the playhead is the panel's mark there); a placed
+  comment's place seeks the stage. Markers are drawn in the overlay layer:
+  `AxisMarkLayer`'s diamonds on the top edge of each lap-axis chart and the
+  delta chart, in the lap's colour as on the web, and `TrackMapView.marks` on
+  the stage's map and the plain lap page's.
+- **The event page**: each session's section carries its session-level
+  comments per thread, a line counting the lap comments, and *Comment on the
+  session* / *Reply about the session*, which pushes
+  `Route.sessionComment(eventId:sessionId:coachId:)`. Lap rows carry 💬 N.
+  The page posts `/seen` **only when an unread session-level comment is on
+  it**: the route marks the whole event, and marking on arrival would clear
+  the lap row's *1 unread* before the lap was opened. The lap page and the
+  session form post it once their thread is on screen.
+- **Block**: every comment by the other person carries *Report* and the
+  block — *Remove coach* for the owner (while the grant is live), *Stop
+  coaching* for a coach — confirmed through the Coaching page's own
+  `CoachingModel.Confirmation` wording.
+- **Unread**: the dashboard's card (`UnreadCommentsCard`, opening the lap, the
+  event or Coaching), Settings' Coaching row from `/me`'s `comments_unread`,
+  and on the Coaching page *Recent comments* plus each grant's unread.
+- Not built: markers on the event page's expanded-width analysis column and
+  its sheet panel (the lap page is where placed comments are read and made).
+
 ## Clients
 
 One rule first, because all three have a read-only seam that this is the

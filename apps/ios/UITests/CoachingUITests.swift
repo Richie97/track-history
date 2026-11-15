@@ -214,6 +214,161 @@ final class CoachingUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
+    /// Coach comments (NS-52): the coach marks a place on the student's lap and
+    /// says something about it; the student sees it on that lap, placed, and
+    /// replies; the coach's thread holds both. Needs the coach's token, as above.
+    func testACoachCommentsAtAPlaceAndTheStudentReplies() throws {
+        try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
+        let coachToken = try XCTUnwrap(
+            Self.coachToken.flatMap { $0.isEmpty ? nil : $0 },
+            "set TEST_RUNNER_TE_COACH_TOKEN — see the note at the top of this file"
+        )
+        try setDevTier(.pro)
+        let eventId = try seedImportedSession(track: Self.track)
+        seededEventId = eventId
+        let studentId = try XCTUnwrap(try api("GET", "/api/me/profile")["id"] as? Int)
+        let detail = try api("GET", "/api/events/\(eventId)")
+        let session = try XCTUnwrap((detail["sessions"] as? [[String: Any]])?.first)
+        let sessionId = try XCTUnwrap(session["id"] as? Int)
+        let laps = try XCTUnwrap(session["laps"] as? [[String: Any]])
+        let best = try XCTUnwrap(laps.min { ($0["time_ms"] as? Int ?? 0) < ($1["time_ms"] as? Int ?? 0) })
+        let lapId = try XCTUnwrap(best["id"] as? Int)
+
+        // The coach accepts over HTTP: the accept screen has its own test above.
+        let invite = try api("POST", "/api/coaching/invites")
+        let token = try XCTUnwrap((invite["url"] as? String)?.components(separatedBy: "/coach/").last)
+        try bearer(coachToken, "POST", "/api/coaching/invites/\(token)/accept")
+        studentIdToLeave = studentId
+        _ = try bearer(coachToken, "POST", "/auth/dev/entitlement", body: ["pro": false])
+
+        // --- The coach, on the student's lap.
+        var app = XCUIApplication()
+        app.launchArguments = [
+            "-server.url", Self.devServerURL, "-resetAuth", "-resetRecording", "-authToken", coachToken,
+        ]
+        app.launch()
+        // Settings → Coaching, in slow swipes: a fast one can fling straight
+        // past the row.
+        app.buttons["Account"].tap()
+        let openCoaching = app.buttons["openCoaching"]
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        for _ in 0..<25 where !(openCoaching.exists && openCoaching.isHittable) {
+            app.scrollViews.firstMatch.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(openCoaching.isHittable, "Settings has a way into Coaching")
+        openCoaching.tap()
+        let student = app.buttons["student-\(studentId)"]
+        XCTAssertTrue(student.waitForExistence(timeout: 15), "the coach's student is listed")
+        student.tap()
+        let card = app.buttons.matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "trackCard", "Coaching Test")
+        ).firstMatch
+        XCTAssertTrue(scrollTo(card, in: app))
+        card.tap()
+        let event = app.buttons["trackEventCard"].firstMatch
+        XCTAssertTrue(event.waitForExistence(timeout: 15))
+        event.tap()
+
+        // The event page offers the coach a session comment (a pushed form).
+        let sessionDoor = app.buttons["commentOnSession-\(sessionId)"]
+        XCTAssertTrue(scrollTo(sessionDoor, in: app), "a coach can comment on the whole session")
+        attach(app, named: "comments-coach-event")
+        let lapRow = app.buttons["lap-\(lapId)"]
+        XCTAssertTrue(scrollTo(lapRow, in: app))
+        lapRow.tap()
+
+        // A place on the lap: a tap on the speed chart seeks the stage there,
+        // and the composer takes it.
+        let speed = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Speed by driven distance")).firstMatch
+        XCTAssertTrue(scrollTo(speed, in: app), "the lap's panel is under the stage")
+        speed.tap()
+        let take = app.buttons["commentTakePlace"]
+        XCTAssertTrue(scrollBackTo(take, in: app), "the composer offers the marked place")
+        take.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["commentPlace"].waitForExistence(timeout: 5),
+            "the place is attached to the comment"
+        )
+        let field = app.descendants(matching: .any)["commentField"].firstMatch
+        field.tap()
+        field.typeText("Brake ten metres later here.")
+        app.buttons["sendComment"].firstMatch.tap()
+        let said = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'comment-' AND label CONTAINS %@", "Brake ten metres"))
+            .firstMatch
+        XCTAssertTrue(said.waitForExistence(timeout: 15), "the coach's comment is on the lap")
+        attach(app, named: "comments-coach-lap")
+
+        let thread = try bearer(coachToken, "GET", "/api/coaching/students/\(studentId)/events/\(eventId)/comments")
+        let written = try XCTUnwrap((thread["comments"] as? [[String: Any]])?.first)
+        XCTAssertEqual(written["lap_id"] as? Int, lapId)
+        XCTAssertNotNil(written["dist_m"] as? Int, "the comment carries its place")
+        app.terminate()
+
+        // --- The student, on their own lap.
+        app = XCUIApplication()
+        app.launchArguments = [
+            "-server.url", Self.devServerURL, "-resetAuth", "-resetRecording", "-authToken", try devSessionToken(),
+            "-openLink", "trackevolution://event/\(eventId)",
+        ]
+        app.launch()
+        let ownRow = app.buttons["lap-\(lapId)"]
+        // The page is a lazy list: the row exists once it is scrolled to.
+        XCTAssertTrue(app.navigationBars[Self.track].waitForExistence(timeout: 20))
+        XCTAssertTrue(scrollTo(ownRow, in: app))
+        let counted = app.buttons.matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "lap-\(lapId)", "1 comment, 1 unread")
+        ).firstMatch
+        XCTAssertTrue(counted.waitForExistence(timeout: 15), "the lap row says so: \(ownRow.label)")
+        attach(app, named: "comments-student-event")
+        ownRow.tap()
+        let theirs = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'comment-' AND label CONTAINS %@", "Brake ten metres"))
+            .firstMatch
+        XCTAssertTrue(theirs.waitForExistence(timeout: 20), "the student reads it on the same lap")
+        XCTAssertTrue(theirs.label.contains("Sam Coach"), "with the coach's name: \(theirs.label)")
+        XCTAssertTrue(
+            theirs.label.contains(" m") || theirs.label.contains(" ft") || theirs.label.contains(" mi"),
+            "and its place: \(theirs.label)"
+        )
+        attach(app, named: "comments-student-lap")
+
+        let reply = app.descendants(matching: .any)["commentField"].firstMatch
+        XCTAssertTrue(scrollTo(reply, in: app))
+        reply.tap()
+        reply.typeText("Tried it, the rear stepped out.")
+        app.buttons["sendComment"].firstMatch.tap()
+        let mine = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'comment-' AND label CONTAINS %@", "rear stepped out"))
+            .firstMatch
+        XCTAssertTrue(mine.waitForExistence(timeout: 15), "the reply is in the thread")
+        attach(app, named: "comments-student-reply")
+        // The placed comment's ◆ rides the top edge of the lap's charts, and
+        // the map's (above). Drawn, not laid out — the screenshot is the check.
+        app.swipeDown()
+        let chart = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Speed by driven distance")).firstMatch
+        if scrollTo(chart, in: app) { attach(app, named: "comments-student-chart") }
+
+        let after = try bearer(coachToken, "GET", "/api/coaching/students/\(studentId)/events/\(eventId)/comments")
+        let rows = after["comments"] as? [[String: Any]] ?? []
+        let bodies = rows.compactMap { $0["body"] as? String }
+        XCTAssertTrue(bodies.contains("Tried it, the rear stepped out."), "the coach sees the reply: \(bodies)")
+        let theirsRow = rows.first { ($0["body"] as? String)?.hasPrefix("Brake") == true }
+        XCTAssertEqual(theirsRow?["seen"] as? Bool, true, "and that the student read theirs")
+    }
+
+    /// `scrollTo`, the other way: back up the page.
+    private func scrollBackTo(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 12) -> Bool {
+        let scroller = app.scrollViews.firstMatch.exists ? app.scrollViews.firstMatch : app
+        for _ in 0..<swipes {
+            if element.exists && element.isHittable { return true }
+            scroller.swipeDown(velocity: .fast)
+        }
+        return element.exists && element.isHittable
+    }
+
     // MARK: - Helpers
 
     private func openCoaching(_ app: XCUIApplication) {
