@@ -333,6 +333,26 @@ your events, and re-run `npm run seed:generate`.
    makes every stored grant unreadable, which reads as *revoked* and asks each
    driver to reconnect.
 
+9. **(Optional) Enable push notifications for coach comments**
+
+   A new coach comment or reply notifies the other person's phone (NS-54, see
+   *Coach comments* under the coaching notes), sent through Firebase Cloud
+   Messaging for both platforms. Without the secret nothing is sent and the
+   apps' registrations are simply stored.
+
+   - In the Firebase project the apps already use (`track-evolution-app`):
+     Project settings → Cloud Messaging → upload the **APNs auth key** (.p8,
+     Apple Developer → Keys, with *Apple Push Notifications service*), so FCM
+     can deliver to iOS.
+   - Google Cloud → IAM → a service account with the **Firebase Cloud
+     Messaging API Admin** role, and a JSON key for it. The key's `project_id`
+     is the project the Worker sends through.
+
+   ```sh
+   npx wrangler secret put FCM_SERVICE_ACCOUNT   # the JSON key file, whole
+   npm run deploy
+   ```
+
 Sign in with the account matching your seed data's `USER_EMAIL` and it
 claims the imported history automatically. Other accounts get a fresh,
 empty logbook.
@@ -2130,6 +2150,15 @@ Wrapped, which is free.
   the analysis column, each session's thread and lap-row counts on the event
   page with a pushed form for a session comment, the dashboard's unread card
   and Settings' count.
+  **Push** (NS-54, `docs/specs/native/NS-54-comment-push.md`, #466): a new
+  comment notifies the other person in its thread through FCM (both
+  platforms; iOS via Firebase's APNs relay). Phones register with
+  `PUT /api/push/device` (bearer only; one row per app session in
+  `push_devices`, migration 0038, cascading from `auth_sessions` so signing
+  out unregisters) and stop with `DELETE`. `src/push/fcm.ts` sends from
+  `waitUntil` after the comment's 201 — best effort, never retried, a dead
+  token deleted — and ships dark without `FCM_SERVICE_ACCOUNT`. The server
+  half has landed (#463); the iOS (#464) and Android (#465) halves are next.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from

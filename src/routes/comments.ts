@@ -10,6 +10,7 @@ import {
   type CommentRow,
 } from "../lib/comments";
 import { RATE_LIMIT_RETRY_AFTER_S, withinLimit } from "../lib/ratelimit";
+import { notifyComment } from "../push/fcm";
 
 // Coach comments on sessions and laps (NS-52,
 // docs/specs/native/NS-52-coach-comments.md). An ordinary /api router: the
@@ -101,6 +102,9 @@ async function insertComment(
     return c.json(NOT_FOUND, 404);
   }
   const created = await c.env.DB.prepare(`${SELECT} WHERE c.id = ?`).bind(row.id).first<CommentRow>();
+  // Tell the other person in the thread (NS-54) — after the write, outside
+  // the response, so a push failure never touches the comment.
+  c.executionCtx.waitUntil(notifyComment(c.env, row.id, Date.now()).catch((err) => console.error("push:", err)));
   return c.json({ comment: commentView(created!, authorId) }, 201);
 }
 

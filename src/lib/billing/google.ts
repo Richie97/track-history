@@ -43,14 +43,21 @@ async function signRS256(payload: Record<string, unknown>, privateKeyPem: string
 // Service-account OAuth: a signed JWT assertion traded for a short-lived
 // access token. Minted per call — the cron and a purchase POST are rare
 // enough that caching would only add a place for a stale token to hide.
-export async function googleAccessToken(sa: ServiceAccount, nowMs: number): Promise<string> {
+// `scope` defaults to the Play Developer API; the FCM sender (NS-54) asks for
+// firebase.messaging.
+export async function googleAccessToken(
+  sa: ServiceAccount,
+  nowMs: number,
+  scope = ANDROID_PUBLISHER_SCOPE,
+  fetcher: typeof fetch = fetch
+): Promise<string> {
   const iat = Math.floor(nowMs / 1000);
   const tokenUri = sa.token_uri ?? "https://oauth2.googleapis.com/token";
   const assertion = await signRS256(
-    { iss: sa.client_email, scope: ANDROID_PUBLISHER_SCOPE, aud: tokenUri, iat, exp: iat + 5 * 60 },
+    { iss: sa.client_email, scope, aud: tokenUri, iat, exp: iat + 5 * 60 },
     sa.private_key
   );
-  const res = await fetch(tokenUri, {
+  const res = await fetcher(tokenUri, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
