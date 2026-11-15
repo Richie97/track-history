@@ -281,6 +281,9 @@ export default defineConfig(async () => {
             APPLE_TEAM_ID: "TESTTEAM01",
             APPLE_KEY_ID: "TESTKEY001",
             APPLE_PRIVATE_KEY: appleKeyPem,
+            // The web map viewer's token (NS-53): any P-256 key signs it.
+            MAPKIT_KEY_ID: "TESTMAPKEY",
+            MAPKIT_PRIVATE_KEY: appleKeyPem,
             OPENAI_APPS_CHALLENGE: "test-openai-challenge",
             // Best-lap video URLs (NS-45). CLIPS itself comes from
             // wrangler.jsonc's r2_buckets, which miniflare serves locally.

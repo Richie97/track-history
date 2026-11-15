@@ -76,6 +76,9 @@
     // Coach comments written or edited per author (NS-52): a person types a
     // few a minute, so 20 is a script, not a coach.
     { "name": "COACH_COMMENTS", "namespace_id": "3146", "simple": { "limit": 20, "period": 60 } },
+    // Map tokens per user (NS-53): one per open of the map viewer, good for
+    // half an hour, so 20 a minute is a loop.
+    { "name": "MAP_TOKEN", "namespace_id": "3147", "simple": { "limit": 20, "period": 60 } },
   ],
   // Best-lap video clips (NS-45, src/routes/clips.ts). No public access and no
   // custom domain: every byte goes through /clips/* and its signed URLs.

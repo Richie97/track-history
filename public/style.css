@@ -1870,3 +1870,50 @@ body:has(.wrapped) { overflow: hidden; }
   background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
   color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px;
 }
+
+/* ---------- The racing line on a real map (NS-53) ---------- */
+/* A fixed layer over the shell, as Wrapped is: a map wants the window. */
+.map-viewer {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--bg-page); color: var(--text-body);
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.mv-top { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.mv-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.mv-title strong { color: var(--text-strong); font-size: var(--fs-lg); }
+.mv-title span { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.mv-note { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.mv-stage {
+  position: relative; flex: 1; min-height: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;
+  background: var(--surface-card);
+}
+.mv-map { position: absolute; inset: 0; }
+.mv-line { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; }
+.mv-line canvas { max-width: 100%; max-height: 100%; }
+.mv-map[hidden], .mv-line[hidden] { display: none; }
+.mv-readout {
+  position: absolute; left: 12px; top: 12px; margin: 0; padding: 6px 10px;
+  background: var(--surface-card); color: var(--text-strong);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: var(--fs-sm); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums;
+}
+.mv-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mv-bar .ch-axis button:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Markers: a zero-size wrapper, so the mark's centre is its coordinate. */
+.mv-pin { position: relative; width: 0; height: 0; }
+.mv-pin-in { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap; }
+.mv-sf {
+  padding: 1px 5px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  background: #0a0a0b; color: #fff; border: 1px solid rgba(255, 255, 255, 0.7);
+}
+.mv-arrow { font-size: 13px; line-height: 1; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+.mv-limit svg { display: block; width: 16px; height: 16px; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7)); }
+.mv-tap {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; border: 3px solid #0a0a0b; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+.trackmap-open { float: right; margin: -4px 0 0 10px; }
+.mv-bar [hidden], .mv-readout[hidden], .mv-note[hidden] { display: none; }

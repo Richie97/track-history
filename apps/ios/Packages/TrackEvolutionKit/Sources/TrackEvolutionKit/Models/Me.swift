@@ -49,6 +49,10 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// Coach comments (NS-52) waiting to be read, as a student and as a coach
     /// together. Optional so a `/me` cached before the field still decodes.
     public var commentsUnread: Int?
+    /// Whether the *web's* map viewer has imagery (NS-53). Decoded because the
+    /// server sends it; nothing on this platform reads it — the phone draws
+    /// its own maps. Optional so a `/me` cached before the field still decodes.
+    public var maps: MapsAvailability?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
@@ -60,6 +64,7 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
         case clips
         case youtube
         case commentsUnread = "comments_unread"
+        case maps
     }
 
     public var effectiveUnits: UnitSystem { units ?? .imperial }
@@ -97,5 +102,14 @@ public struct Totals: Codable, Hashable, Sendable {
     public enum CodingKeys: String, CodingKey {
         case events
         case trackDays = "track_days"
+    }
+}
+
+/// `user.maps` on `GET /api/me` (NS-53).
+public struct MapsAvailability: Codable, Hashable, Sendable {
+    public var web: Bool
+
+    public init(web: Bool) {
+        self.web = web
     }
 }
