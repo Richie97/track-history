@@ -10,6 +10,9 @@
 //
 //   - the garage linkage goes too (`vehicle_id`, `track_hours`) — the car's
 //     *name* stays, as on the logbook share page, but not the way into it;
+//   - where the trace lies goes (`trace_geo`, NS-53) — the line's shape is
+//     shared, its coordinates are not: a link can be to a recording made
+//     anywhere, and the track's name is all a stranger is told about where;
 //   - a best-lap video is offered only while the owner has Pro, the tier its
 //     URL is signed under, so a free owner's link shows no locked player;
 //   - a *session* share carries its own session alone, and the event header's
@@ -51,6 +54,7 @@ export function sharedEvent(detail: unknown, sessionId: number | null, ownerEnti
   const out = coachEventDetail(detail) as Json;
   out.vehicle_id = null;
   out.track_hours = null;
+  for (const s of out.sessions) s.trace_geo = null;
   if (!ownerEntitled) {
     for (const s of out.sessions) for (const l of s.laps) if (Object.hasOwn(l, "clip")) l.clip = null;
   }

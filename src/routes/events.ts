@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { clipYouTube } from "../lib/youtube";
 import type { AppContext } from "../types";
-import { eventSelect, listEvents, ownedEvent, resolveTrack, vehicleIdForCar } from "../db";
+import { eventSelect, listEvents, ownedEvent, resolveTrack, traceDonorForEventStmt, vehicleIdForCar } from "../db";
+import { type DonorRow, resolveTraceGeo } from "../lib/geo";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidConditions, isValidTemp, sanitizeChecklist, sanitizeSetup } from "../lib/validate";
 import { COST_FIELDS, isValidCostCents } from "../lib/costs";
@@ -94,11 +95,11 @@ events.get("/events/:id", async (c) => {
   const db = c.env.DB;
   // One round trip for the whole page; child rows are discarded on the 404
   // path, so nothing leaks when the event isn't this user's.
-  const [eventRes, sessionRes, lapRes, setupRes] = await db.batch([
+  const [eventRes, sessionRes, lapRes, setupRes, donorRes] = await db.batch([
     db.prepare(eventSelect("WHERE e.user_id = ? AND e.id = ?")).bind(userId, id),
     db
       .prepare(
-        "SELECT id, label, notes, sort, trace, channels, ambient_c, elevation_m FROM sessions WHERE event_id = ? ORDER BY sort, id"
+        "SELECT id, label, notes, sort, trace, trace_geo, channels, ambient_c, elevation_m FROM sessions WHERE event_id = ? ORDER BY sort, id"
       )
       .bind(id),
     db
@@ -113,6 +114,7 @@ events.get("/events/:id", async (c) => {
       )
       .bind(id),
     db.prepare("SELECT day, data FROM setups WHERE event_id = ? ORDER BY day").bind(id),
+    traceDonorForEventStmt(db, userId, id),
   ]);
   const event = eventRes.results[0] as EventRow | undefined;
   if (!event) return c.json({ error: "not found" }, 404);
@@ -124,6 +126,7 @@ events.get("/events/:id", async (c) => {
   const entitled = isEntitled(c.get("entitledUntil"), Date.now());
   // `ambient_c` / `elevation_m` (migration 0020) ride alongside and are *not*
   // stripped: they are conditions, not analysis (#191).
+  const donor = donorRes.results[0] as DonorRow | undefined;
   const sessions = (
     sessionRes.results as {
       id: number;
@@ -131,20 +134,26 @@ events.get("/events/:id", async (c) => {
       notes: string | null;
       sort: number;
       trace: string | null;
+      trace_geo: string | null;
       channels: string | null;
       ambient_c: number | null;
       elevation_m: number | null;
     }[]
-  ).map((s) =>
-    stripProFields(
+  ).map((s) => {
+    const trace = s.trace ? JSON.parse(s.trace) : null;
+    return stripProFields(
       {
         ...s,
-        trace: s.trace ? JSON.parse(s.trace) : null,
+        trace,
+        // Where the trace lies (NS-53): the session's own anchor, else one
+        // borrowed from the newest anchored session at this track and marked
+        // `approx`, else null. Free, like the trace.
+        trace_geo: resolveTraceGeo(trace, s.trace_geo, donor),
         channels: s.channels ? JSON.parse(s.channels) : null,
       },
       entitled
-    )
-  );
+    );
+  });
   // `clip` (NS-45): a ready best-lap video, or null. Not stripped for a free
   // account — the clip's existence is the driver's data, and the locked player
   // is the offer; only the URL to play it is Pro. Its `youtube` (NS-46) is the

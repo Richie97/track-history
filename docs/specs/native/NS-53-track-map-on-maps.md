@@ -61,7 +61,7 @@ then **draw**.
 
 ## Server
 
-### Migration `00NN_session_trace_geo.sql` (the next free number when it lands)
+### Migration `0036_session_trace_geo.sql`
 
 ```sql
 ALTER TABLE sessions ADD COLUMN trace_geo TEXT;  -- JSON {"lat":..,"lon":..} or NULL
@@ -139,12 +139,17 @@ models decode both shapes.
 port under the same names, pinned by a new `contracts/logic/geo-anchor.json`:
 
 - `traceOrigin(gps, origin)` → the `{ lat, lon }` a save sends: the origin
-  `projectTrace` was called with.
+  `projectTrace` was called with, null when it is not a real coordinate. The
+  parsers set it as `traceGeo` beside `bestLapTrace`, and the three parser
+  fixtures (`video-parsers.json`, `vbo-parsers.json`, `csv-parsers.json`) pin
+  it for the ports.
 - `unprojectTrace(trace, geo)` → `[{ lat, lon, v }]`.
 - `traceGeoBounds(trace, geo)` → `{ south, west, north, east }`.
-- `nearestOnTrace(trace, x, y, maxM)` → `{ idx, frac, distM } | null`: the
-  tap's hit test, in metres, by cumulative chord length (the
-  `traceIndexAtFraction` rule: a trace is denser where the car was slower).
+- `nearestOnTrace(trace, x, y, maxM)` → `{ idx, frac, alongM, offM } | null`:
+  the tap's hit test, in metres. `alongM` is the driven distance to the
+  nearest point, `frac` that over the trace's length (cumulative chord
+  length, the `traceIndexAtFraction` rule: a trace is denser where the car
+  was slower), `offM` how far the tap was from the line.
 - `speedRuns(trace, buckets = 16)` → `[{ from, to, bucket }]`: the line cut
   into runs of one quantised speed colour. MapKit JS strokes a polyline in
   one colour, so the web draws one overlay per run; the phones use it to
@@ -244,13 +249,18 @@ place; what "estimated" means); `site/docs/telemetry-import.html` and
 
 ## Tickets
 
-1. **Server + shared logic.** Migration, `lib/geo.ts`, the routes, goldens,
-   `geo.js` additions and the fixture, every web importer sending
-   `trace_geo`. No UI. Ships first so anchors start accumulating.
+1. **Server + shared logic — landed.** Migration `0036`, `lib/geo.ts`, the
+   anchor on the session save, the event detail, the coach mount, the
+   leaderboard lap and the export; goldens; the `geo.js` additions and
+   `contracts/logic/geo-anchor.json`; every web importer sending `trace_geo`;
+   both native models decoding it. No UI. Ships first so anchors start
+   accumulating.
 2. **iOS.** The `Geo` ports, importers and recorder sending the anchor, the
    viewer.
 3. **Android.** The same, plus the Maps key and the Data safety review.
-4. **Web.** The token route's secrets, `map-viewer.js`, the privacy page.
+4. **Web.** `GET /api/map-token` and `user.maps` on `/me` (moved here from
+   ticket 1: they are only testable against the viewer that uses them), the
+   `MAPKIT_*` secrets, `map-viewer.js`, the privacy page.
 
 Tickets 2–4 are independent of each other.
 

@@ -3810,6 +3810,10 @@
             40
           ]
         ],
+        "traceGeo": {
+          "lat": 36.56,
+          "lon": -79.1966449
+        },
         "carChannels": {
           "rpm": {
             "count": 1556,
@@ -8240,6 +8244,10 @@
             40
           ]
         ],
+        "traceGeo": {
+          "lat": 36.56,
+          "lon": -79.1966449
+        },
         "carChannels": {
           "rpm": {
             "count": 1556,
@@ -12639,6 +12647,10 @@
             40
           ]
         ],
+        "traceGeo": {
+          "lat": 36.5627115,
+          "lon": -79.2001427
+        },
         "carChannels": {
           "rpm": {
             "count": 1408,
@@ -15678,6 +15690,10 @@
             40
           ]
         ],
+        "traceGeo": {
+          "lat": 36.56,
+          "lon": -79.1966449
+        },
         "carChannels": {
           "rpm": {
             "count": 600,
@@ -16232,6 +16248,7 @@
         "lapRecovery": null,
         "channels": null,
         "bestLapTrace": null,
+        "traceGeo": null,
         "carChannels": {
           "rpm": {
             "count": 1556,
@@ -18070,6 +18087,10 @@
             40
           ]
         ],
+        "traceGeo": {
+          "lat": 36.56,
+          "lon": -79.1966449
+        },
         "lapChannels": {
           "v": 1,
           "dStepM": 20,

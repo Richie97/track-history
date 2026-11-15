@@ -59,7 +59,9 @@ const EVENT_HIDDEN: Json = {
   cost_cents: null,
 };
 
-export const COACH_SESSION_FIELDS = ["id", "label", "sort", "trace", "channels", "ambient_c", "elevation_m"] as const;
+// `trace_geo` (NS-53) is where the trace lies: a coach is someone the driver
+// invited, and reads the map the driver does.
+export const COACH_SESSION_FIELDS = ["id", "label", "sort", "trace", "trace_geo", "channels", "ambient_c", "elevation_m"] as const;
 export const COACH_LAP_FIELDS = ["id", "session_id", "lap_num", "time_ms"] as const;
 // A lap's best-lap video (NS-45), copied through its own allow-list so a field
 // added to the clip later stays private without an edit here. `size_bytes` is

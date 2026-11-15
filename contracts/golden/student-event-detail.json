@@ -55,7 +55,8 @@
         ],
         "notes": null,
         "sort": 2,
-        "trace": null
+        "trace": null,
+        "trace_geo": null
       },
       {
         "ambient_c": 21.4,
@@ -232,7 +233,11 @@
             -200,
             52
           ]
-        ]
+        ],
+        "trace_geo": {
+          "lat": 36.5607123,
+          "lon": -79.2064456
+        }
       },
       {
         "ambient_c": null,
@@ -338,7 +343,8 @@
         ],
         "notes": null,
         "sort": 4,
-        "trace": null
+        "trace": null,
+        "trace_geo": null
       }
     ],
     "setups": [],

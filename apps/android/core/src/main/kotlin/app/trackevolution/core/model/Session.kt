@@ -57,6 +57,13 @@ public data class Session(
      */
     val trace: List<TracePoint>? = null,
     /**
+     * Where [trace] lies on Earth (NS-53): the origin its meters are measured
+     * from. Null for a session with no trace, and for one saved before anchors
+     * were kept that has no newer session at its track to borrow from. Never
+     * present on a shared event or session link.
+     */
+    @SerialName("trace_geo") val traceGeo: TraceGeo? = null,
+    /**
      * Per-lap channel data on a shared driven-distance grid, present only on
      * telemetry imports (`sanitizeChannels`).
      */
@@ -76,6 +83,21 @@ public data class Session(
     /** `laps.length`, for the swap picker's row (migration 0030). Not serialized: no backing field. */
     override val lapCount: Int get() = laps.size
 }
+
+/**
+ * The point a stored trace's local meters are measured from, in decimal
+ * degrees (`sessions.trace_geo`, NS-53) — the origin the importer projected
+ * with, which is not always the trace's first point. [approx] is true when the
+ * server lent the anchor from another session at the same track
+ * (`borrowAnchor` in `src/lib/geo.ts`) rather than read it from this one, and
+ * absent otherwise.
+ */
+@Serializable
+public data class TraceGeo(
+    val lat: Double,
+    val lon: Double,
+    val approx: Boolean? = null,
+)
 
 /**
  * One `[x, y, v]` point of a stored trace: local meters east/north plus speed.

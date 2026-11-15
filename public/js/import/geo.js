@@ -146,3 +146,110 @@ export function bestLapTrace(trace, gate, opts = {}) {
   }
   return best ? lapTrace(trace, best.t0, best.t1) : null;
 }
+
+// --- where a trace lies on Earth (NS-53) --------------------------------------
+// A stored trace is local metres from the origin projectTrace was given, and
+// that origin is saved beside it as the session's `trace_geo`. These are the
+// pure half of drawing the line on a real map: the anchor a save sends, the
+// way back to degrees, and what a map view needs to fit, hit-test and colour
+// the line. Ported as the same names to `Geo` in the iOS Kit and `GeoTrace` in
+// Android's :core, pinned by contracts/logic/geo-anchor.json. The server's
+// half (validation, and lending an anchor to an older trace) is
+// src/lib/geo.ts, which restates KX / KY.
+
+// projectTrace's constants. **The inverse must use the same two numbers** —
+// they are approximations, but the projection is then its own exact inverse.
+export const KY = 110540;
+export const KX = (lat) => 111320 * Math.cos((lat * Math.PI) / 180);
+
+const round7 = (v) => Math.round(v * 1e7) / 1e7;
+
+// The anchor to save with a trace: the origin its points were projected from
+// — `gps[0]` unless projectTrace was handed another. Null for anything that
+// isn't a real coordinate ((0, 0) is a GPS with no fix), so a save sends null
+// rather than a place the line never was.
+export function traceOrigin(gps, origin = gps?.[0]) {
+  const lat = origin?.lat;
+  const lon = origin?.lon;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (Math.abs(lat) > 85 || Math.abs(lon) > 180) return null;
+  if (Math.abs(lat) < 0.01 && Math.abs(lon) < 0.01) return null;
+  return { lat: round7(lat), lon: round7(lon) };
+}
+
+// A stored [x, y, v] trace back to degrees: [{lat, lon, v}].
+export function unprojectTrace(trace, geo) {
+  const kx = KX(geo.lat);
+  return trace.map((p) => ({ lat: geo.lat + p[1] / KY, lon: geo.lon + p[0] / kx, v: p[2] ?? 0 }));
+}
+
+// The trace's bounding box in degrees — what a map's first camera fits.
+export function traceGeoBounds(trace, geo) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of trace) {
+    if (p[0] < x0) x0 = p[0];
+    if (p[0] > x1) x1 = p[0];
+    if (p[1] < y0) y0 = p[1];
+    if (p[1] > y1) y1 = p[1];
+  }
+  if (!Number.isFinite(x0)) return null;
+  const kx = KX(geo.lat);
+  return {
+    south: geo.lat + y0 / KY,
+    west: geo.lon + x0 / kx,
+    north: geo.lat + y1 / KY,
+    east: geo.lon + x1 / kx,
+  };
+}
+
+// The point on the line nearest (x, y), all in the trace's metres — a tap's
+// hit test. `idx` is the nearer end of the segment hit, `alongM` the driven
+// distance to the nearest point, `frac` that as a fraction of the trace's
+// length (by cumulative chord length, the traceIndexAtFraction rule: a trace
+// is denser where the car was slower, so an index is not a place), `offM` how
+// far the tap was from the line. Null when nothing is within `maxM`. Ties keep
+// the earlier segment.
+export function nearestOnTrace(trace, x, y, maxM = Infinity) {
+  if (!Array.isArray(trace) || trace.length < 2) return null;
+  let best = null;
+  let cum = 0;
+  for (let i = 0; i < trace.length - 1; i++) {
+    const ax = trace[i][0], ay = trace[i][1];
+    const dx = trace[i + 1][0] - ax, dy = trace[i + 1][1] - ay;
+    const len = Math.hypot(dx, dy);
+    const t = len > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (len * len))) : 0;
+    const offM = Math.hypot(x - (ax + dx * t), y - (ay + dy * t));
+    if (!best || offM < best.offM) best = { idx: t < 0.5 ? i : i + 1, alongM: cum + len * t, offM };
+    cum += len;
+  }
+  if (!(cum > 0) || best.offM > maxM) return null;
+  return { idx: best.idx, frac: best.alongM / cum, alongM: best.alongM, offM: best.offM };
+}
+
+// The line cut into runs of one speed colour: [{from, to, bucket}], point
+// indexes inclusive, `bucket` 0 (slowest) … buckets − 1. Speed is normalised
+// over the trace's own range, as the drawn track map does, and a segment takes
+// the bucket of the point it starts at. A map SDK that strokes a polyline in
+// one colour draws one overlay per run; the others build gradient stops from
+// the same runs, so every client colours the same metres the same.
+export function speedRuns(trace, buckets = 16) {
+  if (!Array.isArray(trace) || trace.length < 2) return [];
+  let vMin = Infinity, vMax = -Infinity;
+  for (const p of trace) {
+    const v = p[2] ?? 0;
+    if (v < vMin) vMin = v;
+    if (v > vMax) vMax = v;
+  }
+  const bucketAt = (i) => {
+    if (!(vMax > vMin)) return Math.floor(buckets / 2);
+    return Math.min(buckets - 1, Math.floor((((trace[i][2] ?? 0) - vMin) / (vMax - vMin)) * buckets));
+  };
+  const runs = [];
+  for (let i = 0; i < trace.length - 1; i++) {
+    const bucket = bucketAt(i);
+    const last = runs[runs.length - 1];
+    if (last && last.bucket === bucket) last.to = i + 1;
+    else runs.push({ from: i, to: i + 1, bucket });
+  }
+  return runs;
+}

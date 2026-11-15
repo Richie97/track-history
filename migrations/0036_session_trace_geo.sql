@@ -1,0 +1,15 @@
+-- NS-53: where a session's best-lap trace lies on Earth.
+--
+-- sessions.trace is [x, y, v] in local metres from the origin the importer
+-- projected with, and until now that origin was thrown away at save, so a
+-- trace had a shape and no place. trace_geo keeps it: JSON {"lat":..,"lon":..}
+-- in decimal degrees, the origin projectTrace was called with — which is not
+-- always the trace's first point (a batch sharing one picked line projects
+-- every file from the first file's first fix).
+--
+-- Plain and route-set, no trigger: it is not derived from another column.
+-- NULL for a session with no trace, for one saved before this migration, and
+-- for one whose client sent nothing plausible. Sessions saved earlier are not
+-- backfilled — the origin is gone — and instead borrow an anchor at read time
+-- from a newer session at the same track (borrowAnchor in src/lib/geo.ts).
+ALTER TABLE sessions ADD COLUMN trace_geo TEXT;

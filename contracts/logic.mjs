@@ -22,7 +22,14 @@ import {
   buildGate,
   deriveLaps,
   gateCrossings,
+  KX as geoKX,
+  KY as geoKY,
+  nearestOnTrace,
   projectTrace,
+  speedRuns,
+  traceGeoBounds,
+  traceOrigin,
+  unprojectTrace,
 } from "../public/js/import/geo.js";
 import { parseTelemetryFile } from "../public/js/import/parse.js";
 import { lapsFromLaptime } from "../public/js/import/csv.js";
@@ -1761,6 +1768,7 @@ for (const f of videoFixtures) {
       gate: state.gate,
       laps: parsed.laps.map(lapOut),
       bestLapTrace: parsed.bestLapTrace,
+      traceGeo: parsed.traceGeo ?? null,
       lapChannels: parsed.lapChannels ?? null,
     };
   }
@@ -2072,6 +2080,7 @@ for (const f of vboFixtures) {
     expected: {
       ...parsedOut(parsed),
       bestLapTrace: parsed.bestLapTrace ?? null,
+      traceGeo: parsed.traceGeo ?? null,
       carChannels: Object.fromEntries(Object.entries(parsed.carChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])),
       lapScalarChannels: Object.fromEntries(
         Object.entries(parsed.lapScalarChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])
@@ -2089,6 +2098,7 @@ for (const f of vboFixtures) {
       gate: state.gate,
       laps: parsed.laps.map(lapOut),
       bestLapTrace: parsed.bestLapTrace,
+      traceGeo: parsed.traceGeo ?? null,
       lapChannels: parsed.lapChannels ?? null,
     };
   }
@@ -2173,6 +2183,7 @@ for (const f of csvFixtures) {
     expected: {
       ...parsedOut(parsed),
       bestLapTrace: parsed.bestLapTrace ?? null,
+      traceGeo: parsed.traceGeo ?? null,
       carChannels: Object.fromEntries(Object.entries(parsed.carChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])),
       lapScalarChannels: Object.fromEntries(
         Object.entries(parsed.lapScalarChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])
@@ -2189,6 +2200,7 @@ for (const f of csvFixtures) {
       gate: state.gate,
       laps: parsed.laps.map(lapOut),
       bestLapTrace: parsed.bestLapTrace,
+      traceGeo: parsed.traceGeo ?? null,
       lapChannels: parsed.lapChannels ?? null,
     };
   }
@@ -2877,7 +2889,64 @@ const clipUploadFixture = {
   apply: clipApplyRows,
 };
 
+// --- where a trace lies on Earth (NS-53) ---------------------------------------
+// The pure half of drawing a stored trace on a real map, from
+// public/js/import/geo.js: the anchor a save sends, the way back to degrees,
+// the bounds a camera fits, the tap's hit test and the line's colour runs.
+// The trace is deliberately uneven — dense through a slow corner, sparse down
+// a straight — because a port that hit-tests or cuts runs by index rather than
+// by distance agrees with the reference on an even trace and nowhere else.
+const anchorGeo = { lat: 36.5607123, lon: -79.2064456 };
+const anchorTrace = [];
+for (let i = 0; i < 40; i++) {
+  const a = (i / 39) * 2 * Math.PI;
+  const slow = Math.sin(a) > 0.6;
+  const r = slow ? 180 : 420;
+  anchorTrace.push([
+    Math.round(r * Math.sin(a) * 10) / 10,
+    Math.round((300 - r * Math.cos(a)) * 10) / 10,
+    Math.round((slow ? 18 + i * 0.3 : 52 - (i % 7) * 2.5) * 100) / 100,
+  ]);
+}
+const anchorTaps = [
+  [0, -120, 24],
+  [140, 310, 24],
+  [140, 310, Infinity],
+  [-400, 300, 40],
+  [10, 480, 12],
+  [900, 900, 24],
+  [anchorTrace[5][0], anchorTrace[5][1], 1],
+];
+const geoAnchorFixture = {
+  description:
+    "NS-53: a stored trace on a real map. Generated from public/js/import/geo.js; ports assert equality " +
+    "(coordinates to 1e-9 degrees, metres to 1e-6).",
+  constants: { KY: geoKY, KX_at: [0, 36.5607123, -37.85, 60].map((lat) => ({ lat, kx: geoKX(lat) })) },
+  traceOrigin: [
+    { gps: [{ lat: 36.56071234567, lon: -79.20644567891 }, { lat: 36.57, lon: -79.21 }], origin: null },
+    { gps: [{ lat: 36.5, lon: -79.2 }], origin: { lat: -33.80391234567, lon: 150.87041234567 } },
+    { gps: [{ lat: 0, lon: 0 }], origin: null },
+    { gps: [{ lat: 0.005, lon: -0.009 }], origin: null },
+    { gps: [{ lat: 0, lon: 101.7 }], origin: null },
+    { gps: [{ lat: 86, lon: 10 }], origin: null },
+    { gps: [], origin: null },
+  ].map((c) => ({ ...c, expected: c.origin ? traceOrigin(c.gps, c.origin) : traceOrigin(c.gps) })),
+  geo: anchorGeo,
+  trace: anchorTrace,
+  unprojected: unprojectTrace(anchorTrace, anchorGeo),
+  bounds: traceGeoBounds(anchorTrace, anchorGeo),
+  nearest: anchorTaps.map(([x, y, maxM]) => ({
+    x,
+    y,
+    maxM: Number.isFinite(maxM) ? maxM : null,
+    expected: nearestOnTrace(anchorTrace, x, y, maxM),
+  })),
+  speedRuns: [4, 16].map((buckets) => ({ buckets, expected: speedRuns(anchorTrace, buckets) })),
+  flatSpeedRuns: speedRuns(anchorTrace.map(([x, y]) => [x, y, 30]), 16),
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(path.join(OUT_DIR, "geo-anchor.json"), JSON.stringify(geoAnchorFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");

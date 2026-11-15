@@ -324,6 +324,9 @@ async function build(api) {
     label: "Session 3",
     laps: [121_900],
     trace: Array.from({ length: N }, (_, i) => [...ring(i), 30 + i * 2]),
+    // Where the trace lies (NS-53) — the origin an importer projected it from,
+    // so the session's `trace_geo` is pinned as an object rather than a null.
+    trace_geo: { lat: 36.5607123, lon: -79.2064456 },
     channels: {
       dStepM: 20,
       // Session meta, so the conditions columns migration 0020 derives from it
