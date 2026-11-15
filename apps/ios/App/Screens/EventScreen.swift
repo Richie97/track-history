@@ -642,7 +642,9 @@ struct EventScreen: View {
 
             channelSection(session)
 
-            if let comments {
+            // Only when there is something to show: an empty view in a `List`
+            // row is still a row, a blank one 44 pt tall under every session.
+            if let comments, comments.loaded, !comments.threads(sessionId: session.id).isEmpty {
                 row { SessionCommentsBlock(model: comments, session: session) }
             }
 
