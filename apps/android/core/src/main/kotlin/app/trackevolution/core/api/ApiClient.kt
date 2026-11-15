@@ -701,6 +701,27 @@ public class ApiClient private constructor(
         send("DELETE", "/clips/$clipId", null, OkResponse.serializer())
     }
 
+    // ---- Push notifications for coach comments (NS-54) ----------------------
+
+    /**
+     * Registers this install's FCM token for coach-comment notifications. The
+     * server keys it on the session the bearer token belongs to, so signing out
+     * unregisters it. A live write, never queued: a token that waited in the
+     * queue could land after the session that registered it was gone.
+     */
+    public suspend fun registerPushDevice(token: String) {
+        val body = buildJsonObject {
+            put("platform", JsonPrimitive("android"))
+            put("token", JsonPrimitive(token))
+        }
+        send("PUT", "/push/device", body, OkResponse.serializer(), cached = false)
+    }
+
+    /** Stops this install's notifications (Settings' toggle). Idempotent. */
+    public suspend fun unregisterPushDevice() {
+        send("DELETE", "/push/device", null, OkResponse.serializer(), cached = false)
+    }
+
     // ---- Setup sheets (NS-40) ---------------------------------------------
 
     /**

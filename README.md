@@ -2123,7 +2123,12 @@ Wrapped, which is free.
   out unregisters) and stop with `DELETE`. `src/push/fcm.ts` sends from
   `waitUntil` after the comment's 201 — best effort, never retried, a dead
   token deleted — and ships dark without `FCM_SERVICE_ACCOUNT`. The server
-  half has landed (#463); the iOS (#464) and Android (#465) halves are next.
+  half has landed (#463). **Android** (#465): `push/` in `:app` — FCM
+  (`firebase-messaging`, auto-init off until a driver opts in), the
+  `coach_comments` channel, `PushRegistrar` registering after every sign-in,
+  an in-context *Get notified when … replies* under a thread, Settings'
+  *Comment notifications* switch, and a tap opening the lap or event. iOS
+  (#464) is next.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from
