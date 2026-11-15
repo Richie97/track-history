@@ -39,6 +39,7 @@ import { scheduleWarm } from "./js/prefetch.js";
 import { confettiBurst, detectPB } from "./js/celebrate.js";
 import { DEFAULT_CHECKLIST } from "./js/checklist.js";
 import { renderTrackMap, traceIndexAtFraction } from "./js/trackmap.js";
+import { bindMapViewer, destroyMapViewer, mapViewerHtml } from "./js/map-viewer.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
 import { sessionsToCreate, stagedSummary } from "./js/event-form.js";
@@ -1837,7 +1838,8 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   // under it rather than over the whole page.
   const mapHtml = lap.trace
     ? `<div class="chart-card">
-         <div class="chart-title">Racing line — <span class="dir">brighter is faster</span></div>
+         <div class="chart-title">Racing line — <span class="dir">brighter is faster</span>
+           <a class="btn small ghost trackmap-open" href="#/track/${trackId}/leaderboard/${lapId}/map">Open on a map</a></div>
          <canvas id="lb-trackmap" class="trackmap" aria-label="Racing line of this lap, coloured by speed"></canvas>
        </div>`
     : "";
@@ -3183,7 +3185,8 @@ async function viewEvent(eventId) {
   const traceHtml = traceSession
     ? `<div class="chart-card">
         <div class="chart-title">Best lap trace — <span class="dir">brighter is faster</span>
-          <span class="trackmap-lap">${fmtMs(Math.min(...traceSession.laps.map((l) => l.time_ms)))}</span></div>
+          <span class="trackmap-lap">${fmtMs(Math.min(...traceSession.laps.map((l) => l.time_ms)))}</span>
+          ${sharedView ? "" : `<a class="btn small ghost trackmap-open" href="${L(`#/event/${e.id}/session/${traceSession.id}/map`)}">Open on a map</a>`}</div>
         <div class="trackmap-wrap"><canvas id="trackmap" role="img" aria-label="Racing line of the best lap, colored by speed${markerKinds.length ? `, marked where ${markerKinds.map((k) => k.label).join(", ")} were active` : ""}"></canvas></div>
         <div class="trackmap-legend"><span>slow</span><span class="ramp" aria-hidden="true"></span><span>fast</span></div>
         ${
@@ -6315,6 +6318,7 @@ async function routeStudent(studentId, rest, params) {
   }
   viewing = { id: student.id, name: student.name, picture: student.picture, pro: !!student.pro, profile: student.profile };
   if (rest.length === 0) return viewStudentHome();
+  if (rest[0] === "event" && rest[1] && rest[2] === "session" && rest[3] && rest[4] === "map") return viewSessionMap(rest[1], rest[3]);
   if (rest[0] === "event" && rest[1]) return viewEvent(rest[1]);
   if (rest[0] === "track" && rest[1] && rest[2] === "compare") return viewCompare(rest[1], params);
   if (rest[0] === "track" && rest[1] && rest[2] === "lap-compare") return viewLapCompare(rest[1], params);
@@ -6462,6 +6466,72 @@ async function viewStudentVehicle(vehicleId) {
         : ""
     }
   `);
+}
+
+// --- the racing line on a real map (NS-53) ---
+
+// The traced lap's limit marks, for the map (a glyph each) and for the drawn
+// line it falls back to. `entry` is the lap's own channel entry, or null.
+function mapMarks(entry, dStepM, trace) {
+  const found = entry ? limitMarkers(entry, dStepM, trace) : [];
+  return {
+    markers: found.map((m) => ({ idx: m.idx, label: kindDef(m.kind).label, glyphHtml: limitGlyphSvg(kindDef(m.kind)) })),
+    lineMarkers: found.map((m) => ({ idx: m.idx, ...kindDef(m.kind) })),
+  };
+}
+
+function drawMapViewer({ title, sub, closeHref, trace, geo, entry, dStepM }) {
+  destroyAllStages();
+  const view = shell(mapViewerHtml({ title, sub, closeHref }));
+  bindMapViewer(view.querySelector("[data-map-viewer]"), {
+    trace,
+    geo: geo ?? null,
+    entry,
+    dStepM,
+    units: currentUnits(),
+    mapsOn: !!state.me?.maps?.web,
+    ...mapMarks(entry, dStepM, trace),
+  });
+}
+
+// One session's best lap on the map: #/event/:id/session/:sid/map, and the
+// same under #/student/:id for a coach. Reads the event the page behind it
+// already cached, so it opens offline — on the line, without imagery.
+async function viewSessionMap(eventId, sessionId) {
+  const e = await api(`/events/${eventId}`);
+  const s = e.sessions.find((x) => String(x.id) === String(sessionId));
+  if (!s?.trace || s.trace.length < 10 || !s.laps.length) return viewNotFound();
+  // The lap the trace was drawn from is the session's best; its channel entry
+  // is what the tap's read-out and the limit marks come from.
+  const best = s.laps.reduce((a, b) => (b.time_ms < a.time_ms ? b : a));
+  const matched = s.channels?.laps?.length ? matchLapsToChannels(s.laps, s.channels.laps).filter((r) => r.chIdx >= 0) : [];
+  const row = matched.find((r) => r.lap.id === best.id);
+  drawMapViewer({
+    title: e.track_name,
+    sub: `${fmtMs(best.time_ms)} · ${fmtDate(e.start_date)}`,
+    closeHref: L(`#/event/${eventId}`),
+    trace: s.trace,
+    geo: s.trace_geo,
+    entry: row ? s.channels.laps[row.chIdx] : null,
+    dStepM: s.channels?.dStepM ?? null,
+  });
+}
+
+// A leaderboard lap on the map: #/track/:id/leaderboard/:lapId/map.
+async function viewLeaderboardLapMap(trackId, lapId) {
+  const lap = await api(`/tracks/${trackId}/leaderboard/laps/${lapId}`);
+  if (!lap.trace || lap.trace.length < 10) return viewNotFound();
+  const tracks = await api("/tracks").catch(() => []);
+  const track = tracks.find((t) => String(t.id) === String(trackId));
+  drawMapViewer({
+    title: track?.name ?? "Leaderboard lap",
+    sub: `${fmtMs(lap.time_ms)} · ${lap.you ? "your lap" : (lap.name ?? "Driver")}`,
+    closeHref: `#/track/${trackId}/leaderboard/${lapId}`,
+    trace: lap.trace,
+    geo: lap.trace_geo,
+    entry: lap.channels?.laps?.[0] ?? null,
+    dStepM: lap.channels?.dStepM ?? null,
+  });
 }
 
 function viewNotFound() {
@@ -6748,6 +6818,8 @@ async function routeView() {
   // Every navigation starts as the signed-in driver; only a #/student/<id>
   // route turns the read-only view back on (routeStudent).
   viewing = null;
+  // …and with no map: the viewer (NS-53) holds a live map until told to let go.
+  destroyMapViewer();
   try {
     await ensureMe();
   } catch (err) {
@@ -6775,6 +6847,10 @@ async function routeView() {
     if (parts[0] === "coach") return await viewAcceptInvite();
     if (parts[0] === "track" && parts[1] && parts[2] === "compare") return await viewCompare(parts[1], params);
     if (parts[0] === "track" && parts[1] && parts[2] === "lap-compare") return await viewLapCompare(parts[1], params);
+    if (parts[0] === "track" && parts[1] && parts[2] === "leaderboard" && parts[3] && parts[4] === "map")
+      return await viewLeaderboardLapMap(parts[1], parts[3]);
+    if (parts[0] === "event" && parts[1] && parts[2] === "session" && parts[3] && parts[4] === "map")
+      return await viewSessionMap(parts[1], parts[3]);
     if (parts[0] === "track" && parts[1] && parts[2] === "leaderboard" && parts[3])
       return await viewLeaderboardLap(parts[1], parts[3], params);
     if (parts[0] === "track" && parts[1] && parts[2] === "leaderboard") return await viewLeaderboard(parts[1]);

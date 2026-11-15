@@ -7,6 +7,7 @@ import { parseProfile, sanitizeProfile } from "../lib/profile";
 import { subscriptionsForUserStmt } from "../lib/billing/store";
 import { CLIP_QUOTA_BYTES } from "../lib/clips";
 import { youtubeAvailable } from "../lib/youtube";
+import { mapsAvailable } from "../lib/maps";
 import { unreadCommentsStmt } from "./comments";
 
 export const me = new Hono<AppContext>();
@@ -71,6 +72,10 @@ me.get("/me", async (c) => {
       channel_title: yt?.channel_title ?? null,
     },
     comments_unread: (unreadRes.results[0] as { unread: number }).unread,
+    // Whether the web's map viewer has imagery to draw the racing line over
+    // (NS-53): the MapKit JS secrets are set. Read by the web only — the
+    // phones draw their own platform's maps and need no token.
+    maps: { web: mapsAvailable(c.env) },
   };
   // Tier comes from entitled_until as loaded with the session; the rows only
   // say where it came from (NS-32 requirement 1) — and a web subscription's
