@@ -551,6 +551,98 @@ public actor APIClient {
     public func forgetStudent(_ id: Int) async {
         if let parent { return await parent.forgetStudent(id) }
         try? await offline?.removeCachedPrefix(LogbookOwner.studentPrefix(id) + "/")
+        // …and the coach's own comment thread on them (NS-52), which is read
+        // through the coach's routes rather than the mount.
+        try? await offline?.removeCachedPrefix(Self.commentsBase(studentId: id) + "/")
+    }
+
+    // MARK: - Coach comments (NS-52)
+
+    // The one exception to the read-only seam: a coach comments on a student's
+    // logbook through the coach's **own** routes, `/coaching/students/<id>/…`,
+    // where the server checks the grant in the statement. So every method here
+    // goes to the unscoped client — a scoped one hands the call to its parent
+    // rather than prefixing it or refusing the write — and every write is
+    // live, absent from the queueable whitelist: *"Commenting needs a
+    // connection."* The reads are ordinary cached GETs.
+
+    /// Where an owner's comment routes live: nothing for your own logbook,
+    /// `/coaching/students/<id>` for a student's.
+    static func commentsBase(studentId: Int?) -> String {
+        studentId.map { "/coaching/students/\($0)" } ?? ""
+    }
+
+    /// The comments on an event: every thread with `coaches` on your own, your
+    /// own thread on a student's.
+    public func eventComments(eventId: Int, owner: LogbookOwner) async throws -> EventComments {
+        if let parent { return try await parent.eventComments(eventId: eventId, owner: owner) }
+        return try await get(
+            "\(Self.commentsBase(studentId: owner.studentId))/events/\(eventId)/comments", as: EventComments.self
+        )
+    }
+
+    /// Write a comment on a session, a lap of it, or a place on that lap. On a
+    /// student's logbook it starts or continues the caller's own thread; on
+    /// your own it is a reply into `coachId`'s.
+    public func postComment(
+        sessionId: Int, owner: LogbookOwner, coachId: Int?, body: String, lapId: Int?, distM: Int?
+    ) async throws -> CoachComment {
+        if let parent {
+            return try await parent.postComment(
+                sessionId: sessionId, owner: owner, coachId: coachId, body: body, lapId: lapId, distM: distM
+            )
+        }
+        let payload = NewComment(
+            coachId: owner.isReadOnly ? nil : coachId, body: body, lapId: lapId, distM: lapId == nil ? nil : distM
+        )
+        return try await send(
+            "POST", "\(Self.commentsBase(studentId: owner.studentId))/sessions/\(sessionId)/comments",
+            body: payload, as: CommentSaved.self
+        ).comment
+    }
+
+    /// Mark the event's comments the caller didn't write as read.
+    public func markCommentsSeen(eventId: Int, owner: LogbookOwner) async throws -> CommentsSeen {
+        if let parent { return try await parent.markCommentsSeen(eventId: eventId, owner: owner) }
+        return try await send(
+            "POST", "\(Self.commentsBase(studentId: owner.studentId))/events/\(eventId)/comments/seen",
+            body: NoBody?.none, as: CommentsSeen.self
+        )
+    }
+
+    /// Edit your own comment.
+    public func updateComment(id: Int, body: String) async throws -> CoachComment {
+        if let parent { return try await parent.updateComment(id: id, body: body) }
+        return try await send("PUT", "/comments/\(id)", body: EditedComment(body: body), as: CommentSaved.self).comment
+    }
+
+    /// Delete your own comment, or — as the owner — any comment in your logbook.
+    public func deleteComment(id: Int) async throws {
+        if let parent { return try await parent.deleteComment(id: id) }
+        _ = try await send("DELETE", "/comments/\(id)", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    /// What was said to the caller, both roles at once, newest first.
+    public func commentFeed() async throws -> CommentFeed {
+        if let parent { return try await parent.commentFeed() }
+        return try await get("/coaching/comments", as: CommentFeed.self)
+    }
+
+    struct NewComment: Encodable {
+        var coachId: Int?
+        var body: String
+        var lapId: Int?
+        var distM: Int?
+        enum CodingKeys: String, CodingKey {
+            case body
+            case coachId = "coach_id"
+            case lapId = "lap_id"
+            case distM = "dist_m"
+        }
+    }
+
+    private struct EditedComment: Encodable {
+        var body: String
     }
 
     /// Your driver profile — or, on a client scoped to a student, theirs, with
