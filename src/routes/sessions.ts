@@ -2,22 +2,26 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { insertLaps, ownedSession } from "../db";
 import { sanitizeChannels, sanitizeLaps, sanitizeTrace } from "../lib/validate";
+import { sanitizeTraceGeo } from "../lib/geo";
 
 export const sessions = new Hono<AppContext>();
 
 sessions.post("/events/:id/sessions", async (c) => {
   const eventId = c.req.param("id");
-  const body = await c.req.json<{ label?: string; notes?: string; laps?: number[]; trace?: unknown; channels?: unknown }>();
+  const body = await c.req.json<{ label?: string; notes?: string; laps?: number[]; trace?: unknown; trace_geo?: unknown; channels?: unknown }>();
   const trace = sanitizeTrace(body.trace);
   if (trace === undefined) return c.json({ error: "invalid trace" }, 400);
   const channels = sanitizeChannels(body.channels);
   if (channels === undefined) return c.json({ error: "invalid channels" }, 400);
+  // Where the trace lies (NS-53). Anything implausible is stored as null
+  // rather than refused: a map backdrop is not worth a session.
+  const traceGeo = sanitizeTraceGeo(body.trace_geo, trace);
   // Ownership check, next sort value, and insert in one statement: the SELECT
   // yields no row for an event that isn't this user's, so nothing is inserted
   // and RETURNING comes back empty.
   const session = await c.env.DB.prepare(
-    `INSERT INTO sessions (event_id, label, notes, sort, trace, channels)
-     SELECT e.id, ?2, ?3, (SELECT COALESCE(MAX(sort), 0) + 1 FROM sessions WHERE event_id = e.id), ?4, ?5
+    `INSERT INTO sessions (event_id, label, notes, sort, trace, channels, trace_geo)
+     SELECT e.id, ?2, ?3, (SELECT COALESCE(MAX(sort), 0) + 1 FROM sessions WHERE event_id = e.id), ?4, ?5, ?7
      FROM events e WHERE e.id = ?1 AND e.user_id = ?6
      RETURNING id`
   )
@@ -27,7 +31,8 @@ sessions.post("/events/:id/sessions", async (c) => {
       body.notes ?? null,
       trace ? JSON.stringify(trace) : null,
       channels ? JSON.stringify(channels) : null,
-      c.get("userId")
+      c.get("userId"),
+      traceGeo ? JSON.stringify(traceGeo) : null
     )
     .first<{ id: number }>();
   if (!session) return c.json({ error: "not found" }, 404);

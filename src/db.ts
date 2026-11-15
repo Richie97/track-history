@@ -329,3 +329,17 @@ export async function insertLaps(db: D1Database, sessionId: number, laps: number
     )
   );
 }
+
+// The newest session at a track that kept its trace's anchor (NS-53) — the
+// donor an unanchored trace at the same track borrows its place from
+// (borrowAnchor in lib/geo.ts). Scoped to one user: an anchor is never lent
+// across accounts. Two forms, by the event being read and by the track.
+const TRACE_DONOR = `SELECT s.trace, s.trace_geo FROM sessions s JOIN events e ON e.id = s.event_id
+  WHERE e.user_id = ?1 AND s.trace_geo IS NOT NULL AND s.trace IS NOT NULL AND e.track_id = `;
+const TRACE_DONOR_ORDER = " ORDER BY e.start_date DESC, s.id DESC LIMIT 1";
+export const traceDonorForEventStmt = (db: D1Database, userId: number, eventId: number | string) =>
+  db
+    .prepare(`${TRACE_DONOR}(SELECT track_id FROM events WHERE id = ?2 AND user_id = ?1)${TRACE_DONOR_ORDER}`)
+    .bind(userId, eventId);
+export const traceDonorForTrackStmt = (db: D1Database, userId: number, trackId: number | string) =>
+  db.prepare(`${TRACE_DONOR}?2${TRACE_DONOR_ORDER}`).bind(userId, trackId);

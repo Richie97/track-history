@@ -114,6 +114,12 @@ public data class LeaderboardLap(
     @SerialName("ambient_c") val ambientC: Double? = null,
     @SerialName("elevation_m") val elevationM: Double? = null,
     val trace: List<TracePoint>? = null,
+    /**
+     * Where [trace] lies (NS-53) — the lap's own anchor or one borrowed from
+     * its owner's sessions at the track. A leaderboard is always a catalog
+     * circuit, so this says nothing the track's name doesn't.
+     */
+    @SerialName("trace_geo") val traceGeo: TraceGeo? = null,
     val channels: SessionChannels? = null,
 ) {
     /**

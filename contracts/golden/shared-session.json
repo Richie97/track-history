@@ -77,7 +77,8 @@
           ],
           "notes": null,
           "sort": 1,
-          "trace": null
+          "trace": null,
+          "trace_geo": null
         }
       ],
       "setups": [],

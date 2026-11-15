@@ -42,7 +42,7 @@ session) the comment is on.
 
 ## Server (ticket 1)
 
-### Migration `0037_push_devices.sql`
+### Migration `0038_push_devices.sql`
 
 ```sql
 CREATE TABLE push_devices (

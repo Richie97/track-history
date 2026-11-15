@@ -16,7 +16,7 @@
 // derivation is geometry within the file) and the line picker's mirroring
 // fallback (applyGate in ui.js) still matches it to a batch-mate.
 
-import { gateCrossings, gateFromSegment, lapTrace, lapsFromCrossings, projectTrace } from "./geo.js";
+import { gateCrossings, gateFromSegment, lapTrace, lapsFromCrossings, projectTrace, traceOrigin } from "./geo.js";
 
 // "095512.30" (time-of-day) -> seconds
 function timeOfDayS(s) {
@@ -306,6 +306,7 @@ export function parseVboText(text, fileName = null) {
   // trace is kept. If present, laps come for free.
   let laps = [];
   let lapTracePts = null;
+  let traceGeo = null;
   const startLine = (sections["laptiming"] ?? []).find((l) => /^start\s/i.test(l));
   if (startLine) {
     const n = startLine.split(/\s+/).slice(1, 5).map(Number);
@@ -334,6 +335,7 @@ export function parseVboText(text, fileName = null) {
       if (laps.length) {
         const best = laps.reduce((a, b) => (b.timeMs < a.timeMs ? b : a));
         lapTracePts = lapTrace(trace, best.startT, best.endT);
+        traceGeo = lapTracePts ? traceOrigin(points, origin) : null;
       }
     }
   }
@@ -345,6 +347,7 @@ export function parseVboText(text, fileName = null) {
     durationS: points[points.length - 1].t,
     laps,
     bestLapTrace: lapTracePts,
+    traceGeo,
     gps: points,
     carChannels,
     lapScalarChannels,

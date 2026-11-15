@@ -110,6 +110,7 @@ type SessionRow = {
   notes: string | null;
   sort: number;
   trace: string | null;
+  trace_geo: string | null;
   ambient_c: number | null;
   elevation_m: number | null;
   odometer_km: number | null;
@@ -170,7 +171,7 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
     db.prepare("SELECT id, created_at FROM events WHERE user_id = ?").bind(userId),
     db
       .prepare(
-        `SELECT s.id, s.event_id, s.label, s.notes, s.sort, s.trace, s.ambient_c, s.elevation_m, s.odometer_km,
+        `SELECT s.id, s.event_id, s.label, s.notes, s.sort, s.trace, s.trace_geo, s.ambient_c, s.elevation_m, s.odometer_km,
                 (s.channels IS NOT NULL) AS has_channels
          FROM sessions s JOIN events e ON e.id = s.event_id
          WHERE e.user_id = ? ORDER BY e.start_date, e.id, s.sort, s.id`
@@ -269,7 +270,7 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
     await out.item(null, head.slice(1, -1));
     await out.begin("sessions", "[");
     for (const s of sessionsByEvent.get(event.id) ?? []) {
-      const { has_channels, event_id, trace, ...sessionFields } = s;
+      const { has_channels, event_id, trace, trace_geo, ...sessionFields } = s;
       // A lap's best-lap video (NS-45) as metadata only: the file itself is the
       // lap page's *Download video*, since video in a JSON stream would make
       // the export unusable.
@@ -289,7 +290,7 @@ async function writeLogbook(db: D1Database, userId: number, telemetry: boolean, 
         })
       );
       const comments = (commentsBySession.get(s.id) ?? []).map(({ session_id, by_you, ...c }) => ({ ...c, by_you: !!by_you }));
-      const json = JSON.stringify({ ...sessionFields, trace: parseStored(trace), laps, comments });
+      const json = JSON.stringify({ ...sessionFields, trace: parseStored(trace), trace_geo: parseStored(trace_geo), laps, comments });
       // The blob is spliced in as stored — already valid JSON, sanitized on the
       // way in — rather than parsed and re-serialized, so a megabyte of arrays
       // is held once, as a string, and only until it is written.

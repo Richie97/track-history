@@ -19,7 +19,7 @@ import { parsePdr25File } from "./pdr25.js";
 import { parseGpmfFile } from "./gpmf.js";
 import { parseVboFile } from "./vbo.js";
 import { parseTrackPrecisionCsvFile } from "./csv.js";
-import { lapTrace, projectTrace } from "./geo.js";
+import { lapTrace, projectTrace, traceOrigin } from "./geo.js";
 import { recoverPdrLaps } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 
@@ -46,9 +46,11 @@ export async function parseTelemetryFile(file) {
     // fastest lap's window cuts straight out of it. Without laps,
     // the trace goes to the start/finish line picker instead.
     let bestLapTrace = null;
+    let traceGeo = null;
     if (pdr.gps && pdr.laps.length) {
       const best = pdr.laps.reduce((a, b) => (b.timeMs < a.timeMs ? b : a));
       bestLapTrace = lapTrace(projectTrace(pdr.gps), best.startT, best.endT);
+      traceGeo = bestLapTrace ? traceOrigin(pdr.gps) : null;
     }
     // No beacons and no decodable GPS trace: recover laps from latitude +
     // odometer. Boundaries start as rolling laps; anchorPdrBatch (ui.js)
@@ -59,7 +61,7 @@ export async function parseTelemetryFile(file) {
       lapRecovery = recoverPdrLaps(pdr.channels);
       if (lapRecovery) pdr.laps = lapRecovery.laps;
     }
-    return attachLapChannels({ kind: "pdr", ...pdr, bestLapTrace, lapRecovery, needsLine: !pdr.laps.length && !!pdr.gps });
+    return attachLapChannels({ kind: "pdr", ...pdr, bestLapTrace, traceGeo, lapRecovery, needsLine: !pdr.laps.length && !!pdr.gps });
   } catch (err) {
     pdrErr = err;
   }
