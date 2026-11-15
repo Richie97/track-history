@@ -3,7 +3,7 @@
 // structured data that parses — and the landing page's FAQ markup says what
 // the visible FAQ says. A page added without these fails here.
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const BASE = "https://docs.trackevolution.app";
 const read = (p) => readFileSync(new URL(`../../site/${p}`, import.meta.url), "utf8");
@@ -45,6 +45,22 @@ describe("site pages", () => {
     expect(jsonLd(html).length).toBeGreaterThan(0); // throws if it doesn't parse
     if (url !== HOME) expect(sitemap).toContain(`<loc>${url}</loc>`);
     expect(llms).toContain(`(${url})`);
+  });
+
+  // A guide's screenshots (promo/guides.mjs): each is a dark image with a
+  // light alternative, both on disk, described and sized.
+  it.each(pages)("%s's images exist, in both colour schemes, with alt text", (p) => {
+    const html = read(p);
+    const dir = p.includes("/") ? "docs/" : "";
+    const onDisk = (rel) => existsSync(new URL(`../../site/${dir}${rel.replace(/^\.\//, "")}`, import.meta.url));
+    for (const [, src] of html.matchAll(/<(?:img src|source [^>]*srcset)="(\.\/img\/[^"]+)"/g)) expect(onDisk(src), src).toBe(true);
+    for (const [fig] of html.matchAll(/<figure class="shot">[\s\S]*?<\/figure>/g)) {
+      const name = fig.match(/<img src="\.\/img\/([a-z-]+)-dark\.webp"/)?.[1];
+      expect(name, "a shot's <img> is the dark image").toBeTruthy();
+      expect(fig).toContain(`<source media="(prefers-color-scheme: light)" srcset="./img/${name}-light.webp">`);
+      expect(fig).toMatch(/<img [^>]*alt="[^"]{20,}"[^>]* width="\d+" height="\d+"/);
+      expect(fig).toMatch(/<figcaption>[^<]+<\/figcaption>/);
+    }
   });
 
   it("lists nothing in the sitemap that isn't a page", () => {
