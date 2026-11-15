@@ -247,16 +247,8 @@ final class CoachingUITests: XCTestCase {
             "-server.url", Self.devServerURL, "-resetAuth", "-resetRecording", "-authToken", coachToken,
         ]
         app.launch()
-        // Settings → Coaching, in slow swipes: a fast one can fling straight
-        // past the row.
-        app.buttons["Account"].tap()
-        let openCoaching = app.buttons["openCoaching"]
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
-        for _ in 0..<25 where !(openCoaching.exists && openCoaching.isHittable) {
-            app.scrollViews.firstMatch.swipeUp(velocity: .slow)
-        }
-        XCTAssertTrue(openCoaching.isHittable, "Settings has a way into Coaching")
-        openCoaching.tap()
+        XCTAssertTrue(app.buttons["Account"].waitForExistence(timeout: 30))
+        openCoaching(app)
         let student = app.buttons["student-\(studentId)"]
         XCTAssertTrue(student.waitForExistence(timeout: 15), "the coach's student is listed")
         student.tap()
@@ -333,9 +325,15 @@ final class CoachingUITests: XCTestCase {
             "and its place: \(theirs.label)"
         )
         attach(app, named: "comments-student-lap")
+        // The placed comment's ◆ rides the top edge of the lap's charts, as on
+        // the map above. Drawn, not laid out — the screenshot is the check.
+        let chart = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Speed by driven distance")).firstMatch
+        XCTAssertTrue(scrollTo(chart, in: app), "the lap's charts are under the comments")
+        attach(app, named: "comments-student-chart")
 
         let reply = app.descendants(matching: .any)["commentField"].firstMatch
-        XCTAssertTrue(scrollTo(reply, in: app))
+        XCTAssertTrue(scrollBackTo(reply, in: app))
         reply.tap()
         reply.typeText("Tried it, the rear stepped out.")
         app.buttons["sendComment"].firstMatch.tap()
@@ -344,12 +342,6 @@ final class CoachingUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(mine.waitForExistence(timeout: 15), "the reply is in the thread")
         attach(app, named: "comments-student-reply")
-        // The placed comment's ◆ rides the top edge of the lap's charts, and
-        // the map's (above). Drawn, not laid out — the screenshot is the check.
-        app.swipeDown()
-        let chart = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Speed by driven distance")).firstMatch
-        if scrollTo(chart, in: app) { attach(app, named: "comments-student-chart") }
 
         let after = try bearer(coachToken, "GET", "/api/coaching/students/\(studentId)/events/\(eventId)/comments")
         let rows = after["comments"] as? [[String: Any]] ?? []
@@ -374,7 +366,12 @@ final class CoachingUITests: XCTestCase {
     private func openCoaching(_ app: XCUIApplication) {
         app.buttons["Account"].tap()
         let open = app.buttons["openCoaching"]
-        XCTAssertTrue(scrollTo(open, in: app), "Settings has a way into Coaching")
+        // Slow swipes: a fast one can fling Settings straight past the row.
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        for _ in 0..<25 where !(open.exists && open.isHittable) {
+            app.scrollViews.firstMatch.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(open.isHittable, "Settings has a way into Coaching")
         open.tap()
         XCTAssertTrue(app.navigationBars["Coaching"].waitForExistence(timeout: 15))
     }
