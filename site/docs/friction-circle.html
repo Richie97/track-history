@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to read a friction circle (g-g diagram) — Track Evolution</title>
+  <meta name="description" content="What a friction circle (g-g diagram) shows, how to read its shape, what trail braking and throttle blending look like on it, and what it can't tell you.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="How to read a friction circle (g-g diagram) — Track Evolution">
+  <meta property="og:description" content="What a friction circle (g-g diagram) shows, how to read its shape, what trail braking and throttle blending look like on it, and what it can't tell you.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/friction-circle.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/friction-circle.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/friction-circle.html#page",
+        "url": "https://docs.trackevolution.app/docs/friction-circle.html",
+        "headline": "How to read a friction circle",
+        "description": "What a friction circle (g-g diagram) shows, how to read its shape, what trail braking and throttle blending look like on it, and what it can't tell you.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "How to read a friction circle",
+            "item": "https://docs.trackevolution.app/docs/friction-circle.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./friction-circle.html" class="active">Reading a friction circle</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>How to read a friction circle</h1>
+    <p class="lede">
+      A friction circle — also called a g-g diagram or traction circle —
+      plots how hard the car was cornering against how hard it was braking or
+      accelerating, at every point of a lap. It is the quickest way to see
+      whether you are using the grip the tires have, and it shows one habit
+      in particular that lap times alone never will: whether you blend
+      braking and cornering together or do them one after the other.
+    </p>
+
+    <h2 id="idea">The idea: one grip budget</h2>
+    <p>
+      A tire has a limited amount of grip, and it does not care which
+      direction you spend it in. It can brake with all of it, corner with all
+      of it, or do some of each — but the total is capped. Ask for full
+      braking and full cornering at once and the tire slides.
+    </p>
+    <p>
+      Draw that limit on a chart with cornering force left to right and
+      braking and acceleration up and down, and it is roughly a circle. Every
+      moment of your lap is a point somewhere inside it. A point at the edge
+      is a moment the tires were fully used. A point near the middle is a
+      moment they were coasting.
+    </p>
+
+    <h2 id="axes">Reading the chart</h2>
+    <ul>
+      <li><strong>Left and right</strong> are cornering: how many G the car
+        was pulling in a left or right turn.</li>
+      <li><strong>Up and down</strong> are braking and accelerating. In
+        Track Evolution, braking is at the top and power at the bottom.</li>
+      <li><strong>The center</strong> is the car doing nothing: constant
+        speed in a straight line.</li>
+      <li><strong>Distance from the center</strong> is how much of the grip
+        you were using in total, whatever the direction.</li>
+    </ul>
+    <p>
+      One lap is a cloud of points. What matters is the cloud's outline, and
+      where inside the circle it is empty.
+    </p>
+
+    <h2 id="shapes">What the shapes mean</h2>
+
+    <h3>A cross</h3>
+    <p>
+      Points bunched along the two axes, with the four corners between them
+      empty, mean braking and turning are happening separately: brake in a
+      straight line, come off the brake, then turn, then straighten the wheel
+      and only then accelerate. This is how most people start, and it is a
+      safe way to learn a circuit. It also leaves time on the table, because
+      between each phase the tires are doing less than they could.
+    </p>
+
+    <h3>A filled upper half</h3>
+    <p>
+      Points sweeping in an arc from the top of the circle round to the
+      sides mean the brake is being released gradually as the steering goes
+      on — <strong>trail braking</strong>. The car is still slowing as it
+      turns in, the front tires stay loaded, and the total grip in use stays
+      near the edge all the way from the braking point to the middle of the
+      corner.
+    </p>
+
+    <h3>A filled lower half</h3>
+    <p>
+      The same arc at the bottom is throttle being fed in as the steering
+      comes off on the way out of the corner. Here the car matters as much as
+      the driver: most road cars cannot accelerate hard enough at track
+      speeds to reach the edge of the circle in a straight line, so the
+      bottom of the diagram is flatter than the top. That is the engine's
+      limit, not a driving fault. What to look for is whether the points
+      move smoothly from the side toward the bottom, or jump there once the
+      wheel is straight.
+    </p>
+
+    <h3>A lopsided circle</h3>
+    <p>
+      More cornering G one way than the other usually reflects the circuit —
+      a track with mostly right-hand corners gives the left side of the
+      diagram little to do — but a clear difference in corners of similar
+      speed can point to the car's setup, or to a direction you are less
+      confident in.
+    </p>
+
+    <h3>A small circle</h3>
+    <p>
+      If the whole cloud sits well inside where the car's tires should be,
+      there is grip available everywhere. Tires, track temperature and rain
+      all move the limit, so compare a lap with others from the same day
+      rather than with a number from the internet.
+    </p>
+
+    <h2 id="using">Using it without overdoing it</h2>
+    <p>
+      The circle is a diagnosis, not a target. Trying to "fill the circle" by
+      braking later and turning harder everywhere is how cars leave the
+      track. A more useful way to work:
+    </p>
+    <ol>
+      <li><strong>Find the emptiest part</strong> of your diagram. For most
+        drivers early on it is the corners between braking and cornering.</li>
+      <li><strong>Find one corner</strong> where that happens — ideally a
+        slower one with room to run wide.</li>
+      <li><strong>Change one thing there</strong>, a little at a time: hold a
+        trace of brake a car length further into the corner, or pick up the
+        throttle a touch earlier as you unwind the wheel.</li>
+      <li><strong>Look again after the session</strong>, in the paddock.
+        Never on track.</li>
+    </ol>
+    <p>
+      Trail braking changes how the car rotates on the way into a corner. If
+      it is new to you, learn it with an instructor in the car.
+    </p>
+
+    <h2 id="limits">What it can't tell you</h2>
+    <ul>
+      <li><strong>It has no map.</strong> The diagram shows how much grip you
+        used, not where. A lap can have a beautiful circle and still be slow
+        because of a poor line.</li>
+      <li><strong>It is not a peak-G meter.</strong> Recorded data is
+        smoothed, so the outline shows the shape of your grip use better than
+        it shows the highest G you reached.</li>
+      <li><strong>The limit moves.</strong> A cold morning, a hot afternoon
+        and a damp track each have a different circle.</li>
+    </ul>
+
+    <h2 id="logbook">The friction circle in Track Evolution</h2>
+    <p>
+      When you <a href="./telemetry-import.html">import a recording</a> that
+      carries the car's cornering and braking forces — a Corvette or Cadillac
+      PDR video, for example — the session's <strong>Grip</strong> tab draws
+      a friction circle for each lap you select, with up to three laps
+      overlaid in different colors and a dashed arc at the strongest combined
+      grip of the session.
+    </p>
+    <p>
+      Under it, two numbers put the shape into words: how much of your tire
+      work was <strong>braking while cornering</strong>, and how much was
+      <strong>cornering while on the power</strong>, for each selected lap
+      and for the session. They are the two corners of the diagram a cross
+      leaves empty, and they are worth watching across a day.
+    </p>
+    <p>
+      The diagram also answers "where": point at a dot (or tap it) and that
+      place is marked on the speed, brake and throttle graphs — and, for
+      the session's best lap, ringed on the track map — so you can go from
+      an empty patch of the circle to the corner it came from. The same tab shows whether the car was
+      understeering or oversteering in each corner.
+    </p>
+    <p>
+      The friction circle is on the web and in the iPhone and Android apps,
+      and is part of <a href="./#subscription">Track Evolution Pro</a>.
+      Importing the recording, its lap times and the speed, throttle and
+      brake graphs are free.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./tire-pressures.html"><span class="label">Previous</span>← Tire pressures</a>
+      <a href="./lap-consistency.html"><span class="label">Next</span>Lap consistency →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -164,6 +164,24 @@ not a follow-up:**
      user agent marked `TrackEvolution-App`, which `site/analytics.js` reads
      to load nothing and show no banner. Keep it organizer-neutral and point at the
      event's own rules rather than restating them.
+   - The **guides** (the sidebar's *Guides* group, after *AI assistants*
+     in the pager): `site/docs/tire-pressures.html`,
+     `site/docs/friction-circle.html` and `site/docs/lap-consistency.html`.
+     Each answers a question drivers search for whether or not they use the
+     app — setting track-day tire pressures, reading a friction circle,
+     measuring lap consistency and a theoretical best — in general terms
+     first, and ends on one *in Track Evolution* section saying how the app
+     does it and which tier it is in. That last section states app
+     behaviour, so each owes an edit with its feature: the tire guide with
+     the setup notebook and pressure loop, the friction-circle guide with
+     the Grip tab, the consistency guide with the clean-lap rule
+     (`CLEAN_FACTOR`, three laps), the per-session stats and sectors. Keep
+     the driving advice conservative and deferential — the tire maker, the
+     event's rules and an instructor come first, and nothing in a guide is
+     for use while driving — and give no pressure figure as a
+     recommendation. `garage.html`, `telemetry-import.html`,
+     `data-model.html` and `track-days.html` each link to the guide for
+     their topic.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
    - `site/docs/lap-recording.html` — recording laps with the phone's GPS in

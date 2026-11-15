@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Track-day tire pressures: setting cold and hot — Track Evolution</title>
+  <meta name="description" content="How to set tire pressures for a track day: why hot pressure is the one that matters, finding a target, measuring in the pits, and working back to a cold starting pressure.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="Track-day tire pressures: setting cold and hot — Track Evolution">
+  <meta property="og:description" content="How to set tire pressures for a track day: why hot pressure is the one that matters, finding a target, measuring in the pits, and working back to a cold starting pressure.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/tire-pressures.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/tire-pressures.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/tire-pressures.html#page",
+        "url": "https://docs.trackevolution.app/docs/tire-pressures.html",
+        "headline": "Track-day tire pressures",
+        "description": "How to set tire pressures for a track day: why hot pressure is the one that matters, finding a target, measuring in the pits, and working back to a cold starting pressure.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://trackevolution.app/#website",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "@id": "https://trackevolution.app/#app",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://trackevolution.app/#org",
+          "name": "Track Evolution",
+          "url": "https://trackevolution.app/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Track-day tire pressures",
+            "item": "https://docs.trackevolution.app/docs/tire-pressures.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./tire-pressures.html" class="active">Tire pressures</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>Track-day tire pressures</h1>
+    <p class="lede">
+      Tire pressure is the cheapest setup change there is, and the one most
+      first-timers get wrong by leaving it alone. On track the tires get far
+      hotter than they ever do on the road, the air inside them expands, and
+      the pressure you set in the morning is not the pressure you are driving
+      on by lap three. This page covers how to set pressures for a track day,
+      what to measure and when, and how to arrive at a starting pressure you
+      can trust next time.
+    </p>
+
+    <div class="callout plain">
+      Your tire maker's guidance and your event's rules come first, and no
+      number on this page overrides either. If an instructor is riding with
+      you, ask them — they have usually seen your tire on your kind of car.
+    </div>
+
+    <h2 id="cold-hot">Cold pressure and hot pressure</h2>
+    <p>
+      There are two pressures to keep straight:
+    </p>
+    <ul>
+      <li><strong>Cold pressure</strong> is what the tire reads before it has
+        been driven — in the morning, in the shade, at the day's air
+        temperature. It is the only pressure you can set ahead of time.</li>
+      <li><strong>Hot pressure</strong> is what the tire reads straight off
+        the track, at working temperature. It is the pressure the tire is
+        actually cornering on, so it is the one that matters.</li>
+    </ul>
+    <p>
+      Air pressure rises with temperature — as a rule of thumb, about 1&nbsp;psi
+      for every 10&nbsp;°F (roughly 0.1&nbsp;bar for every 8&nbsp;°C) the air
+      in the tire warms up. A session of hard driving commonly adds several
+      psi over the cold figure, and more on a heavy or powerful car, on a hot
+      day, or on the tires that do the most work at that circuit. Leave
+      road pressures in and the tires can end a session well above where they
+      grip best: the contact patch crowns, the car slides sooner, and the
+      center of the tread overheats.
+    </p>
+    <p>
+      So the job is to pick a <strong>target hot pressure</strong>, then find
+      the cold pressure that gets each tire there.
+    </p>
+
+    <h2 id="target">Finding a target hot pressure</h2>
+    <p>
+      The number on the door jamb is for the road: full load, cold tires,
+      comfort and fuel economy. It is not a track target. Better sources, in
+      order:
+    </p>
+    <ol>
+      <li><strong>The tire maker.</strong> Many publish a recommended hot
+        pressure range for track use of a given tire, or will tell you if you
+        ask. Start here.</li>
+      <li><strong>People running your tire on your car.</strong> Owners'
+        forums, the marque club and the instructors at your event usually
+        know a range that works.</li>
+      <li><strong>The tire itself.</strong> Once you are in a sensible range,
+        the tire tells you the rest (see <a href="#reading">reading the
+        tires</a> below).</li>
+    </ol>
+    <p>
+      Whatever target you choose, never run below the minimum the tire maker
+      gives. A tire that is too soft overheats its shoulders and sidewalls,
+      and that is how tires fail.
+    </p>
+
+    <h2 id="procedure">Setting them on the day</h2>
+    <ol>
+      <li><strong>Set all four cold</strong> before your first session, with
+        your own gauge. Use the same gauge all day — gauges disagree with
+        each other by more than the changes you will be making.</li>
+      <li><strong>Start a little under your hot target</strong>, not at it,
+        so the tires come up toward the target as they warm. If you have no
+        history with the car, a few psi under is a reasonable first guess;
+        the first session will correct it.</li>
+      <li><strong>Measure as soon as you stop.</strong> Pressures fall
+        quickly once the car is parked, and a slow cool-down lap takes some
+        heat out before you ever reach the paddock. Check all four within a
+        minute or two of coming in, in the same order every time.</li>
+      <li><strong>Bleed down to the target</strong> any tire that is over
+        it. Write down what each tire read before you touched it.</li>
+      <li><strong>Check again after the next session.</strong> The second
+        session is usually hotter than the first, and the afternoon hotter
+        than the morning. Expect to bleed a little more than once.</li>
+      <li><strong>Read them cold the next morning.</strong> After a day of
+        bleeding, the cold reading you find is your real starting pressure
+        for that tire, at that track, in that weather. That is the number
+        worth keeping.</li>
+    </ol>
+    <p>
+      The four tires will not end up equal. The outside tires on the
+      circuit's dominant corners work harder and gain more, the driven and
+      steered ends differ, and the side of the car parked in the sun starts
+      warmer. Set each tire to reach the target on its own rather than
+      matching the cold numbers side to side.
+    </p>
+
+    <div class="callout">
+      <strong>Before you drive home</strong>, let the tires cool and put road
+      pressures back in. Tires bled down to a hot target are under-inflated
+      once they are cold, which is not what you want on the highway.
+    </div>
+
+    <h2 id="reading">Reading the tires</h2>
+    <p>
+      A gauge tells you the pressure; the tire tells you whether the pressure
+      is right.
+    </p>
+    <ul>
+      <li><strong>Shoulder wear marks.</strong> Most performance tires have
+        small arrows or triangles on the shoulder showing how far the tread
+        should roll over. Scuffing well past them onto the sidewall says the
+        tire is too soft (or the car wants more negative camber); a wear line
+        that stops well short of them says it is too hard.</li>
+      <li><strong>How the car feels.</strong> Over-inflated tires feel
+        nervous and skate; under-inflated ones feel vague and slow to answer
+        the wheel.</li>
+      <li><strong>Tread temperatures.</strong> A probe pyrometer across the
+        inside, middle and outside of the tread, taken straight off the
+        track, is the fuller answer: a hot middle points to too much
+        pressure, hot edges with a cool middle to too little, and a large
+        inside-to-outside difference to camber rather than pressure.</li>
+    </ul>
+    <p>
+      Change one thing at a time, by a pound or two, and give it a full
+      session before judging it.
+    </p>
+
+    <h2 id="logbook">Keeping track in Track Evolution</h2>
+    <p>
+      Pressures only become useful when you can find them again in six
+      months. In Track Evolution, each day of an event has a
+      <a href="./garage.html#setups">setup sheet</a> with cold and hot
+      pressures for all four corners, in psi or bar. A new sheet starts from
+      your previous day's, so you only change what changed, and the values
+      that differ from the day before are highlighted.
+    </p>
+    <p>
+      Each car in your garage can also hold a <strong>target hot
+      pressure</strong>. When you import a recording that carries the car's
+      own tire-pressure readings — a Corvette or Cadillac
+      <a href="./telemetry-import.html">PDR video</a>, for example — the app
+      lines up the cold pressure you set, the hot pressure the car measured
+      on track and your target, and works out the cold pressure to start
+      from next time: "LF ran 27.0 cold → 31.3 hot; start from 25.5". One
+      button saves the hot pressures to the day's sheet, and on a multi-day
+      event another opens tomorrow's sheet with the suggested cold pressures
+      already filled in.
+    </p>
+    <p>
+      The setup notebook and the pressure suggestions are part of
+      <a href="./#subscription">Track Evolution Pro</a>. The logbook itself —
+      events, sessions, lap times and telemetry import — is free.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./ai.html"><span class="label">Previous</span>← AI assistants</a>
+      <a href="./friction-circle.html"><span class="label">Next</span>Reading a friction circle →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>
