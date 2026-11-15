@@ -106,6 +106,7 @@ export function renderTrackMap(canvas, points, { markers = [], width = MAP_W } =
   let dot = 0;
   let highlight = null; // trace point index, from setHighlight
   let playhead = null; // [{ idx, color }], from setPlayhead
+  let notes = []; // trace point indexes, from setNotes
   // Cumulative chord length, for placing a fraction of the lap on the line —
   // traceIndexAtFraction's walk, done once since the playhead moves per frame.
   const cum = [0];
@@ -181,6 +182,23 @@ export function renderTrackMap(canvas, points, { markers = [], width = MAP_W } =
       drawMarker(ctx, x, y, m, cssVar);
     }
 
+    // Where a coach's comment was placed (NS-52): a small diamond on the line,
+    // under the highlight and the playhead so neither is hidden by one.
+    for (const i of notes) {
+      const [x, y] = px[i];
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x, y + 6);
+      ctx.lineTo(x - 6, y);
+      ctx.closePath();
+      ctx.fillStyle = cssVar("--text-strong");
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = cssVar("--surface-card");
+      ctx.stroke();
+    }
+
     // The hovered sample from the friction circle: a ring rather than a dot,
     // so it reads as "this place" over the line rather than as another marker.
     if (highlight != null) {
@@ -225,6 +243,13 @@ export function renderTrackMap(canvas, points, { markers = [], width = MAP_W } =
     setHighlight(idx) {
       if (idx === highlight) return;
       highlight = idx;
+      if (reduceMotion && canvas.isConnected) draw();
+    },
+    // Fractions of the lap where comments sit; an empty list clears them.
+    setNotes(fracs) {
+      const next = (fracs ?? []).map(idxAt);
+      if (JSON.stringify(next) === JSON.stringify(notes)) return;
+      notes = next;
       if (reduceMotion && canvas.isConnected) draw();
     },
     setPlayhead(dots) {

@@ -296,6 +296,37 @@ export function showDistanceMark(root, d, t = null) {
   });
 }
 
+// Where coach comments were placed (NS-52), on every lap-axis chart in
+// `root`: a small diamond on the chart's top edge at each mark's place on its
+// own lap — `marks` is [{ chIdx, k, color }], k a fractional grid index. They
+// are a sign, not a control: the comment in the list is what opens the place,
+// so they take no pointer events and a chart click still seeks or pins.
+// Replaced whole on every call; an empty list clears them.
+export function showCommentMarks(root, marks) {
+  root.querySelectorAll("svg[data-channel]").forEach((svgEl) => {
+    svgEl.querySelectorAll(".ch-cmark").forEach((el) => el.remove());
+    if (!marks?.length) return;
+    const x1 = Number(svgEl.dataset.x1) || 1;
+    const padL = Number(svgEl.dataset.padl), padR = Number(svgEl.dataset.padr);
+    const padT = Number(svgEl.dataset.padt) || 0;
+    const vb = svgEl.viewBox.baseVal;
+    for (const m of marks) {
+      const x = axisAtGrid(svgEl._xsOf?.(m.chIdx), m.k);
+      if (x == null) continue;
+      const px = padL + Math.max(0, Math.min(1, x / x1)) * (vb.width - padL - padR);
+      const y = Math.max(5, padT);
+      const d = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      d.setAttribute("class", "ch-cmark");
+      d.setAttribute("d", `M${px.toFixed(1)} ${y - 5}l4 5l-4 5l-4 -5z`);
+      d.setAttribute("fill", m.color || "var(--text-strong)");
+      d.setAttribute("stroke", "var(--surface-card)");
+      d.setAttribute("stroke-width", "1");
+      d.setAttribute("pointer-events", "none");
+      svgEl.appendChild(d);
+    }
+  });
+}
+
 // The lap stage's playhead (NS-51) across every chart in `root`: a solid line
 // at the master's driven distance, a dot on each marked lap's trace at that
 // lap's own grid index (in "Same time" the two dots sit apart, which is the
@@ -622,6 +653,16 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
   let deltaByIdx = new Map();
   let refIdx = null;
   let frame = null;
+  // Coach comments' places (NS-52): the caller's function from the lit laps
+  // to [{ chIdx, k, color }], re-applied after every chart render.
+  let notesFor = null;
+  const applyNotes = () => {
+    const marks = notesFor ? notesFor([...state.lit]) ?? [] : [];
+    showCommentMarks(chartsEl, marks);
+    mapHandle?.setNotes(
+      marks.map((m) => m.k / Math.max(1, (frame ?? axisFrame(chLaps, dStep, state.axis, units)).xsOf(m.chIdx).length - 1))
+    );
+  };
   const remember = () => {
     if (memory) Object.assign(memory, { open: details.open, tab: state.tab, lit: [...state.lit], axis: state.axis, pin: state.pin });
   };
@@ -872,6 +913,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     });
     showPin();
     setCursor(state.pin);
+    applyNotes();
     onRender?.(chartsEl);
   };
 
@@ -902,6 +944,10 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     // { chIdx, k, frac } per lit lap), and a placed comment pins the cursor
     // back where it was said, lighting its lap and opening the charts.
     rerenderChips: () => renderChips(),
+    setNotes: (fn) => {
+      notesFor = fn;
+      if (details.open && !chartsDirty) applyNotes();
+    },
     lapAt: (chIdx) => rows.find((r) => r.chIdx === chIdx)?.lap ?? null,
     chIdxOf: (lapId) => rows.find((r) => String(r.lap.id) === String(lapId))?.chIdx ?? -1,
     pinPlaces: () => (state.pin == null ? [] : axisPlaces(chLaps, dStep, state.axis, state.pin, state.lit)),

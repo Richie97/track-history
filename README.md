@@ -2051,7 +2051,8 @@ Wrapped, which is free.
   Free on both sides, rate-limited by the `COACH_COMMENTS` binding, and never
   part of the event detail, a share page or an MCP tool result. The web draws
   the threads on each session card (`public/js/comments.js` is the pure
-  half); the phone apps are tickets #449 and #450.
+  half), with a placed comment marked on the charts and the track map; the
+  logbook export includes them; the phone apps are tickets #449 and #450.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from
