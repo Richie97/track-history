@@ -253,6 +253,37 @@ fail on a capture no model maps.
   and Gradle could not reach Google's Maven), so the decode models were
   checked by CI first.
 
+### As built (ticket 3, Android)
+
+- `Comments` in `:core` is the port, under the JS names (the JS objects
+  become small data classes: `Thread`, `Grouped` / `LapComments`, `Counts` /
+  `Count`, `Marker`), pinned by `CommentsTest` against every row of
+  `comments.json`. `groupComments` takes `(comments, sessionId, laps)` with a
+  `Session` overload.
+- The routes on `ApiClient` take the `LogbookOwner` whose logbook it is and
+  always run on `ApiClient.own`, so a coach's comment leaves from the
+  student's scoped view while that view keeps refusing every other write.
+- The session composer is **an inline row on the session card**, as above:
+  the text box and a row of chips (*Whole session* / *Lap N*), collapsed to a
+  button until opened. The lap page's composer is inline under the stage and
+  is offered on a lap with no comments yet — always to a coach, and to the
+  owner for each coach whose thread on the event is open. Drafts are in the
+  destination's `SavedStateHandle`, keyed by target.
+- The composer's place is taken on a tap (*◆ At the marked place*) from the
+  stage's playhead or the panel's parked mark, never read in composition;
+  before the line there is no place and it says so.
+- Markers: a diamond on each lap-axis chart's top edge (a draw-phase overlay
+  beside the playhead's), and a pin on every map of the session — on the lap
+  page, the session compare, and the event page's best-lap trace and its
+  expanded-width analysis column.
+- The block control is on each comment someone else wrote (*Remove coach* /
+  *Stop coaching*), beside *Report*, as well as on the Coaching page.
+- Run: `:core:test`, `:core:check`, `:app:testDebugUnitTest`,
+  `:app:assembleDebug`, `:app:checkReleaseHasNoCarApp`, and the debug build
+  on an emulator against `wrangler dev`.
+- Release step, outside any build: Play's Data safety form gains *other user
+  content, shared with other users*.
+
 ## Clients
 
 One rule first, because all three have a read-only seam that this is the

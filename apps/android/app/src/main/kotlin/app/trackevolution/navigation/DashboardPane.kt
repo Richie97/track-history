@@ -65,6 +65,8 @@ fun DashboardPane(
         onOpenTrackDaysGuide = { nav.open(Route.TrackDaysGuide, inListPane) },
         recorderIdle = recorderIdle,
         selection = if (inListPane) selection else null,
+        onOpenCommentEvent = { nav.open(Route.Event(it.eventId, student = it.studentId), inListPane) },
+        onOpenCoaching = { nav.open(Route.Coaching, inListPane) },
     )
 }
 

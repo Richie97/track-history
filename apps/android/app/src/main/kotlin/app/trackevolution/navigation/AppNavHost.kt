@@ -33,6 +33,7 @@ import app.trackevolution.auth.UnitsStore
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.api.LogbookOwner
 import app.trackevolution.core.model.Entitlement
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.offline.OfflineStore
@@ -48,6 +49,7 @@ import app.trackevolution.screens.ProfileFormScreen
 import app.trackevolution.screens.StudentHomeModel
 import app.trackevolution.screens.StudentHomeScreen
 import app.trackevolution.screens.rememberStudentProfile
+import app.trackevolution.screens.CommentsModel
 import app.trackevolution.screens.CompareLapsModel
 import app.trackevolution.screens.CompareLapsScreen
 import app.trackevolution.screens.DetailPlaceholder
@@ -227,8 +229,17 @@ fun AppNavHost(
                 val route = entry.toRoute<Route.Event>()
                 LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.id) }
+                // Coach comments (NS-52): their own model, keyed apart from the
+                // event's in this entry's store, with its drafts in the entry's
+                // saved state.
+                val comments = rememberScreenModel(key = "comments") { scope, handle ->
+                    CommentsModel(scope, api, owner, route.id, handle)
+                }
                 EventScreen(
                     model = model,
+                    comments = comments,
+                    onCommentsGone = onStudentGone,
+                    studentName = (owner as? LogbookOwner.Student)?.name,
                     checklistTemplate = checklistTemplate,
                     onEdit = { nav.navigate(Route.EventForm(editId = it)) },
                     onOpenTrack = { nav.navigate(Route.Track(it, student = route.student)) },
@@ -302,8 +313,14 @@ fun AppNavHost(
                 // Its own model over the same event: the read comes through the
                 // offline cache the page already warmed, so this costs no request.
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+                val comments = rememberScreenModel(key = "comments") { scope, handle ->
+                    CommentsModel(scope, api, owner, route.eventId, handle)
+                }
                 LapDetailScreen(
                     model = model,
+                    comments = comments,
+                    onCommentsGone = onStudentGone,
+                    studentName = (owner as? LogbookOwner.Student)?.name,
                     sessionId = route.sessionId,
                     lapId = route.lapId,
                     canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
@@ -335,8 +352,12 @@ fun AppNavHost(
                 val route = entry.toRoute<Route.SessionCompare>()
                 LogbookOwnerScope(api, route.student, openStudentHome, onStudentGone) { owner, api ->
                 val model = rememberScreenModel { scope, _ -> EventModel(scope, api, route.eventId) }
+                val comments = rememberScreenModel(key = "comments") { scope, handle ->
+                    CommentsModel(scope, api, owner, route.eventId, handle)
+                }
                 SessionCompareScreen(
                     model = model,
+                    comments = comments,
                     sessionId = route.sessionId,
                     lapId = route.lapId,
                     canViewChannels = Entitlement.canViewChannels(owner.entitlement(entitlement)),
@@ -547,6 +568,7 @@ fun AppNavHost(
                     onEditProfile = { nav.navigate(Route.Profile) },
                     onShare = share,
                     onRequirePro = onRequirePro,
+                    onOpenComment = { nav.navigate(Route.Event(it.eventId, student = it.studentId)) },
                 )
             }
 

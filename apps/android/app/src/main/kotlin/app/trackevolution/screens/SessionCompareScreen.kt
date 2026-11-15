@@ -61,10 +61,13 @@ fun SessionCompareScreen(
     videoApi: ApiClient? = null,
     owner: LogbookOwner = LogbookOwner.Me,
     viewer: Entitlement? = null,
+    /** Coach comments (NS-52): their places, marked on the charts and the stage's map. */
+    comments: CommentsModel? = null,
 ) {
     val colors = TrackTheme.colors
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
+    LaunchedEffect(comments) { if (comments != null && comments.data == null) comments.load() }
 
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val detail = model.detail ?: return@TELoadable
@@ -91,6 +94,8 @@ fun SessionCompareScreen(
         val trace = remember(session.trace) {
             session.trace?.takeIf { it.size >= 10 }?.map { TraceSample(x = it.x, y = it.y, v = it.v) }
         }
+        val commentMarks = rememberSessionCommentMarks(comments, session)
+        val pins = sessionCommentPins(comments, session)
         val panel: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
             item("charts") {
                 LapChannelChart(
@@ -107,6 +112,8 @@ fun SessionCompareScreen(
                     onSeek = if (binding != null) holder::seekGrid else null,
                     onScrub = if (binding != null) holder::scrubGrid else null,
                     onLitChange = { lit = it },
+                    commentMarks = commentMarks,
+                    mapPins = pins,
                 )
             }
         }
@@ -125,7 +132,7 @@ fun SessionCompareScreen(
             }
             return@TELoadable
         }
-        LapStagePage(holder = holder, trace = trace, header = header, body = panel)
+        LapStagePage(holder = holder, trace = trace, header = header, mapPins = pins, body = panel)
     }
 }
 
