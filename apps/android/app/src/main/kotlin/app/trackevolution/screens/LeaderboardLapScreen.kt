@@ -103,6 +103,8 @@ fun LeaderboardLapScreen(
     canPlayVideo: Boolean = false,
 ) {
     val colors = TrackTheme.colors
+    // The racing line on a real map (NS-53), through the same door as the rest.
+    val openMap: (() -> Unit)? = onNavigate?.let { go -> { go(Route.TrackMap.leaderboardLap(model.trackId, model.lapId)) } }
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
@@ -152,6 +154,7 @@ fun LeaderboardLapScreen(
                             trace = trace,
                             dots = cursorDots.orEmpty(),
                             modifier = Modifier.fillMaxWidth().height(220.dp),
+                            onExpand = openMap,
                         )
                     }
                 }
@@ -223,7 +226,13 @@ fun LeaderboardLapScreen(
             }
         }
         if (onStage) {
-            LapStagePage(holder = holder, trace = trace.takeIf { it.size >= 10 }, header = header, body = content)
+            LapStagePage(
+                holder = holder,
+                trace = trace.takeIf { it.size >= 10 },
+                header = header,
+                onOpenMap = openMap,
+                body = content,
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),

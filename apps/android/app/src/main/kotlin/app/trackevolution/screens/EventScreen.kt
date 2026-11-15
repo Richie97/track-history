@@ -130,6 +130,11 @@ fun EventScreen(
     onCommentsGone: () -> Unit = {},
     /** The student's name, for a coach's "Only you and … see what you write here." */
     studentName: String? = null,
+    /**
+     * Opens a session's best-lap trace on a real map (NS-53), by session id.
+     * Null draws no expand control — the shared-item page has none.
+     */
+    onOpenMap: ((Int) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -295,7 +300,12 @@ fun EventScreen(
                             color = colors.textStrong,
                             modifier = Modifier.padding(vertical = 4.dp),
                         )
-                        TrackMap(trace = traced.trace, markers = traced.markers, pins = sessionCommentPins(comments, traced.session))
+                        TrackMap(
+                            trace = traced.trace,
+                            markers = traced.markers,
+                            pins = sessionCommentPins(comments, traced.session),
+                            onExpand = traced.session?.let { s -> onOpenMap?.let { open -> { open(s.id) } } },
+                        )
                         LimitLegend(traced.markers, Modifier.padding(top = 6.dp))
                     }
                 }
@@ -388,6 +398,7 @@ fun EventScreen(
                         pro = canViewChannels,
                         onSubscribe = onSubscribe,
                         comments = comments,
+                        onOpenMap = onOpenMap,
                     )
                 }
             }

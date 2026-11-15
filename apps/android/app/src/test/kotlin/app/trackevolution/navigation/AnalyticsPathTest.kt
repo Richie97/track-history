@@ -47,6 +47,10 @@ class AnalyticsPathTest {
         Route.Lap(12, 40, 991, student = 8) to "/student/:id/event/:id/lap/:id",
         Route.SessionCompare(12, 40, 991, student = 8) to "/student/:id/event/:id/session/:id/compare",
         Route.TrackDaysGuide to "/guide/track-days",
+        // NS-53: the web's two map routes.
+        Route.TrackMap.session(12, 40) to "/event/:id/session/:id/map",
+        Route.TrackMap.session(12, 40, student = 8) to "/student/:id/event/:id/session/:id/map",
+        Route.TrackMap.leaderboardLap(3, 991) to "/track/:id/leaderboard/:id/map",
     )
 
     @Test

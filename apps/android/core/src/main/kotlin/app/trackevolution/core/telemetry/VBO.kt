@@ -405,6 +405,7 @@ public object VBO {
         // lying on the driven trace is kept. If present, laps come for free.
         var laps: List<ParsedLap> = emptyList()
         var lapTracePts: List<TraceSample>? = null
+        var traceGeo: app.trackevolution.core.model.TraceGeo? = null
         val startLine = (sections["laptiming"] ?: emptyList()).firstOrNull { START_LINE.containsMatchIn(it) }
         if (startLine != null) {
             val n = startLine.split(WS).drop(1).take(4).map { number(it) }
@@ -445,6 +446,7 @@ public object VBO {
                 if (laps.isNotEmpty()) {
                     val best = laps.reduce { a, b -> if (b.timeMs < a.timeMs) b else a }
                     lapTracePts = GeoTrace.lapTrace(trace, best.startT!!, best.endT!!)
+                    traceGeo = if (lapTracePts != null) GeoTrace.traceOrigin(points, origin) else null
                 }
             }
         }
@@ -456,6 +458,7 @@ public object VBO {
             durationS = points.last().t,
             laps = laps,
             bestLapTrace = lapTracePts,
+            traceGeo = traceGeo,
             gps = points,
             carChannels = carChannels,
             lapScalarChannels = lapScalarChannels,

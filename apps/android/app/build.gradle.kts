@@ -4,6 +4,7 @@
 // This module is the thin Android shell around it: activities, services,
 // permissions, notifications, Android Auto later (NS-20).
 
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -82,6 +83,22 @@ android {
     // `-Pte.analytics=true` (for DebugView), so development, the emulator and
     // the Robolectric suite never count as users.
     val analyticsInDebug = providers.gradleProperty("te.analytics").orNull == "true"
+
+    // The Maps SDK key (NS-53). Not in the checkout: read from a Gradle property,
+    // the environment, or the gitignored local.properties, in that order, as
+    // MAPS_API_KEY. Without one the manifest carries an empty key and the map
+    // viewer offers the drawn line alone (MapSupport) — never a crash. The key
+    // is restricted in the Cloud Console to this package, the Play, upload and
+    // debug signing fingerprints, and the Maps SDK for Android alone.
+    val mapsApiKey = providers.gradleProperty("MAPS_API_KEY").orNull?.trim()?.takeIf { it.isNotEmpty() }
+        ?: env("MAPS_API_KEY")
+        ?: rootProject.file("local.properties").takeIf { it.isFile }?.let { f ->
+            Properties().apply { f.inputStream().use { load(it) } }
+                .getProperty("MAPS_API_KEY")?.trim()?.takeIf { it.isNotEmpty() }
+        }
+        ?: ""
+    defaultConfig.manifestPlaceholders["mapsApiKey"] = mapsApiKey
+    defaultConfig.buildConfigField("boolean", "MAPS_KEY_SET", (mapsApiKey.isNotEmpty()).toString())
 
     signingConfigs {
         // The release build must be signed with the *existing* upload key, or
@@ -215,6 +232,11 @@ dependencies {
     // own consumer rules, so proguard-rules.pro needs nothing for it.
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
+
+    // The racing line on a real map (NS-53): Google Maps through maps-compose,
+    // in :app alone so :core's checkNoAndroidDependency stays untouched.
+    implementation(libs.play.services.maps)
+    implementation(libs.maps.compose)
 
     // Google Analytics for Firebase: screen views by route shape, nothing else
     // (analytics/AppAnalytics.kt). The manifest switches off advertising ids,

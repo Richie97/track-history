@@ -1,5 +1,8 @@
 package app.trackevolution.core
 
+import app.trackevolution.core.model.TraceGeo
+import app.trackevolution.core.model.TracePoint as StoredTracePoint
+
 /**
  * GPS trace geometry: project lat/lon traces to local meters and derive lap
  * times from start/finish line crossings.
@@ -295,7 +298,158 @@ public object GeoTrace {
         }
         return if (found) lapTrace(trace, bestT0, bestT1, max) else null
     }
+
+    // -----------------------------------------------------------------------
+    // where a trace lies on Earth (NS-53)
+    // -----------------------------------------------------------------------
+    //
+    // A stored trace is local metres from the origin projectTrace was given,
+    // and that origin is saved beside it as the session's `trace_geo`. These are
+    // the pure half of drawing the line on a real map: the anchor a save sends,
+    // the way back to degrees, and what the map viewer needs to fit, hit-test
+    // and colour the line. Pinned by `contracts/logic/geo-anchor.json`, the
+    // fixture the iOS Kit's `Geo` asserts against too.
+
+    /**
+     * Metres per degree of latitude — [projectTrace]'s constant. **The inverse
+     * must use the same two numbers**: they are approximations, but the
+     * projection is then its own exact inverse.
+     */
+    public const val KY: Double = 110_540.0
+
+    /** Metres per degree of longitude at [lat] — [projectTrace]'s other constant. */
+    public fun KX(lat: Double): Double = 111_320.0 * Math.cos(lat * Math.PI / 180.0)
+
+    private fun round7(v: Double): Double = JsMath.round(v, 1e7)
+
+    /**
+     * The anchor to save with a trace: the origin its points were projected
+     * from — `gps[0]` unless [projectTrace] was handed another. Null for
+     * anything that isn't a real coordinate ((0, 0) is a GPS with no fix), so a
+     * save sends null rather than a place the line never was.
+     */
+    public fun traceOrigin(gps: List<GpsPoint>?, origin: GpsPoint? = null): TraceGeo? {
+        val o = origin ?: gps?.firstOrNull() ?: return null
+        return traceOrigin(o.lat, o.lon)
+    }
+
+    /** [traceOrigin] for a bare coordinate. */
+    public fun traceOrigin(lat: Double, lon: Double): TraceGeo? {
+        if (!lat.isFinite() || !lon.isFinite()) return null
+        if (Math.abs(lat) > 85 || Math.abs(lon) > 180) return null
+        if (Math.abs(lat) < 0.01 && Math.abs(lon) < 0.01) return null
+        return TraceGeo(lat = round7(lat), lon = round7(lon))
+    }
+
+    /** A stored `[x, y, v]` trace back to degrees. */
+    public fun unprojectTrace(trace: List<StoredTracePoint>, geo: TraceGeo): List<GeoPoint> {
+        val kx = KX(geo.lat)
+        return trace.map { GeoPoint(lat = geo.lat + it.y / KY, lon = geo.lon + it.x / kx, v = it.v) }
+    }
+
+    /** The trace's bounding box in degrees — what the map's first camera fits. Null when empty. */
+    public fun traceGeoBounds(trace: List<StoredTracePoint>, geo: TraceGeo): GeoBounds? {
+        if (trace.isEmpty()) return null
+        var x0 = Double.POSITIVE_INFINITY
+        var x1 = Double.NEGATIVE_INFINITY
+        var y0 = Double.POSITIVE_INFINITY
+        var y1 = Double.NEGATIVE_INFINITY
+        for (p in trace) {
+            if (p.x < x0) x0 = p.x
+            if (p.x > x1) x1 = p.x
+            if (p.y < y0) y0 = p.y
+            if (p.y > y1) y1 = p.y
+        }
+        val kx = KX(geo.lat)
+        return GeoBounds(
+            south = geo.lat + y0 / KY,
+            west = geo.lon + x0 / kx,
+            north = geo.lat + y1 / KY,
+            east = geo.lon + x1 / kx,
+        )
+    }
+
+    /**
+     * The point on the line nearest ([x], [y]), all in the trace's metres — a
+     * tap's hit test. `idx` is the nearer end of the segment hit, `alongM` the
+     * driven distance to the nearest point, `frac` that as a fraction of the
+     * trace's length (by cumulative chord length: a trace is denser where the
+     * car was slower, so an index is not a place), `offM` how far the tap was
+     * from the line. Null when nothing is within [maxM]. Ties keep the earlier
+     * segment.
+     */
+    public fun nearestOnTrace(
+        trace: List<StoredTracePoint>,
+        x: Double,
+        y: Double,
+        maxM: Double = Double.POSITIVE_INFINITY,
+    ): TraceHit? {
+        if (trace.size < 2) return null
+        var bestIdx = 0
+        var bestAlong = 0.0
+        var bestOff = Double.NaN
+        var cum = 0.0
+        for (i in 0 until trace.size - 1) {
+            val ax = trace[i].x
+            val ay = trace[i].y
+            val dx = trace[i + 1].x - ax
+            val dy = trace[i + 1].y - ay
+            val len = Math.hypot(dx, dy)
+            val t = if (len > 0) ((x - ax) * dx + (y - ay) * dy) / (len * len) else 0.0
+            val tc = if (len > 0) Math.max(0.0, Math.min(1.0, t)) else 0.0
+            val off = Math.hypot(x - (ax + dx * tc), y - (ay + dy * tc))
+            if (bestOff.isNaN() || off < bestOff) {
+                bestIdx = if (tc < 0.5) i else i + 1
+                bestAlong = cum + len * tc
+                bestOff = off
+            }
+            cum += len
+        }
+        if (!(cum > 0) || bestOff > maxM) return null
+        return TraceHit(idx = bestIdx, frac = bestAlong / cum, alongM = bestAlong, offM = bestOff)
+    }
+
+    /**
+     * The line cut into runs of one speed colour, point indexes inclusive,
+     * `bucket` 0 (slowest) … `buckets − 1`. Speed is normalised over the
+     * trace's own range, as the drawn track map does, and a segment takes the
+     * bucket of the point it starts at. The map viewer builds its gradient spans
+     * from these, so every client colours the same metres the same.
+     */
+    public fun speedRuns(trace: List<StoredTracePoint>, buckets: Int = 16): List<SpeedRun> {
+        if (trace.size < 2) return emptyList()
+        var vMin = Double.POSITIVE_INFINITY
+        var vMax = Double.NEGATIVE_INFINITY
+        for (p in trace) {
+            if (p.v < vMin) vMin = p.v
+            if (p.v > vMax) vMax = p.v
+        }
+        fun bucketAt(i: Int): Int {
+            if (!(vMax > vMin)) return buckets / 2
+            return Math.min(buckets - 1, Math.floor((trace[i].v - vMin) / (vMax - vMin) * buckets).toInt())
+        }
+        val runs = ArrayList<SpeedRun>()
+        for (i in 0 until trace.size - 1) {
+            val bucket = bucketAt(i)
+            val last = runs.lastOrNull()
+            if (last != null && last.bucket == bucket) runs[runs.size - 1] = last.copy(to = i + 1)
+            else runs.add(SpeedRun(from = i, to = i + 1, bucket = bucket))
+        }
+        return runs
+    }
 }
+
+/** One point of a trace back in degrees ([GeoTrace.unprojectTrace]). */
+public data class GeoPoint(val lat: Double, val lon: Double, val v: Double)
+
+/** A bounding box in degrees ([GeoTrace.traceGeoBounds]). */
+public data class GeoBounds(val south: Double, val west: Double, val north: Double, val east: Double)
+
+/** Where a tap landed on the line ([GeoTrace.nearestOnTrace]). */
+public data class TraceHit(val idx: Int, val frac: Double, val alongM: Double, val offM: Double)
+
+/** A run of one speed colour ([GeoTrace.speedRuns]); `from`/`to` are point indexes, inclusive. */
+public data class SpeedRun(val from: Int, val to: Int, val bucket: Int)
 
 /** A plain 2D point in projected meters. */
 public data class Point(val x: Double, val y: Double)

@@ -62,6 +62,8 @@ class VideoContractTest {
         assertLaps(parsed.laps, picked.laps, file)
         assertChannels(parsed.lapChannels, picked.lapChannels, file)
 
+        // The anchor a save sends (NS-53): the batch origin the trace was projected from.
+        assertEquals(picked.traceGeo, parsed.traceGeo, "$file: traceGeo")
         val expectedTrace = given(picked.bestLapTrace)
         val actualTrace = given(parsed.bestLapTrace)
         assertEquals(expectedTrace.size, actualTrace.size, "$file: best-lap trace length")
@@ -70,6 +72,34 @@ class VideoContractTest {
             assertClose(b[1], a.y, "$file: trace y")
             assertClose(b[2], a.v, "$file: trace v")
         }
+    }
+
+    /**
+     * NS-53's one refusal, `applyGate` in ui.js: a file that only fits the
+     * picked line through the longitude mirror (Racelogic's legacy
+     * west-positive convention) was projected from negated longitudes, and no
+     * origin describes that truthfully — it keeps its laps and line, and saves
+     * with no anchor.
+     */
+    @Test
+    fun `a line that only fits mirrored saves without an anchor`() {
+        val parsed = VideoFixtures.parse("gopro.mp4")
+        val gps = given(parsed.gps)
+        val origin = gps[0]
+        val gate = given(GeoTrace.buildGate(GeoTrace.projectTrace(gps, origin), 118))
+        val mirrored = parsed.copy(gps = gps.map { it.copy(lon = -it.lon) })
+
+        val straight = Telemetry.applyGate(parsed, origin, gate)
+        assertTrue(straight.laps.isNotEmpty())
+        assertEquals(GeoTrace.traceOrigin(gps), straight.traceGeo)
+
+        val flipped = Telemetry.applyGate(mirrored, origin, gate)
+        assertTrue(flipped.laps.isNotEmpty(), "the mirrored file still times its laps")
+        assertTrue(flipped.bestLapTrace != null, "and keeps its line")
+        assertEquals(null, flipped.traceGeo)
+
+        // Clearing the line clears the anchor with it.
+        assertEquals(null, Telemetry.applyGate(straight, origin, null).traceGeo)
     }
 
     /**

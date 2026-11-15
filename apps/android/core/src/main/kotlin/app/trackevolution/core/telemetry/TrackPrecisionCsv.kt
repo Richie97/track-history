@@ -322,6 +322,7 @@ public object TrackPrecisionCsv {
             durationS = points.last().t,
             laps = laps,
             bestLapTrace = bestLapTrace,
+            traceGeo = if (bestLapTrace != null) GeoTrace.traceOrigin(points) else null,
             gps = points,
             carChannels = carChannels,
             lapScalarChannels = lapScalarChannels,

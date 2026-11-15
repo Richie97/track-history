@@ -223,6 +223,8 @@ fun LapDetailScreen(
     onCommentsGone: () -> Unit = {},
     /** The student's name, for a coach's audience note. */
     studentName: String? = null,
+    /** Opens the session's best-lap trace on a real map (NS-53). Null draws no control. */
+    onOpenMap: (() -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -256,6 +258,7 @@ fun LapDetailScreen(
                 comments = comments,
                 onCommentsGone = onCommentsGone,
                 studentName = studentName,
+                onOpenMap = onOpenMap,
             )
             return@TELoadable
         }
@@ -310,6 +313,7 @@ fun LapDetailScreen(
                             dots = cursorDots.orEmpty(),
                             modifier = Modifier.fillMaxWidth().height(220.dp),
                             pins = commentPins(comments, view.lap.id, lapLen),
+                            onExpand = onOpenMap,
                         )
                         LimitLegend(view.markers, Modifier.padding(top = 6.dp))
                     }
@@ -413,6 +417,7 @@ private fun StagedLap(
     comments: CommentsModel? = null,
     onCommentsGone: () -> Unit = {},
     studentName: String? = null,
+    onOpenMap: (() -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -485,6 +490,7 @@ private fun StagedLap(
             if (view.canCompare) item("compare") { CompareButton(onCompare) }
         },
         mapPins = commentPins(comments, view.lap.id, lapLen),
+        onOpenMap = onOpenMap,
     ) {
         // Under the stage, in place order (NS-52): the composer takes its place
         // from the playhead, and a placed comment seeks the stage there.

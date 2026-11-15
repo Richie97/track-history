@@ -5,6 +5,7 @@ import app.trackevolution.core.Lap
 import app.trackevolution.core.ParsedRecording
 import app.trackevolution.core.TraceSample
 import app.trackevolution.core.model.SessionChannels
+import app.trackevolution.core.model.TraceGeo
 
 /**
  * One parsed telemetry source, whatever produced it.
@@ -39,6 +40,13 @@ public data class ParsedTelemetry(
     val needsLine: Boolean = false,
     /** Best-lap polyline, drawn as the racing line on the event page. */
     val bestLapTrace: List<TraceSample>? = null,
+    /**
+     * Where [bestLapTrace] lies on Earth (NS-53): the origin it was projected
+     * from, sent as the session's `trace_geo`. Null without a trace, for a
+     * coordinate that isn't one, and for a line-picked file that only fitted
+     * the line through the longitude mirror ([Telemetry.applyGate]).
+     */
+    val traceGeo: TraceGeo? = null,
     /** Per-lap channel arrays on a driven-distance grid, stored with the session. */
     val lapChannels: SessionChannels? = null,
     /** Session maxima from a PDR file's car channels. */

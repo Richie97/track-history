@@ -1,6 +1,12 @@
 package app.trackevolution.ui.charts
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -92,6 +98,12 @@ fun TrackMap(
      * neither is hidden by one. The web's `setNotes`.
      */
     pins: List<Double> = emptyList(),
+    /**
+     * Opens this line on a real map (NS-53): a small expand control in the
+     * card's corner. Null — the share pages, and anywhere the trace is not a
+     * session's — draws none.
+     */
+    onExpand: (() -> Unit)? = null,
 ) {
     // Matching `renderTrackMap`'s bail: fewer than ten points is a GPS glitch,
     // not a lap, and drawing it would claim more than we know.
@@ -293,6 +305,31 @@ fun TrackMap(
                 }
             }
         }
+        if (onExpand != null) MapExpandButton(onExpand, Modifier.align(Alignment.TopEnd).padding(6.dp))
+    }
+}
+
+/**
+ * The track map card's way onto the real map (NS-53): the web's ⤢. A glyph in a
+ * small card-coloured pill rather than an icon font, which this app does not
+ * ship; labelled for TalkBack, since the glyph says nothing out loud.
+ */
+@Composable
+internal fun MapExpandButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = TrackTheme.colors
+    Box(
+        modifier = modifier
+            .size(36.dp)
+            .background(colors.surfaceCard.copy(alpha = 0.9f), RoundedCornerShape(TrackTheme.radii.sm))
+            .border(1.dp, colors.borderHairline, RoundedCornerShape(TrackTheme.radii.sm))
+            .clickable(onClickLabel = "Open on a map", role = Role.Button, onClick = onClick)
+            .semantics {
+                testTag = "trackMapExpand"
+                contentDescription = "Open on a map"
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("⤢", style = TrackTheme.typography.body, color = colors.textStrong)
     }
 }
 

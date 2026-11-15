@@ -78,6 +78,12 @@ public fun Route.remapTempId(from: Int, to: Int): Route = when (this) {
         sessionId = if (sessionId == from) to else sessionId,
         lapId = lapId?.let { if (it == from) to else it },
     )
+    // The map viewer (NS-53): an event and a session can each be created
+    // offline; a leaderboard lap's ids never are.
+    is Route.TrackMap -> copy(
+        eventId = eventId?.let { if (it == from) to else it },
+        sessionId = sessionId?.let { if (it == from) to else it },
+    )
     // Tracks are never created offline — an event's track is found-or-created
     // server-side by name — and slugs and settings carry no id at all. Nor is
     // anything in a student's logbook (NS-38): a coach cannot write there, so

@@ -10,6 +10,7 @@ import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.core.model.Setup
 import app.trackevolution.core.model.SetupSheet
 import app.trackevolution.core.model.Track
+import app.trackevolution.core.model.TraceGeo
 import app.trackevolution.core.model.TracePoint
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
@@ -227,6 +228,8 @@ private suspend fun addSession(eventId: String, item: QueuedWrite, txn: OfflineT
         sort = (detail.sessions.maxOfOrNull { it.sort } ?: 0) + 1,
         trace = body?.decode("trace", traceSerializer),
         channels = body?.decode("channels", SessionChannels.serializer()),
+        // `offline.js`: an anchor only beside a trace (NS-53).
+        traceGeo = if (body?.decode("trace", traceSerializer) != null) body.decode("trace_geo", TraceGeo.serializer()) else null,
         laps = laps.mapIndexed { index, ms ->
             Lap(
                 id = tempLapId(seed = tempId, lapNum = index + 1),
