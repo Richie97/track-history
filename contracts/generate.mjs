@@ -134,6 +134,12 @@ async function startWorker({ email = DEV_EMAIL, name = "Dev User", fresh = true 
     YOUTUBE_CLIENT_ID: "contract-harness",
     YOUTUBE_CLIENT_SECRET: "contract-harness",
     YOUTUBE_TOKEN_KEY: Buffer.alloc(32, 1).toString("base64"),
+    // The web map viewer (NS-53): present so `user.maps.web` is true whatever
+    // a local .dev.vars holds. Nothing here asks for a token, so the key is
+    // never used to sign.
+    APPLE_TEAM_ID: "contract-harness",
+    MAPKIT_KEY_ID: "contract-harness",
+    MAPKIT_PRIVATE_KEY: "contract-harness",
   };
 
   return unstable_startWorker({

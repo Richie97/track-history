@@ -25,6 +25,9 @@
       "id": 1,
       "leaderboard_opt_in": false,
       "leaderboard_share_laps": false,
+      "maps": {
+        "web": true
+      },
       "name": "Dev User",
       "picture": null,
       "share_slug": null,

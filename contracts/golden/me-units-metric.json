@@ -29,6 +29,9 @@
       "id": 1,
       "leaderboard_opt_in": true,
       "leaderboard_share_laps": true,
+      "maps": {
+        "web": true
+      },
       "name": "Dev User",
       "picture": null,
       "share_slug": "contract-fixture",

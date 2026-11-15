@@ -69,9 +69,19 @@ public data class User(
      * together. Defaulted so a `/me` cached before the field still decodes.
      */
     @SerialName("comments_unread") val commentsUnread: Int = 0,
+    /**
+     * Whether the *web's* map viewer has imagery (NS-53). Decoded because the
+     * server sends it; nothing on this platform reads it — the phone draws
+     * its own maps. Nullable so a `/me` cached before the field still decodes.
+     */
+    val maps: MapsAvailability? = null,
 ) {
     val effectiveUnits: UnitSystem get() = units ?: UnitSystem.IMPERIAL
 }
+
+/** `user.maps` on `GET /api/me` (NS-53). */
+@Serializable
+public data class MapsAvailability(val web: Boolean)
 
 /** `user.clips` on `GET /api/me` (NS-45). Bytes are `Long`: the quota is 20 GiB. */
 @Serializable

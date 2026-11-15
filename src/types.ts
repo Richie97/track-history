@@ -14,6 +14,11 @@ export type Env = {
   APPLE_TEAM_ID?: string;
   APPLE_KEY_ID?: string;
   APPLE_PRIVATE_KEY?: string;
+  // The web map viewer (NS-53, lib/maps.ts): a MapKit JS key from the same
+  // developer account, signed under APPLE_TEAM_ID. Unset, the viewer draws
+  // the line without imagery.
+  MAPKIT_KEY_ID?: string;
+  MAPKIT_PRIVATE_KEY?: string;
   IOS_APP_ID?: string;
   // OpenAI Apps domain-verification token, served verbatim at
   // /.well-known/openai-apps-challenge (src/routes/wellKnown.ts). A secret.
@@ -68,6 +73,7 @@ export type Env = {
   OAUTH_TOKEN?: RateLimit; // per client id: POST /oauth/token
   OAUTH_REGISTER?: RateLimit; // per IP: POST /oauth/register
   EXPORT?: RateLimit; // per user: GET /api/export/* (NS-44)
+  MAP_TOKEN?: RateLimit; // per user: GET /api/map-token (NS-53)
   CLIP_PARTS?: RateLimit; // per user: PUT /api/clips/:id/parts/:n (NS-45)
   COACH_COMMENTS?: RateLimit; // per author: writing or editing a coach comment (NS-52)
 
