@@ -56,6 +56,30 @@ import { initPullRefresh } from "./js/pull-refresh.js";
 import { initAnalytics, openConsentBanner, trackPageView } from "./js/analytics.js";
 import { PROFILE_GROUPS, profileBody, profileSections } from "./js/profile.js";
 import { inviteExpiryText, lastViewedText, studentLine } from "./js/coaching.js";
+import {
+  COMMENTS_HEADING,
+  COMMENT_PLACEHOLDER,
+  REPLY_PLACEHOLDER,
+  REPORT_EMAIL,
+  REPORT_LABEL,
+  THREAD_CLOSED,
+  WHOLE_SESSION,
+  canReply,
+  coachAudienceNote,
+  commentCountText,
+  commentCounts,
+  commentError,
+  commentPlace,
+  commentThreads,
+  commentWhen,
+  feedLine,
+  groupComments,
+  placeFromCursor,
+  reportBody,
+  reportSubject,
+  threadTitle,
+  unreadLine,
+} from "./js/comments.js";
 import { EXPORT_FILES, EXPORT_OFFLINE, exportErrorText, exportFilename, exportStoppedPartway, exportUrl } from "./js/export.js";
 import {
   canCompareEvents, canSaveLapVideo, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
@@ -93,7 +117,9 @@ const CHART_WAITS = "The chart starts once two events here have a lap time.";
 // Three things follow from it, and the reused pages go through them rather
 // than knowing about coaching:
 //   - api() reads through /api/students/<id>, which the server answers as the
-//     student, GET only; a write is refused here before it is sent.
+//     student, GET only; a write is refused here before it is sent. The one
+//     exception is `own: true` — a coach's comments (NS-52), which are the
+//     coach's own data and go through the coach's own /api routes.
 //   - L() keeps a link inside the student's logbook.
 //   - ent() is the entitlement the channel panel opens by: the student's tier,
 //     not the coach's, because the student is the one who paid for it.
@@ -129,7 +155,7 @@ const readOnlyFreeNote = () => (sharedView ? sharedFreeNote() : studentFreeNote(
 
 // API wrapper: a 401 anywhere means the session is gone — show the login view.
 async function api(path, opts) {
-  if (viewing) {
+  if (viewing && !opts?.own) {
     if ((opts?.method || "GET").toUpperCase() !== "GET") throw new Error("This logbook is read-only.");
     path = `/students/${viewing.id}${path}`;
   }
@@ -783,7 +809,7 @@ function shell(content) {
               ${themeToggleHtml()}
             </div>
             <div class="menu-sep"></div>
-            <a class="menu-item" href="#/coaching">Coaching</a>
+            <a class="menu-item" href="#/coaching">Coaching <span class="nav-badge" data-comments-badge${me?.comments_unread ? "" : " hidden"}>${me?.comments_unread || ""}</span></a>
             <a class="menu-item" href="#/settings">Settings</a>
             <button class="menu-item" id="logout">Sign out</button>
           </div>
@@ -932,9 +958,12 @@ async function ensureMe() {
 
 async function viewDashboard() {
   const pro = canUseGarage(state.entitlement);
-  const [tracks, events, garage] = await Promise.all([
+  const [tracks, events, feed, garage] = await Promise.all([
     api("/tracks"),
     api("/events"),
+    // Coach comments waiting to be read (NS-52), and only when /me said there
+    // are some — allowed to fail like the garage below.
+    state.me?.comments_unread ? api("/coaching/comments").catch(() => null) : null,
     // Only for the hero's due-part line now that the garage has its own page
     // (NS-37) — Pro, and allowed to fail: offline or lapsed, the dashboard
     // renders without it rather than failing whole.
@@ -1007,6 +1036,7 @@ async function viewDashboard() {
       ${hasHistory ? `<a class="btn" href="#/year">Year in review</a>` : ""}
     </div>
     ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
+    ${feed ? commentsCardHtml(feed) : ""}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
     ${heroEvent && garage ? heroGarageHtml(heroEvent, garage) : ""}
     <div class="tiles">
@@ -2313,6 +2343,376 @@ function lapStageBoxHtml(s) {
 // asks to open. Cleared whenever the event page renders.
 const stageOpeners = new Map();
 
+// ---------- coach comments on sessions and laps (NS-52) ---------------------
+
+// The event page's comments: what a coach said about a session, a lap or a
+// place on a lap, and the driver's replies. They are read from their own
+// route after the page has rendered — never part of the event detail — so the
+// page never waits on them and a failure (offline with nothing cached) just
+// leaves the blocks out. `commentCtx` is the event last loaded; viewEvent
+// resets it on every render. A coach reading a student's event goes through
+// the coach's own /api/coaching/students/<id>/… with `own: true`, the one
+// exception to the read-only seam above.
+const commentCtx = { event: null, comments: [], coaches: [], counts: { bySession: {}, byLap: {} } };
+// Each session's channel panel on the page, for the composer's "at the marked
+// place" and a placed comment's "show on lap".
+const channelPanels = new Map();
+
+const commentsBase = () => (viewing ? `/coaching/students/${viewing.id}` : "");
+const draftKey = (sessionId, coachId) => `te-comment-draft:${viewing?.id ?? "me"}:${sessionId}:${coachId}`;
+const readDraft = (key) => {
+  try {
+    return sessionStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+};
+const writeDraft = (key, text) => {
+  try {
+    if (text) sessionStorage.setItem(key, text);
+    else sessionStorage.removeItem(key);
+  } catch {
+    /* a draft is a convenience */
+  }
+};
+
+// The marker joined to a lap's chip: how many comments it has, accented while
+// one is unread. Tapping it goes to them.
+function lapCommentHtml(lap) {
+  const n = commentCtx.counts.byLap[lap?.id];
+  if (!n) return "";
+  const label = `Lap ${Number(lap.lap_num) || 0}: ${commentCountText(n)}`;
+  return `<button type="button" class="lap-play lap-note${n.unread ? " unread" : ""}" data-comment-jump="${esc(lap.id)}" aria-label="${esc(label)}" title="${esc(label)}">💬${n.count > 1 ? ` ${n.count}` : ""}</button>`;
+}
+
+// A plain (no-telemetry) session's lap chips; redrawn once comments arrive.
+function plainLapsHtml(s) {
+  const lapsMs = s.laps.map((l) => l.time_ms);
+  const best = lapsMs.length ? Math.min(...lapsMs) : null;
+  return s.laps
+    .map((l) => {
+      const chip = `<span class="lap${l.time_ms === best ? " best" : ""}">Lap ${l.lap_num} · ${fmtMs(l.time_ms)}${l.time_ms === best ? " ★" : ""}</span>`;
+      const after = lapPlayHtml(s, l) + lapCommentHtml(l);
+      return after ? `<span class="lap-group">${chip}${after}</span>` : chip;
+    })
+    .join("");
+}
+
+function commentHtml(c, s, corners, isOwner) {
+  const now = Date.now();
+  const when = commentWhen(c.created_at, now) ?? dateOfMs(c.created_at);
+  const place = c.dist_m != null ? commentPlace(c.dist_m, s.channels?.dStepM, corners, currentUnits()) : null;
+  const canShow = place && channelPanels.get(String(s.id))?.chIdxOf(c.lap_id) >= 0;
+  const meta = [
+    `<span class="comment-who">${c.mine ? "You" : esc(c.author?.name || "Someone")}</span>`,
+    esc(when) + (c.edited_at ? " · edited" : ""),
+    place
+      ? canShow
+        ? `<button type="button" class="linklike" data-comment-show="${c.id}" title="Show this place on the lap">◆ ${esc(place)}</button>`
+        : `◆ ${esc(place)}`
+      : "",
+    c.mine && c.seen ? "seen" : "",
+  ].filter(Boolean);
+  const report = `mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(reportSubject(c.id))}&body=${encodeURIComponent(reportBody(c.id))}`;
+  const actions = [
+    c.mine ? `<button type="button" class="linklike" data-comment-edit="${c.id}">Edit</button>` : "",
+    c.mine || isOwner ? `<button type="button" class="linklike" data-comment-del="${c.id}">Delete</button>` : "",
+    c.mine ? "" : `<a class="linklike" href="${esc(report)}">${esc(REPORT_LABEL)}</a>`,
+  ].filter(Boolean);
+  return `<div class="comment${!c.mine && !c.seen ? " unread" : ""}${c.mine ? " mine" : ""}" data-comment="${c.id}">
+    <div class="comment-meta">${meta.join(" · ")}</div>
+    <div class="comment-body">${esc(c.body)}</div>
+    <div class="comment-actions">${actions.join(" ")}</div>
+  </div>`;
+}
+
+function commentFormHtml(s, coachId, isOwner) {
+  const key = draftKey(s.id, coachId);
+  const label = isOwner ? REPLY_PLACEHOLDER : COMMENT_PLACEHOLDER;
+  const hasPanel = !!s.channels?.laps?.length;
+  return `<form class="comment-form" data-comment-form="${esc(coachId)}" data-draft="${esc(key)}">
+    <textarea name="body" rows="2" placeholder="${esc(label)}" aria-label="${esc(label)}">${esc(readDraft(key))}</textarea>
+    <div class="btn-row">
+      <select name="lap" aria-label="What the comment is about">
+        <option value="">${esc(WHOLE_SESSION)}</option>
+        ${s.laps.map((l) => `<option value="${esc(l.id)}">Lap ${l.lap_num} · ${fmtMs(l.time_ms)}</option>`).join("")}
+      </select>
+      <span class="comment-place" data-place hidden><span data-place-text></span>
+        <button type="button" class="linklike" data-place-clear aria-label="Remove the place">✕</button></span>
+      ${hasPanel ? `<button type="button" class="btn small" data-place-pin title="Use the place marked on the channel graphs">◆ At the marked place</button>` : ""}
+      <button class="btn small primary">${isOwner ? "Reply" : "Comment"}</button>
+      <span class="goal-msg" data-comment-msg role="status"></span>
+    </div>
+  </form>`;
+}
+
+// One session's block: a thread per coach (the coach's own, for a coach).
+function sessionCommentsHtml(s) {
+  const isOwner = !viewing;
+  const mine = commentCtx.comments.filter((c) => String(c.session_id) === String(s.id));
+  // A coach always has their thread, empty or not — it is where they start.
+  const threads = isOwner ? commentThreads(mine) : [{ coach_id: state.me?.id, comments: mine }];
+  if (!threads.length) return "";
+  let corners = [];
+  try {
+    corners = s.channels?.laps?.length ? sessionCorners(s.channels) : [];
+  } catch {
+    corners = [];
+  }
+  const one = (c) => commentHtml(c, s, corners, isOwner);
+  const body = threads
+    .map((t) => {
+      const coach = commentCtx.coaches.find((u) => u.id === t.coach_id) ?? null;
+      const g = groupComments(t.comments, s);
+      const open = isOwner ? canReply(coach) : true;
+      return `<div class="comment-thread" data-thread="${esc(t.coach_id)}">
+        <div class="comment-thread-head">${esc(threadTitle(coach, isOwner))}</div>
+        ${!isOwner && !t.comments.length ? `<div class="hint">${esc(coachAudienceNote(viewing?.name))}</div>` : ""}
+        ${g.session.map(one).join("")}
+        ${g.laps
+          .map(
+            (l) => `<div class="comment-lap" id="comments-lap-${esc(l.lap_id)}" tabindex="-1">
+              <div class="comment-lap-head">Lap ${l.lap_num} · <span class="t">${fmtMs(l.time_ms)}</span></div>
+              ${l.comments.map(one).join("")}
+            </div>`
+          )
+          .join("")}
+        ${open ? commentFormHtml(s, t.coach_id, isOwner) : `<div class="hint">${esc(THREAD_CLOSED)}</div>`}
+      </div>`;
+    })
+    .join("");
+  return `<div class="comments-head">${esc(COMMENTS_HEADING)}</div>${body}`;
+}
+
+function paintCommentsBadge() {
+  const n = state.me?.comments_unread || 0;
+  document.querySelectorAll("[data-comments-badge]").forEach((el) => {
+    el.textContent = n ? String(n) : "";
+    el.hidden = !n;
+  });
+}
+
+// Draw every session's block and the lap markers from commentCtx, and wire
+// the blocks. Handlers are properties on the fresh elements, so a redraw
+// replaces rather than stacks them.
+function renderComments(view) {
+  const e = commentCtx.event;
+  if (!e) return;
+  view.querySelectorAll("[data-plain-laps]").forEach((el) => {
+    const s = e.sessions.find((x) => String(x.id) === el.dataset.plainLaps);
+    if (s) el.innerHTML = plainLapsHtml(s);
+  });
+  for (const panel of channelPanels.values()) panel.rerenderChips();
+  view.querySelectorAll("[data-comments]").forEach((box) => {
+    const s = e.sessions.find((x) => String(x.id) === box.dataset.comments);
+    const html = s ? sessionCommentsHtml(s) : "";
+    box.innerHTML = html;
+    box.hidden = !html;
+    if (!s || !html) return;
+    bindSessionComments(view, box, s);
+  });
+}
+
+function bindSessionComments(view, box, s) {
+  const panel = () => channelPanels.get(String(s.id)) ?? null;
+  const reload = () => loadComments(view, commentCtx.event);
+  const failed = (err) => commentError(err instanceof ApiError ? err.status : null, err?.message);
+
+  box.querySelectorAll("[data-comment-form]").forEach((form) => {
+    const msg = form.querySelector("[data-comment-msg]");
+    const placeEl = form.querySelector("[data-place]");
+    const setPlace = (distM) => {
+      if (distM == null) delete form.dataset.distM;
+      else form.dataset.distM = String(distM);
+      if (!placeEl) return;
+      placeEl.hidden = distM == null;
+      if (distM != null) {
+        let corners = [];
+        try {
+          corners = sessionCorners(s.channels);
+        } catch {
+          /* the distance alone */
+        }
+        placeEl.querySelector("[data-place-text]").textContent = `◆ ${commentPlace(distM, s.channels?.dStepM, corners, currentUnits())}`;
+      }
+    };
+    form.body.oninput = () => writeDraft(form.dataset.draft, form.body.value);
+    // A place belongs to the lap it was marked on.
+    form.lap.onchange = () => setPlace(null);
+    const clear = form.querySelector("[data-place-clear]");
+    if (clear) clear.onclick = () => setPlace(null);
+    const pin = form.querySelector("[data-place-pin]");
+    if (pin)
+      pin.onclick = () => {
+        const places = panel()?.pinPlaces() ?? [];
+        if (!places.length) {
+          msg.textContent = "Mark a place first: open Channel graphs and click a chart.";
+          return;
+        }
+        // The lap already chosen if the mark is on it, else the first lit lap.
+        const chosen = form.lap.value ? panel().chIdxOf(form.lap.value) : -1;
+        const at = places.find((p) => p.chIdx === chosen) ?? places[0];
+        const lap = panel().lapAt(at.chIdx);
+        if (!lap) {
+          msg.textContent = "That lap isn't one of this session's saved laps.";
+          return;
+        }
+        form.lap.value = String(lap.id);
+        msg.textContent = "";
+        setPlace(placeFromCursor(at.k, s.channels.dStepM));
+      };
+    form.onsubmit = async (evt) => {
+      evt.preventDefault();
+      const text = form.body.value.trim();
+      if (!text) return;
+      const coachId = Number(form.dataset.commentForm);
+      const payload = {
+        body: text,
+        lap_id: form.lap.value ? Number(form.lap.value) : null,
+        dist_m: form.dataset.distM != null ? Number(form.dataset.distM) : null,
+        ...(viewing ? {} : { coach_id: coachId }),
+      };
+      const btn = form.querySelector("button.primary");
+      btn.disabled = true;
+      msg.textContent = "";
+      try {
+        await api(`${commentsBase()}/sessions/${s.id}/comments`, { method: "POST", body: payload, own: true });
+        writeDraft(form.dataset.draft, "");
+        await reload();
+      } catch (err) {
+        // The draft stays in the box, and in sessionStorage, for another try.
+        btn.disabled = false;
+        msg.textContent = failed(err);
+      }
+    };
+  });
+
+  box.onclick = async (evt) => {
+    const t = evt.target;
+    const show = t.closest?.("[data-comment-show]");
+    if (show) {
+      const c = commentCtx.comments.find((x) => String(x.id) === show.dataset.commentShow);
+      const p = panel();
+      if (c && p?.showPlace(p.chIdxOf(c.lap_id), c.dist_m))
+        view.querySelector(`[data-channel-graphs="${CSS.escape(String(s.id))}"] .ch-details`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    const del = t.closest?.("[data-comment-del]");
+    if (del) {
+      if (!confirm("Delete this comment?")) return;
+      try {
+        await api(`/comments/${del.dataset.commentDel}`, { method: "DELETE", own: true });
+        await reload();
+      } catch (err) {
+        alert(failed(err));
+      }
+      return;
+    }
+    const edit = t.closest?.("[data-comment-edit]");
+    if (edit) {
+      const c = commentCtx.comments.find((x) => String(x.id) === edit.dataset.commentEdit);
+      const row = edit.closest("[data-comment]");
+      if (!c || !row) return;
+      row.innerHTML = `<form class="comment-form" data-comment-editing>
+        <textarea name="body" rows="3" aria-label="Edit your comment">${esc(c.body)}</textarea>
+        <div class="btn-row">
+          <button class="btn small primary">Save</button>
+          <button type="button" class="btn small" data-comment-edit-cancel>Cancel</button>
+          <span class="goal-msg" data-comment-msg role="status"></span>
+        </div>
+      </form>`;
+      const form = row.querySelector("form");
+      form.body.focus();
+      form.querySelector("[data-comment-edit-cancel]").onclick = () => renderComments(view);
+      form.onsubmit = async (e2) => {
+        e2.preventDefault();
+        const text = form.body.value.trim();
+        if (!text) return;
+        try {
+          await api(`/comments/${c.id}`, { method: "PUT", body: { body: text }, own: true });
+          await reload();
+        } catch (err) {
+          form.querySelector("[data-comment-msg]").textContent = failed(err);
+        }
+      };
+    }
+  };
+}
+
+// Read the event's comments and draw them; then tell the server they have
+// been seen. Never called by the offline prefetch — seeing is something a
+// person does. A shared-link page has none, and an event created offline has
+// no server id to ask about yet.
+async function loadComments(view, e) {
+  if (sharedView || !state.me || String(e.id).startsWith("tmp-")) return;
+  let data;
+  try {
+    data = await api(`${commentsBase()}/events/${e.id}/comments`, { own: true });
+  } catch {
+    return;
+  }
+  // The page may have moved on while this was in flight.
+  if (commentCtx.event !== e || !view.isConnected) return;
+  commentCtx.comments = data.comments ?? [];
+  commentCtx.coaches = data.coaches ?? [];
+  commentCtx.counts = commentCounts(commentCtx.comments);
+  renderComments(view);
+  if (commentCtx.comments.some((c) => !c.mine && !c.seen)) {
+    api(`${commentsBase()}/events/${e.id}/comments/seen`, { method: "POST", own: true })
+      .then((r) => {
+        if (!state.me) return;
+        state.me.comments_unread = Math.max(0, (state.me.comments_unread || 0) - (r?.seen || 0));
+        paintCommentsBadge();
+      })
+      .catch(() => {});
+  }
+}
+
+// A lap chip's marker scrolls to that lap's comments. Document-level because
+// the chips are redrawn on every toggle.
+document.addEventListener("click", (evt) => {
+  const jump = evt.target.closest?.("[data-comment-jump]");
+  if (!jump) return;
+  const el = document.getElementById(`comments-lap-${jump.dataset.commentJump}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.focus({ preventScroll: true });
+});
+
+// Where a feed row opens: the event, in whichever logbook it is.
+const feedHref = (row) => (row.student ? `#/student/${row.student.id}/event/${row.event_id}` : `#/event/${row.event_id}`);
+
+// The dashboard's card while something is unread: the comment itself when
+// there is one, a count and the Coaching page's list when there are more.
+function commentsCardHtml(feed) {
+  const line = unreadLine(feed);
+  if (!line) return "";
+  const unread = feed.comments.filter((c) => !c.seen);
+  const single = feed.unread === 1 && unread.length === 1 ? unread[0] : null;
+  return `<a class="panel comments-card" href="${single ? feedHref(single) : "#/coaching"}">
+    <span class="comments-card-title">💬 ${esc(line)}</span>
+    ${single ? `<span class="comments-card-body">${esc(single.body)}</span>` : ""}
+    <span class="hint">${single ? "Open →" : "See them all →"}</span>
+  </a>`;
+}
+
+// The Coaching page's list: the newest things said to you, either way round.
+function recentCommentsHtml(feed) {
+  if (!feed?.comments?.length) return "";
+  const now = Date.now();
+  return `<h2>Recent comments</h2>
+    <div class="panel">${feed.comments
+      .slice(0, 10)
+      .map(
+        (c) => `<a class="check-item comment-feed-row${c.seen ? "" : " unread"}" href="${feedHref(c)}">
+          <span><span class="comment-who">${esc(feedLine(c))}</span>
+            <span class="hint-inline">${esc(commentWhen(c.created_at, now) ?? dateOfMs(c.created_at))}${c.seen ? "" : " · new"}</span>
+            <span class="comments-card-body">${esc(c.body)}</span></span>
+        </a>`
+      )
+      .join("")}</div>`;
+}
+
 // ---------- publishing a best-lap video to YouTube (NS-46) -------------------
 
 // The consent explanation with its two documents linked, the same words on
@@ -2607,6 +3007,9 @@ async function viewEvent(eventId) {
   openLapVideos.clear();
   stageOpeners.clear();
   destroyAllStages();
+  // Comments (NS-52) are read after the page is up; until then, none.
+  channelPanels.clear();
+  Object.assign(commentCtx, { event: e, comments: [], coaches: [], counts: { bySession: {}, byLap: {} } });
   const track = tracks.find((t) => t.id === e.track_id);
   // Read-only is a coach reading a student's event (NS-38): no writes, no
   // setup notebook or checklist (neither is shared), and no personal-best
@@ -2627,15 +3030,7 @@ async function viewEvent(eventId) {
       // collapsible graphs); plain sessions render the same chip layout.
       const lapsHtml = s.channels?.laps?.length
         ? `<div data-channel-graphs="${s.id}"></div>`
-        : `<div class="laps">${s.laps
-            .map(
-              (l) =>
-                ((chip, play) => (play ? `<span class="lap-group">${chip}${play}</span>` : chip))(
-                  `<span class="lap${l.time_ms === best ? " best" : ""}">Lap ${l.lap_num} · ${fmtMs(l.time_ms)}${l.time_ms === best ? " ★" : ""}</span>`,
-                  lapPlayHtml(s, l)
-                )
-            )
-            .join("")}</div>`;
+        : `<div class="laps" data-plain-laps="${esc(s.id)}">${plainLapsHtml(s)}</div>`;
       // Session analysis from the laps we already have: representative pace,
       // how long it took to get up to speed, and whether pace faded late.
       const stats = [];
@@ -2706,6 +3101,7 @@ async function viewEvent(eventId) {
         }
         ${lapsHtml}
         ${s.channels?.laps?.length ? "" : lapVideosHtml(s)}
+        ${sharedView ? "" : `<div class="comments" data-comments="${esc(s.id)}" hidden></div>`}
         ${ro ? "" : `<div class="clip-upload" data-clip-upload="${esc(s.id)}" role="status" hidden></div>`}
         ${
           ro
@@ -3090,7 +3486,8 @@ async function viewEvent(eventId) {
     const stage = { handle: null, open: false, opened: null, aIdx: null, mark: null };
     const panel = bindChannelGraphs(el, s.channels, s.laps, {
       // Each lap chip carries its video's ▶ (NS-50), as the plain lap list does.
-      chipAfter: (lap) => lapPlayHtml(s, lap),
+      // …and a marker for its coach comments (NS-52).
+      chipAfter: (lap) => lapPlayHtml(s, lap) + lapCommentHtml(lap),
       afterChips: lapStageBoxHtml(s),
       // While the stage is shut the panel's own cursor holds the marks.
       onRender: (chartsEl) => {
@@ -3141,6 +3538,7 @@ async function viewEvent(eventId) {
       pro: pro(),
       lockedHtml: pro() ? "" : ro ? `<p class="hint">${readOnlyFreeNote()}</p>` : proNoteHtml(PRO_CHANNELS_NOTE),
     });
+    channelPanels.set(String(s.id), panel);
     // The loop's actions, delegated from the panel container because the
     // Car tab re-renders with every chip toggle. Saves go through route() —
     // the notebook shows the sheet too — and the panel memory above brings
@@ -3404,6 +3802,8 @@ async function viewEvent(eventId) {
   });
 
   if (!ro) bindItemShare(view, e);
+  // Coach comments (NS-52), once everything they hang off is on the page.
+  loadComments(view, e);
   if (!ro) bindTelemetryImport(view, e, route, { clips: clipImportContext() });
   paintClipUploads();
 }
@@ -5487,7 +5887,8 @@ const dateOfMs = (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10));
 const COACH_SHARES =
   "your events, sessions and laps with the full channel panel (as far as your plan includes it), your " +
   "racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your " +
-  "notes, prep checklists, costs, setup sheets, parts or email — and they can't change anything.";
+  "notes, prep checklists, costs, setup sheets, parts or email. They can't change anything; they can leave " +
+  "comments on your sessions and laps, which only you and that coach see.";
 
 // Removing a coach stops new viewing at once, but a video URL already handed
 // out keeps playing for up to an hour, and any player can save the file (NS-45).
@@ -5527,8 +5928,13 @@ async function forgetStudent(studentId) {
 }
 
 async function viewCoaching() {
-  const [coaching, me] = await Promise.all([api("/coaching"), api("/me/profile")]);
+  const [coaching, me, feed] = await Promise.all([
+    api("/coaching"),
+    api("/me/profile"),
+    api("/coaching/comments").catch(() => null),
+  ]);
   const now = Date.now();
+  const newBadge = (n) => (n ? ` <span class="nav-badge" title="${n} unread comment${n === 1 ? "" : "s"}">${n}</span>` : "");
   const canInvite = isPro(state.entitlement);
 
   const studentsHtml = coaching.students.length
@@ -5536,7 +5942,7 @@ async function viewCoaching() {
       <div class="panel" id="students-panel">${coaching.students
         .map(
           (st) => `<div class="check-item">
-            <span><a href="#/student/${st.id}">${esc(st.name || "A driver")}</a>
+            <span><a href="#/student/${st.id}">${esc(st.name || "A driver")}</a>${newBadge(st.unread)}
               <span class="hint-inline">${esc(studentLine(st, fmtDate))}</span></span>
             <button type="button" class="btn small" data-leave-student="${st.id}" data-name="${esc(st.name || "this driver")}">Stop coaching</button>
           </div>`
@@ -5548,7 +5954,7 @@ async function viewCoaching() {
     ? coaching.coaches
         .map(
           (c) => `<div class="check-item">
-            <span>${esc(c.name || "A coach")} <span class="hint-inline">since ${dateOfMs(c.since)} · ${esc(lastViewedText(c.last_viewed_at, now))}</span></span>
+            <span>${esc(c.name || "A coach")}${newBadge(c.unread)} <span class="hint-inline">since ${dateOfMs(c.since)} · ${esc(lastViewedText(c.last_viewed_at, now))}</span></span>
             <button type="button" class="btn small danger" data-revoke-coach="${c.id}" data-name="${esc(c.name || "this coach")}">Remove</button>
           </div>`
         )
@@ -5567,6 +5973,7 @@ async function viewCoaching() {
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
     <h1>Coaching</h1>
+    ${recentCommentsHtml(feed)}
     ${studentsHtml}
     <h2>Share your logbook with a coach</h2>
     <div class="hint" style="margin:0 0 4px">Give an instructor or coach read-only access to your whole logbook. They see ${esc(COACH_SHARES)}</div>

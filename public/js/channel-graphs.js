@@ -896,6 +896,28 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
       changed();
     },
     slotColor: (chIdx) => litMap().get(chIdx) ?? null,
+    // Coach comments (NS-52). The chips carry a marker for a lap with
+    // comments, which arrive after the panel is bound, so the caller redraws
+    // them; the composer takes its place from the pinned cursor (one
+    // { chIdx, k, frac } per lit lap), and a placed comment pins the cursor
+    // back where it was said, lighting its lap and opening the charts.
+    rerenderChips: () => renderChips(),
+    lapAt: (chIdx) => rows.find((r) => r.chIdx === chIdx)?.lap ?? null,
+    chIdxOf: (lapId) => rows.find((r) => String(r.lap.id) === String(lapId))?.chIdx ?? -1,
+    pinPlaces: () => (state.pin == null ? [] : axisPlaces(chLaps, dStep, state.axis, state.pin, state.lit)),
+    showPlace: (chIdx, distM) => {
+      if (!(chIdx >= 0 && chIdx < chLaps.length) || !Number.isFinite(distM)) return false;
+      const x = axisAtGrid(axisFrame(chLaps, dStep, state.axis, units).xsOf(chIdx), distM / dStep);
+      if (x == null) return false;
+      if (!state.lit.includes(chIdx)) {
+        state.lit.push(chIdx);
+        if (state.lit.length > SLOTS.length) state.lit.shift();
+      }
+      state.pin = x;
+      details.open = true;
+      changed();
+      return true;
+    },
     // The axis the charts are on, and a lap's series on it — for a caller
     // that has to turn a chart's time into a grid index (the stage's seek).
     axis: () => state.axis,
