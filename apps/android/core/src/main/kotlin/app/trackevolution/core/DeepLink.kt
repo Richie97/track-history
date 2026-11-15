@@ -56,6 +56,19 @@ public sealed interface DeepLink {
      */
     public data class CoachInvite(val token: String) : DeepLink
 
+    /**
+     * A tapped coach-comment notification (NS-54): the lap the comment is on,
+     * or the event for a session comment — in the student's logbook when
+     * [studentId] is set (the recipient is their coach), else the owner's.
+     * Never parsed from a URL; [commentPush] builds it from the push's `data`.
+     */
+    public data class CommentPush(
+        val eventId: Int,
+        val sessionId: Int,
+        val lapId: Int?,
+        val studentId: Int?,
+    ) : DeepLink
+
     public companion object {
         /** The app's custom scheme, registered in the manifest. */
         public const val CALLBACK_SCHEME: String = "trackevolution"
@@ -65,6 +78,26 @@ public sealed interface DeepLink {
 
         /** An item share's token: 128 bits, base64url (`SHARE_TOKEN` in `src/lib/itemShare.ts`). */
         private val SHARE_TOKEN = Regex("^[A-Za-z0-9_-]{22}$")
+
+        /**
+         * A coach-comment push's `data` (NS-54, `commentPushMessage` in
+         * `src/lib/push.ts`) to where tapping it goes. The same table as iOS's
+         * `DeepLink.commentPush`: `kind` must be `comment`; `event_id` and
+         * `session_id` must be positive integers or nothing opens; a valid
+         * `lap_id` opens the lap, anything else the event; a valid `student_id`
+         * puts it in that student's logbook, anything else in the owner's.
+         */
+        public fun commentPush(data: Map<String, String>): CommentPush? {
+            if (data["kind"] != "comment") return null
+            val eventId = positiveId(data["event_id"]) ?: return null
+            val sessionId = positiveId(data["session_id"]) ?: return null
+            return CommentPush(eventId, sessionId, positiveId(data["lap_id"]), positiveId(data["student_id"]))
+        }
+
+        private val DIGITS = Regex("^[0-9]{1,10}$")
+
+        private fun positiveId(raw: String?): Int? =
+            raw?.takeIf { DIGITS.matches(it) }?.toIntOrNull()?.takeIf { it > 0 }
 
         public fun parse(url: String): DeepLink? {
             val uri = runCatching { URI(url) }.getOrNull() ?: return null

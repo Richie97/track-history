@@ -158,6 +158,9 @@ class OfflineStoreTest {
         assertFalse(OfflineStore.isQueueable("POST", "/events/12/comments/seen"))
         assertFalse(OfflineStore.isQueueable("POST", "/coaching/students/3/sessions/4/comments"))
         assertFalse(OfflineStore.isQueueable("POST", "/coaching/students/3/events/12/comments/seen"))
+        // Push registration (NS-54): keyed on the live session, so never replayed.
+        assertFalse(OfflineStore.isQueueable("PUT", "/push/device"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/push/device"))
         assertFalse(OfflineStore.isQueueable("PUT", "/comments/5"))
         assertFalse(OfflineStore.isQueueable("DELETE", "/comments/5"))
         // …and nothing under a student's prefix can match the owner's patterns.

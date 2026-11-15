@@ -174,6 +174,23 @@ unread count. It mints an access token with the
   the service building a notification on the right channel with the right
   `PendingIntent` extras.
 
+### As built — ticket 3
+
+- The tap target is a `DeepLink` case, `DeepLink.CommentPush`, built by
+  `DeepLink.commentPush(data)` and parked in the in-memory `Router` like any
+  link — not in `PendingInvite`'s persisted store. A notification reaches a
+  phone only while it holds a live session (sign-out deletes the device row),
+  so the signed-out cold start that needed persistence for an invite does not
+  arise here.
+- `firebase_messaging_auto_init_enabled` is **false** in the manifest:
+  turning notifications on is what first mints a token (and switches
+  auto-init on), so an install that never opts in never contacts Firebase
+  for messaging.
+- A quick on-then-off (or off-then-on) ends where the driver left it: each
+  change reads the stored choice when it runs, under one lock.
+- On the event page the ask shows once, on the first session card whose
+  thread qualifies, rather than on every card.
+
 ## Docs and disclosures (owed by the tickets that ship them)
 
 - **Privacy policy**: the push token, what a notification contains, that

@@ -2168,7 +2168,12 @@ Wrapped, which is free.
   Firebase, so a debug run (without `-FIRDebugEnabled`), the simulator and the
   UI suites register nothing. `aps-environment` is per configuration
   (`APS_ENVIRONMENT` in `project.yml`); the App ID needs the Push
-  Notifications capability. Android (#465) is next.
+  Notifications capability.
+  **Android** (#465): `push/` in `:app` — FCM
+  (`firebase-messaging`, auto-init off until a driver opts in), the
+  `coach_comments` channel, `PushRegistrar` registering after every sign-in,
+  an in-context *Get notified when … replies* under a thread, Settings'
+  *Comment notifications* switch, and a tap opening the lap or event.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from

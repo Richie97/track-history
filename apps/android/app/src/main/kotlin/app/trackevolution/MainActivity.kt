@@ -54,6 +54,8 @@ import app.trackevolution.recording.Haptics
 import app.trackevolution.recording.Recorder
 import app.trackevolution.recording.RecorderPermissions
 import app.trackevolution.clips.LocalClipStatus
+import app.trackevolution.push.CommentNotifications
+import app.trackevolution.push.LocalCommentPush
 import app.trackevolution.recording.RecordingFlow
 import app.trackevolution.navigation.rememberScreenModel
 import app.trackevolution.recording.RecordingService
@@ -154,7 +156,13 @@ class MainActivity : ComponentActivity() {
         // exchange: an already-signed-in user never passes through it again.
         lifecycleScope.launch {
             auth.state.map { it is AuthState.SignedIn }.distinctUntilChanged().filter { it }
-                .collect { services.billing.onSignedIn() }
+                .collect {
+                    services.billing.onSignedIn()
+                    // Coach-comment notifications (NS-54): a device is keyed on
+                    // the session, so every new session registers again — and
+                    // sign-out needs nothing, since the session's row goes with it.
+                    services.push.onSignedIn()
+                }
         }
         // Every billing answer carries the fresh entitlement; it lands on the auth
         // state so the gates, Settings and the paywall read one value.
@@ -207,7 +215,11 @@ class MainActivity : ComponentActivity() {
                     // re-read from `/me` by each screen, so a change in Settings
                     // redraws the whole logbook at once, and imperial — what the
                     // app always showed — while signed out.
-                    CompositionLocalProvider(LocalUnitSystem provides state.units, LocalClipStatus provides services.clips) {
+                    CompositionLocalProvider(
+                        LocalUnitSystem provides state.units,
+                        LocalClipStatus provides services.clips,
+                        LocalCommentPush provides services.push,
+                    ) {
                         TrackTheme(choice) {
                             when (state) {
                                 is AuthState.SignedIn -> SignedInScaffold(
@@ -311,6 +323,17 @@ class MainActivity : ComponentActivity() {
         }
         sharedFiles(intent)?.let {
             incomingImport = it
+            return
+        }
+        // A tapped coach-comment notification (NS-54) — FCM's own or the one
+        // CommentMessagingService posted, both carrying the push's data as
+        // extras. Parked like a link, so a cold start opens it once there is a
+        // graph and a session.
+        CommentNotifications.fromIntent(intent)?.let {
+            router.offer(it)
+            // Consumed: a rotation re-reads this intent in onCreate, and must
+            // not open the comment a second time.
+            intent?.removeExtra("kind")
             return
         }
         val uri = intent?.data ?: return

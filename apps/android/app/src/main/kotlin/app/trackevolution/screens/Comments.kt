@@ -27,6 +27,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.State
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import app.trackevolution.push.CommentPushAsk
+import app.trackevolution.push.CommentPushOffer
+import app.trackevolution.push.LocalCommentPush
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -319,6 +323,25 @@ private fun threadsOf(
 }
 
 /**
+ * The in-context notification ask (NS-54) under a thread, when
+ * [CommentPushAsk.shouldOffer] says it means something here: the owner has a
+ * coach's comment in [comments], or a coach has sent one. Named for the other
+ * person — the coach who spoke, or the student.
+ */
+@Composable
+private fun PushOfferFor(model: CommentsModel, comments: List<CoachComment>, studentName: String?) {
+    val push = LocalCommentPush.current
+    val enabled by push.enabled.collectAsState()
+    val asked by push.asked.collectAsState()
+    val theirs = comments.firstOrNull { !it.mine }
+    if (!CommentPushAsk.shouldOffer(model.isOwner, theirs != null, comments.any { it.mine }, enabled, asked)) return
+    CommentPushOffer(
+        name = if (model.isOwner) theirs?.author?.name else studentName,
+        modifier = Modifier.padding(top = 6.dp),
+    )
+}
+
+/**
  * A session card's comments on the event page (NS-52): each thread's
  * whole-session comments and, inline under them, its composer — a text box
  * and a row of chips for what the comment is about (*Whole session* or a lap),
@@ -420,6 +443,10 @@ fun SessionComments(
                 }
             }
         }
+        // The notification ask once on the page — on the first session whose
+        // thread makes it mean something, not on every card.
+        val firstAsk = data.comments.firstOrNull { if (model.isOwner) !it.mine else it.mine }?.sessionId
+        if (firstAsk == session.id) PushOfferFor(model, mine, studentName)
         model.actionError?.let { Text(it, style = TrackTheme.typography.xs, color = colors.danger) }
     }
 }
@@ -544,6 +571,7 @@ fun LapComments(
             }
             }
         }
+        PushOfferFor(model, forLap, studentName)
         model.actionError?.let { Text(it, style = TrackTheme.typography.xs, color = colors.danger) }
     }
 }

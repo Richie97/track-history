@@ -9,7 +9,14 @@ import app.trackevolution.billing.ClientHeader
 import app.trackevolution.clips.ClipUploads
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.offline.OfflineStore
+import app.trackevolution.push.FirebasePushTokens
+import app.trackevolution.push.PushPrefs
+import app.trackevolution.push.PushRegistrar
+import androidx.core.app.NotificationManagerCompat
 import io.ktor.client.engine.okhttp.OkHttp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * The process-wide singletons: the database, the offline store, and the one
@@ -69,6 +76,21 @@ internal class AppServices private constructor(context: Context) {
         api = api,
         isSignedIn = { authStore.isSignedIn },
         prefs = BillingPrefs(context),
+    )
+
+    /**
+     * Coach-comment notifications (NS-54): this phone's FCM registration,
+     * kept in step with the driver's choice. Process-wide because Firebase's
+     * token rotation reaches it from a service with no activity.
+     */
+    val push = PushRegistrar(
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        register = { api.registerPushDevice(it) },
+        unregister = { api.unregisterPushDevice() },
+        tokens = FirebasePushTokens,
+        isSignedIn = { authStore.isSignedIn },
+        notificationsAllowed = { NotificationManagerCompat.from(context).areNotificationsEnabled() },
+        prefs = PushPrefs(context),
     )
 
     companion object {
