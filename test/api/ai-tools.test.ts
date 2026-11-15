@@ -442,3 +442,42 @@ describe("output schema variants", () => {
     expect(raw.step_m).toBeGreaterThan(20);
   });
 });
+
+// Coach comments (NS-52) are the driver's and their coach's conversation, and
+// no tool reads the routes that carry them.
+describe("coach comments", () => {
+  it("appear in no tool result", async () => {
+    const { user, eventId, detail } = await logbook();
+    const coach = await signedInUser();
+    await env.DB.prepare("INSERT INTO coach_grants (student_id, coach_id, created_at) VALUES (?, ?, ?)")
+      .bind(user.id, coach.id, Date.now())
+      .run();
+    const session = detail.sessions[0];
+    const lap = session.laps[2];
+    const said = await coach.api("POST", `/coaching/students/${user.id}/sessions/${session.id}/comments`, {
+      body: "SECRET-COACH-WORDS brake later",
+      lap_id: lap.id,
+      dist_m: 400,
+    });
+    expect(said.status).toBe(201);
+    expect(
+      (await user.api("POST", `/sessions/${session.id}/comments`, { coach_id: coach.id, body: "SECRET-STUDENT-WORDS" })).status
+    ).toBe(201);
+    const trackId = detail.track_id;
+    const results = [
+      await run(user, "get_profile"),
+      await run(user, "list_tracks"),
+      await run(user, "list_events"),
+      await run(user, "get_event", { event_id: eventId }),
+      await run(user, "get_session_insights", { session_id: session.id }),
+      await run(user, "get_lap_telemetry", { lap_id: lap.id }),
+      await run(user, "get_racing_line", { session_id: session.id }),
+      await run(user, "get_track_history", { track_id: trackId }),
+      await run(user, "get_garage"),
+      await run(user, "get_season_summary", { year: 2026 }),
+    ];
+    const text = JSON.stringify(results);
+    expect(text).not.toContain("SECRET-");
+    expect(text).not.toContain("comments_unread");
+  });
+});

@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { MAX_THREAD_COMMENTS } from "../../src/lib/comments";
 import { apiClient, createEvent, signedInProUser, signedInUser } from "./helpers";
@@ -351,5 +351,35 @@ describe("where comments never appear", () => {
     const after = await read();
     expect(after).toEqual(before);
     expect(JSON.stringify(after)).not.toContain("SECRET");
+  });
+});
+
+describe("the logbook export", () => {
+  it("carries the comments on your sessions, and the ones you wrote as a coach", async () => {
+    const p = await pair();
+    await p.say("Brake later here", { lap_id: p.lapIds[1], dist_m: 1240 });
+    await p.reply("Will try");
+    const fetchDoc = async (token: string) =>
+      (await (
+        await SELF.fetch("https://example.com/api/export/logbook.json", { headers: { Cookie: `session=${token}` } })
+      ).json()) as any;
+
+    const mine = await fetchDoc(p.student.token);
+    const session = mine.events.flatMap((e: any) => e.sessions).find((s: any) => s.id === p.sessionId);
+    expect(session.comments).toEqual([
+      { lap_id: p.lapIds[1], dist_m: 1240, body: "Brake later here", created_at: expect.any(Number), edited_at: null, author: "Test User", by_you: false },
+      { lap_id: null, dist_m: null, body: "Will try", created_at: expect.any(Number), edited_at: null, author: "Test User", by_you: true },
+    ]);
+    expect(mine.comments_written).toEqual([]);
+
+    const theirs = await fetchDoc(p.coach.token);
+    expect(theirs.comments_written).toEqual([
+      {
+        student: "Test User", track_name: "Test Ring", start_date: "2026-05-01", session_label: "Session 1", lap_num: 2,
+        dist_m: 1240, body: "Brake later here", created_at: expect.any(Number), edited_at: null,
+      },
+    ]);
+    // The coach's file holds their own words, never the student's reply.
+    expect(JSON.stringify(theirs)).not.toContain("Will try");
   });
 });

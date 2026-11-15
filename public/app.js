@@ -70,6 +70,7 @@ import {
   commentCounts,
   commentError,
   commentPlace,
+  commentMarkers,
   commentThreads,
   commentWhen,
   feedLine,
@@ -2357,6 +2358,11 @@ const commentCtx = { event: null, comments: [], coaches: [], counts: { bySession
 // Each session's channel panel on the page, for the composer's "at the marked
 // place" and a placed comment's "show on lap".
 const channelPanels = new Map();
+// …and its lap stage's state while one is open, for the same two things:
+// the composer reads the playhead's place, a placed comment seeks it.
+const sessionStages = new Map();
+// The event's own best-lap map and the session it traces.
+let eventTrackMap = null;
 
 const commentsBase = () => (viewing ? `/coaching/students/${viewing.id}` : "");
 const draftKey = (sessionId, coachId) => `te-comment-draft:${viewing?.id ?? "me"}:${sessionId}:${coachId}`;
@@ -2502,7 +2508,33 @@ function renderComments(view) {
     const s = e.sessions.find((x) => String(x.id) === el.dataset.plainLaps);
     if (s) el.innerHTML = plainLapsHtml(s);
   });
-  for (const panel of channelPanels.values()) panel.rerenderChips();
+  const placed = (s, lap, chIdx) => {
+    const len = (s.channels.laps[chIdx]?.speed?.length ?? 1) - 1;
+    return commentMarkers(commentCtx.comments, lap.id, len * s.channels.dStepM);
+  };
+  for (const [sid, panel] of channelPanels) {
+    panel.rerenderChips();
+    const s = e.sessions.find((x) => String(x.id) === sid);
+    if (!s) continue;
+    // A diamond on the charts and the panel's map wherever a lit lap has a
+    // placed comment, in that lap's colour.
+    panel.setNotes((lit) =>
+      lit.flatMap((chIdx) => {
+        const lap = panel.lapAt(chIdx);
+        if (!lap) return [];
+        const len = (s.channels.laps[chIdx]?.speed?.length ?? 1) - 1;
+        return placed(s, lap, chIdx).map((m) => ({ chIdx, k: m.frac * len, color: panel.slotColor(chIdx), id: m.id }));
+      })
+    );
+    // …and on the event's map, when it is this session's line: every lap's.
+    if (eventTrackMap && String(eventTrackMap.sessionId) === sid)
+      eventTrackMap.handle.setNotes(
+        s.laps.flatMap((lap) => {
+          const chIdx = panel.chIdxOf(lap.id);
+          return chIdx < 0 ? [] : placed(s, lap, chIdx).map((m) => m.frac);
+        })
+      );
+  }
   view.querySelectorAll("[data-comments]").forEach((box) => {
     const s = e.sessions.find((x) => String(x.id) === box.dataset.comments);
     const html = s ? sessionCommentsHtml(s) : "";
@@ -2544,9 +2576,12 @@ function bindSessionComments(view, box, s) {
     const pin = form.querySelector("[data-place-pin]");
     if (pin)
       pin.onclick = () => {
-        const places = panel()?.pinPlaces() ?? [];
+        // The lap stage's playhead while it is open (side A first), else the
+        // pinned cursor.
+        const stage = sessionStages.get(String(s.id));
+        const places = stage?.open && stage.mark ? stage.mark.laps : panel()?.pinPlaces() ?? [];
         if (!places.length) {
-          msg.textContent = "Mark a place first: open Channel graphs and click a chart.";
+          msg.textContent = "Mark a place first: click a chart, or play the lap and pause where you mean.";
           return;
         }
         // The lap already chosen if the mark is on it, else the first lit lap.
@@ -2593,7 +2628,12 @@ function bindSessionComments(view, box, s) {
     if (show) {
       const c = commentCtx.comments.find((x) => String(x.id) === show.dataset.commentShow);
       const p = panel();
-      if (c && p?.showPlace(p.chIdxOf(c.lap_id), c.dist_m))
+      const stage = sessionStages.get(String(s.id));
+      // An open stage owns the playhead, so the place is a seek there.
+      if (c && stage?.open && stage.handle) {
+        stage.handle.seekGrid(c.dist_m / s.channels.dStepM, { final: true });
+        view.querySelector(`[data-channel-graphs="${CSS.escape(String(s.id))}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (c && p?.showPlace(p.chIdxOf(c.lap_id), c.dist_m))
         view.querySelector(`[data-channel-graphs="${CSS.escape(String(s.id))}"] .ch-details`)?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
@@ -3009,6 +3049,8 @@ async function viewEvent(eventId) {
   destroyAllStages();
   // Comments (NS-52) are read after the page is up; until then, none.
   channelPanels.clear();
+  sessionStages.clear();
+  eventTrackMap = null;
   Object.assign(commentCtx, { event: e, comments: [], coaches: [], counts: { bySession: {}, byLap: {} } });
   const track = tracks.find((t) => t.id === e.track_id);
   // Read-only is a coach reading a student's event (NS-38): no writes, no
@@ -3330,6 +3372,7 @@ async function viewEvent(eventId) {
         markers: traceMarkers.map((m) => ({ idx: m.idx, ...kindDef(m.kind) })),
       })
     : null;
+  if (trackMap) eventTrackMap = { handle: trackMap, sessionId: traceSession.id };
 
   if (pb) {
     const banner = view.querySelector("#pb-banner");
@@ -3484,6 +3527,7 @@ async function viewEvent(eventId) {
     // playhead. `mark` is re-applied after each chart render, since a chip
     // toggle rebuilds the charts whole.
     const stage = { handle: null, open: false, opened: null, aIdx: null, mark: null };
+    sessionStages.set(String(s.id), stage);
     const panel = bindChannelGraphs(el, s.channels, s.laps, {
       // Each lap chip carries its video's ▶ (NS-50), as the plain lap list does.
       // …and a marker for its coach comments (NS-52).

@@ -220,7 +220,7 @@ Response shapes are pinned by new goldens (`comments-event`,
 Kit and `:core` landing **with the server ticket**, since both golden suites
 fail on a capture no model maps.
 
-### As built (ticket 1, server + web — in progress)
+### As built (ticket 1, server + web)
 
 - The helpers take the shapes the web needed, and the ports follow these, not
   the list above: `commentThreads(comments)` splits an event's comments by
@@ -235,13 +235,23 @@ fail on a capture no model maps.
   today, but says less).
 - The owner's `coaches` lists only coaches with a thread on that event, so the
   owner can reply but not open a thread; the server would accept one.
-- **Not yet built on the web**: the ◆ markers drawn on the charts and the
-  track map (a placed comment pins the panel's cursor there instead, which
-  marks every chart and the map); taking a place from an open lap stage, and
-  seeking it; the export's `comments` members; the MCP assertion in
-  `ai-tools.test.ts`. Neither native suite could be run where this was built
-  (no Swift toolchain, and Gradle could not reach Google's Maven), so the new
-  decode models are checked by CI first.
+- **Markers**: `showCommentMarks(root, marks)` in `channel-graphs.js` draws a
+  diamond on each lap-axis chart's top edge, in the lap's slot colour, for
+  every lit lap's placed comments; the panel re-applies them after each chart
+  render through `setNotes(fn)` on its handle, which also feeds its own map.
+  `renderTrackMap`'s handle gained `setNotes(fracs)`, and the event's map
+  shows every lap's when it is that session's line. They take no pointer
+  events: the comment in the list is what opens the place.
+- **The lap stage**: while one is open the composer's *At the marked place*
+  reads the playhead (side A first) instead of the pinned cursor, and a
+  placed comment seeks the stage rather than pinning.
+- **The export**: `comments` on each session of `logbook.json` (`lap_id`,
+  `dist_m`, `body`, the dates, the author's name, `by_you`) and a top-level
+  `comments_written` for what the account wrote as a coach, by the driver's
+  name and the event's track and date, with no id of theirs.
+- Neither native suite could be run where this was built (no Swift toolchain,
+  and Gradle could not reach Google's Maven), so the decode models were
+  checked by CI first.
 
 ## Clients
 
