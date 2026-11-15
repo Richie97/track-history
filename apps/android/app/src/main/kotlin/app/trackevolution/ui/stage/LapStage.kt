@@ -148,6 +148,8 @@ fun LapStagePage(
     /** Above the stage: a locked clip's upsell or a coach's note, when a side has one. */
     notice: (@Composable () -> Unit)? = null,
     header: LazyListScope.() -> Unit = {},
+    /** Coach comments' places on the map (NS-52), as fractions of side A's lap. */
+    mapPins: List<Double> = emptyList(),
     body: LazyListScope.() -> Unit,
 ) {
     val binding = holder.binding ?: return
@@ -200,7 +202,7 @@ fun LapStagePage(
     val fullBleed = holder.hasVideo &&
         ((layout == StageLayout.FullBleed && !holder.fullBleedDismissed) || holder.fullscreen)
     val compare = binding.shownB != null
-    val ctx = StageCtx(holder, trace, stepper, compare, onMode)
+    val ctx = StageCtx(holder, trace, stepper, compare, onMode, mapPins)
 
     val listBody: LazyListScope.() -> Unit = body
     when (if (layout == StageLayout.FullBleed) StageLayout.Compact else layout) {
@@ -341,6 +343,7 @@ private class StageCtx(
     val stepper: LapStepper?,
     val compare: Boolean,
     val onMode: (SyncMode) -> Unit,
+    val pins: List<Double> = emptyList(),
 )
 
 // ---- the video slots ---------------------------------------------------------
@@ -465,6 +468,7 @@ private fun VideoSlot(
                     trace = trace,
                     modifier = Modifier.fillMaxSize(),
                     height = 400.dp,
+                    pins = ctx.pins,
                     liveDots = { stageDots(holder, stageColor(holder, SideKey.A, colors), stageColor(holder, SideKey.B, colors), both = bothDots) },
                 )
             } else if (trace != null && trace.size >= 10) {
@@ -546,7 +550,8 @@ private fun StageMapCard(ctx: StageCtx, modifier: Modifier, height: androidx.com
             trace = trace,
             modifier = Modifier.fillMaxWidth(),
             height = height,
-            liveDots = { stageDots(ctx.holder, stageColor(ctx.holder, SideKey.A, colors), stageColor(ctx.holder, SideKey.B, colors), both = true) },
+            pins = ctx.pins,
+                    liveDots = { stageDots(ctx.holder, stageColor(ctx.holder, SideKey.A, colors), stageColor(ctx.holder, SideKey.B, colors), both = true) },
         )
     }
 }
@@ -936,7 +941,8 @@ private fun FullBleed(ctx: StageCtx) {
                         trace = trace,
                         modifier = Modifier.fillMaxWidth(),
                         height = 110.dp,
-                        liveDots = { stageDots(holder, stageColor(holder, SideKey.A, colors), stageColor(holder, SideKey.B, colors), both = true) },
+                        pins = ctx.pins,
+                    liveDots = { stageDots(holder, stageColor(holder, SideKey.A, colors), stageColor(holder, SideKey.B, colors), both = true) },
                     )
                 }
                 if (holder.binding?.shownB != null) {

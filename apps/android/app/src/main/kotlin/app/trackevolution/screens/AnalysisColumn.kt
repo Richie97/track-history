@@ -56,9 +56,12 @@ fun AnalysisColumn(
     /** The panel's Pro half (#264) — see `LapChannelChart`. */
     pro: Boolean = true,
     onSubscribe: () -> Unit = {},
+    /** Coach comments (NS-52): their places, marked on the map and the charts. */
+    comments: CommentsModel? = null,
 ) {
     val colors = TrackTheme.colors
     val selected = sessions.firstOrNull { it.id == selectedSessionId }
+    val commentMarks = rememberSessionCommentMarks(comments, selected)
 
     // Where the panel is pointing, if anywhere — the friction circle's tapped
     // sample. Held here rather than in the panel because the *map* is what
@@ -99,6 +102,7 @@ fun AnalysisColumn(
                 markers = markers,
                 highlight = ringedIndex(selected, hit),
                 dots = cursorDots.orEmpty(),
+                pins = sessionCommentPins(comments, selected),
             )
             LimitLegend(markers)
         }
@@ -120,6 +124,7 @@ fun AnalysisColumn(
                     onCursor = { cursorDots = it },
                     pro = pro,
                     onSubscribe = onSubscribe,
+                    commentMarks = commentMarks,
                 )
             }
         }

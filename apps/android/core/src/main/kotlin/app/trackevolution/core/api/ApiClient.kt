@@ -6,6 +6,10 @@ import app.trackevolution.core.model.CatalogCar
 import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.CoachInvite
 import app.trackevolution.core.model.Coaching
+import app.trackevolution.core.model.CommentFeed
+import app.trackevolution.core.model.CommentSaved
+import app.trackevolution.core.model.CommentsSeen
+import app.trackevolution.core.model.EventComments
 import app.trackevolution.core.model.DriverProfile
 import app.trackevolution.core.model.InviteAccepted
 import app.trackevolution.core.model.InvitePreview
@@ -290,6 +294,9 @@ public class ApiClient private constructor(
      */
     public suspend fun forgetStudent(studentId: Int) {
         offline?.removeCachedPrefix(LogbookOwner.studentPrefix(studentId) + "/")
+        // The coach's own thread on that logbook (NS-52) is read through the
+        // coach's routes, not the mount, so it is cached under its own prefix.
+        offline?.removeCachedPrefix("/coaching/students/$studentId/")
     }
 
     // ---- Account ----------------------------------------------------------
@@ -421,6 +428,85 @@ public class ApiClient private constructor(
         "POST", "/coaching/invites/${token.urlEncoded()}/accept", buildJsonObject { },
         InviteAccepted.serializer(), cached = false,
     )
+
+    // ---- Coach comments (NS-52) ----------------------------------------------
+    //
+    // The one exception to a student's logbook being read-only: a coach writes
+    // comments on it. Every call here goes through [own] — the signed-in
+    // account's client — whatever view it is called on, because a comment is
+    // the coach's own data, written and read through the coach's own
+    // `/coaching/students/:id/…` routes rather than the GET-only mount. The
+    // scoped view still refuses every other write (`CoachingApiTest`).
+    //
+    // Reads are ordinary cached GETs. Every write is **live, never queued**:
+    // "Commenting needs a connection." None of these paths is on the offline
+    // whitelist, and `OfflineStoreTest` pins that.
+
+    /**
+     * This client for the signed-in account's own logbook — the web's
+     * `api(path, { own: true })`. Cheap; see [forOwner].
+     */
+    public val own: ApiClient get() = forOwner(LogbookOwner.Me)
+
+    /**
+     * The comments on one event's sessions, as [logbook]'s owner may read
+     * them: every thread with its coaches for [LogbookOwner.Me], the caller's
+     * own thread for a [LogbookOwner.Student].
+     */
+    public suspend fun eventComments(logbook: LogbookOwner, eventId: Int): EventComments = when (logbook) {
+        LogbookOwner.Me -> own.get("/events/$eventId/comments", EventComments.serializer())
+        is LogbookOwner.Student ->
+            own.get("/coaching/students/${logbook.id}/events/$eventId/comments", EventComments.serializer())
+    }
+
+    /**
+     * Writes a comment on a session, a lap of it ([lapId]) or a place on that
+     * lap ([distM], whole metres from the line). On the caller's own logbook
+     * it is a reply into [coachId]'s thread; on a student's it goes into the
+     * caller's own thread and [coachId] is not sent.
+     */
+    public suspend fun postComment(
+        logbook: LogbookOwner,
+        sessionId: Int,
+        body: String,
+        lapId: Int? = null,
+        distM: Int? = null,
+        coachId: Int? = null,
+    ): CommentSaved {
+        val json = buildJsonObject {
+            put("body", JsonPrimitive(body))
+            if (lapId != null) put("lap_id", JsonPrimitive(lapId))
+            if (lapId != null && distM != null) put("dist_m", JsonPrimitive(distM))
+            if (logbook == LogbookOwner.Me && coachId != null) put("coach_id", JsonPrimitive(coachId))
+        }
+        val path = when (logbook) {
+            LogbookOwner.Me -> "/sessions/$sessionId/comments"
+            is LogbookOwner.Student -> "/coaching/students/${logbook.id}/sessions/$sessionId/comments"
+        }
+        return own.send("POST", path, json, CommentSaved.serializer())
+    }
+
+    /** Marks what was said to the caller on an event as read. */
+    public suspend fun markCommentsSeen(logbook: LogbookOwner, eventId: Int): CommentsSeen {
+        val path = when (logbook) {
+            LogbookOwner.Me -> "/events/$eventId/comments/seen"
+            is LogbookOwner.Student -> "/coaching/students/${logbook.id}/events/$eventId/comments/seen"
+        }
+        return own.send("POST", path, buildJsonObject { }, CommentsSeen.serializer())
+    }
+
+    /** The author edits their own comment. */
+    public suspend fun editComment(id: Int, body: String): CommentSaved = own.send(
+        "PUT", "/comments/$id", buildJsonObject { put("body", JsonPrimitive(body)) }, CommentSaved.serializer(),
+    )
+
+    /** The author takes back their own; the owner removes anything in their logbook. */
+    public suspend fun deleteComment(id: Int) {
+        own.send("DELETE", "/comments/$id", null, OkResponse.serializer())
+    }
+
+    /** What was said to the caller in both roles, newest first, with the unread count. */
+    public suspend fun commentFeed(): CommentFeed = own.get("/coaching/comments", CommentFeed.serializer())
 
     // ---- Events -----------------------------------------------------------
 
