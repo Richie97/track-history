@@ -216,12 +216,12 @@ describe("GET /coaching", () => {
     await createEvent(student.api, { start_date: "2999-01-01" }); // upcoming: not counted
     const mine = await student.api("GET", "/coaching");
     expect(mine.body.coaches).toEqual([
-      { id: coach.id, name: "Test User", picture: null, since: expect.any(Number), last_viewed_at: null },
+      { id: coach.id, name: "Test User", picture: null, since: expect.any(Number), last_viewed_at: null, unread: 0 },
     ]);
     expect(mine.body.students).toEqual([]);
     const theirs = await coach.api("GET", "/coaching");
     expect(theirs.body.students).toEqual([
-      { id: student.id, name: "Test User", picture: null, since: expect.any(Number), event_count: 1, last_event_date: "2026-04-01" },
+      { id: student.id, name: "Test User", picture: null, since: expect.any(Number), event_count: 1, last_event_date: "2026-04-01", unread: 0 },
     ]);
     expect(theirs.body.coaches).toEqual([]);
   });

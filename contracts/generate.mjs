@@ -58,6 +58,9 @@ const VOLATILE = {
   expires_at: 0,
   since: 0,
   last_viewed_at: 0,
+  // Coach comments (NS-52): whose thread, and when a comment was edited.
+  coach_id: 1,
+  edited_at: 0,
 };
 
 function normalize(value, key) {
@@ -933,6 +936,47 @@ async function captureCoaching(worker, api, f) {
     "the coach's client opens the channel panel by.",
     "src/routes/me.ts", await as("/me/profile"));
 
+  // Coach comments (NS-52): the coach says something about a lap of the rich
+  // event, the student reads it, replies, edits the reply and marks the
+  // thread seen.
+  const richId = f.rich.body.id;
+  const commented = (await student("GET", `/events/${richId}`)).body.sessions.find((s) => s.laps.length);
+  const C = "src/routes/comments.ts";
+  record("comment-create-coach", "POST", "/coaching/students/:sid/sessions/:id/comments",
+    "A coach comments on a place on a student's lap (NS-52). `dist_m` is whole metres from " +
+    "the start/finish line along that lap; `lap_id` alone is the lap, neither the session.",
+    C, await coach("POST", `/coaching/students/${studentId}/sessions/${commented.id}/comments`,
+      { body: "Brake 10 m later here, you have grip left on entry.", lap_id: commented.laps[0].id, dist_m: 1240 }));
+  await coach("POST", `/coaching/students/${studentId}/sessions/${commented.id}/comments`, { body: "Good pace all session." });
+  record("comments-feed", "GET", "/coaching/comments",
+    "What was said to the caller, newest first, both roles at once — here a student with " +
+    "two unread comments from their coach. `student` is null on the caller's own logbook.",
+    C, await student("GET", "/coaching/comments"));
+  const reply = record("comment-create", "POST", "/sessions/:id/comments",
+    "The logbook's owner replies into one coach's thread; `coach_id` names it.",
+    C, await student("POST", `/sessions/${commented.id}/comments`,
+      { coach_id: (await coach("GET", "/me")).body.user.id, body: "Tried it, the rear stepped out" }));
+  record("comment-update", "PUT", "/comments/:id",
+    "The author edits their own comment; `edited_at` is set.",
+    C, await student("PUT", `/comments/${reply.body.comment.id}`, { body: "Tried it — the rear stepped out." }));
+  record("comments-seen", "POST", "/events/:id/comments/seen",
+    "Mark the event's comments from other people as read; `seen` is how many it marked.",
+    C, await student("POST", `/events/${richId}/comments/seen`));
+  record("comments-event", "GET", "/events/:id/comments",
+    "Every thread on one of the owner's events, oldest first, with each thread's coach and " +
+    "whether they can still read it (`active`).",
+    C, await student("GET", `/events/${richId}/comments`));
+  record("comments-student-event", "GET", "/coaching/students/:sid/events/:eid/comments",
+    "A coach's own thread on a student's event — never another coach's. `seen` on the " +
+    "coach's own rows is the read receipt.",
+    C, await coach("GET", `/coaching/students/${studentId}/events/${richId}/comments`));
+  record("comments-seen-coach", "POST", "/coaching/students/:sid/events/:eid/comments/seen",
+    "A coach marks the student's replies on an event as read.",
+    C, await coach("POST", `/coaching/students/${studentId}/events/${richId}/comments/seen`));
+  record("comment-delete", "DELETE", "/comments/:id",
+    "Delete a comment: its author, or the owner of the logbook it is on.",
+    C, await student("DELETE", `/comments/${reply.body.comment.id}`));
+
   record("coaching", "GET", "/coaching",
     "Coaching from the student's side: their coaches (with when each last looked) and " +
     "their unused invites.",
@@ -992,6 +1036,11 @@ const EXPECTED_ROUTES = [
   "GET /students/:studentId/events", "GET /students/:studentId/events/:id",
   "GET /students/:studentId/tracks", "GET /students/:studentId/vehicles",
   "GET /students/:studentId/me/profile",
+  // Coach comments (NS-52).
+  "GET /events/:id/comments", "POST /sessions/:id/comments", "POST /events/:id/comments/seen",
+  "GET /coaching/students/:sid/events/:eid/comments", "POST /coaching/students/:sid/sessions/:id/comments",
+  "POST /coaching/students/:sid/events/:eid/comments/seen",
+  "PUT /comments/:id", "DELETE /comments/:id", "GET /coaching/comments",
   // Billing (NS-32). The three store routes — POST /billing/apple,
   // /billing/apple/legacy and /billing/google — need payloads signed by the
   // stores (or a Play API answer) that this harness cannot mint against the

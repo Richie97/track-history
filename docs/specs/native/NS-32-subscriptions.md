@@ -76,6 +76,7 @@ turns lap times into analysis.
 | YouTube: connecting, disconnecting, an upload's status and the link to a video already uploaded | Free | — (`lap.clip.youtube` is never stripped; `GET /clips/:id/youtube` and `DELETE /youtube` are ungated) |
 | Video-synced lap analysis — the lap stage ([NS-51](NS-51-video-synced-laps.md)) | Follows its parts | — no server gate. Playing the video is `canSaveLapVideo`; the delta, the second lap and the two-lap compare are `canViewChannels`, as the charts they ride on are; the playhead on the free charts (speed, throttle, brake), replayed on the map, is free |
 | Being a coach — accepting an invite, the *Students* list, reading a student's logbook read-only; and the driver profile ([NS-38](NS-38-coach-sharing.md)) | Free | — |
+| Coach comments on sessions and laps — writing and reading, both roles ([NS-52](NS-52-coach-comments.md)) | Free | — (no route in `routes/comments.ts` checks entitlement; a lapsed student's coach can still comment on what they can still see) |
 | What a coach sees of the channel panel ([NS-38](NS-38-coach-sharing.md)) | The **student's** tier | Server: under `/api/students/:id` the routes run with the student's `entitledUntil`, so `stripProFields` decides `channels` by the tier of the person who paid; client: the gates read `pro` from the student's `/me/profile`, not the viewer's entitlement |
 | Settings' list of connected AI assistants, and Disconnect | Free | — (a lapsed user must still be able to revoke what they connected) |
 

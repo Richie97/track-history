@@ -12,7 +12,8 @@
         "last_event_date": "2026-07-04",
         "name": "Dev User",
         "picture": null,
-        "since": 0
+        "since": 0,
+        "unread": 0
       }
     ]
   }

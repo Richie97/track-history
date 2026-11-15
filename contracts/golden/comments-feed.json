@@ -1,0 +1,56 @@
+{
+  "method": "GET",
+  "path": "/coaching/comments",
+  "status": 200,
+  "body": {
+    "comments": [
+      {
+        "author": {
+          "id": 1,
+          "name": "Coach User",
+          "picture": null
+        },
+        "body": "Good pace all session.",
+        "coach_id": 1,
+        "created_at": 0,
+        "dist_m": null,
+        "edited_at": null,
+        "event_id": 1,
+        "id": 1,
+        "lap_id": null,
+        "lap_num": null,
+        "mine": false,
+        "seen": false,
+        "session_id": 1,
+        "session_label": "Session 2",
+        "start_date": "2026-04-10",
+        "student": null,
+        "track_name": "Virginia International Raceway (Full)"
+      },
+      {
+        "author": {
+          "id": 1,
+          "name": "Coach User",
+          "picture": null
+        },
+        "body": "Brake 10 m later here, you have grip left on entry.",
+        "coach_id": 1,
+        "created_at": 0,
+        "dist_m": 1240,
+        "edited_at": null,
+        "event_id": 1,
+        "id": 1,
+        "lap_id": 1,
+        "lap_num": 1,
+        "mine": false,
+        "seen": false,
+        "session_id": 1,
+        "session_label": "Session 2",
+        "start_date": "2026-04-10",
+        "student": null,
+        "track_name": "Virginia International Raceway (Full)"
+      }
+    ],
+    "unread": 2
+  }
+}

@@ -46,6 +46,9 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
     /// on for this account, and the connection. Optional so a `/me` cached
     /// before the field still decodes — read as unavailable.
     public var youtube: YouTubeAccount?
+    /// Coach comments (NS-52) waiting to be read, as a student and as a coach
+    /// together. Optional so a `/me` cached before the field still decodes.
+    public var commentsUnread: Int?
 
     public enum CodingKeys: String, CodingKey {
         case id, email, name, picture
@@ -56,6 +59,7 @@ public struct User: Codable, Hashable, Sendable, Identifiable {
         case units
         case clips
         case youtube
+        case commentsUnread = "comments_unread"
     }
 
     public var effectiveUnits: UnitSystem { units ?? .imperial }

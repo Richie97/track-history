@@ -1,0 +1,24 @@
+{
+  "method": "POST",
+  "path": "/coaching/students/:sid/sessions/:id/comments",
+  "status": 201,
+  "body": {
+    "comment": {
+      "author": {
+        "id": 1,
+        "name": "Coach User",
+        "picture": null
+      },
+      "body": "Brake 10 m later here, you have grip left on entry.",
+      "coach_id": 1,
+      "created_at": 0,
+      "dist_m": 1240,
+      "edited_at": null,
+      "id": 1,
+      "lap_id": 1,
+      "mine": true,
+      "seen": false,
+      "session_id": 1
+    }
+  }
+}

@@ -2040,6 +2040,19 @@ Wrapped, which is free.
   MCP tools. It deliberately holds no birth date or emergency contact: an
   instructor asks for those at the track, and a logbook that never stores them
   never has to protect them.
+- **Coach comments** (`docs/specs/native/NS-52-coach-comments.md`, #447) — a
+  coach with a grant comments on a student's session, a lap, or a place on a
+  lap (`dist_m`, metres from the line), and the student replies. One private
+  thread per coach, in `coach_comments` (migration 0036), through
+  `src/routes/comments.ts`: the owner's routes under `/events/:id/comments`
+  and `/sessions/:id/comments`, the coach's under
+  `/coaching/students/:sid/…` (the read-only coach mount is untouched),
+  `PUT` / `DELETE /comments/:id`, and the feed `GET /coaching/comments`.
+  Free on both sides, rate-limited by the `COACH_COMMENTS` binding, and never
+  part of the event detail, a share page or an MCP tool result. The web draws
+  the threads on each session card (`public/js/comments.js` is the pure
+  half), with a placed comment marked on the charts and the track map; the
+  logbook export includes them; the phone apps are tickets #449 and #450.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from

@@ -72,9 +72,12 @@ public struct Coaching: Codable, Hashable, Sendable {
         /// Epoch ms.
         public var since: Int
         public var lastViewedAt: Int?
+        /// Comments (NS-52) this coach wrote that the caller hasn't read.
+        /// Optional so a response cached before the field still decodes.
+        public var unread: Int?
 
         public enum CodingKeys: String, CodingKey {
-            case id, name, picture, since
+            case id, name, picture, since, unread
             case lastViewedAt = "last_viewed_at"
         }
     }
@@ -88,9 +91,11 @@ public struct Coaching: Codable, Hashable, Sendable {
         /// Past events only, on the totals' rule.
         public var eventCount: Int
         public var lastEventDate: String?
+        /// The student's replies (NS-52) the caller hasn't read.
+        public var unread: Int?
 
         public enum CodingKeys: String, CodingKey {
-            case id, name, picture, since
+            case id, name, picture, since, unread
             case eventCount = "event_count"
             case lastEventDate = "last_event_date"
         }

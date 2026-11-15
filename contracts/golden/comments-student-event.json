@@ -1,0 +1,60 @@
+{
+  "method": "GET",
+  "path": "/coaching/students/:sid/events/:eid/comments",
+  "status": 200,
+  "body": {
+    "comments": [
+      {
+        "author": {
+          "id": 1,
+          "name": "Coach User",
+          "picture": null
+        },
+        "body": "Brake 10 m later here, you have grip left on entry.",
+        "coach_id": 1,
+        "created_at": 0,
+        "dist_m": 1240,
+        "edited_at": null,
+        "id": 1,
+        "lap_id": 1,
+        "mine": true,
+        "seen": true,
+        "session_id": 1
+      },
+      {
+        "author": {
+          "id": 1,
+          "name": "Coach User",
+          "picture": null
+        },
+        "body": "Good pace all session.",
+        "coach_id": 1,
+        "created_at": 0,
+        "dist_m": null,
+        "edited_at": null,
+        "id": 1,
+        "lap_id": null,
+        "mine": true,
+        "seen": true,
+        "session_id": 1
+      },
+      {
+        "author": {
+          "id": 1,
+          "name": "Dev User",
+          "picture": null
+        },
+        "body": "Tried it — the rear stepped out.",
+        "coach_id": 1,
+        "created_at": 0,
+        "dist_m": null,
+        "edited_at": 0,
+        "id": 1,
+        "lap_id": null,
+        "mine": false,
+        "seen": false,
+        "session_id": 1
+      }
+    ]
+  }
+}
