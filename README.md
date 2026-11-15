@@ -27,7 +27,10 @@ pages in [`site/`](site/), deployed to GitHub Pages by
 `main` that touches `site/`. (One-time setup: repo *Settings → Pages → Source:
 GitHub Actions*.)
 
-The site also carries the newcomer's guide, `site/docs/track-days.html` — what
+The site also carries four general guides (tire pressures, reading a
+friction circle, lap consistency and the theoretical best, tracking brake pad
+and tire wear), each closing on how
+the app does it, and the newcomer's guide, `site/docs/track-days.html` — what
 an HPDE is, what the driver and the car need, where to find an event (the
 organizers' links), what happens on the day, and the tools drivers record
 laps with (PDR, Track Precision, VBOX, lap-timer apps, GoPro) with what each
