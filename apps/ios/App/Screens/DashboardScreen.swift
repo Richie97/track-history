@@ -106,6 +106,9 @@ struct DashboardScreen: View {
                 self.model = model
                 await model.load()
                 router.garageAlertCount = Garage.garageAlerts(model.garage).count
+                auth.setCommentsUnread(model.commentsUnread)
+                // Beside the garage, and like it allowed to fail.
+                await auth.inbox.refresh()
                 // Only once the dashboard is on screen: this is a background warm-up
                 // for the paddock, and it must never delay first paint.
                 await model.warmCache()
@@ -234,6 +237,10 @@ struct DashboardScreen: View {
                 wrappedBanner(year)
             }
 
+            if let feed = auth.inbox.feed, auth.inbox.unread > 0 {
+                UnreadCommentsCard(feed: feed) { openFromList($0) }
+            }
+
             if let hero = model.heroEvent {
                 heroCard(hero)
                 heroGarageLine(model, hero)
@@ -278,6 +285,8 @@ struct DashboardScreen: View {
         .refreshable {
             await model.load()
             router.garageAlertCount = Garage.garageAlerts(model.garage).count
+            auth.setCommentsUnread(model.commentsUnread)
+            await auth.inbox.refresh()
         }
     }
 
@@ -577,6 +586,8 @@ final class DashboardModel {
     private(set) var tracks: [Track] = []
     private(set) var events: [Event] = []
     private(set) var garage: [GarageVehicle] = []
+    /// `/me`'s unread count, handed to the account so Settings agrees.
+    private(set) var commentsUnread: Int?
 
     init(api: APIClient) {
         self.api = api
@@ -596,6 +607,7 @@ final class DashboardModel {
             async let eventList = api.events()
             let loaded = try await (me: account, tracks: trackList, events: eventList)
             totals = loaded.me.totals
+            commentsUnread = loaded.me.user.commentsUnread
             tracks = loaded.tracks
             events = loaded.events
             state = .ready

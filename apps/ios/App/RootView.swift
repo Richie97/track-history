@@ -368,6 +368,8 @@ struct RootView: View {
             TrackDaysGuideScreen()
         case .setupForm(let eventId, let day, let startFrom):
             SetupFormScreen(eventId: eventId, day: day, startFrom: startFrom)
+        case .sessionComment(let eventId, let sessionId, let coachId):
+            SessionCommentScreen(eventId: eventId, sessionId: sessionId, coachId: coachId)
         }
     }
 
@@ -405,6 +407,8 @@ struct RootView: View {
             [eventId, sessionId, lapId].first(where: OfflineStore.isTemp)
         case .sessionCompare(let eventId, let sessionId, let lapId):
             [eventId, sessionId, lapId].compactMap(\.self).first(where: OfflineStore.isTemp)
+        case .sessionComment(let eventId, let sessionId, _):
+            [eventId, sessionId].first(where: OfflineStore.isTemp)
         case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
              .coaching, .profile, .coachInvite, .student, .trackDaysGuide: nil
         }

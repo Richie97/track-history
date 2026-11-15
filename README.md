@@ -2058,8 +2058,12 @@ Wrapped, which is free.
   *Comments* card under its stage with markers on the charts and the map,
   each session card's thread with its composer inline and a count on its
   lap rows, the markers on the session compare and the analysis column too,
-  the dashboard's unread card and Settings' count. The iPhone
-  app is ticket #449.
+  the dashboard's unread card and Settings' count. **iOS** has them too
+  (#449): the lap page's card under the stage (placed with the playhead),
+  markers on the charts and maps of the lap page, the session compare and
+  the analysis column, each session's thread and lap-row counts on the event
+  page with a pushed form for a session comment, the dashboard's unread card
+  and Settings' count.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from

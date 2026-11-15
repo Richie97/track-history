@@ -44,6 +44,12 @@ final class AnalyticsPathTests: XCTestCase {
         (.trackDaysGuide, "/guide/track-days"),
         (.setupForm(eventId: 12, day: 2, startFrom: nil), "/event/:id/setup/:day"),
         (.setupForm(eventId: 12, day: 3, startFrom: SetupSheet()), "/event/:id/setup/:day"),
+        (.sessionComment(eventId: 12, sessionId: 40, coachId: 3), "/event/:id/session/:id/comment"),
+        (.sessionComment(eventId: 12, sessionId: 40, coachId: nil), "/event/:id/session/:id/comment"),
+        (
+            .student(id: 8, page: .sessionComment(eventId: 12, sessionId: 40)),
+            "/student/:id/event/:id/session/:id/comment"
+        ),
     ]
 
     func testReportsEachScreenByTheWebsPathShape() {

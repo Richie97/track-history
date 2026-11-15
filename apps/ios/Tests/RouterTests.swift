@@ -169,6 +169,22 @@ final class RouterTests: XCTestCase {
         )
     }
 
+    /// The session comment form (NS-52) follows its event's and session's temp
+    /// ids, and its held draft follows the route's new key.
+    func testASessionCommentRouteFollowsItsTempIdsAndKeepsItsDraft() {
+        let router = AppRouter()
+        router.show(.event(-1))
+        let route = Route.sessionComment(eventId: -1, sessionId: -2, coachId: 9)
+        router.push(route)
+        router.hold("Brake later", "comment", route)
+        router.remapTempIds { [-1: 41, -2: 42][$0] }
+        let real = Route.sessionComment(eventId: 41, sessionId: 42, coachId: 9)
+        XCTAssertEqual(router.path, [.event(41), real])
+        XCTAssertEqual(router.heldText(real, "comment"), "Brake later")
+        XCTAssertFalse(real.ownsTheWindow)
+        XCTAssertEqual(real.tab, .events)
+    }
+
     /// A lap route carries three ids and any of them can be an offline temp id
     /// (#267); each follows its own row when the queue flushes, and a real id
     /// is left alone.

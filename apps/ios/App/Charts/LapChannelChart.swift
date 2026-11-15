@@ -61,6 +61,11 @@ struct LapChannelChart: View {
     /// The cursor's dots, one per lit lap, for a map drawn beside the panel —
     /// see `LapChannelPanel.onCursor`.
     var onCursor: (([TrackMapView.Dot]) -> Void)? = nil
+    /// Where coach comments were placed (NS-52): a channel-lap index and a
+    /// fractional grid index on it. Drawn as a ◆ on every lap-axis chart's top
+    /// edge, in the overlay layer and never in a chart's samples, for each lit
+    /// lap — the playhead's rule.
+    var commentMarks: [LapChannelPanel.CommentMark] = []
 
     var body: some View {
         ScrollView {
@@ -74,7 +79,7 @@ struct LapChannelChart: View {
                 .foregroundStyle(Color(.textFaint))
                 LapChannelPanel(
                     channels: channels, laps: laps, preselect: preselect, pro: pro, freeNote: freeNote, onHit: onHit,
-                    mapTrace: mapTrace, onCursor: onCursor
+                    mapTrace: mapTrace, onCursor: onCursor, commentMarks: commentMarks
                 )
             }
             .padding(TESpacing.pageGutter)
@@ -139,6 +144,17 @@ struct LapChannelPanel: View {
     /// The cursor's dots, whenever they change, for a map drawn beside the panel
     /// (the analysis column's). Empty when nothing is marked.
     var onCursor: (([TrackMapView.Dot]) -> Void)? = nil
+    /// Where coach comments were placed (NS-52): a channel-lap index and a
+    /// fractional grid index on it. Drawn as a ◆ on every lap-axis chart's top
+    /// edge, in the overlay layer and never in a chart's samples, for each lit
+    /// lap — the playhead's rule.
+    var commentMarks: [CommentMark] = []
+
+    struct CommentMark: Equatable {
+        let id: Int
+        let chIdx: Int
+        let k: Double
+    }
 
     /// The account's unit system — the speed axis and the distance ticks follow it.
     @Environment(\.unitSystem) private var units
@@ -309,6 +325,26 @@ struct LapChannelPanel: View {
         if f.mode == .distance { return x / f.dStepM }
         guard let xs = f.xs(playhead?.aLap ?? lit.first) else { return nil }
         return VideoSync.gridAtElapsed(xs, x)
+    }
+
+    /// The comments' places on the panel's own map: each as a fraction of its
+    /// own lap — the map is the best lap's line, so it marks the place.
+    private var commentFractions: [Double] {
+        commentMarks.compactMap { mark in
+            guard channels.laps.indices.contains(mark.chIdx),
+                  let length = LapAxis.lapAxisSeries(channels.laps[mark.chIdx], channels.dStepM, .distance)?.last,
+                  length > 0
+            else { return nil }
+            return max(0, min(1, mark.k * channels.dStepM / length))
+        }
+    }
+
+    /// The comments' places on one chart: each lit lap's, at its axis value.
+    private func commentDiamonds(_ axisX: (Int, Double) -> Double?) -> [AxisMarkLayer.Diamond] {
+        commentMarks.compactMap { mark in
+            guard let color = color(forLapIndex: mark.chIdx), let x = axisX(mark.chIdx, mark.k) else { return nil }
+            return AxisMarkLayer.Diamond(id: mark.id, x: x, color: color)
+        }
     }
 
     /// Where each lit lap is at the mark, in slot order.
@@ -491,7 +527,7 @@ struct LapChannelPanel: View {
             let dots = cursorDots(f)
             TECard {
                 VStack(alignment: .leading, spacing: 6) {
-                    TrackMapView(trace: mapTrace, dots: dots)
+                    TrackMapView(trace: mapTrace, dots: dots, marks: commentFractions)
                         .frame(height: 130)
                     Text(
                         dots.isEmpty
@@ -942,6 +978,9 @@ struct LapChannelPanel: View {
                                 traces: playheadTraces(channel)
                             )
                         }
+                        if !commentMarks.isEmpty {
+                            AxisMarkLayer(proxy: proxy, lineX: nil, dots: [], diamonds: commentDiamonds { f.x($0, $1) })
+                        }
                         tapLayer(proxy)
                     }
                 }
@@ -1176,6 +1215,9 @@ struct LapChannelPanel: View {
                                         )
                                     }
                                 )
+                            }
+                            if !commentMarks.isEmpty {
+                                AxisMarkLayer(proxy: proxy, lineX: nil, dots: [], diamonds: commentDiamonds { _, k in deltaX(k) })
                             }
                             tapLayer(proxy)
                         }
@@ -1475,6 +1517,15 @@ struct AxisMarkLayer: View {
     /// nil: dots only.
     let lineX: Double?
     let dots: [Dot]
+    /// Coach comments' places (NS-52): a ◆ on the plot's top edge at each axis
+    /// value, in its lap's colour — the web's `showCommentMarks`.
+    var diamonds: [Diamond] = []
+
+    struct Diamond: Identifiable {
+        let id: Int
+        let x: Double
+        let color: Color
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -1486,6 +1537,14 @@ struct AxisMarkLayer: View {
                         path.addLine(to: CGPoint(x: plot.minX + x, y: plot.maxY))
                     }
                     .stroke(Color(.textStrong), lineWidth: 1.5)
+                }
+                ForEach(diamonds) { diamond in
+                    if let dx = proxy.position(forX: diamond.x) {
+                        let p = CGPoint(x: plot.minX + dx, y: plot.minY + 5)
+                        TrackMapView.diamond(at: p, r: 5)
+                            .fill(diamond.color)
+                            .overlay(TrackMapView.diamond(at: p, r: 5).stroke(Color(.surfaceCard), lineWidth: 1))
+                    }
                 }
                 ForEach(dots) { dot in
                     if let dx = proxy.position(forX: dot.x), let dy = proxy.position(forY: dot.y) {

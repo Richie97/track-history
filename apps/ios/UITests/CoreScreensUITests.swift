@@ -149,10 +149,16 @@ final class CoreScreensUITests: XCTestCase {
             "all five of them"
         )
         // The ported `lap-stats.js` analysis, and the event's recomputed aggregates.
-        XCTAssertTrue(
-            app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'best 3 avg'")).firstMatch.exists,
-            "the per-session stats line should report the best-3 average"
-        )
+        // Both sit above the laps, and the page is a lazy list that has scrolled
+        // down to the form it just saved: back up to them, or they aren't drawn.
+        let stats = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'best 3 avg'")).firstMatch
+        for _ in 0..<8 where !stats.exists {
+            app.collectionViews.firstMatch.swipeDown(velocity: .slow)
+        }
+        XCTAssertTrue(stats.exists, "the per-session stats line should report the best-3 average")
+        for _ in 0..<6 where !(app.staticTexts["1:01.2"].exists || app.staticTexts["2:01.2"].exists) {
+            app.collectionViews.firstMatch.swipeDown(velocity: .slow)
+        }
         XCTAssertTrue(
             app.staticTexts["1:01.2"].exists || app.staticTexts["2:01.2"].exists,
             "the best lap should reach the Best time tile"
@@ -161,11 +167,14 @@ final class CoreScreensUITests: XCTestCase {
 
         // NS-17's recorder. The event page is the door that attaches a recording to
         // *this* event; the dashboard's is the one for a session about to be driven.
-        XCTAssertTrue(app.buttons["recordEntry"].exists)
+        XCTAssertTrue(scrollTo(app.buttons["recordEntry"], in: app))
 
         // A lap opens (#267). For a hand-entered lap the detail is its time and a
         // sentence: no map, no traces and no compare, none of them drawn empty.
-        XCTAssertTrue(scrollTo(lap1, in: app))
+        for _ in 0..<8 where !(lap1.exists && lap1.isHittable) {
+            app.collectionViews.firstMatch.swipeDown(velocity: .slow)
+        }
+        XCTAssertTrue(lap1.isHittable)
         lap1.tap()
         let lapDetail = app.descendants(matching: .any).matching(identifier: "lapDetail").firstMatch
         XCTAssertTrue(lapDetail.waitForExistence(timeout: 15), "tapping a lap should open its detail")
@@ -173,7 +182,11 @@ final class CoreScreensUITests: XCTestCase {
         XCTAssertFalse(app.buttons["compareLaps"].exists, "a session without telemetry has nothing to compare")
         attach(app, named: "lap-detail")
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.buttons["recordEntry"].waitForExistence(timeout: 15), "back on the event page")
+        // The page's title rather than a control on it: the list is lazy, and
+        // the record door is drawn only while it is scrolled into view.
+        XCTAssertTrue(
+            app.navigationBars["Summit Point (Shenandoah)"].waitForExistence(timeout: 15), "back on the event page"
+        )
 
         deleteCurrentEvent(app)
     }
