@@ -2052,7 +2052,11 @@ Wrapped, which is free.
   part of the event detail, a share page or an MCP tool result. The web draws
   the threads on each session card (`public/js/comments.js` is the pure
   half), with a placed comment marked on the charts and the track map; the
-  logbook export includes them; the phone apps are tickets #449 and #450.
+  logbook export includes them. **Android** has them too (#450): a lap's
+  *Comments* card under its stage with markers on the charts and the map,
+  each session card's thread and a count on its lap rows, a composer page
+  per session, the dashboard's unread card and Settings' count. The iPhone
+  app is ticket #449.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from

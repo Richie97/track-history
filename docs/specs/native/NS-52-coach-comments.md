@@ -253,6 +253,35 @@ fail on a capture no model maps.
   and Gradle could not reach Google's Maven), so the decode models were
   checked by CI first.
 
+### As built (ticket 3, Android)
+
+- `Comments` in `:core` is the port, under the JS names (the JS objects
+  become small data classes: `Thread`, `Grouped` / `LapComments`, `Counts` /
+  `Count`, `Marker`), pinned by `CommentsTest` against every row of
+  `comments.json`. `groupComments` takes `(comments, sessionId, laps)` with a
+  `Session` overload.
+- The routes on `ApiClient` take the `LogbookOwner` whose logbook it is and
+  always run on `ApiClient.own`, so a coach's comment leaves from the
+  student's scoped view while that view keeps refusing every other write.
+- **Deviation**: the session composer is a **destination**,
+  `Route.SessionComment` (analytics `/event/:id/session/:id/comment`), not
+  an inline row — the event page is a long list of cards, and a page keeps
+  the draft in its own `SavedStateHandle`. The lap page's composer is
+  inline, under the stage.
+- The composer's place is taken on a tap (*◆ At the marked place*) from the
+  stage's playhead or the panel's parked mark, never read in composition;
+  before the line there is no place and it says so.
+- Markers: a diamond on each lap-axis chart's top edge (a draw-phase overlay
+  beside the playhead's), and on every map the lap page draws.
+- The block control is on each comment someone else wrote (*Remove coach* /
+  *Stop coaching*), beside *Report*, as well as on the Coaching page.
+- Not built: markers in the event page's expanded-width analysis column and
+  on the session compare; a per-thread composer on the lap page for a coach
+  thread that has nothing on that lap yet (the owner can reply there from
+  the session's composer, choosing the lap).
+- `:core:test`, `:core:check`, `:app:testDebugUnitTest`, `:app:assembleDebug`
+  and `:app:checkReleaseHasNoCarApp` were run; no emulator run.
+
 ## Clients
 
 One rule first, because all three have a read-only seam that this is the

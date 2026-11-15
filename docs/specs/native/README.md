@@ -565,7 +565,7 @@ Features added after the rewrite shipped, and where they landed:
   reused under `LogbookOwner.student` rather than copied. The channel
   panel's gates read **the student's** tier on every client.
 - **Coach comments** (2026-11, [NS-52](NS-52-coach-comments.md)) — **all
-  three, both roles**, specced and not yet built. A coach comments on a
+  three, both roles**; built on the web and Android, iOS to come (#449). A coach comments on a
   student's session, lap or a place on a lap, in a thread private to that
   coach and the student; the student replies. It is the one write a coach
   makes, and it goes through the coach's own `/api/coaching/students/:id/…`
