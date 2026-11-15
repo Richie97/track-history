@@ -26,19 +26,20 @@ export async function createSession(db: D1Database, userId: number): Promise<str
   return token;
 }
 
-export type SessionUser = { userId: number; entitledUntil: number | null };
+export type SessionUser = { userId: number; entitledUntil: number | null; tokenHash: string };
 
 // Resolves a session token to its user — and the user's entitlement, in the
 // same single statement. requireEntitlement (middleware.ts) is then a pure
 // comparison, so a Pro gate costs no D1 round trip on top of the session.
 export async function sessionUser(db: D1Database, token: string): Promise<SessionUser | null> {
+  const tokenHash = await sha256Hex(token);
   const row = await db
     .prepare(
       "SELECT s.user_id, u.entitled_until FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ?"
     )
-    .bind(await sha256Hex(token), Date.now())
+    .bind(tokenHash, Date.now())
     .first<{ user_id: number; entitled_until: number | null }>();
-  return row ? { userId: row.user_id, entitledUntil: row.entitled_until ?? null } : null;
+  return row ? { userId: row.user_id, entitledUntil: row.entitled_until ?? null, tokenHash } : null;
 }
 
 // Extracts the token from an "Authorization: Bearer <token>" header value.

@@ -450,9 +450,8 @@ The scoped clients keep refusing every write, which their tests still pin.
 
 ## Follow-ups, deliberately not here
 
-- **Push notifications** (*"Sam commented on your lap"*): needs an APNs / FCM
-  sender, device-token storage, a permission prompt and both store
-  disclosures.
+- ~~**Push notifications**~~ — specced as NS-54
+  (`NS-54-comment-push.md`, #466).
 - **Email digests**: the Worker sends no mail today.
 - **Coaches seeing each other's comments**, as a per-student setting, for a
   student whose instructors work as a team.
