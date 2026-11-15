@@ -62,6 +62,17 @@ struct CoachingScreen: View {
                 }
             }
 
+            if let feed = model.feed, !feed.comments.isEmpty {
+                TESectionHeader("Recent comments")
+                TECard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(feed.comments.prefix(10)) { row in
+                            feedRow(row)
+                        }
+                    }
+                }
+            }
+
             TESectionHeader("Share your logbook with a coach")
             Text("Give an instructor or coach read-only access to your whole logbook. They see \(Self.coachShares)")
                 .teStyle(.xs)
@@ -123,6 +134,38 @@ struct CoachingScreen: View {
 
     // MARK: - Rows
 
+    /// One thing said to you: who, about what, when, and the comment; opens
+    /// where it was said.
+    private func feedRow(_ row: CommentFeed.Row) -> some View {
+        Button {
+            router.show(UnreadCommentsCard.route(for: row))
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(Comments.feedLine(row))
+                    .teStyle(.sm)
+                    .fontWeight(row.seen ? .regular : .semibold)
+                    .foregroundStyle(Color(.textStrong))
+                Text((Comments.commentWhen(row.createdAt, Self.nowMs) ?? Self.dateOfMs(row.createdAt)) + (row.seen ? "" : " · new"))
+                    .teStyle(.xs)
+                    .foregroundStyle(row.seen ? Color(.textMuted) : Color(.accentInk))
+                Text(row.body)
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textBody))
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("feedRow-\(row.id)")
+    }
+
+    /// " · 2 new comments" on a grant's line.
+    private static func unreadSuffix(_ n: Int?) -> String {
+        guard let n, n > 0 else { return "" }
+        return " · \(n) new comment\(n == 1 ? "" : "s")"
+    }
+
     private func studentRow(_ student: Coaching.Student) -> some View {
         TECard(padding: 14) {
             HStack(alignment: .center, spacing: 12) {
@@ -133,7 +176,7 @@ struct CoachingScreen: View {
                         Text(student.name ?? "A driver")
                             .teStyle(.bodyStrong)
                             .foregroundStyle(Color(.accentInk))
-                        Text(Coaching.studentLine(student, fmtDate: EventDates.fmtDate))
+                        Text(Coaching.studentLine(student, fmtDate: EventDates.fmtDate) + Self.unreadSuffix(student.unread))
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textMuted))
                     }
@@ -158,7 +201,7 @@ struct CoachingScreen: View {
                 Text(coach.name ?? "A coach")
                     .teStyle(.bodyStrong)
                     .foregroundStyle(Color(.textStrong))
-                Text("since \(Self.dateOfMs(coach.since)) · \(Coaching.lastViewedText(coach.lastViewedAt, now: Self.nowMs))")
+                Text("since \(Self.dateOfMs(coach.since)) · \(Coaching.lastViewedText(coach.lastViewedAt, now: Self.nowMs))" + Self.unreadSuffix(coach.unread))
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
             }
@@ -318,6 +361,8 @@ final class CoachingModel {
     private(set) var students: [Coaching.Student] = []
     private(set) var invites: [Coaching.OpenInvite] = []
     private(set) var profile: DriverProfile?
+    /// What was said to you in comments (NS-52), newest first. Allowed to fail.
+    private(set) var feed: CommentFeed?
     /// The invite just minted — its link exists only in this answer.
     private(set) var created: CoachInvite?
     private(set) var isCreating = false
@@ -352,11 +397,13 @@ final class CoachingModel {
         do {
             async let coaching = api.coaching()
             async let mine = api.profile()
+            async let said = try? api.commentFeed()
             let loaded = try await (coaching: coaching, profile: mine)
             coaches = loaded.coaching.coaches
             students = loaded.coaching.students
             invites = loaded.coaching.invites
             profile = loaded.profile.profile
+            feed = await said
             state = .ready
         } catch let error as APIError {
             state = .failed(error.message)

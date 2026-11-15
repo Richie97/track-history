@@ -105,6 +105,7 @@
 		D576F456B3C49CA22FB999ED /* LapStageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C46BD8079E9C463A80A2000 /* LapStageModel.swift */; };
 		D5F6F247F84F06154C7BDB37 /* FixJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6531D681E22CE7E088412777 /* FixJournal.swift */; };
 		D6C3C7BA8C69F7A9AEB93473 /* EventFormDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABAAE67FE76AB66F49B1FC14 /* EventFormDraft.swift */; };
+		D7D84BA96936D96A7506F522 /* CommentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D18D1C37715FACBD898C1E3 /* CommentViews.swift */; };
 		D8242F06EE63ABEA3DE366D5 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D029EFD956A7AC879046769 /* SettingsScreen.swift */; };
 		D8B55D7C2A29559830424F51 /* ClipCutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FE80BB538C7752733D030A1 /* ClipCutter.swift */; };
 		DA264BA1CC72048E06DF405D /* TelemetryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C495D7D81AF10999314C8E7 /* TelemetryPicker.swift */; };
@@ -226,6 +227,7 @@
 		87B0E4C546102DECE0F34F9C /* LapDetailScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapDetailScreen.swift; sourceTree = "<group>"; };
 		8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormDraftTests.swift; sourceTree = "<group>"; };
 		8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
+		8D18D1C37715FACBD898C1E3 /* CommentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentViews.swift; sourceTree = "<group>"; };
 		8F439FF83E5F1B518CD15FCE /* DashboardScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardScreen.swift; sourceTree = "<group>"; };
 		93A67CAED75D1C43431CBEC4 /* GarageUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageUITests.swift; sourceTree = "<group>"; };
 		95CF1007FA82991E8035E172 /* SetupFormScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupFormScreen.swift; sourceTree = "<group>"; };
@@ -344,6 +346,7 @@
 			isa = PBXGroup;
 			children = (
 				DFD98A79581731BCD3F75C0A /* Coaching */,
+				CE4C27756DA5834EF31C5969 /* Comments */,
 				669F7BC77ECAE2508005B0E5 /* LapStage */,
 				BDE2A9CD6AC286F49A143CA2 /* AnalysisColumn.swift */,
 				989C8DDBBF66B13CA2A81920 /* CatalogCarPicker.swift */,
@@ -489,6 +492,14 @@
 				00C463A61C87EA12BC0DD175 /* TrackEvolutionKit */,
 			);
 			path = Packages;
+			sourceTree = "<group>";
+		};
+		CE4C27756DA5834EF31C5969 /* Comments */ = {
+			isa = PBXGroup;
+			children = (
+				8D18D1C37715FACBD898C1E3 /* CommentViews.swift */,
+			);
+			path = Comments;
 			sourceTree = "<group>";
 		};
 		DFD98A79581731BCD3F75C0A /* Coaching */ = {
@@ -728,6 +739,7 @@
 				51D820BEE54907F3D0934517 /* CoachInviteScreen.swift in Sources */,
 				7B49A6D31F7C9CF7C5D56FC6 /* CoachingScreen.swift in Sources */,
 				098CFE37BCCB755134EAF63A /* ColorTokens.generated.swift in Sources */,
+				D7D84BA96936D96A7506F522 /* CommentViews.swift in Sources */,
 				F8BF1DC67E401FF5B97B9614 /* CompareLapsScreen.swift in Sources */,
 				8942CFCB809A0BD25305A821 /* Components.swift in Sources */,
 				AA75C5EA5360CAAB10025EEA /* DashboardScreen.swift in Sources */,

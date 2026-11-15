@@ -149,11 +149,19 @@ struct SettingsScreen: View {
                     Text("Share your logbook with an instructor or coach, read-only — or read the logbooks of the drivers you coach. Your driver profile is there too.")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
+                    // Coach comments waiting to be read (NS-52), both roles.
+                    if auth.commentsUnread > 0 {
+                        Text("💬 \(auth.commentsUnread) unread comment\(auth.commentsUnread == 1 ? "" : "s")")
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.accentInk))
+                            .accessibilityIdentifier("coachingUnread")
+                    }
                     Button("Open Coaching") {
                         router.push(.coaching)
                     }
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityIdentifier("openCoaching")
+                    .accessibilityValue(auth.commentsUnread > 0 ? "\(auth.commentsUnread) unread comments" : "")
                 }
             }
 

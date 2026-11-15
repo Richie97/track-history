@@ -62,6 +62,27 @@ final class AuthController {
         state = .signedIn(current)
     }
 
+    /// Coach comments (NS-52) waiting to be read, both roles — Settings'
+    /// Coaching row carries it. Zero until the account loads.
+    var commentsUnread: Int {
+        me?.user.commentsUnread ?? 0
+    }
+
+    /// A fresher count than the cached account's, from a `/me` another screen
+    /// read (the dashboard's).
+    func setCommentsUnread(_ count: Int?) {
+        guard var current = me, let count, current.user.commentsUnread != count else { return }
+        current.user.commentsUnread = count
+        state = .signedIn(current)
+    }
+
+    /// `POST …/comments/seen` marked `seen` comments read: the badge drops by as
+    /// many, without a round trip — the web's `paintCommentsBadge`.
+    func noteCommentsSeen(_ seen: Int) {
+        guard seen > 0 else { return }
+        setCommentsUnread(max(0, commentsUnread - seen))
+    }
+
     /// Re-fetch the account, best effort. Failing leaves whatever was there — the
     /// caller has usually just applied a fresher entitlement than the cache holds.
     /// The fetch itself writes the offline cache, which is the point: the paddock

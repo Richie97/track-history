@@ -42,6 +42,11 @@ struct LapDetailScreen: View {
     @Environment(SyncModeStore.self) private var syncMode
     @State private var model: EventModel?
     @State private var stage: LapStageModel?
+    /// The event's coach comments (NS-52), through the unscoped client — the
+    /// read-only seam's one exception. Held on the router with the stage.
+    @State private var comments: CommentsModel?
+
+    private var route: Route { owner.link(.lap(eventId: eventId, sessionId: sessionId, lapId: lapId)) }
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -75,7 +80,14 @@ struct LapDetailScreen: View {
                         try await api.clipURL(id: clip.id).url
                     }
                 }
+                comments = router.held(route, "comments") {
+                    CommentsModel(api: auth.api, owner: owner, eventId: eventId, viewerId: auth.me?.user.id)
+                }
                 if model.detail == nil { await model.load() }
+            }
+            if let comments {
+                await comments.load()
+                auth.noteCommentsSeen(await comments.markSeen())
             }
         }
     }
@@ -222,6 +234,7 @@ struct LapDetailScreen: View {
                 }
             } content: {
                 VStack(alignment: .leading, spacing: 14) {
+                    commentsCard(view, stage: stage)
                     if Self.canCompare(view) {
                         compareButton(view)
                     }
@@ -235,7 +248,8 @@ struct LapDetailScreen: View {
                         pro: pro,
                         playhead: stage.playhead,
                         onSeek: { stage.seek(toGridA: $0) },
-                        memory: stage.panelMemory
+                        memory: stage.panelMemory,
+                        commentMarks: commentMarks(view)
                     )
                     if let entry = view.channels?.laps.first {
                         facts(CompareLaps.lapMetrics(entry))
@@ -248,6 +262,9 @@ struct LapDetailScreen: View {
                     trace: view.session.trace.flatMap { $0.count >= 10 ? $0 : nil },
                     corners: Corners.sessionCorners(view.session.channels)
                 )
+            }
+            .task(id: commentMarks(view)) {
+                stage.commentMarks = commentFractions(view)
             }
         } else {
             plainContent(view)
@@ -348,6 +365,8 @@ struct LapDetailScreen: View {
                 // was driven, then the lap as it was measured.
                 LapVideoSection(session: view.session, lap: view.lap, reload: { await model?.reload() })
 
+                commentsCard(view, stage: nil)
+
                 if Self.canCompare(view) {
                     compareButton(view)
                 }
@@ -358,7 +377,7 @@ struct LapDetailScreen: View {
                             Text("Racing line — brighter is faster")
                                 .teStyle(.xs)
                                 .foregroundStyle(Color(.textFaint))
-                            TrackMapView(trace: trace, markers: view.markers)
+                            TrackMapView(trace: trace, markers: view.markers, marks: commentFractions(view))
                                 .frame(height: 220)
                             LimitLegend(markers: view.markers)
                         }
@@ -377,6 +396,44 @@ struct LapDetailScreen: View {
             .padding(TESpacing.pageGutter)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    // MARK: - Comments (NS-52)
+
+    /// The lap's *Comments*: its threads in place order and the composer, whose
+    /// *◆ At the marked place* reads the stage's playhead and whose placed
+    /// comments seek it.
+    @ViewBuilder
+    private func commentsCard(_ view: Detail, stage: LapStageModel?) -> some View {
+        if let comments, comments.loaded {
+            let dStepM = view.session.channels?.dStepM
+            LapCommentsCard(
+                model: comments, session: view.session, lap: view.lap, route: route,
+                dStepM: dStepM,
+                corners: Corners.sessionCorners(view.session.channels),
+                currentK: stage.map { stage in { stage.playhead.mark?.k } },
+                seek: stage.map { stage in { k in stage.seek(toGridA: k) } }
+            )
+        }
+    }
+
+    /// This lap's placed comments on the panel: its own entry is the panel's
+    /// first lap.
+    private func commentMarks(_ view: Detail) -> [LapChannelPanel.CommentMark] {
+        guard let comments, let dStepM = view.channels?.dStepM, dStepM > 0 else { return [] }
+        return comments.comments.compactMap { c in
+            guard c.lapId == view.lap.id, let distM = c.distM else { return nil }
+            return LapChannelPanel.CommentMark(id: c.id, chIdx: 0, k: Double(distM) / dStepM)
+        }
+    }
+
+    /// …and on the map, as fractions of the lap's own length.
+    private func commentFractions(_ view: Detail) -> [Double] {
+        guard let comments else { return [] }
+        let length = view.channels.flatMap { ch in
+            ch.laps.first.flatMap { LapAxis.lapAxisSeries($0, ch.dStepM, .distance)?.last }
+        }
+        return Comments.commentMarkers(comments.comments, view.lap.id, length).map(\.frac)
     }
 
     private func header(_ view: Detail) -> some View {

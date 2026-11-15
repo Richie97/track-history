@@ -89,6 +89,8 @@ struct StudentLogbook: View {
                 .publishingFoldGeometry()
         case .vehicle(let id):
             VehicleScreen(vehicleId: id)
+        case .sessionComment(let eventId, let sessionId):
+            SessionCommentScreen(eventId: eventId, sessionId: sessionId, coachId: nil)
         }
     }
 

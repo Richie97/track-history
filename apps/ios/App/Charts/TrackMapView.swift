@@ -28,6 +28,11 @@ struct TrackMapView: View {
     /// The trace is the session best's, so on any other lap a dot marks the
     /// *place*, not that lap's line.
     var dots: [Dot] = []
+    /// Where coach comments were placed on the lap (NS-52), as fractions of it
+    /// (`Comments.commentMarkers`): a small diamond each, drawn over the line
+    /// like the dots and never part of it. A sign, not a control — the comment
+    /// in the list is what opens the place.
+    var marks: [Double] = []
     /// For the spoken summary's speeds.
     @Environment(\.unitSystem) private var units
 
@@ -44,10 +49,40 @@ struct TrackMapView: View {
         // nothing.
         Base(trace: trace, markers: markers, highlight: highlight)
             .equatable()
+            .overlay { if !marks.isEmpty { marksLayer } }
             .overlay { if !dots.isEmpty { dotsLayer } }
             .accessibilityElement()
             .accessibilityLabel(Self.label(markers))
             .accessibilityValue(Self.summary(trace, markers, units: units))
+    }
+
+    private var marksLayer: some View {
+        Canvas { context, size in
+            guard let map = TraceMap(
+                trace: trace.map { Geo.Projected(t: 0, x: $0.x, y: $0.y) },
+                width: size.width, height: size.height, padding: 12
+            ) else { return }
+            for frac in marks {
+                guard let index = TrackMap.traceIndexAtFraction(trace, frac) else { continue }
+                let view = map.viewPoint(x: trace[index].x, y: trace[index].y)
+                let p = CGPoint(x: view.x, y: view.y)
+                context.fill(Self.diamond(at: p, r: 7.5), with: .color(Color(.surfaceCard)))
+                context.fill(Self.diamond(at: p, r: 5.5), with: .color(Color(.textStrong)))
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// A ◆ centred on `p`, `r` from centre to each point.
+    static func diamond(at p: CGPoint, r: CGFloat) -> Path {
+        Path { path in
+            path.move(to: CGPoint(x: p.x, y: p.y - r))
+            path.addLine(to: CGPoint(x: p.x + r, y: p.y))
+            path.addLine(to: CGPoint(x: p.x, y: p.y + r))
+            path.addLine(to: CGPoint(x: p.x - r, y: p.y))
+            path.closeSubpath()
+        }
     }
 
     private var dotsLayer: some View {

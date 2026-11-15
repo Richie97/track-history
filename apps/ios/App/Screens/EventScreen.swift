@@ -30,6 +30,9 @@ struct EventScreen: View {
     @Environment(\.logbookOwner) private var owner
 
     @State private var model: EventModel?
+    /// The event's coach comments (NS-52), read beside the detail through the
+    /// unscoped client — the read-only seam's one exception.
+    @State private var comments: CommentsModel?
     /// The page's one form sheet: a session's label and notes, or the share
     /// sheet for the event or one session (NS-48). One `.sheet` for all of them,
     /// because two `.sheet`s on one view is the watchdog crash AGENTS.md lists —
@@ -154,14 +157,22 @@ struct EventScreen: View {
             if model == nil {
                 let model = EventModel(api: auth.api.scoped(to: owner), eventId: eventId)
                 self.model = model
+                let comments = CommentsModel(api: auth.api, owner: owner, eventId: eventId, viewerId: auth.me?.user.id)
+                self.comments = comments
                 await model.load()
+                await loadComments()
             }
         }
         // Back from a page pushed over this one — a day's setup sheet, the event
         // form — which wrote to this event: read it again. The first appearance
         // has no detail yet and is the `.task` above's.
         .onAppear {
-            if model?.detail != nil { Task { await model?.reload() } }
+            if model?.detail != nil {
+                Task {
+                    await model?.reload()
+                    await loadComments()
+                }
+            }
         }
         .task(id: model?.state) {
             // An event created offline is renumbered when its create flushes; follow
@@ -191,6 +202,13 @@ struct EventScreen: View {
                 ItemShareSheet(kind: kind, id: id)
             }
         }
+    }
+
+    /// Read the comments and, once they are on the page, mark them read.
+    private func loadComments() async {
+        guard let comments else { return }
+        await comments.load()
+        auth.noteCommentsSeen(await comments.markSeen())
     }
 
     // MARK: - The page
@@ -540,6 +558,12 @@ struct EventScreen: View {
     /// where that lap never was. Other laps get the shaded bands on the channel
     /// panel's distance axis instead, which is the same constraint the web works
     /// under.
+    /// ", 2 comments, 1 unread" on a lap row's spoken label, or nothing.
+    static func commentsSpoken(_ count: Comments.Count?) -> String {
+        let text = Comments.commentCountText(count)
+        return text.isEmpty ? "" : ", \(text)"
+    }
+
     static func limitMarkers(_ session: Session) -> [Limits.Marker] {
         guard let channels = session.channels, !channels.laps.isEmpty, let trace = session.trace else {
             return []
@@ -611,6 +635,10 @@ struct EventScreen: View {
 
             channelSection(session)
 
+            if let comments {
+                row { SessionCommentsBlock(model: comments, session: session) }
+            }
+
             ForEach(session.laps) { lap in
                 row {
                     // Every lap is a door (#267): its detail holds the racing line
@@ -628,6 +656,13 @@ struct EventScreen: View {
                                 .teStyle(.sm)
                                 .foregroundStyle(Color(.textMuted))
                             Spacer()
+                            if let count = comments?.counts.byLap[lap.id] {
+                                // Coach comments on the lap (NS-52), accented
+                                // while one is unread.
+                                Text("💬 \(count.count)")
+                                    .teStyle(.xs)
+                                    .foregroundStyle(count.unread > 0 ? Color(.accentInk) : Color(.textMuted))
+                            }
                             if lap.clip != nil {
                                 // A best-lap video (NS-45) plays on the lap's page.
                                 Text("▶")
@@ -652,6 +687,7 @@ struct EventScreen: View {
                     // sheet's chips by label cannot land on the row underneath it.
                     .accessibilityLabel(
                         "Lap \(String(lap.lapNum)) · \(LapTime.fmtMs(lap.timeMs))" + (lap.clip != nil ? ", has video" : "")
+                            + Self.commentsSpoken(comments?.counts.byLap[lap.id])
                     )
                     .accessibilityIdentifier("lap-\(lap.id)")
                 }

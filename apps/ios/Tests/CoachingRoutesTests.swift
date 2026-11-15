@@ -68,6 +68,13 @@ final class CoachingRoutesTests: XCTestCase {
             student.link(.sessionCompare(eventId: 5, sessionId: 6, lapId: nil)),
             .student(id: 7, page: .sessionCompare(eventId: 5, sessionId: 6, lapId: nil))
         )
+        // The coach's comment on a session (NS-52) — the one page of a student's
+        // logbook that writes, through the coach's own routes. The thread is the
+        // coach's own, so whatever coach id the owner's route carried is dropped.
+        XCTAssertEqual(
+            student.link(.sessionComment(eventId: 5, sessionId: 6, coachId: 3)),
+            .student(id: 7, page: .sessionComment(eventId: 5, sessionId: 6))
+        )
         for door: Route in [
             .eventForm(.new(presetTrack: nil)), .eventForm(.edit(5)), .leaderboard(trackId: 2),
             .record(eventId: 5), .importVideo(eventId: 5, incoming: nil), .wrapped(year: 2026)
