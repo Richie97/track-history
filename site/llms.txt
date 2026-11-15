@@ -33,6 +33,7 @@ Key facts:
 - [Track-day tire pressures](https://docs.trackevolution.app/docs/tire-pressures.html): why hot pressure matters on track, finding a target, measuring and bleeding in the pits, and working back to a cold starting pressure
 - [How to read a friction circle](https://docs.trackevolution.app/docs/friction-circle.html): what a friction circle (g-g diagram) shows, how to read its shape, what trail braking looks like on it, and its limits
 - [Lap time consistency and your theoretical best](https://docs.trackevolution.app/docs/lap-consistency.html): measuring lap time consistency, which laps to leave out, what a theoretical best lap is, and using both to find time
+- [Tracking brake pads, tires and fluids on track](https://docs.trackevolution.app/docs/consumables.html): why track hours beat mileage for wear, what to measure on pads, tires, rotors and fluid, working out a wear rate and a cost per track hour
 
 ## Legal
 
