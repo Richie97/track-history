@@ -275,8 +275,12 @@ place; what "estimated" means); `site/docs/telemetry-import.html` and
    `contracts/logic/geo-anchor.json`; every web importer sending `trace_geo`;
    both native models decoding it. No UI. Ships first so anchors start
    accumulating.
-2. **iOS.** The `Geo` ports, importers and recorder sending the anchor, the
-   viewer.
+2. **iOS — landed.** The `Geo` ports and `MapViewer` (the web viewer's pure
+   half) in the Kit, pinned by `geo-anchor.json` and the three parser
+   fixtures' `traceGeo`; every importer and the recorder sending the anchor;
+   `TrackMapScreen`. The line is one `MKPolyline` per `speedRuns` run over a
+   casing rather than an `MKGradientPolylineRenderer`, the web's own drawing,
+   so no gradient-stop interpretation can colour a metre differently.
 3. **Android.** The same, plus the Maps key and the Data safety review.
 4. **Web — landed.** `GET /api/map-token` and `user.maps` on `/me` (moved
    here from ticket 1: they are only testable against the viewer that uses

@@ -42,6 +42,10 @@ struct RootView: View {
             // the keyboard test:
             //   xcrun simctl launch <device> app.trackevolution -lapStage
             LapStageDemo()
+        } else if ProcessInfo.processInfo.arguments.contains("-trackMap") {
+            // The map viewer (NS-53) on a synthetic lap, no server:
+            //   xcrun simctl launch <device> app.trackevolution -trackMap
+            TrackMapScreen.demo
         } else if ProcessInfo.processInfo.arguments.contains("-wrapped") {
             // Season Wrapped on a sample season, locked Pro cards unless
             // `-wrappedPro` is passed too:
@@ -370,6 +374,8 @@ struct RootView: View {
             SetupFormScreen(eventId: eventId, day: day, startFrom: startFrom)
         case .sessionComment(let eventId, let sessionId, let coachId):
             SessionCommentScreen(eventId: eventId, sessionId: sessionId, coachId: coachId)
+        case .trackMap(let source):
+            TrackMapScreen(source: source)
         }
     }
 
@@ -409,6 +415,9 @@ struct RootView: View {
             [eventId, sessionId, lapId].compactMap(\.self).first(where: OfflineStore.isTemp)
         case .sessionComment(let eventId, let sessionId, _):
             [eventId, sessionId].first(where: OfflineStore.isTemp)
+        case .trackMap(.session(let eventId, let sessionId)):
+            [eventId, sessionId].first(where: OfflineStore.isTemp)
+        case .trackMap(.leaderboardLap): nil
         case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
              .coaching, .profile, .coachInvite, .student, .trackDaysGuide: nil
         }

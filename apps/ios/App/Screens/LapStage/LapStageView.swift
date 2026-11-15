@@ -513,9 +513,15 @@ struct StageMapCard: View {
     var body: some View {
         TECard {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Where the car is")
-                    .teStyle(.eyebrow)
-                    .foregroundStyle(Color(.textMuted))
+                HStack {
+                    Text("Where the car is")
+                        .teStyle(.eyebrow)
+                        .foregroundStyle(Color(.textMuted))
+                    Spacer()
+                    if let route = model.mapRoute {
+                        OpenOnMapButton(route: route, onOpen: model.openMap)
+                    }
+                }
                 if let trace = model.trace {
                     TrackMapView(trace: trace, dots: model.mapDots(), marks: model.commentMarks)
                         .frame(minHeight: 110)

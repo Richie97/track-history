@@ -79,6 +79,9 @@ struct AnalysisColumn: View {
                             .foregroundStyle(Color(.textFaint))
                         Spacer()
                         TETime(ms: session.bestLapMs, emphasized: true)
+                        if trace.count >= 10, !session.laps.isEmpty {
+                            OpenOnMapButton(route: .trackMap(source: .session(eventId: detail.id, sessionId: session.id)))
+                        }
                     }
                     let markers = EventScreen.limitMarkers(session)
                     TrackMapView(

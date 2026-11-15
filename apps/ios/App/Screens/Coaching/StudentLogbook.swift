@@ -91,6 +91,8 @@ struct StudentLogbook: View {
             VehicleScreen(vehicleId: id)
         case .sessionComment(let eventId, let sessionId):
             SessionCommentScreen(eventId: eventId, sessionId: sessionId, coachId: nil)
+        case .trackMap(let eventId, let sessionId):
+            TrackMapScreen(source: .session(eventId: eventId, sessionId: sessionId))
         }
     }
 

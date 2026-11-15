@@ -116,6 +116,8 @@ struct SessionCompareScreen: View {
                 trace: session.trace.flatMap { $0.count >= 10 ? $0 : nil },
                 corners: Corners.sessionCorners(channels)
             )
+            stage.mapRoute = (session.trace?.count ?? 0) >= 10
+                ? .trackMap(source: .session(eventId: eventId, sessionId: session.id)) : nil
         }
         .task(id: comments?.mapFractions(session) ?? []) {
             stage.commentMarks = comments?.mapFractions(session) ?? []

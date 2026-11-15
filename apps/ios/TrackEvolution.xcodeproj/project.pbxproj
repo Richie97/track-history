@@ -40,6 +40,7 @@
 		444CE9EBFBD135B1145D10B8 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32AEB077B38B164C34ECD9E /* Haptics.swift */; };
 		449B69CF28F00455EFE6F6DA /* ImportScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 291C87F538FC7E79CDB43160 /* ImportScreen.swift */; };
 		44C9344E2201B4126ABEF4D7 /* CoreScreensUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66389188B710C7781911F41D /* CoreScreensUITests.swift */; };
+		4509EA0EE548744A3D04224E /* TrackMapScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D113641EFB7147F63686D3 /* TrackMapScreen.swift */; };
 		4672EECB0EB121F69CCDC6DF /* ThemePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77AAF51B0B3269B08721385C /* ThemePreference.swift */; };
 		48D153C4F58B8B1A62F7A616 /* SharedLogbookScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */; };
 		48E955F21551B6D82C3AB62C /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 380D4BFFDADBA70827336888 /* RecordingController.swift */; };
@@ -245,6 +246,7 @@
 		AE57D24F71C3C0964D60F43C /* RecordAndSaveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordAndSaveUITests.swift; sourceTree = "<group>"; };
 		AEA2FA46EA9E691B024C2097 /* CoachingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachingScreen.swift; sourceTree = "<group>"; };
 		AF9EE05978A6F820028BF8AC /* ItemShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemShareSheet.swift; sourceTree = "<group>"; };
+		B3D113641EFB7147F63686D3 /* TrackMapScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackMapScreen.swift; sourceTree = "<group>"; };
 		B3FF04EE56EF96EE2E8F5283 /* PaywallSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheet.swift; sourceTree = "<group>"; };
 		B4630A11194CA0906744BD96 /* TrackEvolutionUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrackEvolutionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B84545EEFA513CC785A84F2E /* RecordingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingScreen.swift; sourceTree = "<group>"; };
@@ -372,6 +374,7 @@
 				7634E1ACF86C3A5F2801478B /* SharedItemScreen.swift */,
 				AD05660D07949263E1197B0C /* SharedLogbookScreen.swift */,
 				ACD27BA2FE7B8EDF9053012F /* TrackDaysGuideScreen.swift */,
+				B3D113641EFB7147F63686D3 /* TrackMapScreen.swift */,
 				6C37B0DDB941D4C18A32BA87 /* TrackScreen.swift */,
 				CE140B76E79AB433F9FA1E96 /* VehicleScreen.swift */,
 				FF9570CFC110307BABC907C9 /* WrappedScreen.swift */,
@@ -812,6 +815,7 @@
 				1677D98790F02D2C92BB7EB8 /* TokenGallery.swift in Sources */,
 				EA3F9D1F511A6E44D075381A /* TrackDaysGuideScreen.swift in Sources */,
 				D49E777A0431DFC981F47CF6 /* TrackEvolutionApp.swift in Sources */,
+				4509EA0EE548744A3D04224E /* TrackMapScreen.swift in Sources */,
 				2B296B48C5EA86083A5DE11F /* TrackMapView.swift in Sources */,
 				0C6C6E94CEE1F31E72BB6A12 /* TrackScreen.swift in Sources */,
 				34446D1A60916C974D7DCF59 /* Typography.swift in Sources */,

@@ -262,6 +262,8 @@ struct LapDetailScreen: View {
                     trace: view.session.trace.flatMap { $0.count >= 10 ? $0 : nil },
                     corners: Corners.sessionCorners(view.session.channels)
                 )
+                stage.mapRoute = (view.session.trace?.count ?? 0) >= 10
+                    ? .trackMap(source: .session(eventId: eventId, sessionId: view.session.id)) : nil
             }
             .task(id: commentMarks(view)) {
                 stage.commentMarks = commentFractions(view)
@@ -374,9 +376,15 @@ struct LapDetailScreen: View {
                 if let trace = view.trace {
                     TECard {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Racing line — brighter is faster")
-                                .teStyle(.xs)
-                                .foregroundStyle(Color(.textFaint))
+                            HStack {
+                                Text("Racing line — brighter is faster")
+                                    .teStyle(.xs)
+                                    .foregroundStyle(Color(.textFaint))
+                                Spacer()
+                                if trace.count >= 10 {
+                                    OpenOnMapButton(route: .trackMap(source: .session(eventId: eventId, sessionId: view.session.id)))
+                                }
+                            }
                             TrackMapView(trace: trace, markers: view.markers, marks: commentFractions(view))
                                 .frame(height: 220)
                             LimitLegend(markers: view.markers)

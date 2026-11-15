@@ -565,8 +565,8 @@ Features added after the rewrite shipped, and where they landed:
   reused under `LogbookOwner.student` rather than copied. The channel
   panel's gates read **the student's** tier on every client.
 - **The racing line on a real map** (2026-11, [NS-53](NS-53-track-map-on-maps.md)) — **all
-  three**; the anchor (ticket 1) and the web viewer (ticket 4) have landed,
-  the phones' have not. The best-lap trace opens in a
+  three**; the anchor (ticket 1), the web viewer (ticket 4) and iOS's
+  (ticket 2) have landed; Android's has not. The best-lap trace opens in a
   full-window viewer over satellite imagery (MapKit on iOS and the web,
   Google Maps on Android) with pan, pinch and rotate. A stored trace has no
   position today, so sessions gain a `trace_geo` anchor first; older ones

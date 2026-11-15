@@ -80,6 +80,19 @@ enum Route: Hashable {
     /// `.sheet` is taken. `coachId` is the thread an owner replies into; nil for
     /// a coach, whose own thread it is.
     case sessionComment(eventId: Int, sessionId: Int, coachId: Int?)
+    /// The racing line on a real map (NS-53): a session's best lap, or a
+    /// leaderboard lap, over MapKit's imagery. A pushed page, never a sheet —
+    /// the pages that open it already present one, and the map owns its
+    /// gestures outright.
+    case trackMap(source: TrackMapSource)
+}
+
+/// Whose line the map viewer draws (NS-53).
+enum TrackMapSource: Hashable {
+    /// One session's best lap, read from its event's cached detail.
+    case session(eventId: Int, sessionId: Int)
+    /// A leaderboard lap — always a catalog circuit.
+    case leaderboardLap(trackId: Int, lapId: Int)
 }
 
 /// The pages of a student's logbook a coach can open (NS-38) — the web's
@@ -96,6 +109,9 @@ enum StudentPage: Hashable {
     /// The coach's comment on a session (NS-52) — the one page of a student's
     /// logbook that writes, through the coach's own routes.
     case sessionComment(eventId: Int, sessionId: Int)
+    /// One of their sessions on the map (NS-53). A coach reads the anchor the
+    /// student's own view would.
+    case trackMap(eventId: Int, sessionId: Int)
 }
 
 extension LogbookOwner {
@@ -117,9 +133,11 @@ extension LogbookOwner {
             .student(id: id, page: .sessionCompare(eventId: eventId, sessionId: sessionId, lapId: lapId))
         case .sessionComment(let eventId, let sessionId, _):
             .student(id: id, page: .sessionComment(eventId: eventId, sessionId: sessionId))
+        case .trackMap(.session(let eventId, let sessionId)):
+            .student(id: id, page: .trackMap(eventId: eventId, sessionId: sessionId))
         case .student: route
         case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .sharedItem, .wrapped,
-             .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm:
+             .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm, .trackMap(.leaderboardLap):
             .student(id: id, page: .home)
         }
     }
@@ -145,7 +163,7 @@ extension Route {
         case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .lap,
              .sessionCompare, .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm,
-             .sessionComment: false
+             .sessionComment, .trackMap: false
         }
     }
 }
@@ -192,7 +210,7 @@ extension Route {
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
         case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .sharedItem, .lap,
-             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm, .sessionComment: .events
+             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm, .sessionComment, .trackMap: .events
         }
     }
 }
@@ -625,13 +643,20 @@ final class AppRouter {
                     sessionId: Self.followed(sessionId, resolve),
                     coachId: coachId
                 )
+            case .trackMap(.session(let eventId, let sessionId)):
+                // A session recorded offline can open on the map before it
+                // syncs (Line mode, from the cache); it follows its rows.
+                return .trackMap(source: .session(
+                    eventId: Self.followed(eventId, resolve),
+                    sessionId: Self.followed(sessionId, resolve)
+                ))
             // A vehicle id is never temp: garage writes don't queue offline, so a
             // vehicle only ever exists once the server has given it a real id.
             // A student's ids are never temp either: a coach cannot write to the
             // logbook, so every row in it came from the server.
             // A shared item is someone else's, read by its token: no id in it is ours.
             case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
-                 .coaching, .profile, .coachInvite, .student, .trackDaysGuide:
+                 .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .trackMap(.leaderboardLap):
                 return route
             }
         }
