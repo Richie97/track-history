@@ -19,6 +19,7 @@ export const requireSession = createMiddleware<AppContext>(async (c, next) => {
       c.set("userId", user.userId);
       c.set("entitledUntil", user.entitledUntil);
       c.set("authTransport", bearer ? "bearer" : "cookie");
+      c.set("authSession", user.tokenHash);
       return next();
     }
   }

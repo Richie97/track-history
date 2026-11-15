@@ -39,6 +39,10 @@ export type Env = {
   // Google Play Developer API service-account key (the JSON file's contents),
   // with "View financial data" and "Manage orders and subscriptions".
   GOOGLE_PLAY_SERVICE_ACCOUNT?: string;
+  // Push notifications for coach comments (NS-54): a service-account JSON on
+  // the Firebase project with the FCM Admin role, its project_id naming the
+  // project. Unset, nothing is sent (registration still works).
+  FCM_SERVICE_ACCOUNT?: string;
   // The service account the RTDN Pub/Sub push subscription authenticates as.
   // Defaults to the key's own client_email.
   GOOGLE_RTDN_EMAIL?: string;
@@ -108,6 +112,10 @@ export type AppContext = {
     // on anything but the cookie (lib/entitlement.ts maskEntitlementSource);
     // unset — the coach mount, the MCP tools' private copy — masks too.
     authTransport?: AuthTransport;
+    // The auth_sessions row's key (the token's SHA-256) — what a push device
+    // is registered against (NS-54), so signing out unregisters it. Unset on
+    // the coach mount and the MCP tools' copy.
+    authSession?: string;
   };
 };
 

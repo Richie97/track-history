@@ -701,6 +701,7 @@ change* rule does not apply — see the spec for why.
 | NS-51 | [Video-synced lap analysis (the lap stage)](NS-51-video-synced-laps.md) | Web + iOS + Android (no server change) | NS-45, NS-50, NS-34, #165, NS-35 |
 | NS-52 | [Coach comments on sessions and laps](NS-52-coach-comments.md) — specced, not built | Shared (server, web, iOS, Android) | NS-38, NS-51, #189 |
 | NS-53 | [The racing line on a real map](NS-53-track-map-on-maps.md) — specced, not built | Shared (server, web, iOS, Android) | the importers and recorders, NS-35, NS-38 |
+| NS-54 | [Push notifications for coach comments](NS-54-comment-push.md) — server built (#463), iOS and Android next | Server + iOS + Android | NS-52, NS-38 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into
