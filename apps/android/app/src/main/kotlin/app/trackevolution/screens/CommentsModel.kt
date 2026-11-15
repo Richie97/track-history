@@ -106,6 +106,10 @@ class CommentsModel(
         scope.launch {
             try {
                 seenCount = api.markCommentsSeen(owner, eventId).seen
+                // Every surface's count follows at once, then settles on the
+                // server's own figure.
+                CommentsBadge.noteSeen(eventId, (owner as? LogbookOwner.Student)?.id, seenCount)
+                runCatching { api.commentFeed() }.getOrNull()?.let(CommentsBadge::note)
             } catch (_: ApiException) {
                 seenPosted = false
             }

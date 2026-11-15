@@ -15,6 +15,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -122,7 +123,7 @@ class CoachingModel(
                     val f = async { runCatching { api.commentFeed() }.getOrNull() }
                     coaching = c.await()
                     profile = p.await()
-                    feed = f.await()
+                    feed = f.await()?.also(CommentsBadge::note)
                     state = LoadState.Ready
                 }
             } catch (e: ApiException) {
@@ -201,6 +202,10 @@ fun CoachingScreen(
     val canInvite = Entitlement.isPro(entitlement)
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
+    // A thread read elsewhere (beside this page at expanded width): the
+    // per-row counts and the list re-read.
+    val seenVersion by CommentsBadge.version.collectAsState()
+    LaunchedEffect(seenVersion) { if (seenVersion > 0 && model.state != LoadState.Loading) model.load() }
     LaunchedEffect(model.proRequired) {
         if (model.proRequired) {
             model.acknowledgeProRequired()

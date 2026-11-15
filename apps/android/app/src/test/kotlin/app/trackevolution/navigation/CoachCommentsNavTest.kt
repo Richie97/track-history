@@ -70,6 +70,7 @@ class CoachCommentsNavTest {
     private lateinit var nav: NavHostController
     @Volatile private var online = true
     @Volatile private var coachThread = COACH_THREAD
+    @Volatile private var seen = false
 
     private object NoTemplate : ChecklistTemplateStore {
         override val items: List<String> = emptyList()
@@ -238,6 +239,24 @@ class CoachCommentsNavTest {
     }
 
     @Test
+    @Config(qualifiers = "w1280dp-h800dp")
+    fun `at expanded width the list pane's unread card goes once the thread beside it is read`() {
+        show(null, withListPane = true)
+        // The list pane's card, before anything is read…
+        await("unreadComments")
+        // …and the thread opened in the detail beside it.
+        compose.runOnIdle { nav.navigate(Route.Event(5)) }
+        await("comment-1")
+        awaitRequest("POST", "/api/events/5/comments/seen")
+        repeat(400) {
+            if (compose.onAllNodesWithTag("unreadComments").fetchSemanticsNodes().isEmpty()) return
+            Thread.sleep(25)
+            compose.waitForIdle()
+        }
+        throw AssertionError("the dashboard pane still shows the unread card")
+    }
+
+    @Test
     fun `the dashboard carries the unread card`() {
         show(null)
         await("unreadComments")
@@ -290,7 +309,10 @@ class CoachCommentsNavTest {
         throw AssertionError("no $method $path in ${sent.map { "${it.method.value} ${it.url.encodedPath}" }}")
     }
 
-    private fun show(start: Route?) {
+    @org.junit.Before
+    fun freshBadge() = app.trackevolution.screens.CommentsBadge.clear()
+
+    private fun show(start: Route?, withListPane: Boolean = false) {
         val engine = MockEngine { request ->
             sent += request
             (request.body as? TextContent)?.let { bodies += it.text }
@@ -299,8 +321,11 @@ class CoachCommentsNavTest {
             val get = request.method.value == "GET"
             when {
                 path.endsWith("/me/profile") -> respond(PROFILE, HttpStatusCode.OK, JSON)
-                path == "/api/coaching/comments" -> respond(FEED, HttpStatusCode.OK, JSON)
-                path.endsWith("/comments/seen") -> respond("""{"ok":true,"seen":1}""", HttpStatusCode.OK, JSON)
+                path == "/api/coaching/comments" -> respond(if (seen) FEED_READ else FEED, HttpStatusCode.OK, JSON)
+                path.endsWith("/comments/seen") -> {
+                    seen = true
+                    respond("""{"ok":true,"seen":1}""", HttpStatusCode.OK, JSON)
+                }
                 path == "/api/coaching/students/7/events/5/comments" -> respond(coachThread, HttpStatusCode.OK, JSON)
                 path == "/api/events/5/comments" -> respond(OWNER_THREADS, HttpStatusCode.OK, JSON)
                 path.endsWith("/comments") && !get -> respond(CREATED, HttpStatusCode.Created, JSON)
@@ -318,6 +343,26 @@ class CoachCommentsNavTest {
             ProvideLayoutMetrics {
                 TrackTheme {
                     nav = rememberNavController()
+                    if (withListPane) {
+                        androidx.compose.foundation.layout.Row {
+                            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.weight(1f)) {
+                                DashboardPane(nav = nav, api = api, recorderIdle = true, selection = null, inListPane = true)
+                            }
+                            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.weight(2f)) {
+                                graph(api, paned = true)
+                            }
+                        }
+                    } else {
+                        graph(api)
+                    }
+                }
+            }
+        }
+        if (start != null) compose.runOnIdle { nav.navigate(start) }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun graph(api: ApiClient, paned: Boolean = false) {
                     AppNavHost(
                         nav = nav,
                         api = api,
@@ -334,11 +379,8 @@ class CoachCommentsNavTest {
                         onStopRecording = {},
                         onSignOut = {},
                         entitlement = Entitlement(tier = Entitlement.Tier.PRO),
+                        dashboardAsDetailPlaceholder = paned,
                     )
-                }
-            }
-        }
-        if (start != null) compose.runOnIdle { nav.navigate(start) }
     }
 
     private companion object {
@@ -412,6 +454,9 @@ class CoachCommentsNavTest {
             {"comment":{"id":9,"coach_id":3,"session_id":11,"lap_id":null,"dist_m":null,"body":"x",
              "created_at":5000,"edited_at":null,"author":{"id":1,"name":"Alex","picture":null},"mine":true,"seen":false}}
         """
+
+        /** The feed once the thread has been read. */
+        const val FEED_READ = """{"unread":0,"comments":[]}"""
 
         const val FEED = """
             {"unread":1,"comments":[

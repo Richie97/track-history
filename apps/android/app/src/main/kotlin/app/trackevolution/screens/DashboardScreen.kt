@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -109,6 +110,7 @@ fun DashboardScreen(
 
     // Back on the dashboard after reading a thread, the card catches up.
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() else model.refreshFeed() }
+    val commentFeed by CommentsBadge.feed.collectAsState()
 
     Column(modifier = modifier) {
         DashboardTopBar(onOpenSettings = onOpenSettings)
@@ -194,7 +196,9 @@ fun DashboardScreen(
                 }
 
                 // Coach comments waiting to be read (NS-52), above the tracks.
-                model.commentFeed?.takeIf { Comments.unreadLine(it) != null }?.let { feed ->
+                // Read through the shared badge, so a thread read beside this
+                // pane (expanded width) takes the card down at once.
+                commentFeed?.takeIf { Comments.unreadLine(it) != null }?.let { feed ->
                     item("unread-comments") {
                         UnreadCommentsCard(feed, onOpenEvent = onOpenCommentEvent, onOpenCoaching = onOpenCoaching)
                     }

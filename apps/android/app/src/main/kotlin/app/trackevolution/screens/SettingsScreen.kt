@@ -153,7 +153,12 @@ fun SettingsScreen(
             item("lap-videos") { LapVideosCard(LapClips.clipStorageLine(model.user?.clips)) }
 
             item("coaching-header") { TESectionHeader("Coaching") }
-            item("coaching") { CoachingCard(onOpenCoaching, unread = model.user?.commentsUnread ?: 0) }
+            item("coaching") {
+                // The shared count (NS-52) once any screen has read the feed —
+                // it follows a thread being read — else `/me`'s.
+                val feed by CommentsBadge.feed.collectAsState()
+                CoachingCard(onOpenCoaching, unread = feed?.unread ?: model.user?.commentsUnread ?: 0)
+            }
 
             item("track-days-header") { TESectionHeader("New to track days?") }
             item("track-days") { TrackDaysCard(onOpenTrackDaysGuide) }
